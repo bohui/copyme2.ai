@@ -1,0 +1,128 @@
+name: memory-spark
+
+networks:
+  default:
+    name: memory-spark-default
+
+services:
+  api:
+    image: memory-spark:dev
+    build:
+      context: .
+      dockerfile: Containerfile
+    ports:
+      - "${MEMORY_SPARK_API_PORT:-8010}:8000"
+    environment:
+      MEMORY_SPARK_MODE: ${MEMORY_SPARK_MODE:-demo}
+      MEMORY_SPARK_ENTITLEMENT_MODEL: ${MEMORY_SPARK_ENTITLEMENT_MODEL:-chapter}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:-}
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://host.docker.internal:4000/v1}
+      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
+      MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
+      MEMORY_SPARK_CODEX_BIN: ${MEMORY_SPARK_CODEX_BIN:-codex}
+      MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
+      MEMORY_SPARK_CODEX_VERSION: ${MEMORY_SPARK_CODEX_VERSION:-0.156.1}
+      MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
+      MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./apps/api:/app/apps/api:ro
+      - ./apps/web/app:/app/apps/web/app:ro
+      - ./apps/web/public:/app/apps/web/public:ro
+      - ./docs:/app/docs:ro
+      - ./var/memory-spark:/var/lib/memory-spark
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  worker:
+    image: memory-spark:dev
+    build:
+      context: .
+      dockerfile: Containerfile
+    environment:
+      MEMORY_SPARK_MODE: ${MEMORY_SPARK_MODE:-demo}
+      MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
+      MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
+      MEMORY_SPARK_WORKER_ID: ${MEMORY_SPARK_WORKER_ID:-memory-spark-worker}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./apps/api:/app/apps/api:ro
+      - ./apps/web/app:/app/apps/web/app:ro
+      - ./scripts:/app/scripts:ro
+      - ./var/memory-spark:/var/lib/memory-spark
+    command: ["python", "scripts/worker.py", "--interval", "2"]
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - scripts/worker.py
+        - --readiness
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "${MEMORY_SPARK_WEB_PORT:-3010}:80"
+    environment:
+      MEMORY_SPARK_API_PORT: "${MEMORY_SPARK_API_PORT:-8010}"
+    volumes:
+      - ./apps/web/public:/usr/share/nginx/html:ro
+      - ./apps/web/app:/usr/share/nginx/app:ro
+      - ./infra/nginx/memory-spark.conf:/etc/nginx/templates/memory-spark.conf.template:ro
+      - ./infra/nginx/start.sh:/usr/local/bin/memory-spark-nginx-start.sh:ro
+    command:
+      - /bin/sh
+      - /usr/local/bin/memory-spark-nginx-start.sh
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -q -O /dev/null http://127.0.0.1/"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 3s
+
+  codex-harness:
+    image: memory-spark-codex-harness:dev
+    build:
+      context: .
+      dockerfile: harness/Containerfile
+      # The harness needs the repository's Python test runtime in addition to
+      # the official Codex CLI so a local-provider Codex run can verify code.
+      args:
+        CODEX_VERSION: ${MEMORY_SPARK_CODEX_VERSION:-0.156.1}
+    ports:
+      - "127.0.0.1:${MEMORY_SPARK_CODEX_HARNESS_PORT:-8765}:8765"
+    working_dir: /workspace
+    environment:
+      CODEX_HOME: /codex-home
+      PATH: /opt/memory-spark-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://host.docker.internal:4000/v1}
+      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
+      MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
+    volumes:
+      - .:/workspace:rw
+      - ./var/codex-home:/codex-home
+    restart: unless-stopped

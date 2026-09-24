@@ -1,0 +1,1 @@
+"""Memory Spark application package."""

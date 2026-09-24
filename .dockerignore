@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.DS_Store
+.pytest_cache
+__pycache__
+*.py[cod]
+.venv
+tests
+var
+*.db
+*.db-shm
+*.db-wal
+node_modules
+.playwright
+.playwright-cli
+output
