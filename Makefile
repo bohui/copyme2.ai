@@ -8,7 +8,7 @@ API_BASE ?= http://127.0.0.1:$(API_PORT)
 WEB_BASE ?= http://127.0.0.1:$(WEB_PORT)
 SERVICE ?= api
 
-.PHONY: help check runtime-start test browser-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell harness-provider-check harness-run harness-logs container-down
+.PHONY: help check migrate stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test browser-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -18,6 +18,49 @@ check: ## Verify Mocker and Apple Container are installed.
 	@test -x "$(APPLE_CONTAINER_BIN)" || { echo "Missing Apple Container CLI: $(APPLE_CONTAINER_BIN)"; exit 1; }
 	@echo "Mocker: $$($(MOCKER) --version)"
 	@echo "Apple Container: $$($(APPLE_CONTAINER_BIN) --version)"
+
+migrate: ## Apply the Supabase story-entitlement migration.
+	@set -a; \
+	if test -f .env; then . ./.env; fi; \
+	set +a; \
+	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in .env."; exit 2; }; \
+	command -v psql >/dev/null || { echo "Missing psql. Install the PostgreSQL client first."; exit 1; }; \
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250003_story_entitlements.sql
+
+STRIPE_MODE ?= test
+MEMORY_SPARK_PUBLIC_URL ?=
+STRIPE_WEBHOOK_PATH ?= /api/v1/memoir/story/stripe/webhook
+STRIPE_WEBHOOK_URL ?= $(if $(MEMORY_SPARK_PUBLIC_URL),$(patsubst %/,%,$(MEMORY_SPARK_PUBLIC_URL))$(STRIPE_WEBHOOK_PATH),)
+STRIPE_SETUP_ARGS ?=
+export STRIPE_SECRET_KEY
+
+setup_stripe: ## Create or reuse the one-time Stripe catalog; use STRIPE_MODE=live for production.
+	@set -e; \
+	if test -z "$${STRIPE_SECRET_KEY:-}" && test -f .env; then set -a; . ./.env; set +a; fi; \
+	if test -n "$(STRIPE_WEBHOOK_URL)"; then \
+		python3 infra/stripe/setup_stripe.py --mode "$(STRIPE_MODE)" --webhook-url "$(STRIPE_WEBHOOK_URL)" --yes $(STRIPE_SETUP_ARGS); \
+	else \
+		python3 infra/stripe/setup_stripe.py --mode "$(STRIPE_MODE)" --yes $(STRIPE_SETUP_ARGS); \
+	fi
+
+stripe_login: ## Authenticate the Stripe CLI for local webhook forwarding.
+	@command -v stripe >/dev/null || { echo "Missing Stripe CLI. Install it from https://docs.stripe.com/stripe-cli."; exit 1; }
+	@stripe login
+
+setup_stripe_test: ## Create or reuse the test-mode catalog with STRIPE_SECRET_KEY=sk_test_....
+	@test -n "$${STRIPE_SECRET_KEY:-}" || { echo "Pass STRIPE_SECRET_KEY=sk_test_... to this target."; exit 2; }
+	@case "$${STRIPE_SECRET_KEY}" in sk_test_*) ;; *) echo "setup_stripe_test requires a key beginning with sk_test_."; exit 2 ;; esac
+	@if test -n "$(STRIPE_WEBHOOK_URL)"; then \
+		python3 infra/stripe/setup_stripe.py --mode test --auth api-key --webhook-url "$(STRIPE_WEBHOOK_URL)" --yes $(STRIPE_SETUP_ARGS); \
+	else \
+		python3 infra/stripe/setup_stripe.py --mode test --auth api-key --yes $(STRIPE_SETUP_ARGS); \
+	fi
+
+setup_stripe_live: ## Create or reuse the live catalog with STRIPE_SECRET_KEY=sk_live_....
+	@test -n "$${STRIPE_SECRET_KEY:-}" || { echo "Pass STRIPE_SECRET_KEY=sk_live_... to this target."; exit 2; }
+	@case "$${STRIPE_SECRET_KEY}" in sk_live_*) ;; *) echo "setup_stripe_live requires a key beginning with sk_live_."; exit 2 ;; esac
+	@test -n "$(STRIPE_WEBHOOK_URL)" || { echo "Set MEMORY_SPARK_PUBLIC_URL=https://<public-domain> (or STRIPE_WEBHOOK_URL=https://<api-domain>/api/v1/memoir/story/stripe/webhook) for live setup."; exit 2; }
+	@python3 infra/stripe/setup_stripe.py --mode live --auth api-key --webhook-url "$(STRIPE_WEBHOOK_URL)" --yes $(STRIPE_SETUP_ARGS)
 
 runtime-start: check ## Start the Apple Container runtime.
 	@$(APPLE_CONTAINER_BIN) system start
@@ -76,16 +119,16 @@ container-logs: check ## Follow logs for SERVICE=api, web, or codex-harness.
 container-shell: check ## Open a shell in SERVICE=api.
 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -it $(SERVICE) sh
 
-harness-provider-check: container-up ## Verify the harness is configured for the local llm_provider.
-	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness sh -lc 'grep -q "model_provider = \"llm_provider\"" "$$CODEX_HOME/config.toml" && grep -q "requires_openai_auth = false" "$$CODEX_HOME/config.toml"'
-	@echo "Codex harness: local llm_provider configured; codex login is not required"
+# harness-provider-check: container-up ## Verify the harness is configured for the local llm_provider.
+# 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness sh -lc 'grep -q "model_provider = \"llm_provider\"" "$$CODEX_HOME/config.toml" && grep -q "requires_openai_auth = false" "$$CODEX_HOME/config.toml"'
+# 	@echo "Codex harness: local llm_provider configured; codex login is not required"
 
-harness-run: container-up ## Run Codex against the local llm_provider; pass PROMPT='...'.
-	@test -n "$(PROMPT)" || { echo "Pass PROMPT='...'"; exit 2; }
-	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness codex exec --skip-git-repo-check --json --sandbox workspace-write "$(PROMPT)"
+# harness-run: container-up ## Run Codex against the local llm_provider; pass PROMPT='...'.
+# 	@test -n "$(PROMPT)" || { echo "Pass PROMPT='...'"; exit 2; }
+# 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness codex exec --skip-git-repo-check --json --sandbox workspace-write "$(PROMPT)"
 
-harness-logs: check ## Follow the Codex exec-server logs.
-	@$(MOCKER) compose logs -f $(COMPOSE_FILE) --tail 200 codex-harness
+# harness-logs: check ## Follow the Codex exec-server logs.
+# 	@$(MOCKER) compose logs -f $(COMPOSE_FILE) --tail 200 codex-harness
 
 container-down: check ## Stop and remove the stack.
 	@$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans

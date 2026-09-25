@@ -36,9 +36,9 @@ def test_story_plans_expose_the_three_packages():
     assert response.status_code == 200
     items = response.json()["items"]
     assert [(item["plan_key"], item["price_minor"]) for item in items] == [
-        ("electronic_memoir_v1", 2900),
-        ("printed_memoir_v1", 5900),
-        ("family_memoir_v1", 9900),
+        ("electronic_memoir_v1", 4900),
+        ("printed_memoir_v1", 7900),
+        ("family_memoir_v1", 12900),
     ]
 
 
@@ -67,7 +67,7 @@ def test_story_checkout_uses_server_pricing_and_signed_webhook_grants_entitlemen
         json={"plan_key": "family_memoir_v1", "book_count": 4},
     )
     assert checkout.status_code == 200, checkout.text
-    assert checkout.json()["amount_minor"] == 11900
+    assert checkout.json()["amount_minor"] == 14900
     assert checkout.json()["checkout_url"] == "https://checkout.stripe.test/cs_test_story"
     assert stripe.calls[0]["summary"]["additional_books"] == 2
 
@@ -78,7 +78,7 @@ def test_story_checkout_uses_server_pricing_and_signed_webhook_grants_entitlemen
             "object": {
                 "id": "cs_test_story",
                 "payment_status": "paid",
-                "amount_total": 11900,
+                    "amount_total": 14900,
                 "currency": "aud",
                 "payment_intent": "pi_story_paid",
                 "metadata": {
@@ -129,7 +129,7 @@ def test_stripe_checkout_client_sends_server_computed_line_items():
     assert result["id"] == "cs_test"
     assert calls[0][0] == "https://api.stripe.com/v1/checkout/sessions"
     fields = dict(calls[0][1]["data"])
-    assert fields["line_items[0][price_data][unit_amount]"] == "5900"
+    assert fields["line_items[0][price_data][unit_amount]"] == "7900"
     assert fields["line_items[1][price_data][unit_amount]"] == "1000"
     assert fields["line_items[1][quantity]"] == "3"
     assert fields["metadata[plan_key]"] == "printed_memoir_v1"

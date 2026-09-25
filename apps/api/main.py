@@ -27,6 +27,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .agent_routes_support import authenticated_storage
 from .namespaces import rewrite_memoir_path
+from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service
 from .store import MemoryStore, new_id, now_iso, sha256_bytes, sha256_json
 
 
@@ -614,6 +615,16 @@ def _source_version(store: MemoryStore, project_id: str, source_kind: str, text:
     return source
 
 
+def _upload_bytes(store: MemoryStore, upload: dict[str, Any], asset: dict[str, Any]) -> bytes:
+    object_key = asset.get("object_key")
+    if object_key and store.object_store_path:
+        return store.read_object(object_key)
+    return b"".join(
+        base64.b64decode(upload["parts"][str(sequence)]["bytes_base64"])
+        for sequence in sorted(int(key) for key in upload.get("parts", {}))
+    )
+
+
 def _cue_selection(store: MemoryStore, project: dict[str, Any], topic_id: str, include_video: bool) -> list[dict[str, Any]]:
     region = project["home_region"]
     eligible = [
@@ -903,6 +914,7 @@ def create_app(
     story_storage_factory: Any | None = None,
     story_entitlement_store: Any | None = None,
     story_stripe_client: Any | None = None,
+    speech_service: Any | None = None,
 ) -> FastAPI:
     if store is not None:
         memory = store
@@ -912,6 +924,7 @@ def create_app(
         # legacy HTTP routes still need a small local adapter while they are
         # being retired; they must never create a second Postgres state store.
         memory = MemoryStore(object_store_path=object_store_path)
+    selected_speech_service = speech_service or build_speech_service()
     app = FastAPI(title="CopyMe2 Memoir", version="1.0.0", description="Evidence-linked guided memoir product")
     app.state.store = memory
     from .supabase_routes import router as supabase_router
@@ -929,6 +942,7 @@ def create_app(
             selected_story_storage_factory or authenticated_storage,
             entitlement_store=story_entitlement_store or build_story_entitlement_store(memory),
             stripe_client=story_stripe_client or StripeCheckoutClient(),
+            speech_service=selected_speech_service,
         )
     )
     request_transaction_lock = asyncio.Lock() if getattr(memory, "request_transaction_enabled", False) else None
@@ -1516,6 +1530,125 @@ def create_app(
             memory.emit(project, "memory_session.skipped", session_id=session_id)
             return {**_session_response(memory, session), "entitlements": _entitlement_response(project)}
 
+    @app.post("/v1/uploads/{upload_id}/transcription")
+    def transcribe_upload(upload_id: str, payload: LooseModel, x_account_id: str | None = Header(default=None)) -> Response:
+        actor = _account_id(x_account_id)
+        upload = memory.uploads.get(upload_id)
+        if not upload:
+            raise _not_found("Upload")
+        project = _project(memory, upload["project_id"], actor)
+        if upload.get("kind") != "audio" or upload.get("state") != "READY":
+            raise HTTPException(status_code=409, detail="The recording must be fully validated before transcription")
+        asset = upload.get("asset") or project["assets"].get(upload_id)
+        if not asset or asset.get("state") != "READY":
+            raise HTTPException(status_code=409, detail="The recording must be fully validated before transcription")
+        existing_id = asset.get("transcript_source_version_id")
+        existing = memory.source_versions.get(existing_id) if existing_id else None
+        if existing:
+            return JSONResponse(status_code=200, content={"source": deepcopy(existing), "asset": deepcopy(asset), "cached": True})
+        if not _processing_available(memory, project, "audio"):
+            raise HTTPException(status_code=503, detail="Approved processing is unavailable in this project's region; no provider fallback was used")
+        data = payload.model_dump(exclude_unset=True)
+        try:
+            transcription = selected_speech_service.transcribe(
+                _upload_bytes(memory, upload, asset),
+                filename=upload["filename"],
+                mime_type=upload["mime_type"],
+                language=data.get("language") or project.get("profile", {}).get("preferred_language"),
+                prompt=data.get("prompt"),
+                model=data.get("model"),
+            )
+        except SpeechUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except SpeechProviderError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        text = str(transcription.get("text") or "").strip()
+        if not text:
+            raise HTTPException(status_code=502, detail="Speech transcription returned no text")
+        source = _source_version(
+            memory,
+            project["id"],
+            "transcript",
+            text,
+            participant_account_id=project["storyteller_id"],
+            original_asset_id=asset["id"],
+            recording_source_version_id=asset.get("original_source_version_id") or asset.get("source_version_id"),
+            transcription_method=str(transcription.get("provider") or "openai"),
+            transcription_model=transcription.get("model"),
+            language=transcription.get("language"),
+            segments=transcription.get("segments") or [],
+            time_mapping=[],
+        )
+        asset["transcript_source_version_id"] = source["id"]
+        asset["source_version_id"] = source["id"]
+        asset.setdefault("source_version_history", []).append(source["id"])
+        asset["transcription_status"] = "SUCCEEDED"
+        memory.audit("audio.transcribed", actor, project["id"], asset_id=asset["id"], source_version_id=source["id"], model=source.get("transcription_model"))
+        return JSONResponse(status_code=201, content={"source": deepcopy(source), "asset": deepcopy(asset), "cached": False})
+
+    @app.post("/v1/memory-sessions/{session_id}/question-audio")
+    def question_audio(session_id: str, payload: LooseModel, x_account_id: str | None = Header(default=None)) -> Response:
+        actor = _account_id(x_account_id)
+        session, project = _find_session(memory, session_id, actor)
+        if not _can_operate_session(project, actor):
+            raise _unauthorised()
+        data = payload.model_dump(exclude_unset=True)
+        text = str(session["question"].get("text") or "").strip()
+        language = str(data.get("language") or project.get("profile", {}).get("preferred_language") or "en-AU")
+        voice = str(data.get("voice") or "marin")
+        instructions = str(data.get("instructions") or "Speak slowly, warmly and clearly with natural pauses.")
+        output_format = str(data.get("output_format") or "mp3")
+        model = str(data.get("model") or getattr(selected_speech_service, "tts_model", "gpt-4o-mini-tts"))
+        cache_key = sha256_json({"project_id": project["id"], "text": text, "language": language, "voice": voice, "instructions": instructions, "output_format": output_format, "model": model})
+        existing = next((asset for asset in memory.speech_assets.values() if asset.get("cache_key") == cache_key), None)
+
+        def response_for(asset: dict[str, Any], *, cached: bool, status_code: int) -> Response:
+            body = {key: deepcopy(value) for key, value in asset.items() if key != "content_base64"}
+            body.update({"audio_asset_id": asset["id"], "audio_url": f"/v1/speech-assets/{asset['id']}", "text": text, "ai_generated": True, "cached": cached})
+            return JSONResponse(status_code=status_code, content=body)
+
+        if existing:
+            _project(memory, existing["project_id"], actor)
+            return response_for(existing, cached=True, status_code=200)
+        try:
+            generated = selected_speech_service.synthesize(text, language=language, voice=voice, instructions=instructions, output_format=output_format, model=model)
+        except SpeechUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except SpeechProviderError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        content = generated.get("content") if isinstance(generated, dict) else None
+        if not isinstance(content, bytes) or not content:
+            raise HTTPException(status_code=502, detail="Speech synthesis returned no audio")
+        asset_id = new_id("speech")
+        asset = {
+            "id": asset_id,
+            "project_id": project["id"],
+            "kind": "question_audio",
+            "cache_key": cache_key,
+            "mime_type": str(generated.get("mime_type") or "audio/mpeg"),
+            "model": str(generated.get("model") or model),
+            "voice": str(generated.get("voice") or voice),
+            "language": language,
+            "text_sha256": sha256_bytes(text.encode()),
+            "ai_generated": True,
+            "created_at": now_iso(),
+        }
+        if memory.object_store_path:
+            asset["object_key"] = memory.put_object(f"projects/{project['id']}/speech/{asset_id}", content)
+        else:
+            asset["content_base64"] = base64.b64encode(content).decode()
+        memory.speech_assets[asset_id] = asset
+        return response_for(asset, cached=False, status_code=201)
+
+    @app.get("/v1/speech-assets/{asset_id}")
+    def get_speech_asset(asset_id: str, x_account_id: str | None = Header(default=None)) -> Response:
+        asset = memory.speech_assets.get(asset_id)
+        if not asset:
+            raise _not_found("Speech asset")
+        _project(memory, asset["project_id"], _account_id(x_account_id))
+        content = memory.read_object(asset["object_key"]) if asset.get("object_key") and memory.object_store_path else base64.b64decode(asset["content_base64"])
+        return Response(content=content, media_type=asset["mime_type"], headers={"X-AI-Generated": "true"})
+
     @app.post("/v1/memory-sessions/{session_id}/answers")
     def answer_session(session_id: str, payload: AnswerCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")) -> dict[str, Any]:
         actor = _account_id(x_account_id)
@@ -1557,20 +1690,60 @@ def create_app(
             if payload.upload_id:
                 upload = memory.uploads.get(payload.upload_id)
                 asset = project["assets"].get(payload.upload_id)
+                if not upload and asset and asset.get("upload_id"):
+                    upload = memory.uploads.get(asset["upload_id"])
                 if upload and (upload["project_id"] != project["id"] or upload["state"] != "READY"):
                     raise HTTPException(status_code=409, detail="The recording must be fully validated before it can be used")
                 if upload and upload["state"] == "READY":
                     asset = upload.get("asset")
                 if not asset or asset.get("project_id") != project["id"] or asset.get("state") != "READY":
                     raise HTTPException(status_code=409, detail="The recording must be fully validated before it can be used")
-                source_id = asset.get("source_version_id")
+                source_id = asset.get("transcript_source_version_id")
                 source = memory.source_versions.get(source_id) if source_id else None
-                if not source:
-                    source = _source_version(memory, project["id"], "recording", "Recorded audio source awaiting transcription", session_id=session_id, participant_account_id=participant, original_asset_id=asset["id"], time_mapping=[])
-                else:
+                if source:
                     source = deepcopy(source)
-                    source["original_asset_id"] = asset["id"]
-                    source["time_mapping"] = source.get("time_mapping", [])
+                else:
+                    original_source_id = asset.get("original_source_version_id") or asset.get("source_version_id")
+                    try:
+                        transcription = selected_speech_service.transcribe(
+                            _upload_bytes(memory, upload, asset),
+                            filename=upload["filename"],
+                            mime_type=upload["mime_type"],
+                            language=project.get("profile", {}).get("preferred_language"),
+                        )
+                    except SpeechUnavailable:
+                        transcription = None
+                    except SpeechProviderError as exc:
+                        session["status"] = "RETRYABLE_ERROR"
+                        raise HTTPException(status_code=503, detail=str(exc)) from exc
+                    if transcription is not None:
+                        transcript_text = str(transcription.get("text") or "").strip()
+                        if not transcript_text:
+                            session["status"] = "RETRYABLE_ERROR"
+                            raise HTTPException(status_code=502, detail="Speech transcription returned no text")
+                        source = _source_version(
+                            memory,
+                            project["id"],
+                            "transcript",
+                            transcript_text,
+                            session_id=session_id,
+                            participant_account_id=participant,
+                            original_asset_id=asset["id"],
+                            recording_source_version_id=original_source_id,
+                            transcription_method=str(transcription.get("provider") or "openai"),
+                            transcription_model=transcription.get("model"),
+                            language=transcription.get("language"),
+                            segments=transcription.get("segments") or [],
+                            time_mapping=[],
+                        )
+                        asset["transcript_source_version_id"] = source["id"]
+                        asset["source_version_id"] = source["id"]
+                        asset.setdefault("source_version_history", []).append(source["id"])
+                        asset["transcription_status"] = "SUCCEEDED"
+                    else:
+                        source = _source_version(memory, project["id"], "recording", "Recorded audio source awaiting transcription", session_id=session_id, participant_account_id=participant, original_asset_id=asset["id"], time_mapping=[])
+                source["original_asset_id"] = asset["id"]
+                source["time_mapping"] = source.get("time_mapping", [])
                 duration_seconds = float(asset.get("duration_seconds", upload.get("duration_seconds", 0.0) if upload else 0.0) or 0.0)
                 if asset["id"] in session.get("accepted_asset_ids", []):
                     raise HTTPException(status_code=409, detail="This recording has already been accepted for the session")
@@ -1580,11 +1753,12 @@ def create_app(
                 session.setdefault("accepted_asset_ids", []).append(asset["id"])
             else:
                 source = _source_version(memory, project["id"], "transcript", payload.text, session_id=session_id, transcription_method="typed", participant_account_id=participant)
-            turn = {"id": new_id("turn"), "session_id": session_id, "prompt_id": session["question"]["id"], "turn_type": turn_type, "elicitation": elicitation, "participant_account_id": participant, "source_version_id": source["id"], "text": payload.text, "created_at": now_iso()}
+            answer_text = source["text"] if source.get("source_kind") == "transcript" and not payload.text.strip() else payload.text
+            turn = {"id": new_id("turn"), "session_id": session_id, "prompt_id": session["question"]["id"], "turn_type": turn_type, "elicitation": elicitation, "participant_account_id": participant, "source_version_id": source["id"], "text": answer_text, "created_at": now_iso()}
             session["turns"].append(turn)
-            claims = _make_claims(memory, project, session, source, payload.text, elicitation)
+            claims = _make_claims(memory, project, session, source, answer_text, elicitation)
             session["claim_ids"].extend(claim["id"] for claim in claims)
-            session["draft"] = _draft_for(session, source, payload.text, claims)
+            session["draft"] = _draft_for(session, source, answer_text, claims)
             session["revision"] += 1
             session["status"] = "DRAFT_READY"
             session["last_source_version_id"] = source["id"]

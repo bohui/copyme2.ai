@@ -29,7 +29,7 @@ STORY_PLANS: dict[str, dict[str, Any]] = {
     "electronic_memoir_v1": {
         "plan_key": "electronic_memoir_v1",
         "name": "Electronic memoir",
-        "price_minor": 2900,
+        "price_minor": 4900,
         "currency": STORY_CURRENCY,
         "description": "A beautifully shaped electronic version of your memoir.",
         "features": ["Electronic memoir", "Source-linked story chapters", "Private digital delivery"],
@@ -43,7 +43,7 @@ STORY_PLANS: dict[str, dict[str, Any]] = {
     "printed_memoir_v1": {
         "plan_key": "printed_memoir_v1",
         "name": "Printed memoir",
-        "price_minor": 5900,
+        "price_minor": 7900,
         "currency": STORY_CURRENCY,
         "description": "Two printed books, with extra copies available for A$10 each.",
         "features": ["Electronic memoir", "2 printed books", "Add extra books for A$10 each"],
@@ -57,7 +57,7 @@ STORY_PLANS: dict[str, dict[str, Any]] = {
     "family_memoir_v1": {
         "plan_key": "family_memoir_v1",
         "name": "Family legacy memoir",
-        "price_minor": 9900,
+        "price_minor": 12900,
         "currency": STORY_CURRENCY,
         "description": "Two printed books plus a richer family record.",
         "features": ["Electronic memoir", "2 printed books", "Family tree", "Life timeline", "More detailed story context"],

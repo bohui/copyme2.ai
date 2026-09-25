@@ -8,9 +8,9 @@ All amounts are in Australian dollars (AUD).
 
 | Plan key | Customer-facing package | Base price | Included | Extra printed books |
 | --- | --- | ---: | --- | ---: |
-| `electronic_memoir_v1` | Electronic memoir | A$29 | Electronic memoir, source-linked chapters, private digital delivery | Not available |
-| `printed_memoir_v1` | Printed memoir | A$59 | Electronic memoir plus 2 printed books | A$10 each |
-| `family_memoir_v1` | Family legacy memoir | A$99 | Electronic memoir, 2 printed books, family tree, life timeline, and more detailed story context | A$10 each |
+| `electronic_memoir_v1` | Electronic memoir | A$49 | Electronic memoir, source-linked chapters, private digital delivery | Not available |
+| `printed_memoir_v1` | Printed memoir | A$79 | Electronic memoir plus 2 printed books | A$10 each |
+| `family_memoir_v1` | Family legacy memoir | A$129 | Electronic memoir, 2 printed books, family tree, life timeline, and more detailed story context | A$10 each |
 
 The printed packages accept 2–20 books. The API calculates the amount:
 
@@ -28,6 +28,36 @@ You need:
 - A Supabase project used by the API.
 - A deployed API URL that Stripe can reach over HTTPS for the production webhook.
 - The memoir application’s public URL, used for Stripe success and cancellation redirects.
+
+## Setup script
+
+`infra/stripe/setup_stripe.py` creates or reuses the four one-time Stripe products and prices from the server-side catalog. It imports the catalog from `apps/api/story_payments.py`, so it does not maintain a second set of amounts.
+
+Preview the resources without contacting Stripe:
+
+```bash
+make setup_stripe_test \
+  STRIPE_SECRET_KEY=sk_test_... \
+  STRIPE_SETUP_ARGS=--dry-run
+```
+
+Create or reuse test-mode products and prices:
+
+```bash
+make setup_stripe_test STRIPE_SECRET_KEY=sk_test_...
+```
+
+For the live catalog, provide the live secret key and public application URL. The Makefile creates the production webhook URL by appending `/api/v1/memoir/story/stripe/webhook`:
+
+```bash
+make setup_stripe_live \
+  STRIPE_SECRET_KEY=sk_live_... \
+  MEMORY_SPARK_PUBLIC_URL=https://<public-domain>
+```
+
+The two targets pass the explicitly supplied key through the process environment, validate its mode prefix, construct `STRIPE_WEBHOOK_URL` from `MEMORY_SPARK_PUBLIC_URL`, pass `--yes` to the idempotent setup script, and write the key, computed webhook URL, generated Price IDs, and (when a new webhook is created) `STRIPE_WEBHOOK_SECRET` to `infra/stripe/stripe_env_config_<mode>.txt`. These files are local-only, mode `0600`, and ignored by Git. Pass additional script flags with `STRIPE_SETUP_ARGS`, for example `STRIPE_SETUP_ARGS="--dry-run"`.
+
+`STRIPE_WEBHOOK_URL` is generated for either target when `MEMORY_SPARK_PUBLIC_URL` is supplied. You can still override it with a complete `STRIPE_WEBHOOK_URL`. Omit both for test mode when using `stripe listen` for local forwarding. Live mode requires a real public HTTPS endpoint. `make stripe_login` remains available for local Stripe CLI webhook forwarding, but is not required by these setup targets. If an existing webhook is reused, Stripe does not return its signing secret; retrieve the existing `whsec_...` value from Stripe Dashboard or the API environment.
 
 ## 1. Apply the Supabase entitlement migration
 
@@ -50,9 +80,9 @@ Create four one-time prices in Stripe Dashboard:
 
 | Stripe product/price | Currency and amount | Environment variable |
 | --- | ---: | --- |
-| Electronic memoir | AUD 2900 cents | `STRIPE_PRICE_ELECTRONIC` |
-| Printed memoir base package | AUD 5900 cents | `STRIPE_PRICE_PRINTED` |
-| Family legacy memoir base package | AUD 9900 cents | `STRIPE_PRICE_FAMILY` |
+| Electronic memoir | AUD 4900 cents | `STRIPE_PRICE_ELECTRONIC` |
+| Printed memoir base package | AUD 7900 cents | `STRIPE_PRICE_PRINTED` |
+| Family legacy memoir base package | AUD 12900 cents | `STRIPE_PRICE_FAMILY` |
 | Additional printed book | AUD 1000 cents | `STRIPE_PRICE_ADDITIONAL_BOOK` |
 
 For the two printed packages, the Checkout Session contains the base price plus the additional-book price with a quantity equal to the number of books above two. For example, four printed books produce one base line item and two additional-book units.
@@ -99,7 +129,7 @@ Printed packages request a shipping address from the countries listed in `MEMORY
 
 ## 4. Register the Stripe webhook
 
-Create a webhook endpoint in Stripe Dashboard using:
+Create a webhook endpoint in Stripe Dashboard using the URL below, or let the setup script create/synchronize it with `--webhook-url`:
 
 ```text
 https://<api-domain>/api/v1/memoir/story/stripe/webhook
@@ -113,6 +143,10 @@ Subscribe to these events:
 Copy the endpoint’s signing secret, which begins with `whsec_`, into `STRIPE_WEBHOOK_SECRET` on the API service. The endpoint must receive the unmodified request body because signature verification is performed against the raw payload.
 
 The handler ignores unrelated event types, verifies the Stripe signature, validates the plan metadata, validates the amount and currency, and then records the entitlement in `story_entitlements`. A success redirect by itself does not unlock the full memoir.
+
+### Why a webhook is still required for one-time products
+
+One-time products do not need subscription events such as `customer.subscription.updated` or `invoice.paid`, but this application still needs a webhook. The browser’s success redirect is not proof of payment, and payment confirmation can arrive after the redirect or be retried by Stripe. The signed webhook is the server-to-server source of truth that grants the entitlement and prevents a client from unlocking a paid memoir by editing browser state. For this integration, the two Checkout Session events above are sufficient; subscription lifecycle events are not required.
 
 ## 5. Test locally
 

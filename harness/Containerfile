@@ -13,6 +13,7 @@ RUN apt-get update \
 
 COPY pyproject.toml README.md ./
 COPY apps ./apps
+COPY skills /opt/memory-spark-skills
 
 RUN /opt/memory-spark-venv/bin/pip install --no-cache-dir '.[test]'
 

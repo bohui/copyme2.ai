@@ -13,6 +13,9 @@ const state = {
   timeline: [],
   preview: null,
   chat: [],
+  codexStarting: false,
+  codexReady: false,
+  placeJourney: null,
   workspaceTab: "chapters",
   workspaceUnlocked: false,
   chapterDecision: null,
@@ -22,6 +25,15 @@ const state = {
   storyBookCount: 2,
   storyAnswers: [],
   storyChapter: null,
+  storyRecording: false,
+  storyRecorder: null,
+  storyRecordingStream: null,
+  storyRecordedChunks: [],
+  storyAudioBase64: "",
+  storyAudioFilename: "story-round.webm",
+  storyAudioMimeType: "audio/webm",
+  storyTranscript: "",
+  storyAudioPlayer: null,
   checkout: null,
   loading: false,
   recording: false,
@@ -29,31 +41,29 @@ const state = {
   recordingStream: null,
   recordedChunks: [],
   audioUploadId: null,
+  audioTranscript: "",
+  audioPlayer: null,
   recognition: null,
   supabase: null,
   authPromise: null,
 };
 
 const MEMOIR_API_PREFIX = "/api/v1/memoir";
+const CESIUM_VERSION = "1.145";
+let cesiumPlaceJourneyViewer = null;
+let cesiumLoadPromise = null;
 
-const PROFILE_QUESTIONS = {
-  name: "What’s your name?",
-  birthDate: "When were you born? An exact date or just a year is enough.",
-  birthPlace: "Where were you born? A town or country is enough for now.",
-};
+const CODEX_START_PROMPT = `The storyteller has just opened a new conversation. Start naturally by welcoming them,
+explain that they can talk about any memory, person, place, or feeling, and ask one open-ended
+question about what they would like to remember today. Do not run a fixed onboarding questionnaire,
+do not ask for their name, birth date, or birthplace first, and do not assume any personal facts.
+Keep the reply warm and concise.`;
+const CODEX_START_FALLBACK = "Hi — I’m here to listen. What would you like to remember today?";
 
 const FOLLOW_UP_QUESTIONS = [
   "What could you see, hear, smell, or feel in that moment?",
   "Who was with you, and what do you remember about them?",
   "What small detail would you like to keep for your family?",
-];
-
-const STORY_ROUND_QUESTIONS = [
-  "What is one memory you would like your family to keep?",
-  "Where does that memory take place, and what do you notice first?",
-  "Who was there with you, and what do you remember about them?",
-  "What feeling or small detail still stays with you?",
-  "Why does this memory matter to you now?",
 ];
 
 const $ = (selector) => document.querySelector(selector);
@@ -242,10 +252,36 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   try {
     const body = await supabaseApi("/v1/agent/turn", { method: "POST", body: JSON.stringify({ text }) });
-    return { reply: body.reply || fallback || null, trace: body.trace || simulated, traceMode: body.trace_mode || "codex" };
+    if (body.place_journey) {
+      state.placeJourney = body.place_journey;
+      if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "places";
+    }
+    return { reply: body.reply || fallback || null, trace: body.trace || simulated, traceMode: body.trace_mode || "codex", placeJourney: body.place_journey || null };
   } catch (error) {
     toast(error.message);
     return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
+  }
+}
+
+async function startCodexConversation({ resume = false } = {}) {
+  if (!state.project || state.codexStarting || state.codexReady || state.chat.length) return;
+  state.codexStarting = true;
+  state.loading = true;
+  render();
+  const prompt = resume
+    ? "Resume this storyteller's conversation naturally. Welcome them back briefly and invite them to continue with whatever memory or thought is present. Do not repeat a fixed onboarding questionnaire."
+    : CODEX_START_PROMPT;
+  const fallback = resume
+    ? "Welcome back. What would you like to remember today?"
+    : CODEX_START_FALLBACK;
+  try {
+    const result = await agentTurn(prompt, fallback, ["conversation.start", "memory.search"]);
+    if (result.reply) state.chat.push({ role: "assistant", text: result.reply, trace: result.trace, traceMode: result.traceMode });
+  } finally {
+    state.codexStarting = false;
+    state.codexReady = true;
+    state.loading = false;
+    render();
   }
 }
 
@@ -264,25 +300,6 @@ function setLoading(value) {
 
 function profile() {
   return state.project?.profile || {};
-}
-
-function nextProfileKey() {
-  const current = profile();
-  if (!current.name) return "name";
-  if (!current.birth_date_expression && !current.birth_year) return "birthDate";
-  if (!current.birth_place) return "birthPlace";
-  return null;
-}
-
-function profileComplete() {
-  return !nextProfileKey();
-}
-
-function profileDisplay(key) {
-  const current = profile();
-  if (key === "name") return current.name;
-  if (key === "birthDate") return current.birth_date_expression || current.birth_year;
-  return current.birth_place;
 }
 
 function profileDetails() {
@@ -364,6 +381,10 @@ async function signOut() {
     state.timeline = [];
     state.preview = null;
     state.chat = [];
+    state.codexStarting = false;
+    state.codexReady = false;
+    state.placeJourney = null;
+    state.workspaceTab = "chapters";
     state.workspaceUnlocked = false;
     state.chapterDecision = null;
     state.story = null;
@@ -372,12 +393,21 @@ async function signOut() {
     state.storyBookCount = 2;
     state.storyAnswers = [];
     state.storyChapter = null;
+    state.storyRecording = false;
+    state.storyRecorder = null;
+    state.storyRecordingStream = null;
+    state.storyRecordedChunks = [];
+    state.storyAudioBase64 = "";
+    state.storyTranscript = "";
+    state.storyAudioPlayer = null;
     state.checkout = null;
     state.recording = false;
     state.recorder = null;
     state.recordingStream = null;
     state.recordedChunks = [];
     state.audioUploadId = null;
+    state.audioTranscript = "";
+    state.audioPlayer = null;
     state.recognition = null;
     try {
       localStorage.removeItem("memory-spark-project");
@@ -416,16 +446,15 @@ function memoryTurnFallback(session = state.session) {
 }
 
 function storyRoundQuestion() {
-  const completed = Number(state.story?.rounds_completed || 0);
-  return STORY_ROUND_QUESTIONS[Math.min(completed, STORY_ROUNDS_REQUIRED - 1)];
+  return CODEX_START_FALLBACK;
 }
 
 const STORY_ROUNDS_REQUIRED = 5;
 
 const FALLBACK_STORY_PLANS = [
-  { plan_key: "electronic_memoir_v1", name: "Electronic memoir", price_minor: 2900, description: "A beautifully shaped electronic version of your memoir.", features: ["Electronic memoir", "Source-linked story chapters", "Private digital delivery"], electronic_only: true, additional_book_price_minor: 0, minimum_books: 0, default_books: 0 },
-  { plan_key: "printed_memoir_v1", name: "Printed memoir", price_minor: 5900, description: "Two printed books, with extra copies available for A$10 each.", features: ["Electronic memoir", "2 printed books", "Add extra books for A$10 each"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
-  { plan_key: "family_memoir_v1", name: "Family legacy memoir", price_minor: 9900, description: "Two printed books plus a richer family record.", features: ["Electronic memoir", "2 printed books", "Family tree", "Life timeline", "More detailed story context"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
+  { plan_key: "electronic_memoir_v1", name: "Electronic memoir", price_minor: 4900, description: "A beautifully shaped electronic version of your memoir.", features: ["Electronic memoir", "Source-linked story chapters", "Private digital delivery"], electronic_only: true, additional_book_price_minor: 0, minimum_books: 0, default_books: 0 },
+  { plan_key: "printed_memoir_v1", name: "Printed memoir", price_minor: 7900, description: "Two printed books, with extra copies available for A$10 each.", features: ["Electronic memoir", "2 printed books", "Add extra books for A$10 each"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
+  { plan_key: "family_memoir_v1", name: "Family legacy memoir", price_minor: 12900, description: "Two printed books plus a richer family record.", features: ["Electronic memoir", "2 printed books", "Family tree", "Life timeline", "More detailed story context"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
 ];
 
 function formatAudMinor(amountMinor) {
@@ -488,8 +517,11 @@ function renderStoryFlow() {
       <div class="story-progress">Round ${completed + 1} of ${STORY_ROUNDS_REQUIRED}</div>
       <h1>${escapeHtml(storyRoundQuestion())}</h1>
       <p class="story-lead">Take your time. A few honest sentences are enough.</p>
+      <div class="story-question-tools"><button type="button" class="listen-button" data-story-action="listen-story-question">◖ Listen · AI voice</button><span>AI-generated audio · text remains available</span></div>
       <form id="story-round-form" class="story-round-form">
-        <textarea id="story-answer" rows="7" placeholder="Write what comes back to you…" aria-label="Your story answer"></textarea>
+        <button type="button" class="voice-button story-voice-button ${state.storyRecording ? "recording" : ""}" data-story-action="toggle-story-voice" aria-label="${state.storyRecording ? "Stop voice answer" : "Record a voice answer"}">${state.storyRecording ? "■ Stop recording" : "● Record a voice answer"}</button>
+        <textarea id="story-answer" rows="7" placeholder="Write what comes back to you, or record your answer…" aria-label="Your story answer">${escapeHtml(state.storyTranscript)}</textarea>
+        <p class="composer-note">${state.storyAudioBase64 ? "Review the transcript before saving. Your original recording stays attached." : "You can type, record, pause, or skip."}</p>
         <button type="submit" class="button button-primary">Save answer <span>↗</span></button>
       </form>`;
   } else if (isLinking) {
@@ -547,6 +579,11 @@ function bindStoryFlowActions() {
     state.story = null;
     state.storyAnswers = [];
     state.storyChapter = null;
+    state.storyRecording = false;
+    state.storyAudioBase64 = "";
+    state.storyTranscript = "";
+    state.storyAudioFilename = "story-round.webm";
+    state.storyAudioMimeType = "audio/webm";
     state.checkout = null;
     localStorage.removeItem("memory-spark-story-started");
     navigateTo(MEMOIR_ROUTES.home, true);
@@ -555,6 +592,7 @@ function bindStoryFlowActions() {
     event.preventDefault();
     submitStoryRound();
   });
+  $("#story-answer")?.addEventListener("input", (event) => { state.storyTranscript = event.target.value; });
   $("#story-checkout-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     requestStoryCheckout();
@@ -576,6 +614,8 @@ function bindStoryFlowActions() {
     "free-chapter": claimFreeChapter,
     checkout: requestStoryCheckout,
     "full-memoir": generateFullMemoir,
+    "toggle-story-voice": toggleStoryVoice,
+    "listen-story-question": () => speakStoryQuestion(storyRoundQuestion()),
   };
   document.querySelectorAll("[data-story-action]").forEach((button) => {
     const action = actions[button.dataset.storyAction];
@@ -595,22 +635,93 @@ async function refreshStoryState(shouldRender = true) {
 async function submitStoryRound() {
   if (state.loading) return;
   const input = $("#story-answer");
-  const answer = input?.value.trim() || "";
-  if (!answer) return toast("A few honest words are enough to continue.");
+  const answer = input?.value.trim() || state.storyTranscript.trim() || "";
+  if (!answer && !state.storyAudioBase64) return toast("A few honest words or a voice answer are enough to continue.");
   state.loading = true;
   try {
     const result = await storyApi("/v1/story/rounds", {
       method: "POST",
-      body: JSON.stringify({ round: Number(state.story.rounds_completed) + 1, answer }),
+      body: JSON.stringify({ round: Number(state.story.rounds_completed) + 1, answer, audio_base64: state.storyAudioBase64 || undefined, audio_filename: state.storyAudioFilename, audio_mime_type: state.storyAudioMimeType }),
     });
-    state.storyAnswers.push(answer);
+    state.storyAnswers.push(result.transcript || answer);
     state.story = result;
+    state.storyAudioBase64 = "";
+    state.storyTranscript = "";
   } catch (error) {
     toast(error.message);
   } finally {
     state.loading = false;
     render();
   }
+}
+
+function toggleStoryVoice() {
+  if (state.storyRecording && state.storyRecorder) {
+    state.storyRecorder.stop();
+    return;
+  }
+  startStoryVoiceRecorder();
+}
+
+async function startStoryVoiceRecorder() {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("This browser cannot record here. You can type your answer instead.");
+  try {
+    state.storyRecordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const preferredMime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((value) => window.MediaRecorder.isTypeSupported?.(value));
+    const recorder = preferredMime ? new MediaRecorder(state.storyRecordingStream, { mimeType: preferredMime }) : new MediaRecorder(state.storyRecordingStream);
+    state.storyRecorder = recorder;
+    state.storyRecordedChunks = [];
+    recorder.addEventListener("dataavailable", (event) => { if (event.data.size) state.storyRecordedChunks.push(event.data); });
+    recorder.addEventListener("stop", async () => {
+      const blob = new Blob(state.storyRecordedChunks, { type: recorder.mimeType || "audio/webm" });
+      state.storyRecordingStream?.getTracks().forEach((track) => track.stop());
+      state.storyRecordingStream = null;
+      state.storyRecording = false;
+      state.storyRecorder = null;
+      if (!blob.size) return render();
+      try {
+        state.storyAudioBase64 = await blobToBase64(blob);
+        state.storyAudioFilename = `story-round-${Date.now()}.webm`;
+        state.storyAudioMimeType = (blob.type || "audio/webm").split(";")[0];
+        const transcript = await storyApi("/v1/story/transcriptions", { method: "POST", body: JSON.stringify({ audio_base64: state.storyAudioBase64, filename: state.storyAudioFilename, mime_type: state.storyAudioMimeType, language: profile().preferred_language || "en-AU" }) });
+        state.storyTranscript = transcript.text || "";
+        toast("Transcript ready. Review it, then save your answer.");
+      } catch (error) {
+        state.storyAudioBase64 = "";
+        toast(error.message || "The recording could not be transcribed. You can type instead.");
+      }
+      render();
+    });
+    recorder.start();
+    state.storyRecording = true;
+    render();
+  } catch {
+    toast("Microphone access was not available. You can type your answer instead.");
+  }
+}
+
+async function speakStoryQuestion(text) {
+  state.storyAudioPlayer?.pause();
+  try {
+    const generated = await storyApi("/v1/story/question-audio", { method: "POST", body: JSON.stringify({ text, language: profile().preferred_language || "en-AU", voice: "marin" }) });
+    const player = new Audio(URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type)));
+    state.storyAudioPlayer = player;
+    player.onended = () => URL.revokeObjectURL(player.src);
+    await player.play();
+  } catch (error) {
+    if (error.status !== 503) toast(error.message);
+    if (!window.speechSynthesis) return toast("Read aloud is not available in this browser.");
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = profile().preferred_language || "en-AU";
+    utterance.rate = 0.96;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
+function base64ToBlob(value, mimeType = "application/octet-stream") {
+  const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+  return new Blob([bytes], { type: mimeType });
 }
 
 async function linkStoryIdentity(provider) {
@@ -681,9 +792,8 @@ async function generateFullMemoir() {
 }
 
 function render() {
-  if (state.story) return renderStoryFlow();
+  disposeCesiumPlaceJourney();
   if (!state.project) return renderLanding();
-  if (!state.chat.length) seedConversation();
   renderStory();
 }
 
@@ -708,8 +818,8 @@ function renderPlatformLanding() {
         <section class="platform-products" aria-label="CopyMe2 products">
           <article class="product-card product-card-primary">
             <div class="product-kicker">COPYME2 · MEMOIR</div>
-            <h2>Your story begins with one gentle question.</h2>
-            <p>Turn memories, photographs, and your own voice into a family book.</p>
+            <h2>Start with a conversation.</h2>
+            <p>Bring a memory, a photograph, a place, or simply a thought, and let the story find its shape.</p>
             <button class="button button-primary" data-action="open-memoir">Begin my story <span>↗</span></button>
           </article>
           <article class="product-card product-card-muted">
@@ -735,12 +845,12 @@ function renderMemoirLanding() {
         <section class="hero">
           <div>
             <div class="eyebrow">Start with a conversation</div>
-            <h1>Your story begins with one gentle question.</h1>
-            <p class="hero-copy">Memory Spark listens in small steps. It can speak with you, help you remember through carefully labelled historical photographs, and keep the story workspace out of the way until your first chapter is ready.</p>
+            <h1>Start with a conversation.</h1>
+            <p class="hero-copy">Memory Spark starts as a normal Codex conversation. Bring whatever is on your mind; places, pictures, chapters, and delivery options appear beside the chat only when they become useful.</p>
             <div class="hero-actions"><button class="button button-primary" data-action="start-story" data-mode="self">Begin my story <span>↗</span></button><button class="button button-secondary" data-action="start-story" data-mode="family">Help someone I love</button></div>
             <p class="fine-print" style="margin-top:16px">Your first chapter is free. You can pause, skip, correct, or leave at any time.</p>
           </div>
-          <div class="hero-art" aria-hidden="true"><div class="orb"></div><div class="memory-card"><div class="card-kicker"><span>MEMORY SPARK · PRIVATE</span><span>listening</span></div><blockquote>“Let’s begin with your name, then follow the thread wherever it goes.”</blockquote><div class="card-line"></div><div class="card-meta"><span>Conversation first · workspace later</span><span>♡</span></div></div></div>
+          <div class="hero-art" aria-hidden="true"><div class="orb"></div><div class="memory-card"><div class="card-kicker"><span>MEMORY SPARK · PRIVATE</span><span>listening</span></div><blockquote>“Tell me whatever is on your mind. We’ll follow the thread together.”</blockquote><div class="card-line"></div><div class="card-meta"><span>Conversation first · workspace when useful</span><span>♡</span></div></div></div>
         </section>
         <details class="agent-connect">
           <summary>Connect Codex memory for this session</summary>
@@ -760,25 +870,7 @@ function renderMemoirLanding() {
 }
 
 async function startStory(mode = "self") {
-  try {
-    state.loading = true;
-    render();
-    const [story, plans] = await Promise.all([
-      storyApi("/v1/story/state"),
-      storyApi("/v1/story/plans"),
-    ]);
-    state.story = story;
-    state.storyPlans = plans.items || [];
-    state.storyAnswers = [];
-    state.storyChapter = null;
-    state.checkout = null;
-    localStorage.setItem("memory-spark-story-started", "1");
-    state.loading = false;
-    navigateTo(MEMOIR_ROUTES.start, true);
-  } catch (error) {
-    state.loading = false;
-    toast(error.message);
-  }
+  await startLegacyStory(mode);
 }
 
 async function startLegacyStory(mode = "self") {
@@ -790,10 +882,16 @@ async function startLegacyStory(mode = "self") {
     await api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "recording", granted: true, locale: "en-AU" }) });
     if (mode === "self") await api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "storyteller_assent", granted: true, locale: "en-AU" }) });
     state.chat = [];
+    state.codexStarting = false;
+    state.codexReady = false;
+    state.placeJourney = null;
+    state.workspaceTab = "chapters";
+    state.story = null;
+    localStorage.removeItem("memory-spark-story-started");
     await refreshProject();
     state.loading = false;
     navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`, true);
-    render();
+    await startCodexConversation();
   } catch (error) {
     state.project = null;
     setLoading(false);
@@ -827,44 +925,14 @@ async function refreshProject() {
   }
 }
 
-function seedConversation() {
-  const current = profile();
-  state.chat = [{ role: "assistant", text: `Hello${current.name ? `, ${current.name}` : ""}. I’ll ask a few simple questions, then we’ll follow the first memory that wants to be told.` }];
-  ["name", "birthDate", "birthPlace"].forEach((key) => {
-    if (profileDisplay(key)) state.chat.push({ role: "user", text: String(profileDisplay(key)), profile: true });
-  });
-  const next = nextProfileKey();
-  if (next) {
-    state.chat.push({ role: "assistant", text: PROFILE_QUESTIONS[next] });
-    return;
-  }
-  if (state.session) {
-    addSessionPrompt();
-  } else if (state.project.completed_sessions) {
-    state.chat.push({ role: "assistant", text: "Welcome back. When you’re ready, we can follow another thread from your life.", action: { name: "start-memory", label: "Continue the conversation" } });
-  } else {
-    state.chat.push({ role: "assistant", text: "Thank you. I’ll keep the search broad and respectful. Let’s begin with a place from childhood.", action: { name: "start-memory", label: "Ask the first memory question" } });
-  }
-}
-
-function addSessionPrompt() {
-  if (!state.session) return;
-  if (state.session.draft) {
-    if (memoryFollowUpsRemaining() > 0) {
-      state.chat.push({ role: "assistant", text: memoryFollowUpPrompt() });
-    } else {
-      state.chat.push({ role: "assistant", text: "I’ve kept a draft close to your words. Save this memory when it feels right.", action: { name: "save-memory", label: "Save this memory" } });
-    }
-  } else {
-    state.chat.push({ role: "assistant", text: state.session.question.text });
-  }
-  if (state.session.context_cues?.length) state.chat.push({ role: "assistant", text: "A few public historical references may help jog the feeling. They are cues, not evidence about you.", cues: state.session.context_cues });
-}
-
 function renderStory() {
   const unlocked = state.workspaceUnlocked || state.project.workspace_unlocked;
+  const workspaceVisible = workspaceIsVisible();
+  const contextOnly = workspaceVisible && !unlocked;
+  const shellClass = unlocked ? "workspace-visible" : contextOnly ? "context-visible" : "conversation-only";
+  activeWorkspaceTab();
   $("#app").innerHTML = `
-    <div class="story-shell ${unlocked ? "workspace-visible" : "conversation-only"}">
+    <div class="story-shell ${shellClass}">
       <header class="story-topbar">
         <a class="brand" href="#" data-action="story-home"><span class="brand-mark">✦</span><span class="brand-name">Memory Spark</span></a>
         <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">Voice is available on both sides</span></div>${profileMenu()}</div>
@@ -872,27 +940,87 @@ function renderStory() {
       <div class="conversation-layout">
         ${unlocked ? workspaceRail() : ""}
         <main class="chat-main" aria-label="Memory Spark conversation">
-          <div class="chat-heading"><div><div class="eyebrow">${unlocked ? "Your story workspace" : "The conversation comes first"}</div><h1>${unlocked ? "Keep following the thread." : "Let’s remember together."}</h1><p>${unlocked ? "Your chapter, family tree, and timeline are here when you need them." : "I’ll ask one question at a time. You can speak, type, pause, or skip."}</p></div><span class="chapter-chip">${unlocked ? `Chapter ${state.chapters.length || 1}` : "Before chapter one"}</span></div>
-          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? "Running the Codex loop…" : "Simulating the Codex loop…"}</em></div>` : ""}</div>
+          <div class="chat-heading"><div><div class="eyebrow">${unlocked ? "Your story workspace" : "The conversation comes first"}</div><h1>${unlocked ? "Keep following the thread." : "Let’s remember together."}</h1><p>${unlocked ? "Your chapter, family tree, and timeline are here when you need them." : "Start anywhere. You can speak, type, pause, or change direction at any time."}</p></div><span class="chapter-chip">${unlocked ? `Chapter ${state.chapters.length || 1}` : "Before chapter one"}</span></div>
+          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? "Running the Codex loop…" : "Simulating the Codex loop…"}</em></div>` : ""}${placeJourneySurface()}</div>
           ${chatComposer()}
         </main>
-        ${unlocked ? workspaceDetail() : ""}
+        ${workspaceVisible ? workspaceDetail() : ""}
       </div>
     </div>`;
   bindViewActions();
   bindProfileMenu();
+  initCesiumPlaceJourney();
   const scroll = $("#chat-scroll");
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
 }
 
 function workspaceRail() {
-  const tabs = [["chapters", "Chapters", "The story"], ["family", "Family tree", "People and ties"], ["timeline", "Timeline", "Dates and moments"]];
+  const tabs = workspaceTabs();
   return `<aside class="workspace-rail" aria-label="Story workspace"><div class="workspace-label">WORKSPACE</div><h2>What we’ve kept</h2><nav class="workspace-tabs">${tabs.map(([key, label, hint]) => `<button class="workspace-tab ${state.workspaceTab === key ? "active" : ""}" data-workspace-tab="${key}"><span>${label}</span><small>${hint}</small></button>`).join("")}</nav><div class="workspace-unlock"><span class="unlock-mark">✦</span><strong>Chapter one is free</strong><small>The workspace opened after your first chapter was finished.</small></div></aside>`;
 }
 
 function workspaceDetail() {
-  const content = state.workspaceTab === "family" ? familyWorkspace() : state.workspaceTab === "timeline" ? timelineWorkspace() : chaptersWorkspace();
-  return `<aside class="workspace-detail"><div class="workspace-detail-top"><span class="eyebrow">${state.workspaceTab === "family" ? "Family tree" : state.workspaceTab === "timeline" ? "Timeline" : "Chapters"}</span><span class="detail-state">Autosaved</span></div>${content}</aside>`;
+  const tabs = workspaceTabs();
+  const active = activeWorkspaceTab();
+  const title = tabs.find(([key]) => key === active)?.[1] || "Workspace";
+  const content = active === "family"
+    ? familyWorkspace()
+    : active === "timeline"
+      ? timelineWorkspace()
+      : active === "places"
+        ? placesWorkspace()
+        : active === "pictures"
+          ? picturesWorkspace()
+          : active === "delivery"
+            ? deliveryWorkspace()
+            : chaptersWorkspace();
+  const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
+  const tabsMarkup = !persistent && tabs.length > 1
+    ? `<nav class="workspace-detail-tabs" aria-label="Context workspace">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
+    : "";
+  return `<aside class="workspace-detail" aria-label="${escapeHtml(title)} workspace"><div class="workspace-detail-top"><div>${persistent ? `<span class="eyebrow">${escapeHtml(title)}</span>` : `<span class="eyebrow">WORKSPACE</span><strong>${escapeHtml(title)}</strong>`}</div><span class="detail-state">${persistent ? "Autosaved" : "From this conversation"}</span></div>${tabsMarkup}${content}</aside>`;
+}
+
+function searchedPictures() {
+  const items = [];
+  const seen = new Set();
+  for (const message of state.chat) {
+    for (const cue of message.cues || []) {
+      const key = cue.asset_id || cue.id || cue.source_url || cue.title;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      items.push(cue);
+    }
+  }
+  return items;
+}
+
+function deliveryAvailable() {
+  return Boolean(state.storyPlans.length || state.checkout || state.storyChapter || state.story?.next_action === "payment" || state.story?.payment_status === "paid");
+}
+
+function workspaceTabs() {
+  const tabs = [];
+  const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
+  if (state.placeJourney) tabs.push(["places", "Places", "Where memory begins"]);
+  if (searchedPictures().length) tabs.push(["pictures", "Pictures", "Searched references"]);
+  if (deliveryAvailable()) tabs.push(["delivery", "Delivery", "Your memoir options"]);
+  if (persistent) {
+    tabs.push(["chapters", "Chapters", "The story"], ["family", "Family tree", "People and ties"], ["timeline", "Timeline", "Dates and moments"]);
+    if (!state.placeJourney) tabs.splice(0, 0, ["places", "Places", "Where memory begins"]);
+  }
+  return tabs;
+}
+
+function activeWorkspaceTab() {
+  const tabs = workspaceTabs();
+  if (!tabs.length) return state.workspaceTab;
+  if (!tabs.some(([key]) => key === state.workspaceTab)) state.workspaceTab = tabs[0][0];
+  return state.workspaceTab;
+}
+
+function workspaceIsVisible() {
+  return workspaceTabs().length > 0;
 }
 
 function chaptersWorkspace() {
@@ -911,6 +1039,154 @@ function timelineWorkspace() {
   return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>Timeline</h2><p>Recorded dates stay separate from historical dates.</p></div><button class="button button-secondary button-small" data-action="add-timeline">Add moment</button></div></div><div class="timeline-list">${items}</div>${referencesWorkspace()}</div>`;
 }
 
+function placeMapUrl(journey) {
+  if (!Number.isFinite(journey?.latitude) || !Number.isFinite(journey?.longitude)) return "";
+  return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(journey.latitude)}&mlon=${encodeURIComponent(journey.longitude)}#map=11/${encodeURIComponent(journey.latitude)}/${encodeURIComponent(journey.longitude)}`;
+}
+
+function placeJourneyMarkup(journey, variant = "surface") {
+  if (!journey) return "";
+  const labels = (journey.hierarchy || []).map((label, index) => `<span class="place-journey-label ${index === journey.hierarchy.length - 1 ? "is-destination" : ""}">${escapeHtml(label)}</span>`).join('<span class="place-journey-arrow" aria-hidden="true">→</span>');
+  const mapUrl = placeMapUrl(journey);
+  const mapLink = mapUrl ? `<a class="text-button" href="${escapeHtml(mapUrl)}" target="_blank" rel="noreferrer">Open approximate map ↗</a>` : "";
+  const latitude = Number.isFinite(journey.latitude) ? journey.latitude : "";
+  const longitude = Number.isFinite(journey.longitude) ? journey.longitude : "";
+  const duration = Number(journey.duration_ms) || 5200;
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="Place journey"><div class="place-journey-heading"><div><div class="eyebrow">A place to return to</div><h2>${escapeHtml(journey.place)}</h2></div><span class="place-journey-status">Approximate ${escapeHtml(journey.granularity || "place")}</span></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-cesium-place="${escapeHtml(journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"></div><div class="place-journey-fallback" aria-hidden="true"><span class="journey-earth">◒</span><span class="journey-fallback-line">Earth → ${escapeHtml(journey.place)}</span><span class="journey-pin">✦</span></div><span class="journey-scene-caption">following the thread</span></div><div class="place-journey-hierarchy">${labels}</div><p class="place-journey-note">This is a gentle visual prompt, not proof of an exact address or a fact about your life.</p>${mapLink}</section>`;
+}
+
+function placeJourneySurface() {
+  return state.placeJourney && !workspaceIsVisible() ? placeJourneyMarkup(state.placeJourney) : "";
+}
+
+function placesWorkspace() {
+  if (!state.placeJourney) return '<div class="workspace-scroll"><div class="workspace-intro"><h2>Places</h2><p>When a place becomes part of the conversation, its journey will settle here.</p></div><div class="workspace-empty"><span>◎</span><p>Name a country, region, town, or neighbourhood and I’ll keep the map broad and approximate.</p></div></div>';
+  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>Places</h2><p>Follow the geography of a memory without turning it into an exact address.</p></div>${placeJourneyMarkup(state.placeJourney, "workspace")}<div class="reference-note">You can correct the place at any time. The journey is separate from the words you choose to save.</div></div>`;
+}
+
+function picturesWorkspace() {
+  const pictures = searchedPictures();
+  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>Pictures</h2><p>Public references found during the conversation stay here as prompts, never as facts about your life.</p></div>${pictures.length ? renderCueCards(pictures) : '<div class="workspace-empty"><span>▧</span><p>When a picture or historical reference is searched, it will appear here.</p></div>'}</div>`;
+}
+
+function deliveryWorkspace() {
+  const plans = state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS;
+  const selected = plans.find((plan) => plan.plan_key === state.selectedStoryPlan) || plans[0];
+  const chapter = state.storyChapter ? `<article class="workspace-card"><div class="eyebrow">Chapter one</div><h3>${escapeHtml(state.storyChapter.title || "Your first chapter")}</h3><p>${formatText(state.storyChapter.text || "Your first chapter is ready to review.")}</p></article>` : "";
+  const planCards = plans.slice(0, 3).map((plan) => `<article class="workspace-card delivery-card ${plan.plan_key === selected?.plan_key ? "selected" : ""}"><div class="card-topline"><span class="tag">${escapeHtml(plan.name)}</span><strong>${formatAudMinor(plan.price_minor)}</strong></div><p>${escapeHtml(plan.description)}</p><small>${plan.features?.slice(0, 2).map((feature) => `✓ ${escapeHtml(feature)}`).join(" · ") || "Electronic memoir delivery"}</small></article>`).join("");
+  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>Delivery</h2><p>Choose how the story should reach you when a chapter is ready.</p></div>${chapter}<div class="workspace-list">${planCards}</div>${state.checkout?.message ? `<div class="reference-note">${escapeHtml(state.checkout.message)}</div>` : ""}</div>`;
+}
+
+function disposeCesiumPlaceJourney() {
+  if (!cesiumPlaceJourneyViewer) return;
+  try {
+    if (!cesiumPlaceJourneyViewer.isDestroyed()) cesiumPlaceJourneyViewer.destroy();
+  } catch {
+    // A failed external Cesium load should never block the memoir conversation.
+  }
+  cesiumPlaceJourneyViewer = null;
+}
+
+function loadCesium() {
+  if (window.Cesium) return Promise.resolve(window.Cesium);
+  if (cesiumLoadPromise) return cesiumLoadPromise;
+  const base = `https://cesium.com/downloads/cesiumjs/releases/${CESIUM_VERSION}/Build/Cesium`;
+  if (!document.getElementById("cesium-place-journey-widgets")) {
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "cesium-place-journey-widgets";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = `${base}/Widgets/widgets.css`;
+    document.head.appendChild(stylesheet);
+  }
+  window.CESIUM_BASE_URL = `${base}/`;
+  cesiumLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `${base}/Cesium.js`;
+    script.async = true;
+    script.addEventListener("load", () => window.Cesium ? resolve(window.Cesium) : reject(new Error("CesiumJS did not expose its global.")));
+    script.addEventListener("error", () => reject(new Error("CesiumJS could not be loaded.")));
+    document.head.appendChild(script);
+  });
+  return cesiumLoadPromise;
+}
+
+function initCesiumPlaceJourney() {
+  const container = $("[data-cesium-place]");
+  if (!container) return;
+  const latitude = Number(container.dataset.cesiumLatitude);
+  const longitude = Number(container.dataset.cesiumLongitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+  loadCesium().then((cesium) => {
+    if (!container.isConnected) return;
+    let viewer = null;
+    try {
+      viewer = new cesium.Viewer(container, {
+      animation: false,
+      baseLayer: false,
+      baseLayerPicker: false,
+      fullscreenButton: false,
+      geocoder: false,
+      homeButton: false,
+      infoBox: false,
+      navigationHelpButton: false,
+      sceneModePicker: false,
+      selectionIndicator: false,
+      timeline: false,
+      scene3DOnly: true,
+      shouldAnimate: false,
+      });
+      cesiumPlaceJourneyViewer = viewer;
+      viewer.scene.backgroundColor = cesium.Color.fromCssColorString("#173f45");
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.skyAtmosphere.show = true;
+      const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, 7_500);
+      viewer.entities.add({
+      position: destination,
+      point: {
+        color: cesium.Color.fromCssColorString("#f3c66b"),
+        outlineColor: cesium.Color.fromCssColorString("#fff8e7"),
+        outlineWidth: 2,
+        pixelSize: 12,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: container.dataset.cesiumPlace || "Memory place",
+        fillColor: cesium.Color.WHITE,
+        font: "600 14px DM Sans, sans-serif",
+        style: cesium.LabelStyle.FILL_AND_OUTLINE,
+        outlineColor: cesium.Color.fromCssColorString("#173f45"),
+        outlineWidth: 3,
+        pixelOffset: new cesium.Cartesian2(0, -24),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      });
+      viewer.camera.setView({
+      destination: cesium.Cartesian3.fromDegrees(0, 18, 31_000_000),
+      orientation: {
+        heading: 0,
+        pitch: cesium.Math.toRadians(-68),
+        roll: 0,
+      },
+      });
+      viewer.camera.flyTo({
+      destination,
+      orientation: {
+        heading: cesium.Math.toRadians(8),
+        pitch: cesium.Math.toRadians(-38),
+        roll: 0,
+      },
+      duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+      easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+      });
+      container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
+    } catch (error) {
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;
+      console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error);
+    }
+  }).catch((error) => console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error));
+}
+
 function referencesWorkspace() {
   const references = state.sources.slice(0, 5);
   if (!references.length) return '<div class="reference-shelf"><div class="eyebrow">References</div><p class="fine-print">Diary notes and old photos you add will stay beside the story as sources.</p></div>';
@@ -924,15 +1200,16 @@ function sourcePills(memoryIds) {
 
 function chatComposer() {
   const voiceLabel = state.recording ? "Stop voice input" : "Speak your answer";
-  return `<div class="composer-wrap"><form id="chat-form" class="chat-composer"><button type="button" class="voice-button ${state.recording ? "recording" : ""}" data-action="voice-input" aria-label="${voiceLabel}" title="${voiceLabel}">${state.recording ? "■" : "●"}</button><textarea id="chat-input" rows="1" placeholder="Type your answer, or use your voice…" aria-label="Your answer"></textarea><button type="submit" class="send-button" aria-label="Send answer">↗</button></form><div class="composer-note"><span>${state.audioUploadId ? "Voice answer ready — press send when you are ready." : "Your words stay attached to their source."}</span><span>Press Enter to send · Shift + Enter for a new line</span></div></div>`;
+  const note = state.audioUploadId ? "Review the transcript, then press send when you are ready." : "Your words stay attached to their source.";
+  return `<div class="composer-wrap"><form id="chat-form" class="chat-composer"><button type="button" class="voice-button ${state.recording ? "recording" : ""}" data-action="voice-input" aria-label="${voiceLabel}" title="${voiceLabel}">${state.recording ? "■" : "●"}</button><textarea id="chat-input" rows="1" placeholder="Type a message, or use your voice…" aria-label="Your message">${escapeHtml(state.audioTranscript)}</textarea><button type="submit" class="send-button" aria-label="Send message">↗</button></form><div class="composer-note"><span>${note}</span><span>Press Enter to send · Shift + Enter for a new line</span></div></div>`;
 }
 
 function renderMessage(message) {
   if (message.role === "user") return `<article class="chat-row user-message"><div class="chat-bubble"><div class="message-label">You</div><div class="message-text">${formatText(message.text)}</div></div><span class="chat-avatar user-avatar">You</span></article>`;
   const action = message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
-  const cues = message.cues?.length ? renderCueCards(message.cues) : "";
+  const cues = message.cues?.length && !workspaceIsVisible() ? renderCueCards(message.cues) : "";
   const trace = message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
-  return `<article class="chat-row assistant-message"><span class="chat-avatar assistant-avatar">✦</span><div class="chat-bubble"><div class="message-meta"><span class="message-label">Memory Spark</span><button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="Read this message aloud">◖ Listen</button></div><div class="message-text">${formatText(message.text)}</div>${trace}${cues}${action}</div></article>`;
+  return `<article class="chat-row assistant-message"><span class="chat-avatar assistant-avatar">✦</span><div class="chat-bubble"><div class="message-meta"><span class="message-label">Memory Spark</span><button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="Read this message aloud with an AI-generated voice">◖ Listen · AI voice</button></div><div class="message-text">${formatText(message.text)}</div>${trace}${cues}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated") {
@@ -946,8 +1223,9 @@ function renderCueCards(cues) {
 }
 
 function bindViewActions() {
-  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); state.chat = []; render(); });
+  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); state.chat = []; state.placeJourney = null; state.workspaceTab = "chapters"; render(); });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
+  $("#chat-input")?.addEventListener("input", (event) => { state.audioTranscript = event.target.value; });
   $("#chat-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); } });
   document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); }));
   const actions = {
@@ -967,42 +1245,25 @@ function bindViewActions() {
   });
 }
 
-async function saveProfileAnswer(text) {
-  const key = nextProfileKey();
-  if (!key) return;
-  const changes = {};
-  if (key === "name") changes.name = text;
-  if (key === "birthDate") {
-    changes.birth_date_expression = text;
-    const year = text.match(/(?:18|19|20)\d{2}/)?.[0];
-    if (year) changes.birth_year = Number(year);
-  }
-  if (key === "birthPlace") {
-    changes.birth_place = text;
-    if (!profile().childhood_place) changes.childhood_place = text;
-  }
-  const updated = await api(`/v1/projects/${state.project.id}`, { method: "PATCH", body: JSON.stringify({ profile: changes }) });
-  state.project = { ...state.project, ...updated };
-  if (state.supabase?.accessToken) await supabaseApi("/v1/user/profile", { method: "PUT", body: JSON.stringify({ ...profile(), ...changes }) });
-  const next = nextProfileKey();
-  if (next) {
-    const fallback = PROFILE_QUESTIONS[next];
-    const result = await agentTurn(`The storyteller just answered the profile question with: ${text}\nAsk the next profile question, which must be: ${fallback}`, fallback, ["profile.update"]);
-    state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode });
-  }
-  else {
-    const fallback = "Thank you. I’ll keep those details private and use only a broad place and period when I look for historical memory cues.";
-    const result = await agentTurn(`The storyteller has shared their name, birth period, and birthplace. Thank them briefly and tell them you will ask one childhood memory question next.`, fallback, ["profile.update", "memory.search"]);
-    state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode });
-    await beginMemoryConversation(false);
+async function ensureMemorySession() {
+  if (state.session) return state.session;
+  try {
+    state.session = await api(`/v1/projects/${state.project.id}/memory-sessions`, {
+      method: "POST",
+      headers: { "Idempotency-Key": `browser-first-memory-${state.project.id}` },
+      body: JSON.stringify({ topic_id: "childhood_home" }),
+    });
+    return state.session;
+  } catch {
+    // Codex remains usable when the legacy chapter/session adapter is unavailable.
+    return null;
   }
 }
 
 async function beginMemoryConversation(renderNow = true) {
-  if (state.session) return;
-  state.session = await api(`/v1/projects/${state.project.id}/memory-sessions`, { method: "POST", headers: { "Idempotency-Key": `browser-first-memory-${state.project.id}` }, body: JSON.stringify({ topic_id: "childhood_home" }) });
-  const fallback = state.session.question.text;
-  const result = await agentTurn(`Ask the first childhood memory question. Use this factual prompt as the subject: ${fallback}`, fallback, ["memory.start", "memory.search"]);
+  await ensureMemorySession();
+  const fallback = CODEX_START_FALLBACK;
+  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
   state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode });
   try {
     const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: profile().preferred_language || "en-AU", requested_media: ["image"] }) });
@@ -1018,13 +1279,10 @@ async function startMemory() {
   try {
     state.loading = true;
     render();
-    if (!state.session) {
-      const topic = state.project.completed_sessions ? "childhood_routine" : "childhood_home";
-      state.session = await api(`/v1/projects/${state.project.id}/memory-sessions`, { method: "POST", headers: { "Idempotency-Key": `browser-memory-${state.project.completed_sessions || 0}-${state.project.id}` }, body: JSON.stringify({ topic_id: topic }) });
-      const fallback = state.session.question.text;
-      const result = await agentTurn(`Ask the next memory question. Use this factual prompt as the subject: ${fallback}`, fallback, ["memory.start", "memory.search"]);
-      state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode });
-    }
+    await ensureMemorySession();
+    const fallback = CODEX_START_FALLBACK;
+    const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"]);
+    state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode });
   } catch (error) { toast(error.message); }
   state.loading = false;
   render();
@@ -1036,30 +1294,37 @@ async function sendChatMessage() {
   const text = input?.value.trim() || "";
   const uploadId = state.audioUploadId;
   if (!text && !uploadId) return toast("A few words or a voice answer are enough to continue.");
-  if (!profileComplete() && !text) return toast("For these first details, please review the words from voice dictation before sending.");
   state.chat.push({ role: "user", text: text || "Voice answer" });
   state.loading = true;
   state.audioUploadId = null;
+  state.audioTranscript = "";
   render();
   try {
-    if (!profileComplete()) {
-      await saveProfileAnswer(text);
-    } else if (!state.session) {
-      await beginMemoryConversation(false);
-    } else {
-      const turnType = state.session.turns?.length ? "follow_up" : "initial";
-      state.session = await api(`/v1/memory-sessions/${state.session.id}/answers`, { method: "POST", body: JSON.stringify({ text, upload_id: uploadId, turn_type: turnType }) });
-      const cues = state.session.context_cues || [];
-      const remaining = memoryFollowUpsRemaining(state.session);
-      const fallback = memoryTurnFallback(state.session);
-      const instruction = remaining > 0
-        ? "Acknowledge the storyteller in one sentence, then ask exactly one gentle follow-up question or offer one clearly labelled hint that helps the memory unfold. Do not suggest saving yet."
-        : "Acknowledge the storyteller briefly, say there is enough detail to shape the first chapter, and tell them they can save this memory now. Do not ask another question.";
-      const result = await agentTurn(`The storyteller answered: ${text}\n${instruction}`, fallback, ["memory.save", "memory.search"]);
-      const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
-      const action = remaining > 0 ? null : { name: "save-memory", label: "Save this memory" };
-      state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action });
+    const session = await ensureMemorySession();
+    let cues = [];
+    let action = null;
+    let fallback = "Thank you for sharing that. What part of it feels most important to you?";
+    let instruction = "Acknowledge the storyteller naturally, then ask one gentle open-ended follow-up question. Do not restart onboarding or request profile fields.";
+    if (session) {
+      try {
+        const turnType = session.turns?.length ? "follow_up" : "initial";
+        state.session = await api(`/v1/memory-sessions/${session.id}/answers`, { method: "POST", body: JSON.stringify({ text, upload_id: uploadId, turn_type: turnType }) });
+        cues = state.session.context_cues || [];
+        if (cues.length) state.workspaceTab = "pictures";
+        const remaining = memoryFollowUpsRemaining(state.session);
+        fallback = memoryTurnFallback(state.session);
+        instruction = remaining > 0
+          ? "Acknowledge the storyteller in one sentence, then ask exactly one gentle follow-up question or offer one clearly labelled hint that helps the memory unfold. Do not suggest saving yet."
+          : "Acknowledge the storyteller briefly, say there is enough detail to shape the first chapter, and tell them they can save this memory now. Do not ask another question.";
+        if (remaining === 0) action = { name: "save-memory", label: "Save this memory" };
+      } catch {
+        // The open Codex conversation is the primary path; legacy session state is optional.
+        state.session = null;
+      }
     }
+    const result = await agentTurn(`The storyteller said: ${text || "[voice answer]"}\n${instruction}`, fallback, ["memory.save", "memory.search"]);
+    const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
+    state.chat.push({ role: "assistant", text: result.reply || fallback, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action });
   } catch (error) { toast(error.message); }
   state.loading = false;
   render();
@@ -1105,7 +1370,25 @@ async function reactCue(assetId, reaction) {
   try { await api(`/v1/memory-sessions/${state.session.id}/cue-reactions`, { method: "POST", body: JSON.stringify({ asset_id: assetId, reaction }) }); toast(reaction === "different" ? "Got it — your life stays the authority." : "Saved as a memory prompt, not a fact."); } catch (error) { toast(error.message); }
 }
 
-function speakText(text) {
+async function speakText(text) {
+  state.audioPlayer?.pause();
+  if (state.session) {
+    try {
+      const generated = await api(`/v1/memory-sessions/${state.session.id}/question-audio`, {
+        method: "POST",
+        body: JSON.stringify({ language: profile().preferred_language || "en-AU", voice: "marin" }),
+      });
+      const response = await fetch(memoirApiPath(generated.audio_url));
+      if (!response.ok) throw new Error("Generated audio could not be loaded.");
+      const player = new Audio(URL.createObjectURL(await response.blob()));
+      state.audioPlayer = player;
+      player.onended = () => URL.revokeObjectURL(player.src);
+      await player.play();
+      return;
+    } catch (error) {
+      if (error.status !== 503) toast(error.message);
+    }
+  }
   if (!window.speechSynthesis) return toast("Read aloud is not available in this browser.");
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -1117,20 +1400,7 @@ function speakText(text) {
 }
 
 function toggleVoiceInput() {
-  if (state.recording && state.recognition) { state.recognition.stop(); return; }
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (Recognition) {
-    const recognition = new Recognition();
-    recognition.lang = profile().preferred_language || "en-AU";
-    recognition.interimResults = false;
-    recognition.onstart = () => { state.recording = true; render(); };
-    recognition.onresult = (event) => { const input = $("#chat-input"); if (input) input.value = Array.from(event.results).map((result) => result[0].transcript).join(" "); };
-    recognition.onerror = () => toast("Voice dictation was not available. You can type instead.");
-    recognition.onend = () => { state.recording = false; state.recognition = null; render(); };
-    state.recognition = recognition;
-    recognition.start();
-    return;
-  }
+  if (state.recording && state.recorder) { state.recorder.stop(); return; }
   startAudioRecorder();
 }
 
@@ -1138,7 +1408,8 @@ async function startAudioRecorder() {
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("This browser cannot record here. You can type your answer instead.");
   try {
     state.recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(state.recordingStream);
+    const preferredMime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((value) => window.MediaRecorder.isTypeSupported?.(value));
+    const recorder = preferredMime ? new MediaRecorder(state.recordingStream, { mimeType: preferredMime }) : new MediaRecorder(state.recordingStream);
     state.recorder = recorder;
     state.recordedChunks = [];
     recorder.addEventListener("dataavailable", (event) => { if (event.data.size) state.recordedChunks.push(event.data); });
@@ -1151,11 +1422,14 @@ async function startAudioRecorder() {
       if (!blob.size) return render();
       try {
         const encoded = await blobToBase64(blob);
-        const created = await api("/v1/uploads", { method: "POST", body: JSON.stringify({ project_id: state.project.id, kind: "audio", filename: `memory-${Date.now()}.webm`, mime_type: blob.type || "audio/webm", expected_size: blob.size }) });
+        const mimeType = (blob.type || recorder.mimeType || "audio/webm").split(";")[0];
+        const created = await api("/v1/uploads", { method: "POST", body: JSON.stringify({ project_id: state.project.id, kind: "audio", filename: `memory-${Date.now()}.webm`, mime_type: mimeType, expected_size: blob.size }) });
         await api(`/v1/uploads/${created.id}/parts`, { method: "POST", body: JSON.stringify({ sequence: 0, content: encoded }) });
         await api(`/v1/uploads/${created.id}/finalize`, { method: "POST", body: JSON.stringify({}) });
+        const transcript = await api(`/v1/uploads/${created.id}/transcription`, { method: "POST", body: JSON.stringify({ language: profile().preferred_language || "en-AU" }) });
         state.audioUploadId = created.id;
-        toast("Voice answer ready. Press send when you are ready.");
+        state.audioTranscript = transcript.source.text || "";
+        toast("Transcript ready. Review it, then press send.");
       } catch (error) { toast(error.message); }
       render();
     });
@@ -1183,17 +1457,23 @@ async function boot() {
   state.authPromise = ensureAuth();
   try {
     await state.authPromise;
-    const storyStarted = localStorage.getItem("memory-spark-story-started");
-    if (storyStarted || currentPath() === MEMOIR_ROUTES.start) {
-      await refreshStoryState(false);
-      render();
-      return;
-    }
+    // The old five-round entry point was client-only state. Clear it so a
+    // refresh always returns to the persistent Codex conversation instead of
+    // reopening a fixed question card.
+    localStorage.removeItem("memory-spark-story-started");
     const saved = localStorage.getItem("memory-spark-project");
     if (saved) {
-      try { state.project = { id: saved }; await refreshProject(); render(); return; }
+      try {
+        state.project = { id: saved };
+        await refreshProject();
+        if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
+        render();
+        await startCodexConversation({ resume: true });
+        return;
+      }
       catch { localStorage.removeItem("memory-spark-project"); state.project = null; }
     }
+    if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
   } catch (error) {
     $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;

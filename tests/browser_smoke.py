@@ -15,10 +15,10 @@ def main() -> None:
         page = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
         page.goto(args.base_url, wait_until="domcontentloaded")
         page.wait_for_timeout(1000)
-        expect(page.get_by_text("Your story begins with one gentle question.")).to_be_visible()
+        expect(page.get_by_text("Start with a conversation.")).to_be_visible()
         page.get_by_role("button", name="Begin my story").click()
-        expect(page.get_by_text("Round 1 of 5")).to_be_visible()
-        expect(page.get_by_role("textbox", name="Your story answer")).to_be_visible()
+        expect(page.get_by_role("main", name="Memory Spark conversation")).to_be_visible()
+        expect(page.get_by_role("textbox", name="Your message")).to_be_visible()
         browser.close()
 
 

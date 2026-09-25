@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from .codex_agent import CodexConnection, provider_config
 from .codex_artifacts import iter_artifacts
-from .codex_runtime import SYSTEM_PROMPT
+from .codex_runtime import build_system_prompt
 from .codex_worker_files import migrate_home, write_config
 from .agent_lock import AgentTurnBusyError
 
@@ -126,7 +126,7 @@ class CodexWorker:
         home = self._home(user_id, uid)
         model = payload.model or self.model
         context = "\n".join(str(memory)[:2000] for memory in payload.memories) or "(none)"
-        prompt = f"{SYSTEM_PROMPT.format(memories=context)}\n\nStoryteller message:\n{payload.text}"
+        prompt = f"{build_system_prompt(context)}\n\nStoryteller message:\n{payload.text}"
         environment = {"MEMORY_SPARK_LLM_API_KEY": self.api_key}
         async with CodexConnection(
             self._run_command(uid),
@@ -151,7 +151,7 @@ class CodexWorker:
                     "model": model,
                     "approvalPolicy": "never",
                     "sandbox": "read-only",
-                    "baseInstructions": SYSTEM_PROMPT.format(memories=context),
+                    "baseInstructions": build_system_prompt(context),
                 })
             thread_id = result["thread"]["id"]
             reply = await connection.turn(thread_id, prompt)

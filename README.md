@@ -76,15 +76,17 @@ MEMORY_SPARK_TEST_MODE=1 python3 -m uvicorn apps.api.main:app --reload --host 12
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then enable **Allow manual linking** and **Allow anonymous sign-ins** under Supabase Auth → Sign In / Providers. Configure both Google and Facebook there as well; the browser uses Supabase `linkIdentity` after round five. See [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous) and [manual identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking#manual-linking-beta).
 
+To enable server-side voice, set `OPENAI_API_KEY` in `.env`. The API uses `gpt-4o-mini-transcribe` for recordings and `gpt-4o-mini-tts` for spoken questions by default; override them with `MEMORY_SPARK_STT_MODEL` and `MEMORY_SPARK_TTS_MODEL`. Keep the key server-side. If it is unset or speech is unavailable, typed answers and browser read-aloud remain available.
+
 ## Story packages and Stripe
 
 After the free first chapter, the story journey offers three one-time packages in Australian dollars:
 
 | Package | Price | Includes |
 | --- | ---: | --- |
-| Electronic memoir | A$29 | Electronic version only |
-| Printed memoir | A$59 | Electronic version and 2 printed books |
-| Family legacy memoir | A$99 | Electronic version, 2 printed books, family tree, timeline, and more detailed story context |
+| Electronic memoir | A$49 | Electronic version only |
+| Printed memoir | A$79 | Electronic version and 2 printed books |
+| Family legacy memoir | A$129 | Electronic version, 2 printed books, family tree, timeline, and more detailed story context |
 
 Additional printed books cost A$10 each for either printed package. The API calculates the total from the selected package and quantity; the browser cannot set the amount. Stripe Checkout is hosted by Stripe, and the paid entitlement is granted only by the signed webhook at `/api/v1/memoir/story/stripe/webhook` after a successful `checkout.session.completed` or asynchronous payment event.
 
@@ -98,6 +100,25 @@ MEMORY_SPARK_PUBLIC_URL=https://your-domain.example
 ```
 
 `STRIPE_PRICE_ELECTRONIC`, `STRIPE_PRICE_PRINTED`, `STRIPE_PRICE_FAMILY`, and `STRIPE_PRICE_ADDITIONAL_BOOK` are optional Dashboard-created Price IDs. If they are blank, the server uses Stripe `price_data` with the fixed server-side amounts. Never expose `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, or `SUPABASE_SECRET_KEY` to the browser.
+
+To create or reuse the matching one-time Stripe products and prices, preview first and then run:
+
+```bash
+make setup_stripe_test \
+  STRIPE_SECRET_KEY=sk_test_... \
+  STRIPE_SETUP_ARGS=--dry-run
+make setup_stripe_test STRIPE_SECRET_KEY=sk_test_...
+```
+
+For production, pass the public application URL. The Makefile creates `STRIPE_WEBHOOK_URL` by appending `/api/v1/memoir/story/stripe/webhook`:
+
+```bash
+make setup_stripe_live \
+  STRIPE_SECRET_KEY=sk_live_... \
+  MEMORY_SPARK_PUBLIC_URL=https://<public-domain>
+```
+
+The setup targets do not read `.env`; they require an explicitly supplied mode-matching `STRIPE_SECRET_KEY` and write it, the computed webhook URL, the Price IDs, and a newly created webhook secret to the local ignored config file under `infra/`. The test target creates a webhook URL only when `MEMORY_SPARK_PUBLIC_URL` or an explicit `STRIPE_WEBHOOK_URL` is supplied; the live target requires one. Use `make stripe_login` separately for local `stripe listen` forwarding.
 
 Register the webhook URL in Stripe Workbench for `checkout.session.completed` and `checkout.session.async_payment_succeeded`. For local testing, forward events with the Stripe CLI:
 
@@ -121,6 +142,10 @@ The default ports are `http://127.0.0.1:3010` for the web shell, `http://127.0.0
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
 
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
+
+### Place journeys in the integrated Codex harness
+
+The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a temporary Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, removes it from the spoken reply, and returns `place_journey`; the Memoir browser uses CesiumJS `camera.flyTo` for the Places surface without saving a location as biographical fact. The local `codex-harness` copies the skill into its `CODEX_HOME` at startup, and the API/worker images include it when built.
 
 Apply the checked-in migrations before using the connected agent:
 

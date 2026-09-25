@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 from copy import deepcopy
 from typing import Any, Callable
 
 from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
-from .store import MemoryStore, new_id
+from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService
+from .store import MemoryStore, new_id, sha256_json
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -31,7 +35,27 @@ ROUNDS_REQUIRED = 5
 
 class StoryRoundInput(BaseModel):
     round: int = Field(ge=1)
-    answer: str = Field(min_length=1, max_length=100000)
+    answer: str = Field(default="", max_length=100000)
+    audio_base64: str | None = None
+    audio_filename: str = "story-round.webm"
+    audio_mime_type: str = "audio/webm"
+    audio_source_path: str | None = None
+
+
+class StoryTranscriptionInput(BaseModel):
+    audio_base64: str = Field(min_length=1)
+    filename: str = "story-round.webm"
+    mime_type: str = "audio/webm"
+    language: str | None = None
+    prompt: str | None = None
+
+
+class StorySpeechInput(BaseModel):
+    text: str = Field(min_length=1, max_length=4096)
+    language: str = "en-AU"
+    voice: str = "marin"
+    instructions: str = "Speak slowly, warmly and clearly with natural pauses."
+    output_format: str = "mp3"
 
 
 class StoryCheckoutCreate(BaseModel):
@@ -199,10 +223,13 @@ def build_router(
     *,
     entitlement_store: Any | None = None,
     stripe_client: StripeCheckoutClient | Any | None = None,
+    speech_service: Any | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/story", tags=["Story journey"])
     payment_store = entitlement_store or build_story_entitlement_store(MemoryStore())
     stripe = stripe_client or StripeCheckoutClient()
+    speech_service = speech_service or UnavailableSpeechService()
+    speech_cache: dict[str, dict[str, Any]] = {}
 
     def storage_for(authorization: str | None):
         return storage_factory(authorization)
@@ -217,6 +244,56 @@ def build_router(
         try:
             profile = _profile(storage)
             return _state_response(storage, _state(profile, _entitlement(payment_store, storage)))
+        finally:
+            _close(storage)
+
+    @router.post("/transcriptions")
+    def story_transcription(payload: StoryTranscriptionInput, authorization: str | None = Header(default=None)):
+        storage = storage_for(authorization)
+        try:
+            try:
+                audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
+            except (ValueError, binascii.Error) as error:
+                raise HTTPException(422, "The recording payload is not valid base64.", headers={"X-Error-Code": "INVALID_AUDIO_PAYLOAD"}) from error
+            try:
+                transcription = speech_service.transcribe(
+                    audio,
+                    filename=payload.filename,
+                    mime_type=payload.mime_type,
+                    language=payload.language,
+                    prompt=payload.prompt,
+                )
+            except SpeechUnavailable as exc:
+                raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_UNAVAILABLE"}) from exc
+            except SpeechProviderError as exc:
+                raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_PROVIDER_FAILED"}) from exc
+            text = str(transcription.get("text") or "").strip()
+            if not text:
+                raise HTTPException(502, "Speech transcription returned no text", headers={"X-Error-Code": "EMPTY_TRANSCRIPT"})
+            return {"text": text, "source": {"source_kind": "transcript", "transcription_method": str(transcription.get("provider") or "openai"), "transcription_model": transcription.get("model"), "language": transcription.get("language"), "segments": transcription.get("segments") or []}}
+        finally:
+            _close(storage)
+
+    @router.post("/question-audio")
+    def story_question_audio(payload: StorySpeechInput, authorization: str | None = Header(default=None)):
+        storage = storage_for(authorization)
+        try:
+            cache_key = sha256_json({"user_id": storage.user_id, **payload.model_dump()})
+            existing = speech_cache.get(cache_key)
+            if existing:
+                return JSONResponse(status_code=200, content={**existing, "cached": True})
+            try:
+                generated = speech_service.synthesize(**payload.model_dump())
+            except SpeechUnavailable as exc:
+                raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_UNAVAILABLE"}) from exc
+            except SpeechProviderError as exc:
+                raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_PROVIDER_FAILED"}) from exc
+            content = generated.get("content") if isinstance(generated, dict) else None
+            if not isinstance(content, bytes) or not content:
+                raise HTTPException(502, "Speech synthesis returned no audio", headers={"X-Error-Code": "EMPTY_SPEECH"})
+            result = {"audio_base64": base64.b64encode(content).decode(), "mime_type": str(generated.get("mime_type") or "audio/mpeg"), "model": generated.get("model"), "voice": generated.get("voice") or payload.voice, "ai_generated": True}
+            speech_cache[cache_key] = result
+            return JSONResponse(status_code=201, content={**result, "cached": False})
         finally:
             _close(storage)
 
@@ -239,14 +316,36 @@ def build_router(
                     detail=f"Round {expected_round} is required next.",
                     headers={"X-Error-Code": "ROUND_OUT_OF_ORDER"},
                 )
+            answer = payload.answer.strip()
+            audio_source_path = payload.audio_source_path
+            audio = None
+            if payload.audio_base64:
+                try:
+                    audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
+                except (ValueError, binascii.Error) as error:
+                    raise HTTPException(422, "The recording payload is not valid base64.", headers={"X-Error-Code": "INVALID_AUDIO_PAYLOAD"}) from error
+                if hasattr(storage, "put_attachment"):
+                    audio_source_path = storage.put_attachment(payload.audio_filename, audio, payload.audio_mime_type)
+            if audio is not None and not answer:
+                try:
+                    transcription = speech_service.transcribe(audio, filename=payload.audio_filename, mime_type=payload.audio_mime_type)
+                except SpeechUnavailable as exc:
+                    raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_UNAVAILABLE"}) from exc
+                except SpeechProviderError as exc:
+                    raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_PROVIDER_FAILED"}) from exc
+                answer = str(transcription.get("text") or "").strip()
+                if not answer:
+                    raise HTTPException(502, "Speech transcription returned no text", headers={"X-Error-Code": "EMPTY_TRANSCRIPT"})
+            if not answer:
+                raise HTTPException(422, "A story answer or recording is required.", headers={"X-Error-Code": "ANSWER_REQUIRED"})
             storage.save_memory(
-                json.dumps({"type": "story_round", "round": payload.round, "answer": payload.answer}),
+                json.dumps({"type": "story_round", "round": payload.round, "answer": answer, "transcription_method": "openai" if payload.audio_base64 else "typed"}),
                 kind="memoir",
-                source_paths=[f"story-round:{payload.round}"],
+                source_paths=[f"story-round:{payload.round}", *([audio_source_path] if audio_source_path else [])],
             )
             state["rounds_completed"] = payload.round
             _save_state(storage, profile, state)
-            return _state_response(storage, state)
+            return {**_state_response(storage, state), "transcript": answer if payload.audio_base64 else None}
         finally:
             _close(storage)
 

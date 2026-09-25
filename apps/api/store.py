@@ -42,6 +42,7 @@ class MemoryStore:
     auth_challenges: dict[str, dict[str, Any]] = field(default_factory=dict)
     invitations: dict[str, dict[str, Any]] = field(default_factory=dict)
     uploads: dict[str, dict[str, Any]] = field(default_factory=dict)
+    speech_assets: dict[str, dict[str, Any]] = field(default_factory=dict)
     source_versions: dict[str, dict[str, Any]] = field(default_factory=dict)
     claims: dict[str, dict[str, Any]] = field(default_factory=dict)
     people: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -73,6 +74,7 @@ class MemoryStore:
         "auth_challenges",
         "invitations",
         "uploads",
+        "speech_assets",
         "source_versions",
         "claims",
         "people",
