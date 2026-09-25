@@ -11,6 +11,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY apps ./apps
+COPY scripts/verify_codex_worker_isolation.py /usr/local/libexec/verify_codex_worker_isolation.py
 
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes ca-certificates python3 python3-venv util-linux \

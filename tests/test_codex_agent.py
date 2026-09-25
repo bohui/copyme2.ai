@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import sys
+import pytest
 
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import CodexRuntime, build_loop_trace
@@ -37,6 +38,33 @@ for line in sys.stdin:
     asyncio.run(run())
 
 
+def test_cancellation_during_spawn_still_reaps_the_child(tmp_path, monkeypatch):
+    spawn = asyncio.create_subprocess_exec
+    async def run():
+        ready, finish = asyncio.Event(), asyncio.Event()
+        async def delayed_spawn(*args, **kwargs):
+            process = await spawn(*args, **kwargs)
+            ready.set()
+            await finish.wait()
+            return process
+        monkeypatch.setattr(asyncio, 'create_subprocess_exec', delayed_spawn)
+        connection = CodexConnection(
+            [sys.executable, '-c', 'import time; time.sleep(60)'], tmp_path)
+        task = asyncio.create_task(connection.__aenter__())
+        await ready.wait()
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        finish.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert connection.process.returncode is not None
+    asyncio.run(run())
+
+
 def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(monkeypatch):
     class Storage:
         user_id = "11111111-1111-4111-8111-111111111111"
@@ -64,14 +92,15 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         def agent_path(path):
             return path
 
-        def save_agent_session(self, thread_id):
+        def commit_agent_turn(self, token, thread_id, text, source_paths):
             self.saved_session = thread_id
+            return {"content": text, "kind": "agent", "source_paths": source_paths}
 
-        def save_memory(self, text, *, kind, source_paths):
-            return {"content": text, "kind": kind, "source_paths": source_paths}
-
-        def put_agent_file(self, path, content):
+        def put_agent_turn_file(self, token, path, content):
+            root, tail = path.split('/', 1)
+            path = f'{root}/turns/{token}/{tail}'
             self.files[path] = content
+            return path
 
     class Response:
         status_code = 200
@@ -116,9 +145,10 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
 
     assert result["trace_mode"] == "codex-worker"
     assert result["thread_id"] == "thread-new"
-    assert result["source_paths"] == ["sessions/thread-new.json"]
+    path = result['source_paths'][0]
+    assert path.startswith('sessions/turns/') and path.endswith('/thread-new.json')
     assert storage.saved_session == "thread-new"
-    assert storage.files["sessions/thread-new.json"] == b"session state"
+    assert storage.files[path] == b"session state"
     assert client.request["url"] == "http://codex-worker:8766/internal/codex/turn"
     assert client.request["headers"] == {"X-Codex-Worker-Secret": "worker-secret"}
     assert client.request["json"] == {

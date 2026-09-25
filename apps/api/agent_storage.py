@@ -115,3 +115,18 @@ class UserStorage:
     def release_agent_turn_lease(self, lease_token):
         return bool(self.request('POST', '/rest/v1/rpc/release_user_agent_turn_lease',
                                  json={'p_lease_token': lease_token}).json())
+
+    def put_agent_turn_file(self, lease_token, relative, content):
+        root, tail = self.agent_path(relative).split('/', 1)
+        path = f'{root}/turns/{UUID(lease_token)}/{tail}'
+        self._put(f'{self.user_id}/agent/{path}', content,
+                  'application/octet-stream', overwrite=False)
+        return path
+
+    def commit_agent_turn(self, lease_token, thread_id, text, source_paths):
+        return self.request('POST', '/rest/v1/rpc/commit_user_agent_turn', json={
+            'p_lease_token': lease_token,
+            'p_thread_id': thread_id,
+            'p_content': text,
+            'p_source_paths': source_paths,
+        }).json()

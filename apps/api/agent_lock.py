@@ -23,15 +23,46 @@ class AgentTurnLease:
         self.lease_token = str(uuid4())
         self._heartbeat_task: asyncio.Task | None = None
         self._lost = False
+        self._owner: asyncio.Task | None = None
+        self._cancel_requested = False
+
+    @staticmethod
+    async def io(function, *args, **kwargs):
+        # Cancelling to_thread does not stop its thread. Settle outstanding IO
+        # before releasing the lease or closing the request's HTTP client.
+        task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            if not task.cancelled():
+                task.exception()  # Retrieve any IO failure; preserve cancellation.
+            raise
 
     async def __aenter__(self):
-        acquired = await asyncio.to_thread(
-            self.storage.acquire_agent_turn_lease,
-            self.lease_token,
-            self.lease_seconds,
-        )
+        try:
+            acquired = await self.io(
+                self.storage.acquire_agent_turn_lease,
+                self.lease_token,
+                self.lease_seconds,
+            )
+        except asyncio.CancelledError:
+            # Acquisition may have succeeded after the client disconnected.
+            # Releasing this random token cannot release another holder's row.
+            try:
+                await self.io(self.storage.release_agent_turn_lease, self.lease_token)
+            except Exception:
+                pass  # A persistence outage leaves expiry as the safe fallback.
+            raise
         if not acquired:
             raise AgentTurnBusyError("A Codex turn is already running for this user")
+        self._owner = asyncio.current_task()
         self._heartbeat_task = asyncio.create_task(self._heartbeat())
         return self
 
@@ -40,24 +71,36 @@ class AgentTurnLease:
         try:
             while True:
                 await asyncio.sleep(interval)
-                renewed = await asyncio.to_thread(
+                renewed = await self.io(
                     self.storage.renew_agent_turn_lease,
                     self.lease_token,
                     self.lease_seconds,
                 )
                 if not renewed:
-                    self._lost = True
+                    self._lose()
                     return
         except asyncio.CancelledError:
             return
         except Exception:
-            # Do not silently allow a lease to expire after a persistence
-            # outage.  The caller will fail closed before saving the turn.
-            self._lost = True
+            self._lose()
+
+    def _lose(self):
+        self._lost = True
+        if self._owner is not None:
+            self._cancel_requested = self._owner.cancel()
 
     def assert_held(self):
         if self._lost:
-            raise RuntimeError("The Codex turn lease was lost; the turn was not saved")
+            raise RuntimeError("The Codex turn lease was lost; check the conversation before retrying")
+
+    async def check(self):
+        self.assert_held()
+        renewed = await self.io(
+            self.storage.renew_agent_turn_lease, self.lease_token, self.lease_seconds
+        )
+        if not renewed:
+            self._lost = True
+        self.assert_held()
 
     async def __aexit__(self, exc_type, exc, tb):
         if self._heartbeat_task is not None:
@@ -67,7 +110,7 @@ class AgentTurnLease:
             except asyncio.CancelledError:
                 pass
         try:
-            released = await asyncio.to_thread(
+            released = await self.io(
                 self.storage.release_agent_turn_lease,
                 self.lease_token,
             )
@@ -76,5 +119,10 @@ class AgentTurnLease:
         except Exception:
             if exc is None:
                 raise
-        if exc is None:
+        if isinstance(exc, asyncio.CancelledError) and self._cancel_requested:
+            # Consume only our cancellation, preserving an independent client
+            # cancellation if it raced the heartbeat failure.
+            if self._owner.uncancel():
+                return
+        if exc is None or isinstance(exc, asyncio.CancelledError):
             self.assert_held()

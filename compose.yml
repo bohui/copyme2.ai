@@ -75,6 +75,7 @@ services:
     environment:
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
+      MEMORY_SPARK_LEGACY_CODEX_HOME: /var/lib/memory-spark/legacy-codex-users
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
       MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
@@ -82,6 +83,8 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - codex-worker-home:/var/lib/memory-spark/codex-users
+      # Read only for one-time import; stop the old API before upgrading.
+      - ./var/memory-spark/codex-users:/var/lib/memory-spark/legacy-codex-users:ro
     read_only: true
     tmpfs:
       - /tmp
@@ -91,6 +94,8 @@ services:
       - CHOWN
       - DAC_OVERRIDE
       - FOWNER
+      # The root supervisor must terminate/reap its different-UID children.
+      - KILL
       - SETGID
       - SETUID
     restart: unless-stopped

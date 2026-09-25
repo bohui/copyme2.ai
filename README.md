@@ -129,9 +129,34 @@ psql "<your Supabase Postgres connection string>" -f supabase/migrations/2026092
 psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609230002_agent_sessions.sql
 psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250002_agent_turn_leases.sql
 psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250003_story_entitlements.sql
+psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250004_fenced_agent_turn_commit.sql
 ```
 
 For an installation that previously applied the retired JSONB-state migration, run `supabase/migrations/202609250001_remove_memory_spark_state.sql` once with your normal Supabase migration connection. It drops only the retired `memory_spark_state` and `memory_spark_outbox` tables.
+
+When upgrading from API-hosted Codex, drain and stop **all old API/Codex writers**
+before starting the new worker. Compose mounts the old `var/memory-spark/codex-users`
+directory read-only; the worker atomically imports each user's complete offline
+home (including SQLite/WAL and rollouts) on first use. Existing worker homes are
+never overwritten, and the original files remain intact. Keep the legacy mount
+until every existing user has migrated. Apply the fenced-commit migration before
+starting the updated API; it intentionally has no unfenced-save fallback.
+
+Artifact snapshots now use `agent/<root>/turns/<lease UUID>/<relative path>`.
+Only the lease-checked database commit publishes their paths. Failed attempts
+can leave unreferenced, private snapshots; they never overwrite committed ones.
+
+Mocker currently warns that it ignores `cap_add`, `cap_drop`, and `read_only`.
+Use a runtime that enforces these Compose settings for production. The offline
+Linux verification below explicitly constrains its own capabilities so its
+result does not depend on Mocker honoring those flags:
+
+```bash
+mocker compose exec -f compose.yml -T codex-worker python /usr/local/libexec/verify_codex_worker_isolation.py
+```
+
+This check uses temporary fixtures and a deterministic app-server double. It
+does not call the model or Supabase, and it is not a live-model integration test.
 
 ## Verify
 

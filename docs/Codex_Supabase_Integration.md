@@ -12,9 +12,9 @@
   access; temporary users and files were removed.
 - The local `llm_provider` route accepts the project-scoped key stored only in the
   gitignored `.env` and returns successful `deepseek-v4-flash` Responses calls.
-- Codex 0.156.1 app-server runs in the private `codex-worker` container under a
-  per-user OS identity, created a thread, completed a real turn through
-  `llm_provider`, and resumed the same thread on a second turn.
+- Before the isolation upgrade, Codex 0.156.1 created a thread, completed a real
+  turn through `llm_provider`, and resumed the same thread on a second turn.
+  Those live-model results do not verify the new worker deployment.
 - The authenticated API journey returned two replies, persisted two `agent`
   memory rows, synchronized Codex artifacts, and created an attachment with the
   requested owner path shape.
@@ -38,6 +38,12 @@ memory-spark/                         # private bucket
         memory_summary.md
         skills/...
 ```
+
+The paths above describe legacy objects. New turn snapshots insert
+`turns/<lease UUID>/` immediately below `sessions`, `archived_sessions`, or
+`memories`. Uploads are immutable, and the fenced database commit publishes
+the snapshot paths with the memory and session in one transaction. Interrupted
+uploads may leave private, unreferenced objects; cleanup is an operational task.
 
 The adapter verifies the user with Supabase Auth, derives paths from that UUID,
 and forwards the user's JWT for every storage and PostgREST operation. It never
@@ -74,9 +80,15 @@ Sources:
   high-level loop trace for the UI.
 - `apps/api/agent_lock.py`: renewable Supabase-backed user turn leases. The lease
   is the cross-replica serialization mechanism; the local asyncio lock is only
-  an in-process optimization.
+  an in-process optimization. Heartbeat loss cancels the turn; in-flight storage
+  IO settles before lease release. `commit_user_agent_turn` validates the lease
+  under a row lock before saving both session and memory atomically.
 - `apps/api/codex_worker_service.py`: private worker endpoint and per-user OS UID
   allocation for Codex subprocesses.
+- `apps/api/codex_worker_files.py`: no-follow config replacement and atomic,
+  non-destructive import of offline legacy homes. Worker replicas using the
+  same user state must share the worker volume; filesystem locks serialize
+  execution and UID allocation across processes.
 - `/v1/user/profile`, `/v1/user/memories`, `/v1/user/attachments`: Supabase bearer
   token endpoints, separate from the prototype's demo account identities.
 - `/v1/agent/config`, `/v1/agent/turn`: browser configuration and authenticated
@@ -93,9 +105,10 @@ Sources:
 - Only Codex filesystem artifacts below `sessions`, `archived_sessions`, and
   `memories` are copied to Storage. Codex SQLite state, auth, configuration, and
   plugin files stay in the private worker's per-user home; live SQLite/WAL files
-  are not uploaded naively. The worker container is read-only apart from its
-  dedicated volume and temporary filesystem, and Codex subprocesses run under
-  distinct non-system UIDs.
+  are not uploaded naively. Compose requests a read-only worker root and a
+  limited capability set, but Mocker currently ignores those flags. Production
+  requires a runtime that honors them. Codex subprocesses use distinct UIDs;
+  the supervisor needs `CAP_KILL` to terminate and reap them.
 - The API-to-worker network is private and authenticated with
   `MEMORY_SPARK_CODEX_WORKER_SECRET`; the worker has no public host port.
 - The current memoir agent has no external tools and uses the deterministic
@@ -103,6 +116,21 @@ Sources:
   a simulated Codex loop for those calls, while connected turns show the
   allowlisted Codex adapter trace. Both traces expose action summaries and tool
   results, never hidden model reasoning.
+
+## Isolation upgrade rollout
+
+Apply `202609250004_fenced_agent_turn_commit.sql` before deploying the updated
+API. This migration was verified against a disposable local PostgreSQL instance;
+it has **not** been applied to the hosted project as part of this upgrade.
+Drain/stop all old API writers before importing legacy homes: a read-only mount
+does not make a concurrently changing SQLite/WAL pair a consistent snapshot.
+Imports preserve the original home and never replace an existing worker home.
+Do not remove the legacy mount until all returning users have migrated.
+
+`scripts/verify_codex_worker_isolation.py` exercises a complete start/resume and
+cleanup cycle using a deterministic app-server double under the exact Linux
+capability set, plus sibling-read denial and symlink protection. This is an
+offline OS-boundary test, not evidence of a new live-model or browser journey.
 
 The browser starts with Supabase anonymous auth, asks five story rounds, then
 requires linking Google or Facebook before claiming one free chapter. Full

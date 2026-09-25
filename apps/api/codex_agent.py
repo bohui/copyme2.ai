@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import signal
 from pathlib import Path
 
 
@@ -19,10 +20,24 @@ class CodexConnection:
         env = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT', 'TMPDIR') if key in os.environ}
         env.update(self.provider_env)
         env.update({'HOME': str(self.home), 'CODEX_HOME': str(self.home)})
-        self.process = await asyncio.create_subprocess_exec(
+        launching = asyncio.create_task(asyncio.create_subprocess_exec(
             *self.command, cwd=self.home, env=env, stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-            limit=16 * 1024 * 1024)
+            start_new_session=True,
+            limit=16 * 1024 * 1024))
+        try:
+            self.process = await asyncio.shield(launching)
+        except asyncio.CancelledError:
+            # A lease/disconnect can cancel us while spawn is still returning
+            # its handle. Obtain that handle before trying to reap the child.
+            while not launching.done():
+                try:
+                    await asyncio.shield(launching)
+                except asyncio.CancelledError:
+                    continue
+            self.process = launching.result()
+            await self.__aexit__(None, None, None)
+            raise
         try:
             await self.request('initialize', {'clientInfo': {'name': 'memory_spark', 'version': '1.0.0'},
                                               'capabilities': {'experimentalApi': True}})
@@ -33,13 +48,20 @@ class CodexConnection:
         return self
 
     async def __aexit__(self, *args):
-        if self.process.returncode is None:
-            self.process.terminate()
-            try:
+        # Include any children of app-server; the supervisor retains CAP_KILL
+        # while the tenant process drops to an unprivileged UID.
+        try:
+            os.killpg(self.process.pid, signal.SIGTERM)
+            if self.process.returncode is None:
                 await asyncio.wait_for(self.process.wait(), 5)
-            except asyncio.TimeoutError:
-                self.process.kill()
-                await self.process.wait()
+        except (ProcessLookupError, asyncio.TimeoutError):
+            pass
+        finally:
+            try:
+                os.killpg(self.process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await self.process.wait()
 
     async def send(self, message):
         self.process.stdin.write((json.dumps(message) + '\n').encode())

@@ -6,7 +6,7 @@ import httpx
 import os
 from pathlib import Path
 
-from .agent_lock import AgentTurnLease
+from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .agent_storage import UserStorage
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
@@ -104,9 +104,9 @@ class CodexRuntime:
     async def turn(self, storage: UserStorage, text: str):
         user_id = storage.user_id
         async with self._lock(user_id):
-            async with AgentTurnLease(storage):
-                prior = await asyncio.to_thread(storage.agent_session)
-                memories = await asyncio.to_thread(storage.memories)
+            async with AgentTurnLease(storage) as lease:
+                prior = await lease.io(storage.agent_session)
+                memories = await lease.io(storage.memories)
                 if self.worker_url:
                     result = await self._worker_turn(
                         user_id=user_id,
@@ -116,10 +116,12 @@ class CodexRuntime:
                     )
                     thread_id = result['thread_id']
                     reply = result['reply']
-                    paths = await asyncio.to_thread(
+                    await lease.check()
+                    paths = await lease.io(
                         self._save_worker_artifacts,
                         storage,
                         result.get('artifacts', []),
+                        lease,
                     )
                 else:
                     home = await asyncio.to_thread(self._home, user_id)
@@ -142,13 +144,15 @@ class CodexRuntime:
                             })
                         thread_id = result['thread']['id']
                         reply = await connection.turn(thread_id, prompt)
-                    paths = await asyncio.to_thread(self.sync_artifacts, storage, home)
-                await asyncio.to_thread(storage.save_agent_session, thread_id)
-                stored = await asyncio.to_thread(
-                    storage.save_memory,
+                    await lease.check()
+                    paths = await lease.io(self.sync_artifacts, storage, home, lease)
+                await lease.check()
+                stored = await lease.io(
+                    storage.commit_agent_turn,
+                    lease.lease_token,
+                    thread_id,
                     f'Storyteller: {text}\nMemory Spark: {reply}',
-                    kind='agent',
-                    source_paths=paths,
+                    paths,
                 )
                 return {
                     'thread_id': thread_id,
@@ -184,7 +188,7 @@ class CodexRuntime:
                 result = response.json()
         except httpx.HTTPStatusError as error:
             if error.response.status_code == 409:
-                raise RuntimeError('Codex worker is busy for this user') from None
+                raise AgentTurnBusyError('Codex worker is busy for this user') from None
             raise RuntimeError(f'Codex worker rejected the turn: HTTP {error.response.status_code}') from None
         except httpx.RequestError as error:
             raise RuntimeError(f'Codex worker unavailable: {error}') from None
@@ -193,7 +197,7 @@ class CodexRuntime:
         return result
 
     @staticmethod
-    def _save_worker_artifacts(storage, artifacts):
+    def _save_worker_artifacts(storage, artifacts, lease):
         paths = []
         if not isinstance(artifacts, list):
             raise RuntimeError('Codex worker returned invalid artifacts')
@@ -205,14 +209,14 @@ class CodexRuntime:
                 path = storage.agent_path(artifact['path'])
             except (ValueError, binascii.Error) as error:
                 raise RuntimeError('Codex worker returned an unsafe artifact') from error
-            storage.put_agent_file(path, content)
-            paths.append(path)
+            lease.assert_held()
+            paths.append(storage.put_agent_turn_file(lease.lease_token, path, content))
         return paths
 
     @staticmethod
-    def sync_artifacts(storage: UserStorage, home: Path):
+    def sync_artifacts(storage: UserStorage, home: Path, lease):
         paths = []
         for remote, content in iter_artifacts(home):
-            storage.put_agent_file(remote, content)
-            paths.append(remote)
+            lease.assert_held()
+            paths.append(storage.put_agent_turn_file(lease.lease_token, remote, content))
         return paths
