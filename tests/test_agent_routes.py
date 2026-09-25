@@ -14,6 +14,7 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
     assert response.status_code == 200
     assert response.json() == {
         'enabled': True,
+        'auth_mode': 'supabase',
         'supabase_url': 'https://example.supabase.co',
         'supabase_publishable_key': 'public-key',
     }

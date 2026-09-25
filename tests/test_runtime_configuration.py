@@ -1,28 +1,19 @@
-import pytest
-
 import apps.api.main as main
 from apps.api.store import MemoryStore
 
 
-def test_runtime_store_uses_supabase_db_url(monkeypatch):
-    calls = []
-
-    def fake_from_url(url, *, object_store_path=None):
-        calls.append((url, object_store_path))
-        return MemoryStore()
-
+def test_runtime_store_does_not_use_supabase_db_url(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://supabase.example.test/postgres")
-    monkeypatch.delenv("MEMORY_SPARK_TEST_MODE", raising=False)
-    monkeypatch.setattr(main.PostgresMemoryStore, "from_url", fake_from_url)
 
-    main.create_app()
+    app = main.create_app()
 
-    assert calls == [("postgresql://supabase.example.test/postgres", None)]
+    assert isinstance(app.state.store, MemoryStore)
+    assert not hasattr(app.state.store, "database_url")
 
 
-def test_runtime_requires_supabase_db_url_outside_test_mode(monkeypatch):
+def test_runtime_store_uses_supabase_user_storage_without_db_url(monkeypatch):
     monkeypatch.delenv("SUPABASE_DB_URL", raising=False)
-    monkeypatch.delenv("MEMORY_SPARK_TEST_MODE", raising=False)
 
-    with pytest.raises(RuntimeError, match="SUPABASE_DB_URL must be configured"):
-        main.create_app()
+    app = main.create_app()
+
+    assert isinstance(app.state.store, MemoryStore)

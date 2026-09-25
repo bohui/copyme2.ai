@@ -5,6 +5,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
 .venv/
 venv/
 env/
@@ -16,3 +17,5 @@ node_modules/
 .playwright/
 .playwright-cli/
 output/
+backend/gcp_key*.json
+supabase/.temp/

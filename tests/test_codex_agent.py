@@ -1,9 +1,10 @@
 import asyncio
+import base64
 import json
 import sys
 
 from apps.api.codex_agent import CodexConnection
-from apps.api.codex_runtime import build_loop_trace
+from apps.api.codex_runtime import CodexRuntime, build_loop_trace
 
 
 def test_loop_trace_exposes_actions_without_private_model_reasoning():
@@ -34,3 +35,96 @@ for line in sys.stdin:
             result = await connection.request('thread/start', {'ephemeral': False})
             assert result['thread']['id'] == 'thread-123'
     asyncio.run(run())
+
+
+def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(monkeypatch):
+    class Storage:
+        user_id = "11111111-1111-4111-8111-111111111111"
+
+        def __init__(self):
+            self.files = {}
+            self.saved_session = None
+
+        def acquire_agent_turn_lease(self, token, lease_seconds):
+            return True
+
+        def renew_agent_turn_lease(self, token, lease_seconds):
+            return True
+
+        def release_agent_turn_lease(self, token):
+            return True
+
+        def agent_session(self):
+            return {"codex_thread_id": "thread-old"}
+
+        def memories(self):
+            return [{"content": "A private memory"}]
+
+        @staticmethod
+        def agent_path(path):
+            return path
+
+        def save_agent_session(self, thread_id):
+            self.saved_session = thread_id
+
+        def save_memory(self, text, *, kind, source_paths):
+            return {"content": text, "kind": kind, "source_paths": source_paths}
+
+        def put_agent_file(self, path, content):
+            self.files[path] = content
+
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "thread_id": "thread-new",
+                "reply": "What detail stands out most?",
+                "artifacts": [{
+                    "path": "sessions/thread-new.json",
+                    "content": base64.b64encode(b"session state").decode("ascii"),
+                }],
+            }
+
+    class Client:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.request = None
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, *, headers, json):
+            self.request = {"url": url, "headers": headers, "json": json}
+            return Response()
+
+    client = Client()
+    monkeypatch.setattr("apps.api.codex_runtime.httpx.AsyncClient", lambda **kwargs: client)
+    storage = Storage()
+
+    result = asyncio.run(CodexRuntime(
+        worker_url="http://codex-worker:8766",
+        worker_secret="worker-secret",
+        model="test-model",
+    ).turn(storage, "Tell me about that day."))
+
+    assert result["trace_mode"] == "codex-worker"
+    assert result["thread_id"] == "thread-new"
+    assert result["source_paths"] == ["sessions/thread-new.json"]
+    assert storage.saved_session == "thread-new"
+    assert storage.files["sessions/thread-new.json"] == b"session state"
+    assert client.request["url"] == "http://codex-worker:8766/internal/codex/turn"
+    assert client.request["headers"] == {"X-Codex-Worker-Secret": "worker-secret"}
+    assert client.request["json"] == {
+        "user_id": storage.user_id,
+        "thread_id": "thread-old",
+        "memories": ["A private memory"],
+        "text": "Tell me about that day.",
+        "model": "test-model",
+    }

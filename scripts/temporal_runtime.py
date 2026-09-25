@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Workflow worker and dispatcher runtime for the Supabase-backed Memory Spark cell."""
+"""Workflow worker and dispatcher runtime for the legacy local adapter."""
 
 from __future__ import annotations
 
@@ -13,16 +13,16 @@ from temporalio.client import Client
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.worker import Worker
 
-from apps.api.store import MemoryStore, PostgresMemoryStore, now_iso
+from apps.api.store import MemoryStore, now_iso
 from apps.api.temporal_workflows import MemorySparkJob
 
 
 def _store_from_environment() -> MemoryStore:
-    database_url = os.environ.get("SUPABASE_DB_URL")
     object_path = Path(os.environ.get("MEMORY_SPARK_OBJECT_STORE_PATH", "var/memory-spark/objects"))
-    if not database_url:
-        raise RuntimeError("SUPABASE_DB_URL must be configured for the workflow worker")
-    return PostgresMemoryStore.from_url(database_url, object_store_path=object_path)
+    store_path = os.environ.get("MEMORY_SPARK_STORE_PATH")
+    if store_path:
+        return MemoryStore.from_path(store_path, object_store_path=object_path)
+    return MemoryStore(object_store_path=object_path)
 
 
 def _job_result(job: dict[str, Any]) -> dict[str, object]:

@@ -8,7 +8,7 @@ API_BASE ?= http://127.0.0.1:$(API_PORT)
 WEB_BASE ?= http://127.0.0.1:$(WEB_PORT)
 SERVICE ?= api
 
-.PHONY: help check runtime-start test browser-test acceptance-evidence spec-audit persistence-check outbox-check supabase-db-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell harness-provider-check harness-run harness-logs container-down
+.PHONY: help check runtime-start test browser-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell harness-provider-check harness-run harness-logs container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -39,13 +39,6 @@ spec-audit: ## Verify every normative section 19.2 route is represented.
 persistence-check: ## Verify the local store survives an application restart.
 	@python3 -m pytest -q tests/test_persistence.py
 
-outbox-check: ## Lease and acknowledge pending Supabase-backed outbox work.
-	@test -n "$$SUPABASE_DB_URL" || { echo "Set SUPABASE_DB_URL before running outbox-check" >&2; exit 2; }
-	@python3 scripts/dispatch_outbox.py --database-url "$$SUPABASE_DB_URL" --objects var/memory-spark/objects
-
-supabase-db-check: container-up ## Exercise the Supabase PostgreSQL state and outbox adapter.
-	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness sh -lc 'python3 scripts/check_postgres_store.py --database-url "$$SUPABASE_DB_URL"'
-
 container-config: check ## Validate the Compose model through Mocker.
 	@$(MOCKER) compose config -f $(COMPOSE_FILE) --quiet
 	@echo "Compose configuration: valid"
@@ -58,13 +51,13 @@ container-up: runtime-start ## Build and start the complete local stack.
 	@$(MOCKER) compose build -f $(COMPOSE_FILE)
 	@set -e; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
-	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-harness-1 >/dev/null 2>&1 || true; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-deps --detach api worker web codex-harness; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-recreate --no-deps --detach --wait --wait-timeout 120 api worker web codex-harness
+	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-codex-harness-1 >/dev/null 2>&1 || true; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-deps --detach api worker web codex-worker codex-harness; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-recreate --no-deps --detach --wait --wait-timeout 120 api worker web codex-worker codex-harness
 	@$(MAKE) --no-print-directory container-health
 
 container-health: check ## Verify API, web shell, web-to-API proxy, and Codex harness.
-	@python3 scripts/verify_container_stack.py --api-base $(API_BASE) --web-base $(WEB_BASE) --harness-port $(CODEX_HARNESS_PORT) --expected-storage supabase-postgresql-jsonb+filesystem-objects
+	@python3 scripts/verify_container_stack.py --api-base $(API_BASE) --web-base $(WEB_BASE) --harness-port $(CODEX_HARNESS_PORT) --expected-storage supabase-user-memory+filesystem-objects
 	@$(MAKE) --no-print-directory harness-health
 
 harness-health: check ## Verify the Codex exec-server protocol inside its container.

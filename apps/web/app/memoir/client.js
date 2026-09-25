@@ -16,6 +16,13 @@ const state = {
   workspaceTab: "chapters",
   workspaceUnlocked: false,
   chapterDecision: null,
+  story: null,
+  storyPlans: [],
+  selectedStoryPlan: "electronic_memoir_v1",
+  storyBookCount: 2,
+  storyAnswers: [],
+  storyChapter: null,
+  checkout: null,
   loading: false,
   recording: false,
   recorder: null,
@@ -39,6 +46,14 @@ const FOLLOW_UP_QUESTIONS = [
   "What could you see, hear, smell, or feel in that moment?",
   "Who was with you, and what do you remember about them?",
   "What small detail would you like to keep for your family?",
+];
+
+const STORY_ROUND_QUESTIONS = [
+  "What is one memory you would like your family to keep?",
+  "Where does that memory take place, and what do you notice first?",
+  "Who was there with you, and what do you remember about them?",
+  "What feeling or small detail still stays with you?",
+  "Why does this memory matter to you now?",
 ];
 
 const $ = (selector) => document.querySelector(selector);
@@ -85,47 +100,56 @@ function readCookie(name) {
 }
 
 async function ensureAuth() {
-  let contact = "demo-storyteller@example.test";
-  try {
-    contact = sessionStorage.getItem("memory-spark-demo-contact") || contact;
-    if (contact === "demo-storyteller@example.test") {
-      const suffix = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      contact = `demo-storyteller+${suffix}@example.test`;
-      sessionStorage.setItem("memory-spark-demo-contact", contact);
-    }
-  } catch {
-    // Private browsing can deny sessionStorage; the fixed demo contact still works.
-  }
-  const challengeResponse = await fetch(memoirApiPath("/v1/auth/challenges"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contact, region: "au" }),
-  });
-  const challenge = await challengeResponse.json();
-  if (!challengeResponse.ok) throw new Error(challenge?.detail || "Unable to establish a demo session");
-  const verifyResponse = await fetch(memoirApiPath(`/v1/auth/challenges/${challenge.challenge_id}/verify`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: challenge.demo_token }),
-  });
-  const verified = await verifyResponse.json();
-  if (!verifyResponse.ok) throw new Error(verified?.detail || "Unable to verify the demo session");
-  state.accountId = verified.account_id;
-  state.csrfToken = readCookie("memory_spark_csrf");
   await loadSupabaseConfig();
+  if (state.supabase?.auth_mode === "test") {
+    syncSupabaseSession({ access_token: "browser-test-token", refresh_token: null, user: { is_anonymous: true } });
+    return;
+  }
+  if (!state.supabase?.client) throw new Error("Supabase anonymous auth is not configured.");
+  const { data, error } = await state.supabase.client.auth.getSession();
+  if (error) throw new Error(error.message || "Unable to restore your Supabase session.");
+  let session = data.session;
+  if (!session) {
+    const signedIn = await state.supabase.client.auth.signInAnonymously();
+    if (signedIn.error) {
+      const message = signedIn.error.message || "Unable to start an anonymous Supabase session.";
+      if (message.toLowerCase().includes("anonymous sign-ins are disabled")) {
+        throw new Error("Anonymous sign-ins are disabled in Supabase. Enable Auth → Sign In / Providers → Anonymous, then reload.");
+      }
+      throw new Error(message);
+    }
+    session = signedIn.data.session;
+  }
+  syncSupabaseSession(session);
 }
 
 async function loadSupabaseConfig() {
-  try {
-    const response = await fetch(memoirApiPath("/v1/agent/config"));
-    const config = await response.json();
-    let saved = null;
-    try { saved = sessionStorage.getItem("memory-spark-supabase-session"); } catch { /* private browsing */ }
-    const session = saved ? JSON.parse(saved) : null;
-    state.supabase = { ...config, ...(session || {}) };
-  } catch {
-    state.supabase = null;
+  const response = await fetch(memoirApiPath("/v1/agent/config"));
+  const config = await response.json();
+  if (config.auth_mode === "test") {
+    state.supabase = config;
+    return;
   }
+  if (!config.supabase_url || !config.supabase_publishable_key || !globalThis.supabase?.createClient) {
+    state.supabase = config;
+    return;
+  }
+  const client = globalThis.supabase.createClient(config.supabase_url, config.supabase_publishable_key, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
+  state.supabase = { ...config, client };
+  client.auth.onAuthStateChange((_event, session) => {
+    syncSupabaseSession(session);
+    if (state.story && session) refreshStoryState().catch(() => {});
+  });
+}
+
+function syncSupabaseSession(session) {
+  state.supabaseSession = session || null;
+  if (!state.supabase) return;
+  state.supabase.accessToken = session?.access_token || null;
+  state.supabase.refreshToken = session?.refresh_token || null;
+  state.supabase.user = session?.user || null;
 }
 
 async function supabaseAuth(action) {
@@ -133,6 +157,17 @@ async function supabaseAuth(action) {
   const email = $("#agent-email")?.value.trim();
   const password = $("#agent-password")?.value || "";
   if (!email || password.length < 8) return toast("Enter an email and a password of at least 8 characters.");
+  if (state.supabase.client) {
+    const result = action === "signup"
+      ? await state.supabase.client.auth.signUp({ email, password })
+      : await state.supabase.client.auth.signInWithPassword({ email, password });
+    if (result.error) return toast(result.error.message || "Supabase sign-in failed.");
+    if (!result.data.session) return toast("Account created. Confirm the email, then sign in to connect Codex memory.");
+    syncSupabaseSession(result.data.session);
+    renderLanding();
+    toast("Codex memory is connected for this session.");
+    return;
+  }
   const path = action === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
   const response = await fetch(`${state.supabase.supabase_url}${path}`, { method: "POST", headers: { "Content-Type": "application/json", apikey: state.supabase.supabase_publishable_key }, body: JSON.stringify({ email, password }) });
   const body = await response.json();
@@ -142,6 +177,33 @@ async function supabaseAuth(action) {
   try { sessionStorage.setItem("memory-spark-supabase-session", JSON.stringify({ accessToken: body.access_token, refreshToken: body.refresh_token, user: body.user })); } catch { /* session remains in memory */ }
   renderLanding();
   toast("Codex memory is connected for this session.");
+}
+
+async function storySession() {
+  if (state.supabase?.auth_mode === "test") return { access_token: "browser-test-token" };
+  if (!state.supabase?.client) throw new Error("Supabase anonymous auth is not configured.");
+  const { data, error } = await state.supabase.client.auth.getSession();
+  if (error || !data.session) throw new Error(error?.message || "Your Supabase session is unavailable.");
+  syncSupabaseSession(data.session);
+  return data.session;
+}
+
+async function storyApi(path, options = {}) {
+  const session = await storySession();
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session.access_token}`,
+    ...(options.headers || {}),
+  };
+  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(body?.detail || "The story could not be saved.");
+    error.status = response.status;
+    error.code = response.headers.get("X-Error-Code") || body?.error?.code;
+    throw error;
+  }
+  return body;
 }
 
 async function supabaseApi(path, options = {}) {
@@ -223,6 +285,112 @@ function profileDisplay(key) {
   return current.birth_place;
 }
 
+function profileDetails() {
+  const user = state.supabase?.user || state.supabaseSession?.user || {};
+  const metadata = user.user_metadata || {};
+  const name = profile().name || metadata.full_name || metadata.name || user.email || (user.is_anonymous ? "Private session" : "Your profile");
+  const email = user.email || (user.is_anonymous ? "Anonymous session" : "Supabase account");
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  const initials = parts.length > 1
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`
+    : (parts[0] || "Me").slice(0, 2);
+  return { name, email, initials: initials.toUpperCase() };
+}
+
+function profileMenu() {
+  const details = profileDetails();
+  return `
+    <div class="profile-menu" data-profile-menu>
+      <button class="profile-trigger" type="button" data-profile-trigger aria-label="Open profile menu" aria-expanded="false" aria-haspopup="menu" aria-controls="profile-menu-content">
+        <span class="profile-avatar" aria-hidden="true">${escapeHtml(details.initials)}</span>
+        <span class="profile-trigger-copy"><span class="profile-trigger-label">Profile</span><span class="profile-trigger-name">${escapeHtml(details.name)}</span></span>
+        <span class="profile-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="profile-dropdown" id="profile-menu-content" role="menu" hidden>
+        <div class="profile-dropdown-header"><span class="profile-dropdown-eyebrow">ACCOUNT</span><strong>${escapeHtml(details.name)}</strong><small>${escapeHtml(details.email)}</small></div>
+        <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>Log out</span><span aria-hidden="true">↗</span></button>
+      </div>
+    </div>`;
+}
+
+function closeProfileMenu(restoreFocus = false) {
+  const menu = $("[data-profile-menu]");
+  const trigger = menu?.querySelector("[data-profile-trigger]");
+  const dropdown = menu?.querySelector(".profile-dropdown");
+  if (!menu || !trigger || !dropdown) return;
+  menu.classList.remove("is-open");
+  trigger.setAttribute("aria-expanded", "false");
+  dropdown.hidden = true;
+  if (restoreFocus) trigger.focus();
+}
+
+function bindProfileMenu() {
+  const menu = $("[data-profile-menu]");
+  const trigger = menu?.querySelector("[data-profile-trigger]");
+  const dropdown = menu?.querySelector(".profile-dropdown");
+  if (!menu || !trigger || !dropdown) return;
+  trigger.addEventListener("click", () => {
+    const open = trigger.getAttribute("aria-expanded") === "true";
+    if (open) {
+      closeProfileMenu();
+      return;
+    }
+    menu.classList.add("is-open");
+    trigger.setAttribute("aria-expanded", "true");
+    dropdown.hidden = false;
+  });
+  menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
+}
+
+async function signOut() {
+  closeProfileMenu();
+  try {
+    if (state.supabase?.client) {
+      const { error } = await state.supabase.client.auth.signOut();
+      if (error) throw new Error(error.message || "Unable to log out.");
+    }
+    state.recordingStream?.getTracks().forEach((track) => track.stop());
+    state.supabase = null;
+    state.supabaseSession = null;
+    state.accountId = null;
+    state.csrfToken = "";
+    state.project = null;
+    state.session = null;
+    state.memories = [];
+    state.sources = [];
+    state.chapters = [];
+    state.people = [];
+    state.relationships = [];
+    state.timeline = [];
+    state.preview = null;
+    state.chat = [];
+    state.workspaceUnlocked = false;
+    state.chapterDecision = null;
+    state.story = null;
+    state.storyPlans = [];
+    state.selectedStoryPlan = "electronic_memoir_v1";
+    state.storyBookCount = 2;
+    state.storyAnswers = [];
+    state.storyChapter = null;
+    state.checkout = null;
+    state.recording = false;
+    state.recorder = null;
+    state.recordingStream = null;
+    state.recordedChunks = [];
+    state.audioUploadId = null;
+    state.recognition = null;
+    try {
+      localStorage.removeItem("memory-spark-project");
+      localStorage.removeItem("memory-spark-story-started");
+      sessionStorage.removeItem("memory-spark-supabase-session");
+    } catch { /* private browsing or storage restrictions */ }
+    navigateTo(MEMOIR_ROUTES.home, true);
+    await boot();
+  } catch (error) {
+    toast(error.message || "Unable to log out.");
+  }
+}
+
 function memoryFollowUpBudget(session = state.session) {
   const offered = Number(session?.follow_ups_offered || 0);
   return Math.max(1, Math.min(3, offered));
@@ -247,7 +415,273 @@ function memoryTurnFallback(session = state.session) {
   return "Thank you. I have enough detail to shape the first chapter. Save this memory when it feels right.";
 }
 
+function storyRoundQuestion() {
+  const completed = Number(state.story?.rounds_completed || 0);
+  return STORY_ROUND_QUESTIONS[Math.min(completed, STORY_ROUNDS_REQUIRED - 1)];
+}
+
+const STORY_ROUNDS_REQUIRED = 5;
+
+const FALLBACK_STORY_PLANS = [
+  { plan_key: "electronic_memoir_v1", name: "Electronic memoir", price_minor: 2900, description: "A beautifully shaped electronic version of your memoir.", features: ["Electronic memoir", "Source-linked story chapters", "Private digital delivery"], electronic_only: true, additional_book_price_minor: 0, minimum_books: 0, default_books: 0 },
+  { plan_key: "printed_memoir_v1", name: "Printed memoir", price_minor: 5900, description: "Two printed books, with extra copies available for A$10 each.", features: ["Electronic memoir", "2 printed books", "Add extra books for A$10 each"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
+  { plan_key: "family_memoir_v1", name: "Family legacy memoir", price_minor: 9900, description: "Two printed books plus a richer family record.", features: ["Electronic memoir", "2 printed books", "Family tree", "Life timeline", "More detailed story context"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
+];
+
+function formatAudMinor(amountMinor) {
+  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(Number(amountMinor || 0) / 100);
+}
+
+function storyPlanTotal(plan, bookCount) {
+  if (plan.electronic_only) return plan.price_minor;
+  return plan.price_minor + Math.max(0, Number(bookCount || plan.default_books || 2) - 2) * (plan.additional_book_price_minor || 1000);
+}
+
+function storyCheckoutForm() {
+  const plans = state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS;
+  const selectedPlan = plans.find((plan) => plan.plan_key === state.selectedStoryPlan) || plans[0];
+  const selectedKey = selectedPlan.plan_key;
+  const bookCount = Math.max(2, Number(state.storyBookCount || selectedPlan.default_books || 2));
+  const printed = !selectedPlan.electronic_only;
+  const total = storyPlanTotal(selectedPlan, printed ? bookCount : 0);
+  const checkoutMessage = state.checkout?.message ? `<p class="fine-print story-payment-note">${escapeHtml(state.checkout.message)}</p>` : "";
+  return `
+    <form id="story-checkout-form" class="story-checkout-form">
+      <div class="story-plan-grid" role="radiogroup" aria-label="Memoir packages">
+        ${plans.map((plan) => `
+          <label class="story-plan-card ${plan.plan_key === selectedKey ? "selected" : ""}">
+            <input type="radio" name="plan_key" value="${escapeHtml(plan.plan_key)}" ${plan.plan_key === selectedKey ? "checked" : ""} />
+            <span class="story-plan-card-top"><span class="eyebrow">${escapeHtml(plan.name)}</span><strong>from ${formatAudMinor(plan.price_minor)}</strong></span>
+            <span class="story-plan-description">${escapeHtml(plan.description)}</span>
+            <span class="story-plan-features">${plan.features.map((feature) => `<span>✓ ${escapeHtml(feature)}</span>`).join("")}</span>
+          </label>`).join("")}
+      </div>
+      <div class="story-book-options ${printed ? "" : "is-disabled"}">
+        <label for="story-book-count"><span>Printed books</span><select id="story-book-count" name="book_count" ${printed ? "" : "disabled"}>${Array.from({ length: 19 }, (_, index) => index + 2).map((count) => `<option value="${count}" ${count === bookCount ? "selected" : ""}>${count} books${count > 2 ? ` · +${formatAudMinor((count - 2) * 1000)}` : ""}</option>`).join("")}</select></label>
+        <div class="story-checkout-total"><span>Total today</span><strong data-story-total>${formatAudMinor(total)}</strong></div>
+      </div>
+      <button type="submit" class="button button-primary" ${state.loading ? "disabled" : ""}>Continue to secure checkout <span>↗</span></button>
+      <p class="fine-print">Prices are in Australian dollars. Stripe securely collects payment details on its hosted checkout page.</p>
+      ${checkoutMessage}
+    </form>`;
+}
+
+function checkoutRedirectNotice() {
+  const status = new URLSearchParams(window.location.search).get("checkout");
+  if (status === "success" && state.story?.payment_status !== "paid") return "Payment received. We’re confirming it with Stripe now; this page will unlock as soon as the webhook arrives.";
+  if (status === "cancelled") return "No payment was taken. You can choose a package whenever you’re ready.";
+  return "";
+}
+
+function renderStoryFlow() {
+  const completed = Number(state.story?.rounds_completed || 0);
+  const anonymous = Boolean(state.story?.is_anonymous);
+  const chapter = state.storyChapter;
+  const isAnswering = completed < STORY_ROUNDS_REQUIRED;
+  const isLinking = completed >= STORY_ROUNDS_REQUIRED && anonymous;
+  const needsFreeChapter = completed >= STORY_ROUNDS_REQUIRED && !anonymous && !state.story?.free_chapter_claimed;
+  const needsPayment = Boolean(state.story?.free_chapter_claimed && state.story?.next_action === "payment");
+  let body = "";
+
+  if (isAnswering) {
+    body = `
+      <div class="story-progress">Round ${completed + 1} of ${STORY_ROUNDS_REQUIRED}</div>
+      <h1>${escapeHtml(storyRoundQuestion())}</h1>
+      <p class="story-lead">Take your time. A few honest sentences are enough.</p>
+      <form id="story-round-form" class="story-round-form">
+        <textarea id="story-answer" rows="7" placeholder="Write what comes back to you…" aria-label="Your story answer"></textarea>
+        <button type="submit" class="button button-primary">Save answer <span>↗</span></button>
+      </form>`;
+  } else if (isLinking) {
+    body = `
+      <div class="story-progress">Five rounds complete</div>
+      <h1>Your first five memories are ready.</h1>
+      <p class="story-lead">Create a free account to keep them and receive one free chapter. You can use Google or Facebook.</p>
+      <div class="story-auth-actions">
+        <button class="button button-primary" data-story-provider="google">Continue with Google <span>↗</span></button>
+        <button class="button button-secondary" data-story-provider="facebook">Continue with Facebook</button>
+      </div>
+      <p class="fine-print">Your anonymous session will be linked to the account you choose.</p>`;
+  } else if (needsFreeChapter) {
+    body = `
+      <div class="story-progress">Your free chapter</div>
+      <h1>Shape these memories into your first chapter.</h1>
+      <p class="story-lead">Your five answers are saved privately. Claim one free chapter to see how they come together.</p>
+      <button class="button button-primary" data-story-action="free-chapter">Claim my free chapter <span>↗</span></button>`;
+  } else if (needsPayment) {
+    const redirectNotice = checkoutRedirectNotice();
+    body = `
+      <div class="story-progress">Chapter one is yours</div>
+      <h1>Ready to keep going?</h1>
+      ${chapter ? `<article class="story-chapter"><div class="eyebrow">Chapter 1 · ${escapeHtml(chapter.title)}</div><p>${formatText(chapter.text)}</p></article>` : `<p class="story-lead">Your free chapter is saved to your private memory.</p>`}
+      <p class="story-lead">Choose the finish that feels right for your family. Every package includes the electronic memoir.</p>
+      ${redirectNotice ? `<p class="story-payment-banner">${escapeHtml(redirectNotice)}</p>` : ""}
+      ${storyCheckoutForm()}`;
+  } else {
+    const paidPlan = (state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS).find((plan) => plan.plan_key === state.story?.payment_plan);
+    body = `
+      <div class="story-progress">Memoir complete</div>
+      <h1>Your memoir is ready.</h1>
+      <p class="story-lead">Your paid generation has been unlocked${paidPlan ? ` with the ${escapeHtml(paidPlan.name.toLowerCase())} package` : ""}.</p>
+      <button class="button button-primary" data-story-action="full-memoir">Generate my memoir <span>↗</span></button>`;
+  }
+
+  $("#app").innerHTML = `
+    <div class="story-shell conversation-only">
+      <header class="story-topbar">
+        <a class="brand" href="/memoir" data-action="story-flow-home"><span class="brand-mark">✦</span><span class="brand-name">Memory Spark</span></a>
+        <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">Saved with Supabase</span></div>${profileMenu()}</div>
+      </header>
+      <main class="chat-main story-flow-main" aria-label="Memoir story journey">
+        <div class="story-flow-card">${body}</div>
+        <div class="story-answer-list">${state.storyAnswers.map((answer, index) => `<article><span>Round ${index + 1}</span><p>${formatText(answer)}</p></article>`).join("")}</div>
+  </main>
+    </div>`;
+  bindStoryFlowActions();
+  bindProfileMenu();
+}
+
+function bindStoryFlowActions() {
+  $("[data-action='story-flow-home']")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    state.story = null;
+    state.storyAnswers = [];
+    state.storyChapter = null;
+    state.checkout = null;
+    localStorage.removeItem("memory-spark-story-started");
+    navigateTo(MEMOIR_ROUTES.home, true);
+  });
+  $("#story-round-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitStoryRound();
+  });
+  $("#story-checkout-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    requestStoryCheckout();
+  });
+  document.querySelectorAll("input[name='plan_key']").forEach((input) => input.addEventListener("change", () => {
+    state.selectedStoryPlan = input.value;
+    render();
+  }));
+  $("#story-book-count")?.addEventListener("change", (event) => {
+    state.storyBookCount = Number(event.target.value) || 2;
+    const plan = (state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS).find((item) => item.plan_key === state.selectedStoryPlan);
+    const total = $("[data-story-total]");
+    if (plan && total) total.textContent = formatAudMinor(storyPlanTotal(plan, state.storyBookCount));
+  });
+  document.querySelectorAll("[data-story-provider]").forEach((button) => {
+    button.addEventListener("click", () => linkStoryIdentity(button.dataset.storyProvider));
+  });
+  const actions = {
+    "free-chapter": claimFreeChapter,
+    checkout: requestStoryCheckout,
+    "full-memoir": generateFullMemoir,
+  };
+  document.querySelectorAll("[data-story-action]").forEach((button) => {
+    const action = actions[button.dataset.storyAction];
+    if (action) button.addEventListener("click", action);
+  });
+}
+
+async function refreshStoryState(shouldRender = true) {
+  state.story = await storyApi("/v1/story/state");
+  if (!state.storyPlans.length) {
+    state.storyPlans = (await storyApi("/v1/story/plans")).items || [];
+  }
+  if (shouldRender && state.story) render();
+  return state.story;
+}
+
+async function submitStoryRound() {
+  if (state.loading) return;
+  const input = $("#story-answer");
+  const answer = input?.value.trim() || "";
+  if (!answer) return toast("A few honest words are enough to continue.");
+  state.loading = true;
+  try {
+    const result = await storyApi("/v1/story/rounds", {
+      method: "POST",
+      body: JSON.stringify({ round: Number(state.story.rounds_completed) + 1, answer }),
+    });
+    state.storyAnswers.push(answer);
+    state.story = result;
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+async function linkStoryIdentity(provider) {
+  if (!state.supabase?.client) return toast("Supabase sign-in is not configured.");
+  const { error } = await state.supabase.client.auth.linkIdentity({
+    provider,
+    options: { redirectTo: `${window.location.origin}${MEMOIR_ROUTES.start}` },
+  });
+  if (error) toast(error.message || `Unable to connect ${provider}.`);
+}
+
+async function claimFreeChapter() {
+  if (state.loading) return;
+  state.loading = true;
+  try {
+    const result = await storyApi("/v1/story/free-chapter", { method: "POST" });
+    state.story = result;
+    state.storyChapter = result.chapter;
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+async function requestStoryCheckout() {
+  if (state.loading) return;
+  const selectedPlan = $("input[name='plan_key']:checked")?.value || state.selectedStoryPlan || "electronic_memoir_v1";
+  const plan = (state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS).find((item) => item.plan_key === selectedPlan);
+  const bookCount = plan?.electronic_only ? 0 : (Number($("#story-book-count")?.value) || state.storyBookCount || 2);
+  state.selectedStoryPlan = selectedPlan;
+  state.storyBookCount = bookCount || 2;
+  state.loading = true;
+  try {
+    state.checkout = await storyApi("/v1/story/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan_key: selectedPlan, book_count: bookCount }),
+    });
+    if (state.checkout.checkout_url) {
+      window.location.assign(state.checkout.checkout_url);
+      return;
+    }
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+async function generateFullMemoir() {
+  if (state.loading) return;
+  state.loading = true;
+  try {
+    const result = await storyApi("/v1/story/full-memoir", { method: "POST" });
+    toast(result.memoir?.status === "generated" ? "Your memoir is ready." : "Memoir generation started.");
+  } catch (error) {
+    if (error.code === "PAYMENT_REQUIRED" || error.status === 402) {
+      state.checkout = await storyApi("/v1/story/checkout", { method: "POST" }).catch(() => null);
+    } else {
+      toast(error.message);
+    }
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
 function render() {
+  if (state.story) return renderStoryFlow();
   if (!state.project) return renderLanding();
   if (!state.chat.length) seedConversation();
   renderStory();
@@ -310,13 +744,13 @@ function renderMemoirLanding() {
         </section>
         <details class="agent-connect">
           <summary>Connect Codex memory for this session</summary>
-          <p>Supabase keeps your private agent sessions and memories under your user account.</p>
+          <p>Supabase starts you anonymously, keeps your private story under your user account, and lets you link Google or Facebook after the five free rounds.</p>
           <form id="agent-auth-form">
             <input id="agent-email" type="email" autocomplete="email" placeholder="Email address" aria-label="Codex memory email" />
             <input id="agent-password" type="password" autocomplete="current-password" placeholder="Password" aria-label="Codex memory password" />
             <div class="agent-auth-actions"><button type="button" class="button button-primary button-small" data-auth-action="signin">Sign in</button><button type="button" class="button button-secondary button-small" data-auth-action="signup">Create account</button></div>
           </form>
-          <small>${state.supabase?.accessToken ? "Codex memory is connected for this browser session." : "You can still try the local prototype without signing in."}</small>
+          <small>${state.supabase?.accessToken ? "Supabase memory is connected for this browser session." : "Supabase Auth is required to start your private story."}</small>
         </details>
         <section class="feature-row"><article class="feature"><div class="feature-icon">◌</div><h3>Talk or type</h3><p>You can answer by voice or text. The assistant can read its questions aloud.</p></article><article class="feature"><div class="feature-icon">⌁</div><h3>Remember with context</h3><p>Public historical references are labelled clearly and never become facts about your life on their own.</p></article><article class="feature"><div class="feature-icon">▱</div><h3>Workspace when ready</h3><p>Chapters, family tree, and timeline appear after your first chapter is finished.</p></article></section>
       </main>
@@ -326,6 +760,28 @@ function renderMemoirLanding() {
 }
 
 async function startStory(mode = "self") {
+  try {
+    state.loading = true;
+    render();
+    const [story, plans] = await Promise.all([
+      storyApi("/v1/story/state"),
+      storyApi("/v1/story/plans"),
+    ]);
+    state.story = story;
+    state.storyPlans = plans.items || [];
+    state.storyAnswers = [];
+    state.storyChapter = null;
+    state.checkout = null;
+    localStorage.setItem("memory-spark-story-started", "1");
+    state.loading = false;
+    navigateTo(MEMOIR_ROUTES.start, true);
+  } catch (error) {
+    state.loading = false;
+    toast(error.message);
+  }
+}
+
+async function startLegacyStory(mode = "self") {
   try {
     if (state.authPromise) await state.authPromise;
     setLoading(true);
@@ -411,7 +867,7 @@ function renderStory() {
     <div class="story-shell ${unlocked ? "workspace-visible" : "conversation-only"}">
       <header class="story-topbar">
         <a class="brand" href="#" data-action="story-home"><span class="brand-mark">✦</span><span class="brand-name">Memory Spark</span></a>
-        <div class="story-status"><span class="status-pill"><i class="status-dot"></i> Private conversation</span><span class="topbar-hint">Voice is available on both sides</span></div>
+        <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">Voice is available on both sides</span></div>${profileMenu()}</div>
       </header>
       <div class="conversation-layout">
         ${unlocked ? workspaceRail() : ""}
@@ -424,6 +880,7 @@ function renderStory() {
       </div>
     </div>`;
   bindViewActions();
+  bindProfileMenu();
   const scroll = $("#chat-scroll");
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
 }
@@ -726,6 +1183,12 @@ async function boot() {
   state.authPromise = ensureAuth();
   try {
     await state.authPromise;
+    const storyStarted = localStorage.getItem("memory-spark-story-started");
+    if (storyStarted || currentPath() === MEMOIR_ROUTES.start) {
+      await refreshStoryState(false);
+      render();
+      return;
+    }
     const saved = localStorage.getItem("memory-spark-project");
     if (saved) {
       try { state.project = { id: saved }; await refreshProject(); render(); return; }
@@ -740,5 +1203,12 @@ async function boot() {
 }
 
 window.addEventListener("popstate", () => render());
+window.addEventListener("click", (event) => {
+  const menu = $("[data-profile-menu]");
+  if (menu && !menu.contains(event.target)) closeProfileMenu();
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeProfileMenu(true);
+});
 renderLanding();
 boot();

@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from apps.api.store import MemoryStore, PostgresMemoryStore, now_iso
+from apps.api.store import MemoryStore, now_iso
 
 
 TERMINAL_JOB_STATES = {"SUCCEEDED", "FAILED", "CANCELLED", "DELETION_BLOCKED", "SUPERSEDED", "WAITING_FOR_USER"}
@@ -151,8 +151,7 @@ async def dispatch_temporal_once(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--database-url", default=os.environ.get("SUPABASE_DB_URL"))
-    parser.add_argument("--store", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--store", type=Path, default=os.environ.get("MEMORY_SPARK_STORE_PATH"), help=argparse.SUPPRESS)
     parser.add_argument("--objects", type=Path, default=Path(os.environ.get("MEMORY_SPARK_OBJECT_STORE_PATH", "var/memory-spark/objects")))
     parser.add_argument("--worker-id", default=os.environ.get("MEMORY_SPARK_WORKER_ID", "local-dispatcher"))
     parser.add_argument("--limit", type=int, default=100)
@@ -160,12 +159,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.limit < 1 or args.lease_seconds < 1:
         raise SystemExit("--limit and --lease-seconds must be positive")
-    if args.database_url:
-        store = PostgresMemoryStore.from_url(args.database_url, object_store_path=args.objects)
-    elif args.store:
+    if args.store:
         store = MemoryStore.from_path(args.store, object_store_path=args.objects)
     else:
-        raise SystemExit("SUPABASE_DB_URL must be configured for the outbox dispatcher")
+        raise SystemExit("MEMORY_SPARK_STORE_PATH must be configured for the legacy outbox dispatcher")
     result = dispatch_once(store, args.worker_id, args.limit, args.lease_seconds)
     print(f"Outbox dispatcher: {result}")
     return 0

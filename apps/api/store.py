@@ -5,7 +5,6 @@ import json
 import os
 import tempfile
 import threading
-import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -17,14 +16,6 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - the local cell runs on POSIX hosts
     fcntl = None
-
-try:
-    import psycopg
-    from psycopg.types.json import Jsonb
-except ImportError:  # pragma: no cover - the JSON adapter does not need psycopg
-    psycopg = None
-    Jsonb = None
-
 
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
@@ -58,6 +49,7 @@ class MemoryStore:
     plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     orders: dict[str, dict[str, Any]] = field(default_factory=dict)
     payment_events: dict[str, dict[str, Any]] = field(default_factory=dict)
+    story_entitlements: dict[str, dict[str, Any]] = field(default_factory=dict)
     chapters: dict[str, dict[str, Any]] = field(default_factory=dict)
     editions: dict[str, dict[str, Any]] = field(default_factory=dict)
     suppliers: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -88,6 +80,7 @@ class MemoryStore:
         "plans",
         "orders",
         "payment_events",
+        "story_entitlements",
         "chapters",
         "editions",
         "suppliers",
@@ -519,258 +512,3 @@ class MemoryStore:
 
     def pending_outbox_count(self) -> int:
         return sum(1 for event in self.outbox if event.get("status", "PENDING") not in {"ACKED", "FAILED"})
-
-
-class PostgresMemoryStore(MemoryStore):
-    """Supabase-Postgres-backed store for the runtime deployment.
-
-    The domain service still exposes the same in-process collections so the
-    prototype routes remain small and directly testable. Supabase PostgreSQL
-    is the source of truth for those collections, while outbox rows are also
-    indexed in a separate table so dispatchers can lease work without relying
-    on a process-local queue. A single locked JSONB state row keeps the current
-    domain adapter transactional while the schema can later be split into
-    normalized tables without changing the API service surface.
-    """
-
-    request_transaction_enabled = True
-    _STATE_TABLE = "public.memory_spark_state"
-    _OUTBOX_TABLE = "public.memory_spark_outbox"
-
-    def __init__(
-        self,
-        database_url: str,
-        object_store_path: str | Path | None = None,
-        connect_timeout: int = 10,
-        startup_retry_seconds: float = 30.0,
-    ) -> None:
-        if psycopg is None or Jsonb is None:
-            raise RuntimeError("psycopg is required when SUPABASE_DB_URL is configured")
-        self.database_url = database_url
-        self.connect_timeout = connect_timeout
-        self.startup_retry_seconds = startup_retry_seconds
-        self._database_revision = 0
-        self._request_connection: Any | None = None
-        super().__init__(object_store_path=str(object_store_path) if object_store_path else None)
-        self._ensure_schema()
-        self._initialize_if_empty()
-        self.reload()
-
-    @classmethod
-    def from_url(
-        cls,
-        database_url: str,
-        object_store_path: str | Path | None = None,
-    ) -> "PostgresMemoryStore":
-        return cls(database_url, object_store_path=object_store_path)
-
-    def _connect(self) -> Any:
-        deadline = time.monotonic() + self.startup_retry_seconds
-        while True:
-            try:
-                return psycopg.connect(self.database_url, connect_timeout=self.connect_timeout)
-            except psycopg.OperationalError:
-                if time.monotonic() >= deadline:
-                    raise
-                time.sleep(0.5)
-
-    @classmethod
-    def _schema_sql(cls) -> str:
-        return f"""
-        CREATE TABLE IF NOT EXISTS {cls._STATE_TABLE} (
-            id smallint PRIMARY KEY CHECK (id = 1),
-            schema_version integer NOT NULL,
-            revision bigint NOT NULL,
-            snapshot jsonb NOT NULL,
-            updated_at timestamptz NOT NULL DEFAULT now()
-        );
-        CREATE TABLE IF NOT EXISTS {cls._OUTBOX_TABLE} (
-            event_id text PRIMARY KEY,
-            job_id text NOT NULL,
-            project_id text NOT NULL,
-            event_type text NOT NULL,
-            status text NOT NULL,
-            attempts integer NOT NULL DEFAULT 0,
-            lease_owner text,
-            lease_until timestamptz,
-            occurred_at timestamptz NOT NULL,
-            acknowledged_at timestamptz,
-            payload jsonb NOT NULL,
-            event jsonb NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS memory_spark_outbox_pending_idx
-            ON {cls._OUTBOX_TABLE} (status, occurred_at)
-            WHERE status IN ('PENDING', 'LEASED');
-        CREATE INDEX IF NOT EXISTS memory_spark_outbox_job_idx
-            ON {cls._OUTBOX_TABLE} (job_id, occurred_at);
-        """
-
-    def _ensure_schema(self) -> None:
-        with self._connect() as connection:
-            connection.execute(self._schema_sql())
-            connection.commit()
-
-    def _state_payload(self) -> dict[str, Any]:
-        return {
-            "schema_version": 1,
-            "store": self._json_safe(
-                {field_name: getattr(self, field_name) for field_name in self._PERSISTED_FIELDS if field_name != "outbox"}
-            ),
-        }
-
-    @staticmethod
-    def _timestamp(value: str | None) -> datetime | None:
-        if not value:
-            return None
-        return datetime.fromisoformat(value)
-
-    def _replace_outbox(self, connection: Any) -> None:
-        connection.execute(f"DELETE FROM {self._OUTBOX_TABLE}")
-        for event in self.outbox:
-            event_id = str(event.get("event_id") or event.get("id"))
-            connection.execute(
-                f"""
-                INSERT INTO {self._OUTBOX_TABLE}
-                    (event_id, job_id, project_id, event_type, status, attempts,
-                     lease_owner, lease_until, occurred_at, acknowledged_at, payload, event)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    event_id,
-                    str(event.get("job_id", "")),
-                    str(event.get("project_id", "")),
-                    str(event.get("type", "")),
-                    str(event.get("status", "PENDING")),
-                    int(event.get("attempts", 0)),
-                    event.get("lease_owner"),
-                    self._timestamp(event.get("lease_until")),
-                    self._timestamp(event.get("occurred_at")) or datetime.now(timezone.utc),
-                    self._timestamp(event.get("acknowledged_at")),
-                    Jsonb(self._json_safe(event.get("payload", {}))),
-                    Jsonb(self._json_safe(event)),
-                ),
-            )
-
-    def _load_connection(self, connection: Any, for_update: bool = False) -> None:
-        suffix = " FOR UPDATE" if for_update else ""
-        row = connection.execute(
-            f"SELECT revision, snapshot FROM {self._STATE_TABLE} WHERE id = 1{suffix}"
-        ).fetchone()
-        if row is None:
-            raise RuntimeError("Memory Spark PostgreSQL state row has not been initialized")
-        self._database_revision = int(row[0])
-        self._apply_snapshot(row[1])
-        events = connection.execute(
-            f"SELECT event FROM {self._OUTBOX_TABLE} ORDER BY occurred_at, event_id"
-        ).fetchall()
-        self.outbox = [dict(event[0]) for event in events]
-
-    def _initialize_if_empty(self) -> None:
-        with self._connect() as connection:
-            row = connection.execute(f"SELECT revision FROM {self._STATE_TABLE} WHERE id = 1").fetchone()
-            if row is not None:
-                connection.commit()
-                return
-            connection.execute(
-                f"""
-                INSERT INTO {self._STATE_TABLE} (id, schema_version, revision, snapshot)
-                VALUES (1, 1, 0, %s)
-                """,
-                (Jsonb(self._state_payload()),),
-            )
-            self._replace_outbox(connection)
-            connection.commit()
-
-    def reload(self) -> None:
-        if self._request_connection is not None:
-            return
-        with self.lock:
-            with self._connect() as connection:
-                self._load_connection(connection)
-                connection.commit()
-
-    def _save_connection(self, connection: Any) -> None:
-        next_revision = self._database_revision + 1
-        updated = connection.execute(
-            f"""
-            UPDATE {self._STATE_TABLE}
-               SET schema_version = 1, revision = %s, snapshot = %s, updated_at = now()
-             WHERE id = 1 AND revision = %s
-            """,
-            (next_revision, Jsonb(self._state_payload()), self._database_revision),
-        ).rowcount
-        if updated != 1:
-            raise RuntimeError("Memory Spark PostgreSQL state changed during the request")
-        self._replace_outbox(connection)
-        self._database_revision = next_revision
-
-    def begin_request(self) -> None:
-        if self._request_connection is not None:
-            raise RuntimeError("A PostgreSQL request transaction is already active")
-        connection = self._connect()
-        try:
-            self._load_connection(connection, for_update=True)
-            self._request_connection = connection
-        except BaseException:
-            connection.rollback()
-            connection.close()
-            raise
-
-    def commit_request(self) -> None:
-        connection = self._request_connection
-        if connection is None:
-            return
-        try:
-            self._save_connection(connection)
-            connection.commit()
-        except BaseException:
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
-            self._request_connection = None
-
-    def rollback_request(self) -> None:
-        connection = self._request_connection
-        if connection is None:
-            return
-        try:
-            connection.rollback()
-        finally:
-            connection.close()
-            self._request_connection = None
-
-    @contextmanager
-    def transaction(self):
-        with self.lock:
-            connection = self._connect()
-            try:
-                self._load_connection(connection, for_update=True)
-                yield self
-                self._save_connection(connection)
-                connection.commit()
-            except BaseException:
-                connection.rollback()
-                raise
-            finally:
-                connection.close()
-
-    def save(self) -> None:
-        if self._request_connection is not None:
-            self.commit_request()
-            return
-        with self.lock:
-            with self._connect() as connection:
-                connection.execute(f"SELECT revision FROM {self._STATE_TABLE} WHERE id = 1 FOR UPDATE")
-                self._save_connection(connection)
-                connection.commit()
-
-    def pending_outbox_count(self) -> int:
-        if self._request_connection is not None:
-            return super().pending_outbox_count()
-        with self._connect() as connection:
-            row = connection.execute(
-                f"SELECT count(*) FROM {self._OUTBOX_TABLE} WHERE status NOT IN ('ACKED', 'FAILED')"
-            ).fetchone()
-            connection.commit()
-        return int(row[0])

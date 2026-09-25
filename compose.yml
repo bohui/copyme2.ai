@@ -2,7 +2,10 @@ name: memory-spark
 
 networks:
   default:
-    name: memory-spark-default
+    # Apple Container attaches one network per container. The connected stack
+    # therefore uses the provider's external network as its default network.
+    external: true
+    name: ${MEMORY_SPARK_LLM_NETWORK:-llm-provider-llm-network}
 
 services:
   api:
@@ -17,15 +20,26 @@ services:
       MEMORY_SPARK_ENTITLEMENT_MODEL: ${MEMORY_SPARK_ENTITLEMENT_MODEL:-chapter}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
       SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:-}
-      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://host.docker.internal:4000/v1}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ELECTRONIC: ${STRIPE_PRICE_ELECTRONIC:-}
+      STRIPE_PRICE_PRINTED: ${STRIPE_PRICE_PRINTED:-}
+      STRIPE_PRICE_FAMILY: ${STRIPE_PRICE_FAMILY:-}
+      STRIPE_PRICE_ADDITIONAL_BOOK: ${STRIPE_PRICE_ADDITIONAL_BOOK:-}
+      MEMORY_SPARK_PUBLIC_URL: ${MEMORY_SPARK_PUBLIC_URL:-http://localhost:3010}
+      MEMORY_SPARK_PRINT_COUNTRIES: ${MEMORY_SPARK_PRINT_COUNTRIES:-AU}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-}
+      # Mocker does not publish cross-project DNS aliases; 192.168.68.1 is
+      # the gateway for the external llm-provider network and forwards port 4000.
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
       MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
       MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
-      MEMORY_SPARK_CODEX_BIN: ${MEMORY_SPARK_CODEX_BIN:-codex}
-      MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
-      MEMORY_SPARK_CODEX_VERSION: ${MEMORY_SPARK_CODEX_VERSION:-0.156.1}
+      MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
+      MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
-      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
       MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
       PYTHONUNBUFFERED: "1"
     volumes:
@@ -34,6 +48,9 @@ services:
       - ./apps/web/public:/app/apps/web/public:ro
       - ./docs:/app/docs:ro
       - ./var/memory-spark:/var/lib/memory-spark
+    depends_on:
+      codex-worker:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test:
@@ -41,6 +58,48 @@ services:
         - python
         - -c
         - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  codex-worker:
+    image: memory-spark-codex-worker:dev
+    build:
+      context: .
+      dockerfile: codex-worker/Containerfile
+      args:
+        CODEX_VERSION: ${MEMORY_SPARK_CODEX_VERSION:-0.156.1}
+    expose:
+      - "8766"
+    environment:
+      CODEX_HOME: /var/lib/memory-spark/codex-users
+      MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
+      MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
+      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
+      MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - codex-worker-home:/var/lib/memory-spark/codex-users
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health').read()"
       interval: 10s
       timeout: 3s
       retries: 3
@@ -54,7 +113,6 @@ services:
     environment:
       MEMORY_SPARK_MODE: ${MEMORY_SPARK_MODE:-demo}
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
-      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
       MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
       MEMORY_SPARK_WORKER_ID: ${MEMORY_SPARK_WORKER_ID:-memory-spark-worker}
       PYTHONUNBUFFERED: "1"
@@ -118,11 +176,13 @@ services:
     environment:
       CODEX_HOME: /codex-home
       PATH: /opt/memory-spark-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://host.docker.internal:4000/v1}
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
       MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
       MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
-      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
     volumes:
       - .:/workspace:rw
       - ./var/codex-home:/codex-home
     restart: unless-stopped
+
+volumes:
+  codex-worker-home:

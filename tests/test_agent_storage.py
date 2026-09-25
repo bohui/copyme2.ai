@@ -26,3 +26,20 @@ def test_storage_uses_verified_user_and_preserves_codex_relative_paths():
         with pytest.raises(ValueError):
             storage.put_agent_file(path, b'secret')
     assert len(calls) == 2
+
+
+def test_storage_reads_anonymous_user_flag_and_profile_from_supabase():
+    owner = '11111111-1111-4111-8111-111111111111'
+
+    def server(request):
+        if request.url.path == '/auth/v1/user':
+            return httpx.Response(200, json={'id': owner, 'is_anonymous': True})
+        if request.url.path == '/rest/v1/user_profile':
+            return httpx.Response(200, json=[{'profile': {'story_flow': {'rounds_completed': 2}}}])
+        return httpx.Response(200, json={})
+
+    client = httpx.Client(transport=httpx.MockTransport(server))
+    storage = UserStorage('https://example.supabase.co', 'public-key', 'user-jwt', client=client)
+
+    assert storage.is_anonymous is True
+    assert storage.profile() == {'story_flow': {'rounds_completed': 2}}

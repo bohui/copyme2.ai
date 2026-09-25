@@ -1,7 +1,5 @@
 FROM node:26-bookworm-slim
 
-ARG CODEX_VERSION=0.156.1
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
@@ -19,7 +17,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/memory-spark-venv \
     && /opt/memory-spark-venv/bin/pip install --no-cache-dir --upgrade pip \
-    && npm install --global --no-audit --no-fund npm@latest @openai/codex@${CODEX_VERSION} \
     && /opt/memory-spark-venv/bin/pip install --no-cache-dir .
 
 ENV PATH=/opt/memory-spark-venv/bin:$PATH

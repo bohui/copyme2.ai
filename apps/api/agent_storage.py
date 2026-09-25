@@ -1,4 +1,7 @@
 """Supabase operations always run as the verified end user, never service_role."""
+import base64
+import binascii
+import json
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 from urllib.parse import quote
@@ -13,7 +16,23 @@ class UserStorage:
         self.client = client or httpx.Client(timeout=30)
         self.headers = {'apikey': public_key, 'Authorization': f'Bearer {access_token}'}
         user = self.request('GET', '/auth/v1/user').json()
+        self.user = user
         self.user_id = str(UUID(user['id']))
+        claims = self._jwt_claims(access_token)
+        self.is_anonymous = bool(
+            user.get('is_anonymous')
+            or user.get('user_metadata', {}).get('is_anonymous')
+            or claims.get('is_anonymous')
+        )
+
+    @staticmethod
+    def _jwt_claims(access_token):
+        try:
+            encoded = access_token.split('.')[1]
+            encoded += '=' * (-len(encoded) % 4)
+            return json.loads(base64.urlsafe_b64decode(encoded).decode('utf-8'))
+        except (binascii.Error, IndexError, ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+            return {}
 
     def request(self, method, path, **kwargs):
         headers = {**self.headers, **kwargs.pop('headers', {})}
@@ -56,6 +75,14 @@ class UserStorage:
                             headers={'Prefer': 'resolution=merge-duplicates,return=representation'},
                             json={'user_id': self.user_id, 'profile': profile}).json()
 
+    def profile(self):
+        rows = self.request('GET', '/rest/v1/user_profile', params={
+            'select': 'profile',
+            'user_id': f'eq.{self.user_id}',
+            'limit': '1',
+        }).json()
+        return rows[0].get('profile') or {} if rows else {}
+
     def save_memory(self, text, *, kind='memoir', source_paths=None):
         return self.request('POST', '/rest/v1/user_memory', headers={'Prefer': 'return=representation'},
                             json={'user_id': self.user_id, 'kind': kind, 'content': text,
@@ -74,3 +101,17 @@ class UserStorage:
         return self.request('POST', '/rest/v1/user_agent_session',
                             headers={'Prefer': 'resolution=merge-duplicates,return=representation'},
                             json={'user_id': self.user_id, 'codex_thread_id': thread_id, 'status': status}).json()
+
+    def acquire_agent_turn_lease(self, lease_token, lease_seconds=300):
+        return bool(self.request('POST', '/rest/v1/rpc/acquire_user_agent_turn_lease',
+                                 json={'p_lease_token': lease_token,
+                                       'p_lease_seconds': lease_seconds}).json())
+
+    def renew_agent_turn_lease(self, lease_token, lease_seconds=300):
+        return bool(self.request('POST', '/rest/v1/rpc/renew_user_agent_turn_lease',
+                                 json={'p_lease_token': lease_token,
+                                       'p_lease_seconds': lease_seconds}).json())
+
+    def release_agent_turn_lease(self, lease_token):
+        return bool(self.request('POST', '/rest/v1/rpc/release_user_agent_turn_lease',
+                                 json={'p_lease_token': lease_token}).json())

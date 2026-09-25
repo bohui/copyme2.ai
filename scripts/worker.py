@@ -2,9 +2,9 @@
 """Run the Memory Spark workflow worker.
 
 When ``MEMORY_SPARK_TEMPORAL_ADDRESS`` is configured, this process runs the
-Temporal workflow/activity worker and its transactional outbox dispatcher.
-Without that address it keeps the deterministic outbox worker used by the
-Supabase-backed runtime. Unit tests provide an explicit in-memory store.
+Temporal workflow/activity worker and its local deterministic dispatcher.
+The current product journey persists user-owned memory through Supabase RLS;
+the legacy project worker remains an explicit local adapter only.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from apps.api.store import MemoryStore, PostgresMemoryStore, new_id, now_iso
+from apps.api.store import MemoryStore, new_id, now_iso
 from scripts.dispatch_outbox import dispatch_once
 
 
@@ -118,16 +118,13 @@ def worker_once(store: MemoryStore, worker_id: str, limit: int, lease_seconds: i
 
 
 def _store_from_args(args: argparse.Namespace) -> MemoryStore:
-    if args.database_url:
-        return PostgresMemoryStore.from_url(args.database_url, object_store_path=args.objects)
     if args.store:
         return MemoryStore.from_path(args.store, object_store_path=args.objects)
-    raise RuntimeError("SUPABASE_DB_URL must be configured for the workflow worker")
+    return MemoryStore(object_store_path=args.objects)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--database-url", default=os.environ.get("SUPABASE_DB_URL"))
     parser.add_argument("--store", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--objects", type=Path, default=Path(os.environ.get("MEMORY_SPARK_OBJECT_STORE_PATH", "var/memory-spark/objects")))
     parser.add_argument("--worker-id", default=os.environ.get("MEMORY_SPARK_WORKER_ID", "memory-spark-worker"))

@@ -20,6 +20,12 @@ def get(url: str) -> tuple[int, bytes, dict[str, str]]:
         raise RuntimeError(f"GET {url} failed: {exc}") from exc
 
 
+def header_value(headers: dict[str, str], name: str) -> str | None:
+    """Read an HTTP header without depending on its wire-case spelling."""
+    wanted = name.casefold()
+    return next((value for key, value in headers.items() if key.casefold() == wanted), None)
+
+
 def wait_for(url: str, attempts: int = 30) -> tuple[int, bytes, dict[str, str]]:
     last_error: RuntimeError | None = None
     for _ in range(attempts):
@@ -66,7 +72,7 @@ def main() -> int:
     config_status, config_body, config_headers = get(f"{args.api_base}/api/v1/memoir/config")
     if config_status != 200:
         raise RuntimeError(f"API config returned {config_status}")
-    if config_headers.get("X-API-Namespace") != "memoir":
+    if header_value(config_headers, "X-API-Namespace") != "memoir":
         raise RuntimeError("API config did not use the memoir product namespace")
     config = json.loads(config_body)
     if "trial_primary_sessions" not in config:

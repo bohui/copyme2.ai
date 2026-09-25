@@ -25,8 +25,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .agent_routes_support import authenticated_storage
 from .namespaces import rewrite_memoir_path
-from .store import MemoryStore, PostgresMemoryStore, new_id, now_iso, sha256_bytes, sha256_json
+from .store import MemoryStore, new_id, now_iso, sha256_bytes, sha256_json
 
 
 class LooseModel(BaseModel):
@@ -896,28 +897,40 @@ def _processing_available(store: MemoryStore, project: dict[str, Any], data_clas
     )
 
 
-def create_app(store: MemoryStore | None = None) -> FastAPI:
+def create_app(
+    store: MemoryStore | None = None,
+    *,
+    story_storage_factory: Any | None = None,
+    story_entitlement_store: Any | None = None,
+    story_stripe_client: Any | None = None,
+) -> FastAPI:
     if store is not None:
         memory = store
     else:
-        database_url = os.getenv("SUPABASE_DB_URL", "").strip()
         object_store_path = os.getenv("MEMORY_SPARK_OBJECT_STORE_PATH")
-        if database_url:
-            memory = PostgresMemoryStore.from_url(
-                database_url,
-                object_store_path=object_store_path,
-            )
-        elif os.getenv("MEMORY_SPARK_TEST_MODE") == "1":
-            # Tests use an explicit in-memory store; production must use Supabase Postgres.
-            memory = MemoryStore(object_store_path=object_store_path)
-        else:
-            raise RuntimeError("SUPABASE_DB_URL must be configured; local MemoryStore fallback is disabled")
+        # Product memory lives in the RLS-protected Supabase user tables. The
+        # legacy HTTP routes still need a small local adapter while they are
+        # being retired; they must never create a second Postgres state store.
+        memory = MemoryStore(object_store_path=object_store_path)
     app = FastAPI(title="CopyMe2 Memoir", version="1.0.0", description="Evidence-linked guided memoir product")
     app.state.store = memory
     from .supabase_routes import router as supabase_router
     app.include_router(supabase_router)
     from .agent_routes import router as agent_router
     app.include_router(agent_router)
+    from .story_routes import build_router as build_story_router
+    from .story_routes import build_test_storage_factory
+    from .story_payments import StripeCheckoutClient, build_story_entitlement_store
+    selected_story_storage_factory = story_storage_factory
+    if selected_story_storage_factory is None and os.getenv("MEMORY_SPARK_TEST_MODE") == "1" and not os.getenv("SUPABASE_URL"):
+        selected_story_storage_factory = build_test_storage_factory()
+    app.include_router(
+        build_story_router(
+            selected_story_storage_factory or authenticated_storage,
+            entitlement_store=story_entitlement_store or build_story_entitlement_store(memory),
+            stripe_client=story_stripe_client or StripeCheckoutClient(),
+        )
+    )
     request_transaction_lock = asyncio.Lock() if getattr(memory, "request_transaction_enabled", False) else None
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:8000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -1034,8 +1047,8 @@ def create_app(store: MemoryStore | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, Any]:
-        if getattr(memory, "database_url", None):
-            storage = "supabase-postgresql-jsonb+filesystem-objects" if memory.object_store_path else "supabase-postgresql-jsonb"
+        if os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_PUBLISHABLE_KEY"):
+            storage = "supabase-user-memory+filesystem-objects" if memory.object_store_path else "supabase-user-memory"
         elif memory.persistence_path and memory.object_store_path:
             storage = "persistent-json+filesystem-objects"
         elif memory.persistence_path:

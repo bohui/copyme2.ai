@@ -2,8 +2,9 @@
 
 ## Verified
 
-- Supabase session-pooler connection succeeded. Both migrations in
-  `supabase/migrations/` were applied to the requested project.
+- Supabase session-pooler connection succeeded. The checked-in user-data,
+  agent-session, turn-lease, and entitlement migrations were applied to the
+  requested project.
 - `user_profile`, `user_memory`, and `user_agent_session` use authenticated-user
   ownership policies.
 - The private `memory-spark` bucket uses the first path component as owner UUID.
@@ -11,9 +12,9 @@
   access; temporary users and files were removed.
 - The local `llm_provider` route accepts the project-scoped key stored only in the
   gitignored `.env` and returns successful `deepseek-v4-flash` Responses calls.
-- Codex 0.156.1 app-server initialized inside the API image, created a thread,
-  completed a real turn through `llm_provider`, and resumed the same thread on a
-  second turn.
+- Codex 0.156.1 app-server runs in the private `codex-worker` container under a
+  per-user OS identity, created a thread, completed a real turn through
+  `llm_provider`, and resumed the same thread on a second turn.
 - The authenticated API journey returned two replies, persisted two `agent`
   memory rows, synchronized Codex artifacts, and created an attachment with the
   requested owner path shape.
@@ -50,12 +51,12 @@ Reviewed upstream commit `0a2eb4696c26ac33204bcd255721ab30220a4774` and the inst
 
 Codex memory extraction selects eligible idle rollouts, produces per-thread
 memory in its state database, then consolidates filesystem artifacts. It does
-not generate a new memory file for every turn. That Codex app-server state
-database is separate from Memory Spark's domain database: Memory Spark's
-projects, sessions, answers, memories, chapters, jobs and outbox use
-`SUPABASE_DB_URL`, while the per-user Codex runtime keeps its own local state
-needed for memory jobs, leases and thread metadata. Synchronizing only Markdown
-files is not a complete backup of Codex state.
+not generate a new memory file for every turn. The Codex app-server state
+database is separate from the product's RLS data plane: the story flow uses the
+authenticated user's `user_profile` and `user_memory` rows, while the per-user
+Codex runtime keeps its own local state needed for memory jobs, leases and
+thread metadata. Synchronizing only Markdown files is not a complete backup of
+Codex state.
 
 Sources:
 - https://github.com/openai/codex/blob/0a2eb4696c26ac33204bcd255721ab30220a4774/codex-rs/memories/README.md
@@ -65,21 +66,25 @@ Sources:
 ## Implemented boundaries
 
 - `apps/api/codex_agent.py`: app-server initialization, requests, turns and provider
-  configuration. Callers must supply an isolated user runtime; CODEX_HOME alone
-  is not an OS security boundary.
+  configuration. It is used by the private worker, not by the public API image.
 - `apps/api/agent_storage.py`: verified-user profile/memory operations, attachment
   uploads and Codex session/memory artifact upload/download.
-- `apps/api/codex_runtime.py`: per-user Codex homes, thread resume, private-memory
-  prompt context, allowlisted artifact synchronization, and a high-level loop
-  trace for the UI.
+- `apps/api/codex_runtime.py`: private-worker dispatch, per-user thread resume,
+  private-memory prompt context, allowlisted artifact synchronization, and a
+  high-level loop trace for the UI.
+- `apps/api/agent_lock.py`: renewable Supabase-backed user turn leases. The lease
+  is the cross-replica serialization mechanism; the local asyncio lock is only
+  an in-process optimization.
+- `apps/api/codex_worker_service.py`: private worker endpoint and per-user OS UID
+  allocation for Codex subprocesses.
 - `/v1/user/profile`, `/v1/user/memories`, `/v1/user/attachments`: Supabase bearer
   token endpoints, separate from the prototype's demo account identities.
 - `/v1/agent/config`, `/v1/agent/turn`: browser configuration and authenticated
   Codex turns.
-- `SUPABASE_DB_URL`: canonical PostgreSQL connection for Memory Spark projects,
-  sessions, answers, memories, chapters, jobs and the durable outbox. It may
-  point to local Supabase or a hosted Supabase project. The production runtime
-  does not fall back to the JSON store or a local PostgreSQL container.
+- The Memoir story flow no longer uses `SUPABASE_DB_URL` or a singleton JSONB
+  state/outbox adapter. User-owned story and agent records use Supabase RLS;
+  the legacy project routes use an explicit local adapter during the prototype
+  transition.
 
 ## Deliberate prototype limits
 
@@ -87,14 +92,22 @@ Sources:
   this prototype; production should use a reviewed refresh and logout flow.
 - Only Codex filesystem artifacts below `sessions`, `archived_sessions`, and
   `memories` are copied to Storage. Codex SQLite state, auth, configuration, and
-  plugin files stay in the per-user container home; live SQLite/WAL files are not
-  uploaded naively.
+  plugin files stay in the private worker's per-user home; live SQLite/WAL files
+  are not uploaded naively. The worker container is read-only apart from its
+  dedicated volume and temporary filesystem, and Codex subprocesses run under
+  distinct non-system UIDs.
+- The API-to-worker network is private and authenticated with
+  `MEMORY_SPARK_CODEX_WORKER_SECRET`; the worker has no public host port.
 - The current memoir agent has no external tools and uses the deterministic
   chapter/session APIs for the rest of the prototype journey. The browser shows
   a simulated Codex loop for those calls, while connected turns show the
   allowlisted Codex adapter trace. Both traces expose action summaries and tool
   results, never hidden model reasoning.
 
-The browser uses the connected Codex path after Supabase sign-in. The deterministic
-journey is available only as an explicit test-mode fallback; production still
-uses Supabase Postgres for all Memory Spark domain state.
+The browser starts with Supabase anonymous auth, asks five story rounds, then
+requires linking Google or Facebook before claiming one free chapter. Full
+memoir generation returns `PAYMENT_REQUIRED` until a payment entitlement is
+granted by the server-side payment integration. The Supabase project must have
+**Allow manual linking** and **Allow anonymous sign-ins** enabled, with the
+Google and Facebook providers configured; these are Auth project settings, not
+database/RLS settings.
