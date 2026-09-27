@@ -16,6 +16,7 @@ PROFILE_FIELDS = {
     "birth_place": 160,
     "childhood_place": 160,
 }
+LIFE_STAGES = {"baby", "toddler", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
 STORY_FOCUS_FIELDS = {"who": 500, "where": 300, "when": 160, "what": 1000}
 
 
@@ -47,6 +48,8 @@ def validate_profile_updates(raw: Any) -> dict[str, Any] | None:
         value = _text(raw.get(key), limit)
         if value is not None:
             updates[key] = value
+    if raw.get("avatar_style") in ("male", "female"):
+        updates["avatar_style"] = raw["avatar_style"]
     birth_year = _year(raw.get("birth_year"))
     if birth_year is not None:
         updates["birth_year"] = birth_year
@@ -58,6 +61,8 @@ def validate_profile_updates(raw: Any) -> dict[str, Any] | None:
             value = _text(focus.get(key), limit)
             if value is not None:
                 story_focus[key] = value
+        if isinstance(focus.get("life_stage"), str) and focus["life_stage"] in LIFE_STAGES:
+            story_focus["life_stage"] = focus["life_stage"]
         if story_focus:
             updates["story_focus"] = story_focus
 

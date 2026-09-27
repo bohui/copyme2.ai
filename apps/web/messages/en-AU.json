@@ -15,7 +15,10 @@
     "supabaseAccount": "Supabase account",
     "finishRecordingFirst": "Finish saving the current recording before changing languages.",
     "loading": "Opening your private conversation…",
-    "loadError": "The Memoir workspace could not be loaded."
+    "loadError": "The Memoir workspace could not be loaded.",
+    "timelineArtwork": "Timeline artwork",
+    "maleArtwork": "Male illustrations",
+    "femaleArtwork": "Female illustrations"
   },
   "Errors": {
     "generic": "Something went wrong. Please try again.",
@@ -201,6 +204,8 @@
         "midlife": { "label": "Midlife", "description": "The work, love, and responsibilities you carried", "prompt": "What was taking most of your attention and care in that season?" },
         "later_life": { "label": "Later life", "description": "What you know now and what you want to pass on", "prompt": "What lesson, place, or person feels important to pass on?" }
       },
+      "allPlaces": "All places",
+      "placeHistory": "Place history",
       "yourWorkspace": "Your workspace",
       "savedWithStory": "Saved with your story",
       "fromConversation": "From our conversation",

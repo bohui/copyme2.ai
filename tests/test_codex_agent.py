@@ -151,8 +151,8 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
                 "reply": (
                     "What detail stands out most?\n"
                     "[[MEMORY_SPARK_PROFILE]]"
-                    '{"name":"Mina","story_focus":{"who":"my grandmother","where":"Geelong",'
-                    '"when":"the 1980s","what":"summer afternoons"}}'
+                    '{"name":"Mina","avatar_style":"female","story_focus":{"who":"my grandmother","where":"Geelong",'
+                    '"when":"the 1980s","what":"summer afternoons","life_stage":"childhood"}}'
                     "[[/MEMORY_SPARK_PROFILE]]\n"
                     "[[MEMORY_SPARK_PLACE_JOURNEY]]"
                     '{"schema_version":1,"place":"Geelong",'
@@ -190,7 +190,7 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         worker_url="http://codex-worker:8766",
         worker_secret="worker-secret",
         model="test-model",
-    ).turn(storage, "Tell me about that day in Geelong."))
+    ).turn(storage, "I was a child in Geelong. Please use the female timeline illustrations."))
 
     assert result["trace_mode"] == "codex-worker"
     assert result["thread_id"] == "thread-new"
@@ -199,11 +199,13 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     assert storage.saved_session == "thread-new"
     assert storage.profile_data == {
         "name": "Mina",
+        "avatar_style": "female",
         "story_focus": {
             "who": "my grandmother",
             "where": "Geelong",
             "when": "the 1980s",
             "what": "summer afternoons",
+            "life_stage": "childhood",
         },
     }
     assert result["profile_updates"] == storage.profile_data
@@ -240,7 +242,7 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         "family_context": {},
         "family_enabled": False,
         "project_id": None,
-        "text": "Tell me about that day in Geelong.",
+        "text": "I was a child in Geelong. Please use the female timeline illustrations.",
         "model": "test-model",
         "language": "en-AU",
     }

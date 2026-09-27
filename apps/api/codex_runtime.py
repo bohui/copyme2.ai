@@ -88,6 +88,8 @@ def _load_skill(path: Path, fallback: str) -> str:
 FAMILY_TREE_SKILL = _load_skill(FAMILY_TREE_SKILL_PATH, FAMILY_TREE_SKILL_FALLBACK)
 AUTHOR_TIMELINE_SKILL = _load_skill(AUTHOR_TIMELINE_SKILL_PATH, AUTHOR_TIMELINE_SKILL_FALLBACK)
 
+MEMORY_CONTEXT_SKILL = _load_skill(Path(__file__).resolve().parents[2] / "skills" / "memoir-memory-context" / "SKILL.md", "Extract explicit story_focus.life_stage and avatar_style only; never infer gender from a name or voice.")
+
 PROFILE_INTAKE_INSTRUCTIONS = """Profile intake contract:
 When the storyteller explicitly shares profile or story-context information, append one
 machine marker after the visible reply using exactly this format:
@@ -149,6 +151,7 @@ def build_system_prompt(memories: str, profile: dict | None = None, *,
         + conversation_language_instruction(language)
         + "\n\n"
         + PLACE_JOURNEY_SKILL
+        + "\n\n" + MEMORY_CONTEXT_SKILL
     )
     if family_enabled:
         prompt += "\n\n" + FAMILY_TREE_SKILL + "\n\n" + AUTHOR_TIMELINE_SKILL

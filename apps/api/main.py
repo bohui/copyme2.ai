@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import httpx
+
 import asyncio
 import base64
 import binascii
@@ -1242,11 +1244,29 @@ def create_app(
             raise HTTPException(status_code=409, detail="Project revision has changed")
         profile = data.pop("profile", None)
         preferences = data.pop("preferences", None)
-        for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference"):
+        from .place_journey import validate_place_journey
+        from .profile_intake import LIFE_STAGES
+        for fields in (data, profile if isinstance(profile, dict) else {}):
+            if "avatar_style" in fields and fields["avatar_style"] not in ("male", "female"):
+                raise HTTPException(status_code=422, detail="Invalid timeline artwork")
+            if "memory_places" in fields:
+                places = fields["memory_places"]
+                if not isinstance(places, list) or len(places) > 500:
+                    raise HTTPException(status_code=422, detail="Invalid place history")
+                for place in places:
+                    if not isinstance(place, dict) or validate_place_journey(place) is None:
+                        raise HTTPException(status_code=422, detail="Invalid place history")
+                    stage = place.get("life_stage")
+                    if stage is not None and (not isinstance(stage, str) or stage not in LIFE_STAGES):
+                        raise HTTPException(status_code=422, detail="Invalid life stage")
+                    pictures = place.get("pictures", [])
+                    if not isinstance(pictures, list) or len(pictures) > 24 or any(not isinstance(item, dict) for item in pictures):
+                        raise HTTPException(status_code=422, detail="Invalid place pictures")
+        for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
             if key in data:
                 project["profile"][key] = data[key]
         if isinstance(profile, dict):
-            for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference"):
+            for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
                 if key in profile:
                     project["profile"][key] = profile[key]
         if isinstance(preferences, dict):
@@ -2184,6 +2204,18 @@ def create_app(
     def list_context_assets(region: str = "au", topic_id: str | None = None, cursor: str | None = None, limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
         assets = [deepcopy(asset) for asset in memory.context_assets.values() if region in asset["rights"].get("allowed_regions", []) and (not topic_id or topic_id in asset.get("topics", []))]
         return _paginate(assets, cursor, limit)
+
+    @app.get("/v1/projects/{project_id}/place-photos")
+    def place_photos(project_id: str, place: str = Query(min_length=1, max_length=120),
+                     period: str = Query(default="", max_length=160),
+                     x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
+        _project(memory, project_id, _account_id(x_account_id))
+        from .place_photos import search_place_photos
+        try:
+            items = search_place_photos(place, period)
+            return {"items": items, "status": "READY" if items else "NO_MATCH"}
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            return {"items": [], "status": "UNAVAILABLE"}
 
     @app.post("/v1/projects/{project_id}/context-search")
     def context_search(project_id: str, payload: ContextSearch, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:

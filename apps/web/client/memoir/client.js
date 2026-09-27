@@ -24,6 +24,7 @@ const state = {
   workspaceUnlocked: false,
   workspaceCollapsed: false,
   lifeStage: "childhood",
+  selectedPlace: null,
   chapterDecision: null,
   story: null,
   familyEntitlement: null,
@@ -378,11 +379,22 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
       // conversation's workspace on its own.
       if (body.place_journey_change?.changed && body.place_journey) {
         state.placeJourney = body.place_journey;
+        const stage = body.profile_updates?.story_focus?.life_stage;
+        const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
+        const places = [...(profile().memory_places || [])];
+        const candidate = { ...body.place_journey, life_stage: lifeStage };
+        const prior = places.findIndex(item => placeHistoryKey(item) === placeHistoryKey(candidate));
+        const entry = { ...candidate, pictures: prior >= 0 ? places[prior].pictures || [] : [] };
+        if (prior >= 0) places.splice(prior, 1);
+        places.push(entry);
+        await saveProfileUpdates({ memory_places: places });
+        state.lifeStage = "all";
+        state.selectedPlace = placeHistoryKey(entry);
+        void loadPlacePictures(entry, state.project.id);
         rememberPlaceJourneyProject(state.project?.id);
       }
-      if (state.placeJourney) {
-        if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "places";
-      }
+      // Places and pictures are presented together in the workspace overview,
+      // rather than as separate navigation destinations.
     }
     if (state.familyFeaturesEnabled && body.family_features_enabled === true && body.family_context_update?.persisted === true && body.family_context) {
       applyPersistedFamilyContext(body.family_context);
@@ -393,6 +405,50 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
     toast(error.message);
     return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   }
+}
+
+async function loadPlacePictures(entry, projectId) {
+  if (entry.pictures?.length) return;
+  try {
+    const query = new URLSearchParams({ place: entry.place, period: profile().story_focus?.when || "" });
+    const result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
+    if (state.project?.id !== projectId || !result.items?.length) return;
+    const places = (profile().memory_places || []).map(item => placeHistoryKey(item) === placeHistoryKey(entry)
+      ? { ...item, pictures: result.items } : item);
+    await saveProfileUpdates({ memory_places: places });
+    if (state.project?.id === projectId) render();
+  } catch { /* Pictures are optional; the interview continues. */ }
+}
+
+function referenceUrl(value) {
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.protocol === "https:" || (url.origin === window.location.origin && url.pathname.startsWith("/static/")) ? url.href : "";
+  } catch { return ""; }
+}
+
+function pictureWall(pictures = []) {
+  const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+  if (!pictures.length) return `<div class="workspace-empty picture-wall-empty"><span>▧</span><p>${t("picturesEmpty")}</p></div>`;
+  return `<section class="place-pictures" aria-label="${t("publicReferenceCues")}">${pictures.map((picture) => {
+    const src = picture.allowed_actions?.embed && referenceUrl(picture.image_url);
+    const source = referenceUrl(picture.source_url);
+    const sceneDate = picture.date_expression
+      || [picture.scene_date_range?.start, picture.scene_date_range?.end].filter(Boolean).join("–")
+      || translate("Memoir.workspace.dateUnknown");
+    const detail = picture.attribution || picture.location || picture.label || t("historicalReference");
+    const sourceLink = source
+      ? `<a href="${escapeHtml(source)}" target="_blank" rel="noreferrer">${escapeHtml(picture.title || t("historicalReference"))}</a>`
+      : `<strong>${escapeHtml(picture.title || t("historicalReference"))}</strong>`;
+    const media = src
+      ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(picture.title || "")}" loading="lazy" />`
+      : `<div class="picture-wall-placeholder ${picture.kind === "video" ? "video-art" : "image-art"}" aria-hidden="true"><span>${picture.kind === "video" ? "▶" : "✦"}</span></div>`;
+    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}</small><small>${t("publicReferenceCues")}</small></figcaption></figure>`;
+  }).join("")}</section>`;
+}
+
+function placePictures(pictures = []) {
+  return pictures.length ? pictureWall(pictures) : "";
 }
 
 function nextAssistantMessageId() {
@@ -406,10 +462,11 @@ function updateStreamingAssistantMessage(message) {
     render();
     return;
   }
+  const scroll = $("#chat-scroll");
+  const followConversation = !scroll || scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 48;
   const text = row.querySelector(".message-text");
   if (text) text.innerHTML = formatText(message.text);
-  const scroll = $("#chat-scroll");
-  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  if (scroll && followConversation) scroll.scrollTop = scroll.scrollHeight;
 }
 
 function waitForAssistantStream() {
@@ -442,6 +499,15 @@ async function streamAssistantMessage(text, metadata = {}) {
 }
 
 async function hydratePlaceJourney() {
+  const savedPlaces = profile().memory_places;
+  if (Array.isArray(savedPlaces) && savedPlaces.length) {
+    state.placeJourney = savedPlaces.at(-1);
+    state.lifeStage = "all";
+    state.selectedPlace = placeHistoryKey(state.placeJourney);
+    state.workspaceTab = "chapters";
+    rememberPlaceJourneyProject(state.project?.id);
+    return;
+  }
   if (!state.supabase?.accessToken || !placeJourneyIsActivatedForProject()) return;
   try {
     const body = await supabaseApi("/v1/agent/place-journey");
@@ -772,10 +838,12 @@ function mergeProfileUpdates(updates) {
   ["name", "birth_date_expression", "birth_place", "childhood_place"].forEach((key) => {
     if (typeof updates[key] === "string" && updates[key].trim()) next[key] = updates[key].trim();
   });
+  if (Array.isArray(updates.memory_places)) next.memory_places = updates.memory_places;
+  if (["male", "female"].includes(updates.avatar_style)) next.avatar_style = updates.avatar_style;
   if (Number.isInteger(updates.birth_year)) next.birth_year = updates.birth_year;
   if (updates.story_focus && typeof updates.story_focus === "object") {
     const focus = { ...(current.story_focus || {}) };
-    ["who", "where", "when", "what"].forEach((key) => {
+    ["who", "where", "when", "what", "life_stage"].forEach((key) => {
       if (typeof updates.story_focus[key] === "string" && updates.story_focus[key].trim()) focus[key] = updates.story_focus[key].trim();
     });
     if (Object.keys(focus).length) next.story_focus = focus;
@@ -823,7 +891,7 @@ function profileMenu() {
       </button>
       <div class="profile-dropdown" id="profile-menu-content" role="menu" hidden>
         <div class="profile-dropdown-header"><span class="profile-dropdown-eyebrow">${t("account")}</span><strong>${escapeHtml(details.name)}</strong><small>${escapeHtml(details.email)}</small></div>
-        <div class="profile-menu-language" role="group"><div data-language-switcher-slot></div></div>
+        <label class="profile-menu-language">${t("timelineArtwork")}<select id="timeline-artwork" aria-label="${t("timelineArtwork")}"><option value="male" ${profile().avatar_style !== "female" ? "selected" : ""}>${t("maleArtwork")}</option><option value="female" ${profile().avatar_style === "female" ? "selected" : ""}>${t("femaleArtwork")}</option></select></label><div class="profile-menu-language" role="group"><div data-language-switcher-slot></div></div>
         <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>${t("logout")}</span><span aria-hidden="true">↗</span></button>
       </div>
     </div>`;
@@ -855,6 +923,7 @@ function bindProfileMenu() {
     trigger.setAttribute("aria-expanded", "true");
     dropdown.hidden = false;
   });
+  menu.querySelector("#timeline-artwork")?.addEventListener("change", async (event) => { await saveProfileUpdates({ avatar_style: event.target.value }); render(); });
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
 }
 
@@ -1309,8 +1378,7 @@ async function generateFullMemoir() {
 }
 
 function render() {
-  disposeCesiumPlaceJourney();
-  if (!state.project) return renderLanding();
+  if (!state.project) { disposeCesiumPlaceJourney(); return renderLanding(); }
   renderStory();
 }
 
@@ -1467,13 +1535,24 @@ async function refreshProject() {
 }
 
 function renderStory() {
+  const previousScene = $(".place-journey-scene");
+  const previousMap = previousScene?.querySelector("[data-cesium-place]");
+  const previousScroll = $("#chat-scroll");
+  const previousTop = previousScroll?.scrollTop || 0;
+  const followConversation = !previousScroll || previousScroll.scrollHeight - previousTop - previousScroll.clientHeight < 48;
+  const composer = $("#chat-input");
+  const draft = composer?.value;
+  const composerFocused = composer && document.activeElement === composer;
+  const selection = composerFocused ? [composer.selectionStart, composer.selectionEnd] : null;
+
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const storyText = (key, values = {}) => escapeHtml(translateWith(`Memoir.story.${key}`, values));
   const unlocked = state.workspaceUnlocked || state.project.workspace_unlocked;
   const workspaceVisible = workspaceIsVisible();
+  const workspaceAvailable = workspaceHasContent();
   const contextOnly = workspaceVisible && !unlocked;
   const baseShellClass = workspaceVisible ? (contextOnly ? "context-visible" : "workspace-visible") : "conversation-only";
-  const shellClass = `${baseShellClass}${!workspaceVisible && workspaceTabs().length ? " workspace-collapsed" : ""}`;
+  const shellClass = `${baseShellClass}${!workspaceVisible && workspaceAvailable ? " workspace-collapsed" : ""}`;
   const chatClass = "chat-main";
   activeWorkspaceTab();
   $("#app").innerHTML = `
@@ -1488,15 +1567,33 @@ function renderStory() {
           <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
           ${chatComposer()}
         </main>
-        ${workspaceTabs().length ? workspaceDetail() : ""}
+        ${workspaceAvailable ? workspaceDetail() : ""}
       </div>
     </div>`;
   bindViewActions();
   bindProfileMenu();
-  initCesiumPlaceJourney();
+  const nextMap = $("[data-cesium-place]");
+  if (previousMap && nextMap && JSON.stringify(previousMap.dataset) === JSON.stringify(nextMap.dataset)) {
+    nextMap.closest(".place-journey-scene").replaceWith(previousScene);
+    cesiumPlaceJourneyViewer?.resize();
+  } else {
+    disposeCesiumPlaceJourney();
+    initCesiumPlaceJourney();
+  }
   initFamilyVisualizations();
   const scroll = $("#chat-scroll");
-  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  if (scroll) scroll.scrollTop = followConversation ? scroll.scrollHeight : previousTop;
+  if (draft !== undefined && $("#chat-input")) {
+    $("#chat-input").value = draft;
+    if (composerFocused) {
+      $("#chat-input").focus({ preventScroll: true });
+      $("#chat-input").setSelectionRange(...selection);
+    }
+  }
+}
+
+function workspaceHasContent() {
+  return Boolean(workspaceTabs().length || state.placeJourney || searchedPictures().length);
 }
 
 function workspaceDetail() {
@@ -1506,22 +1603,27 @@ function workspaceDetail() {
   const toggle = `<button type="button" class="workspace-toggle" data-action="toggle-workspace" aria-expanded="${expanded}" aria-controls="workspace-detail" aria-label="${toggleLabel}" title="${toggleLabel}"><span aria-hidden="true">${expanded ? "&gt;" : "&lt;"}</span></button>`;
   if (!expanded) return `<aside id="workspace-detail" class="workspace-detail is-collapsed" aria-label="${t("yourWorkspace")}"><div class="workspace-detail-top">${toggle}</div></aside>`;
   const tabs = workspaceTabs();
-  const active = activeWorkspaceTab();
+  const active = tabs.length ? activeWorkspaceTab() : null;
   const title = tabs.find(([key]) => key === active)?.[1] || t("workspace");
   const content = active === "family"
     ? familyWorkspace()
     : active === "timeline"
       ? timelineWorkspace()
-      : active === "places"
-        ? placesWorkspace()
-        : active === "pictures"
-          ? picturesWorkspace()
-          : active === "delivery"
-            ? deliveryWorkspace()
-            : chaptersWorkspace();
+      : active === "delivery"
+        ? deliveryWorkspace()
+        : active === "chapters"
+          ? chaptersWorkspace()
+          : "";
   const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
-  const tabsMarkup = `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`;
-  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${escapeHtml(title)} ${t("workspaceSuffix")}"><div class="workspace-detail-top"><span class="eyebrow">${t("yourWorkspace")}</span><div class="workspace-detail-actions"><span class="detail-state">${persistent ? t("savedWithStory") : t("fromConversation")}</span>${toggle}</div></div>${workspaceProgressSummary()}${tabsMarkup}${content}${lifeStageNavigator()}</aside>`;
+  const tabsMarkup = tabs.length
+    ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
+    : "";
+  const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
+  const mediaOverview = workspaceMediaOverview();
+  const ariaLabel = tabs.length
+    ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
+    : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
+  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}"><div class="workspace-detail-top">${toggle}<span class="eyebrow">${t("yourWorkspace")}</span><div class="workspace-detail-actions"><span class="detail-state">${persistent ? t("savedWithStory") : t("fromConversation")}</span></div></div>${mediaOverview}${contentMarkup}${tabs.length || state.placeJourney ? lifeStageNavigator() : ""}</aside>`;
 }
 
 function workspaceProgressSummary() {
@@ -1551,6 +1653,56 @@ function searchedPictures() {
   return items;
 }
 
+function placeHistoryKey(place) {
+  return JSON.stringify([place.place, place.hierarchy || [], place.life_stage || null]);
+}
+
+function placeHistoryChoices(places, current) {
+  if (places.length < 2) return "";
+  const label = escapeHtml(translate("Memoir.workspace.placeHistory"));
+  return `<nav class="place-choices" aria-label="${label}">${[...places].reverse().map(item => {
+    const context = (item.hierarchy || []).filter(part => part !== "Earth" && part !== item.place).join(" · ");
+    const stage = item.life_stage ? lifeStageText(item.life_stage, "label") : "";
+    return `<button type="button" data-place-choice="${escapeHtml(placeHistoryKey(item))}" aria-pressed="${placeHistoryKey(item) === placeHistoryKey(current)}"><span>${escapeHtml(item.place)}</span><small>${escapeHtml([context, stage].filter(Boolean).join(" · "))}</small></button>`;
+  }).join("")}</nav>`;
+}
+
+function placeWorkspaceSelection() {
+  if (!state.placeJourney) return null;
+  const places = profile().memory_places || [];
+  const matching = state.lifeStage === "all"
+    ? places
+    : places.filter(item => item.life_stage === state.lifeStage);
+  const selected = matching.length ? matching : [state.placeJourney];
+  return selected.find(item => placeHistoryKey(item) === state.selectedPlace) || selected.at(-1) || state.placeJourney;
+}
+
+function workspacePictureItems(place) {
+  const items = [];
+  const seen = new Set();
+  for (const picture of [...(place?.pictures || []), ...searchedPictures()]) {
+    const key = picture.asset_id || picture.id || picture.source_url || picture.title;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push(picture);
+  }
+  return items;
+}
+
+function workspaceMediaOverview() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  if (!state.placeJourney && !searchedPictures().length) return "";
+  const current = placeWorkspaceSelection();
+  const places = profile().memory_places || [];
+  const matching = state.lifeStage === "all" ? places : places.filter(item => item.life_stage === state.lifeStage);
+  const choices = placeHistoryChoices(matching, current);
+  const map = current
+    ? placeJourneyMarkup(current, "workspace")
+    : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
+  const pictures = pictureWall(workspacePictureItems(current));
+  return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-intro"><h2>${t("places")}</h2></div>${current && places.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div><div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><span class="eyebrow">${t("pictures")}</span><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictures}</div></section>`;
+}
+
 function deliveryAvailable() {
   return Boolean(state.storyPlans.length || state.checkout || state.storyChapter || state.story?.next_action === "payment" || state.story?.payment_status === "paid");
 }
@@ -1560,12 +1712,9 @@ function workspaceTabs() {
   const tabs = [];
   const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
   const familyWorkspaceEnabled = state.familyFeaturesEnabled && (persistent || state.familyContext);
-  if (state.placeJourney) tabs.push(["places", t("places"), t("placesSubtitle")]);
-  if (searchedPictures().length) tabs.push(["pictures", t("pictures"), t("picturesSubtitle")]);
   if (deliveryAvailable()) tabs.push(["delivery", t("delivery"), t("deliverySubtitle")]);
   if (persistent) {
     tabs.push(["chapters", t("chapters"), t("chaptersSubtitle")]);
-    if (!state.placeJourney) tabs.splice(0, 0, ["places", t("places"), t("placesSubtitle")]);
   }
   if (familyWorkspaceEnabled) {
     tabs.push(["family", t("family"), t("familySubtitle")], ["timeline", t("timeline"), t("timelineSubtitle")]);
@@ -1581,7 +1730,7 @@ function activeWorkspaceTab() {
 }
 
 function workspaceIsVisible() {
-  return !state.workspaceCollapsed && workspaceTabs().length > 0;
+  return !state.workspaceCollapsed && workspaceHasContent();
 }
 
 function lifeStageText(stageId, key) {
@@ -1595,32 +1744,27 @@ function lifeStageEvidence(stageId) {
       .some((value) => value === stageId);
   };
   return {
-    memoryCount: state.memories.filter(matchesStage).length,
+    memoryCount: state.memories.filter(matchesStage).length + (profile().memory_places || []).filter(matchesStage).length,
     pictureCount: [...state.sources, ...searchedPictures()].filter(matchesStage).length,
   };
 }
 
 function lifeStageIllustration(stage) {
-  const scale = Number(stage.scale) || 1;
-  const coordinate = (value) => String(Math.round(Number(value) * 100) / 100);
-  const headRadius = coordinate(4.5 * scale);
-  const shoulderWidth = 8 + scale * 5;
-  const bodyTop = 16 - scale;
-  const bodyBottom = 30 + scale * 2;
-  return `<svg class="life-stage-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="11" r="${headRadius}"></circle><path d="M${coordinate(20 - shoulderWidth)} ${coordinate(bodyTop)} Q20 ${coordinate(bodyTop - 2)} ${coordinate(20 + shoulderWidth)} ${coordinate(bodyTop)} L${coordinate(20 + shoulderWidth - 2)} ${coordinate(bodyBottom)} L${coordinate(20 - shoulderWidth + 2)} ${coordinate(bodyBottom)} Z"></path><path d="M${coordinate(20 - shoulderWidth - 1)} 20 L${coordinate(20 - shoulderWidth - 4)} 27 M${coordinate(20 + shoulderWidth + 1)} 20 L${coordinate(20 + shoulderWidth + 4)} 27" class="life-stage-limb"></path></svg>`;
+  const asset = { baby: "baby", toddler: "toddler", childhood: "child", adolescence: "adolescent", young_adulthood: "young_adult", midlife: "middle_aged", later_life: "senior" }[stage.id];
+  // Artwork is a presentation choice, not an inferred gender identity.
+  const style = profile().avatar_style === "female" ? "female" : "male";
+  return `<img src="/static/timeline_avatar_${asset}_${style}.png" alt="" aria-hidden="true" />`;
 }
 
 function lifeStageNavigator() {
   const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
-  const activeId = LIFE_STAGES.some((stage) => stage.id === state.lifeStage) ? state.lifeStage : "childhood";
+  const activeId = state.lifeStage;
   state.lifeStage = activeId;
   const tabs = LIFE_STAGES.map((stage) => {
     const stageEvidence = lifeStageEvidence(stage.id);
     const label = lifeStageText(stage.id, "label");
-    const count = stageEvidence.memoryCount
-      ? t(stageEvidence.memoryCount === 1 ? "lifeStageMemorySingular" : "lifeStageMemoryPlural", { count: stageEvidence.memoryCount })
-      : t("lifeStageNotExplored");
-    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab ${stage.id === activeId ? "active" : ""}" data-life-stage-tab="${stage.id}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(label)}"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span><span class="life-stage-label">${escapeHtml(label)}</span><small>${count}</small></button>`;
+    const hasMemory = stageEvidence.memoryCount > 0;
+    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(label)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(label)}"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></button>`;
   }).join("");
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div></section>`;
 }
@@ -1628,6 +1772,7 @@ function lifeStageNavigator() {
 function selectLifeStage(stageId, focus = false) {
   if (!LIFE_STAGES.some((stage) => stage.id === stageId)) return;
   state.lifeStage = stageId;
+  state.selectedPlace = null;
   render();
   if (focus) document.querySelector(`[data-life-stage-tab="${stageId}"]`)?.focus({ preventScroll: true });
 }
@@ -1674,13 +1819,18 @@ function placeJourneyMarkup(journey, variant = "surface") {
 }
 
 function placeJourneySurface() {
-  return state.placeJourney && !workspaceTabs().length ? placeJourneyMarkup(state.placeJourney) : "";
+  return state.placeJourney && !workspaceHasContent() ? placeJourneyMarkup(state.placeJourney) : "";
 }
 
 function placesWorkspace() {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   if (!state.placeJourney) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("places")}</h2><p>${t("placesIntro")}</p></div><div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div></div>`;
-  return `<div class="workspace-scroll workspace-places"><div class="workspace-intro"><h2>${t("places")}</h2><p>${t("placesIntro")}</p></div>${placeJourneyMarkup(state.placeJourney, "workspace")}</div>`;
+  const places = profile().memory_places || [];
+  const matching = state.lifeStage === "all" ? places : places.filter(item => item.life_stage === state.lifeStage);
+  const selected = matching.length ? matching : (!places.length ? [state.placeJourney] : []);
+  const current = placeWorkspaceSelection() || selected.at(-1);
+  const choices = placeHistoryChoices(selected, current);
+  return `<div class="workspace-scroll workspace-places"><button class="text-button" data-all-places>${t("allPlaces")}</button>${choices}${current ? placeJourneyMarkup(current, "workspace") + placePictures(current.pictures) : `<div class="workspace-empty"><p>${t("placesEmpty")}</p></div>`}</div>`;
 }
 
 function picturesWorkspace() {
@@ -1733,7 +1883,7 @@ function loadCesium() {
 
 function initCesiumPlaceJourney() {
   const container = $("[data-cesium-place]");
-  if (!container) return;
+  if (!container || !container.dataset.cesiumLatitude || !container.dataset.cesiumLongitude) return;
   const latitude = Number(container.dataset.cesiumLatitude);
   const longitude = Number(container.dataset.cesiumLongitude);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -1917,7 +2067,7 @@ function renderMessage(message) {
   }
   const streaming = Boolean(message.streaming);
   const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
-  const cues = !streaming && message.cues?.length && !workspaceTabs().length ? renderCueCards(message.cues) : "";
+  const cues = !streaming && message.cues?.length && !workspaceHasContent() ? renderCueCards(message.cues) : "";
   const trace = !streaming && message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
   const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
   return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><span class="chat-avatar assistant-avatar"><img src="${assistantAvatarPath()}" alt="${CHATBOT_NAME}" /></span><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${trace}${cues}${action}</div></article>`;
@@ -1938,6 +2088,8 @@ function renderCueCards(cues) {
 }
 
 function bindViewActions() {
+  $("[data-all-places]")?.addEventListener("click", () => { state.lifeStage = "all"; state.selectedPlace = null; render(); });
+  document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => { state.selectedPlace = button.dataset.placeChoice; render(); }));
   $("[data-action='toggle-workspace']")?.addEventListener("click", () => {
     state.workspaceCollapsed = !state.workspaceCollapsed;
     render();
@@ -2083,6 +2235,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
+  if ($("#chat-input")) $("#chat-input").value = "";
   state.chat.push({ role: "user", text: messageText, attachments });
   state.audioUploadId = null;
   state.audioTranscript = "";
@@ -2100,12 +2253,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         const turnType = session.turns?.length ? "follow_up" : "initial";
         state.session = await api(`/v1/memory-sessions/${session.id}/answers`, { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) });
         cues = state.session.context_cues || [];
-        if (cues.length) state.workspaceTab = "pictures";
         const remaining = memoryFollowUpsRemaining(state.session);
-        fallback = memoryTurnFallback(state.session);
-        const memoryInstruction = remaining > 0
-          ? "Acknowledge the storyteller in one sentence, then ask exactly one gentle follow-up question or offer one clearly labelled hint that helps the memory unfold. Do not suggest saving yet."
-          : "Acknowledge the storyteller briefly, say there is enough detail to shape the first chapter, and tell them they can save this memory now. Do not ask another question.";
+        fallback = memoryFollowUpPrompt(state.session);
+        const memoryInstruction = "Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory. Keep the conversation open unless they ask to pause, stop, or shape a chapter.";
         instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
         if (remaining === 0 && !profileIntake) action = { name: "save-memory", label: conversationMessage("saveMemory") };
       } catch {

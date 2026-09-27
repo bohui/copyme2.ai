@@ -24,3 +24,7 @@ infra/stripe/stripe_env_config_*.txt
 backend/gcp_key*.json
 supabase/.temp/
 dist/
+
+
+CONTEXT.md
+*.zip

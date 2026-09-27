@@ -15,7 +15,10 @@
     "supabaseAccount": "Supabase 账户",
     "finishRecordingFirst": "请先保存当前录音，再切换语言。",
     "loading": "正在打开您的私密对话……",
-    "loadError": "无法加载回忆工作区。"
+    "loadError": "无法加载回忆工作区。",
+    "timelineArtwork": "时间线插画",
+    "maleArtwork": "男性插画",
+    "femaleArtwork": "女性插画"
   },
   "Errors": {
     "generic": "出了点问题，请再试一次。",
@@ -201,6 +204,8 @@
         "midlife": { "label": "中年时期", "description": "您承担的工作、爱与责任", "prompt": "那段时期，什么最需要您的关注与照料？" },
         "later_life": { "label": "晚年时期", "description": "如今的体会与想要传下去的事", "prompt": "有什么经验、地方或人值得您传给下一代？" }
       },
+      "allPlaces": "所有地点",
+      "placeHistory": "地点历史",
       "yourWorkspace": "您的工作区",
       "savedWithStory": "已与您的故事一起保存",
       "fromConversation": "来自我们的对话",
