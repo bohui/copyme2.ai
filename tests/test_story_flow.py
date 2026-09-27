@@ -119,3 +119,36 @@ def test_user_profile_cannot_self_grant_full_memoir_payment():
 
     assert response.status_code == 402
     assert response.headers["X-Error-Code"] == "PAYMENT_REQUIRED"
+
+
+def test_dictation_transcribes_without_a_legacy_project():
+    import base64
+
+    calls = []
+
+    class Speech:
+        def transcribe(self, audio, **options):
+            calls.append((audio, options))
+            return {"text": "An afternoon by the sea.", "language": "en", "provider": "test"}
+
+    storage = FakeSupabaseUserStorage()
+    memory = MemoryStore()
+    client = TestClient(create_app(
+        memory,
+        story_storage_factory=lambda authorization: storage,
+        speech_service=Speech(),
+    ))
+    response = client.post('/api/v1/memoir/story/transcriptions', headers=_auth_headers(), json={
+        'audio_base64': base64.b64encode(b'recorded audio').decode(),
+        'filename': 'dictation.mp4',
+        'mime_type': 'audio/mp4',
+        'language': 'en-AU',
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()['text'] == 'An afternoon by the sea.'
+    assert response.json()['source']['language'] == 'en'
+    assert calls[0][0] == b'recorded audio'
+    assert calls[0][1]['mime_type'] == 'audio/mp4'
+    assert not memory.projects
+    assert not memory.uploads
+    assert storage.memories() == []  # Stopping dictation does not send/save a story.

@@ -1,5 +1,13 @@
+from pathlib import Path
+
 from apps.api.codex_runtime import build_system_prompt
-from apps.api.place_journey import extract_place_journey, validate_place_journey
+from apps.api.place_journey import (
+    extract_place_journey,
+    normalize_persisted_place_journey,
+    place_journey_matches_message,
+    place_journey_fingerprint,
+    validate_place_journey,
+)
 
 
 def test_extracts_and_removes_valid_place_journey_marker():
@@ -15,6 +23,7 @@ def test_extracts_and_removes_valid_place_journey_marker():
 
     assert visible == "That sounds like a place worth returning to."
     assert journey == {
+        "schema_version": 1,
         "place": "Anshan",
         "hierarchy": ["Earth", "China", "Liaoning", "Anshan"],
         "granularity": "city",
@@ -32,6 +41,7 @@ def test_allows_a_hierarchy_only_journey_for_an_unresolved_place():
     })
 
     assert journey == {
+        "schema_version": 1,
         "place": "The old river town",
         "hierarchy": ["Earth", "Australia", "New South Wales"],
         "granularity": "region",
@@ -55,6 +65,37 @@ def test_rejects_exact_or_invalid_coordinates():
     }) is None
 
 
+def test_normalizes_a_hierarchy_only_persisted_record():
+    row = {
+        "schema_version": 1,
+        "status": "active",
+        "revision": 3,
+        "place": "The old river town",
+        "hierarchy": ["Earth", "Australia", "New South Wales"],
+        "granularity": "region",
+        "latitude": None,
+        "longitude": None,
+        "duration_ms": 5200,
+        "updated_at": "2026-09-26T00:00:00Z",
+    }
+
+    normalized = normalize_persisted_place_journey(row)
+
+    assert normalized == {
+        "schema_version": 1,
+        "status": "active",
+        "revision": 3,
+        "place": "The old river town",
+        "hierarchy": ["Earth", "Australia", "New South Wales"],
+        "granularity": "region",
+        "latitude": None,
+        "longitude": None,
+        "duration_ms": 5200,
+        "updated_at": "2026-09-26T00:00:00Z",
+    }
+    assert place_journey_fingerprint(normalized)[-1] == 5200
+
+
 def test_drops_unterminated_marker_payload():
     visible, journey = extract_place_journey(
         'I remember the feeling. [[MEMORY_SPARK_PLACE_JOURNEY]]{"place":"Secret"}'
@@ -64,9 +105,43 @@ def test_drops_unterminated_marker_payload():
     assert journey is None
 
 
+def test_place_journey_marker_must_match_the_current_storyteller_message():
+    journey = {
+        "place": "Geelong",
+        "hierarchy": ["Earth", "Australia", "Victoria", "Geelong"],
+        "granularity": "city",
+    }
+
+    assert not place_journey_matches_message(journey, "Tell me about that day.")
+    assert not place_journey_matches_message(journey, "I remember living in Victoria.")
+    assert place_journey_matches_message(journey, "I remember a summer in Geelong.")
+
+
 def test_prompt_includes_the_project_skill_contract():
     prompt = build_system_prompt("(none)")
 
     assert "memoir-place-journey" in prompt
     assert "MEMORY_SPARK_PLACE_JOURNEY" in prompt
     assert "Private notes from earlier turns:\n(none)" in prompt
+
+
+def test_prompt_makes_mira_a_low_pressure_oral_history_journalist():
+    prompt = build_system_prompt("(none)")
+
+    assert "You are Mira, the AI memoir interviewer for CopyMe2 Memoir." in prompt
+    assert "Ask at most one main question per turn." in prompt
+    assert "A photograph the storyteller chooses to discuss is a valid photo-first starting point" in prompt
+    assert "Do not ask for name, birth date, hometown, occupation and a first story together." in prompt
+    assert "Do not ask a question merely to fill a missing field" in prompt
+    assert "Do not narrate the interview process in an ordinary memory prompt." in prompt
+    assert "我们先不急着往后走" in prompt
+    assert "Reserve explicit choices about pausing or changing pace" in prompt
+
+
+def test_prompt_is_loaded_from_the_versioned_system_prompt_file():
+    prompt = build_system_prompt("(none)")
+    source = (Path(__file__).parents[1] / "Mira_Memoir_Journalist_System_Prompt_v1.0.md").read_text(
+        encoding="utf-8"
+    ).rstrip()
+
+    assert prompt.startswith(source + "\n\nPrivate application context")

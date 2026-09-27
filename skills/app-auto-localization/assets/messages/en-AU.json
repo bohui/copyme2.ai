@@ -1,0 +1,80 @@
+{
+  "Common": {
+    "language": "Language",
+    "automatic": "Automatic",
+    "apply": "Apply",
+    "save": "Save",
+    "cancel": "Cancel",
+    "undo": "Undo",
+    "close": "Close",
+    "languageChanged": "Interface language changed to {language}.",
+    "languageDeferred": "The interface language will change after your work is safely saved.",
+    "languageSaveFailed": "The language preference could not be saved. Please try again.",
+    "unsupportedLanguage": "That interface language is not available yet. Choose English or 简体中文.",
+    "autoHelp": "Use my browser language and eligible app input. This does not change my interview or book language.",
+    "saved": "Saved",
+    "loading": "Loading…"
+  },
+  "Platform": {
+    "home": "Home",
+    "memoir": "Memoir",
+    "voice": "Voice",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "Memoir": {
+    "home": {
+      "title": "Your life, in your own words",
+      "continue": "Continue my story",
+      "progress": "{completed} of {total} memories saved",
+      "remaining": "{count, plural, one {# memory remaining} other {# memories remaining}}"
+    },
+    "interview": {
+      "record": "Start recording",
+      "stop": "Stop recording",
+      "skip": "Not today",
+      "listen": "Listen to the question",
+      "permission": "Allow microphone access to record your answer.",
+      "unsaved": "Your recording has not been safely saved yet."
+    },
+    "context": {
+      "historicalReference": "Historical reference — not your family photograph",
+      "currentReference": "Present-day reference — not your family photograph",
+      "undatedReference": "Reference image — capture date unknown",
+      "familiar": "This feels familiar",
+      "different": "Mine was different"
+    },
+    "people": {
+      "title": "People in my story",
+      "add": "Add a person",
+      "name": "Name",
+      "relationship": "Relationship"
+    },
+    "book": {
+      "title": "My book",
+      "editionLanguage": "Edition language",
+      "preview": "Preview book",
+      "export": "Export selected edition"
+    },
+    "timeline": {
+      "approximateYear": "Around {year}",
+      "dateUnknown": "Date unknown"
+    }
+  },
+  "Voice": {
+    "title": "Voice",
+    "play": "Play",
+    "pause": "Pause"
+  },
+  "Errors": {
+    "generic": "Something went wrong. Please try again.",
+    "UNAUTHENTICATED": "Please sign in to continue.",
+    "ENTITLEMENT_REQUIRED": "You have completed {freeSessions} free memories. Your chapter is ready to keep."
+  },
+  "Status": {
+    "recordingUploaded": "Recording uploaded",
+    "transcriptProcessing": "Preparing transcript",
+    "memoryDraftReady": "Memory draft ready",
+    "bookRendering": "Preparing your book"
+  }
+}

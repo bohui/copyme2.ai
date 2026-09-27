@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from apps.api.codex_agent import CodexConnection
-from apps.api.codex_runtime import CodexRuntime, build_loop_trace
+from apps.api.codex_runtime import CodexRuntime, build_loop_trace, build_system_prompt
 
 
 def test_loop_trace_exposes_actions_without_private_model_reasoning():
@@ -17,6 +17,21 @@ def test_loop_trace_exposes_actions_without_private_model_reasoning():
     assert any(step["label"] == "memory.save" for step in trace)
     assert trace[-1]["label"] == "Respond"
     assert all("chain-of-thought" not in step["detail"].lower() for step in trace)
+
+
+def test_system_prompt_requires_simplified_chinese_responses():
+    prompt = build_system_prompt("(none)", language="zh-CN")
+
+    assert "简体中文" in prompt
+    assert "不要用英语回答" in prompt
+
+
+def test_loop_trace_is_localized_for_simplified_chinese():
+    trace = build_loop_trace(memory_count=2, resumed=False, saved_paths=1, language="zh-CN")
+
+    assert trace[0]["label"] == "分析"
+    assert trace[-1]["label"] == "回复"
+    assert all("memory" not in step["detail"].lower() for step in trace)
 
 
 def test_app_server_initialization_and_errors(tmp_path):
@@ -72,6 +87,9 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         def __init__(self):
             self.files = {}
             self.saved_session = None
+            self.profile_data = {}
+            self.place_data = None
+            self.saved_place_journey = None
 
         def acquire_agent_turn_lease(self, token, lease_seconds):
             return True
@@ -87,6 +105,25 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
 
         def memories(self):
             return [{"content": "A private memory"}]
+
+        def profile(self):
+            return self.profile_data
+
+        def save_profile(self, profile):
+            self.profile_data = profile
+
+        def place_journey(self):
+            return self.place_data
+
+        def save_place_journey(self, lease_token, journey):
+            self.saved_place_journey = journey
+            self.place_data = {
+                **journey,
+                "status": "active",
+                "revision": 1,
+                "updated_at": "2026-09-26T00:00:00Z",
+            }
+            return self.place_data
 
         @staticmethod
         def agent_path(path):
@@ -111,7 +148,19 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         def json(self):
             return {
                 "thread_id": "thread-new",
-                "reply": "What detail stands out most?",
+                "reply": (
+                    "What detail stands out most?\n"
+                    "[[MEMORY_SPARK_PROFILE]]"
+                    '{"name":"Mina","story_focus":{"who":"my grandmother","where":"Geelong",'
+                    '"when":"the 1980s","what":"summer afternoons"}}'
+                    "[[/MEMORY_SPARK_PROFILE]]\n"
+                    "[[MEMORY_SPARK_PLACE_JOURNEY]]"
+                    '{"schema_version":1,"place":"Geelong",'
+                    '"hierarchy":["Earth","Australia","Victoria","Geelong"],'
+                    '"granularity":"city","latitude":-38.1499,"longitude":144.3617,'
+                    '"duration_ms":5200}'
+                    "[[/MEMORY_SPARK_PLACE_JOURNEY]]"
+                ),
                 "artifacts": [{
                     "path": "sessions/thread-new.json",
                     "content": base64.b64encode(b"session state").decode("ascii"),
@@ -141,13 +190,44 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         worker_url="http://codex-worker:8766",
         worker_secret="worker-secret",
         model="test-model",
-    ).turn(storage, "Tell me about that day."))
+    ).turn(storage, "Tell me about that day in Geelong."))
 
     assert result["trace_mode"] == "codex-worker"
     assert result["thread_id"] == "thread-new"
     path = result['source_paths'][0]
     assert path.startswith('sessions/turns/') and path.endswith('/thread-new.json')
     assert storage.saved_session == "thread-new"
+    assert storage.profile_data == {
+        "name": "Mina",
+        "story_focus": {
+            "who": "my grandmother",
+            "where": "Geelong",
+            "when": "the 1980s",
+            "what": "summer afternoons",
+        },
+    }
+    assert result["profile_updates"] == storage.profile_data
+    assert storage.saved_place_journey == {
+        "schema_version": 1,
+        "place": "Geelong",
+        "hierarchy": ["Earth", "Australia", "Victoria", "Geelong"],
+        "granularity": "city",
+        "latitude": -38.1499,
+        "longitude": 144.3617,
+        "duration_ms": 5200,
+    }
+    assert result["place_journey"] == {
+        **storage.saved_place_journey,
+        "status": "active",
+        "revision": 1,
+        "updated_at": "2026-09-26T00:00:00Z",
+    }
+    assert result["place_journey_change"] == {
+        "changed": True,
+        "kind": "created",
+        "revision": 1,
+    }
+    assert "MEMORY_SPARK_PLACE_JOURNEY" not in result["reply"]
     assert storage.files[path] == b"session state"
     assert client.request["url"] == "http://codex-worker:8766/internal/codex/turn"
     assert client.request["headers"] == {"X-Codex-Worker-Secret": "worker-secret"}
@@ -155,6 +235,12 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         "user_id": storage.user_id,
         "thread_id": "thread-old",
         "memories": ["A private memory"],
-        "text": "Tell me about that day.",
+        "profile": {},
+        "place_journey": {},
+        "family_context": {},
+        "family_enabled": False,
+        "project_id": None,
+        "text": "Tell me about that day in Geelong.",
         "model": "test-model",
+        "language": "en-AU",
     }

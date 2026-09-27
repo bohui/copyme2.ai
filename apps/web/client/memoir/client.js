@@ -1,0 +1,2719 @@
+import { MEMOIR_ROUTES } from "../routes.js";
+import { currentUiLocale, translate, translateWith } from "../i18n.js";
+
+const state = {
+  accountId: null,
+  csrfToken: "",
+  project: null,
+  session: null,
+  memories: [],
+  sources: [],
+  chapters: [],
+  people: [],
+  relationships: [],
+  timeline: [],
+  preview: null,
+  chat: [],
+  codexStarting: false,
+  codexReady: false,
+  showThinkingSteps: false,
+  profileIntakePending: true,
+  placeJourney: null,
+  placeJourneyChange: null,
+  workspaceTab: "chapters",
+  workspaceUnlocked: false,
+  workspaceCollapsed: false,
+  lifeStage: "childhood",
+  chapterDecision: null,
+  story: null,
+  familyEntitlement: null,
+  familyFeaturesEnabled: false,
+  familyContext: null,
+  familyPeriods: [],
+  storyPlans: [],
+  selectedStoryPlan: "electronic_memoir_v1",
+  storyBookCount: 2,
+  storyAnswers: [],
+  storyChapter: null,
+  storyRecording: false,
+  storyRecorder: null,
+  storyRecordingStream: null,
+  storyRecordedChunks: [],
+  storyAudioBase64: "",
+  storyAudioFilename: "story-round.webm",
+  storyAudioMimeType: "audio/webm",
+  storyTranscript: "",
+  storyAudioPlayer: null,
+  checkout: null,
+  loading: false,
+  recording: false,
+  recorder: null,
+  recordingStream: null,
+  recordedChunks: [],
+  attachments: [],
+  attachmentRights: false,
+  attachmentProgress: "",
+  audioUploadId: null,
+  audioTranscript: "",
+  audioPlayer: null,
+  voiceMode: false,
+  voiceModeStatus: "off",
+  voiceModeRecorder: null,
+  voiceModeStream: null,
+  voiceModeAudioContext: null,
+  voiceModeAnalyser: null,
+  voiceModeMonitor: null,
+  voiceModeCancelTurn: false,
+  voiceModeTurnId: 0,
+  voiceModePlaybackFinish: null,
+  voiceModeSpeechResolve: null,
+  voiceMuted: false,
+  dictationStatus: "off",
+  dictationId: 0,
+  dictationSend: false,
+  dictationMonitor: null,
+  dictationAudioContext: null,
+  recognition: null,
+  supabase: null,
+  authPromise: null,
+};
+
+const MEMOIR_API_PREFIX = "/api/v1/memoir";
+const CESIUM_VERSION = "1.145";
+const FAMILY_CHART_VERSION = "0.9.0";
+const VIS_TIMELINE_VERSION = "7.7.3";
+const PLACE_JOURNEY_PROJECT_STORAGE_KEY = "memory-spark-place-journey-project";
+let cesiumPlaceJourneyViewer = null;
+let cesiumLoadPromise = null;
+const visualizationLoadPromises = new Map();
+let familyChartMountId = 0;
+let timelineMountId = 0;
+let assistantMessageSequence = 0;
+
+const ASSISTANT_STREAM_CHUNK_SIZE = 3;
+const ASSISTANT_STREAM_DELAY_MS = 12;
+
+const LIFE_STAGES = [
+  { id: "baby", icon: "baby", scale: 0.68 },
+  { id: "toddler", icon: "toddler", scale: 0.76 },
+  { id: "childhood", icon: "childhood", scale: 0.84 },
+  { id: "adolescence", icon: "adolescence", scale: 0.9 },
+  { id: "young_adulthood", icon: "youngAdulthood", scale: 0.96 },
+  { id: "midlife", icon: "midlife", scale: 1 },
+  { id: "later_life", icon: "laterLife", scale: 0.94 },
+];
+
+const CHATBOT_NAME = "Mira";
+const PROFILE_INTAKE_PROMPT = `This is the storyteller's first answer to the shared profile-intake opening. Extract only explicit facts
+about the storyteller and the current memory thread. Save any name, birth year or date expression, birthplace,
+childhood place, and story focus as who, where, when, and what. Use the profile marker contract when there is
+something explicit to save. Do not infer missing details or interrogate for missing fields. Acknowledge one
+specific detail, then ask exactly one low-pressure, concrete follow-up—prefer an object, sensory scene, familiar
+activity, or something they hoped to talk about today.`;
+
+const $ = (selector) => document.querySelector(selector);
+const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;", "'":"&#039;"}[char]));
+const formatText = (value = "") => escapeHtml(value).replace(/\n/g, "<br>");
+
+function conversationLocale() {
+  return currentUiLocale();
+}
+
+function assistantAvatarPath() {
+  const locale = conversationLocale() === "zh-CN" ? "zh-CN" : "en-AU";
+  return `/static/mira_avatar_${locale}.png`;
+}
+
+function conversationMessage(key) {
+  return translate(`Memoir.conversation.${key}`);
+}
+
+function memoirApiPath(path) {
+  if (path.startsWith(MEMOIR_API_PREFIX)) return path;
+  if (path === "/v1") return MEMOIR_API_PREFIX;
+  if (path.startsWith("/v1/")) return `${MEMOIR_API_PREFIX}${path.slice(3)}`;
+  return path;
+}
+
+const ERROR_MESSAGE_KEYS = {
+  PAYMENT_REQUIRED: "paymentRequired",
+  ENTITLEMENT_REQUIRED: "entitlementRequired",
+  INVALID_AUDIO_PAYLOAD: "invalidAudio",
+  ALREADY_PAID: "alreadyPaid",
+  INVALID_STRIPE_ORDER: "invalidCheckout",
+  STRIPE_ORDER_MISMATCH: "stripeMismatch",
+  SESSION_EXPIRED: "sessionExpired",
+};
+
+function localizedErrorMessage(code) {
+  const key = ERROR_MESSAGE_KEYS[code] || "generic";
+  return translate(`Errors.${key}`);
+}
+
+function currentPath() {
+  return window.location.pathname.replace(/\/$/, "") || "/";
+}
+
+function isMemoirRoute() {
+  return currentPath() === MEMOIR_ROUTES.home || currentPath().startsWith("/memoir/");
+}
+
+function navigateTo(path, replace = false) {
+  window.history[replace ? "replaceState" : "pushState"]({}, "", path);
+  render();
+}
+
+async function api(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (!path.startsWith("/v1/auth/") && method !== "GET" && method !== "HEAD") {
+    headers["X-CSRF-Token"] = state.csrfToken || readCookie("memory_spark_csrf");
+  }
+  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  let body = null;
+  try { body = await response.json(); } catch { body = { detail: response.statusText }; }
+  if (!response.ok) {
+    const error = new Error(localizedErrorMessage(response.headers.get("X-Error-Code") || body?.error?.code));
+    error.status = response.status;
+    error.code = response.headers.get("X-Error-Code") || body?.error?.code || null;
+    throw error;
+  }
+  return body;
+}
+
+function readCookie(name) {
+  const prefix = `${name}=`;
+  const match = document.cookie.split("; ").find((item) => item.startsWith(prefix));
+  return match ? decodeURIComponent(match.slice(prefix.length)) : "";
+}
+
+const UI_LOCALES = new Set(["en-AU", "zh-CN"]);
+const UI_LOCALE_COOKIE = "copyme2_ui_locale";
+
+function writeUiLocaleCookie(locale) {
+  if (!UI_LOCALES.has(locale)) return;
+  document.cookie = `${UI_LOCALE_COOKIE}=${encodeURIComponent(locale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+}
+
+function installUiLocaleBridge() {
+  globalThis.__copyme2BeforeUiLocaleChange = async (nextLocale, { persistAccount = true } = {}) => {
+    if (!UI_LOCALES.has(nextLocale)) return false;
+    if (state.recording || state.storyRecording || state.voiceModeRecorder) {
+      toast(translate("Common.finishRecordingFirst"));
+      return false;
+    }
+    const client = state.supabase?.client;
+    const user = state.supabase?.user;
+    if (!persistAccount || !client || !user || user.is_anonymous) return true;
+    try {
+      const result = await client.auth.updateUser({
+        data: { ...(user.user_metadata || {}), ui_locale: nextLocale },
+      });
+      if (result.error) throw result.error;
+      if (result.data?.user) state.supabase.user = result.data.user;
+    } catch (error) {
+      // Keep the device choice usable even if the account metadata update is unavailable.
+      console.warn("Unable to persist the UI locale to the account; keeping the device preference.", error);
+    }
+    return true;
+  };
+}
+
+async function ensureAuth() {
+  await loadSupabaseConfig();
+  if (state.supabase?.auth_mode === "test") {
+    syncSupabaseSession({ access_token: "browser-test-token", refresh_token: null, user: { is_anonymous: true } });
+    return;
+  }
+  if (!state.supabase?.client) throw new Error(translate("Errors.supabaseNotConfigured"));
+  const { data, error } = await state.supabase.client.auth.getSession();
+  if (error) throw new Error(translate("Errors.sessionUnavailable"));
+  let session = data.session;
+  if (!session) {
+    const signedIn = await state.supabase.client.auth.signInAnonymously();
+    if (signedIn.error) {
+      const message = signedIn.error.message || "";
+      if (message.toLowerCase().includes("anonymous sign-ins are disabled")) {
+        throw new Error(translate("Errors.anonymousDisabled"));
+      }
+      throw new Error(translate("Errors.authFailed"));
+    }
+    session = signedIn.data.session;
+  }
+  syncSupabaseSession(session);
+}
+
+async function loadSupabaseConfig() {
+  const response = await fetch(memoirApiPath("/v1/agent/config"));
+  const config = await response.json();
+  state.showThinkingSteps = Boolean(config.show_thinking_steps);
+  if (config.auth_mode === "test") {
+    state.supabase = config;
+    return;
+  }
+  if (!config.supabase_url || !config.supabase_publishable_key || !globalThis.supabase?.createClient) {
+    state.supabase = config;
+    return;
+  }
+  const client = globalThis.supabase.createClient(config.supabase_url, config.supabase_publishable_key, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
+  state.supabase = { ...config, client };
+  client.auth.onAuthStateChange((_event, session) => {
+    syncSupabaseSession(session);
+    if (state.story && session) refreshStoryState().catch(() => {});
+  });
+}
+
+function syncSupabaseSession(session) {
+  state.supabaseSession = session || null;
+  if (!state.supabase) return;
+  state.supabase.accessToken = session?.access_token || null;
+  state.supabase.refreshToken = session?.refresh_token || null;
+  state.supabase.user = session?.user || null;
+  const accountLocale = session?.user?.user_metadata?.ui_locale;
+  if (UI_LOCALES.has(accountLocale) && !readCookie(UI_LOCALE_COOKIE)) {
+    writeUiLocaleCookie(accountLocale);
+    if (globalThis.__copyme2Intl?.locale && globalThis.__copyme2Intl.locale !== accountLocale) {
+      window.location.reload();
+    }
+  }
+}
+
+async function supabaseAuth(action) {
+  if (!state.supabase?.supabase_url || !state.supabase?.supabase_publishable_key) return toast(translate("Errors.supabaseNotConfigured"));
+  const email = $("#agent-email")?.value.trim();
+  const password = $("#agent-password")?.value || "";
+  if (!email || password.length < 8) return toast(translate("Errors.authInput"));
+  if (state.supabase.client) {
+    const result = action === "signup"
+      ? await state.supabase.client.auth.signUp({ email, password })
+      : await state.supabase.client.auth.signInWithPassword({ email, password });
+    if (result.error) return toast(translate("Errors.authFailed"));
+    if (!result.data.session) return toast(translate("Errors.authConfirm"));
+    syncSupabaseSession(result.data.session);
+    renderLanding();
+    toast(translate("Errors.memoryConnected"));
+    return;
+  }
+  const path = action === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+  const response = await fetch(`${state.supabase.supabase_url}${path}`, { method: "POST", headers: { "Content-Type": "application/json", apikey: state.supabase.supabase_publishable_key }, body: JSON.stringify({ email, password }) });
+  const body = await response.json();
+  if (!response.ok) return toast(translate("Errors.authFailed"));
+  if (!body.access_token) return toast(translate("Errors.authConfirm"));
+  state.supabase = { ...state.supabase, accessToken: body.access_token, refreshToken: body.refresh_token, user: body.user };
+  try { sessionStorage.setItem("memory-spark-supabase-session", JSON.stringify({ accessToken: body.access_token, refreshToken: body.refresh_token, user: body.user })); } catch { /* session remains in memory */ }
+  renderLanding();
+  toast(translate("Errors.memoryConnected"));
+}
+
+async function storySession() {
+  if (state.supabase?.auth_mode === "test") return { access_token: "browser-test-token" };
+  if (!state.supabase?.client) throw new Error(translate("Errors.supabaseNotConfigured"));
+  const { data, error } = await state.supabase.client.auth.getSession();
+  if (error || !data.session) throw new Error(translate("Errors.sessionUnavailable"));
+  syncSupabaseSession(data.session);
+  return data.session;
+}
+
+async function storyApi(path, options = {}) {
+  const session = await storySession();
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session.access_token}`,
+    ...(options.headers || {}),
+  };
+  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(localizedErrorMessage(response.headers.get("X-Error-Code") || body?.error?.code));
+    error.status = response.status;
+    error.code = response.headers.get("X-Error-Code") || body?.error?.code;
+    throw error;
+  }
+  return body;
+}
+
+async function supabaseApi(path, options = {}) {
+  if (!state.supabase?.accessToken) return null;
+  const headers = {
+    "Content-Type": "application/json",
+    "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf"),
+    Authorization: `Bearer ${state.supabase.accessToken}`,
+    ...(options.headers || {}),
+  };
+  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    state.supabase.accessToken = null;
+    try { sessionStorage.removeItem("memory-spark-supabase-session"); } catch { /* private browsing */ }
+    throw new Error(translate("Errors.sessionExpired"));
+  }
+  if (!response.ok) throw new Error(localizedErrorMessage(response?.headers?.get("X-Error-Code") || body?.error?.code));
+  return body;
+}
+
+function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = translate("Memoir.trace.final")) {
+  const tools = toolNames.flatMap((name) => [
+    { kind: "tool_call", label: name, detail: translateWith("Memoir.trace.toolCall", { tool: name }) },
+    { kind: "tool_result", label: `${name} result`, detail: translate("Memoir.trace.toolResult") },
+  ]);
+  return [
+    { kind: "analysis", label: translate("Memoir.trace.analysis"), detail: translate("Memoir.trace.analysis") },
+    ...tools,
+    { kind: "final", label: translate("Memoir.trace.final"), detail: finalDetail },
+  ];
+}
+
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
+  const simulated = simulatedLoopTrace(toolNames);
+  if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
+  try {
+    const body = await supabaseApi("/v1/agent/turn", { method: "POST", body: JSON.stringify({ text, project_id: state.project?.id || null, language: conversationLocale() }) });
+    if (body.profile_updates) await saveProfileUpdates(body.profile_updates);
+    if (Object.prototype.hasOwnProperty.call(body, "place_journey")) {
+      state.placeJourneyChange = body.place_journey_change || null;
+      // The API returns the latest saved journey even when this turn emitted
+      // no marker. A persisted user-level record must not activate a fresh
+      // conversation's workspace on its own.
+      if (body.place_journey_change?.changed && body.place_journey) {
+        state.placeJourney = body.place_journey;
+        rememberPlaceJourneyProject(state.project?.id);
+      }
+      if (state.placeJourney) {
+        if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "places";
+      }
+    }
+    if (state.familyFeaturesEnabled && body.family_features_enabled === true && body.family_context_update?.persisted === true && body.family_context) {
+      applyPersistedFamilyContext(body.family_context);
+      if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "family";
+    }
+    return { reply: body.reply || fallback || null, trace: body.trace || simulated, traceMode: body.trace_mode || "codex", placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
+  } catch (error) {
+    toast(error.message);
+    return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
+  }
+}
+
+function nextAssistantMessageId() {
+  assistantMessageSequence += 1;
+  return `assistant-message-${assistantMessageSequence}`;
+}
+
+function updateStreamingAssistantMessage(message) {
+  const row = document.querySelector(`[data-message-id="${message.id}"]`);
+  if (!row) {
+    render();
+    return;
+  }
+  const text = row.querySelector(".message-text");
+  if (text) text.innerHTML = formatText(message.text);
+  const scroll = $("#chat-scroll");
+  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+}
+
+function waitForAssistantStream() {
+  return new Promise((resolve) => window.setTimeout(resolve, ASSISTANT_STREAM_DELAY_MS));
+}
+
+async function streamAssistantMessage(text, metadata = {}) {
+  const value = String(text || "");
+  if (!value) return null;
+  const message = {
+    ...metadata,
+    id: nextAssistantMessageId(),
+    role: "assistant",
+    text: "",
+    streaming: true,
+  };
+  state.chat.push(message);
+  render();
+
+  const characters = Array.from(value);
+  for (let index = 0; index < characters.length; index += ASSISTANT_STREAM_CHUNK_SIZE) {
+    message.text = characters.slice(0, index + ASSISTANT_STREAM_CHUNK_SIZE).join("");
+    updateStreamingAssistantMessage(message);
+    if (index + ASSISTANT_STREAM_CHUNK_SIZE < characters.length) await waitForAssistantStream();
+  }
+  message.text = value;
+  message.streaming = false;
+  render();
+  return message;
+}
+
+async function hydratePlaceJourney() {
+  if (!state.supabase?.accessToken || !placeJourneyIsActivatedForProject()) return;
+  try {
+    const body = await supabaseApi("/v1/agent/place-journey");
+    state.placeJourney = body.place_journey || null;
+    state.placeJourneyChange = null;
+  } catch {
+    // A missing journey endpoint must not prevent the memoir conversation.
+  }
+}
+
+function placeJourneyIsActivatedForProject(projectId = state.project?.id) {
+  if (!projectId) return false;
+  try {
+    return localStorage.getItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY) === projectId;
+  } catch {
+    return false;
+  }
+}
+
+function rememberPlaceJourneyProject(projectId = state.project?.id) {
+  if (!projectId) return;
+  try {
+    localStorage.setItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY, projectId);
+  } catch {
+    // The journey remains available for the current page when storage is restricted.
+  }
+}
+
+function applyPersistedFamilyContext(context) {
+  if (!context || typeof context !== "object") return;
+  state.familyContext = context;
+  state.people = Array.isArray(context.people) ? context.people : [];
+  state.relationships = Array.isArray(context.relationships) ? context.relationships : [];
+  state.timeline = Array.isArray(context.timeline) ? context.timeline : [];
+  state.familyPeriods = Array.isArray(context.life_periods) ? context.life_periods : [];
+}
+
+async function refreshFamilyContext() {
+  if (!state.familyFeaturesEnabled || !state.project?.id || !state.supabase?.accessToken) return null;
+  try {
+    const body = await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(state.project.id)}`);
+    if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
+    return body?.family_context || null;
+  } catch {
+    return null;
+  }
+}
+
+async function refreshFamilyEntitlement() {
+  try {
+    const entitlement = await storyApi("/v1/story/state");
+    const features = new Set(entitlement.payment_features || []);
+    state.familyEntitlement = entitlement;
+    state.familyFeaturesEnabled = entitlement.family_features_enabled === true
+      && features.has("family_tree")
+      && features.has("timeline");
+    if (!state.familyFeaturesEnabled) {
+      state.familyContext = null;
+      state.familyPeriods = [];
+    } else {
+      await refreshFamilyContext();
+    }
+  } catch {
+    state.familyEntitlement = null;
+    state.familyFeaturesEnabled = false;
+    state.familyContext = null;
+    state.familyPeriods = [];
+  }
+  return state.familyFeaturesEnabled;
+}
+
+function loadVisualizationStylesheet(href) {
+  const existing = Array.from(document.querySelectorAll("link[rel='stylesheet']")).some((link) => link.href === href);
+  if (existing) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  link.dataset.memorySparkVisualization = href;
+  document.head.appendChild(link);
+}
+
+function loadVisualizationScript(src) {
+  if (visualizationLoadPromises.has(src)) return visualizationLoadPromises.get(src);
+  const promise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.memorySparkVisualization = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Unable to load visualization renderer: ${src}`));
+    document.head.appendChild(script);
+  });
+  visualizationLoadPromises.set(src, promise);
+  return promise;
+}
+
+async function loadFamilyChartRenderer() {
+  if (globalThis.f3?.createChart) return globalThis.f3;
+  loadVisualizationStylesheet(`https://unpkg.com/family-chart@${FAMILY_CHART_VERSION}/dist/styles/family-chart.css`);
+  if (!globalThis.d3) await loadVisualizationScript("https://unpkg.com/d3@7.9.0/dist/d3.min.js");
+  await loadVisualizationScript(`https://unpkg.com/family-chart@${FAMILY_CHART_VERSION}/dist/family-chart.min.js`);
+  if (!globalThis.f3?.createChart) throw new Error("Family chart renderer is unavailable");
+  return globalThis.f3;
+}
+
+async function loadVisTimelineRenderer() {
+  if (globalThis.vis?.Timeline) return globalThis.vis;
+  loadVisualizationStylesheet(`https://unpkg.com/vis-timeline@${VIS_TIMELINE_VERSION}/styles/vis-timeline-graph2d.min.css`);
+  await loadVisualizationScript(`https://unpkg.com/vis-timeline@${VIS_TIMELINE_VERSION}/standalone/umd/vis-timeline-graph2d.min.js`);
+  if (!globalThis.vis?.Timeline) throw new Error("Timeline renderer is unavailable");
+  return globalThis.vis;
+}
+
+function familyChartData() {
+  const records = state.people
+    .filter((person) => person?.id && person?.name)
+    .map((person) => {
+      const parts = String(person.name).trim().split(/\s+/).filter(Boolean);
+      const data = {
+        "first name": parts.shift() || person.name,
+        "last name": parts.join(" "),
+        gender: person.gender || "U",
+      };
+      if (person.family_title) data["family title"] = person.family_title;
+      if (person.birth_date_expression) data.birthday = person.birth_date_expression;
+      return { id: String(person.id), data, rels: { parents: [], children: [], spouses: [] } };
+    });
+  const byId = new Map(records.map((record) => [record.id, record]));
+  const connect = (record, key, targetId) => {
+    if (record && !record.rels[key].includes(targetId)) record.rels[key].push(targetId);
+  };
+  state.relationships.forEach((relation) => {
+    const fromId = String(relation?.from_person_id || "");
+    const toId = String(relation?.to_person_id || "");
+    const from = byId.get(fromId);
+    const to = byId.get(toId);
+    if (!from || !to) return;
+    switch (relation.relationship_type) {
+      case "parent":
+      case "adoptive_parent":
+      case "step_parent":
+        connect(from, "children", toId);
+        connect(to, "parents", fromId);
+        break;
+      case "child":
+      case "adopted_child":
+      case "step_child":
+        connect(from, "parents", toId);
+        connect(to, "children", fromId);
+        break;
+      case "spouse":
+        connect(from, "spouses", toId);
+        connect(to, "spouses", fromId);
+        break;
+      default:
+        break;
+    }
+  });
+  return records;
+}
+
+function timelineDate(expression, end = false) {
+  if (typeof expression !== "string") return null;
+  const cleaned = expression.trim();
+  const exact = cleaned.match(/\b(\d{4})[-/](\d{1,2})(?:[-/](\d{1,2}))?\b/);
+  if (exact) {
+    const month = String(Number(exact[2])).padStart(2, "0");
+    const day = String(Number(exact[3] || (end ? 28 : 1))).padStart(2, "0");
+    return `${exact[1]}-${month}-${day}`;
+  }
+  const year = cleaned.match(/\b([12]\d{3})\b/);
+  if (!year) return null;
+  return `${year[1]}-${end ? "12-31" : "07-01"}`;
+}
+
+function timelineRendererItems() {
+  const events = state.timeline.map((item) => ({
+    id: String(item.id),
+    content: escapeHtml(item.title),
+    start: timelineDate(item.date_expression),
+    end: null,
+    className: "memoir-event",
+  }));
+  const periods = state.familyPeriods.map((item) => ({
+    id: `period:${item.id}`,
+    content: escapeHtml(item.title),
+    start: timelineDate(item.start_expression),
+    end: timelineDate(item.end_expression, true),
+    className: "memoir-period",
+  }));
+  return [...events, ...periods]
+    .filter((item) => item.start)
+    .map((item) => (item.end && item.end <= item.start ? { ...item, end: null } : item));
+}
+
+async function mountFamilyChartAdapter(container) {
+  try {
+    const data = familyChartData();
+    if (!data.length) return;
+    const f3 = await loadFamilyChartRenderer();
+    if (!document.body.contains(container)) return;
+    const mount = document.createElement("div");
+    mount.className = "family-chart-library f3";
+    mount.id = `family-chart-renderer-${familyChartMountId += 1}`;
+    mount.setAttribute("aria-hidden", "true");
+    container.appendChild(mount);
+    const chart = f3.createChart(`#${mount.id}`, data);
+    chart.setCardHtml().setCardDisplay([["first name", "last name"], ["family title"], ["birthday"]]);
+    chart.updateTree({ initial: true });
+    mount.dataset.libraryMounted = "family-chart";
+    container.dataset.rendererStatus = "family-chart";
+  } catch (error) {
+    container.dataset.rendererStatus = "fallback";
+    console.warn("Family chart renderer unavailable; using the accessible list.", error);
+  }
+}
+
+async function mountVisTimelineAdapter(container) {
+  try {
+    const items = timelineRendererItems();
+    if (!items.length) return;
+    const vis = await loadVisTimelineRenderer();
+    if (!document.body.contains(container)) return;
+    const mount = document.createElement("div");
+    mount.className = "vis-timeline-library";
+    mount.id = `vis-timeline-renderer-${timelineMountId += 1}`;
+    mount.setAttribute("aria-hidden", "true");
+    container.appendChild(mount);
+    const dataset = vis.DataSet ? new vis.DataSet(items) : items;
+    new vis.Timeline(mount, dataset, {
+      stack: true,
+      zoomMin: 31_536_000_000,
+      orientation: "top",
+      height: "280px",
+      margin: { item: 12, axis: 8 },
+    });
+    mount.dataset.libraryMounted = "vis-timeline";
+    container.dataset.rendererStatus = "vis-timeline";
+  } catch (error) {
+    container.dataset.rendererStatus = "fallback";
+    console.warn("Timeline renderer unavailable; using the accessible list.", error);
+  }
+}
+
+function initFamilyVisualizations() {
+  if (!state.familyFeaturesEnabled) return;
+  const family = document.querySelector("[data-renderer='family-chart']");
+  const timeline = document.querySelector("[data-renderer='vis-timeline']");
+  if (family) mountFamilyChartAdapter(family);
+  if (timeline) mountVisTimelineAdapter(timeline);
+}
+
+async function startCodexConversation({ resume = false } = {}) {
+  if (!state.project || state.codexStarting || state.codexReady || state.chat.length) return;
+  state.codexStarting = true;
+  const profileOpening = !resume || state.profileIntakePending;
+  if (profileOpening) {
+    // The opening is product copy, not an agent turn. Keep it available while
+    // the first real storyteller answer creates or resumes the Codex thread.
+    state.loading = false;
+    try {
+      await streamAssistantMessage(conversationMessage("opening"), {
+        trace: simulatedLoopTrace(
+          ["conversation.start", "memory.search"],
+          translate("Memoir.trace.opening"),
+        ),
+        traceMode: "simulated",
+      });
+    } finally {
+      state.codexStarting = false;
+      state.codexReady = true;
+      state.loading = false;
+      render();
+    }
+    return;
+  }
+
+  state.loading = true;
+  render();
+  const prompt = "Resume this storyteller's conversation naturally. Their profile and memories are already available. Welcome them back briefly and invite them to continue wherever the story leads.";
+  const fallback = conversationMessage("resume");
+  try {
+    const result = await agentTurn(prompt, fallback, ["conversation.start", "memory.search"]);
+    const text = result.reply || fallback;
+    const message = await streamAssistantMessage(text, { trace: result.trace, traceMode: result.traceMode });
+    if (message) render();
+  } finally {
+    state.codexStarting = false;
+    state.codexReady = true;
+    state.loading = false;
+    render();
+  }
+}
+
+function toast(message) {
+  const node = $("#toast");
+  node.textContent = message;
+  node.classList.add("show");
+  window.clearTimeout(toast.timer);
+  toast.timer = window.setTimeout(() => node.classList.remove("show"), 3600);
+}
+
+function setLoading(value) {
+  state.loading = value;
+  if (value && !state.project) $("#app").innerHTML = `<div class="loading">${escapeHtml(translate("Common.loading"))}</div>`;
+}
+
+function profile() {
+  return state.project?.profile || {};
+}
+
+function profileHasContext(profileValue = profile()) {
+  const focus = profileValue?.story_focus;
+  return Boolean(
+    profileValue?.name
+    || profileValue?.birth_year
+    || profileValue?.birth_date_expression
+    || profileValue?.birth_place
+    || profileValue?.childhood_place
+    || (focus && Object.values(focus).some(Boolean))
+  );
+}
+
+function mergeProfileUpdates(updates) {
+  if (!updates || typeof updates !== "object") return null;
+  const current = { ...profile() };
+  const next = { ...current };
+  ["name", "birth_date_expression", "birth_place", "childhood_place"].forEach((key) => {
+    if (typeof updates[key] === "string" && updates[key].trim()) next[key] = updates[key].trim();
+  });
+  if (Number.isInteger(updates.birth_year)) next.birth_year = updates.birth_year;
+  if (updates.story_focus && typeof updates.story_focus === "object") {
+    const focus = { ...(current.story_focus || {}) };
+    ["who", "where", "when", "what"].forEach((key) => {
+      if (typeof updates.story_focus[key] === "string" && updates.story_focus[key].trim()) focus[key] = updates.story_focus[key].trim();
+    });
+    if (Object.keys(focus).length) next.story_focus = focus;
+  }
+  return JSON.stringify(next) === JSON.stringify(current) ? null : next;
+}
+
+async function saveProfileUpdates(updates) {
+  const merged = mergeProfileUpdates(updates);
+  if (!merged || !state.project) return;
+  state.project = { ...state.project, profile: merged };
+  state.profileIntakePending = false;
+  try {
+    const saved = await api(`/v1/projects/${state.project.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ profile: merged, expected_revision: state.project.revision }),
+    });
+    state.project = { ...state.project, ...saved };
+  } catch (error) {
+    toast(translateWith("Memoir.conversation.profileSaveError", { error: error.message }));
+  }
+}
+
+function profileDetails() {
+  const user = state.supabase?.user || state.supabaseSession?.user || {};
+  const metadata = user.user_metadata || {};
+  const name = profile().name || metadata.full_name || metadata.name || user.email || (user.is_anonymous ? translate("Common.privateSession") : translate("Common.yourProfile"));
+  const email = user.email || (user.is_anonymous ? translate("Common.anonymousSession") : translate("Common.supabaseAccount"));
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  const initials = parts.length > 1
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`
+    : (parts[0] || "Me").slice(0, 2);
+  return { name, email, initials: initials.toUpperCase() };
+}
+
+function profileMenu() {
+  const details = profileDetails();
+  const t = (key) => escapeHtml(translate(`Common.${key}`));
+  return `
+    <div class="profile-menu" data-profile-menu>
+      <button class="profile-trigger" type="button" data-profile-trigger aria-label="${t("openProfile")}" aria-expanded="false" aria-haspopup="menu" aria-controls="profile-menu-content">
+        <span class="profile-avatar" aria-hidden="true">${escapeHtml(details.initials)}</span>
+        <span class="profile-trigger-copy"><span class="profile-trigger-label">${t("profile")}</span><span class="profile-trigger-name">${escapeHtml(details.name)}</span></span>
+        <span class="profile-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="profile-dropdown" id="profile-menu-content" role="menu" hidden>
+        <div class="profile-dropdown-header"><span class="profile-dropdown-eyebrow">${t("account")}</span><strong>${escapeHtml(details.name)}</strong><small>${escapeHtml(details.email)}</small></div>
+        <div class="profile-menu-language" role="group"><div data-language-switcher-slot></div></div>
+        <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>${t("logout")}</span><span aria-hidden="true">↗</span></button>
+      </div>
+    </div>`;
+}
+
+function closeProfileMenu(restoreFocus = false) {
+  const menu = $("[data-profile-menu]");
+  const trigger = menu?.querySelector("[data-profile-trigger]");
+  const dropdown = menu?.querySelector(".profile-dropdown");
+  if (!menu || !trigger || !dropdown) return;
+  menu.classList.remove("is-open");
+  trigger.setAttribute("aria-expanded", "false");
+  dropdown.hidden = true;
+  if (restoreFocus) trigger.focus();
+}
+
+function bindProfileMenu() {
+  const menu = $("[data-profile-menu]");
+  const trigger = menu?.querySelector("[data-profile-trigger]");
+  const dropdown = menu?.querySelector(".profile-dropdown");
+  if (!menu || !trigger || !dropdown) return;
+  trigger.addEventListener("click", () => {
+    const open = trigger.getAttribute("aria-expanded") === "true";
+    if (open) {
+      closeProfileMenu();
+      return;
+    }
+    menu.classList.add("is-open");
+    trigger.setAttribute("aria-expanded", "true");
+    dropdown.hidden = false;
+  });
+  menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
+}
+
+async function signOut() {
+  closeProfileMenu();
+  try {
+    if (state.supabase?.client) {
+      const { error } = await state.supabase.client.auth.signOut();
+      if (error) throw new Error(translate("Errors.logoutFailed"));
+    }
+    state.recordingStream?.getTracks().forEach((track) => track.stop());
+    state.supabase = null;
+    state.supabaseSession = null;
+    state.accountId = null;
+    state.csrfToken = "";
+    state.project = null;
+    state.session = null;
+    state.memories = [];
+    state.sources = [];
+    state.chapters = [];
+    state.people = [];
+    state.relationships = [];
+    state.timeline = [];
+    state.preview = null;
+    state.chat = [];
+    state.codexStarting = false;
+    state.codexReady = false;
+    state.profileIntakePending = true;
+    state.placeJourney = null;
+    state.placeJourneyChange = null;
+    state.workspaceTab = "chapters";
+    state.workspaceUnlocked = false;
+    state.workspaceCollapsed = false;
+    state.lifeStage = "childhood";
+    state.chapterDecision = null;
+    state.story = null;
+    state.familyEntitlement = null;
+    state.familyFeaturesEnabled = false;
+    state.familyContext = null;
+    state.familyPeriods = [];
+    state.storyPlans = [];
+    state.selectedStoryPlan = "electronic_memoir_v1";
+    state.storyBookCount = 2;
+    state.storyAnswers = [];
+    state.storyChapter = null;
+    state.storyRecording = false;
+    state.storyRecorder = null;
+    state.storyRecordingStream = null;
+    state.storyRecordedChunks = [];
+    state.storyAudioBase64 = "";
+    state.storyTranscript = "";
+    state.storyAudioPlayer = null;
+    state.checkout = null;
+    state.recording = false;
+    state.recorder = null;
+    state.recordingStream = null;
+    state.recordedChunks = [];
+    state.audioUploadId = null;
+    state.audioTranscript = "";
+    state.audioPlayer = null;
+    state.recognition = null;
+    try {
+      localStorage.removeItem("memory-spark-project");
+      localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY);
+      localStorage.removeItem("memory-spark-story-started");
+      sessionStorage.removeItem("memory-spark-supabase-session");
+    } catch { /* private browsing or storage restrictions */ }
+    navigateTo(MEMOIR_ROUTES.home, true);
+    await boot();
+  } catch (error) {
+    toast(error.message || translate("Errors.logoutFailed"));
+  }
+}
+
+function memoryFollowUpBudget(session = state.session) {
+  const offered = Number(session?.follow_ups_offered || 0);
+  return Math.max(1, Math.min(3, offered));
+}
+
+function memoryFollowUpsRemaining(session = state.session) {
+  const used = Number(session?.follow_ups_used || 0);
+  return Math.max(0, memoryFollowUpBudget(session) - used);
+}
+
+function memoryFollowUpPrompt(session = state.session) {
+  if (session?.context_cues?.length) return conversationMessage("publicCueFollowUp");
+  return conversationMessage("memoryFollowUp");
+}
+
+function memoryTurnFallback(session = state.session) {
+  if (memoryFollowUpsRemaining(session) > 0) return memoryFollowUpPrompt(session);
+  return conversationMessage("memoryComplete");
+}
+
+function storyRoundQuestion() {
+  return conversationMessage("fallback");
+}
+
+const STORY_ROUNDS_REQUIRED = 5;
+
+const FALLBACK_STORY_PLANS = [
+  { plan_key: "electronic_memoir_v1", name: "Electronic memoir", price_minor: 4900, description: "A beautifully shaped electronic version of your memoir.", features: ["Electronic memoir", "Source-linked story chapters", "Private digital delivery"], electronic_only: true, additional_book_price_minor: 0, minimum_books: 0, default_books: 0 },
+  { plan_key: "printed_memoir_v1", name: "Printed memoir", price_minor: 7900, description: "Two printed books, with extra copies available for A$10 each.", features: ["Electronic memoir", "2 printed books", "Add extra books for A$10 each"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
+  { plan_key: "family_memoir_v1", name: "Family legacy memoir", price_minor: 12900, description: "Two printed books plus a richer family record.", features: ["Electronic memoir", "2 printed books", "Family tree", "Life timeline", "More detailed story context"], electronic_only: false, additional_book_price_minor: 1000, minimum_books: 2, default_books: 2 },
+];
+
+function formatAudMinor(amountMinor) {
+  return new Intl.NumberFormat(currentUiLocale(), { style: "currency", currency: "AUD", currencyDisplay: "code", maximumFractionDigits: 0 }).format(Number(amountMinor || 0) / 100);
+}
+
+function storyPlanTotal(plan, bookCount) {
+  if (plan.electronic_only) return plan.price_minor;
+  return plan.price_minor + Math.max(0, Number(bookCount || plan.default_books || 2) - 2) * (plan.additional_book_price_minor || 1000);
+}
+
+function storyPlanCopy(plan) {
+  const copy = globalThis.__copyme2Intl?.messages?.Memoir?.storyFlow?.plans?.[plan.plan_key];
+  if (!copy) return { name: plan.name, description: plan.description, features: plan.features || [] };
+  return { ...copy, features: Object.values(copy.features || {}) };
+}
+
+function storyCheckoutForm() {
+  const plans = state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS;
+  const selectedPlan = plans.find((plan) => plan.plan_key === state.selectedStoryPlan) || plans[0];
+  const selectedKey = selectedPlan.plan_key;
+  const bookCount = Math.max(2, Number(state.storyBookCount || selectedPlan.default_books || 2));
+  const printed = !selectedPlan.electronic_only;
+  const total = storyPlanTotal(selectedPlan, printed ? bookCount : 0);
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.storyFlow.${key}`, values));
+  const checkoutMessage = state.checkout?.message ? `<p class="fine-print story-payment-note">${escapeHtml(state.checkout.message)}</p>` : "";
+  return `
+    <form id="story-checkout-form" class="story-checkout-form">
+      <div class="story-plan-grid" role="radiogroup" aria-label="${t("packagesLabel")}">
+        ${plans.map((plan) => { const copy = storyPlanCopy(plan); return `
+          <label class="story-plan-card ${plan.plan_key === selectedKey ? "selected" : ""}">
+            <input type="radio" name="plan_key" value="${escapeHtml(plan.plan_key)}" ${plan.plan_key === selectedKey ? "checked" : ""} />
+            <span class="story-plan-card-top"><span class="eyebrow">${escapeHtml(copy.name)}</span><strong>${t("fromPrice", { price: formatAudMinor(plan.price_minor) })}</strong></span>
+            <span class="story-plan-description">${escapeHtml(copy.description)}</span>
+            <span class="story-plan-features">${copy.features.map((feature) => `<span>✓ ${escapeHtml(feature)}</span>`).join("")}</span>
+          </label>`; }).join("")}
+      </div>
+      <div class="story-book-options ${printed ? "" : "is-disabled"}">
+        <label for="story-book-count"><span>${t("printedBooks")}</span><select id="story-book-count" name="book_count" ${printed ? "" : "disabled"}>${Array.from({ length: 19 }, (_, index) => index + 2).map((count) => `<option value="${count}" ${count === bookCount ? "selected" : ""}>${t("bookCount", { count })}${count > 2 ? t("extraBooks", { price: formatAudMinor((count - 2) * 1000) }) : ""}</option>`).join("")}</select></label>
+        <div class="story-checkout-total"><span>${t("totalToday")}</span><strong data-story-total>${formatAudMinor(total)}</strong></div>
+      </div>
+      <button type="submit" class="button button-primary" ${state.loading ? "disabled" : ""}>${t("continueCheckout")} <span>↗</span></button>
+      <p class="fine-print">${t("pricesNote")}</p>
+      ${checkoutMessage}
+    </form>`;
+}
+
+function checkoutRedirectNotice() {
+  const status = new URLSearchParams(window.location.search).get("checkout");
+  if (status === "success" && state.story?.payment_status !== "paid") return translate("Memoir.storyFlow.paymentConfirming");
+  if (status === "cancelled") return translate("Memoir.storyFlow.paymentCancelled");
+  return "";
+}
+
+function renderStoryFlow() {
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.storyFlow.${key}`, values));
+  const completed = Number(state.story?.rounds_completed || 0);
+  const anonymous = Boolean(state.story?.is_anonymous);
+  const chapter = state.storyChapter;
+  const isAnswering = completed < STORY_ROUNDS_REQUIRED;
+  const isLinking = completed >= STORY_ROUNDS_REQUIRED && anonymous;
+  const needsFreeChapter = completed >= STORY_ROUNDS_REQUIRED && !anonymous && !state.story?.free_chapter_claimed;
+  const needsPayment = Boolean(state.story?.free_chapter_claimed && state.story?.next_action === "payment");
+  let body = "";
+
+  if (isAnswering) {
+    body = `
+      <div class="story-progress">${t("roundProgress", { current: completed + 1, total: STORY_ROUNDS_REQUIRED })}</div>
+      <h1>${escapeHtml(storyRoundQuestion())}</h1>
+      <p class="story-lead">${t("takeTime")}</p>
+      <div class="story-question-tools"><button type="button" class="listen-button" data-story-action="listen-story-question">◖ ${t("listenAiVoice")}</button><span>${t("aiAudioAvailable")}</span></div>
+      <form id="story-round-form" class="story-round-form">
+        <button type="button" class="voice-button story-voice-button ${state.storyRecording ? "recording" : ""}" data-story-action="toggle-story-voice" aria-label="${state.storyRecording ? t("stopVoiceAnswer") : t("recordVoiceAnswer")}">${state.storyRecording ? "■" : "●"} ${state.storyRecording ? t("stopVoiceAnswer") : t("recordVoiceAnswer")}</button>
+        <textarea id="story-answer" rows="7" placeholder="${t("answerPlaceholder")}" aria-label="${t("yourStoryAnswer")}">${escapeHtml(state.storyTranscript)}</textarea>
+        <p class="composer-note">${state.storyAudioBase64 ? t("reviewTranscript") : t("typeRecordSkip")}</p>
+        <button type="submit" class="button button-primary">${t("saveAnswer")} <span>↗</span></button>
+      </form>`;
+  } else if (isLinking) {
+    body = `
+      <div class="story-progress">${t("roundsComplete")}</div>
+      <h1>${t("firstFiveReady")}</h1>
+      <p class="story-lead">${t("createAccount")}</p>
+      <div class="story-auth-actions">
+        <button class="button button-primary" data-story-provider="google">${t("continueGoogle")} <span>↗</span></button>
+        <button class="button button-secondary" data-story-provider="facebook">${t("continueFacebook")}</button>
+      </div>
+      <p class="fine-print">${t("anonymousLinked")}</p>`;
+  } else if (needsFreeChapter) {
+    body = `
+      <div class="story-progress">${t("freeChapter")}</div>
+      <h1>${t("shapeChapter")}</h1>
+      <p class="story-lead">${t("savedPrivately")}</p>
+      <button class="button button-primary" data-story-action="free-chapter">${t("claimFreeChapter")} <span>↗</span></button>`;
+  } else if (needsPayment) {
+    const redirectNotice = checkoutRedirectNotice();
+    body = `
+      <div class="story-progress">${t("chapterIsYours")}</div>
+      <h1>${t("readyToContinue")}</h1>
+      ${chapter ? `<article class="story-chapter"><div class="eyebrow">${t("roundLabel", { number: 1 })} · ${escapeHtml(chapter.title)}</div><p>${formatText(chapter.text)}</p></article>` : `<p class="story-lead">${t("freeChapterSaved")}</p>`}
+      <p class="story-lead">${t("chooseFinish")}</p>
+      ${redirectNotice ? `<p class="story-payment-banner">${escapeHtml(redirectNotice)}</p>` : ""}
+      ${storyCheckoutForm()}`;
+  } else {
+    const paidPlan = (state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS).find((plan) => plan.plan_key === state.story?.payment_plan);
+    const paidPlanName = paidPlan ? storyPlanCopy(paidPlan).name : "";
+    body = `
+      <div class="story-progress">${t("memoirComplete")}</div>
+      <h1>${t("memoirReady")}</h1>
+      <p class="story-lead">${t("paidUnlocked", { package: paidPlan ? ` (${paidPlanName})` : "" })}</p>
+      <button class="button button-primary" data-story-action="full-memoir">${t("generateMemoir")} <span>↗</span></button>`;
+  }
+
+  $("#app").innerHTML = `
+    <div class="story-shell conversation-only">
+      <header class="story-topbar">
+        <a class="brand" href="/memoir" data-action="story-flow-home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${escapeHtml(translate("Memoir.story.brand"))}</span></a>
+        <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("savedWithSupabase")}</span></div>${profileMenu()}</div>
+      </header>
+      <main class="chat-main story-flow-main" aria-label="${t("mainLabel")}">
+        <div class="story-flow-card">${body}</div>
+        <div class="story-answer-list">${state.storyAnswers.map((answer, index) => `<article><span>${t("roundLabel", { number: index + 1 })}</span><p>${formatText(answer)}</p></article>`).join("")}</div>
+  </main>
+    </div>`;
+  bindStoryFlowActions();
+  bindProfileMenu();
+}
+
+function bindStoryFlowActions() {
+  $("[data-action='story-flow-home']")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    state.story = null;
+    state.familyEntitlement = null;
+    state.familyFeaturesEnabled = false;
+    state.familyContext = null;
+    state.familyPeriods = [];
+    state.storyAnswers = [];
+    state.storyChapter = null;
+    state.storyRecording = false;
+    state.storyAudioBase64 = "";
+    state.storyTranscript = "";
+    state.storyAudioFilename = "story-round.webm";
+    state.storyAudioMimeType = "audio/webm";
+    state.checkout = null;
+    localStorage.removeItem("memory-spark-story-started");
+    navigateTo(MEMOIR_ROUTES.home, true);
+  });
+  $("#story-round-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitStoryRound();
+  });
+  $("#story-answer")?.addEventListener("input", (event) => { state.storyTranscript = event.target.value; });
+  $("#story-checkout-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    requestStoryCheckout();
+  });
+  document.querySelectorAll("input[name='plan_key']").forEach((input) => input.addEventListener("change", () => {
+    state.selectedStoryPlan = input.value;
+    render();
+  }));
+  $("#story-book-count")?.addEventListener("change", (event) => {
+    state.storyBookCount = Number(event.target.value) || 2;
+    const plan = (state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS).find((item) => item.plan_key === state.selectedStoryPlan);
+    const total = $("[data-story-total]");
+    if (plan && total) total.textContent = formatAudMinor(storyPlanTotal(plan, state.storyBookCount));
+  });
+  document.querySelectorAll("[data-story-provider]").forEach((button) => {
+    button.addEventListener("click", () => linkStoryIdentity(button.dataset.storyProvider));
+  });
+  const actions = {
+    "free-chapter": claimFreeChapter,
+    checkout: requestStoryCheckout,
+    "full-memoir": generateFullMemoir,
+    "toggle-story-voice": toggleStoryVoice,
+    "listen-story-question": () => speakStoryQuestion(storyRoundQuestion()),
+  };
+  document.querySelectorAll("[data-story-action]").forEach((button) => {
+    const action = actions[button.dataset.storyAction];
+    if (action) button.addEventListener("click", action);
+  });
+}
+
+async function refreshStoryState(shouldRender = true) {
+  state.story = await storyApi("/v1/story/state");
+  if (!state.storyPlans.length) {
+    state.storyPlans = (await storyApi("/v1/story/plans")).items || [];
+  }
+  if (shouldRender && state.story) render();
+  return state.story;
+}
+
+async function submitStoryRound() {
+  if (state.loading) return;
+  const input = $("#story-answer");
+  const answer = input?.value.trim() || state.storyTranscript.trim() || "";
+  if (!answer && !state.storyAudioBase64) return toast(translate("Memoir.storyFlow.aFewWords"));
+  state.loading = true;
+  try {
+    const result = await storyApi("/v1/story/rounds", {
+      method: "POST",
+      body: JSON.stringify({ round: Number(state.story.rounds_completed) + 1, answer, audio_base64: state.storyAudioBase64 || undefined, audio_filename: state.storyAudioFilename, audio_mime_type: state.storyAudioMimeType }),
+    });
+    state.storyAnswers.push(result.transcript || answer);
+    state.story = result;
+    state.storyAudioBase64 = "";
+    state.storyTranscript = "";
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+function toggleStoryVoice() {
+  if (state.storyRecording && state.storyRecorder) {
+    state.storyRecorder.stop();
+    return;
+  }
+  startStoryVoiceRecorder();
+}
+
+async function startStoryVoiceRecorder() {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast(translate("Memoir.storyFlow.browserCannotRecord"));
+  try {
+    state.storyRecordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const preferredMime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((value) => window.MediaRecorder.isTypeSupported?.(value));
+    const recorder = preferredMime ? new MediaRecorder(state.storyRecordingStream, { mimeType: preferredMime }) : new MediaRecorder(state.storyRecordingStream);
+    state.storyRecorder = recorder;
+    state.storyRecordedChunks = [];
+    recorder.addEventListener("dataavailable", (event) => { if (event.data.size) state.storyRecordedChunks.push(event.data); });
+    recorder.addEventListener("stop", async () => {
+      const blob = new Blob(state.storyRecordedChunks, { type: recorder.mimeType || "audio/webm" });
+      state.storyRecordingStream?.getTracks().forEach((track) => track.stop());
+      state.storyRecordingStream = null;
+      state.storyRecording = false;
+      state.storyRecorder = null;
+      if (!blob.size) return render();
+      try {
+        state.storyAudioBase64 = await blobToBase64(blob);
+        state.storyAudioFilename = `story-round-${Date.now()}.webm`;
+        state.storyAudioMimeType = (blob.type || "audio/webm").split(";")[0];
+        const transcript = await storyApi("/v1/story/transcriptions", { method: "POST", body: JSON.stringify({ audio_base64: state.storyAudioBase64, filename: state.storyAudioFilename, mime_type: state.storyAudioMimeType, language: conversationLocale() }) });
+        state.storyTranscript = transcript.text || "";
+        toast(translate("Memoir.storyFlow.transcriptReady"));
+      } catch (error) {
+        state.storyAudioBase64 = "";
+        toast(error.message || translate("Memoir.storyFlow.recordingFailed"));
+      }
+      render();
+    });
+    recorder.start();
+    state.storyRecording = true;
+    render();
+  } catch {
+    toast(translate("Memoir.storyFlow.microphoneUnavailable"));
+  }
+}
+
+async function speakStoryQuestion(text) {
+  state.storyAudioPlayer?.pause();
+  try {
+    const generated = await storyApi("/v1/story/question-audio", { method: "POST", body: JSON.stringify({ text, language: conversationLocale(), voice: "marin" }) });
+    const player = new Audio(URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type)));
+    state.storyAudioPlayer = player;
+    player.onended = () => URL.revokeObjectURL(player.src);
+    await player.play();
+  } catch (error) {
+    if (error.status !== 503) toast(error.message);
+    if (!window.speechSynthesis) return toast(translate("Memoir.storyFlow.readAloudUnavailable"));
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = conversationLocale();
+    utterance.rate = 0.96;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
+function base64ToBlob(value, mimeType = "application/octet-stream") {
+  const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function linkStoryIdentity(provider) {
+  if (!state.supabase?.client) return toast(translate("Errors.supabaseNotConfigured"));
+  const { error } = await state.supabase.client.auth.linkIdentity({
+    provider,
+    options: { redirectTo: `${window.location.origin}${MEMOIR_ROUTES.start}` },
+  });
+  if (error) toast(translate("Errors.identityLinkFailed"));
+}
+
+async function claimFreeChapter() {
+  if (state.loading) return;
+  state.loading = true;
+  try {
+    const result = await storyApi("/v1/story/free-chapter", { method: "POST" });
+    state.story = result;
+    state.storyChapter = result.chapter;
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+async function requestStoryCheckout() {
+  if (state.loading) return;
+  const selectedPlan = $("input[name='plan_key']:checked")?.value || state.selectedStoryPlan || "electronic_memoir_v1";
+  const plan = (state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS).find((item) => item.plan_key === selectedPlan);
+  const bookCount = plan?.electronic_only ? 0 : (Number($("#story-book-count")?.value) || state.storyBookCount || 2);
+  state.selectedStoryPlan = selectedPlan;
+  state.storyBookCount = bookCount || 2;
+  state.loading = true;
+  try {
+    state.checkout = await storyApi("/v1/story/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan_key: selectedPlan, book_count: bookCount }),
+    });
+    if (state.checkout.checkout_url) {
+      window.location.assign(state.checkout.checkout_url);
+      return;
+    }
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+async function generateFullMemoir() {
+  if (state.loading) return;
+  state.loading = true;
+  try {
+    const result = await storyApi("/v1/story/full-memoir", { method: "POST" });
+    toast(result.memoir?.status === "generated" ? conversationMessage("memoirReadyToast") : conversationMessage("memoirStartedToast"));
+  } catch (error) {
+    if (error.code === "PAYMENT_REQUIRED" || error.status === 402) {
+      state.checkout = await storyApi("/v1/story/checkout", { method: "POST" }).catch(() => null);
+    } else {
+      toast(error.message);
+    }
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+function render() {
+  disposeCesiumPlaceJourney();
+  if (!state.project) return renderLanding();
+  renderStory();
+}
+
+function renderLanding() {
+  if (currentPath() === "/") return renderPlatformLanding();
+  return renderMemoirLanding();
+}
+
+function renderPlatformLanding() {
+  const t = (key) => escapeHtml(translate(`Platform.${key}`));
+  $("#app").innerHTML = `
+    <div class="platform-landing">
+      <header class="landing-header platform-header">
+        <a class="brand" href="/" aria-label="${t("homeAria")}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <span class="header-note">${t("headerNote")}</span>
+      </header>
+      <main class="platform-main">
+        <section class="platform-hero">
+          <div class="eyebrow">${t("eyebrow")}</div>
+          <h1>${t("title")}</h1>
+          <p class="hero-copy">${t("description")}</p>
+        </section>
+        <section class="platform-products" aria-label="${t("products")}">
+          <article class="product-card product-card-primary">
+            <div class="product-kicker">${t("memoirKicker")}</div>
+            <h2>${t("memoirTitle")}</h2>
+            <p>${t("memoirBody")}</p>
+            <div class="product-card-actions">
+              <div class="product-card-language" data-language-switcher-slot></div>
+              <button class="button button-primary" data-action="open-memoir">${t("begin")} <span>↗</span></button>
+            </div>
+          </article>
+          <article class="product-card product-card-muted">
+            <div class="product-kicker">${t("voiceKicker")}</div>
+            <h2>${t("voiceTitle")}</h2>
+            <p>${t("voiceBody")}</p>
+            <span class="product-status">${t("comingStatus")}</span>
+          </article>
+        </section>
+      </main>
+    </div>`;
+  $("[data-action='open-memoir']")?.addEventListener("click", () => startStory("self"));
+}
+
+function renderMemoirLanding() {
+  const t = (key) => escapeHtml(translate(`Memoir.landing.${key}`));
+  $("#app").innerHTML = `
+    <div class="landing">
+      <header class="landing-header">
+        <a class="brand" href="/memoir" aria-label="${t("brand")} home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <div class="landing-header-actions"><span class="header-note">${t("headerNote")}</span><div class="landing-language" data-language-switcher-slot></div></div>
+      </header>
+      <main class="landing-main">
+        <section class="hero">
+          <div>
+            <div class="eyebrow">${t("eyebrow")}</div>
+            <h1>${t("title")}</h1>
+            <p class="hero-copy">${t("description")}</p>
+            <div class="hero-actions"><button class="button button-primary" data-action="start-story" data-mode="self">${t("startButton")} <span>↗</span></button><button class="button button-secondary" data-action="start-story" data-mode="family">${t("familyButton")}</button></div>
+            <p class="fine-print" style="margin-top:16px">${t("freeNotice")}</p>
+          </div>
+          <div class="hero-art" aria-hidden="true"><div class="orb"></div><div class="memory-card"><div class="card-kicker"><span>${t("cardLabel")}</span><span>${t("cardStatus")}</span></div><blockquote>“${t("quote")}"</blockquote><div class="card-line"></div><div class="card-meta"><span>${t("cardMeta")}</span><span>♡</span></div></div></div>
+        </section>
+        <details class="agent-connect">
+          <summary>${t("connectSummary")}</summary>
+          <p>${t("connectDescription")}</p>
+          <form id="agent-auth-form">
+            <input id="agent-email" type="email" autocomplete="email" placeholder="${t("emailPlaceholder")}" aria-label="${t("emailLabel")}" />
+            <input id="agent-password" type="password" autocomplete="current-password" placeholder="${t("passwordPlaceholder")}" aria-label="${t("passwordLabel")}" />
+            <div class="agent-auth-actions"><button type="button" class="button button-primary button-small" data-auth-action="signin">${t("signIn")}</button><button type="button" class="button button-secondary button-small" data-auth-action="signup">${t("createAccount")}</button></div>
+          </form>
+          <small>${state.supabase?.accessToken ? t("connected") : t("required")}</small>
+        </details>
+        <section class="feature-row"><article class="feature"><div class="feature-icon">◌</div><h3>${t("featureTalkTitle")}</h3><p>${t("featureTalkBody")}</p></article><article class="feature"><div class="feature-icon">⌁</div><h3>${t("featureContextTitle")}</h3><p>${t("featureContextBody")}</p></article><article class="feature"><div class="feature-icon">▱</div><h3>${t("featureWorkspaceTitle")}</h3><p>${t("featureWorkspaceBody")}</p></article></section>
+      </main>
+    </div>`;
+  document.querySelectorAll('[data-action="start-story"]').forEach((button) => button.addEventListener("click", () => startStory(button.dataset.mode || "self")));
+  document.querySelectorAll("[data-auth-action]").forEach((button) => button.addEventListener("click", () => supabaseAuth(button.dataset.authAction)));
+}
+
+async function startStory(mode = "self") {
+  await startMemoirStory(mode);
+}
+
+async function startMemoirStory(mode = "self") {
+  try {
+    stopVoiceMode({ silent: true });
+    if (state.authPromise) await state.authPromise;
+    if (state.loading) return;
+    state.loading = true;
+    const language = conversationLocale();
+    state.project = await api("/v1/projects", { method: "POST", body: JSON.stringify({ mode, language }) });
+    localStorage.setItem("memory-spark-project", state.project.id);
+    state.chat = [];
+    state.codexStarting = false;
+    state.codexReady = false;
+    state.profileIntakePending = true;
+    state.placeJourney = null;
+    state.placeJourneyChange = null;
+    try { localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY); } catch { /* private browsing */ }
+    state.workspaceTab = "chapters";
+    state.workspaceCollapsed = false;
+    state.lifeStage = "childhood";
+    state.story = null;
+    localStorage.removeItem("memory-spark-story-started");
+    state.loading = false;
+    navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`, true);
+
+    // The opening message is fixed product copy and can stream immediately.
+    // Consent and project hydration are independent setup work; keep them out
+    // of the first-paint path so a slow request cannot hide the conversation.
+    const backgroundSetup = Promise.all([
+      api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "recording", granted: true, locale: language }) }),
+      ...(mode === "self" ? [api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "storyteller_assent", granted: true, locale: language }) })] : []),
+      refreshProject(),
+      refreshFamilyEntitlement(),
+    ]).catch((error) => {
+      toast(error.message);
+    });
+    await startCodexConversation();
+    await backgroundSetup;
+  } catch (error) {
+    state.project = null;
+    setLoading(false);
+    toast(error.message);
+  }
+}
+
+async function refreshProject() {
+  const projectId = state.project.id;
+  const base = await api(`/v1/projects/${projectId}`);
+  const journey = await api(`/v1/projects/${projectId}/journey`);
+  state.project = { ...base, ...journey };
+  state.session = journey.active_session;
+  state.preview = state.project.preview || null;
+  state.workspaceUnlocked = Boolean(state.workspaceUnlocked || state.project.workspace_unlocked);
+  if (state.workspaceUnlocked) {
+    const [memories, sources, chapters, people, relationships, timeline] = await Promise.all([
+      api(`/v1/projects/${projectId}/memories`),
+      api(`/v1/projects/${projectId}/sources`),
+      api(`/v1/projects/${projectId}/chapters`),
+      api(`/v1/projects/${projectId}/people`),
+      api(`/v1/projects/${projectId}/relationships`),
+      api(`/v1/projects/${projectId}/timeline`),
+    ]);
+    state.memories = memories.items;
+    state.sources = sources.items;
+    state.chapters = chapters.items;
+    state.people = people.items;
+    state.relationships = relationships.items;
+    state.timeline = timeline.items;
+    if (state.familyFeaturesEnabled) await refreshFamilyContext();
+  }
+}
+
+function renderStory() {
+  const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
+  const storyText = (key, values = {}) => escapeHtml(translateWith(`Memoir.story.${key}`, values));
+  const unlocked = state.workspaceUnlocked || state.project.workspace_unlocked;
+  const workspaceVisible = workspaceIsVisible();
+  const contextOnly = workspaceVisible && !unlocked;
+  const baseShellClass = workspaceVisible ? (contextOnly ? "context-visible" : "workspace-visible") : "conversation-only";
+  const shellClass = `${baseShellClass}${!workspaceVisible && workspaceTabs().length ? " workspace-collapsed" : ""}`;
+  const chatClass = "chat-main";
+  activeWorkspaceTab();
+  $("#app").innerHTML = `
+    <div class="story-shell ${shellClass}">
+      <header class="story-topbar">
+        <a class="brand" href="#" data-action="story-home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("voiceAvailable")}</span></div>${profileMenu()}</div>
+      </header>
+      <div class="conversation-layout">
+        <main class="${chatClass}" aria-label="${t("mainLabel")}">
+          <div class="chat-heading"><div><div class="eyebrow">${t(unlocked ? "workspaceEyebrow" : "conversationEyebrow")}</div><h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div><div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span></div></div>
+          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
+          ${chatComposer()}
+        </main>
+        ${workspaceTabs().length ? workspaceDetail() : ""}
+      </div>
+    </div>`;
+  bindViewActions();
+  bindProfileMenu();
+  initCesiumPlaceJourney();
+  initFamilyVisualizations();
+  const scroll = $("#chat-scroll");
+  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+}
+
+function workspaceDetail() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const expanded = workspaceIsVisible();
+  const toggleLabel = t(expanded ? "collapseWorkspace" : "showWorkspace");
+  const toggle = `<button type="button" class="workspace-toggle" data-action="toggle-workspace" aria-expanded="${expanded}" aria-controls="workspace-detail" aria-label="${toggleLabel}" title="${toggleLabel}"><span aria-hidden="true">${expanded ? "&gt;" : "&lt;"}</span></button>`;
+  if (!expanded) return `<aside id="workspace-detail" class="workspace-detail is-collapsed" aria-label="${t("yourWorkspace")}"><div class="workspace-detail-top">${toggle}</div></aside>`;
+  const tabs = workspaceTabs();
+  const active = activeWorkspaceTab();
+  const title = tabs.find(([key]) => key === active)?.[1] || t("workspace");
+  const content = active === "family"
+    ? familyWorkspace()
+    : active === "timeline"
+      ? timelineWorkspace()
+      : active === "places"
+        ? placesWorkspace()
+        : active === "pictures"
+          ? picturesWorkspace()
+          : active === "delivery"
+            ? deliveryWorkspace()
+            : chaptersWorkspace();
+  const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
+  const tabsMarkup = `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`;
+  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${escapeHtml(title)} ${t("workspaceSuffix")}"><div class="workspace-detail-top"><span class="eyebrow">${t("yourWorkspace")}</span><div class="workspace-detail-actions"><span class="detail-state">${persistent ? t("savedWithStory") : t("fromConversation")}</span>${toggle}</div></div>${workspaceProgressSummary()}${tabsMarkup}${content}${lifeStageNavigator()}</aside>`;
+}
+
+function workspaceProgressSummary() {
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
+  const answers = state.chat.filter((message) => message.role === "user" && message.text && message.text !== "Voice answer");
+  const latest = answers.at(-1)?.text || translate("Memoir.workspace.firstChapterEmpty");
+  const sourceCount = state.sources.length + searchedPictures().length;
+  const signals = [
+    answers.length ? t(answers.length === 1 ? "memorySingular" : "memoryPlural", { count: answers.length }) : t("conversationBeginning"),
+    state.placeJourney ? t("placeContextAdded") : null,
+    sourceCount ? t(sourceCount === 1 ? "sourceSingular" : "sourcePlural", { count: sourceCount }) : null,
+  ].filter(Boolean);
+  return `<section class="workspace-progress-summary" aria-live="polite"><div><span class="eyebrow">${t("storySoFar")}</span><strong>${signals.join(" · ")}</strong></div><p>${escapeHtml(latest.length > 180 ? `${latest.slice(0, 177)}…` : latest)}</p></section>`;
+}
+
+function searchedPictures() {
+  const items = [];
+  const seen = new Set();
+  for (const message of state.chat) {
+    for (const cue of message.cues || []) {
+      const key = cue.asset_id || cue.id || cue.source_url || cue.title;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      items.push(cue);
+    }
+  }
+  return items;
+}
+
+function deliveryAvailable() {
+  return Boolean(state.storyPlans.length || state.checkout || state.storyChapter || state.story?.next_action === "payment" || state.story?.payment_status === "paid");
+}
+
+function workspaceTabs() {
+  const t = (key) => translate(`Memoir.workspace.${key}`);
+  const tabs = [];
+  const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
+  const familyWorkspaceEnabled = state.familyFeaturesEnabled && (persistent || state.familyContext);
+  if (state.placeJourney) tabs.push(["places", t("places"), t("placesSubtitle")]);
+  if (searchedPictures().length) tabs.push(["pictures", t("pictures"), t("picturesSubtitle")]);
+  if (deliveryAvailable()) tabs.push(["delivery", t("delivery"), t("deliverySubtitle")]);
+  if (persistent) {
+    tabs.push(["chapters", t("chapters"), t("chaptersSubtitle")]);
+    if (!state.placeJourney) tabs.splice(0, 0, ["places", t("places"), t("placesSubtitle")]);
+  }
+  if (familyWorkspaceEnabled) {
+    tabs.push(["family", t("family"), t("familySubtitle")], ["timeline", t("timeline"), t("timelineSubtitle")]);
+  }
+  return tabs;
+}
+
+function activeWorkspaceTab() {
+  const tabs = workspaceTabs();
+  if (!tabs.length) return state.workspaceTab;
+  if (!tabs.some(([key]) => key === state.workspaceTab)) state.workspaceTab = tabs[0][0];
+  return state.workspaceTab;
+}
+
+function workspaceIsVisible() {
+  return !state.workspaceCollapsed && workspaceTabs().length > 0;
+}
+
+function lifeStageText(stageId, key) {
+  return translate(`Memoir.workspace.lifeStages.${stageId}.${key}`);
+}
+
+function lifeStageEvidence(stageId) {
+  const matchesStage = (item = {}) => {
+    const metadata = item.metadata || item.meta || {};
+    return [item.life_stage, item.lifeStage, item.stage_id, item.stage, metadata.life_stage, metadata.stage_id]
+      .some((value) => value === stageId);
+  };
+  return {
+    memoryCount: state.memories.filter(matchesStage).length,
+    pictureCount: [...state.sources, ...searchedPictures()].filter(matchesStage).length,
+  };
+}
+
+function lifeStageIllustration(stage) {
+  const scale = Number(stage.scale) || 1;
+  const coordinate = (value) => String(Math.round(Number(value) * 100) / 100);
+  const headRadius = coordinate(4.5 * scale);
+  const shoulderWidth = 8 + scale * 5;
+  const bodyTop = 16 - scale;
+  const bodyBottom = 30 + scale * 2;
+  return `<svg class="life-stage-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="11" r="${headRadius}"></circle><path d="M${coordinate(20 - shoulderWidth)} ${coordinate(bodyTop)} Q20 ${coordinate(bodyTop - 2)} ${coordinate(20 + shoulderWidth)} ${coordinate(bodyTop)} L${coordinate(20 + shoulderWidth - 2)} ${coordinate(bodyBottom)} L${coordinate(20 - shoulderWidth + 2)} ${coordinate(bodyBottom)} Z"></path><path d="M${coordinate(20 - shoulderWidth - 1)} 20 L${coordinate(20 - shoulderWidth - 4)} 27 M${coordinate(20 + shoulderWidth + 1)} 20 L${coordinate(20 + shoulderWidth + 4)} 27" class="life-stage-limb"></path></svg>`;
+}
+
+function lifeStageNavigator() {
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
+  const activeId = LIFE_STAGES.some((stage) => stage.id === state.lifeStage) ? state.lifeStage : "childhood";
+  state.lifeStage = activeId;
+  const tabs = LIFE_STAGES.map((stage) => {
+    const stageEvidence = lifeStageEvidence(stage.id);
+    const label = lifeStageText(stage.id, "label");
+    const count = stageEvidence.memoryCount
+      ? t(stageEvidence.memoryCount === 1 ? "lifeStageMemorySingular" : "lifeStageMemoryPlural", { count: stageEvidence.memoryCount })
+      : t("lifeStageNotExplored");
+    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab ${stage.id === activeId ? "active" : ""}" data-life-stage-tab="${stage.id}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(label)}"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span><span class="life-stage-label">${escapeHtml(label)}</span><small>${count}</small></button>`;
+  }).join("");
+  return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div></section>`;
+}
+
+function selectLifeStage(stageId, focus = false) {
+  if (!LIFE_STAGES.some((stage) => stage.id === stageId)) return;
+  state.lifeStage = stageId;
+  render();
+  if (focus) document.querySelector(`[data-life-stage-tab="${stageId}"]`)?.focus({ preventScroll: true });
+}
+
+function chaptersWorkspace() {
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
+  const chapters = state.chapters.length ? state.chapters.map((chapter) => `<article class="workspace-card chapter-card"><div class="card-topline"><span class="tag">${t("chapter")} ${chapter.chapter_number || 1}</span><span class="mini-status">${escapeHtml(chapter.status.toLowerCase())}</span></div><h3>${escapeHtml(chapter.title)}</h3><p>${t("chapterSummary", { blocks: chapter.blocks?.length || 0, memories: chapter.source_memory_ids?.length || 0 })}</p><div class="source-pills">${sourcePills(chapter.source_memory_ids || [])}</div></article>`).join("") : `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`;
+  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("chapters")}</h2><p>${t("chaptersIntro")}</p></div><div class="workspace-list">${chapters}</div>${referencesWorkspace()}</div>`;
+}
+
+function familyWorkspace() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const people = state.people.length ? state.people.map((person) => `<article class="person-row"><span class="person-avatar">${escapeHtml((person.name || "?").slice(0, 1).toUpperCase())}</span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.family_title || translate("Memoir.workspace.familyMemberFallback"))}</small></div></article>`).join("") : `<div class="workspace-empty"><span>♧</span><p>${t("peopleEmpty")}</p></div>`;
+  const relationships = state.relationships.map((relation) => { const fromPerson = state.people.find((person) => person.id === relation.from_person_id); const toPerson = state.people.find((person) => person.id === relation.to_person_id); const from = fromPerson?.name || translate("Memoir.workspace.someone"); const to = toPerson?.name || translate("Memoir.workspace.someone"); const title = fromPerson?.family_title ? `${fromPerson.family_title} · ${relation.relationship_type}` : relation.relationship_type; return `<div class="relationship-row"><span>${escapeHtml(from)}</span><b>→</b><span>${escapeHtml(to)}</span><small>${escapeHtml(title)}</small></div>`; }).join("");
+  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("family")}</h2><p>${t("familyIntro")}</p></div><button class="button button-secondary button-small" data-action="add-person">${t("addPerson")}</button></div></div><div class="family-chart-adapter" data-renderer="family-chart" aria-label="${t("familyChartFallback")}"><div class="eyebrow">${t("familyChart")}</div><div class="people-list">${people}</div></div>${relationships ? `<div class="relationship-list"><div class="eyebrow">${t("connections")}</div>${relationships}</div>` : ""}<div class="reference-note">${t("familyReferenceNote")}</div>${referencesWorkspace()}</div>`;
+}
+
+function timelineWorkspace() {
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
+  const items = state.timeline.length ? state.timeline.map((item) => { const precisionKey = { approximate: "precision.approximate", range: "precision.range", exact: "precision.exact", year: "precision.year", decade: "precision.decade", month: "precision.month", day: "precision.day" }[item.precision]; const precision = precisionKey ? t("datePrecision", { precision: t(precisionKey) }) : t("dateUnknown"); const place = item.place ? ` · ${item.place}` : ""; return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.date_expression || translate("Memoir.workspace.dateUnknown"))} · ${precision}${escapeHtml(place)}</small></div></article>`; }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
+  const periods = state.familyPeriods.length ? `<div class="timeline-periods"><div class="eyebrow">${t("timeline")}</div>${state.familyPeriods.map((period) => `<div class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(period.title)}</strong><small>${escapeHtml(period.start_expression || translate("Memoir.workspace.dateUnknown"))} → ${escapeHtml(period.end_expression || translate("Memoir.workspace.ongoing"))}</small></div></div>`).join("")}</div>` : "";
+  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="eyebrow">${t("lifeTimeline")}</div><div class="timeline-list">${items}</div>${periods}</div>${referencesWorkspace()}</div>`;
+}
+
+function placeMapUrl(journey) {
+  if (!Number.isFinite(journey?.latitude) || !Number.isFinite(journey?.longitude)) return "";
+  return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(journey.latitude)}&mlon=${encodeURIComponent(journey.longitude)}#map=11/${encodeURIComponent(journey.latitude)}/${encodeURIComponent(journey.longitude)}`;
+}
+
+function placeJourneyMarkup(journey, variant = "surface") {
+  if (!journey) return "";
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const tWith = (key, values) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
+  const labels = (journey.hierarchy || []).filter((label) => label !== journey.place).map((label) => `<span class="place-journey-label">${escapeHtml(label)}</span>`).join('<span class="place-journey-arrow" aria-hidden="true">/</span>');
+  const mapUrl = placeMapUrl(journey);
+  const mapLink = mapUrl ? `<a class="place-map-link" href="${escapeHtml(mapUrl)}" target="_blank" rel="noreferrer">${t("exploreMap")} <span aria-hidden="true">↗</span></a>` : "";
+  const latitude = Number.isFinite(journey.latitude) ? journey.latitude : "";
+  const longitude = Number.isFinite(journey.longitude) ? journey.longitude : "";
+  const duration = Number(journey.duration_ms) || 5200;
+  const placeType = currentUiLocale() === "zh-CN"
+    ? ({ city: "城市", town: "城镇", region: "地区", country: "国家", neighbourhood: "街区" }[journey.granularity] || "地点")
+    : (journey.granularity || "place");
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(journey.place)}</h2></div><div class="place-journey-hierarchy" aria-label="${t("placeContext")}">${labels}</div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-cesium-place="${escapeHtml(journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div><div class="place-journey-toolbar"><span class="place-journey-status">${tWith("approximate", { placeType })}</span>${mapLink}</div><p class="place-journey-note">${t("placeNote")}</p></section>`;
+}
+
+function placeJourneySurface() {
+  return state.placeJourney && !workspaceTabs().length ? placeJourneyMarkup(state.placeJourney) : "";
+}
+
+function placesWorkspace() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  if (!state.placeJourney) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("places")}</h2><p>${t("placesIntro")}</p></div><div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div></div>`;
+  return `<div class="workspace-scroll workspace-places"><div class="workspace-intro"><h2>${t("places")}</h2><p>${t("placesIntro")}</p></div>${placeJourneyMarkup(state.placeJourney, "workspace")}</div>`;
+}
+
+function picturesWorkspace() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const pictures = searchedPictures();
+  return `<div class="workspace-scroll"><div class="workspace-intro"><p>${t("picturesIntro")}</p></div>${pictures.length ? renderCueCards(pictures) : `<div class="workspace-empty"><span>▧</span><p>${t("picturesEmpty")}</p></div>`}</div>`;
+}
+
+function deliveryWorkspace() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const plans = state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS;
+  const selected = plans.find((plan) => plan.plan_key === state.selectedStoryPlan) || plans[0];
+  const chapter = state.storyChapter ? `<article class="workspace-card"><div class="eyebrow">${t("chapterOne")}</div><h3>${escapeHtml(state.storyChapter.title || t("firstChapter"))}</h3><p>${formatText(state.storyChapter.text || t("firstChapterReady"))}</p></article>` : "";
+  const planCards = plans.slice(0, 3).map((plan) => `<article class="workspace-card delivery-card ${plan.plan_key === selected?.plan_key ? "selected" : ""}"><div class="card-topline"><span class="tag">${escapeHtml(plan.name)}</span><strong>${formatAudMinor(plan.price_minor)}</strong></div><p>${escapeHtml(plan.description)}</p><small>${plan.features?.slice(0, 2).map((feature) => `✓ ${escapeHtml(feature)}`).join(" · ") || t("electronicMemoirDelivery")}</small></article>`).join("");
+  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("delivery")}</h2><p>${t("deliveryIntro")}</p></div>${chapter}<div class="workspace-list">${planCards}</div>${state.checkout?.message ? `<div class="reference-note">${escapeHtml(state.checkout.message)}</div>` : ""}</div>`;
+}
+
+function disposeCesiumPlaceJourney() {
+  if (!cesiumPlaceJourneyViewer) return;
+  try {
+    if (!cesiumPlaceJourneyViewer.isDestroyed()) cesiumPlaceJourneyViewer.destroy();
+  } catch {
+    // A failed external Cesium load should never block the memoir conversation.
+  }
+  cesiumPlaceJourneyViewer = null;
+}
+
+function loadCesium() {
+  if (window.Cesium) return Promise.resolve(window.Cesium);
+  if (cesiumLoadPromise) return cesiumLoadPromise;
+  const base = `https://cesium.com/downloads/cesiumjs/releases/${CESIUM_VERSION}/Build/Cesium`;
+  if (!document.getElementById("cesium-place-journey-widgets")) {
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "cesium-place-journey-widgets";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = `${base}/Widgets/widgets.css`;
+    document.head.appendChild(stylesheet);
+  }
+  window.CESIUM_BASE_URL = `${base}/`;
+  cesiumLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `${base}/Cesium.js`;
+    script.async = true;
+    script.addEventListener("load", () => window.Cesium ? resolve(window.Cesium) : reject(new Error("CesiumJS did not expose its global.")));
+    script.addEventListener("error", () => reject(new Error("CesiumJS could not be loaded.")));
+    document.head.appendChild(script);
+  });
+  return cesiumLoadPromise;
+}
+
+function initCesiumPlaceJourney() {
+  const container = $("[data-cesium-place]");
+  if (!container) return;
+  const latitude = Number(container.dataset.cesiumLatitude);
+  const longitude = Number(container.dataset.cesiumLongitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+  loadCesium().then((cesium) => {
+    if (!container.isConnected) return;
+    let viewer = null;
+    try {
+      viewer = new cesium.Viewer(container, {
+      animation: false,
+      baseLayer: false,
+      baseLayerPicker: false,
+      fullscreenButton: false,
+      geocoder: false,
+      homeButton: false,
+      infoBox: false,
+      navigationHelpButton: false,
+      sceneModePicker: false,
+      selectionIndicator: false,
+      timeline: false,
+      scene3DOnly: true,
+      shouldAnimate: false,
+      });
+      cesiumPlaceJourneyViewer = viewer;
+      viewer.scene.backgroundColor = cesium.Color.fromCssColorString("#173f45");
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.scene.globe.baseColor = cesium.Color.fromCssColorString("#2a756b");
+      try {
+        viewer.imageryLayers.addImageryProvider(new cesium.OpenStreetMapImageryProvider({
+          url: "https://tile.openstreetmap.org/",
+          credit: new cesium.Credit("© OpenStreetMap contributors"),
+          enablePickFeatures: false,
+        }));
+      } catch (error) {
+        console.warn("Cesium map imagery unavailable; using the globe surface.", error);
+      }
+      const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, 7_500);
+      viewer.entities.add({
+      position: destination,
+      point: {
+        color: cesium.Color.fromCssColorString("#f3c66b"),
+        outlineColor: cesium.Color.fromCssColorString("#fff8e7"),
+        outlineWidth: 2,
+        pixelSize: 12,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: container.dataset.cesiumPlace || "Memory place",
+        fillColor: cesium.Color.WHITE,
+        font: "600 14px DM Sans, sans-serif",
+        style: cesium.LabelStyle.FILL_AND_OUTLINE,
+        outlineColor: cesium.Color.fromCssColorString("#173f45"),
+        outlineWidth: 3,
+        pixelOffset: new cesium.Cartesian2(0, -24),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      });
+      viewer.camera.setView({
+      destination: cesium.Cartesian3.fromDegrees(0, 18, 31_000_000),
+      orientation: {
+        heading: 0,
+        pitch: cesium.Math.toRadians(-68),
+        roll: 0,
+      },
+      });
+      viewer.camera.flyTo({
+      destination,
+      orientation: {
+        heading: cesium.Math.toRadians(8),
+        pitch: cesium.Math.toRadians(-38),
+        roll: 0,
+      },
+      duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+      easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+      });
+      container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
+      container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
+    } catch (error) {
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;
+      console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error);
+    }
+  }).catch((error) => console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error));
+}
+
+function referencesWorkspace() {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const references = state.sources.slice(0, 5);
+  if (!references.length) return `<div class="reference-shelf"><div class="eyebrow">${t("references")}</div><p class="fine-print">${t("referencesEmpty")}</p></div>`;
+  return `<div class="reference-shelf"><div class="eyebrow">${t("references")}</div><p class="fine-print">${t("referencesDescription")}</p>${references.map((item) => `<div class="reference-row"><span class="reference-icon">${item.kind === "photo" ? "▧" : "✎"}</span><div><strong>${escapeHtml(item.filename || item.historical_date_expression || translate("Memoir.workspace.personalSource"))}</strong><small>${escapeHtml(item.kind || translate("Memoir.workspace.source"))} · ${item.original_retained ? t("originalRetained") : t("sourceNote")}</small></div></div>`).join("")}</div>`;
+}
+
+function sourcePills(memoryIds) {
+  if (!memoryIds.length) return `<span class="source-pill">${escapeHtml(translate("Memoir.workspace.noMemoryLinks"))}</span>`;
+  return memoryIds.map((id) => `<span class="source-pill">${escapeHtml(id.slice(-8))}</span>`).join("");
+}
+
+function composerIcon(name) {
+  const paths = {
+    plus: '<path d="M12 4v16M4 12h16"/>',
+    mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
+    wave: '<path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/>',
+    close: '<path d="m6 6 12 12M6 18 18 6"/>',
+    send: '<path d="M12 20V4m-7 7 7-7 7 7"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
+    muted: '<path d="m3 3 18 18M9 9v3a3 3 0 0 0 5 2M9 5a3 3 0 0 1 6 0v4M5 10v2a7 7 0 0 0 12 5M19 10v2M12 19v3"/>',
+  };
+  return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
+}
+
+const ATTACHMENT_TYPES = {
+  "image/jpeg": "photo", "image/png": "photo", "image/heic": "photo", "image/webp": "photo", "image/gif": "photo",
+  "video/mp4": "video", "video/webm": "video", "video/quicktime": "video",
+};
+
+function attachmentPreview(item) {
+  const url = escapeHtml(item.url);
+  return `${item.kind === "video" ? `<video src="${url}" controls preload="metadata"></video>` : `<img src="${url}" alt="${escapeHtml(item.file.name)}" />`}<span>${escapeHtml(item.file.name)}</span>`;
+}
+
+function composerAttachments() {
+  if (!state.attachments.length) return "";
+  const t = key => escapeHtml(translate(`Memoir.story.${key}`));
+  return `<div class="composer-attachments">${state.attachments.map((item, index) => `<div class="composer-attachment">${attachmentPreview(item)}<button type="button" data-action="remove-attachment" data-index="${index}" aria-label="${t("removeAttachment")}: ${escapeHtml(item.file.name)}" ${state.loading ? "disabled" : ""}>${composerIcon("close")}</button></div>`).join("")}</div><label class="attachment-rights"><input id="attachment-rights" type="checkbox" ${state.attachmentRights ? "checked" : ""} ${state.loading ? "disabled" : ""} />${t("attachmentRights")}</label><div class="attachment-progress" role="status">${escapeHtml(state.attachmentProgress)}</div>`;
+}
+
+function selectAttachments(files) {
+  if (state.loading) return;
+  for (const file of files) {
+    const kind = ATTACHMENT_TYPES[file.type];
+    const limit = (kind === "video" ? 100 : 25) * 1024 * 1024;
+    if (!kind || !file.size || file.size > limit) {
+      toast(translate("Memoir.story.attachmentInvalid"));
+      continue;
+    }
+    state.attachments.push({ file, kind, url: URL.createObjectURL(file), upload: null, asset: null });
+    state.attachmentRights = false;
+  }
+  render();
+}
+
+async function uploadAttachments(items) {
+  for (const item of items) {
+    if (item.asset) continue;
+    const { file, kind } = item;
+    state.attachmentProgress = translateWith("Memoir.story.uploadingAttachment", { name: file.name });
+    render();
+    item.upload ||= await api("/v1/uploads", { method: "POST", body: JSON.stringify({ project_id: state.project.id, kind, filename: file.name, mime_type: file.type, expected_size: file.size, rights_confirmed: state.attachmentRights }) });
+    // Reuse the same upload on retry; acknowledged parts are idempotent.
+    const partSize = item.upload.max_part_size || 5 * 1024 * 1024;
+    const existing = await api(`/v1/uploads/${item.upload.id}`);
+    if (existing.state === "READY") { item.asset = existing.asset; continue; }
+    for (let offset = 0, sequence = 0; offset < file.size; offset += partSize, sequence += 1) {
+      const content = await blobToBase64(file.slice(offset, offset + partSize));
+      await api(`/v1/uploads/${item.upload.id}/parts`, { method: "POST", body: JSON.stringify({ sequence, content }) });
+    }
+    item.asset = await api(`/v1/uploads/${item.upload.id}/finalize`, { method: "POST", body: JSON.stringify({}) });
+  }
+}
+
+function chatComposer() {
+  const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
+  const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
+  if (state.dictationStatus !== "off") {
+    const processing = ["starting", "processing"].includes(state.dictationStatus);
+    return `<div class="composer-wrap"><div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button")}` : ""}</div><div class="composer-note">${t("dictationNote")}</div></div>`;
+  }
+  const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
+  const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
+  const controls = state.voiceMode
+    ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close")}`
+    : `${button("dictate", "dictate", "mic")}${button("voice-input", "startVoice", "wave", "voice-mode-button")}`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${composerAttachments()}<form id="chat-form" class="chat-composer"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+}
+
+function renderMessage(message) {
+  if (message.role === "user") {
+    const you = escapeHtml(translate("Common.you"));
+    return `<article class="chat-row user-message"><div class="chat-bubble"><div class="message-label">${you}</div><div class="message-text">${formatText(message.text)}</div>${message.attachments?.length ? `<div class="composer-attachments">${message.attachments.map(item => `<div class="composer-attachment">${attachmentPreview(item)}</div>`).join("")}</div>` : ""}</div><span class="chat-avatar user-avatar">${you}</span></article>`;
+  }
+  const streaming = Boolean(message.streaming);
+  const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
+  const cues = !streaming && message.cues?.length && !workspaceTabs().length ? renderCueCards(message.cues) : "";
+  const trace = !streaming && message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
+  const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><span class="chat-avatar assistant-avatar"><img src="${assistantAvatarPath()}" alt="${CHATBOT_NAME}" /></span><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${trace}${cues}${action}</div></article>`;
+}
+
+function renderAgentTrace(trace, mode = "simulated") {
+  if (!state.showThinkingSteps) return "";
+  const title = escapeHtml(translate("Memoir.trace.title"));
+  const count = escapeHtml(translateWith("Memoir.trace.stepCount", { count: trace.length }));
+  const note = escapeHtml(translate("Memoir.trace.note"));
+  const steps = trace.map((step) => `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}"><span class="agent-loop-kind">${escapeHtml(step.label || step.kind || "step")}</span><span class="agent-loop-detail">${escapeHtml(step.detail || "")}</span></li>`).join("");
+  return `<details class="agent-loop"><summary><span>${title}</span><small>${count}</small></summary><p class="agent-loop-note">${note}</p><ol class="agent-loop-list">${steps}</ol></details>`;
+}
+
+function renderCueCards(cues) {
+  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  return `<div class="cue-section"><div class="cue-section-label">${t("publicReferenceCues")}</div><div class="cue-grid">${cues.map((cue) => `<article class="photo-card"><div class="photo-art ${cue.kind === "video" ? "video-art" : "image-art"}"><span>${cue.kind === "video" ? "▶" : "✦"}</span></div><div class="photo-card-body"><strong>${escapeHtml(cue.title)}</strong><small>${escapeHtml(cue.location || t("historicalReference"))} · ${escapeHtml(cue.scene_date_range?.start || t("dateUnknown"))}–${escapeHtml(cue.scene_date_range?.end || "")}</small><p>${escapeHtml(cue.label)}</p><div class="photo-actions"><a href="${escapeHtml(cue.source_url || "#")}" target="_blank" rel="noreferrer">${t("viewSource")}</a><button class="text-button" data-action="cue-reaction" data-asset="${escapeHtml(cue.asset_id)}" data-reaction="familiar">${t("familiar")}</button><button class="text-button" data-action="cue-reaction" data-asset="${escapeHtml(cue.asset_id)}" data-reaction="different">${t("different")}</button></div></div></article>`).join("")}</div></div>`;
+}
+
+function bindViewActions() {
+  $("[data-action='toggle-workspace']")?.addEventListener("click", () => {
+    state.workspaceCollapsed = !state.workspaceCollapsed;
+    render();
+    $("[data-action='toggle-workspace']")?.focus({ preventScroll: true });
+  });
+  $("#chat-attachments")?.addEventListener("change", event => selectAttachments(Array.from(event.target.files || [])));
+  $("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
+  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.workspaceTab = "chapters"; cancelDictation(); render(); });
+  $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
+  $("#chat-input")?.addEventListener("input", (event) => { state.audioTranscript = event.target.value; });
+  $("#chat-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); } });
+  const lifeStageTabs = Array.from(document.querySelectorAll("[data-life-stage-tab]"));
+  lifeStageTabs.forEach((button) => {
+    button.addEventListener("click", () => selectLifeStage(button.dataset.lifeStageTab, true));
+    button.addEventListener("keydown", (event) => {
+      const currentIndex = lifeStageTabs.indexOf(button);
+      const nextIndex = event.key === "ArrowRight" ? (currentIndex + 1) % lifeStageTabs.length
+        : event.key === "ArrowLeft" ? (currentIndex - 1 + lifeStageTabs.length) % lifeStageTabs.length
+          : event.key === "Home" ? 0
+            : event.key === "End" ? lifeStageTabs.length - 1
+              : -1;
+      if (nextIndex < 0) return;
+      event.preventDefault();
+      selectLifeStage(lifeStageTabs[nextIndex].dataset.lifeStageTab, true);
+    });
+  });
+  document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
+  const actions = {
+    "start-memory": startMemory,
+    "save-memory": completeMemory,
+    "finish-chapter": finishChapter,
+    "continue-memory": startMemory,
+    "voice-input": toggleVoiceInput,
+    "attach-media": () => $("#chat-attachments")?.click(),
+    "remove-attachment": button => {
+      if (state.loading) return;
+      const [item] = state.attachments.splice(Number(button.dataset.index), 1);
+      if (item) URL.revokeObjectURL(item.url);
+      if (!state.attachments.length) state.attachmentRights = false;
+      render();
+    },
+    "dictate": startAudioRecorder,
+    "cancel-dictation": cancelDictation,
+    "stop-dictation": () => finishDictation(false),
+    "accept-dictation": () => finishDictation(true),
+    "mute-voice": () => {
+      state.voiceMuted = !state.voiceMuted;
+      state.voiceModeStream?.getTracks().forEach((track) => { track.enabled = !state.voiceMuted; });
+      if (!state.voiceMuted) queueVoiceModeTurn();
+      render();
+    },
+    "speak": (button) => speakText(button.dataset.text),
+    "cue-reaction": (button) => reactCue(button.dataset.asset, button.dataset.reaction),
+    "add-person": addPerson,
+    "add-timeline": addTimeline,
+  };
+  document.querySelectorAll("[data-action]").forEach((button) => {
+    const action = actions[button.dataset.action];
+    if (action) button.addEventListener("click", () => action(button));
+  });
+}
+
+async function ensureMemorySession() {
+  if (state.session) return state.session;
+  try {
+    state.session = await api(`/v1/projects/${state.project.id}/memory-sessions`, {
+      method: "POST",
+      headers: { "Idempotency-Key": `browser-first-memory-${state.project.id}` },
+      body: JSON.stringify({ topic_id: "childhood_home" }),
+    });
+    return state.session;
+  } catch {
+    // Codex remains usable when the chapter/session adapter is unavailable.
+    return null;
+  }
+}
+
+async function beginMemoryConversation(renderNow = true) {
+  await ensureMemorySession();
+  const fallback = conversationMessage("fallback");
+  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
+  await streamAssistantMessage(result.reply || fallback, { trace: result.trace, traceMode: result.traceMode });
+  try {
+    const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLocale(), requested_media: ["image"] }) });
+    if (context.items?.length) {
+      await streamAssistantMessage(conversationMessage("publicContext"), { cues: context.items });
+    }
+  } catch {
+    // A context provider can be unavailable; the conversation continues without it.
+  }
+  if (renderNow) render();
+}
+
+async function startMemory() {
+  if (state.loading) return;
+  try {
+    state.loading = true;
+    render();
+    await ensureMemorySession();
+    const fallback = conversationMessage("fallback");
+    const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"]);
+    await streamAssistantMessage(result.reply || fallback, { trace: result.trace, traceMode: result.traceMode });
+  } catch (error) { toast(error.message); }
+  state.loading = false;
+  render();
+}
+
+async function sendChatMessage({ voiceTurn = false } = {}) {
+  if (state.loading || state.dictationStatus !== "off") return;
+  if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
+  if (state.voiceMode && state.voiceModeRecorder && !voiceTurn) {
+    if (state.voiceModeRecorder.state !== "inactive") {
+      state.voiceModeStatus = "processing";
+      state.voiceModeRecorder.stop();
+      render();
+    }
+    return;
+  }
+  const input = $("#chat-input");
+  const text = voiceTurn ? state.audioTranscript.trim() : (input?.value.trim() || state.audioTranscript.trim() || "");
+  const uploadId = state.audioUploadId;
+  const attachments = voiceTurn ? [] : [...state.attachments];
+  if (attachments.length && !state.attachmentRights) return toast(translate("Memoir.story.attachmentRightsRequired"));
+  if (!text && !uploadId && !attachments.length) return toast(translate("Memoir.storyFlow.aFewWords"));
+  if (state.voiceModeRecorder) {
+    state.voiceModeTurnId += 1;
+    state.voiceModeRecorder.stop();
+  }
+  if (state.voiceMode) state.voiceModeStatus = "processing";
+  state.loading = true;
+  if (attachments.length) {
+    try { await uploadAttachments(attachments); }
+    catch (error) {
+      state.loading = false;
+      state.attachmentProgress = error.message;
+      if (state.voiceMode) { state.voiceModeStatus = "listening"; queueVoiceModeTurn(); }
+      render();
+      return;
+    }
+    state.attachments = [];
+    state.attachmentRights = false;
+    state.attachmentProgress = "";
+  }
+  const profileIntake = state.profileIntakePending;
+  const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
+  state.chat.push({ role: "user", text: messageText, attachments });
+  state.audioUploadId = null;
+  state.audioTranscript = "";
+  render();
+  try {
+    const session = await ensureMemorySession();
+    let cues = [];
+    let action = null;
+    let fallback = conversationMessage("fallback");
+    let instruction = profileIntake
+      ? PROFILE_INTAKE_PROMPT
+      : "Acknowledge the storyteller naturally, then ask one gentle open-ended follow-up question. Do not restart onboarding or request profile fields.";
+    if (session) {
+      try {
+        const turnType = session.turns?.length ? "follow_up" : "initial";
+        state.session = await api(`/v1/memory-sessions/${session.id}/answers`, { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) });
+        cues = state.session.context_cues || [];
+        if (cues.length) state.workspaceTab = "pictures";
+        const remaining = memoryFollowUpsRemaining(state.session);
+        fallback = memoryTurnFallback(state.session);
+        const memoryInstruction = remaining > 0
+          ? "Acknowledge the storyteller in one sentence, then ask exactly one gentle follow-up question or offer one clearly labelled hint that helps the memory unfold. Do not suggest saving yet."
+          : "Acknowledge the storyteller briefly, say there is enough detail to shape the first chapter, and tell them they can save this memory now. Do not ask another question.";
+        instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
+        if (remaining === 0 && !profileIntake) action = { name: "save-memory", label: conversationMessage("saveMemory") };
+      } catch {
+        // The open Codex conversation is the primary path; session state is optional.
+        state.session = null;
+      }
+    }
+    const mediaContext = attachments.length ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
+    const result = await agentTurn(`The storyteller said: ${messageText}\n${instruction}${mediaContext}`, fallback, ["memory.save", "memory.search"]);
+    const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
+    await streamAssistantMessage(result.reply || fallback, { trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action });
+    if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
+  } catch (error) { toast(error.message); }
+  state.loading = false;
+  render();
+  if (state.voiceMode) window.setTimeout(() => startVoiceModeTurn(), 260);
+}
+
+async function completeMemory() {
+  if (!state.session || state.loading) return;
+  try {
+    state.loading = true;
+    render();
+    const result = await api(`/v1/memory-sessions/${state.session.id}/complete`, { method: "POST", headers: { "Idempotency-Key": `browser-complete-${state.session.id}` }, body: JSON.stringify({ visibility: "private" }) });
+    const decisionResponse = await api(`/v1/projects/${state.project.id}/chapter-decisions`, { method: "POST", body: JSON.stringify({ memory_id: result.memory.id, topic_id: result.memory.topic_id }) });
+    state.chapterDecision = decisionResponse;
+    state.session = null;
+    const decisionText = decisionResponse.free ? conversationMessage("chapterDecisionFree") : decisionResponse.should_start_new_chapter ? translateWith("Memoir.conversation.chapterDecisionNew", { title: decisionResponse.title }) : conversationMessage("chapterDecisionCurrent");
+    await streamAssistantMessage(decisionText, { trace: simulatedLoopTrace(["memory.complete", "chapter.decide"], translate("Memoir.trace.final")), traceMode: "simulated", action: decisionResponse.should_start_new_chapter ? { name: "finish-chapter", label: decisionResponse.free ? conversationMessage("finishFreeChapter") : translateWith("Memoir.conversation.finishChapter", { number: decisionResponse.chapter_number }) } : { name: "start-memory", label: conversationMessage("continueConversation") } });
+    await refreshProject();
+  } catch (error) { toast(error.message); }
+  state.loading = false;
+  render();
+}
+
+async function finishChapter() {
+  if (!state.chapterDecision || state.loading) return;
+  try {
+    state.loading = true;
+    render();
+    const decision = state.chapterDecision;
+    const built = await api(`/v1/projects/${state.project.id}/chapter-builds`, { method: "POST", body: JSON.stringify({ title: decision.title, memory_ids: decision.memory_ids, chapter_number: decision.chapter_number, free: decision.free }) });
+    await api(`/v1/chapters/${built.chapter.id}/approvals`, { method: "POST", body: JSON.stringify({ expected_revision: built.chapter.revision }) });
+    state.workspaceUnlocked = true;
+    state.chapterDecision = null;
+    const chapterText = decision.free ? conversationMessage("chapterFreeFinished") : translateWith("Memoir.conversation.chapterFinished", { number: decision.chapter_number });
+    await streamAssistantMessage(chapterText, { trace: simulatedLoopTrace(["chapter.build", "chapter.approve"], translate("Memoir.trace.final")), traceMode: "simulated" });
+    await refreshProject();
+  } catch (error) { toast(error.message); }
+  state.loading = false;
+  render();
+}
+
+async function reactCue(assetId, reaction) {
+  if (!state.session) return;
+  try { await api(`/v1/memory-sessions/${state.session.id}/cue-reactions`, { method: "POST", body: JSON.stringify({ asset_id: assetId, reaction }) }); toast(reaction === "different" ? conversationMessage("cueDifferent") : conversationMessage("cueSaved")); } catch (error) { toast(error.message); }
+}
+
+async function speakText(text) {
+  state.audioPlayer?.pause();
+  if (state.session) {
+    try {
+      const generated = await api(`/v1/memory-sessions/${state.session.id}/question-audio`, {
+        method: "POST",
+        body: JSON.stringify({ language: conversationLocale(), voice: "marin" }),
+      });
+      const response = await fetch(memoirApiPath(generated.audio_url));
+      if (!response.ok) throw new Error("Generated audio could not be loaded.");
+      const player = new Audio(URL.createObjectURL(await response.blob()));
+      state.audioPlayer = player;
+      player.onended = () => URL.revokeObjectURL(player.src);
+      await player.play();
+      return;
+    } catch (error) {
+      if (error.status !== 503) toast(error.message);
+    }
+  }
+  if (!window.speechSynthesis) return toast(translate("Memoir.storyFlow.readAloudUnavailable"));
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = conversationLocale();
+  utterance.rate = 0.96;
+  utterance.onend = () => { state.speaking = false; };
+  state.speaking = true;
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakBrowserText(text) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return Promise.resolve();
+  window.speechSynthesis.cancel();
+  return new Promise((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = conversationLocale();
+    utterance.rate = 0.96;
+    const finish = () => {
+      if (state.voiceModeSpeechResolve === finish) state.voiceModeSpeechResolve = null;
+      resolve();
+    };
+    state.voiceModeSpeechResolve = finish;
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+function setVoiceOrbLevel(level) {
+  const orb = document.querySelector(".voice-orb");
+  if (!orb) return;
+  const value = Math.min(1, Math.max(0, level));
+  orb.style.setProperty("--voice-level", value.toFixed(3));
+}
+
+// Keep playback analysis local to the player so ending voice mode releases it too.
+function monitorVoicePlayback(player) {
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!state.voiceMode || !AudioContextCtor) return () => {};
+  let context;
+  let frame;
+  try {
+    context = new AudioContextCtor();
+    const source = context.createMediaElementSource(player);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    analyser.connect(context.destination);
+    const samples = new Uint8Array(analyser.fftSize);
+    const tick = () => {
+      analyser.getByteTimeDomainData(samples);
+      const energy = samples.reduce((sum, sample) => sum + ((sample - 128) / 128) ** 2, 0);
+      setVoiceOrbLevel(Math.sqrt(energy / samples.length) * 5);
+      frame = window.requestAnimationFrame(tick);
+    };
+    context.resume().catch(() => {});
+    frame = window.requestAnimationFrame(tick);
+  } catch {
+    context?.close().catch(() => {});
+    return () => {};
+  }
+  return () => {
+    window.cancelAnimationFrame(frame);
+    context.close().catch(() => {});
+    setVoiceOrbLevel(0);
+  };
+}
+
+function playGeneratedAudio(generated) {
+  if (!generated?.audio_base64) return Promise.reject(new Error("Generated audio was empty."));
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type || "audio/mpeg"));
+    const player = new Audio(url);
+    let settled = false;
+    const stopMonitor = monitorVoicePlayback(player);
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      stopMonitor();
+      URL.revokeObjectURL(url);
+      player.onended = null;
+      player.onerror = null;
+      if (state.audioPlayer === player) state.audioPlayer = null;
+      if (state.voiceModePlaybackFinish === finish) state.voiceModePlaybackFinish = null;
+      if (error) reject(error);
+      else resolve();
+    };
+    state.audioPlayer = player;
+    state.voiceModePlaybackFinish = finish;
+    player.onended = () => finish();
+    player.onerror = () => finish(new Error("Generated audio could not be played."));
+    player.play().catch(finish);
+  });
+}
+
+async function speakVoiceReply(text) {
+  if (!state.voiceMode || !text) return;
+  const turnId = state.voiceModeTurnId;
+  state.voiceModeStatus = "speaking";
+  render();
+  try {
+    const generated = await storyApi("/v1/story/question-audio", {
+      method: "POST",
+      body: JSON.stringify({
+        text,
+        language: conversationLocale(),
+        voice: "marin",
+        instructions: "Speak slowly, warmly and clearly with natural pauses, as a patient oral-history journalist.",
+      }),
+    });
+    if (state.voiceMode && state.voiceModeTurnId === turnId) await playGeneratedAudio(generated);
+  } catch (error) {
+    if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
+    if (window.speechSynthesis) {
+      await speakBrowserText(text);
+    } else if (error.status !== 503) {
+      toast(error.message || conversationMessage("voicePlaybackUnavailable"));
+    }
+  }
+}
+
+function clearVoiceModeCapture() {
+  if (state.voiceModeMonitor) window.cancelAnimationFrame(state.voiceModeMonitor);
+  state.voiceModeMonitor = null;
+  if (state.voiceModeAudioContext) state.voiceModeAudioContext.close().catch(() => {});
+  state.voiceModeAudioContext = null;
+  state.voiceModeAnalyser = null;
+}
+
+function stopVoiceMode({ silent = false } = {}) {
+  const active = Boolean(state.voiceMode || state.voiceModeRecorder || state.voiceModeStream);
+  state.voiceMode = false;
+  state.voiceModeStatus = "off";
+  state.voiceMuted = false;
+  state.voiceModeCancelTurn = true;
+  state.voiceModeTurnId += 1;
+  clearVoiceModeCapture();
+  if (state.voiceModeRecorder && state.voiceModeRecorder.state !== "inactive") {
+    try { state.voiceModeRecorder.stop(); } catch { /* recorder is already closing */ }
+  }
+  state.voiceModeStream?.getTracks().forEach((track) => track.stop());
+  state.voiceModeStream = null;
+  state.voiceModeRecorder = null;
+  state.audioPlayer?.pause();
+  state.voiceModePlaybackFinish?.();
+  state.voiceModePlaybackFinish = null;
+  if (state.voiceModeSpeechResolve) state.voiceModeSpeechResolve();
+  state.voiceModeSpeechResolve = null;
+  window.speechSynthesis?.cancel();
+  if (active && !silent) toast(translate("Memoir.storyFlow.voiceEnded"));
+  if (active) render();
+}
+
+function queueVoiceModeTurn(delay = 260) {
+  window.setTimeout(() => {
+    if (state.voiceMode && !state.loading && !state.voiceModeRecorder) startVoiceModeTurn();
+  }, delay);
+}
+
+function monitorVoiceActivity(stream, recorder, turnId) {
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) return;
+  try {
+    const context = new AudioContextCtor();
+    const source = context.createMediaStreamSource(stream);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    const startedAt = performance.now();
+    let speechDetected = false;
+    let quietSince = 0;
+    state.voiceModeAudioContext = context;
+    state.voiceModeAnalyser = analyser;
+    context.resume().catch(() => {});
+
+    const tick = () => {
+      if (!state.voiceMode || state.voiceModeTurnId !== turnId || state.voiceModeRecorder !== recorder || recorder.state === "inactive") return;
+      if (state.voiceMuted) {
+        setVoiceOrbLevel(0);
+        quietSince = 0;
+        state.voiceModeMonitor = window.requestAnimationFrame(tick);
+        return;
+      }
+      analyser.getByteTimeDomainData(samples);
+      let energy = 0;
+      for (const sample of samples) {
+        const normalized = (sample - 128) / 128;
+        energy += normalized * normalized;
+      }
+      const rms = Math.sqrt(energy / samples.length);
+      setVoiceOrbLevel(rms * 5);
+      const now = performance.now();
+      if (rms > 0.035) {
+        speechDetected = true;
+        quietSince = 0;
+      } else if (speechDetected && now - startedAt > 700) {
+        quietSince ||= now;
+        if (now - quietSince > 1200) {
+          recorder.stop();
+          return;
+        }
+      }
+      if (now - startedAt > 60_000) {
+        recorder.stop();
+        return;
+      }
+      state.voiceModeMonitor = window.requestAnimationFrame(tick);
+    };
+    state.voiceModeMonitor = window.requestAnimationFrame(tick);
+  } catch {
+    // MediaRecorder still works without activity detection; the user can end the mode manually.
+  }
+}
+
+async function startVoiceModeTurn() {
+  if (!state.voiceMode || state.voiceMuted || state.loading || state.voiceModeRecorder) return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    state.voiceMode = false;
+    state.voiceModeStatus = "off";
+    render();
+    return toast(translate("Memoir.storyFlow.voiceConversationUnavailable"));
+  }
+  const turnId = state.voiceModeTurnId += 1;
+  state.voiceModeCancelTurn = false;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!state.voiceMode || state.voiceModeTurnId !== turnId) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    state.voiceModeStream = stream;
+    stream.getTracks().forEach((track) => { track.enabled = !state.voiceMuted; });
+    const preferredMime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((value) => window.MediaRecorder.isTypeSupported?.(value));
+    const recorder = preferredMime ? new MediaRecorder(stream, { mimeType: preferredMime }) : new MediaRecorder(stream);
+    state.voiceModeRecorder = recorder;
+    const chunks = [];
+    state.voiceModeStatus = "listening";
+    recorder.addEventListener("dataavailable", (event) => { if (event.data.size) chunks.push(event.data); });
+    recorder.addEventListener("stop", async () => {
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      if (state.voiceModeTurnId === turnId) clearVoiceModeCapture();
+      stream.getTracks().forEach((track) => track.stop());
+      if (state.voiceModeRecorder === recorder) state.voiceModeRecorder = null;
+      if (state.voiceModeStream === stream) state.voiceModeStream = null;
+      const cancelled = state.voiceModeCancelTurn || !state.voiceMode || state.voiceModeTurnId !== turnId;
+      state.voiceModeCancelTurn = false;
+      if (cancelled || !blob.size) {
+        if (state.voiceMode) render();
+        return;
+      }
+      state.voiceModeStatus = "processing";
+      render();
+      try {
+        const saved = await transcribeRecordedAudio(blob, `voice-${Date.now()}`);
+        if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
+        await syncUiLocaleFromVoiceTranscript(saved);
+        if (!state.voiceMode || state.voiceModeTurnId !== turnId || !saved.text) {
+          if (state.voiceMode) {
+            state.voiceModeStatus = "listening";
+            render();
+            queueVoiceModeTurn();
+          }
+          return;
+        }
+        state.audioUploadId = saved.uploadId;
+        state.audioTranscript = saved.text;
+        await sendChatMessage({ voiceTurn: true });
+      } catch (error) {
+        if (state.voiceMode) {
+          toast(error.message || conversationMessage("voiceAnswerFailed"));
+          state.voiceModeStatus = "listening";
+          render();
+          queueVoiceModeTurn();
+        }
+      }
+    });
+    recorder.start();
+    render();
+    monitorVoiceActivity(stream, recorder, turnId);
+  } catch {
+    state.voiceMode = false;
+    state.voiceModeStatus = "off";
+    state.voiceModeRecorder = null;
+    state.voiceModeStream = null;
+    render();
+    toast(translate("Memoir.storyFlow.microphoneUnavailable"));
+  }
+}
+
+function toggleVoiceInput() {
+  if (state.voiceMode) {
+    stopVoiceMode();
+    return;
+  }
+  if (state.loading || state.dictationStatus !== "off") return;
+  state.voiceMode = true;
+  state.voiceModeStatus = "listening";
+  state.voiceModeCancelTurn = false;
+  render();
+  startVoiceModeTurn();
+}
+
+function clearDictationMonitor() {
+  if (state.dictationMonitor !== null) window.cancelAnimationFrame(state.dictationMonitor);
+  state.dictationMonitor = null;
+  state.dictationAudioContext?.close().catch(() => {});
+  state.dictationAudioContext = null;
+}
+
+function monitorDictation(stream, id) {
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) return;
+  try {
+    const context = new AudioContextCtor();
+    state.dictationAudioContext = context;
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    context.createMediaStreamSource(stream).connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    const levels = Array(40).fill(0);
+    const tick = () => {
+      if (state.dictationId !== id || !state.recording) return;
+      analyser.getByteTimeDomainData(samples);
+      const energy = samples.reduce((sum, sample) => sum + ((sample - 128) / 128) ** 2, 0);
+      levels.push(Math.min(1, Math.sqrt(energy / samples.length) * 5));
+      levels.shift();
+      document.querySelectorAll(".dictation-wave i").forEach((bar, i) => {
+        bar.style.height = `${3 + levels[i] * 23}px`;
+      });
+      state.dictationMonitor = window.requestAnimationFrame(tick);
+    };
+    context.resume().catch(() => {});
+    state.dictationMonitor = window.requestAnimationFrame(tick);
+  } catch {
+    clearDictationMonitor();
+  }
+}
+
+function cancelDictation() {
+  clearDictationMonitor();
+  state.dictationId += 1;
+  state.dictationStatus = "off";
+  state.recording = false;
+  if (state.recorder?.state !== "inactive") state.recorder?.stop();
+  state.recordingStream?.getTracks().forEach((track) => track.stop());
+  state.recordingStream = null;
+  state.recorder = null;
+  state.recordedChunks = [];
+  render();
+}
+
+async function finishDictation(send) {
+  if (state.dictationStatus !== "recording" && state.dictationStatus !== "stopped") return;
+  state.dictationSend = send;
+  state.dictationStatus = "processing";
+  clearDictationMonitor();
+  if (state.recording) {
+    state.recorder.stop();
+    render();
+    return;
+  }
+  await transcribeDictation(state.dictationId);
+}
+
+async function transcribeDictation(id) {
+  render();
+  let shouldSend = false;
+  try {
+    const blob = new Blob(state.recordedChunks, { type: state.recorder?.mimeType || "audio/webm" });
+    if (!blob.size) return;
+    const saved = await transcribeRecordedAudio(blob, `dictation-${Date.now()}`);
+    if (state.dictationId !== id) return;
+    await syncUiLocaleFromVoiceTranscript(saved);
+    if (state.dictationId !== id) return;
+    state.audioTranscript = [state.audioTranscript.trim(), saved.text].filter(Boolean).join(" ");
+    shouldSend = state.dictationSend && Boolean(saved.text);
+  } catch (error) { if (state.dictationId === id) toast(error.message); }
+  finally {
+    if (state.dictationId === id) {
+      state.dictationStatus = "off";
+      state.recorder = null;
+      state.recordedChunks = [];
+      render();
+      $("#chat-input")?.focus();
+    }
+  }
+  if (shouldSend && state.dictationId === id) await sendChatMessage();
+}
+
+async function startAudioRecorder() {
+  if (state.loading || state.voiceMode || state.dictationStatus !== "off") return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast(translate("Memoir.storyFlow.browserCannotRecord"));
+  const id = ++state.dictationId;
+  state.dictationStatus = "starting";
+  render();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (state.dictationId !== id) { stream.getTracks().forEach((track) => track.stop()); return; }
+    state.recordingStream = stream;
+    const preferredMime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((value) => window.MediaRecorder.isTypeSupported?.(value));
+    const recorder = preferredMime ? new MediaRecorder(stream, { mimeType: preferredMime }) : new MediaRecorder(stream);
+    state.recorder = recorder;
+    state.recordedChunks = [];
+    recorder.addEventListener("dataavailable", (event) => { if (state.dictationId === id && event.data.size) state.recordedChunks.push(event.data); });
+    recorder.addEventListener("stop", () => {
+      stream.getTracks().forEach((track) => track.stop());
+      if (state.dictationId !== id) return;
+      clearDictationMonitor();
+      state.recordingStream = null;
+      state.recording = false;
+      if (state.dictationStatus === "processing") transcribeDictation(id);
+      else render();
+    });
+    recorder.start();
+    state.recording = true;
+    state.dictationStatus = "recording";
+    render();
+    monitorDictation(stream, id);
+  } catch {
+    stream?.getTracks().forEach((track) => track.stop());
+    if (state.dictationId !== id) return;
+    state.dictationStatus = "off";
+    state.recorder = null;
+    state.recordingStream = null;
+    render();
+    toast(translate("Memoir.storyFlow.microphoneUnavailable"));
+  }
+}
+
+async function transcribeRecordedAudio(blob, filenamePrefix) {
+  const encoded = await blobToBase64(blob);
+  const mimeType = (blob.type || "audio/webm").split(";")[0];
+  const extension = mimeType === "audio/mp4" ? "mp4" : "webm";
+  const transcript = await storyApi("/v1/story/transcriptions", {
+    method: "POST",
+    body: JSON.stringify({ audio_base64: encoded, filename: `${filenamePrefix}.${extension}`, mime_type: mimeType, language: conversationLocale() }),
+  });
+  return {
+    uploadId: null,
+    text: String(transcript.text || "").trim(),
+    language: transcript.source?.language || "",
+  };
+}
+
+function localeFromVoiceTranscript({ text = "", language = "" } = {}) {
+  const reported = String(language).trim().toLowerCase();
+  if (reported === "zh" || reported.startsWith("zh-") || reported === "cmn") return "zh-CN";
+
+  const value = String(text).trim();
+  if (!value) return null;
+  const letters = Array.from(value.matchAll(/\p{Letter}/gu)).length;
+  const han = Array.from(value.matchAll(/\p{Script=Han}/gu)).length;
+  const latin = Array.from(value.matchAll(/\p{Script=Latin}/gu)).length;
+  if (han >= 8 && han / Math.max(letters, 1) >= 0.6) return "zh-CN";
+  if (latin >= 32 && latin / Math.max(letters, 1) >= 0.9 && han === 0) return "en-AU";
+  return null;
+}
+
+async function syncUiLocaleFromVoiceTranscript(transcript) {
+  const nextLocale = localeFromVoiceTranscript(transcript);
+  if (!nextLocale || nextLocale === conversationLocale()) return;
+  const changeLocale = globalThis.__copyme2SetUiLocale;
+  if (!changeLocale) return;
+  try {
+    await changeLocale(nextLocale, { persistAccount: false });
+  } catch (error) {
+    console.warn("Unable to align the UI locale with the voice transcript.", error);
+  }
+}
+
+function blobToBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = reject; reader.readAsDataURL(blob); }); }
+
+async function addPerson() {
+  const olderBrother = translate("Memoir.storyFlow.olderBrother");
+  const name = prompt(translate("Memoir.storyFlow.whoIsThis"), olderBrother);
+  if (!name) return;
+  try { await api(`/v1/projects/${state.project.id}/people`, { method: "POST", body: JSON.stringify({ name, family_title: name === olderBrother ? olderBrother : null }) }); await refreshProject(); render(); } catch (error) { toast(error.message); }
+}
+
+async function addTimeline() {
+  const title = prompt(translate("Memoir.storyFlow.whatHappened"), translate("Memoir.storyFlow.startedSchool"));
+  if (!title) return;
+  try { await api(`/v1/projects/${state.project.id}/timeline`, { method: "POST", body: JSON.stringify({ title, date_expression: "unknown", precision: "unknown" }) }); await refreshProject(); render(); } catch (error) { toast(error.message); }
+}
+
+async function boot() {
+  state.authPromise = ensureAuth();
+  try {
+    await state.authPromise;
+    // The old five-round entry point was client-only state. Clear it so a
+    // refresh always returns to the persistent Codex conversation instead of
+    // reopening a fixed question card.
+    localStorage.removeItem("memory-spark-story-started");
+    const saved = localStorage.getItem("memory-spark-project");
+    if (saved) {
+      try {
+        state.project = { id: saved };
+        await refreshProject();
+        await hydratePlaceJourney();
+        await refreshFamilyEntitlement();
+        state.profileIntakePending = !profileHasContext(state.project.profile);
+        if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
+        render();
+        await startCodexConversation({ resume: true });
+        return;
+      }
+      catch { localStorage.removeItem("memory-spark-project"); state.project = null; }
+    }
+    if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
+    renderLanding();
+  } catch (error) {
+    $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
+  } finally {
+    state.authPromise = null;
+  }
+}
+
+window.addEventListener("popstate", () => render());
+window.addEventListener("copyme2:ui-locale-change", () => {
+  closeProfileMenu();
+  render();
+});
+window.addEventListener("click", (event) => {
+  const menu = $("[data-profile-menu]");
+  if (menu && !menu.contains(event.target)) closeProfileMenu();
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeProfileMenu(true);
+});
+installUiLocaleBridge();
+renderLanding();
+boot();

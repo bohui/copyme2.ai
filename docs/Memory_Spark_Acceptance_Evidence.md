@@ -1,6 +1,6 @@
 # Memory Spark acceptance evidence
 
-Generated: `2026-09-23T12:00:13.015286+00:00`
+Generated: `2026-09-26T11:23:28.680700+00:00`
 
 This report runs the 55 functional and adversarial acceptance cases from section 26.2 of `Memory_Spark_Full_Specification_v1.0.docx` against the credential-free local deterministic cell.
 

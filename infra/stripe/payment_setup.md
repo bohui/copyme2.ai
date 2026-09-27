@@ -66,9 +66,15 @@ Payment state is stored separately from the user-editable memoir profile in `pub
 ```bash
 psql "<your Supabase Postgres connection string>" \
   -f supabase/migrations/202609250003_story_entitlements.sql
+psql "<your Supabase Postgres connection string>" \
+  -f supabase/migrations/202609250005_family_price_provenance.sql
+psql "<your Supabase Postgres connection string>" \
+  -f supabase/migrations/202609260001_user_family_context.sql
 ```
 
 The API uses `SUPABASE_SECRET_KEY` for server-side entitlement writes. Keep this key on the API service only; never expose it in browser code.
+
+When `STRIPE_PRICE_FAMILY` is configured, Checkout metadata records that Price ID and the webhook requires an exact match before the Family timeline/tree capability is enabled. Blank Price IDs retain the server-calculated plan fallback for local development.
 
 ## 2. Configure Stripe products and prices
 
@@ -195,7 +201,7 @@ Run the repository checks after changing the payment flow:
 ```bash
 python3 -m pytest -q
 python3 -m compileall -q apps
-node --check apps/web/app/memoir/client.js
+node --check apps/web/client/memoir/client.js
 git diff --check
 ```
 

@@ -11,11 +11,11 @@ Turn a place named in the current memoir conversation into a small, safe visual 
 
 ## Trigger
 
-Run this workflow when the current storyteller message or the immediately relevant private context contains a place, such as a country, province/state, city, town, suburb, neighbourhood, school, station, or named landscape. Do not trigger from a place that appears only in a public historical reference or an unrelated source.
+Run this workflow only when the current storyteller message explicitly names or clearly connects a geographic place, such as a country, province/state, city, town, suburb, neighbourhood, school, station, or named landscape. The first journey marker must be grounded in words from that current storyteller message; a saved profile, prior journey, opening prompt, assistant reply, or private context alone cannot activate the workspace. Immediately relevant private context may help resolve a place the storyteller has already named, but it must not create a new place cue. Do not trigger from a place that appears only in a public historical reference or an unrelated source.
 
 ## Workflow
 
-1. Read the current storyteller message first, then use only the smallest relevant private context needed to resolve an already-mentioned place.
+1. Read the current storyteller message first. Use only the smallest relevant private context needed to resolve a place already named in that message; never emit a marker for a generic opening or a saved place that the storyteller did not mention in the current turn.
 2. Prefer the broadest place that preserves the memory thread. Use country, region, city, or suburb granularity; never turn an inferred street, building, or home into an exact map point.
 3. Treat historical names, transliterations, nicknames, and modern aliases as separate labels in the hierarchy when the storyteller supplied them. Preserve the original wording in the visible reply.
 4. If two places are plausible, if the place is only implied, or if resolving it would require guessing a private address, ask one short clarification question and do not emit a journey marker.
@@ -27,11 +27,12 @@ Run this workflow when the current storyteller message or the immediately releva
 Emit compact JSON between these exact delimiters:
 
 ```text
-[[MEMORY_SPARK_PLACE_JOURNEY]]{"place":"Anshan","hierarchy":["Earth","China","Liaoning","Anshan"],"granularity":"city","latitude":41.1086,"longitude":122.9900,"duration_ms":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]
+[[MEMORY_SPARK_PLACE_JOURNEY]]{"schema_version":1,"place":"Anshan","hierarchy":["Earth","China","Liaoning","Anshan"],"granularity":"city","latitude":41.1086,"longitude":122.9900,"duration_ms":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]
 ```
 
 Required fields:
 
+- `schema_version`: integer `1` for this marker contract.
 - `place`: the user-grounded display name, up to 120 characters.
 - `hierarchy`: ordered labels from `Earth` toward the place, with at most six labels.
 - `granularity`: one of `country`, `region`, `city`, `suburb`, or `landmark`.
@@ -43,6 +44,9 @@ Optional fields:
 
 Do not put Markdown, commentary, raw chat text, private names, street addresses, or extra keys inside the marker. Emit no marker for an ambiguous place, a purely historical cue, or a place the storyteller did not provide.
 
+The server adds `status`, `revision`, and `updated_at` after persistence. Do not
+invent those fields in the marker.
+
 ## Safety and tone
 
 - Keep the visible reply short enough to speak aloud.
@@ -53,6 +57,6 @@ Do not put Markdown, commentary, raw chat text, private names, street addresses,
 
 ## Integration contract
 
-The integrated harness strips the marker from the assistant's visible reply, validates it, and returns it as `place_journey` to the Memoir browser. The browser uses CesiumJS `Viewer` and `camera.flyTo` for the Earth-to-place transition, with a hierarchy-only fallback when CesiumJS or coordinates are unavailable. Treat the returned event as ephemeral workspace context unless the storyteller explicitly saves a related memory.
+The integrated harness strips the marker from the assistant's visible reply, validates it, and persists the validated record in the storyteller's private place-journey row. It returns the latest record as `place_journey` plus a `place_journey_change` object with `created`, `updated`, or `unchanged` and the server revision. On later turns, the current saved record is supplied as untrusted context; emit a replacement only when the storyteller explicitly names or corrects a place. The browser can hydrate the record with `GET /v1/agent/place-journey` only after the current Memoir project has been activated by an explicit place marker, and uses CesiumJS `Viewer` and `camera.flyTo` for the Earth-to-place transition, with a hierarchy-only fallback when CesiumJS or coordinates are unavailable. This record is a durable navigation aid, not confirmed biographical evidence.
 
 Load `references/contract.md` when changing the parser, API response, or workspace renderer.

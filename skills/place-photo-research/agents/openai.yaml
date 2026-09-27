@@ -1,0 +1,6 @@
+interface:
+  display_name: "Place Photo Research"
+  short_description: "Find place photos by era, with evidence and local downloads"
+  default_prompt: "Use $place-photo-research to find real photographs of the requested place and period, defaulting to present-day photos when no period is given. Save permitted images with provenance and a local report."
+policy:
+  allow_implicit_invocation: true

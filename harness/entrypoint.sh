@@ -11,11 +11,15 @@ import os
 from pathlib import Path
 
 home = Path(os.environ.get("CODEX_HOME", "/codex-home"))
-skill_source = Path("/workspace/skills/memoir-place-journey")
-if not skill_source.is_dir():
-    skill_source = Path("/opt/memory-spark-skills/memoir-place-journey")
-skill_target = home / "skills" / "memoir-place-journey"
-if skill_source.is_dir():
+skill_sources = {}
+for source_root in (Path("/workspace/skills"), Path("/opt/memory-spark-skills")):
+    if not source_root.is_dir():
+        continue
+    for skill_md in sorted(source_root.glob("*/SKILL.md")):
+        skill_sources.setdefault(skill_md.parent.name, skill_md.parent)
+
+for skill_name, skill_source in sorted(skill_sources.items()):
+    skill_target = home / "skills" / skill_name
     skill_target.mkdir(parents=True, exist_ok=True)
     for source in skill_source.rglob("*"):
         destination = skill_target / source.relative_to(skill_source)

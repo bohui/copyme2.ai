@@ -1,0 +1,117 @@
+[
+  {
+    "path": "README.md",
+    "bytes": 8797,
+    "sha256": "c35efe8718fab28943716e226990ebf15244b5c2bf8f617e2761652b89319dbb"
+  },
+  {
+    "path": "SKILL.md",
+    "bytes": 9882,
+    "sha256": "5333a8dde794f993e304dc049618f85b97005eb9e755292112df7e6af709d9ab"
+  },
+  {
+    "path": "VALIDATION.json",
+    "bytes": 1890,
+    "sha256": "e24258ba6eca1b5012608a57d3c9bbaa3eeecec9e4ffa568e7e6d725aa0570ab"
+  },
+  {
+    "path": "agents/openai.yaml",
+    "bytes": 408,
+    "sha256": "caf0d000ce2dd8a7e429d8e4248fde21fa06cfc9e3838229e71f23f03c2fb2c5"
+  },
+  {
+    "path": "assets/messages/en-AU.json",
+    "bytes": 2721,
+    "sha256": "366e79af809d356f05a515b542bc8c9026e10b417f8148470924aeff2ec55fcc"
+  },
+  {
+    "path": "assets/messages/zh-CN.json",
+    "bytes": 2684,
+    "sha256": "ae6ec32936fb54b70d0897f049839013e5cd314a30cb8795178621713f7b04b7"
+  },
+  {
+    "path": "assets/runtime/browser-languages.ts",
+    "bytes": 692,
+    "sha256": "e0f828cce09bad938c672030d70cbb16b7a69b13c99549b3e9ab58a8b76370fc"
+  },
+  {
+    "path": "assets/runtime/locale-policy.ts",
+    "bytes": 9189,
+    "sha256": "2dc9c5f738d01d0ef872c1f380137813c2b1e0d53aa7e22057daa30d93f13c36"
+  },
+  {
+    "path": "assets/runtime/text-signal.ts",
+    "bytes": 3287,
+    "sha256": "a34afb11a8e18ae5ec9b162530da4ea8c44304ec620527aa760a56b4e1b8c93d"
+  },
+  {
+    "path": "icu-dependency-check.txt",
+    "bytes": 90,
+    "sha256": "26d8c7625c0f16d5d35f18be3c744c762debddd74b89a54a28e556dc203689f6"
+  },
+  {
+    "path": "references/acceptance.md",
+    "bytes": 5610,
+    "sha256": "828c4eec0bfc0cd5504252fedde15b27e6fedf08c4fb3e31ad9847b0fbc148cc"
+  },
+  {
+    "path": "references/detection-policy.md",
+    "bytes": 6341,
+    "sha256": "963696cce3463948585ccd03f94d5174a6e00b6c43c979471b9d9e5a3fceaec6"
+  },
+  {
+    "path": "references/example-prompts.md",
+    "bytes": 1644,
+    "sha256": "77877124e82828eea72751745935dee5a6124ae2c0aa38a49ab2066ee246ecdb"
+  },
+  {
+    "path": "references/integration.md",
+    "bytes": 11480,
+    "sha256": "1985ef087309a865ed91e59285d878160bb6563f0c4e95107d8fbab0a686d15f"
+  },
+  {
+    "path": "references/product-baseline.md",
+    "bytes": 2880,
+    "sha256": "0f6c7423779fbcd2f1ba82703ef752245eb64c1e471ec56c7740e51e924179de"
+  },
+  {
+    "path": "references/sources.md",
+    "bytes": 2656,
+    "sha256": "473b1294476e726b67b1aeefd7f4d651583607d3b0097152e234927dab95559a"
+  },
+  {
+    "path": "scripts/check_catalogs.py",
+    "bytes": 2886,
+    "sha256": "5d07b037f6e1e3201eb2b7a2f0c3fe99edc5753c7301ac36454ff703f5dead48"
+  },
+  {
+    "path": "scripts/check_icu.mjs",
+    "bytes": 3335,
+    "sha256": "225a54f4c429a17c43586baacc2a7dac0b30fa0058c8bc73c5ced42611bef3b1"
+  },
+  {
+    "path": "scripts/inventory.py",
+    "bytes": 4022,
+    "sha256": "3eeaee0c90e59c44037ffd344266cbf9abb0a5c39f0cc8f724c98570611f104e"
+  },
+  {
+    "path": "scripts/self_test.sh",
+    "bytes": 709,
+    "sha256": "938f3096e018aa1c5d5c263d0fec1997a125888d18f8ec7bc42f9931d9eb3521"
+  },
+  {
+    "path": "test-results.txt",
+    "bytes": 12734,
+    "sha256": "a0f7bc7f38d15a4ab9d1cd83792ab39c83cd2629046c68a37a75a16df6ea18ed"
+  },
+  {
+    "path": "tests/test_helpers.py",
+    "bytes": 3890,
+    "sha256": "c1d862e14cc5b065c9a809ce3a99e5bb44ac3aefb2b6912f1f51420bfb0c5ea6"
+  },
+  {
+    "path": "tests/test_runtime.cjs",
+    "bytes": 9917,
+    "sha256": "72ff0b385e6bcea2e338c6862719442665409cb86a203d5461a7f7f15ce39300"
+  }
+]

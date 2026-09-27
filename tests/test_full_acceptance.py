@@ -1066,7 +1066,7 @@ def test_at_054_recovery_state_keeps_outbox_and_tombstone_boundaries(client: Tes
 def test_at_055_concurrency_and_storyteller_accessibility_contract_are_exercised(client: TestClient) -> None:
     config = client.get("/v1/config").json()
     assert config["capture_fallbacks"] == ["typed", "file_upload"]
-    html = open("apps/web/public/index.html", encoding="utf-8").read()
+    html = open("apps/web/components/MemoirClientShell.jsx", encoding="utf-8").read()
     css = open("apps/web/public/styles.css", encoding="utf-8").read()
     assert 'aria-live="polite"' in html
     assert "@media" in css

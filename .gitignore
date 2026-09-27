@@ -14,9 +14,12 @@ env/
 *.db-wal
 var/
 node_modules/
+.next/
 .playwright/
 .playwright-cli/
 output/
+photo-research/
+.venv-photo-research/
 infra/stripe/stripe_env_config_*.txt
 backend/gcp_key*.json
 supabase/.temp/

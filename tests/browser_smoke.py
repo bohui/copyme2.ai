@@ -17,7 +17,7 @@ def main() -> None:
         page.wait_for_timeout(1000)
         expect(page.get_by_text("Start with a conversation.")).to_be_visible()
         page.get_by_role("button", name="Begin my story").click()
-        expect(page.get_by_role("main", name="Memory Spark conversation")).to_be_visible()
+        expect(page.get_by_role("main", name="Mira conversation")).to_be_visible()
         expect(page.get_by_role("textbox", name="Your message")).to_be_visible()
         browser.close()
 

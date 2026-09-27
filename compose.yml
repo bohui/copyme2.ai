@@ -9,7 +9,7 @@ networks:
 
 services:
   api:
-    image: memory-spark:dev
+    image: localhost/memory-spark:dev
     build:
       context: .
       dockerfile: Containerfile
@@ -18,6 +18,7 @@ services:
     environment:
       MEMORY_SPARK_MODE: ${MEMORY_SPARK_MODE:-demo}
       MEMORY_SPARK_ENTITLEMENT_MODEL: ${MEMORY_SPARK_ENTITLEMENT_MODEL:-chapter}
+      MEMORY_SPARK_SHOW_THINKING_STEPS: ${MEMORY_SPARK_SHOW_THINKING_STEPS:-0}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
       SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
@@ -41,6 +42,8 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       MEMORY_SPARK_STT_MODEL: ${MEMORY_SPARK_STT_MODEL:-gpt-4o-mini-transcribe}
       MEMORY_SPARK_TTS_MODEL: ${MEMORY_SPARK_TTS_MODEL:-gpt-4o-mini-tts}
+      MEMORY_SPARK_REALTIME_MODEL: ${MEMORY_SPARK_REALTIME_MODEL:-gpt-realtime-2.1}
+      MEMORY_SPARK_REALTIME_VOICE: ${MEMORY_SPARK_REALTIME_VOICE:-marin}
       MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
@@ -48,8 +51,8 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./apps/api:/app/apps/api:ro
-      - ./apps/web/app:/app/apps/web/app:ro
       - ./apps/web/public:/app/apps/web/public:ro
+      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
       - ./var/memory-spark:/var/lib/memory-spark
     depends_on:
@@ -68,7 +71,7 @@ services:
       start_period: 5s
 
   codex-worker:
-    image: memory-spark-codex-worker:dev
+    image: localhost/memory-spark-codex-worker:dev
     build:
       context: .
       dockerfile: codex-worker/Containerfile
@@ -115,7 +118,7 @@ services:
       start_period: 5s
 
   worker:
-    image: memory-spark:dev
+    image: localhost/memory-spark:dev
     build:
       context: .
       dockerfile: Containerfile
@@ -127,7 +130,6 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./apps/api:/app/apps/api:ro
-      - ./apps/web/app:/app/apps/web/app:ro
       - ./scripts:/app/scripts:ro
       - ./var/memory-spark:/var/lib/memory-spark
     command: ["python", "scripts/worker.py", "--interval", "2"]
@@ -144,19 +146,17 @@ services:
       start_period: 5s
 
   web:
-    image: nginx:1.27-alpine
+    image: localhost/copyme2-web:dev
+    build:
+      context: ./apps/web
+      dockerfile: Containerfile
+      args:
+        MEMORY_SPARK_API_ORIGIN: "http://api:8000"
     ports:
-      - "${MEMORY_SPARK_WEB_PORT:-3010}:80"
+      - "${MEMORY_SPARK_WEB_PORT:-3010}:3000"
     environment:
       MEMORY_SPARK_API_PORT: "${MEMORY_SPARK_API_PORT:-8010}"
-    volumes:
-      - ./apps/web/public:/usr/share/nginx/html:ro
-      - ./apps/web/app:/usr/share/nginx/app:ro
-      - ./infra/nginx/memory-spark.conf:/etc/nginx/templates/memory-spark.conf.template:ro
-      - ./infra/nginx/start.sh:/usr/local/bin/memory-spark-nginx-start.sh:ro
-    command:
-      - /bin/sh
-      - /usr/local/bin/memory-spark-nginx-start.sh
+      MEMORY_SPARK_API_ORIGIN: "http://api:8000"
     depends_on:
       api:
         condition: service_healthy
@@ -164,14 +164,14 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - "wget -q -O /dev/null http://127.0.0.1/"
+        - "node -e \"fetch('http://127.0.0.1:3000/').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 3s
 
   codex-harness:
-    image: memory-spark-codex-harness:dev
+    image: localhost/memory-spark-codex-harness:dev
     build:
       context: .
       dockerfile: harness/Containerfile

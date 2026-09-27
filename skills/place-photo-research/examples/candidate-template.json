@@ -1,0 +1,37 @@
+{
+  "id": "photo-001",
+  "title": "Example caption — replace with actual source title",
+  "source_page_url": "https://example.invalid/item/123",
+  "image_url": null,
+  "creator": null,
+  "collection_page_url": null,
+  "authenticity": "unresolved",
+  "place": {
+    "label": "Requested city",
+    "match": "uncertain",
+    "evidence_ids": []
+  },
+  "scene_date": {
+    "start": null,
+    "end": null,
+    "precision": "unknown",
+    "basis": "unknown",
+    "conflicting": false,
+    "evidence_ids": []
+  },
+  "rights": {
+    "license_id": "unknown",
+    "license_url": null,
+    "scope": "unknown",
+    "download_permitted": null,
+    "commercial_use_permitted": null,
+    "attribution": null,
+    "evidence_ids": []
+  },
+  "acquisition": {
+    "access_permitted": null,
+    "allowed_hosts": [],
+    "evidence_ids": []
+  },
+  "notes": []
+}

@@ -12,10 +12,13 @@ RUN apt-get update \
     && npm install --global --no-audit --no-fund npm@latest @openai/codex@${CODEX_VERSION}
 
 COPY pyproject.toml README.md ./
+COPY Mira_Memoir_Journalist_System_Prompt_v1.0.md ./
 COPY apps ./apps
 COPY skills /opt/memory-spark-skills
 
-RUN /opt/memory-spark-venv/bin/pip install --no-cache-dir '.[test]'
+RUN /opt/memory-spark-venv/bin/pip install --no-cache-dir '.[test]' \
+    && /opt/memory-spark-venv/bin/pip install --no-cache-dir \
+        -r /opt/memory-spark-skills/place-photo-research/requirements.txt
 
 RUN rm -f /usr/local/bin/python /usr/local/bin/python3 /usr/local/bin/pip /usr/local/bin/pytest /usr/local/bin/uvicorn \
     && printf '%s\n' '#!/bin/sh' 'exec /opt/memory-spark-venv/bin/python "$@"' > /usr/local/bin/python \

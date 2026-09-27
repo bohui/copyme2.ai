@@ -1,0 +1,124 @@
+---
+name: place-photo-research
+description: Find real photographs of a place, from a requested historical period or the present day when no period is mentioned. Use for memoir reference-photo research, old city/street photographs, archive/albums searches, and evidence-backed local image collection. Uses Codex web search and bundled Python helpers. Do not use for image generation, personal-photo identification, unrestricted crawling or satellite time-series analysis.
+---
+
+# Place Photo Research
+
+Find relevant source-backed photographs, investigate their original pages and collections, and save permitted image files plus an auditable local report. Do the research in this run, not merely produce search advice. Never claim a photo was found, dated, licensed or downloaded without observed evidence.
+
+## 1. Execution model
+
+This skill runs **directly in Codex**. Use the real web-search/page-reading tools exposed in this session, plus the shell and local-file tools. Do not invent `catalogue.search`, `source.inspect`, `asset.acquire_approved` or other application tools. Do not assume this harness has ChatGPT's `web.run`, image search or a browser tool: use the actual available capability.
+
+No separate search API key, paid search-provider account, MCP server, database, Temporal service or app backend is required. The user's Codex access is still required. Native web search, shell internet permissions and image-viewing capabilities are separate; one does not guarantee the others.
+
+Read `references/record-format.md` before writing records. Read `references/source-strategy.md` when planning the search or encountering uncertain metadata/rights. Use the bundled script instead of writing a second downloader.
+
+Find this skill's actual absolute directory from the skill path in context. Do not assume it is under the current working directory. Set `SKILL_DIR` to that directory. Use `PHOTO_RESEARCH_PYTHON` when supplied, otherwise a Python 3.10+ interpreter. Pillow is required for downloads. Do not silently install globally or alter Codex security configuration.
+
+## 2. Temporal rule — mandatory
+
+**No time/period in the user's image request means PRESENT-DAY pictures.** Do not infer childhood, a historical decade, or the previous topic merely because the request occurs in a memoir conversation.
+
+| Request | Resolve to |
+|---|---|
+| “Find pictures of Chengde, Hebei.” | Current, default recent capture window. |
+| “Find Chengde in the 1980s.” | 1980-01-01 through 1989-12-31. |
+| “What does it look like now?” | Current, overriding previous historical context. |
+| “More from that same time.” | Explicit reference: resolve only the clearly referenced period and record the derivation. |
+| “Show that street.” | Inherit the place where clear, NOT an unstated historical period. |
+| “Old photos of Chengde.” | Historical unspecified; do not invent a decade. |
+| “Photos from my school years.” | Resolve from user-confirmed dates only; otherwise historical unspecified. |
+
+Use the helper's current clock in the requested timezone (default Australia/Sydney), not a hard-coded year. Default currentness preference is the preceding 24 calendar months. This is a policy preference, not a guarantee that the scene still looks identical. “Today” and “this month” impose stricter windows.
+
+A recent webpage, upload or scan is not evidence of a recent scene. Unknown capture dates remain unknown. Do not silently return historical photos for a current request. Older/undated/overlapping candidates stay in the report as clearly labelled alternatives, not exact matches. Never invent actual future photographs.
+
+## 3. Start a run
+
+Announce the resolved place, period/current mode and goal in one sentence. Proceed without asking for a missing period. Clarify only a genuinely unresolved place or explicit temporal reference that prevents a useful search; otherwise record the uncertainty and continue with honest candidates.
+
+Create a **new** output directory under the workspace, e.g. `photo-research/chengde-1980s-20260926-01`. Do not overwrite a previous request or change its historical range while resuming it. Omit `--period` for a request with no period:
+
+```bash
+"${PHOTO_RESEARCH_PYTHON:-python3}" "$SKILL_DIR/scripts/photo_research.py" init \
+  --place "Chengde, Hebei, China / 河北承德" \
+  --subject "streets and everyday life" \
+  --out "photo-research/chengde-current-01"
+```
+
+Historical example: add `--period "1980s"`. Explicit but unresolved historical expression: use `--period historical --period-note "the user's actual phrase; why dates remain unresolved"`. The helper accepts numeric decades, years, year ranges, ISO days/ranges and several current/relative forms. For another language, translate the explicit period faithfully; record its original phrase using `--period-note`. Do not guess a century from “80s” when context cannot establish it.
+
+Default requested count is three; use `--count N` for an explicit user quantity (maximum 24). Default is commercial-memoir sourcing; change to `--usage personal-reference` only when the user explicitly requests solely personal reference. Personal use is NOT an automatic download permission.
+
+The initializer creates request, candidates, evidence, search-log, manifest and report files. Read `request.json` before querying; the helper—not conversation memory—defines this run's mode.
+
+## 4. Discover, inspect and expand
+
+1. Reuse a previously reviewed **public** catalogue or prior run only when the user supplies/authorises it and its date/place/rights fit the new request. Never search unrelated private family folders.
+2. Plan bilingual queries where useful. For Chinese places use Chinese plus English/transliteration. Preserve city/province disambiguation. Historical aliases are candidates needing geographic verification, not unconditional synonyms.
+3. Use native web search first. Search pages as well as images when image search is available. Do not scrape search-engine result HTML. If search is unavailable, inspect user-provided source URLs where possible and report the limitation; do not fabricate results or silently purchase another service.
+4. Before **each** native search query, log one `search` event. Before each native source-page read, log one `page` event. A batched call with three queries counts as three searches. Failed attempts consume budget. The `inspect` helper records its own page event; do not double-log it.
+5. Follow promising leads to original photo pages/catalogue records. Read the image-specific caption, creator, scene date, collection, location and licence. Search snippets and image thumbnails are leads, not proof.
+6. If native page reading is insufficient, use the bundled HTML inspector only where page access is permitted. It respects robots and returns bounded untrusted text, image URL candidates, nearby figure text, metadata and links. Its extracted proximity is NOT a certified caption-to-image relationship.
+7. Explore a promising album/collection up to depth two, within the overall budget. Inspect selected item records; do not mirror a whole album. Do not apply an album's title year to every image when item captions differ.
+8. Use an already available, approved browser tool only for genuinely necessary rendering. Do not install a browser/MCP service, bypass CAPTCHA/login/paywall, change region or disable sandbox restrictions to force access.
+9. Prefer diverse subjects and original sources. Avoid filling all slots with near-identical monuments when the user asked for ordinary streets. Compare source IDs, canonical image URLs and hashes for duplicates.
+
+Examples, using the existing run directory:
+
+```bash
+"${PHOTO_RESEARCH_PYTHON:-python3}" "$SKILL_DIR/scripts/photo_research.py" log \
+  --run "$RUN_DIR" --kind search --detail "承德 八十年代 老照片"
+
+"${PHOTO_RESEARCH_PYTHON:-python3}" "$SKILL_DIR/scripts/photo_research.py" inspect \
+  --run "$RUN_DIR" --url "$OBSERVED_SOURCE_URL" --access-permitted
+```
+
+Only pass `--access-permitted` after checking the source's access conditions. It is an attestation, not a bypass. A necessary redirect host must have been observed and approved; add it with `--allow-host` instead of a wildcard. A blocked source stays blocked.
+
+## 5. Evidence and candidate records
+
+Append short, accurate evidence records to `evidence.jsonl`, and maintain the candidate list in `candidates.json` following `references/record-format.md`. URLs must come from actual results/page content, not memory or constructed guesses at original file paths.
+
+Keep separate evidence for place, scene date, licence and acquisition access. Record source URL, exact short excerpt, locator, observed-at timestamp and any uncertainty. Evidence should describe the specific item; a site's footer licence may govern the website rather than the photo. A catalogue's scan/publication date may differ from the depicted scene.
+
+A strong relevant photo with unknown rights should remain a useful **metadata-only candidate**. Record the permission contact/source where found; do not contact anyone, purchase a licence or upload private material without explicit user authorisation.
+
+`authenticity: source_described_photograph` means the inspected source describes it as an actual photograph; it does not claim forensic authentication. Exclude or separately flag generated images, drawings, colourisations and reenactments. Do not run image generation, restoration, watermark removal or reverse face identification.
+
+## 6. Audit, download and inspect
+
+Respect explicit metadata-only/no-download requests: run audit/report and skip download entirely. Otherwise run the helper audit before download:
+
+```bash
+"${PHOTO_RESEARCH_PYTHON:-python3}" "$SKILL_DIR/scripts/photo_research.py" audit --run "$RUN_DIR"
+"${PHOTO_RESEARCH_PYTHON:-python3}" "$SKILL_DIR/scripts/photo_research.py" download --run "$RUN_DIR"
+```
+
+The helper checks interval/place evidence, conflicts, item-scoped recorded rights, attribution, permitted acquisition and explicit image hosts. Unknown/denied rights fail closed. The conservative built-in licence mappings cover CC0 1.0, CC BY 4.0 and CC BY-SA 4.0; other licences need documented custom permission rather than relabelling. Never fabricate an approval to make a check pass. A user asking to “download” does not confer the copyright holder's permission.
+
+These checks operate on records you supply; they cannot authenticate legal title or stop an unrestricted shell user from editing records. They are local workflow safeguards, **not a production rights service**. Do not weaken or bypass them during a research task.
+
+The downloader checks each redirect and public IP, pins connections to validated addresses, respects robots, limits bytes/pixels, verifies JPEG/PNG/WebP decoding and writes content-addressed originals. It sends no cookies or credentials. Network access is subject to Codex's actual sandbox/approval controls. If blocked, request the normal narrow approval where available or retain links and explain the failed acquisition. Never use `--yolo`/danger-full-access as a workaround.
+
+When Codex exposes a local-image viewing tool, visually inspect downloaded finalists for subject mismatch, scans/watermarks, orientation and legibility. Visual inspection cannot establish an exact year by itself. If no viewer is exposed, state that source/technical checks were performed but visual inspection was unavailable. Record findings in candidate notes and re-run `report`.
+
+Do not rehost, publish, add images to a print book, crop, recolour or remove watermarks. This skill produces a local research collection; downstream app/export/print usage requires a separate permission review.
+
+## 7. Stop, resume and report
+
+Default limits: eight native discovery queries, twelve source/item reads, two browser-rendered reads within that read budget, depth two. Stop early once the requested number of eligible diverse photographs are obtained. Do not silently expand limits. The log enforces recorded query/read counts only; it cannot intercept unlogged native tool calls. Honour the budget in the workflow.
+
+Resume a supplied run by reading its request, records and log, not resetting counters. `download` verifies hashes before reusing prior files. If a source becomes disallowed, stop referencing its file; do not silently delete the user's old files. Report that retained prior files need review.
+
+Always produce/update:
+
+- `request.json`, `candidates.json`, `evidence.jsonl`, `search_log.jsonl`.
+- `manifest.json`, `report.md`, `gallery.html`.
+- `images/` containing only successfully downloaded permitted originals.
+
+Gallery previews use local images only; unlicensed candidates have metadata/source links, not remote hotlinks. Both matching and unresolved candidates remain inspectable.
+
+Final response: resolved place and period; counts found/downloaded/blocked; a few strongest results with actual source-date evidence; output-folder/file links as supported by this Codex surface; missing permissions, dates or visual checks. Cite actual source URLs in the report. Report fewer than requested rather than relaxing evidence or rights. Never imply that an external image depicts the user's family or that a “familiar” reaction proves a personal event.

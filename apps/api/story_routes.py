@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
+from .family_context import family_features_enabled
 from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService
 from .store import MemoryStore, new_id, sha256_json
 from .story_payments import (
@@ -116,6 +117,7 @@ def _default_state() -> dict[str, Any]:
         "payment_plan": None,
         "book_count": 0,
         "payment_features": [],
+        "family_features_enabled": False,
     }
 
 
@@ -141,13 +143,15 @@ def _state(profile: dict[str, Any], entitlement: dict[str, Any] | None = None) -
     # The profile is user-editable, so payment state must come from the
     # server-controlled entitlement store populated by the Stripe webhook.
     paid = bool(entitlement and entitlement.get("status") == "paid")
+    family_enabled = family_features_enabled(entitlement)
     state["payment_status"] = "paid" if paid else "unpaid"
     state["payment_plan"] = entitlement.get("plan_key") if paid else None
     state["book_count"] = int(entitlement.get("book_count", 0)) if paid else 0
+    state["family_features_enabled"] = family_enabled
     state["payment_features"] = [
         key
         for key in ("electronic_only", "family_tree", "timeline", "expanded_details")
-        if paid and entitlement.get(key)
+        if paid and entitlement.get(key) and (key not in {"family_tree", "timeline", "expanded_details"} or family_enabled)
     ]
     return state
 
@@ -486,11 +490,16 @@ def build_router(
         payment_intent = session.get("payment_intent")
         if isinstance(payment_intent, dict):
             payment_intent = payment_intent.get("id")
+        stripe_price_id = str(metadata.get("stripe_price_id") or "") or None
+        configured_family_price = os.getenv("STRIPE_PRICE_FAMILY", "").strip()
+        if plan_key == "family_memoir_v1" and configured_family_price and stripe_price_id != configured_family_price:
+            raise HTTPException(409, "The Stripe session does not match the configured Family memoir price.", headers={"X-Error-Code": "STRIPE_PRICE_MISMATCH"})
         try:
             result = payment_store.mark_paid(
                 user_id=user_id,
                 session_id=str(session["id"]),
                 payment_intent_id=str(payment_intent) if payment_intent else None,
+                stripe_price_id=stripe_price_id,
                 summary=summary,
             )
         except Exception as error:

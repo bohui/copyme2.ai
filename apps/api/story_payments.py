@@ -146,7 +146,15 @@ class LocalStoryEntitlementStore:
         with self.memory.lock:
             return deepcopy(self.memory.story_entitlements.get(user_id))
 
-    def mark_paid(self, *, user_id: str, session_id: str, payment_intent_id: str | None, summary: dict[str, Any]) -> dict[str, Any]:
+    def mark_paid(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        payment_intent_id: str | None,
+        stripe_price_id: str | None = None,
+        summary: dict[str, Any],
+    ) -> dict[str, Any]:
         with self.memory.lock:
             existing = self.memory.story_entitlements.get(user_id)
             if existing and existing.get("stripe_session_id") == session_id and existing.get("status") == "paid":
@@ -164,6 +172,7 @@ class LocalStoryEntitlementStore:
                 "expanded_details": summary["expanded_details"],
                 "stripe_session_id": session_id,
                 "stripe_payment_intent_id": payment_intent_id,
+                "stripe_price_id": stripe_price_id,
                 "paid_at": now_iso(),
                 "updated_at": now_iso(),
             }
@@ -199,7 +208,15 @@ class SupabaseStoryEntitlementStore:
         ).json()
         return deepcopy(rows[0]) if rows else None
 
-    def mark_paid(self, *, user_id: str, session_id: str, payment_intent_id: str | None, summary: dict[str, Any]) -> dict[str, Any]:
+    def mark_paid(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        payment_intent_id: str | None,
+        stripe_price_id: str | None = None,
+        summary: dict[str, Any],
+    ) -> dict[str, Any]:
         existing = self.get(user_id)
         if existing and existing.get("stripe_session_id") == session_id and existing.get("status") == "paid":
             return {"entitlement": existing, "duplicate": True}
@@ -217,6 +234,7 @@ class SupabaseStoryEntitlementStore:
             "expanded_details": summary["expanded_details"],
             "stripe_session_id": session_id,
             "stripe_payment_intent_id": payment_intent_id,
+            "stripe_price_id": stripe_price_id,
             "paid_at": now,
             "updated_at": now,
         }
@@ -299,6 +317,9 @@ class StripeCheckoutClient:
             "plan_key": summary["plan_key"],
             "book_count": str(summary["book_count"]),
         }
+        configured_price_id = self.price_ids[summary["plan_key"]]
+        if configured_price_id:
+            metadata["stripe_price_id"] = configured_price_id
         fields.extend((f"metadata[{key}]", value) for key, value in metadata.items())
         if not summary["electronic_only"]:
             allowed_countries = [

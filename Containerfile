@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
+COPY Mira_Memoir_Journalist_System_Prompt_v1.0.md ./
 COPY apps ./apps
 COPY skills ./skills
 COPY docs ./docs

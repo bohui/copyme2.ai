@@ -1,0 +1,529 @@
+TAP version 13
+# Subtest: locale match en
+ok 1 - locale match en
+  ---
+  duration_ms: 2.124672
+  type: 'test'
+  ...
+# Subtest: locale match en-US
+ok 2 - locale match en-US
+  ---
+  duration_ms: 0.155442
+  type: 'test'
+  ...
+# Subtest: locale match en-GB
+ok 3 - locale match en-GB
+  ---
+  duration_ms: 0.116284
+  type: 'test'
+  ...
+# Subtest: locale match en-au
+ok 4 - locale match en-au
+  ---
+  duration_ms: 0.364333
+  type: 'test'
+  ...
+# Subtest: locale match zh
+ok 5 - locale match zh
+  ---
+  duration_ms: 0.130645
+  type: 'test'
+  ...
+# Subtest: locale match zh-CN
+ok 6 - locale match zh-CN
+  ---
+  duration_ms: 0.086679
+  type: 'test'
+  ...
+# Subtest: locale match zh-SG
+ok 7 - locale match zh-SG
+  ---
+  duration_ms: 0.121541
+  type: 'test'
+  ...
+# Subtest: locale match zh-Hans
+ok 8 - locale match zh-Hans
+  ---
+  duration_ms: 0.064036
+  type: 'test'
+  ...
+# Subtest: locale match zh-Hans-HK
+ok 9 - locale match zh-Hans-HK
+  ---
+  duration_ms: 0.291255
+  type: 'test'
+  ...
+# Subtest: locale match zh-Hant
+ok 10 - locale match zh-Hant
+  ---
+  duration_ms: 0.249793
+  type: 'test'
+  ...
+# Subtest: locale match zh-TW
+ok 11 - locale match zh-TW
+  ---
+  duration_ms: 0.123394
+  type: 'test'
+  ...
+# Subtest: locale match zh-HK
+ok 12 - locale match zh-HK
+  ---
+  duration_ms: 0.064115
+  type: 'test'
+  ...
+# Subtest: locale match zh-MO
+ok 13 - locale match zh-MO
+  ---
+  duration_ms: 0.044526
+  type: 'test'
+  ...
+# Subtest: locale match zh-Latn
+ok 14 - locale match zh-Latn
+  ---
+  duration_ms: 0.0406
+  type: 'test'
+  ...
+# Subtest: locale match ja-JP
+ok 15 - locale match ja-JP
+  ---
+  duration_ms: 0.035834
+  type: 'test'
+  ...
+# Subtest: locale match fr-FR
+ok 16 - locale match fr-FR
+  ---
+  duration_ms: 0.03342
+  type: 'test'
+  ...
+# Subtest: locale match ar
+ok 17 - locale match ar
+  ---
+  duration_ms: 0.059619
+  type: 'test'
+  ...
+# Subtest: locale match ../zh-CN
+ok 18 - locale match ../zh-CN
+  ---
+  duration_ms: 0.096343
+  type: 'test'
+  ...
+# Subtest: locale match zh_CN
+ok 19 - locale match zh_CN
+  ---
+  duration_ms: 0.047641
+  type: 'test'
+  ...
+# Subtest: locale match *
+ok 20 - locale match *
+  ---
+  duration_ms: 0.035974
+  type: 'test'
+  ...
+# Subtest: locale match
+ok 21 - locale match
+  ---
+  duration_ms: 0.035342
+  type: 'test'
+  ...
+# Subtest: locale match null
+ok 22 - locale match null
+  ---
+  duration_ms: 0.027611
+  type: 'test'
+  ...
+# Subtest: only exact supported values can be persisted as explicit prefs
+ok 23 - only exact supported values can be persisted as explicit prefs
+  ---
+  duration_ms: 0.614788
+  type: 'test'
+  ...
+# Subtest: device outranks account, detected and browser
+ok 24 - device outranks account, detected and browser
+  ---
+  duration_ms: 0.152598
+  type: 'test'
+  ...
+# Subtest: account outranks automatic session
+ok 25 - account outranks automatic session
+  ---
+  duration_ms: 0.071407
+  type: 'test'
+  ...
+# Subtest: automatic session outranks browser without creating a lock
+ok 26 - automatic session outranks browser without creating a lock
+  ---
+  duration_ms: 0.059949
+  type: 'test'
+  ...
+# Subtest: first render uses browser
+ok 27 - first render uses browser
+  ---
+  duration_ms: 0.072829
+  type: 'test'
+  ...
+# Subtest: unsupported first browser candidate does not discard later supported ones
+ok 28 - unsupported first browser candidate does not discard later supported ones
+  ---
+  duration_ms: 0.076163
+  type: 'test'
+  ...
+# Subtest: traditional does not silently map to simplified
+ok 29 - traditional does not silently map to simplified
+  ---
+  duration_ms: 0.073099
+  type: 'test'
+  ...
+# Subtest: unknown defaults to English
+ok 30 - unknown defaults to English
+  ---
+  duration_ms: 0.097095
+  type: 'test'
+  ...
+# Subtest: invalid cookie cannot select an import path
+ok 31 - invalid cookie cannot select an import path
+  ---
+  duration_ms: 0.084947
+  type: 'test'
+  ...
+# Subtest: one signal does not flip UI
+ok 32 - one signal does not flip UI
+  ---
+  duration_ms: 0.519897
+  type: 'test'
+  ...
+# Subtest: two signals propose a switch without falsely marking persistence success
+ok 33 - two signals propose a switch without falsely marking persistence success
+  ---
+  duration_ms: 0.163804
+  type: 'test'
+  ...
+# Subtest: successful commit changes only UI state
+ok 34 - successful commit changes only UI state
+  ---
+  duration_ms: 0.232447
+  type: 'test'
+  ...
+# Subtest: stale commit is rejected
+ok 35 - stale commit is rejected
+  ---
+  duration_ms: 0.249192
+  type: 'test'
+  ...
+# Subtest: wrong target commit is rejected
+ok 36 - wrong target commit is rejected
+  ---
+  duration_ms: 0.182102
+  type: 'test'
+  ...
+# Subtest: one inferred switch per session
+ok 37 - one inferred switch per session
+  ---
+  duration_ms: 0.162633
+  type: 'test'
+  ...
+# Subtest: explicit preference wins even during detection
+ok 38 - explicit preference wins even during detection
+  ---
+  duration_ms: 0.342391
+  type: 'test'
+  ...
+# Subtest: input detection can be disabled independently of browser detection
+ok 39 - input detection can be disabled independently of browser detection
+  ---
+  duration_ms: 0.102733
+  type: 'test'
+  ...
+# Subtest: interview never changes UI
+ok 40 - interview never changes UI
+  ---
+  duration_ms: 0.091927
+  type: 'test'
+  ...
+# Subtest: transcript never changes UI
+ok 41 - transcript never changes UI
+  ---
+  duration_ms: 0.061452
+  type: 'test'
+  ...
+# Subtest: import never changes UI
+ok 42 - import never changes UI
+  ---
+  duration_ms: 0.04672
+  type: 'test'
+  ...
+# Subtest: external never changes UI
+ok 43 - external never changes UI
+  ---
+  duration_ms: 0.041973
+  type: 'test'
+  ...
+# Subtest: generated never changes UI
+ok 44 - generated never changes UI
+  ---
+  duration_ms: 0.042964
+  type: 'test'
+  ...
+# Subtest: other viewer cannot change UI
+ok 45 - other viewer cannot change UI
+  ---
+  duration_ms: 0.074461
+  type: 'test'
+  ...
+# Subtest: unknown viewer cannot change UI
+ok 46 - unknown viewer cannot change UI
+  ---
+  duration_ms: 0.043645
+  type: 'test'
+  ...
+# Subtest: partial speech is ignored
+ok 47 - partial speech is ignored
+  ---
+  duration_ms: 0.066769
+  type: 'test'
+  ...
+# Subtest: duplicate delivery is not a second signal
+ok 48 - duplicate delivery is not a second signal
+  ---
+  duration_ms: 0.082633
+  type: 'test'
+  ...
+# Subtest: stale revision is ignored
+ok 49 - stale revision is ignored
+  ---
+  duration_ms: 0.083355
+  type: 'test'
+  ...
+# Subtest: invalid timestamp 1000001
+ok 50 - invalid timestamp 1000001
+  ---
+  duration_ms: 0.082123
+  type: 'test'
+  ...
+# Subtest: invalid timestamp 699000
+ok 51 - invalid timestamp 699000
+  ---
+  duration_ms: 0.082604
+  type: 'test'
+  ...
+# Subtest: invalid timestamp NaN
+ok 52 - invalid timestamp NaN
+  ---
+  duration_ms: 0.057826
+  type: 'test'
+  ...
+# Subtest: weak signal resets consecutive evidence
+ok 53 - weak signal resets consecutive evidence
+  ---
+  duration_ms: 0.086739
+  type: 'test'
+  ...
+# Subtest: mixed language does not switch
+ok 54 - mixed language does not switch
+  ---
+  duration_ms: 0.078367
+  type: 'test'
+  ...
+# Subtest: too little text does not switch
+ok 55 - too little text does not switch
+  ---
+  duration_ms: 0.077165
+  type: 'test'
+  ...
+# Subtest: unsupported language does not become English signal
+ok 56 - unsupported language does not become English signal
+  ---
+  duration_ms: 0.07337
+  type: 'test'
+  ...
+# Subtest: current language clears pending alternative
+ok 57 - current language clears pending alternative
+  ---
+  duration_ms: 0.076254
+  type: 'test'
+  ...
+# Subtest: recording defers automatic AND manual switching
+ok 58 - recording defers automatic AND manual switching
+  ---
+  duration_ms: 0.257394
+  type: 'test'
+  ...
+# Subtest: recordingUnsaved defers automatic AND manual switching
+ok 59 - recordingUnsaved defers automatic AND manual switching
+  ---
+  duration_ms: 0.076294
+  type: 'test'
+  ...
+# Subtest: uploading defers automatic AND manual switching
+ok 60 - uploading defers automatic AND manual switching
+  ---
+  duration_ms: 0.061131
+  type: 'test'
+  ...
+# Subtest: composingText defers automatic AND manual switching
+ok 61 - composingText defers automatic AND manual switching
+  ---
+  duration_ms: 0.058608
+  type: 'test'
+  ...
+# Subtest: unsavedForm defers automatic AND manual switching
+ok 62 - unsavedForm defers automatic AND manual switching
+  ---
+  duration_ms: 0.051968
+  type: 'test'
+  ...
+# Subtest: paymentInProgress defers automatic AND manual switching
+ok 63 - paymentInProgress defers automatic AND manual switching
+  ---
+  duration_ms: 0.048232
+  type: 'test'
+  ...
+# Subtest: unknown busy state fails closed
+ok 64 - unknown busy state fails closed
+  ---
+  duration_ms: 0.168121
+  type: 'test'
+  ...
+# Subtest: safe boundary releases pending proposal
+ok 65 - safe boundary releases pending proposal
+  ---
+  duration_ms: 0.13383
+  type: 'test'
+  ...
+# Subtest: pending expires
+ok 66 - pending expires
+  ---
+  duration_ms: 0.092018
+  type: 'test'
+  ...
+# Subtest: manual lock cancels pending
+ok 67 - manual lock cancels pending
+  ---
+  duration_ms: 0.125477
+  type: 'test'
+  ...
+# Subtest: manual target validated
+ok 68 - manual target validated
+  ---
+  duration_ms: 0.058758
+  type: 'test'
+  ...
+# Subtest: manual change is immediate when safe
+ok 69 - manual change is immediate when safe
+  ---
+  duration_ms: 0.045708
+  type: 'test'
+  ...
+# Subtest: initial state rejects invalid revision
+ok 70 - initial state rejects invalid revision
+  ---
+  duration_ms: 0.061953
+  type: 'test'
+  ...
+# Subtest: long English candidate passes adapter gates
+ok 71 - long English candidate passes adapter gates
+  ---
+  duration_ms: 0.77021
+  type: 'test'
+  ...
+# Subtest: simplified candidate passes adapter gates
+ok 72 - simplified candidate passes adapter gates
+  ---
+  duration_ms: 0.459806
+  type: 'test'
+  ...
+# Subtest: short text abstains
+ok 73 - short text abstains
+  ---
+  duration_ms: 0.125998
+  type: 'test'
+  ...
+# Subtest: foreign language winner is not forced to English
+ok 74 - foreign language winner is not forced to English
+  ---
+  duration_ms: 0.172217
+  type: 'test'
+  ...
+# Subtest: ambiguous English ranking abstains
+ok 75 - ambiguous English ranking abstains
+  ---
+  duration_ms: 0.082583
+  type: 'test'
+  ...
+# Subtest: detector exception abstains
+ok 76 - detector exception abstains
+  ---
+  duration_ms: 0.144636
+  type: 'test'
+  ...
+# Subtest: code and URL do not trigger inference
+ok 77 - code and URL do not trigger inference
+  ---
+  duration_ms: 0.066639
+  type: 'test'
+  ...
+# Subtest: quote does not trigger inference
+ok 78 - quote does not trigger inference
+  ---
+  duration_ms: 0.054281
+  type: 'test'
+  ...
+# Subtest: traditional script markers abstain
+ok 79 - traditional script markers abstain
+  ---
+  duration_ms: 0.119579
+  type: 'test'
+  ...
+# Subtest: mixed scripts abstain
+ok 80 - mixed scripts abstain
+  ---
+  duration_ms: 0.091056
+  type: 'test'
+  ...
+# Subtest: overlarge input abstains without ranker execution
+ok 81 - overlarge input abstains without ranker execution
+  ---
+  duration_ms: 0.07347
+  type: 'test'
+  ...
+1..81
+# tests 81
+# suites 0
+# pass 81
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 87.61768
+test_argument_mismatch (test_helpers.CatalogueTests.test_argument_mismatch) ... ok
+test_array (test_helpers.CatalogueTests.test_array) ... ok
+test_bundled_catalogues (test_helpers.CatalogueTests.test_bundled_catalogues) ... ok
+test_dotted_key (test_helpers.CatalogueTests.test_dotted_key) ... ok
+test_duplicate (test_helpers.CatalogueTests.test_duplicate) ... ok
+test_empty_message (test_helpers.CatalogueTests.test_empty_message) ... ok
+test_missing_extra (test_helpers.CatalogueTests.test_missing_extra) ... ok
+test_nested (test_helpers.CatalogueTests.test_nested) ... ok
+test_non_string_leaf (test_helpers.CatalogueTests.test_non_string_leaf) ... ok
+test_plural_names (test_helpers.CatalogueTests.test_plural_names) ... ok
+test_unicode_messages (test_helpers.CatalogueTests.test_unicode_messages) ... ok
+test_bound (test_helpers.InventoryTests.test_bound) ... ok
+test_does_not_emit_source_text (test_helpers.InventoryTests.test_does_not_emit_source_text) ... ok
+test_package_allowlist (test_helpers.InventoryTests.test_package_allowlist) ... ok
+test_skips_sensitive_and_generated_directories (test_helpers.InventoryTests.test_skips_sensitive_and_generated_directories) ... ok
+test_skips_symlinks (test_helpers.InventoryTests.test_skips_symlinks) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.003s
+
+OK
+{
+  "structural_ok": true,
+  "base_keys": 54,
+  "results": [
+    {
+      "file": "/mnt/data/app-auto-localization/assets/messages/zh-CN.json",
+      "errors": []
+    }
+  ],
+  "full_icu_validation": "NOT_RUN",
+  "note": "Run check_icu.mjs with the target app parser before release."
+}

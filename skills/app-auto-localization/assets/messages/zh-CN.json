@@ -1,0 +1,80 @@
+{
+  "Common": {
+    "language": "语言",
+    "automatic": "自动",
+    "apply": "应用",
+    "save": "保存",
+    "cancel": "取消",
+    "undo": "撤销",
+    "close": "关闭",
+    "languageChanged": "界面语言已切换为{language}。",
+    "languageDeferred": "您的内容安全保存后，界面语言将自动切换。",
+    "languageSaveFailed": "暂时无法保存语言偏好，请重试。",
+    "unsupportedLanguage": "暂时还不支持这种界面语言，请选择 English 或简体中文。",
+    "autoHelp": "根据浏览器语言和符合条件的应用输入自动选择。这不会改变访谈语言或书籍语言。",
+    "saved": "已保存",
+    "loading": "正在加载…"
+  },
+  "Platform": {
+    "home": "首页",
+    "memoir": "回忆录",
+    "voice": "声音",
+    "settings": "设置",
+    "signOut": "退出登录"
+  },
+  "Memoir": {
+    "home": {
+      "title": "用自己的话，讲述自己的人生",
+      "continue": "继续讲我的故事",
+      "progress": "已保存 {completed} 段回忆，共 {total} 段",
+      "remaining": "{count, plural, other {还剩 # 段回忆}}"
+    },
+    "interview": {
+      "record": "开始录音",
+      "stop": "停止录音",
+      "skip": "今天先不聊这个",
+      "listen": "听一听问题",
+      "permission": "请允许使用麦克风，以便录下您的回答。",
+      "unsaved": "您的录音尚未安全保存。"
+    },
+    "context": {
+      "historicalReference": "历史参考资料，并非您家的照片",
+      "currentReference": "当代参考资料，并非您家的照片",
+      "undatedReference": "参考图片，拍摄时间不详",
+      "familiar": "看着有些熟悉",
+      "different": "我的经历不太一样"
+    },
+    "people": {
+      "title": "我故事里的人",
+      "add": "添加人物",
+      "name": "姓名",
+      "relationship": "关系"
+    },
+    "book": {
+      "title": "我的书",
+      "editionLanguage": "版本语言",
+      "preview": "预览书籍",
+      "export": "导出所选版本"
+    },
+    "timeline": {
+      "approximateYear": "{year} 年左右",
+      "dateUnknown": "日期不详"
+    }
+  },
+  "Voice": {
+    "title": "声音",
+    "play": "播放",
+    "pause": "暂停"
+  },
+  "Errors": {
+    "generic": "出了点问题，请重试。",
+    "UNAUTHENTICATED": "请登录后继续。",
+    "ENTITLEMENT_REQUIRED": "您已完成 {freeSessions} 段免费回忆。现在可以查看并保存您的小传。"
+  },
+  "Status": {
+    "recordingUploaded": "录音已上传",
+    "transcriptProcessing": "正在整理文字",
+    "memoryDraftReady": "回忆草稿已就绪",
+    "bookRendering": "正在生成书籍"
+  }
+}

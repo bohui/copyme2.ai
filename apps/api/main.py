@@ -20,8 +20,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -921,8 +920,8 @@ def create_app(
     else:
         object_store_path = os.getenv("MEMORY_SPARK_OBJECT_STORE_PATH")
         # Product memory lives in the RLS-protected Supabase user tables. The
-        # legacy HTTP routes still need a small local adapter while they are
-        # being retired; they must never create a second Postgres state store.
+        # existing HTTP routes use a small local adapter; they must never
+        # create a second Postgres state store.
         memory = MemoryStore(object_store_path=object_store_path)
     selected_speech_service = speech_service or build_speech_service()
     app = FastAPI(title="CopyMe2 Memoir", version="1.0.0", description="Evidence-linked guided memoir product")
@@ -931,6 +930,8 @@ def create_app(
     app.include_router(supabase_router)
     from .agent_routes import router as agent_router
     app.include_router(agent_router)
+    from .realtime_routes import router as realtime_router
+    app.include_router(realtime_router)
     from .story_routes import build_router as build_story_router
     from .story_routes import build_test_storage_factory
     from .story_payments import StripeCheckoutClient, build_story_entitlement_store
@@ -1212,7 +1213,7 @@ def create_app(
                 trial_units_total = 0
             project = {
                 "id": project_id, "owner_id": actor, "storyteller_id": storyteller, "mode": payload.mode, "entitlement_model": entitlement_model, "home_region": payload.region, "revision": 1, "policy_epoch": 1, "created_at": now_iso(),
-                "profile": {"name": payload.storyteller_name, "preferred_language": payload.language, "birth_year": payload.birth_year, "birth_date_expression": payload.birth_date_expression, "birth_place": payload.birth_place, "childhood_place": payload.childhood_place, "dialect_preference": None},
+                "profile": {"name": payload.storyteller_name, "preferred_language": payload.language, "birth_year": payload.birth_year, "birth_date_expression": payload.birth_date_expression, "birth_place": payload.birth_place, "childhood_place": payload.childhood_place, "story_focus": {"who": None, "where": None, "when": None, "what": None}, "dialect_preference": None},
                 "members": members, "consent": {}, "preferences": {"muted_topics": [], "excluded_topics": [], "default_visibility": "private", "sensitive_processing": False},
                 "trial_units_total": trial_units_total, "trial_units_consumed": 0, "trial_units_reserved": 0, "free_chapter_session_count": 0, "paid_units_total": 0, "paid_units_revoked": 0, "paid_units_consumed": 0, "paid_units_reserved": 0, "grants": [],
                 "sessions": {}, "session_ids": [], "memories": {}, "assets": {}, "people": {}, "relationships": [], "timeline": [], "chapters": {}, "chapter_ids": [], "outline_versions": [], "editions": {}, "edition_ids": [], "orders": [], "print_orders": [], "exports": {}, "payment_invitations": {}, "preview_jobs": {}, "idempotency": {}, "events": [], "event_cursor": 0, "deletion_state": "ACTIVE", "deleted_at": None,
@@ -1241,11 +1242,11 @@ def create_app(
             raise HTTPException(status_code=409, detail="Project revision has changed")
         profile = data.pop("profile", None)
         preferences = data.pop("preferences", None)
-        for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "dialect_preference"):
+        for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference"):
             if key in data:
                 project["profile"][key] = data[key]
         if isinstance(profile, dict):
-            for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "dialect_preference"):
+            for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference"):
                 if key in profile:
                     project["profile"][key] = profile[key]
         if isinstance(preferences, dict):
@@ -1926,16 +1927,18 @@ def create_app(
         project = _project(memory, payload.project_id, actor)
         if payload.kind in {"audio", "diary"} and not _recording_allowed(project):
             raise HTTPException(status_code=403, detail="Recording consent is required before retaining private media")
-        if payload.kind == "photo" and not payload.rights_confirmed:
-            raise HTTPException(status_code=400, detail="Confirm that you have a basis for the requested photo uses")
+        if payload.kind in {"photo", "video"} and not payload.rights_confirmed:
+            raise HTTPException(status_code=400, detail="Confirm that you have a basis for the requested photo or video uses")
         if payload.duration_seconds is not None and payload.duration_seconds < 0:
             raise HTTPException(status_code=422, detail="Audio duration cannot be negative")
         if payload.kind == "audio" and payload.duration_seconds is not None and payload.duration_seconds > 900:
             raise HTTPException(status_code=422, detail="A recorded turn cannot exceed 15 minutes of accepted audio")
-        allowed = {"audio/webm", "audio/mp4", "audio/wav", "audio/mpeg", "image/jpeg", "image/png", "image/heic", "application/pdf", "text/plain"}
+        allowed = {"audio/webm", "audio/mp4", "audio/wav", "audio/mpeg", "image/jpeg", "image/png", "image/heic", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime", "application/pdf", "text/plain"}
+        if (payload.kind == "video") != payload.mime_type.startswith("video/"):
+            raise HTTPException(status_code=415, detail="Video uploads must use a video media type")
         if payload.mime_type not in allowed:
             raise HTTPException(status_code=415, detail="Unsupported media type")
-        limits = {"photo": 25 * 1024 * 1024, "document": 50 * 1024 * 1024, "audio": 100 * 1024 * 1024, "diary": 50 * 1024 * 1024}
+        limits = {"video": 100 * 1024 * 1024, "photo": 25 * 1024 * 1024, "document": 50 * 1024 * 1024, "audio": 100 * 1024 * 1024, "diary": 50 * 1024 * 1024}
         if payload.expected_size and payload.expected_size > limits.get(payload.kind, 50 * 1024 * 1024):
             raise HTTPException(status_code=413, detail="File exceeds the declared limit")
         upload_id = new_id("upload")
@@ -3383,25 +3386,6 @@ def create_app(
             suffix = int(current_version.rsplit("-v", 1)[-1]) if "-v" in current_version and current_version.rsplit("-v", 1)[-1].isdigit() else 1
             supplier["profile_version"] = f"supplier-{supplier_id}-v{suffix + 1}"
         return deepcopy(supplier)
-
-    web_root = Path(__file__).resolve().parents[1] / "web"
-    web_dir = web_root / "public"
-    if web_dir.exists():
-        app.mount("/static", StaticFiles(directory=web_dir), name="static")
-        web_app_dir = web_root / "app"
-        if web_app_dir.exists():
-            app.mount("/app", StaticFiles(directory=web_app_dir), name="web-app")
-
-        @app.get("/", include_in_schema=False)
-        def landing() -> FileResponse:
-            return FileResponse(web_dir / "index.html")
-
-        @app.get("/memoir", include_in_schema=False)
-        @app.get("/memoir/{subpath:path}", include_in_schema=False)
-        @app.get("/voice", include_in_schema=False)
-        @app.get("/voice/{subpath:path}", include_in_schema=False)
-        def product_landing(subpath: str | None = None) -> FileResponse:
-            return FileResponse(web_dir / "index.html")
 
     return app
 

@@ -1,0 +1,2 @@
+# Required only for decoding/validating downloaded images. Tested with 12.3.0.
+Pillow>=12.3.0,<13

@@ -10,6 +10,7 @@ import json
 import os
 import threading
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from .codex_agent import CodexConnection, provider_config
 from .codex_artifacts import iter_artifacts
-from .codex_runtime import build_system_prompt
+from .codex_runtime import build_system_prompt, normalize_conversation_language
 from .codex_worker_files import migrate_home, write_config
 from .agent_lock import AgentTurnBusyError
 
@@ -26,8 +27,14 @@ class WorkerTurnInput(BaseModel):
     user_id: UUID
     thread_id: str | None = Field(default=None, min_length=1, max_length=256)
     memories: list[str] = Field(default_factory=list, max_length=20)
+    profile: dict[str, Any] = Field(default_factory=dict)
+    place_journey: dict[str, Any] = Field(default_factory=dict)
+    family_enabled: bool = False
+    family_context: dict[str, Any] = Field(default_factory=dict)
+    project_id: str | None = Field(default=None, min_length=1, max_length=128)
     text: str = Field(min_length=1, max_length=100000)
     model: str | None = Field(default=None, min_length=1, max_length=256)
+    language: str = Field(default="en-AU", pattern="^(en-AU|zh-CN)$")
 
 
 class CodexWorker:
@@ -125,8 +132,9 @@ class CodexWorker:
         uid = self._uid_for(user_id)
         home = self._home(user_id, uid)
         model = payload.model or self.model
+        language = normalize_conversation_language(payload.language)
         context = "\n".join(str(memory)[:2000] for memory in payload.memories) or "(none)"
-        prompt = f"{build_system_prompt(context)}\n\nStoryteller message:\n{payload.text}"
+        prompt = f"{build_system_prompt(context, payload.profile, place_journey=payload.place_journey, family_enabled=payload.family_enabled, family_context=payload.family_context, language=language)}\n\nStoryteller message:\n{payload.text}"
         environment = {"MEMORY_SPARK_LLM_API_KEY": self.api_key}
         async with CodexConnection(
             self._run_command(uid),
@@ -151,7 +159,7 @@ class CodexWorker:
                     "model": model,
                     "approvalPolicy": "never",
                     "sandbox": "read-only",
-                    "baseInstructions": build_system_prompt(context),
+                    "baseInstructions": build_system_prompt(context, payload.profile, place_journey=payload.place_journey, family_enabled=payload.family_enabled, family_context=payload.family_context, language=language),
                 })
             thread_id = result["thread"]["id"]
             reply = await connection.turn(thread_id, prompt)

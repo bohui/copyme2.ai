@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from typing import Any
 
 
@@ -11,6 +13,15 @@ MAX_MARKER_CHARS = 4_000
 MAX_PLACE_CHARS = 120
 MAX_HIERARCHY_ITEMS = 6
 GRANULARITIES = frozenset({"country", "region", "city", "suburb", "landmark"})
+SCHEMA_VERSION = 1
+PERSISTED_FIELDS = (
+    "place",
+    "hierarchy",
+    "granularity",
+    "latitude",
+    "longitude",
+    "duration_ms",
+)
 
 
 def extract_place_journey(text: str) -> tuple[str, dict[str, Any] | None]:
@@ -43,6 +54,10 @@ def validate_place_journey(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
 
+    schema_version = raw.get("schema_version", SCHEMA_VERSION)
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version != SCHEMA_VERSION:
+        return None
+
     place = _text(raw.get("place"), MAX_PLACE_CHARS)
     hierarchy = raw.get("hierarchy")
     granularity = raw.get("granularity")
@@ -53,6 +68,7 @@ def validate_place_journey(raw: Any) -> dict[str, Any] | None:
     labels = [_text(item, MAX_PLACE_CHARS) for item in hierarchy]
     if any(not item for item in labels) or labels[0].casefold() != "earth":
         return None
+    labels[0] = "Earth"
     granularity = granularity.strip().casefold()
     if granularity not in GRANULARITIES:
         return None
@@ -66,17 +82,65 @@ def validate_place_journey(raw: Any) -> dict[str, Any] | None:
     if payload["duration_ms"] is None:
         return None
 
-    has_coordinates = "latitude" in raw or "longitude" in raw
-    latitude = _number(raw.get("latitude"))
-    longitude = _number(raw.get("longitude"))
-    if has_coordinates and ((latitude is None) or (longitude is None)):
+    raw_latitude = raw.get("latitude")
+    raw_longitude = raw.get("longitude")
+    has_latitude = raw_latitude is not None
+    has_longitude = raw_longitude is not None
+    latitude = _number(raw_latitude)
+    longitude = _number(raw_longitude)
+    if has_latitude != has_longitude or (has_latitude and (latitude is None or longitude is None)):
         return None
     if latitude is not None and not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
         return None
     if latitude is not None:
         payload["latitude"] = latitude
         payload["longitude"] = longitude
+    payload["schema_version"] = SCHEMA_VERSION
     return payload
+
+
+def normalize_persisted_place_journey(raw: Any) -> dict[str, Any] | None:
+    """Return the public record shape from a database row."""
+    payload = validate_place_journey(raw)
+    if payload is None or not isinstance(raw, dict):
+        return None
+    status = raw.get("status", "active")
+    revision = raw.get("revision")
+    updated_at = raw.get("updated_at")
+    if status != "active" or isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        return None
+    if not isinstance(updated_at, str) or not updated_at.strip():
+        return None
+    payload.setdefault("latitude", None)
+    payload.setdefault("longitude", None)
+    payload.update({"status": status, "revision": revision, "updated_at": updated_at})
+    return payload
+
+
+def place_journey_fingerprint(raw: Any) -> tuple[Any, ...] | None:
+    """Return stable place fields used to decide whether a journey changed."""
+    payload = validate_place_journey(raw)
+    if payload is None:
+        return None
+    return tuple(payload.get(field) for field in PERSISTED_FIELDS)
+
+
+def place_journey_matches_message(journey: Any, message: str) -> bool:
+    """Require a journey marker to be grounded in the current storyteller turn."""
+    payload = validate_place_journey(journey)
+    if payload is None or not isinstance(message, str) or not message.strip():
+        return False
+
+    normalized_message = _normalize_for_match(message)
+    normalized_label = _normalize_for_match(payload["place"])
+    if not normalized_label:
+        return False
+    if normalized_label in normalized_message:
+        return True
+    # Allow a leading article in a model label to differ from the storyteller's
+    # wording, e.g. "the old river town" vs "old river town".
+    words = normalized_label.split()
+    return len(words) > 1 and " ".join(words[1:]) in normalized_message
 
 
 def _text(value: Any, limit: int) -> str | None:
@@ -84,6 +148,12 @@ def _text(value: Any, limit: int) -> str | None:
         return None
     value = " ".join(value.split()).strip()
     return value[:limit] if value else None
+
+
+def _normalize_for_match(value: str) -> str:
+    value = unicodedata.normalize("NFKC", value).casefold()
+    value = re.sub(r"[^\w\s]+", " ", value, flags=re.UNICODE)
+    return " ".join(value.split())
 
 
 def _number(value: Any) -> float | None:

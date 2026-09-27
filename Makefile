@@ -7,8 +7,18 @@ CODEX_HARNESS_PORT ?= 8765
 API_BASE ?= http://127.0.0.1:$(API_PORT)
 WEB_BASE ?= http://127.0.0.1:$(WEB_PORT)
 SERVICE ?= api
+CONTAINER_BUILD ?= 0
+ENV_FILE ?= .env
+CONTAINER_IMAGES := \
+	localhost/memory-spark:dev \
+	localhost/memory-spark-codex-worker:dev \
+	localhost/memory-spark-codex-harness:dev \
+	localhost/copyme2-web:dev
+SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
+HARNESS_SERVICE ?= codex-harness
+SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test browser-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test localization-catalog-test browser-test browser-localization-test browser-ten-round-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -19,13 +29,43 @@ check: ## Verify Mocker and Apple Container are installed.
 	@echo "Mocker: $$($(MOCKER) --version)"
 	@echo "Apple Container: $$($(APPLE_CONTAINER_BIN) --version)"
 
-migrate: ## Apply the Supabase story-entitlement migration.
+migrate: ## Apply the Supabase agent, entitlement, Family, and place-journey migrations.
 	@set -a; \
 	if test -f .env; then . ./.env; fi; \
 	set +a; \
 	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in .env."; exit 2; }; \
 	command -v psql >/dev/null || { echo "Missing psql. Install the PostgreSQL client first."; exit 1; }; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250003_story_entitlements.sql
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250003_story_entitlements.sql; \
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250004_fenced_agent_turn_commit.sql; \
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250005_family_price_provenance.sql; \
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260001_user_family_context.sql; \
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260002_user_place_journey.sql
+
+db-truncate: ## Empty local app tables, Supabase Storage, and filesystem objects; pass RESET_CONFIRM=1.
+	@test "$(RESET_CONFIRM)" = "1" || { echo "Refusing to truncate data. Re-run with RESET_CONFIRM=1."; exit 2; }
+	@test -f "$(ENV_FILE)" || { echo "Missing $(ENV_FILE). Copy .env.example to .env first."; exit 2; }
+	@set -a; \
+	. "$(ENV_FILE)"; \
+	set +a; \
+	python3 scripts/truncate_local_data.py --yes
+
+install_skill: check ## Package every repository skill, install it in the running Codex harness, then clean temporary ZIPs.
+	@set -eu; \
+	test -n "$(strip $(SKILLS))" || { echo "No skills found under skills/."; exit 2; }; \
+	test -f "$(SKILL_PACKAGER)" || { echo "Missing skill packager: $(SKILL_PACKAGER)"; echo "Override SKILL_PACKAGER=/path/to/package_skill.py if needed."; exit 1; }; \
+	test -n "$$($(MOCKER) compose ps -f $(COMPOSE_FILE) -q $(HARNESS_SERVICE))" || { echo "Codex harness is not running. Start it with: make container-up"; exit 2; }; \
+	tmp_dir="$$(mktemp -d -t memory-spark-skills)"; \
+	trap 'rm -rf "$$tmp_dir"' EXIT INT TERM; \
+	for skill in $(SKILLS); do \
+		test -d "skills/$$skill" || { echo "Missing skill directory: skills/$$skill"; exit 2; }; \
+		python3 "$(SKILL_PACKAGER)" "skills/$$skill" "$$tmp_dir"; \
+		archive="$$tmp_dir/$$skill.zip"; \
+		test -f "$$archive" || { echo "Skill packager did not create $$archive"; exit 1; }; \
+		$(MOCKER) compose exec -f $(COMPOSE_FILE) -i -T "$(HARNESS_SERVICE)" sh -c 'cat > "$$1"' sh "/tmp/$$skill.zip" < "$$archive"; \
+		$(MOCKER) compose exec -f $(COMPOSE_FILE) -T "$(HARNESS_SERVICE)" python3 /workspace/scripts/install_codex_skill.py "/tmp/$$skill.zip" "$$skill"; \
+	done; \
+	$(MOCKER) compose restart -f $(COMPOSE_FILE) "$(HARNESS_SERVICE)"; \
+	echo "Installed skills: $(SKILLS)"
 
 STRIPE_MODE ?= test
 MEMORY_SPARK_PUBLIC_URL ?=
@@ -68,10 +108,29 @@ runtime-start: check ## Start the Apple Container runtime.
 test: ## Run the local Python test suite.
 	@python3 -m pytest -q
 
-browser-test: ## Run the complete first-chapter Playwright journey against a local server.
+localization-catalog-test: ## Validate the English and Simplified Chinese message catalogues.
+	@python3 scripts/check_localization_catalog.py
+
+browser-test: ## Run the complete first-chapter Playwright journey against the Next.js frontend and API.
 	@python3 /Users/bohuihan/.codex/skills/webapp-testing/scripts/with_server.py \
-		--server "MEMORY_SPARK_TEST_MODE=1 python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000" \
-		--port 8000 -- python3 tests/browser_e2e.py --base-url http://127.0.0.1:8000
+		--server "MEMORY_SPARK_TEST_MODE=1 MEMORY_SPARK_SHOW_THINKING_STEPS=0 python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port $(API_PORT)" \
+		--port $(API_PORT) \
+		--server "cd apps/web && MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:$(API_PORT) npm run dev -- --hostname 127.0.0.1 --port $(WEB_PORT)" \
+		--port $(WEB_PORT) -- python3 tests/browser_e2e.py --base-url http://127.0.0.1:$(WEB_PORT)
+
+browser-localization-test: localization-catalog-test ## Run the browser localization journey against the Next.js frontend and API.
+	@python3 /Users/bohuihan/.codex/skills/webapp-testing/scripts/with_server.py \
+		--server "MEMORY_SPARK_TEST_MODE=1 MEMORY_SPARK_SHOW_THINKING_STEPS=1 python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port $(API_PORT)" \
+		--port $(API_PORT) \
+		--server "cd apps/web && MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:$(API_PORT) npm run dev -- --hostname 127.0.0.1 --port $(WEB_PORT)" \
+		--port $(WEB_PORT) -- python3 tests/browser_localization_e2e.py --base-url http://127.0.0.1:$(WEB_PORT)
+
+browser-ten-round-test: localization-catalog-test ## Run ten localized chat turns with streaming and all integrated Memoir skills.
+	@python3 /Users/bohuihan/.codex/skills/webapp-testing/scripts/with_server.py \
+		--server "MEMORY_SPARK_TEST_MODE=1 MEMORY_SPARK_SHOW_THINKING_STEPS=0 python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port $(API_PORT)" \
+		--port $(API_PORT) \
+		--server "cd apps/web && MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:$(API_PORT) npm run dev -- --hostname 127.0.0.1 --port $(WEB_PORT)" \
+		--port $(WEB_PORT) -- python3 tests/browser_ten_round_e2e.py --base-url http://127.0.0.1:$(WEB_PORT)
 
 acceptance-evidence: ## Run AT-001 through AT-055 and write the evidence report.
 	@python3 scripts/run_acceptance_evidence.py
@@ -89,14 +148,38 @@ container-config: check ## Validate the Compose model through Mocker.
 container-build: runtime-start ## Build the local images without changing running services.
 	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE)
 
-container-up: runtime-start ## Build and start the complete local stack.
+container-up: runtime-start ## Start the local stack from cached images; use CONTAINER_BUILD=1 to rebuild.
 	@mkdir -p var/codex-home var/memory-spark
-	@$(MOCKER) compose build -f $(COMPOSE_FILE)
+	@set -e; \
+	needs_build=0; \
+	for image in $(CONTAINER_IMAGES); do \
+		if ! $(MOCKER) image inspect "$$image" >/dev/null 2>&1; then \
+			legacy_image=""; \
+			case "$$image" in \
+				localhost/memory-spark:dev) legacy_image=memory-spark:dev ;; \
+				localhost/memory-spark-codex-worker:dev) legacy_image=memory-spark-codex-worker:dev ;; \
+				localhost/memory-spark-codex-harness:dev) legacy_image=memory-spark-codex-harness:dev ;; \
+				localhost/copyme2-web:dev) legacy_image=copyme2-web:dev ;; \
+				esac; \
+			if test -n "$$legacy_image" && $(MOCKER) image inspect "$$legacy_image" >/dev/null 2>&1; then \
+				$(MOCKER) tag "$$legacy_image" "$$image"; \
+				echo "Tagged existing local image $$legacy_image as $$image"; \
+			else \
+				needs_build=1; \
+			fi; \
+		fi; \
+	done; \
+	if test "$(CONTAINER_BUILD)" = "1" || test "$$needs_build" = "1"; then \
+		MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE); \
+	else \
+		echo "Using cached service images; refreshing the web image from source."; \
+		$(MOCKER) compose build -f $(COMPOSE_FILE) web; \
+	fi
 	@set -e; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
 	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-codex-harness-1 >/dev/null 2>&1 || true; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-deps --detach api worker web codex-worker codex-harness; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-recreate --no-deps --detach --wait --wait-timeout 120 api worker web codex-worker codex-harness
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach api worker web codex-worker codex-harness; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 api worker web codex-worker codex-harness
 	@$(MAKE) --no-print-directory container-health
 
 container-health: check ## Verify API, web shell, web-to-API proxy, and Codex harness.

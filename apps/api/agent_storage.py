@@ -83,6 +83,49 @@ class UserStorage:
         }).json()
         return rows[0].get('profile') or {} if rows else {}
 
+    def place_journey(self):
+        rows = self.request('GET', '/rest/v1/user_place_journey', params={
+            'select': 'schema_version,status,revision,place,hierarchy,granularity,latitude,longitude,duration_ms,created_at,updated_at',
+            'user_id': f'eq.{self.user_id}',
+            'limit': '1',
+        }).json()
+        return rows[0] if rows else None
+
+    def save_place_journey(self, lease_token, journey):
+        return self.request('POST', '/rest/v1/rpc/upsert_user_place_journey', json={
+            'p_lease_token': lease_token,
+            'p_journey': journey,
+        }).json()
+
+    def story_entitlement(self):
+        rows = self.request('GET', '/rest/v1/story_entitlements', params={
+            'select': 'status,plan_key,family_tree,timeline,expanded_details,stripe_price_id',
+            'user_id': f'eq.{self.user_id}',
+            'limit': '1',
+        }).json()
+        return rows[0] if rows else None
+
+    def family_context(self, project_id):
+        """Read the renderable Family document under the user's RLS scope."""
+        rows = self.request('GET', '/rest/v1/user_family_context', params={
+            'select': 'document,revision,updated_at',
+            'user_id': f'eq.{self.user_id}',
+            'project_id': f'eq.{project_id}',
+            'limit': '1',
+        }).json()
+        if not rows:
+            return None
+        document = rows[0].get('document')
+        return document if isinstance(document, dict) else None
+
+    def upsert_family_context(self, project_id, document, expected_revision=0):
+        """Atomically persist a Family document and return its update envelope."""
+        return self.request('POST', '/rest/v1/rpc/upsert_user_family_context', json={
+            'p_project_id': project_id,
+            'p_document': document,
+            'p_expected_revision': expected_revision,
+        }).json()
+
     def save_memory(self, text, *, kind='memoir', source_paths=None):
         return self.request('POST', '/rest/v1/user_memory', headers={'Prefer': 'return=representation'},
                             json={'user_id': self.user_id, 'kind': kind, 'content': text,

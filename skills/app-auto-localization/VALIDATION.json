@@ -1,0 +1,46 @@
+{
+  "artifact": "app-auto-localization",
+  "version": "1.0.0",
+  "created_date": "2026-09-26",
+  "basis": "User-provided Pasted text(20260926-094026).txt plus explicitly documented auto-detection additions",
+  "environment": {
+    "node": "v22.16.0",
+    "python": "3.13.5",
+    "typescript": "5.8.3"
+  },
+  "results": {
+    "pure_typescript_compile": "passed",
+    "node_unit_tests": {
+      "passed": 81,
+      "failed": 0,
+      "scope": "locale matching, preference precedence, pure switch reducer, text-adapter gates using injected STUB rankings"
+    },
+    "python_unit_tests": {
+      "passed": 16,
+      "failed": 0,
+      "scope": "read-only inventory and structural catalogue helpers"
+    },
+    "starter_catalogues": {
+      "keys_per_locale": 54,
+      "structural_check": "passed",
+      "human_review": "not_performed",
+      "whole_app_coverage": "not_claimed"
+    },
+    "node_script_syntax": "passed",
+    "python_script_syntax": "passed",
+    "icu_missing_dependency_gate": {
+      "expected_exit": 2,
+      "observed_exit": 2,
+      "status": "passed"
+    },
+    "full_icu_grammar_validation": "not_run_dependency_unavailable",
+    "browser_header_adapter_with_real_negotiator": "not_run_dependency_unavailable",
+    "real_franc_detector_accuracy": "not_run_dependency_unavailable",
+    "target_nextjs_app_compile_build": "not_run_repository_not_provided",
+    "authenticated_preference_persistence": "not_run_repository_not_provided",
+    "browser_e2e_recording_and_payment_safety": "not_run_repository_not_provided",
+    "codex_end_to_end_invocation": "not_run"
+  },
+  "network_note": "Attempt to reach the npm registry failed with EAI_AGAIN. No successful third-party dependency installation is claimed.",
+  "runtime_note": "This installs a coding skill. The actual app requires Codex to inspect and integrate it; installing the ZIP does not change a deployed app."
+}

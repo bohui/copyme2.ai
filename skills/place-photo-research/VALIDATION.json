@@ -1,0 +1,20 @@
+{
+  "skill_version": "1.0.0",
+  "validated_at": "2026-09-26",
+  "python": "3.13.5",
+  "pillow": "12.3.0",
+  "offline_tests": 57,
+  "passed": 57,
+  "failed": 0,
+  "skill_frontmatter": "valid",
+  "openai_yaml": "valid",
+  "markdown_fences": "balanced",
+  "tests_use": "offline tests with mocked network and in-memory synthetic images",
+  "not_tested": [
+    "Live Codex installation/activation",
+    "Live native web search relevance",
+    "End-to-end real archive downloads",
+    "Independent legal/photo authenticity verification",
+    "Production region/processor compliance"
+  ]
+}

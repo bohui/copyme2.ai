@@ -102,12 +102,59 @@ def test_story_checkout_uses_server_pricing_and_signed_webhook_grants_entitlemen
     assert state["payment_status"] == "paid"
     assert state["payment_plan"] == "family_memoir_v1"
     assert state["book_count"] == 4
+    assert state["family_features_enabled"] is True
     assert set(state["payment_features"]) == {"family_tree", "timeline", "expanded_details"}
     assert state["next_action"] == "full_memoir"
 
     memoir = client.post("/v1/story/full-memoir", headers=_auth_headers())
     assert memoir.status_code == 200
     assert memoir.json()["memoir"]["status"] == "generated"
+
+
+def test_family_webhook_rejects_a_different_configured_price(monkeypatch):
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_story_test")
+    monkeypatch.setenv("STRIPE_PRICE_FAMILY", "price_family_live")
+    storage = FakeSupabaseUserStorage()
+    memory = MemoryStore()
+    app = create_app(
+        memory,
+        story_storage_factory=lambda authorization: storage,
+        story_entitlement_store=LocalStoryEntitlementStore(memory),
+        story_stripe_client=FakeStripeCheckout(),
+    )
+    client = TestClient(app)
+    _complete_rounds(client)
+    storage.is_anonymous = False
+    assert client.post("/v1/story/free-chapter", headers=_auth_headers()).status_code == 200
+
+    event = {
+        "id": "evt_story_wrong_price",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_wrong_price",
+                "payment_status": "paid",
+                "amount_total": 12900,
+                "currency": "aud",
+                "metadata": {
+                    "user_id": storage.user_id,
+                    "plan_key": "family_memoir_v1",
+                    "book_count": "2",
+                    "stripe_price_id": "price_printed",
+                },
+            }
+        },
+    }
+    payload = json.dumps(event, separators=(",", ":")).encode()
+    response = client.post(
+        "/v1/story/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": _signed_payload(payload, "whsec_story_test")},
+    )
+
+    assert response.status_code == 409
+    assert response.headers["X-Error-Code"] == "STRIPE_PRICE_MISMATCH"
+    assert client.get("/v1/story/state", headers=_auth_headers()).json()["payment_status"] == "unpaid"
 
 
 def test_stripe_checkout_client_sends_server_computed_line_items():
@@ -134,3 +181,24 @@ def test_stripe_checkout_client_sends_server_computed_line_items():
     assert fields["line_items[1][quantity]"] == "3"
     assert fields["metadata[plan_key]"] == "printed_memoir_v1"
     assert fields["shipping_address_collection[allowed_countries][]"] == "AU"
+
+
+def test_family_checkout_carries_the_configured_price_provenance(monkeypatch):
+    monkeypatch.setenv("STRIPE_PRICE_FAMILY", "price_family_live")
+    calls = []
+
+    def request(url, **kwargs):
+        calls.append((url, kwargs))
+        return httpx.Response(200, request=httpx.Request("POST", url), json={"id": "cs_family", "url": "https://checkout.stripe.test/cs_family"})
+
+    client = StripeCheckoutClient(secret_key="sk_test_story", request_fn=request)
+    client.create_checkout_session(
+        order_id="story-order-family",
+        user_id="user-family",
+        summary=checkout_summary("family_memoir_v1", 2),
+        success_url="https://copyme2.test/success",
+        cancel_url="https://copyme2.test/cancel",
+    )
+
+    fields = dict(calls[0][1]["data"])
+    assert fields["metadata[stripe_price_id]"] == "price_family_live"

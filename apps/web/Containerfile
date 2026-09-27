@@ -1,0 +1,30 @@
+FROM node:20-bookworm-slim AS dependencies
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM dependencies AS builder
+
+COPY . .
+ARG MEMORY_SPARK_API_ORIGIN=http://api:8000
+ENV MEMORY_SPARK_API_ORIGIN=${MEMORY_SPARK_API_ORIGIN} \
+    NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM node:20-bookworm-slim AS runner
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
+
+WORKDIR /app
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json /app/package-lock.json ./
+RUN npm ci --omit=dev
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]

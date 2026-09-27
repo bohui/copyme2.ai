@@ -1,0 +1,1 @@
+ICU validation NOT RUN: install @formatjs/icu-messageformat-parser in the target project.

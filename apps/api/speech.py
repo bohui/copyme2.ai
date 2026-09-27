@@ -60,7 +60,10 @@ class OpenAISpeechService:
         for key in ("language", "prompt"):
             value = options.get(key)
             if value:
-                data[key] = str(value)
+                normalized = str(value).strip()
+                if key == "language":
+                    normalized = normalized.replace("_", "-").split("-", 1)[0].lower()
+                data[key] = normalized
         try:
             response = self._client.post(
                 "/audio/transcriptions",
