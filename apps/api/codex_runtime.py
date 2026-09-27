@@ -11,6 +11,7 @@ from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .agent_storage import UserStorage
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
+from .turn_stream import VisibleText
 from .family_context import (
     combine_family_skill_updates,
     extract_family_skill_updates,
@@ -25,6 +26,8 @@ from .place_journey import (
     place_journey_fingerprint,
 )
 from .profile_intake import extract_profile_updates, merge_profile_updates
+from .agent_tasks import extract_task_requests, resolve_task
+from .memoir_tasks import MemorySource
 
 
 MEMOIR_SYSTEM_PROMPT_PATH = (
@@ -69,13 +72,13 @@ FAMILY_TREE_SKILL_PATH = Path(__file__).resolve().parents[2] / "skills" / "memoi
 FAMILY_TREE_SKILL_FALLBACK = """When the server says the storyteller has the paid Family legacy feature, extract only
 explicitly stated people and relationship assertions. Append one bounded
 [[MEMORY_SPARK_FAMILY_TREE]] JSON marker. Never infer identity or kinship; ask one short
-clarification when needed. The harness validates and strips the marker before the reply."""
+clarification when needed. The application runtime validates and strips the marker before the reply."""
 
 AUTHOR_TIMELINE_SKILL_PATH = Path(__file__).resolve().parents[2] / "skills" / "memoir-author-timeline" / "SKILL.md"
 AUTHOR_TIMELINE_SKILL_FALLBACK = """When the server says the storyteller has the paid Family legacy feature, extract only
 the author's explicitly stated timeline events and life periods. Append one bounded
 [[MEMORY_SPARK_AUTHOR_TIMELINE]] JSON marker. Preserve uncertain dates and never infer
-people or exact places. The harness validates and strips the marker before the reply."""
+people or exact places. The application runtime validates and strips the marker before the reply."""
 
 
 def _load_skill(path: Path, fallback: str) -> str:
@@ -88,7 +91,10 @@ def _load_skill(path: Path, fallback: str) -> str:
 FAMILY_TREE_SKILL = _load_skill(FAMILY_TREE_SKILL_PATH, FAMILY_TREE_SKILL_FALLBACK)
 AUTHOR_TIMELINE_SKILL = _load_skill(AUTHOR_TIMELINE_SKILL_PATH, AUTHOR_TIMELINE_SKILL_FALLBACK)
 
-MEMORY_CONTEXT_SKILL = _load_skill(Path(__file__).resolve().parents[2] / "skills" / "memoir-memory-context" / "SKILL.md", "Extract explicit story_focus.life_stage and avatar_style only; never infer gender from a name or voice.")
+MEMORY_CONTEXT_SKILL = _load_skill(
+    Path(__file__).resolve().parents[2] / "skills" / "memoir-memory-context" / "SKILL.md",
+    "Extract explicit story_focus.life_stage. Infer avatar_style only from clear self-identifying context, including names and transcribed voice words; never use voice pitch or accent.",
+)
 
 PROFILE_INTAKE_INSTRUCTIONS = """Profile intake contract:
 When the storyteller explicitly shares profile or story-context information, append one
@@ -96,7 +102,7 @@ machine marker after the visible reply using exactly this format:
 [[MEMORY_SPARK_PROFILE]]{"name":"...","birth_year":1980,"birth_date_expression":"...","birth_place":"...","childhood_place":"...","story_focus":{"who":"...","where":"...","when":"...","what":"..."}}[[/MEMORY_SPARK_PROFILE]]
 Include only fields the storyteller stated or clearly corrected. Omit unknown fields;
 never infer a name, date, place, person, or event. `story_focus` records the current
-memory thread, not a confirmed biography. The harness strips the marker and saves the
+memory thread, not a confirmed biography. The application runtime strips the marker and saves the
 validated fields to the private profile. Extract profile facts quietly. Do not ask a question merely to fill a missing field.
 After acknowledging the storyteller, ask at
 most one question chosen by the low-pressure opening rules above, preferably about a
@@ -171,7 +177,7 @@ def build_loop_trace(*, memory_count: int, resumed: bool, saved_paths: int,
 
     This is intentionally a trace of actions and results rather than hidden
     model reasoning. It gives the prototype UI enough information to explain
-    what the harness is doing without exposing private chain-of-thought.
+    what the application runtime is doing without exposing private chain-of-thought.
     """
     locale = normalize_conversation_language(language)
     if locale == "zh-CN":
@@ -293,7 +299,14 @@ class CodexRuntime:
         return home
 
     async def turn(self, storage: UserStorage, text: str, project_id: str | None = None,
-                   language: str = "en-AU"):
+                   language: str = "en-AU", on_delta=None):
+        visible = VisibleText()
+
+        async def emit_visible(text):
+            chunk = visible.feed(text)
+            if chunk:
+                await on_delta(chunk)
+
         language = normalize_conversation_language(language)
         if project_id is not None and valid_family_project_id(project_id) is None:
             raise ValueError('Invalid Family project id')
@@ -336,6 +349,7 @@ class CodexRuntime:
                         project_id=project_id,
                         text=text,
                         language=language,
+                        **({'on_delta': emit_visible} if on_delta else {}),
                     )
                     thread_id = result['thread_id']
                     reply = result['reply']
@@ -366,14 +380,21 @@ class CodexRuntime:
                                 'baseInstructions': build_system_prompt(context, profile, place_journey=current_place_journey, family_enabled=family_enabled, family_context=existing_family_context, language=language),
                             })
                         thread_id = result['thread']['id']
-                        reply = await connection.turn(thread_id, prompt)
+                        reply = await connection.turn(thread_id, prompt, **({'on_delta': emit_visible} if on_delta else {}))
                     await lease.check()
                     paths = await lease.io(self.sync_artifacts, storage, home, lease)
+                if on_delta:
+                    tail = visible.feed('', final=True)
+                    if tail:
+                        await on_delta(tail)
                 reply, profile_updates = extract_profile_updates(reply)
+                reply, task_requests = extract_task_requests(reply)
                 reply, parsed_place_journey = extract_place_journey(reply)
                 if parsed_place_journey and not place_journey_matches_message(parsed_place_journey, text):
                     parsed_place_journey = None
                 reply, parsed_family_updates = extract_family_skill_updates(reply)
+                if on_delta:
+                    reply = VisibleText().feed(reply, final=True).strip()
                 parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
                 family_context = None
                 family_context_update = None
@@ -430,11 +451,26 @@ class CodexRuntime:
                     f'Storyteller: {text}\nMemory Spark: {reply}',
                     paths,
                 )
+                tasks = []
+                task_errors = []
+                if project_id and os.getenv('MEMORY_SPARK_TASK_DB'):
+                    from .task_queue import configured_queue
+                    await asyncio.to_thread(configured_queue().invalidate_readiness, user_id, project_id)
+                if task_requests and project_id and os.getenv('MEMORY_SPARK_TASK_DB'):
+                    sources = self._task_sources(memories)
+                    for request in task_requests:
+                        try:
+                            task = resolve_task(request, sources)
+                            tasks.append(await self.publish_task(user_id, project_id, task))
+                        except (ValueError, httpx.HTTPError):
+                            task_errors.append({'kind': request.kind, 'code': 'TASK_NOT_QUEUED'})
                 return {
                     'thread_id': thread_id,
                     'reply': reply,
                     'source_paths': paths,
                     'memory': stored,
+                    'tasks': tasks,
+                    'task_errors': task_errors,
                     'trace_mode': 'codex-worker' if self.worker_url else 'codex',
                     'place_journey': place_journey,
                     'place_journey_change': place_journey_change,
@@ -449,9 +485,44 @@ class CodexRuntime:
     def _memory_context(memories):
         return '\n'.join(str(item.get('content', ''))[:2000] for item in memories[:20]) or '(none)'
 
+    @staticmethod
+    def _task_sources(memories):
+        sources = []
+        for item in memories:
+            if not item.get('id') or item.get('kind') not in {'agent', 'memoir', 'story_round'}:
+                continue
+            if any(path == 'full-memoir' or path.startswith('story-chapter:') for path in item.get('source_paths', [])):
+                continue
+            content = str(item.get('content', ''))
+            if item.get('kind') == 'agent':
+                if not content.startswith('Storyteller: '):
+                    continue
+                content = content.removeprefix('Storyteller: ').split('\nMemory Spark:', 1)[0]
+            elif content.startswith('{'):
+                try:
+                    record = json.loads(content)
+                except ValueError:
+                    continue
+                if record.get('type') != 'story_round':
+                    continue
+                content = str(record.get('answer', ''))
+            if content.strip():
+                sources.append(MemorySource(id=str(item['id']), content=content))
+        return sources
+
+    async def publish_task(self, user_id, project_id, task):
+        if not self.worker_url or not self.worker_secret:
+            raise ValueError('Private Codex task publisher is unavailable')
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(f'{self.worker_url}/internal/tasks',
+                headers={'X-Codex-Worker-Secret': self.worker_secret},
+                json={'user_id': user_id, 'project_id': project_id, 'task': task.model_dump()})
+            response.raise_for_status()
+            return response.json()
+
     async def _worker_turn(self, *, user_id, prior, memories, profile, place_journey,
                            family_enabled, family_context, project_id, text,
-                           language):
+                           language, on_delta=None):
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
         payload = {
@@ -467,15 +538,34 @@ class CodexRuntime:
             'model': self.model,
             'language': language,
         }
+        if project_id and os.getenv('MEMORY_SPARK_TASK_DB'):
+            payload['task_sources'] = [source.model_dump() for source in self._task_sources(memories)]
         try:
             async with httpx.AsyncClient(timeout=self.timeout + 15) as client:
-                response = await client.post(
-                    f'{self.worker_url}/internal/codex/turn',
-                    headers={'X-Codex-Worker-Secret': self.worker_secret},
-                    json=payload,
-                )
-                response.raise_for_status()
-                result = response.json()
+                if on_delta:
+                    result = None
+                    async with client.stream('POST', f'{self.worker_url}/internal/codex/turn',
+                                             headers={'X-Codex-Worker-Secret': self.worker_secret,
+                                                      'Accept': 'application/x-ndjson'}, json=payload) as response:
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            if not line:
+                                continue
+                            event = json.loads(line)
+                            if event['type'] == 'text_delta':
+                                await on_delta(event['text'])
+                            elif event['type'] == 'result':
+                                result = event['data']
+                            elif event['type'] == 'error':
+                                raise RuntimeError('Codex worker turn failed')
+                else:
+                    response = await client.post(
+                        f'{self.worker_url}/internal/codex/turn',
+                        headers={'X-Codex-Worker-Secret': self.worker_secret},
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
         except httpx.HTTPStatusError as error:
             if error.response.status_code == 409:
                 raise AgentTurnBusyError('Codex worker is busy for this user') from None
@@ -502,6 +592,7 @@ class CodexRuntime:
                 'changed': False,
                 'kind': 'unchanged',
                 'revision': current.get('revision'),
+                'mentioned': True,
             }
 
         saver = getattr(storage, 'save_place_journey', None)

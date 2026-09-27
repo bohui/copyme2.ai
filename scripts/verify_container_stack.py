@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import socket
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -38,25 +37,10 @@ def wait_for(url: str, attempts: int = 30) -> tuple[int, bytes, dict[str, str]]:
     raise last_error
 
 
-def wait_for_tcp(host: str, port: int, attempts: int = 30) -> None:
-    last_error: OSError | None = None
-    for _ in range(attempts):
-        try:
-            with socket.create_connection((host, port), timeout=3):
-                return
-        except OSError as exc:
-            last_error = exc
-            time.sleep(1)
-    assert last_error is not None
-    raise RuntimeError(f"TCP {host}:{port} failed: {last_error}")
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-base", default="http://127.0.0.1:8010")
     parser.add_argument("--web-base", default="http://127.0.0.1:3010")
-    parser.add_argument("--harness-host", default="127.0.0.1")
-    parser.add_argument("--harness-port", type=int, default=8765)
     parser.add_argument("--expected-storage")
     args = parser.parse_args()
 
@@ -86,12 +70,10 @@ def main() -> int:
     if proxied_status != 200 or b"trial_primary_sessions" not in proxied_body:
         raise RuntimeError("web-to-API proxy is not serving /api/v1/memoir/config")
 
-    wait_for_tcp(args.harness_host, args.harness_port)
-
     print("Memory Spark container stack: healthy")
     print(f"  API: {args.api_base}/health")
     print(f"  Web: {args.web_base}/")
-    print(f"  Codex harness: ws://{args.harness_host}:{args.harness_port}")
+    print("  Codex worker: internal service codex-worker:8766")
     return 0
 
 

@@ -81,10 +81,20 @@ storyApi = async (path, options) => {
   return {url: 'test-audio'};
 };
 playGeneratedAudio = async () => { playbacks++; };
-state.project = {id: 'test'};
+        state.project = {id: 'test'};
 render();
 ''')
         draft = page.get_by_role('textbox', name='Your message')
+        initial_height = draft.bounding_box()['height']
+        assert initial_height <= 60
+        draft.fill('One line.')
+        single_line_height = draft.bounding_box()['height']
+        draft.fill('\n'.join(f'Line {index}' for index in range(24)))
+        expanded_height = draft.bounding_box()['height']
+        max_height = page.evaluate("parseFloat(getComputedStyle(document.querySelector('#chat-input')).maxHeight)")
+        assert expanded_height > single_line_height
+        assert expanded_height <= max_height + 1
+        assert draft.evaluate("element => element.style.overflowY") == 'auto'
         draft.fill('My draft.')
         page.get_by_role('button', name='Dictate', exact=True).click()
         expect(page.get_by_text('Recording…', exact=True)).to_be_visible()

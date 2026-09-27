@@ -34,6 +34,30 @@ def test_loop_trace_is_localized_for_simplified_chinese():
     assert all("memory" not in step["detail"].lower() for step in trace)
 
 
+def test_same_explicit_place_is_marked_for_new_project_activation():
+    journey = {
+        "schema_version": 1,
+        "status": "active",
+        "revision": 4,
+        "place": "Geelong",
+        "hierarchy": ["Earth", "Australia", "Victoria", "Geelong"],
+        "granularity": "city",
+        "latitude": -38.1499,
+        "longitude": 144.3617,
+        "duration_ms": 5200,
+        "updated_at": "2026-09-26T00:00:00Z",
+    }
+    candidate = {key: journey[key] for key in (
+        "schema_version", "place", "hierarchy", "granularity", "latitude", "longitude", "duration_ms"
+    )}
+
+    _persisted, change = asyncio.run(CodexRuntime._persist_place_journey(
+        object(), object(), journey, candidate
+    ))
+
+    assert change == {"changed": False, "kind": "unchanged", "revision": 4, "mentioned": True}
+
+
 def test_app_server_initialization_and_errors(tmp_path):
     server = tmp_path / 'server.py'
     server.write_text('''import sys,json

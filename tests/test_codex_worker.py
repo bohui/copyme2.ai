@@ -182,6 +182,7 @@ def test_disconnected_api_cancels_and_settles_worker(monkeypatch):
             finally:
                 stopped.append(True)
         class Request:
+            headers = {}
             async def is_disconnected(self):
                 await started.wait()
                 return True

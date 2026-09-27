@@ -53,13 +53,13 @@ record. Never match people only by similar names, titles, ages, or surnames.
 
 Do not put Markdown, raw chat text, payment identifiers, exact private
 addresses, inferred facts, or extra top-level keys inside the marker. The
-harness validates and strips it before returning the reply. If the same turn
+The application runtime validates and strips it before returning the reply. If the same turn
 also contains an explicit author-timeline item, emit one separate
 `MEMORY_SPARK_AUTHOR_TIMELINE` marker for that domain.
 
 ## Persisted workspace contract
 
-The harness merges this update into the shared, versioned `family_context`
+The application runtime merges this update into the shared, versioned `family_context`
 document for the authenticated user and Memoir project. It returns the
 persisted document plus `family_context_update`; the envelope includes
 `skills: ["family_tree"]` when this skill changed the document. The browser

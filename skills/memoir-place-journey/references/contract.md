@@ -45,8 +45,11 @@ The API response from `POST /v1/agent/turn` contains:
 `place_journey` is the latest persisted record, even when the current turn did
 not emit a marker. It is `null` when the storyteller has no saved place. The
 optional `place_journey_change` object reports `created`, `updated`, or
-`unchanged`; `changed` is true only when a new record was written. A client can
-also hydrate the same record with `GET /v1/agent/place-journey`.
+`unchanged`; `changed` is true only when a new record was written. When the
+current turn explicitly emitted the same already-saved place, `mentioned` is
+true even though `changed` is false, so a new Memoir project can activate its
+local workspace without inheriting an unmentioned place. A client can also
+hydrate the same record with `GET /v1/agent/place-journey`.
 
 The runtime drops a marker when its displayed place cannot be matched to the
 current storyteller message. A saved profile or prior journey may help the

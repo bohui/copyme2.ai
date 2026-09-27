@@ -9,11 +9,14 @@ import hmac
 import json
 import os
 import threading
+import httpx
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field
 
 from .codex_agent import CodexConnection, provider_config
@@ -21,6 +24,8 @@ from .codex_artifacts import iter_artifacts
 from .codex_runtime import build_system_prompt, normalize_conversation_language
 from .codex_worker_files import migrate_home, write_config
 from .agent_lock import AgentTurnBusyError
+from .agent_tasks import collection_task_instructions, organiser_prompt
+from .memoir_tasks import MemorySource, PublishTaskInput
 
 
 class WorkerTurnInput(BaseModel):
@@ -35,6 +40,8 @@ class WorkerTurnInput(BaseModel):
     text: str = Field(min_length=1, max_length=100000)
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str = Field(default="en-AU", pattern="^(en-AU|zh-CN)$")
+    agent_role: Literal['collector', 'organiser'] = 'collector'
+    task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
 
 
 class CodexWorker:
@@ -114,7 +121,7 @@ class CodexWorker:
             *self.command,
         ]
 
-    async def turn(self, payload: WorkerTurnInput):
+    async def turn(self, payload: WorkerTurnInput, on_delta=None):
         user_id = str(payload.user_id)
         async with self._lock(user_id):
             # Shared-volume lock also covers API disconnect/lease expiry and
@@ -125,16 +132,21 @@ class CodexWorker:
                 except BlockingIOError:
                     raise AgentTurnBusyError('Codex worker is busy for this user') from None
                 async with asyncio.timeout(self.timeout):
-                    return await self._turn(payload)
+                    return await self._turn(payload, on_delta=on_delta) if on_delta else await self._turn(payload)
 
-    async def _turn(self, payload: WorkerTurnInput):
+    async def _turn(self, payload: WorkerTurnInput, on_delta=None):
         user_id = str(payload.user_id)
         uid = self._uid_for(user_id)
         home = self._home(user_id, uid)
         model = payload.model or self.model
         language = normalize_conversation_language(payload.language)
         context = "\n".join(str(memory)[:2000] for memory in payload.memories) or "(none)"
-        prompt = f"{build_system_prompt(context, payload.profile, place_journey=payload.place_journey, family_enabled=payload.family_enabled, family_context=payload.family_context, language=language)}\n\nStoryteller message:\n{payload.text}"
+        instructions = build_system_prompt(context, payload.profile, place_journey=payload.place_journey, family_enabled=payload.family_enabled, family_context=payload.family_context, language=language)
+        if payload.agent_role == 'organiser':
+            instructions = organiser_prompt(payload.task_sources, language)
+        else:
+            instructions += collection_task_instructions(payload.task_sources)
+        prompt = f"{instructions}\n\nStoryteller message:\n{payload.text}"
         environment = {"MEMORY_SPARK_LLM_API_KEY": self.api_key}
         async with CodexConnection(
             self._run_command(uid),
@@ -142,7 +154,7 @@ class CodexWorker:
             provider_env=environment,
             timeout=self.timeout,
         ) as connection:
-            if payload.thread_id:
+            if payload.thread_id and payload.agent_role == 'collector':
                 result = await connection.request("thread/resume", {
                     "threadId": payload.thread_id,
                     "cwd": str(home),
@@ -159,10 +171,10 @@ class CodexWorker:
                     "model": model,
                     "approvalPolicy": "never",
                     "sandbox": "read-only",
-                    "baseInstructions": build_system_prompt(context, payload.profile, place_journey=payload.place_journey, family_enabled=payload.family_enabled, family_context=payload.family_context, language=language),
+                    "baseInstructions": instructions,
                 })
             thread_id = result["thread"]["id"]
-            reply = await connection.turn(thread_id, prompt)
+            reply = await connection.turn(thread_id, prompt, **({'on_delta': on_delta} if on_delta else {}))
 
         artifacts = [
             {"path": path, "content": base64.b64encode(content).decode("ascii")}
@@ -173,6 +185,25 @@ class CodexWorker:
 
 app = FastAPI(title="Memory Spark Codex Worker")
 worker = CodexWorker()
+
+
+@app.post('/internal/tasks', status_code=202)
+async def publish_task(payload: PublishTaskInput, x_codex_worker_secret: str | None = Header(default=None)):
+    # Called only after the API authorises the sources and commits the turn.
+    # No task volume is mounted here: tenant runtimes cannot reach its contents.
+    _require_worker_secret(x_codex_worker_secret)
+    target = os.getenv('MEMORY_SPARK_TASK_STORE_URL', '').rstrip('/')
+    if not target:
+        raise HTTPException(503, 'Task persistence is not configured')
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(target + '/internal/tasks',
+                headers={'X-Codex-Worker-Secret': x_codex_worker_secret},
+                json=payload.model_dump(mode='json'))
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError:
+        raise HTTPException(503, 'Task persistence unavailable; retry the same task') from None
 
 
 def _require_worker_secret(provided: str | None):
@@ -190,6 +221,9 @@ def health():
 async def turn(payload: WorkerTurnInput, request: Request,
                x_codex_worker_secret: str | None = Header(default=None)):
     _require_worker_secret(x_codex_worker_secret)
+    if 'application/x-ndjson' in request.headers.get('accept', ''):
+        return StreamingResponse(turn_events(lambda emit: worker.turn(payload, on_delta=emit)),
+                                 media_type='application/x-ndjson', headers=STREAM_HEADERS)
     task = asyncio.create_task(worker.turn(payload))
     try:
         while not task.done():

@@ -25,7 +25,7 @@ def test_place_photo_search_returns_attributed_real_image_urls(monkeypatch):
         "extmetadata": {"LicenseShortName": {"value": "CC BY-SA 4.0"}, "LicenseUrl": {"value": "https://creativecommons.org/licenses/by-sa/4.0/"},
                         "Artist": {"value": "Photographer"}, "DateTimeOriginal": {"value": "1985"}}}]}}}}
     def get(url, **kwargs):
-        assert kwargs['params']['gsrsearch'].startswith('"Chengde"')
+        assert kwargs['params']['gsrsearch'] in {'"Chengde" filetype:bitmap', 'Chengde'}
         return httpx.Response(200, json=payload, request=httpx.Request('GET', url))
     monkeypatch.setattr(httpx, 'get', get)
     client = TestClient(create_app(MemoryStore()))
@@ -38,6 +38,51 @@ def test_place_photo_search_returns_attributed_real_image_urls(monkeypatch):
     assert picture['attribution'] == 'Photographer'
     assert picture['date_expression'] == '1985'
     assert picture['license'] == 'CC BY-SA 4.0'
+
+
+def test_place_photo_search_uses_fallback_queries_to_fill_three_results(monkeypatch):
+    import httpx
+    from apps.api.place_photos import search_place_photos
+
+    def page(pageid, title):
+        return {
+            "pageid": pageid,
+            "title": f"File:{title}",
+            "imageinfo": [{
+                "mime": "image/jpeg",
+                "thumburl": f"https://upload.wikimedia.org/wikipedia/commons/{pageid}/{title}",
+                "descriptionurl": f"https://commons.wikimedia.org/wiki/File:{title}",
+                "extmetadata": {
+                    "LicenseShortName": {"value": "Public domain"},
+                    "Artist": {"value": "Public archive"},
+                },
+            }],
+        }
+
+    responses = {
+        '"Chengde" filetype:bitmap': {"1": page(1, "Chengde landscape.jpg")},
+        "Chengde": {
+            "2": page(2, "Chengde street.jpg"),
+            "3": page(3, "Chengde market.jpg"),
+        },
+    }
+    queries = []
+
+    def get(url, **kwargs):
+        query = kwargs['params']['gsrsearch']
+        queries.append(query)
+        return httpx.Response(
+            200,
+            json={"query": {"pages": responses.get(query, {})}},
+            request=httpx.Request('GET', url),
+        )
+
+    monkeypatch.setattr(httpx, 'get', get)
+
+    pictures = search_place_photos("Chengde")
+
+    assert [picture['asset_id'] for picture in pictures] == ["commons-1", "commons-2", "commons-3"]
+    assert queries == ['"Chengde" filetype:bitmap', "Chengde"]
 
 
 def test_project_rejects_malformed_place_history_without_losing_saved_profile():

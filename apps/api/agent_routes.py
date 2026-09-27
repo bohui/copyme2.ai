@@ -6,6 +6,8 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
+from .turn_stream import STREAM_HEADERS, turn_events
 
 from .agent_lock import AgentTurnBusyError
 from .agent_routes_support import authenticated_storage
@@ -66,10 +68,18 @@ async def place_journey(authorization: str | None = Header(default=None)):
 
 
 @router.post('/turn')
-async def turn(payload: TurnInput, authorization: str | None = Header(default=None)):
+async def turn(payload: TurnInput, authorization: str | None = Header(default=None),
+               accept: str = Header(default='application/json')):
     if payload.project_id is not None and valid_family_project_id(payload.project_id) is None:
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
+    if 'application/x-ndjson' in accept:
+        return StreamingResponse(
+            turn_events(lambda emit: runtime.turn(storage, payload.text, project_id=payload.project_id,
+                                                 language=payload.language, on_delta=emit),
+                        cleanup=lambda: asyncio.to_thread(storage.client.close)),
+            media_type='application/x-ndjson', headers=STREAM_HEADERS,
+        )
     try:
         return await runtime.turn(
             storage,

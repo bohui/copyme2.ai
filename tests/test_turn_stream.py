@@ -1,0 +1,110 @@
+import asyncio
+import json
+
+from apps.api.turn_stream import VisibleText, turn_events
+from apps.api.codex_agent import CodexConnection
+from apps.api.codex_runtime import CodexRuntime
+import httpx
+
+
+def test_markers_hidden_at_every_chunk_boundary():
+    text = 'Hello 承德! [[MEMORY_SPARK_PROFILE]]{"name":"private"}[[/MEMORY_SPARK_PROFILE]]'
+    for boundary in range(len(text) + 1):
+        visible = VisibleText()
+        result = visible.feed(text[:boundary]) + visible.feed(text[boundary:]) + visible.feed('', final=True)
+        assert result == 'Hello 承德! '
+    visible = VisibleText()
+    assert visible.feed('Hello [[MEMORY_S', final=True) == 'Hello '
+
+
+def test_text_arrives_before_persistence_and_result():
+    async def run():
+        saved = asyncio.Event()
+        async def turn(emit):
+            await emit('Hello')
+            await saved.wait()
+            return {'reply': 'Hello', 'profile_updates': {'name': 'Avery'}}
+        stream = turn_events(turn)
+        assert json.loads(await anext(stream))['type'] == 'started'
+        assert json.loads(await asyncio.wait_for(anext(stream), 1)) == {'type': 'text_delta', 'text': 'Hello'}
+        assert not saved.is_set()
+        saved.set()
+        assert json.loads(await anext(stream))['type'] == 'result'
+        await stream.aclose()
+    asyncio.run(run())
+
+
+def test_disconnect_cancels_turn_and_closes_storage():
+    async def run():
+        cancelled = asyncio.Event()
+        closed = asyncio.Event()
+        async def turn(emit):
+            try:
+                await emit('Hello')
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        async def cleanup():
+            closed.set()
+        stream = turn_events(turn, cleanup)
+        await anext(stream)
+        await anext(stream)
+        await stream.aclose()
+        assert cancelled.is_set() and closed.is_set()
+    asyncio.run(run())
+
+
+def test_failure_after_partial_text_is_not_a_success():
+    async def run():
+        async def turn(emit):
+            await emit('Hello')
+            raise RuntimeError('private credential')
+        events = [json.loads(line) async for line in turn_events(turn)]
+        assert [e['type'] for e in events] == ['started', 'text_delta', 'error']
+        assert 'private credential' not in str(events)
+    asyncio.run(run())
+
+
+def test_codex_deltas_forwarded_before_turn_completed():
+    async def run():
+        connection = CodexConnection([], '.')
+        deltas = []
+        async def request(method, params):
+            connection.events.extend([
+                {'method': 'item/agentMessage/delta', 'params': {'threadId': 't', 'itemId': 'm', 'delta': 'Hello'}},
+                {'method': 'item/completed', 'params': {'threadId': 't', 'item': {'id': 'm', 'type': 'agentMessage', 'text': 'Hello'}}},
+            ])
+            return {'turn': {'id': 'turn'}}
+        async def receive():
+            assert deltas == ['Hello']
+            return {'method': 'turn/completed', 'params': {'threadId': 't', 'turn': {'id': 'turn', 'status': 'completed'}}}
+        async def emit(text):
+            deltas.append(text)
+        connection.request = request
+        connection.receive = receive
+        assert await connection.turn('t', 'Hi', on_delta=emit) == 'Hello'
+        assert deltas == ['Hello']
+    asyncio.run(run())
+
+
+def test_worker_http_stream_forwards_delta_before_final_artifacts(monkeypatch):
+    async def run():
+        chunks = []
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b'{"type":"text_delta","text":"Hello"}\n'
+                assert chunks == ['Hello']
+                yield b'{"type":"result","data":{"thread_id":"t","reply":"Hello","artifacts":[]}}\n'
+        def handle(request):
+            assert request.headers['accept'] == 'application/x-ndjson'
+            return httpx.Response(200, stream=Body())
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        monkeypatch.setattr('apps.api.codex_runtime.httpx.AsyncClient', lambda **kwargs: client)
+        async def emit(text):
+            chunks.append(text)
+        runtime = CodexRuntime(worker_url='http://worker', worker_secret='test-secret')
+        result = await runtime._worker_turn(user_id='test', prior=None, memories=[], profile={},
+            place_journey={}, family_enabled=False, family_context={}, project_id=None,
+            text='Hi', language='en-AU', on_delta=emit)
+        assert result['reply'] == 'Hello'
+    asyncio.run(run())

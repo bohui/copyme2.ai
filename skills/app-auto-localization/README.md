@@ -1,7 +1,7 @@
-# App Auto Localization — Codex skill
+# App Auto Localization — Memoir app skill
 
-An installable, repository-scoped Codex skill for implementing automatic end-user
-UI localization in CopyMe2. It follows the attached final recommendation:
+An installable, repository-scoped Memoir skill for implementing automatic end-user
+UI localization in CopyMe2 through the app-managed Codex worker. It follows the attached final recommendation:
 **next-intl, prepared `en-AU`/`zh-CN` JSON catalogues, existing routes, per-viewer
 preferences, and independent interview/source/book languages.**
 
@@ -18,24 +18,24 @@ deployed it. The bundle contains executable policy helpers and implementation
 instructions; actual Next.js/auth/recording integrations are performed by Codex
 in your repository, not invented here.
 
-## Install
+## Install into Memoir
 
-From your repository root, after saving the ZIP under `~/Downloads`:
+From the Memoir repository root, with the local Compose stack running:
 
 ```bash
-mkdir -p .agents/skills
-unzip -n "$HOME/Downloads/app-auto-localization-codex.zip" -d .agents/skills
+make install_skill
 ```
 
-`-n` does not overwrite an existing installation. To update an existing copy,
-review/back up it first rather than silently combining old and new files.
-A personal installation can instead go under `~/.agents/skills`; do not install
-multiple copies of the same skill name at overlapping scopes.
+To refresh only this skill while debugging its activation:
 
-Start/reopen Codex in the repository. Invoke `$app-auto-localization` or select it
-via `/skills`. The optional metadata disables implicit invocation because this
-skill can make broad source edits; explicit invocation works normally.
-See the primary OpenAI reference in `references/sources.md` for discovery behaviour.
+```bash
+SKILLS="app-auto-localization" make install_skill
+```
+
+The target packages the checked-in repository skill and refreshes Memoir's
+managed `codex-worker`; it is not a personal Codex desktop installation. After
+installation, matching implementation or audit requests may invoke the skill
+implicitly. `$app-auto-localization` remains available for explicit invocation.
 
 No dependency installation is required just to load SKILL.md. Runtime integration
 uses the app's existing package manager. The bundle self-tests need Python 3.10+,
@@ -135,14 +135,14 @@ is not the same as complete app coverage or reviewed translations.
 ## Run the bundle checks
 
 ```bash
-bash .agents/skills/app-auto-localization/scripts/self_test.sh
+bash skills/app-auto-localization/scripts/self_test.sh
 ```
 
 When TypeScript is installed in your repository rather than globally:
 
 ```bash
 TSC="$PWD/node_modules/.bin/tsc" \
-  bash .agents/skills/app-auto-localization/scripts/self_test.sh
+  bash skills/app-auto-localization/scripts/self_test.sh
 ```
 
 The test script compiles pure policy/adapter TypeScript in a temporary directory,
@@ -152,10 +152,10 @@ not install packages or mutate your app. Node/Python/TypeScript must be availabl
 For the real project's catalogues (replace paths after inspecting your repository):
 
 ```bash
-python3 .agents/skills/app-auto-localization/scripts/check_catalogs.py \
+python3 skills/app-auto-localization/scripts/check_catalogs.py \
   apps/web/messages/en-AU.json apps/web/messages/zh-CN.json
 
-node .agents/skills/app-auto-localization/scripts/check_icu.mjs \
+node skills/app-auto-localization/scripts/check_icu.mjs \
   apps/web apps/web/messages/en-AU.json apps/web/messages/zh-CN.json
 ```
 

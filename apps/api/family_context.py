@@ -1,4 +1,4 @@
-"""Validate the Family-tree and author-timeline harness contracts."""
+"""Validate the Family-tree and author-timeline runtime contracts."""
 
 from __future__ import annotations
 

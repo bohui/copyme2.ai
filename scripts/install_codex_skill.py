@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install one validated skill archive into the running Codex harness."""
+"""Install one validated skill archive into a Codex home."""
 
 from __future__ import annotations
 

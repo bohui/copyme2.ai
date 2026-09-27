@@ -528,17 +528,10 @@ def build_router(
                     detail="Payment is required before the full memoir can be generated.",
                     headers={"X-Error-Code": "PAYMENT_REQUIRED"},
                 )
-            memoir = {
-                "id": new_id("memoir"),
-                "title": "Your memoir",
-                "status": "generated",
-                "source_memory_count": len(_round_memories(storage)),
-                "package": state["payment_plan"],
-                "book_count": state["book_count"],
-                "features": state["payment_features"],
-            }
-            storage.save_memory(json.dumps(memoir), kind="memoir", source_paths=["full-memoir"])
-            return {"memoir": memoir, **_state_response(storage, state)}
+            raise HTTPException(
+                409, 'Review the collection and confirm timeline readiness before organising the book.',
+                headers={'X-Error-Code': 'COLLECTION_REVIEW_REQUIRED'},
+            )
         finally:
             _close(storage)
 

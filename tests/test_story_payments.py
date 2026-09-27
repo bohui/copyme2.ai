@@ -107,8 +107,8 @@ def test_story_checkout_uses_server_pricing_and_signed_webhook_grants_entitlemen
     assert state["next_action"] == "full_memoir"
 
     memoir = client.post("/v1/story/full-memoir", headers=_auth_headers())
-    assert memoir.status_code == 200
-    assert memoir.json()["memoir"]["status"] == "generated"
+    assert memoir.status_code == 409
+    assert memoir.headers['X-Error-Code'] == 'COLLECTION_REVIEW_REQUIRED'
 
 
 def test_family_webhook_rejects_a_different_configured_price(monkeypatch):

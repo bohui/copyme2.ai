@@ -35,3 +35,12 @@ def test_migrate_target_applies_fenced_agent_commit_migration_in_order():
     positions = [recipe.index(migration) for migration in migrations]
 
     assert positions == sorted(positions)
+
+
+def test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness():
+    makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text()
+    recipe = makefile.split("\ninstall_skill:", 1)[1].split("\n\nSTRIPE_MODE", 1)[0]
+
+    assert "compose build -f $(COMPOSE_FILE) api codex-worker" in recipe
+    assert "compose up -f $(COMPOSE_FILE) --no-build --force-recreate" in recipe
+    assert "codex-harness" not in recipe

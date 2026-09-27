@@ -1,5 +1,6 @@
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
+import { openCollectionReview } from "./collection.js";
 
 const state = {
   accountId: null,
@@ -80,6 +81,7 @@ const state = {
 };
 
 const MEMOIR_API_PREFIX = "/api/v1/memoir";
+const PLACE_PHOTO_RESULT_LIMIT = 3;
 const CESIUM_VERSION = "1.145";
 const FAMILY_CHART_VERSION = "0.9.0";
 const VIS_TIMELINE_VERSION = "7.7.3";
@@ -116,13 +118,18 @@ const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;", "'":"&#039;"}[char]));
 const formatText = (value = "") => escapeHtml(value).replace(/\n/g, "<br>");
 
-function conversationLocale() {
-  return currentUiLocale();
+function resizeChatInput(input = $("#chat-input")) {
+  if (!input) return;
+  input.style.height = "auto";
+  const maxHeight = Number.parseFloat(window.getComputedStyle(input).maxHeight);
+  const contentHeight = input.scrollHeight;
+  const height = Number.isFinite(maxHeight) ? Math.min(contentHeight, maxHeight) : contentHeight;
+  input.style.height = `${height}px`;
+  input.style.overflowY = Number.isFinite(maxHeight) && contentHeight > maxHeight ? "auto" : "hidden";
 }
 
-function assistantAvatarPath() {
-  const locale = conversationLocale() === "zh-CN" ? "zh-CN" : "en-AU";
-  return `/static/mira_avatar_${locale}.png`;
+function conversationLocale() {
+  return currentUiLocale();
 }
 
 function conversationMessage(key) {
@@ -369,15 +376,25 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
 async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
+  let streamedMessage = null;
   try {
-    const body = await supabaseApi("/v1/agent/turn", { method: "POST", body: JSON.stringify({ text, project_id: state.project?.id || null, language: conversationLocale() }) });
+    const body = await streamAgentTurn(text, async (delta) => {
+      if (!streamedMessage) {
+        streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
+        state.chat.push(streamedMessage);
+        render();
+      }
+      streamedMessage.text += delta;
+      updateStreamingAssistantMessage(streamedMessage);
+      await waitForAssistantPaint();
+    });
     if (body.profile_updates) await saveProfileUpdates(body.profile_updates);
     if (Object.prototype.hasOwnProperty.call(body, "place_journey")) {
       state.placeJourneyChange = body.place_journey_change || null;
       // The API returns the latest saved journey even when this turn emitted
       // no marker. A persisted user-level record must not activate a fresh
       // conversation's workspace on its own.
-      if (body.place_journey_change?.changed && body.place_journey) {
+      if (body.place_journey && (body.place_journey_change?.changed || body.place_journey_change?.mentioned)) {
         state.placeJourney = body.place_journey;
         const stage = body.profile_updates?.story_focus?.life_stage;
         const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
@@ -400,21 +417,114 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
       applyPersistedFamilyContext(body.family_context);
       if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "family";
     }
-    return { reply: body.reply || fallback || null, trace: body.trace || simulated, traceMode: body.trace_mode || "codex", placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
+    if (body.task_errors?.length) toast(translate("Collection.taskFailed"));
+    else if (body.tasks?.length) toast(translate("Collection.taskQueued"));
+    return { streamedMessage, reply: body.reply || fallback || null, trace: body.trace || simulated, traceMode: body.trace_mode || "codex", placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     toast(error.message);
-    return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
+    if (streamedMessage) {
+      streamedMessage.failed = true;
+      streamedMessage.error = error.message;
+    }
+    return { streamedMessage, reply: streamedMessage?.text || error.message, trace: [], traceMode: "error" };
+  }
+}
+
+async function streamAgentTurn(text, onDelta) {
+  const response = await fetch(memoirApiPath("/v1/agent/turn"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
+      Authorization: `Bearer ${state.supabase.accessToken}`,
+      "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf") },
+    body: JSON.stringify({ text, project_id: state.project?.id || null, language: conversationLocale() }),
+  });
+  if (response.status === 401) {
+    state.supabase.accessToken = null;
+    throw new Error(translate("Errors.sessionExpired"));
+  }
+  if (!response.ok) throw new Error(localizedErrorMessage(response.headers.get("X-Error-Code")));
+  if (!response.body) return response.json();
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = null;
+
+  function jsonObjectEnd(value) {
+    const start = value.search(/\S/);
+    if (start < 0) return null;
+    if (value[start] !== "{" && value[start] !== "[") throw new Error("Invalid streaming response");
+    const opening = value[start];
+    const closing = opening === "{" ? "}" : "]";
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let index = start; index < value.length; index += 1) {
+      const character = value[index];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (character === "\\") escaped = true;
+        else if (character === '"') quoted = false;
+        continue;
+      }
+      if (character === '"') {
+        quoted = true;
+        continue;
+      }
+      if (character === opening) depth += 1;
+      if (character === closing) {
+        depth -= 1;
+        if (depth === 0) return index + 1;
+      }
+    }
+    return null;
+  }
+
+  async function consumeBuffer(final = false) {
+    while (buffer.trim()) {
+      const end = jsonObjectEnd(buffer);
+      if (end === null) {
+        if (final) throw new Error("Incomplete streaming response");
+        return;
+      }
+      const value = buffer.slice(0, end);
+      buffer = buffer.slice(end);
+      const event = JSON.parse(value);
+      if (event.type === "text_delta") await onDelta(event.text || "");
+      else if (event.type === "result") result = event.data;
+      else if (event.type === "error") throw new Error(event.message);
+      else if (event && typeof event === "object" && !event.type) result = event;
+    }
+  };
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      await consumeBuffer(done);
+      if (done) break;
+    }
+    if (!result) throw new Error(localizedErrorMessage());
+    return result;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }
 
 async function loadPlacePictures(entry, projectId) {
-  if (entry.pictures?.length) return;
+  if (!projectId || !entry?.place || entry.pictures?.length >= PLACE_PHOTO_RESULT_LIMIT) return;
   try {
     const query = new URLSearchParams({ place: entry.place, period: profile().story_focus?.when || "" });
     const result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
     if (state.project?.id !== projectId || !result.items?.length) return;
-    const places = (profile().memory_places || []).map(item => placeHistoryKey(item) === placeHistoryKey(entry)
-      ? { ...item, pictures: result.items } : item);
+    const places = [...(profile().memory_places || [])];
+    const key = placeHistoryKey(entry);
+    const index = places.findIndex(item => placeHistoryKey(item) === key);
+    const updatedEntry = index >= 0
+      ? { ...places[index], pictures: result.items }
+      : { ...entry, pictures: result.items };
+    if (index >= 0) places[index] = updatedEntry;
+    else places.push(updatedEntry);
+    if (state.placeJourney && placeHistoryKey(state.placeJourney) === key) state.placeJourney = updatedEntry;
     await saveProfileUpdates({ memory_places: places });
     if (state.project?.id === projectId) render();
   } catch { /* Pictures are optional; the interview continues. */ }
@@ -429,9 +539,10 @@ function referenceUrl(value) {
 
 function pictureWall(pictures = []) {
   const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
-  if (!pictures.length) return `<div class="workspace-empty picture-wall-empty"><span>▧</span><p>${t("picturesEmpty")}</p></div>`;
-  return `<section class="place-pictures" aria-label="${t("publicReferenceCues")}">${pictures.map((picture) => {
-    const src = picture.allowed_actions?.embed && referenceUrl(picture.image_url);
+  const renderablePictures = pictures.filter((picture) => picture.allowed_actions?.embed);
+  if (!renderablePictures.length) return `<div class="workspace-empty picture-wall-empty"><span>▧</span><p>${t("picturesEmpty")}</p></div>`;
+  return `<section class="place-pictures" aria-label="${t("publicReferenceCues")}">${renderablePictures.map((picture) => {
+    const src = referenceUrl(picture.image_url);
     const source = referenceUrl(picture.source_url);
     const sceneDate = picture.date_expression
       || [picture.scene_date_range?.start, picture.scene_date_range?.end].filter(Boolean).join("–")
@@ -473,7 +584,17 @@ function waitForAssistantStream() {
   return new Promise((resolve) => window.setTimeout(resolve, ASSISTANT_STREAM_DELAY_MS));
 }
 
+function waitForAssistantPaint() {
+  return new Promise((resolve) => window.requestAnimationFrame(resolve));
+}
+
 async function streamAssistantMessage(text, metadata = {}) {
+  if (metadata.streamedMessage) {
+    const { streamedMessage, ...details } = metadata;
+    Object.assign(streamedMessage, details, { text: String(text || streamedMessage.text), streaming: false });
+    render();
+    return streamedMessage;
+  }
   const value = String(text || "");
   if (!value) return null;
   const message = {
@@ -502,10 +623,11 @@ async function hydratePlaceJourney() {
   const savedPlaces = profile().memory_places;
   if (Array.isArray(savedPlaces) && savedPlaces.length) {
     state.placeJourney = savedPlaces.at(-1);
-    state.lifeStage = "all";
+    state.lifeStage = state.placeJourney.life_stage || "all";
     state.selectedPlace = placeHistoryKey(state.placeJourney);
     state.workspaceTab = "chapters";
     rememberPlaceJourneyProject(state.project?.id);
+    void loadPlacePictures(state.placeJourney, state.project?.id);
     return;
   }
   if (!state.supabase?.accessToken || !placeJourneyIsActivatedForProject()) return;
@@ -513,6 +635,11 @@ async function hydratePlaceJourney() {
     const body = await supabaseApi("/v1/agent/place-journey");
     state.placeJourney = body.place_journey || null;
     state.placeJourneyChange = null;
+    if (state.placeJourney) {
+      state.lifeStage = state.placeJourney.life_stage || "all";
+      state.selectedPlace = placeHistoryKey(state.placeJourney);
+      void loadPlacePictures(state.placeJourney, state.project?.id);
+    }
   } catch {
     // A missing journey endpoint must not prevent the memoir conversation.
   }
@@ -792,7 +919,7 @@ async function startCodexConversation({ resume = false } = {}) {
   try {
     const result = await agentTurn(prompt, fallback, ["conversation.start", "memory.search"]);
     const text = result.reply || fallback;
-    const message = await streamAssistantMessage(text, { trace: result.trace, traceMode: result.traceMode });
+    const message = await streamAssistantMessage(text, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
     if (message) render();
   } finally {
     state.codexStarting = false;
@@ -892,6 +1019,7 @@ function profileMenu() {
       <div class="profile-dropdown" id="profile-menu-content" role="menu" hidden>
         <div class="profile-dropdown-header"><span class="profile-dropdown-eyebrow">${t("account")}</span><strong>${escapeHtml(details.name)}</strong><small>${escapeHtml(details.email)}</small></div>
         <label class="profile-menu-language">${t("timelineArtwork")}<select id="timeline-artwork" aria-label="${t("timelineArtwork")}"><option value="male" ${profile().avatar_style !== "female" ? "selected" : ""}>${t("maleArtwork")}</option><option value="female" ${profile().avatar_style === "female" ? "selected" : ""}>${t("femaleArtwork")}</option></select></label><div class="profile-menu-language" role="group"><div data-language-switcher-slot></div></div>
+        <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="collection">${escapeHtml(translate("Collection.title"))}</button>
         <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>${t("logout")}</span><span aria-hidden="true">↗</span></button>
       </div>
     </div>`;
@@ -925,6 +1053,15 @@ function bindProfileMenu() {
   });
   menu.querySelector("#timeline-artwork")?.addEventListener("change", async (event) => { await saveProfileUpdates({ avatar_style: event.target.value }); render(); });
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
+  menu.querySelector("[data-profile-action='collection']")?.addEventListener("click", reviewCollection);
+}
+
+async function reviewCollection() {
+  closeProfileMenu();
+  if (state.loading || state.recording || state.voiceMode || state.storyRecording) return;
+  try {
+    await openCollectionReview({ api: storyApi, projectId: state.project.id, language: conversationLocale() });
+  } catch (error) { toast(error.message); }
 }
 
 async function signOut() {
@@ -1360,21 +1497,7 @@ async function requestStoryCheckout() {
 }
 
 async function generateFullMemoir() {
-  if (state.loading) return;
-  state.loading = true;
-  try {
-    const result = await storyApi("/v1/story/full-memoir", { method: "POST" });
-    toast(result.memoir?.status === "generated" ? conversationMessage("memoirReadyToast") : conversationMessage("memoirStartedToast"));
-  } catch (error) {
-    if (error.code === "PAYMENT_REQUIRED" || error.status === 402) {
-      state.checkout = await storyApi("/v1/story/checkout", { method: "POST" }).catch(() => null);
-    } else {
-      toast(error.message);
-    }
-  } finally {
-    state.loading = false;
-    render();
-  }
+  await reviewCollection();
 }
 
 function render() {
@@ -1563,8 +1686,8 @@ function renderStory() {
       </header>
       <div class="conversation-layout">
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
-          <div class="chat-heading"><div><div class="eyebrow">${t(unlocked ? "workspaceEyebrow" : "conversationEyebrow")}</div><h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div><div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span></div></div>
-          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
+          <div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div><div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span></div></div>
+          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
           ${chatComposer()}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
@@ -1582,13 +1705,14 @@ function renderStory() {
   }
   initFamilyVisualizations();
   const scroll = $("#chat-scroll");
-  if (scroll) scroll.scrollTop = followConversation ? scroll.scrollHeight : previousTop;
   if (draft !== undefined && $("#chat-input")) {
     $("#chat-input").value = draft;
-    if (composerFocused) {
-      $("#chat-input").focus({ preventScroll: true });
-      $("#chat-input").setSelectionRange(...selection);
-    }
+  }
+  resizeChatInput($("#chat-input"));
+  if (scroll) scroll.scrollTop = followConversation ? scroll.scrollHeight : previousTop;
+  if (composerFocused && $("#chat-input")) {
+    $("#chat-input").focus({ preventScroll: true });
+    $("#chat-input").setSelectionRange(...selection);
   }
 }
 
@@ -1614,16 +1738,16 @@ function workspaceDetail() {
         : active === "chapters"
           ? chaptersWorkspace()
           : "";
-  const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
   const tabsMarkup = tabs.length
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
   const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
-  const mediaOverview = workspaceMediaOverview();
+  const mediaOverview = workspaceMediaOverview(toggle);
+  const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}"><div class="workspace-detail-top">${toggle}<span class="eyebrow">${t("yourWorkspace")}</span><div class="workspace-detail-actions"><span class="detail-state">${persistent ? t("savedWithStory") : t("fromConversation")}</span></div></div>${mediaOverview}${contentMarkup}${tabs.length || state.placeJourney ? lifeStageNavigator() : ""}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || state.placeJourney ? lifeStageNavigator() : ""}</aside>`;
 }
 
 function workspaceProgressSummary() {
@@ -1689,7 +1813,7 @@ function workspacePictureItems(place) {
   return items;
 }
 
-function workspaceMediaOverview() {
+function workspaceMediaOverview(toggle = "") {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   if (!state.placeJourney && !searchedPictures().length) return "";
   const current = placeWorkspaceSelection();
@@ -1700,7 +1824,7 @@ function workspaceMediaOverview() {
     ? placeJourneyMarkup(current, "workspace")
     : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
   const pictures = pictureWall(workspacePictureItems(current));
-  return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-intro"><h2>${t("places")}</h2></div>${current && places.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div><div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><span class="eyebrow">${t("pictures")}</span><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictures}</div></section>`;
+  return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && places.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div><div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictures}</div></section>`;
 }
 
 function deliveryAvailable() {
@@ -2055,22 +2179,22 @@ function chatComposer() {
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
   const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
   const controls = state.voiceMode
-    ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close")}`
-    : `${button("dictate", "dictate", "mic")}${button("voice-input", "startVoice", "wave", "voice-mode-button")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${composerAttachments()}<form id="chat-form" class="chat-composer"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+    ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
+    : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${composerAttachments()}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
 }
 
 function renderMessage(message) {
   if (message.role === "user") {
     const you = escapeHtml(translate("Common.you"));
-    return `<article class="chat-row user-message"><div class="chat-bubble"><div class="message-label">${you}</div><div class="message-text">${formatText(message.text)}</div>${message.attachments?.length ? `<div class="composer-attachments">${message.attachments.map(item => `<div class="composer-attachment">${attachmentPreview(item)}</div>`).join("")}</div>` : ""}</div><span class="chat-avatar user-avatar">${you}</span></article>`;
+    return `<article class="chat-row user-message"><div class="chat-bubble"><div class="message-label">${you}</div><div class="message-text">${formatText(message.text)}</div>${message.attachments?.length ? `<div class="composer-attachments">${message.attachments.map(item => `<div class="composer-attachment">${attachmentPreview(item)}</div>`).join("")}</div>` : ""}</div></article>`;
   }
   const streaming = Boolean(message.streaming);
   const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const cues = !streaming && message.cues?.length && !workspaceHasContent() ? renderCueCards(message.cues) : "";
   const trace = !streaming && message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
   const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><span class="chat-avatar assistant-avatar"><img src="${assistantAvatarPath()}" alt="${CHATBOT_NAME}" /></span><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${trace}${cues}${action}</div></article>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${trace}${cues}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated") {
@@ -2099,7 +2223,11 @@ function bindViewActions() {
   $("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
   $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.workspaceTab = "chapters"; cancelDictation(); render(); });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
-  $("#chat-input")?.addEventListener("input", (event) => { state.audioTranscript = event.target.value; });
+  $("#chat-input")?.addEventListener("input", (event) => {
+    state.audioTranscript = event.target.value;
+    resizeChatInput(event.target);
+  });
+  resizeChatInput($("#chat-input"));
   $("#chat-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); } });
   const lifeStageTabs = Array.from(document.querySelectorAll("[data-life-stage-tab]"));
   lifeStageTabs.forEach((button) => {
@@ -2171,7 +2299,7 @@ async function beginMemoryConversation(renderNow = true) {
   await ensureMemorySession();
   const fallback = conversationMessage("fallback");
   const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
-  await streamAssistantMessage(result.reply || fallback, { trace: result.trace, traceMode: result.traceMode });
+  await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   try {
     const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLocale(), requested_media: ["image"] }) });
     if (context.items?.length) {
@@ -2191,7 +2319,7 @@ async function startMemory() {
     await ensureMemorySession();
     const fallback = conversationMessage("fallback");
     const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"]);
-    await streamAssistantMessage(result.reply || fallback, { trace: result.trace, traceMode: result.traceMode });
+    await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   } catch (error) { toast(error.message); }
   state.loading = false;
   render();
@@ -2266,7 +2394,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     const mediaContext = attachments.length ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
     const result = await agentTurn(`The storyteller said: ${messageText}\n${instruction}${mediaContext}`, fallback, ["memory.save", "memory.search"]);
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
-    await streamAssistantMessage(result.reply || fallback, { trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action });
+    await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action: result.streamedMessage?.failed ? null : action });
     if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
   } catch (error) { toast(error.message); }
   state.loading = false;

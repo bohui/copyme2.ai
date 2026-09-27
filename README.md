@@ -146,13 +146,67 @@ make container-down
 `make container-up` uses the existing local service images by default and
 refreshes the non-bind-mounted Next.js web image from source. Run
 `make container-build` or `make container-up CONTAINER_BUILD=1` after changing
-a `Containerfile`, `pyproject.toml`, image-baked skills, or the Codex harness
-startup files. The local images use `localhost/` tags so Mocker does not try to
+a `Containerfile`, `pyproject.toml`, or image-baked skills. The local images use
+`localhost/` tags so Mocker does not try to
 pull them from Docker Hub during a no-build startup.
 
-The default ports are `http://127.0.0.1:3010` for the Next.js frontend, `http://127.0.0.1:8010` for the API, and `ws://127.0.0.1:8765` for the Codex harness. Override them with `MEMORY_SPARK_WEB_PORT`, `MEMORY_SPARK_API_PORT`, and `MEMORY_SPARK_CODEX_HARNESS_PORT`. The API image is defined by [`Containerfile`](Containerfile); the frontend image is defined by [`apps/web/Containerfile`](apps/web/Containerfile); and Codex runtime execution is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
+The default ports are `http://127.0.0.1:3010` for the Next.js frontend and
+`http://127.0.0.1:8010` for the API. Override them with
+`MEMORY_SPARK_WEB_PORT` and `MEMORY_SPARK_API_PORT`. The API image is defined by
+[`Containerfile`](Containerfile); the frontend image is defined by
+[`apps/web/Containerfile`](apps/web/Containerfile); and Codex runtime execution
+is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
 
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
+
+### Collection agents and background tasks
+
+There are **five local Compose services**: `web`, `api`, `codex-worker`, `worker`,
+and `temporal`. `container-up` recreates all five containers;
+normally it rebuilds only `web` (all buildable images when missing or when
+`CONTAINER_BUILD=1`). API and worker Python sources are bind-mounted;
+`codex-worker` Python and skills are image-baked and require a rebuild.
+
+The collector and organiser are two **roles within `codex-worker`**, not separate
+containers. Collection remains the default. In the profile menu, choose
+**Review my memory collection**, record or explicitly skip each life period,
+and confirm readiness before requesting a proposed book structure. The organiser
+starts a separate thread and cannot replace the collection conversation. The
+existing paid-memoir entitlement is still required for book organisation. New
+collector turns invalidate the current project's readiness confirmation.
+
+The preview, outline, chapter, and source-export jobs are **not retired**. They
+now have deterministic handlers: previews/chapters assemble verbatim source
+blocks, outlines assemble a validated structure, and exports package sources.
+These handlers do not call an LLM or produce polished prose. The organiser uses
+the LLM to propose headings and source assignments before queuing `BuildOutline`.
+The collector may request previews and source exports; normal code can also
+publish validated tasks through the private `codex-worker` publisher.
+
+Temporal runs locally with the `memoir-tasks` task queue and a persistent
+`temporal-data` volume. Open its UI at **http://127.0.0.1:8233**. A private SQLite
+store on the `memoir-tasks` volume shared only by API and deterministic workers retains the dispatch outbox, authorised
+source snapshots, collection reviews, and task results. Only opaque task IDs and
+statuses enter Temporal history. The Codex publisher forwards tasks to an
+authenticated API ingress; its tenant-hosting container has no task-database mount.
+Workers dispatch pending rows, execute claimed
+tasks with fenced leases and bounded retries, and save results for the owner.
+This replaces the disconnected in-memory worker in the normal Compose path;
+the explicit `--store` specification-test adapter remains available.
+
+See [the updated architecture](memoir-architecture.html) and
+[the task contract and operational limits](docs/Memory_Collection_Tasks.md).
+
+Verify the real publisher → Temporal → worker path using synthetic data:
+
+```bash
+mocker compose exec -f compose.yml -i -T api python - < scripts/verify_task_pipeline.py
+```
+
+Keep all five services in the same Mocker `compose up` invocation so their service
+aliases are populated. `make container-up` handles this. `container-health` also
+checks the worker's Temporal connection. This is a persistent **local development**
+setup, not a production Temporal deployment.
 
 To reset local application data, stop the local API/worker first and run:
 
@@ -166,11 +220,11 @@ High-level Codex activity is hidden from storytellers by default. For local debu
 
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 
-### Place journeys in the integrated Codex harness
+### Place journeys in the integrated Codex worker
 
-The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` for the Places surface without treating a location as biographical fact. The local `codex-harness` copies the skill into its `CODEX_HOME` at startup, and the API/worker images include it when built.
+The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` for the Places surface without treating a location as biographical fact. The skill is baked into the API and private Codex worker images and is refreshed with `make install_skill`.
 
-### Family tree and author timeline in the integrated Codex harness
+### Family tree and author timeline in the integrated Codex worker
 
 The project skills at [`skills/memoir-family-tree/SKILL.md`](skills/memoir-family-tree/SKILL.md) and [`skills/memoir-author-timeline/SKILL.md`](skills/memoir-author-timeline/SKILL.md) are loaded only after the server confirms a paid Family legacy entitlement backed by `STRIPE_PRICE_FAMILY`. The family-tree skill emits and validates `MEMORY_SPARK_FAMILY_TREE` for people and relationships; the author-timeline skill emits and validates `MEMORY_SPARK_AUTHOR_TIMELINE` for the author's events and life periods. Both persist into the shared, versioned `family_context` document under the authenticated Supabase user and Memoir project, and the response's `family_context_update.skills` field identifies which skill changed it. Unpaid, pending, revoked, and non-Family packages receive neither skill; uncertain dates and relationships remain explicit.
 
@@ -187,16 +241,16 @@ psql "<your Supabase Postgres connection string>" -f supabase/migrations/2026092
 psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609260002_user_place_journey.sql
 ```
 
-With the Codex harness running, refresh every repository skill with:
+With the local Compose stack running, refresh every repository skill with:
 
 ```bash
 make install_skill
 ```
 
-The target packages each `skills/*/SKILL.md` with the standard skill packager,
-copies the temporary ZIP into `codex-harness`, installs it under `CODEX_HOME`,
-restarts the harness so Codex reloads the skills, and removes the temporary ZIPs.
-Use `SKILLS="memoir-place-journey"` only when debugging one skill. Generated
+The target validates each `skills/*/SKILL.md` with the standard skill packager,
+rebuilds the API and private `codex-worker` images, recreates those services so
+their cached skill loaders reload, and removes the temporary ZIPs. Use
+`SKILLS="memoir-place-journey"` only when debugging one skill. Generated
 archives remain temporary, so `dist/` stays ignored.
 
 For an installation that previously applied the retired JSONB-state migration, run `supabase/migrations/202609250001_remove_memory_spark_state.sql` once with your normal Supabase migration connection. It drops only the retired `memory_spark_state` and `memory_spark_outbox` tables.

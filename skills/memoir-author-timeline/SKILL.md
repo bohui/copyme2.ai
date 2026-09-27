@@ -52,12 +52,12 @@ and use the saved canonical ID on a later timeline update.
 When revising a saved event or period, include its canonical `existing_id`.
 Omit it for a new record. Do not put Markdown, raw chat text, payment
 identifiers, exact private addresses, inferred facts, or extra top-level keys
-inside the marker. The harness validates and strips it before returning the
+inside the marker. The application runtime validates and strips it before returning the
 reply.
 
 ## Persisted workspace contract
 
-The harness merges this update into the shared, versioned `family_context`
+The application runtime merges this update into the shared, versioned `family_context`
 document for the authenticated user and Memoir project. It returns the
 persisted document plus `family_context_update`; the envelope includes
 `skills: ["author_timeline"]` when this skill changed the document. The browser

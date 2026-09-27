@@ -3,8 +3,8 @@
 
 When ``MEMORY_SPARK_TEMPORAL_ADDRESS`` is configured, this process runs the
 Temporal workflow/activity worker and its local deterministic dispatcher.
-The current product journey persists user-owned memory through Supabase RLS;
-the legacy project worker remains an explicit local adapter only.
+The application worker consumes durable tasks through Temporal. The explicit
+--store adapter supports older project snapshots and recovery tests.
 """
 
 from __future__ import annotations
@@ -139,6 +139,16 @@ def main() -> int:
     args = parser.parse_args()
     if args.limit < 1 or args.lease_seconds < 1 or args.interval <= 0:
         raise SystemExit("--limit and --lease-seconds must be positive; --interval must be greater than zero")
+    if not args.store:
+        if not args.temporal_address:
+            raise SystemExit('MEMORY_SPARK_TEMPORAL_ADDRESS is required for the application worker')
+        from scripts.task_runtime import readiness, run_task_worker
+        run = readiness if args.readiness else run_task_worker
+        if args.once:
+            raise SystemExit('--once requires an explicit --store; Temporal workers run continuously')
+        arguments = (args.temporal_address, args.temporal_namespace, args.temporal_task_queue)
+        asyncio.run(run(*arguments) if args.readiness else run(*arguments, args.interval))
+        return 0
     store = _store_from_args(args)
     if args.readiness:
         store.pending_outbox_count()

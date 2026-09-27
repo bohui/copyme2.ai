@@ -1,4 +1,4 @@
-# Family-tree and author-timeline Codex-harness skills
+# Family-tree and author-timeline Codex worker skills
 
 Status: reviewable implementation spec; the persistence contract is included
 below and the GitHub issue is the delivery handoff for the remaining rollout
@@ -7,13 +7,13 @@ work.
 This spec synthesizes the Family legacy package requirement, the existing
 `memoir-place-journey` marker contract, the current server-controlled Stripe
 entitlements, and the proposed `vis-timeline` plus `family-chart` presentation
-libraries. It is a project-level Codex-harness feature, not a globally
+libraries. It is a project-level Codex worker feature, not a globally
 installable Codex skill.
 
 ## Problem Statement
 
 The Family legacy memoir package promises a family tree and life timeline, but
-the connected Codex harness currently has no family/timeline extraction
+the connected Codex worker currently has no family/timeline extraction
 contract. The browser has basic people and timeline workspace widgets, yet they
 are not driven by the conversational agent and are currently visible after the
 free chapter regardless of which memoir package the storyteller purchased.
@@ -27,7 +27,7 @@ material privacy and accuracy failure.
 
 ## Solution
 
-Add two project-level Codex-harness skills for the Family legacy package: one
+Add two project-level Codex worker skills for the Family legacy package: one
 for family-tree people/relationships and one for the author's life timeline
 events/life periods. On each authenticated agent turn, the server reads the
 existing paid entitlement and enables both skills only when the entitlement
@@ -38,7 +38,7 @@ and cannot trigger either marker by editing their profile or request body.
 When enabled, the family-tree skill extracts only explicit storyteller-grounded
 people and relationship assertions using `MEMORY_SPARK_FAMILY_TREE`; the
 author-timeline skill extracts explicit author events and life periods using
-`MEMORY_SPARK_AUTHOR_TIMELINE`. The harness validates and removes each marker
+`MEMORY_SPARK_AUTHOR_TIMELINE`. The application runtime validates and removes each marker
 from the spoken reply, atomically merges all valid domain updates into one
 versioned user/project Family Context document in Supabase, and returns both the
 persisted document and a typed update envelope with the changed skill names.
@@ -85,7 +85,7 @@ the accessible and dependency-failure fallback.
 
 ## Implementation Decisions
 
-- Add two project-level Family legacy harness skills beside the existing
+- Add two project-level Family legacy skills beside the existing
   place-journey skill: `memoir-family-tree` and `memoir-author-timeline`. They
   are loaded conditionally by the server runtime; they are not copied into the
   global Codex skill directory.

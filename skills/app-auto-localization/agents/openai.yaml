@@ -3,4 +3,4 @@ interface:
   short_description: "Implement safe automatic English/Chinese UI localization"
   default_prompt: "Use $app-auto-localization to implement automatic end-user UI language detection and complete next-intl localization in this repository, preserving memoir, interview, book, currency, timezone and hosting settings."
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

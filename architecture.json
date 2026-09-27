@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Memoir local architecture",
+    "quality_profile": "showcase",
+    "output": "memoir-architecture.html",
+    "views": [
+      {
+        "id": "collect",
+        "label": "Collect memories",
+        "focus": [
+          "reader",
+          "frontend",
+          "gateway",
+          "agents",
+          "model",
+          "private-memory"
+        ]
+      },
+      {
+        "id": "execute",
+        "label": "Deterministic tasks",
+        "focus": [
+          "agents",
+          "snapshots",
+          "executor",
+          "temporal-server"
+        ]
+      },
+      {
+        "id": "develop",
+        "label": "Development",
+        "focus": [
+          "harness",
+          "repository"
+        ]
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "reader",
+      "type": "external",
+      "label": "Storyteller",
+      "sublabel": "browser + review",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "web",
+      "sublabel": "Next.js :3010",
+      "tag": "Compose service",
+      "pos": [
+        280,
+        100
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "api",
+      "sublabel": "auth + handoff gate",
+      "tag": "Compose :8010",
+      "pos": [
+        560,
+        100
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "agents",
+      "type": "backend",
+      "label": "codex-worker",
+      "sublabel": "collector / organiser",
+      "tag": "Compose :8766",
+      "pos": [
+        840,
+        100
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "model",
+      "type": "external",
+      "label": "LLM provider",
+      "sublabel": "agent inference only",
+      "pos": [
+        1140,
+        100
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "private-memory",
+      "type": "cloud",
+      "label": "Supabase",
+      "sublabel": "private memories + auth",
+      "pos": [
+        560,
+        380
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "snapshots",
+      "type": "database",
+      "label": "Task store",
+      "sublabel": "snapshots + results",
+      "tag": "memoir-tasks volume",
+      "pos": [
+        840,
+        380
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "executor",
+      "type": "backend",
+      "label": "worker",
+      "sublabel": "no LLM calls",
+      "tag": "Compose service",
+      "pos": [
+        1140,
+        380
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "temporal-server",
+      "type": "messagebus",
+      "label": "temporal",
+      "sublabel": "memoir-tasks queue",
+      "tag": "Compose UI :8233",
+      "pos": [
+        1140,
+        680
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "harness",
+      "type": "external",
+      "label": "Developer CLI",
+      "sublabel": "local checks + builds",
+      "tag": "Host tools",
+      "pos": [
+        280,
+        680
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "repository",
+      "type": "database",
+      "label": "Repository",
+      "sublabel": "code + collection skills",
+      "pos": [
+        620,
+        680
+      ],
+      "size": [
+        200,
+        70
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-http",
+      "from": "reader",
+      "to": "frontend",
+      "label": "HTTP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "web-proxy",
+      "from": "frontend",
+      "to": "gateway",
+      "label": "proxy :8000"
+    },
+    {
+      "id": "private-agent",
+      "from": "gateway",
+      "to": "agents",
+      "label": "turn / publish"
+    },
+    {
+      "id": "inference",
+      "from": "agents",
+      "to": "model",
+      "label": "model API"
+    },
+    {
+      "id": "authorised-memory",
+      "from": "gateway",
+      "to": "private-memory",
+      "label": "user token + RLS",
+      "labelDy": 100
+    },
+    {
+      "id": "enqueue-snapshot",
+      "from": "agents",
+      "to": "snapshots",
+      "label": "publish via API",
+      "labelDy": 100
+    },
+    {
+      "id": "read-results",
+      "from": "gateway",
+      "to": "snapshots",
+      "label": "review / status",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "task-execution",
+      "from": "executor",
+      "to": "snapshots",
+      "label": "claim / commit"
+    },
+    {
+      "id": "temporal-poll",
+      "from": "executor",
+      "to": "temporal-server",
+      "label": "dispatch / poll",
+      "labelDy": 100
+    },
+    {
+      "id": "dev-tools",
+      "from": "harness",
+      "to": "repository",
+      "label": "install skills / test"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two agent roles",
+      "items": [
+        "Collector gathers memories with the existing skills.",
+        "Organiser proposes structure only after user confirmation."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Workers, not models",
+      "items": [
+        "Preview, outline, chapter assembly and source export.",
+        "Temporal history contains task IDs, not private memories."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Five local services",
+      "items": [
+        "Temporal and task data persist in named volumes.",
+        "Codex has no task mount; Temporal is local dev mode."
+      ]
+    }
+  ]
+}

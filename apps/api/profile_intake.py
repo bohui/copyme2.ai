@@ -39,7 +39,7 @@ def _year(value: Any) -> int | None:
 
 
 def validate_profile_updates(raw: Any) -> dict[str, Any] | None:
-    """Keep only bounded, explicit profile values emitted by the harness."""
+    """Keep only bounded, explicit profile values emitted by the runtime."""
     if not isinstance(raw, dict):
         return None
 

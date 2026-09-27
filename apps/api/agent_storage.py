@@ -135,6 +135,20 @@ class UserStorage:
         return self.request('GET', '/rest/v1/user_memory',
                             params={'order': 'created_at.desc', 'limit': '100'}).json()
 
+    def all_memories(self):
+        """Read a bounded complete collection, never silently truncate a book."""
+        rows = []
+        for offset in range(0, 1200, 200):
+            page = self.request('GET', '/rest/v1/user_memory', params={
+                'order': 'created_at.asc,id.asc', 'limit': '200', 'offset': str(offset),
+            }).json()
+            rows.extend(page)
+            if len(rows) > 1000:
+                raise ValueError('Collection exceeds the current 1000-memory limit')
+            if len(page) < 200:
+                return rows
+        raise ValueError('Collection exceeds the current memory limit')
+
     def agent_session(self):
         rows = self.request('GET', '/rest/v1/user_agent_session',
                             params={'select': '*', 'user_id': f'eq.{self.user_id}', 'limit': '1'}).json()

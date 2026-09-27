@@ -1,6 +1,6 @@
 ---
 name: memoir-place-journey
-description: This skill should be used by the integrated Memory Spark Codex harness when a storyteller explicitly mentions a geographic place, recalls where a memory happened, or asks to revisit a location. Extract a coarse, user-grounded place and emit a validated place-journey event for the Memoir workspace while keeping the visible reply gentle and concise.
+description: This skill should be used by the integrated Memory Spark Codex worker when a storyteller explicitly mentions a geographic place, recalls where a memory happened, or asks to revisit a location. Extract a coarse, user-grounded place and emit a validated place-journey event for the Memoir workspace while keeping the visible reply gentle and concise.
 ---
 
 # Memoir Place Journey
@@ -57,6 +57,6 @@ invent those fields in the marker.
 
 ## Integration contract
 
-The integrated harness strips the marker from the assistant's visible reply, validates it, and persists the validated record in the storyteller's private place-journey row. It returns the latest record as `place_journey` plus a `place_journey_change` object with `created`, `updated`, or `unchanged` and the server revision. On later turns, the current saved record is supplied as untrusted context; emit a replacement only when the storyteller explicitly names or corrects a place. The browser can hydrate the record with `GET /v1/agent/place-journey` only after the current Memoir project has been activated by an explicit place marker, and uses CesiumJS `Viewer` and `camera.flyTo` for the Earth-to-place transition, with a hierarchy-only fallback when CesiumJS or coordinates are unavailable. This record is a durable navigation aid, not confirmed biographical evidence.
+The integrated runtime strips the marker from the assistant's visible reply, validates it, and persists the validated record in the storyteller's private place-journey row. It returns the latest record as `place_journey` plus a `place_journey_change` object with `created`, `updated`, or `unchanged` and the server revision. On later turns, the current saved record is supplied as untrusted context; emit a replacement only when the storyteller explicitly names or corrects a place. The browser can hydrate the record with `GET /v1/agent/place-journey` only after the current Memoir project has been activated by an explicit place marker, and uses CesiumJS `Viewer` and `camera.flyTo` for the Earth-to-place transition, with a hierarchy-only fallback when CesiumJS or coordinates are unavailable. This record is a durable navigation aid, not confirmed biographical evidence.
 
 Load `references/contract.md` when changing the parser, API response, or workspace renderer.

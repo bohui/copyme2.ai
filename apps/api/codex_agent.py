@@ -94,12 +94,13 @@ class CodexConnection:
         else:
             self.events.append(message)
 
-    async def turn(self, thread_id, text):
+    async def turn(self, thread_id, text, on_delta=None):
         self.events.clear()
         result = await self.request('turn/start', {'threadId': thread_id,
             'input': [{'type': 'text', 'text': text}]})
         turn_id = result['turn']['id']
         messages = []
+        streamed_items = set()
         async with asyncio.timeout(self.timeout):
             while True:
                 event = self.events.pop(0) if self.events else await self.receive()
@@ -109,10 +110,15 @@ class CodexConnection:
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:
                     continue
+                if event.get('method') == 'item/agentMessage/delta' and on_delta:
+                    streamed_items.add(params.get('itemId'))
+                    await on_delta(params.get('delta', ''))
                 if event.get('method') == 'item/completed':
                     item = params.get('item', {})
                     if item.get('type') == 'agentMessage':
                         messages.append(item['text'])
+                        if on_delta and item.get('id') not in streamed_items:
+                            await on_delta(item['text'])
                 if event.get('method') == 'turn/completed' and params['turn']['id'] == turn_id:
                     if params['turn']['status'] != 'completed':
                         raise RuntimeError('Codex turn failed; no reply was substituted')

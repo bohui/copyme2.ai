@@ -1,6 +1,6 @@
 ---
 name: memoir-memory-context
-description: Connect an explicitly recalled place to the storyteller's life stage and capture an explicitly requested timeline avatar style during typed or transcribed memoir conversation.
+description: Connect an explicitly recalled place to the storyteller's life stage and infer a timeline avatar style from clear self-identifying context during typed or transcribed memoir conversation.
 ---
 
 # Memory context
@@ -16,17 +16,29 @@ the currently selected workspace tab, or the storyteller's present age cannot
 establish the stage of a past memory. Emit the stage together with the place-journey
 marker when both are explicit. Keep date expressions in `story_focus.when`.
 
-Capture `avatar_style` as male or female only when the storyteller explicitly
-requests that illustration style or explicitly identifies that gender for their
-own timeline. Spoken words transcribed from voice use the same rule as typed words.
-Do not infer gender from a name, pitch, accent, photograph, or birthplace. Omit an
-unknown preference; do not ask a gender question merely to choose artwork. The
-profile menu lets the storyteller change the artwork at any time.
+Do not require the storyteller to select male or female artwork explicitly. Infer
+`avatar_style` as male or female from the storyteller's own words when the
+conversation makes their gender clear. Use a clearly gendered self-identifying
+name or title, a direct self-description, or a family/relationship statement that
+clearly identifies the storyteller—for example, “My parents have only one boy”
+when the surrounding conversation makes clear that boy is the storyteller, or “I
+married Ms Alice Yang” when the context identifies the storyteller as her male
+spouse. Treat transcribed words from a voice conversation exactly like typed words.
+Use the surrounding conversation to resolve who a name or relationship describes;
+do not assign the gender of a relative, spouse, or other person to the storyteller
+by mistake.
 
-Example after “I grew up in Chengde; use the female timeline pictures”:
+A name alone is only a weak cue: use it when the gender association is clear in
+context and there is no conflicting evidence. Do not infer gender from voice pitch
+or timbre, accent, photograph, or birthplace. If the evidence is ambiguous,
+conflicting, or refers only to someone else, omit `avatar_style`, do not ask a
+gender question merely to choose artwork, and preserve any previously saved style
+unless the storyteller corrects it. The profile menu remains an override.
+
+Example after “I grew up in Chengde. My parents had only one boy, and that's me.”:
 
 ```text
-[[MEMORY_SPARK_PROFILE]]{"avatar_style":"female","story_focus":{"where":"Chengde","life_stage":"childhood"}}[[/MEMORY_SPARK_PROFILE]]
+[[MEMORY_SPARK_PROFILE]]{"avatar_style":"male","story_focus":{"where":"Chengde","life_stage":"childhood"}}[[/MEMORY_SPARK_PROFILE]]
 ```
 
 The workspace preserves different places under each stage. Public reference pictures

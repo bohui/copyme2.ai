@@ -72,7 +72,7 @@ def main() -> int:
             "",
             "The test evidence uses deterministic providers and an explicit in-memory store. It proves the documented functional behavior, permissions, idempotency and failure guards; Supabase PostgreSQL durability is verified separately by the configured database check and is not exercised by this credential-free suite.",
             "",
-            "The full repository suite and the section 19.2 route audit are run separately by `make harness-check` through the Codex exec-server in Apple Container + Mocker.",
+            "The full repository suite and the section 19.2 route audit are run separately by `make container-check`.",
         ]
     )
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")

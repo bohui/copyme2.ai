@@ -48,6 +48,7 @@ services:
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
       MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
+      MEMORY_SPARK_TASK_DB: /var/lib/memoir-tasks/tasks.sqlite
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./apps/api:/app/apps/api:ro
@@ -55,6 +56,7 @@ services:
       - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
       - ./var/memory-spark:/var/lib/memory-spark
+      - memoir-tasks:/var/lib/memoir-tasks
     depends_on:
       codex-worker:
         condition: service_healthy
@@ -83,6 +85,7 @@ services:
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_LEGACY_CODEX_HOME: /var/lib/memory-spark/legacy-codex-users
+      MEMORY_SPARK_TASK_STORE_URL: http://api:8000
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
       MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
@@ -127,11 +130,19 @@ services:
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
       MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
       MEMORY_SPARK_WORKER_ID: ${MEMORY_SPARK_WORKER_ID:-memory-spark-worker}
+      MEMORY_SPARK_TASK_DB: /var/lib/memoir-tasks/tasks.sqlite
+      MEMORY_SPARK_TEMPORAL_ADDRESS: temporal:7233
+      MEMORY_SPARK_TEMPORAL_NAMESPACE: default
+      MEMORY_SPARK_TEMPORAL_TASK_QUEUE: memoir-tasks
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./apps/api:/app/apps/api:ro
       - ./scripts:/app/scripts:ro
       - ./var/memory-spark:/var/lib/memory-spark
+      - memoir-tasks:/var/lib/memoir-tasks
+    depends_on:
+      temporal:
+        condition: service_healthy
     command: ["python", "scripts/worker.py", "--interval", "2"]
     restart: unless-stopped
     healthcheck:
@@ -144,6 +155,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  temporal:
+    image: temporalio/temporal@sha256:ad4c82c97bd12b417d1ea942610dbcd511afb250c4d5ed26c694009533df447e
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/var/lib/temporal/temporal.sqlite"]
+    ports:
+      - "127.0.0.1:7233:7233"
+      - "127.0.0.1:8233:8233"
+    volumes:
+      - temporal-data:/var/lib/temporal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
   web:
     image: localhost/copyme2-web:dev
@@ -170,28 +197,7 @@ services:
       retries: 3
       start_period: 3s
 
-  codex-harness:
-    image: localhost/memory-spark-codex-harness:dev
-    build:
-      context: .
-      dockerfile: harness/Containerfile
-      # The harness needs the repository's Python test runtime in addition to
-      # the official Codex CLI so a local-provider Codex run can verify code.
-      args:
-        CODEX_VERSION: ${MEMORY_SPARK_CODEX_VERSION:-0.156.1}
-    ports:
-      - "127.0.0.1:${MEMORY_SPARK_CODEX_HARNESS_PORT:-8765}:8765"
-    working_dir: /workspace
-    environment:
-      CODEX_HOME: /codex-home
-      PATH: /opt/memory-spark-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
-      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
-      MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
-    volumes:
-      - .:/workspace:rw
-      - ./var/codex-home:/codex-home
-    restart: unless-stopped
-
 volumes:
   codex-worker-home:
+  memoir-tasks:
+  temporal-data:

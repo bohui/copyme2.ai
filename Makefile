@@ -3,7 +3,6 @@ APPLE_CONTAINER_BIN ?= /opt/homebrew/bin/container
 COMPOSE_FILE ?= compose.yml
 API_PORT ?= 8010
 WEB_PORT ?= 3010
-CODEX_HARNESS_PORT ?= 8765
 API_BASE ?= http://127.0.0.1:$(API_PORT)
 WEB_BASE ?= http://127.0.0.1:$(WEB_PORT)
 SERVICE ?= api
@@ -12,13 +11,11 @@ ENV_FILE ?= .env
 CONTAINER_IMAGES := \
 	localhost/memory-spark:dev \
 	localhost/memory-spark-codex-worker:dev \
-	localhost/memory-spark-codex-harness:dev \
 	localhost/copyme2-web:dev
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
-HARNESS_SERVICE ?= codex-harness
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test localization-catalog-test browser-test browser-localization-test browser-ten-round-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health harness-health harness-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test localization-catalog-test browser-test browser-localization-test browser-ten-round-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -49,11 +46,10 @@ db-truncate: ## Empty local app tables, Supabase Storage, and filesystem objects
 	set +a; \
 	python3 scripts/truncate_local_data.py --yes
 
-install_skill: check ## Package every repository skill, install it in the running Codex harness, then clean temporary ZIPs.
+install_skill: check ## Validate every repository skill, rebuild the skill-bearing app images, and restart their services.
 	@set -eu; \
 	test -n "$(strip $(SKILLS))" || { echo "No skills found under skills/."; exit 2; }; \
 	test -f "$(SKILL_PACKAGER)" || { echo "Missing skill packager: $(SKILL_PACKAGER)"; echo "Override SKILL_PACKAGER=/path/to/package_skill.py if needed."; exit 1; }; \
-	test -n "$$($(MOCKER) compose ps -f $(COMPOSE_FILE) -q $(HARNESS_SERVICE))" || { echo "Codex harness is not running. Start it with: make container-up"; exit 2; }; \
 	tmp_dir="$$(mktemp -d -t memory-spark-skills)"; \
 	trap 'rm -rf "$$tmp_dir"' EXIT INT TERM; \
 	for skill in $(SKILLS); do \
@@ -61,11 +57,10 @@ install_skill: check ## Package every repository skill, install it in the runnin
 		python3 "$(SKILL_PACKAGER)" "skills/$$skill" "$$tmp_dir"; \
 		archive="$$tmp_dir/$$skill.zip"; \
 		test -f "$$archive" || { echo "Skill packager did not create $$archive"; exit 1; }; \
-		$(MOCKER) compose exec -f $(COMPOSE_FILE) -i -T "$(HARNESS_SERVICE)" sh -c 'cat > "$$1"' sh "/tmp/$$skill.zip" < "$$archive"; \
-		$(MOCKER) compose exec -f $(COMPOSE_FILE) -T "$(HARNESS_SERVICE)" python3 /workspace/scripts/install_codex_skill.py "/tmp/$$skill.zip" "$$skill"; \
 	done; \
-	$(MOCKER) compose restart -f $(COMPOSE_FILE) "$(HARNESS_SERVICE)"; \
-	echo "Installed skills: $(SKILLS)"
+	$(MOCKER) compose build -f $(COMPOSE_FILE) api codex-worker; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --force-recreate --detach --wait --wait-timeout 120 codex-worker api; \
+	echo "Installed skills in api and codex-worker: $(SKILLS)"
 
 STRIPE_MODE ?= test
 MEMORY_SPARK_PUBLIC_URL ?=
@@ -149,7 +144,7 @@ container-build: runtime-start ## Build the local images without changing runnin
 	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE)
 
 container-up: runtime-start ## Start the local stack from cached images; use CONTAINER_BUILD=1 to rebuild.
-	@mkdir -p var/codex-home var/memory-spark
+	@mkdir -p var/memory-spark
 	@set -e; \
 	needs_build=0; \
 	for image in $(CONTAINER_IMAGES); do \
@@ -158,7 +153,6 @@ container-up: runtime-start ## Start the local stack from cached images; use CON
 			case "$$image" in \
 				localhost/memory-spark:dev) legacy_image=memory-spark:dev ;; \
 				localhost/memory-spark-codex-worker:dev) legacy_image=memory-spark-codex-worker:dev ;; \
-				localhost/memory-spark-codex-harness:dev) legacy_image=memory-spark-codex-harness:dev ;; \
 				localhost/copyme2-web:dev) legacy_image=copyme2-web:dev ;; \
 				esac; \
 			if test -n "$$legacy_image" && $(MOCKER) image inspect "$$legacy_image" >/dev/null 2>&1; then \
@@ -177,41 +171,29 @@ container-up: runtime-start ## Start the local stack from cached images; use CON
 	fi
 	@set -e; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
-	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-codex-harness-1 >/dev/null 2>&1 || true; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach api worker web codex-worker codex-harness; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 api worker web codex-worker codex-harness
+	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-temporal-1 >/dev/null 2>&1 || true; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach temporal api worker web codex-worker; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 temporal api worker web codex-worker
 	@$(MAKE) --no-print-directory container-health
 
-container-health: check ## Verify API, web shell, web-to-API proxy, and Codex harness.
-	@python3 scripts/verify_container_stack.py --api-base $(API_BASE) --web-base $(WEB_BASE) --harness-port $(CODEX_HARNESS_PORT) --expected-storage supabase-user-memory+filesystem-objects
-	@$(MAKE) --no-print-directory harness-health
+container-health: check ## Verify API, web, Temporal worker, and Codex worker.
+	@python3 scripts/verify_container_stack.py --api-base $(API_BASE) --web-base $(WEB_BASE) --expected-storage supabase-user-memory+filesystem-objects
+	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T worker python scripts/worker.py --readiness
 
-harness-health: check ## Verify the Codex exec-server protocol inside its container.
-	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness node /workspace/scripts/verify_codex_harness.mjs ws://127.0.0.1:8765
-
-harness-check: container-up ## Run the repository and specification checks inside the Codex harness container.
-	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness node /workspace/scripts/verify_codex_harness.mjs ws://127.0.0.1:8765 "python3 scripts/run_acceptance_evidence.py && python3 -m pytest -q && python3 scripts/audit_spec_routes.py --spec docs/Memory_Spark_Full_Specification_v1.0.md"
+container-check: ## Run the repository and specification checks locally.
+	@$(MAKE) --no-print-directory acceptance-evidence
+	@$(MAKE) --no-print-directory test
+	@$(MAKE) --no-print-directory spec-audit
 
 container-ps: check ## Show the running services.
 	@$(MOCKER) ps --format '{{.Names}} {{.Status}}' | awk '$$1 ~ /^memory-spark-/'
 	@$(MOCKER) compose ps -f $(COMPOSE_FILE)
 
-container-logs: check ## Follow logs for SERVICE=api, web, or codex-harness.
+container-logs: check ## Follow logs for SERVICE=api, web, codex-worker, or worker.
 	@$(MOCKER) compose logs -f $(COMPOSE_FILE) --tail 200 $(SERVICE)
 
 container-shell: check ## Open a shell in SERVICE=api.
 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -it $(SERVICE) sh
-
-# harness-provider-check: container-up ## Verify the harness is configured for the local llm_provider.
-# 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness sh -lc 'grep -q "model_provider = \"llm_provider\"" "$$CODEX_HOME/config.toml" && grep -q "requires_openai_auth = false" "$$CODEX_HOME/config.toml"'
-# 	@echo "Codex harness: local llm_provider configured; codex login is not required"
-
-# harness-run: container-up ## Run Codex against the local llm_provider; pass PROMPT='...'.
-# 	@test -n "$(PROMPT)" || { echo "Pass PROMPT='...'"; exit 2; }
-# 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T codex-harness codex exec --skip-git-repo-check --json --sandbox workspace-write "$(PROMPT)"
-
-# harness-logs: check ## Follow the Codex exec-server logs.
-# 	@$(MOCKER) compose logs -f $(COMPOSE_FILE) --tail 200 codex-harness
 
 container-down: check ## Stop and remove the stack.
 	@$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans

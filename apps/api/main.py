@@ -932,6 +932,10 @@ def create_app(
     app.include_router(supabase_router)
     from .agent_routes import router as agent_router
     app.include_router(agent_router)
+    from .collection_routes import router as collection_router
+    app.include_router(collection_router)
+    from .internal_tasks import router as internal_task_router
+    app.include_router(internal_task_router)
     from .realtime_routes import router as realtime_router
     app.include_router(realtime_router)
     from .story_routes import build_router as build_story_router
