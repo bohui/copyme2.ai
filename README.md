@@ -78,7 +78,7 @@ MEMORY_SPARK_TEST_MODE=1 python3 -m uvicorn apps.api.main:app --reload --host 12
 
 Install the web dependencies once with `npm --prefix apps/web ci`, then run the Next.js frontend with `MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8000 npm --prefix apps/web run dev -- --hostname 127.0.0.1 --port 3010`. Open [http://127.0.0.1:3010](http://127.0.0.1:3010). Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then enable **Allow manual linking** and **Allow anonymous sign-ins** under Supabase Auth → Sign In / Providers. Configure both Google and Facebook there as well; the browser uses Supabase `linkIdentity` after round five. See [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous) and [manual identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking#manual-linking-beta).
 
-Memoir's UI supports `en-AU` and `zh-CN` catalogues through `next-intl`. The language selector keeps the current URL, persists a device choice in `copyme2_ui_locale`, negotiates the browser language when no choice exists, and updates the authenticated Supabase user's `ui_locale` metadata when available. UI locale is independent from the optional interview-language preference: changing the interface never changes Mira's language, source language, edition language, time zone, or the memoir's AUD pricing. Exact dates/times are formatted with the UI locale while uncertain expressions remain expressions. Validate the catalogues with `make localization-catalog-test` and the rendered browser journey with `make browser-localization-test`. Sensitive copy is listed in [`apps/web/messages/human-review.json`](apps/web/messages/human-review.json) for human/native-speaker sign-off. The implementation spec is [`docs/Memoir_Localization_Spec.md`](docs/Memoir_Localization_Spec.md).
+Memoir's UI supports `en-AU` and `zh-CN` catalogues through `next-intl`. The language selector keeps the current URL, persists a device choice in `copyme2_ui_locale`, negotiates the browser language when no choice exists, and updates the authenticated Supabase user's `ui_locale` metadata when available. With no fixed device or account choice, the first substantive onboarding reply can switch the current UI session and first Mira response to its detected supported language; later interview replies and voice transcripts remain separate from UI locale. Source language, edition language, time zone, and memoir AUD pricing stay unchanged. Exact dates/times are formatted with the UI locale while uncertain expressions remain expressions. Validate the catalogues with `make localization-catalog-test` and the rendered browser journey with `make browser-localization-test`. Sensitive copy is listed in [`apps/web/messages/human-review.json`](apps/web/messages/human-review.json) for human/native-speaker sign-off. The implementation spec is [`docs/Memoir_Localization_Spec.md`](docs/Memoir_Localization_Spec.md).
 
 To enable server-side voice, set `OPENAI_API_KEY` in `.env`. The API uses `gpt-4o-mini-transcribe` for recordings and `gpt-4o-mini-tts` for spoken questions by default; override them with `MEMORY_SPARK_STT_MODEL` and `MEMORY_SPARK_TTS_MODEL`. Keep the key server-side. If it is unset or speech is unavailable, typed answers and browser read-aloud remain available.
 
@@ -227,8 +227,10 @@ Memoir keeps the evaluation runner beside the application and private
 identity/project and calls `CodexRuntime.turn(..., evaluation=..., include_trajectory=True)`.
 The recorder captures observable Codex protocol and application steps, pre-action
 context, normalized tool arguments, results/errors/retries, marker/state
-validation, persistence, and the terminal response while excluding private
-reasoning. Ordinary browser turns never request or return this payload.
+validation, persistence, deterministic task results, and the terminal response
+while excluding private reasoning. Each case declares its language, profile,
+memories, entitlement, enabled skills, available tools, and expected outcome.
+Ordinary browser turns never request or return this payload.
 
 Install the optional host-side SDK and run a case file with a callback module:
 
@@ -242,10 +244,11 @@ to publish the minimized root observation and deterministic scores to the
 project hosted by `llm_provider`. Full local results and per-case failure
 evidence are written under `var/evaluation-failures/`; the application and
 worker do not wait for Langfuse judges. Use the CLI's `--variant` option to
-compare model/provider or skill variants and `--judge-base-url` plus
-`--judge-model` to opt into the calibrated JSON judge. Dataset, rubric, skill
-manifest, model, provider, and case IDs are included in the correlation
-metadata. The publisher also exposes Langfuse SDK v4's `run_experiment` for
+compare model/provider or skill variants. The optional semantic judge requires
+`--judge-base-url`, `--judge-model`, and a calibration manifest explicitly
+marked `human-reviewed`; unreviewed examples are rejected. Dataset, rubric,
+application revision, skill manifest, model, provider, and case IDs are
+included in the correlation metadata. The publisher also exposes Langfuse SDK v4's `run_experiment` for
 synchronous dataset callbacks; the local runner is the async adapter for the
 real worker turn boundary.
 
@@ -321,3 +324,19 @@ python3 scripts/audit_spec_routes.py
 ```
 
 The full implementation covers consent, invitations, resumable uploads, cue reactions, evidence-linked memories, version conflicts, preview builds, checkout and verified webhooks, chapters, editions, audio links, print proofs, deletion tombstones, audit metadata, regional provider switches, Supabase persistence, and the Codex memory integration. Production merchant, regional processor, media-rights, supplier, legal, and reliability gates remain configuration and operations decisions outside this credential-free local implementation.
+
+### Historical photo search
+
+The app's photo endpoint searches catalogues independently of the Codex research
+skill. To enable Flickr alongside Wikimedia Commons and the Library of Congress,
+set `FLICKR_API_KEY` in the server `.env` using your own Flickr application key,
+then recreate the API service so Compose passes it through. Keep this key out of
+browser configuration. See [the API research notes](docs/Historical_Photo_API_Research.md)
+for sources, setup links and live coverage findings.
+
+Flickr queries use capture dates, bilingual Chengde/承德 terms and up to three
+pages per term. Only supported CC BY, CC BY-SA, CC0 or public-domain-marked items
+are admitted for embedding; noncommercial photos remain research leads. `1980`
+means that exact year; `1980s` means 1980–1989. The app reports a shortfall when
+fewer than ten qualifying photographs are found; adding an API does not guarantee
+coverage for every year and place.

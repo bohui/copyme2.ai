@@ -385,7 +385,8 @@ def build_loop_trace(*, memory_count: int, resumed: bool, saved_paths: int,
 
 class CodexRuntime:
     def __init__(self, *, home_root=None, command=None, provider_env=None, model=None,
-                 base_url=None, timeout=120, worker_url=None, worker_secret=None):
+                 base_url=None, timeout=120, worker_url=None, worker_secret=None,
+                 worker_transport=None, task_publisher_enabled=None):
         self.home_root = Path(home_root or os.getenv('MEMORY_SPARK_CODEX_HOME', 'var/codex-users'))
         self.command = command or [os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), 'app-server']
         self.provider_env = provider_env or {}
@@ -395,6 +396,17 @@ class CodexRuntime:
         self.timeout = timeout
         self.worker_url = (worker_url or os.getenv('MEMORY_SPARK_CODEX_WORKER_URL', '')).rstrip('/') or None
         self.worker_secret = worker_secret or os.getenv('MEMORY_SPARK_CODEX_WORKER_SECRET', '')
+        # Tests and local evaluation may inject an isolated HTTP transport while
+        # production continues to use the normal network client.
+        self.worker_transport = worker_transport
+        # Production keeps the existing task-database gate. Isolated
+        # evaluation fixtures may opt into the same workspace publication
+        # branch with their own deterministic publisher.
+        self.task_publisher_enabled = (
+            bool(os.getenv('MEMORY_SPARK_TASK_DB'))
+            if task_publisher_enabled is None
+            else bool(task_publisher_enabled)
+        )
         self._locks = {}
         self._workspace_locks = {}
         self._turn_sequences: dict[str, int] = {}
@@ -445,7 +457,9 @@ class CodexRuntime:
                    language: str = "en-AU", on_delta=None,
                    on_event=None,
                    evaluation: Mapping[str, Any] | None = None,
-                   include_trajectory: bool = False):
+                   include_trajectory: bool = False,
+                   evaluation_context: Mapping[str, Any] | None = None,
+                   first_reply_localization: bool = False):
         visible = VisibleText()
         turn_id = str(uuid4())
         progress = TurnProgress(on_event, turn_id, project_id, language)
@@ -472,6 +486,8 @@ class CodexRuntime:
                 language=language,
                 model=self.model,
             )
+            if evaluation_context:
+                trajectory.set_context(**dict(evaluation_context))
             trajectory.record('application', 'turn.received', input={
                 'text': text,
                 'project_id': project_id,
@@ -490,7 +506,20 @@ class CodexRuntime:
             profile = await lease.io(profile_reader) if callable(profile_reader) else {}
             language_updates = None
             saved_language = profile.get('preferred_language')
-            if saved_language in ('en-AU', 'zh-CN'):
+            if first_reply_localization:
+                # This is the explicitly requested first-reply exception. The
+                # browser has detected the supported language locally; resolve
+                # it before the visible worker turn and allow it to replace a
+                # legacy/default saved conversation language for this turn.
+                if on_event:
+                    await progress.update('language', 'Detecting the first reply language', '正在识别第一条回复的语言', skill='app-auto-localization')
+                inferred_language = guess_conversation_language(text, language)
+                language = inferred_language
+                language_updates = {'preferred_language': language}
+                profile = merge_profile_updates(profile, language_updates)
+                if on_event:
+                    await progress.update('language', 'First reply language detected', '第一条回复的语言已识别', skill='app-auto-localization', status='completed')
+            elif saved_language in ('en-AU', 'zh-CN'):
                 language = saved_language
             else:
                 # Streaming turns must not wait for a private language model
@@ -833,6 +862,9 @@ class CodexRuntime:
                         'family_context_revision': (family_context or {}).get('revision') if isinstance(family_context, dict) else None,
                         'task_count': len(tasks),
                         'task_error_count': len(task_errors),
+                        'task_kinds': [task.get('kind') for task in tasks if isinstance(task, Mapping)],
+                        'task_statuses': [task.get('status') for task in tasks if isinstance(task, Mapping)],
+                        'task_results': tasks,
                     },
                 )
             response = {
@@ -1291,7 +1323,7 @@ class CodexRuntime:
         if project_id and os.getenv('MEMORY_SPARK_TASK_DB'):
             from .task_queue import configured_queue
             await asyncio.to_thread(configured_queue().invalidate_readiness, user_id, project_id)
-        if task_requests and project_id and os.getenv('MEMORY_SPARK_TASK_DB'):
+        if task_requests and project_id and self.task_publisher_enabled:
             sources = self._task_sources(memories)
             for request in task_requests:
                 try:
@@ -1444,7 +1476,10 @@ class CodexRuntime:
                 async def consume_worker_stream():
                     terminal = None
                     try:
-                        async with httpx.AsyncClient(timeout=self.timeout + 15) as client:
+                        client_options = {'timeout': self.timeout + 15}
+                        if self.worker_transport is not None:
+                            client_options['transport'] = self.worker_transport
+                        async with httpx.AsyncClient(**client_options) as client:
                             async with client.stream(
                                 'POST',
                                 f'{self.worker_url}/internal/codex/turn',
@@ -1482,7 +1517,10 @@ class CodexRuntime:
                 result = dict(result)
                 result['_artifact_task'] = artifact_task
             else:
-                async with httpx.AsyncClient(timeout=self.timeout + 15) as client:
+                client_options = {'timeout': self.timeout + 15}
+                if self.worker_transport is not None:
+                    client_options['transport'] = self.worker_transport
+                async with httpx.AsyncClient(**client_options) as client:
                     response = await client.post(
                         f'{self.worker_url}/internal/codex/turn',
                         headers={'X-Codex-Worker-Secret': self.worker_secret},

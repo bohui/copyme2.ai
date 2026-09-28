@@ -1,6 +1,9 @@
 export const locales = ["en-AU", "zh-CN"];
 export const defaultLocale = "en-AU";
 export const localeCookie = "copyme2_ui_locale";
+// Keep cookie provenance separate from the legacy locale value so a default
+// or inferred cookie is not mistaken for a deliberate device choice.
+export const localeSourceCookie = "copyme2_ui_locale_source";
 
 export const localeLabels = {
   "en-AU": "English",

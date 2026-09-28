@@ -72,6 +72,30 @@ def test_saved_language_overrides_ui_locale_without_repeating_intake(monkeypatch
     asyncio.run(runtime.turn(storage, '你好', language='en-AU'))
 
 
+def test_first_reply_localization_overrides_legacy_saved_language(monkeypatch):
+    storage = Storage({'preferred_language': 'en-AU'})
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='test')
+    calls = []
+
+    async def worker(**kwargs):
+        calls.append(kwargs)
+        if kwargs.get('agent_role', 'collector') == 'collector':
+            assert kwargs['language'] == 'zh-CN'
+            assert kwargs['profile']['preferred_language'] == 'zh-CN'
+        return {'thread_id': 'conversation', 'reply': '你好。', 'artifacts': []}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker)
+    result = asyncio.run(runtime.turn(
+        storage,
+        '我叫慧博，现在生活在悉尼。',
+        language='zh-CN',
+        on_delta=lambda _chunk: None,
+        first_reply_localization=True,
+    ))
+    assert calls
+    assert result['profile_updates']['preferred_language'] == 'zh-CN'
+
+
 @pytest.mark.parametrize('reply', ['not JSON', '{}', '{"preferred_language":"fr"}',
                                   '{"preferred_language":[]}'])
 def test_invalid_intake_stops_before_visible_generation(monkeypatch, reply):

@@ -6,7 +6,7 @@ import { useLocale, useMessages, useTranslations } from "next-intl";
 
 import enAU from "../messages/en-AU.json";
 import zhCN from "../messages/zh-CN.json";
-import { localeCookie, locales } from "../i18n/config";
+import { localeCookie, localeSourceCookie, locales } from "../i18n/config";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 const messageCatalogues = { "en-AU": enAU, "zh-CN": zhCN };
@@ -49,6 +49,7 @@ export default function MemoirClientShell() {
     const nextMessages = messageCatalogues[nextLocale];
     if (persistAccount) {
       document.cookie = `${localeCookie}=${encodeURIComponent(nextLocale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+      document.cookie = `${localeSourceCookie}=fixed; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
     }
     globalThis.__copyme2Intl = { locale: nextLocale, messages: nextMessages };
     document.documentElement.lang = nextLocale;

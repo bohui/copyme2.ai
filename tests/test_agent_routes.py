@@ -122,6 +122,38 @@ def test_agent_turn_keeps_conversation_language_optional(monkeypatch):
     assert captured["language"] is None
 
 
+def test_agent_turn_passes_first_reply_localization_only_when_requested(monkeypatch):
+    class Client:
+        def close(self):
+            return None
+
+    class Storage:
+        client = Client()
+        user_id = "11111111-1111-4111-8111-111111111111"
+
+    captured = {}
+
+    class Runtime:
+        async def turn(self, storage, text, *, project_id=None, language=None, first_reply_localization=False):
+            captured.update(text=text, project_id=project_id, language=language,
+                            first_reply_localization=first_reply_localization)
+            return {"reply": "你好。"}
+
+    monkeypatch.setattr(agent_routes, "authenticated_storage", lambda authorization: Storage())
+    monkeypatch.setattr(agent_routes, "runtime", Runtime())
+    client = TestClient(create_app(MemoryStore()))
+
+    response = client.post(
+        "/v1/agent/turn",
+        json={"text": "我叫慧博", "project_id": "project-1", "language": "zh-CN",
+              "first_reply_localization": True},
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 200
+    assert captured["first_reply_localization"] is True
+
+
 def test_streaming_agent_turn_forwards_saved_reply_before_workspace_events(monkeypatch):
     class Client:
         def close(self):

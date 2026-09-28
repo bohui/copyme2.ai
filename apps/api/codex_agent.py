@@ -120,7 +120,12 @@ class CodexConnection:
         if metadata:
             params['responsesapiClientMetadata'] = {
                 key: value for key, value in metadata.items()
-                if key in {'run_id', 'case_id', 'dataset', 'skill_hash', 'generation_name', 'evaluator_version'}
+                if key in {
+                    'run_id', 'case_id', 'dataset', 'dataset_version',
+                    'application_revision', 'skill_hash', 'generation_name',
+                    'evaluator_version', 'rubric_version', 'judge_rubric_version',
+                    'model', 'provider', 'variant',
+                }
             }
         result = await self.request('turn/start', params)
         turn_id = result['turn']['id']

@@ -24,6 +24,7 @@ from apps.api.trajectory_evaluation import (
     MemoirEvaluationRunner,
     OpenAICompatibleJudge,
     comparison_matrix,
+    load_judge_calibration,
 )
 
 
@@ -44,7 +45,10 @@ def _load_cases(path: Path) -> tuple[list[Mapping[str, Any]], Mapping[str, Any]]
     if not isinstance(cases, list) or not all(isinstance(case, Mapping) for case in cases):
         raise ValueError("Case file must contain a JSON array or {\"cases\": [...]}")
     defaults = {key: payload[key] for key in ("dataset", "dataset_version") if isinstance(payload, Mapping) and payload.get(key)}
-    return [{**defaults, **dict(case)} for case in cases], defaults
+    case_defaults = payload.get("case_defaults") if isinstance(payload, Mapping) else {}
+    if not isinstance(case_defaults, Mapping):
+        case_defaults = {}
+    return [{**case_defaults, **defaults, **dict(case)} for case in cases], {**defaults, **dict(case_defaults)}
 
 
 async def _invoke(callback, case, correlation):
@@ -72,7 +76,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def _main(args: argparse.Namespace) -> list[dict[str, Any]]:
+async def _main(args: argparse.Namespace) -> Any:
     callback = _load_callable(args.task)
     cases, _dataset_metadata = _load_cases(args.cases)
     publisher = LangfusePublisher() if args.publish else None
@@ -80,10 +84,10 @@ async def _main(args: argparse.Namespace) -> list[dict[str, Any]]:
     if args.judge_base_url or args.judge_model:
         if not args.judge_base_url or not args.judge_model:
             raise ValueError("--judge-base-url and --judge-model must be supplied together")
-        calibration = []
-        if args.judge_calibration:
-            payload = json.loads(args.judge_calibration.read_text(encoding="utf-8"))
-            calibration = payload if isinstance(payload, list) else payload.get("examples", [])
+        if not args.judge_calibration:
+            raise ValueError("--judge-calibration is required when enabling the semantic judge")
+        payload = json.loads(args.judge_calibration.read_text(encoding="utf-8"))
+        calibration = load_judge_calibration(payload)
         judges.append(OpenAICompatibleJudge(
             base_url=args.judge_base_url,
             model=args.judge_model,

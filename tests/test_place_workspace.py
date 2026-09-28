@@ -126,3 +126,96 @@ def test_project_rejects_malformed_place_history_without_losing_saved_profile():
     assert response.status_code == 422
     saved = client.get(f"/v1/projects/{project['id']}", headers=headers).json()
     assert saved['revision'] == project['revision']
+
+
+def test_flickr_search_uses_capture_dates_bilingual_queries_and_pagination(monkeypatch):
+    import httpx
+    from apps.api.place_photos import _flickr
+    monkeypatch.setenv('FLICKR_API_KEY', 'test-key')
+    calls = []
+    def get(url, **kwargs):
+        params = kwargs['params']
+        if params['method'] == 'flickr.photos.licenses.getInfo':
+            data = {'licenses': {'license': [
+                {'id': '4', 'name': 'Attribution 2.0', 'url': 'https://creativecommons.org/licenses/by/2.0/'},
+                {'id': '1', 'name': 'Noncommercial', 'url': 'https://creativecommons.org/licenses/by-nc/2.0/'},
+            ]}}
+        elif params['method'] == 'flickr.urls.lookupUser':
+            data = {'user': {}}
+        else:
+            calls.append(params)
+            assert params['min_taken_date'] == '1980-01-01 00:00:00'
+            assert params['max_taken_date'] == '1989-12-31 23:59:59'
+            assert params['license'] == '4'
+            assert 'min_upload_date' not in params
+            photos = []
+            if params['text'] == '承德':
+                for index in range(10):
+                    photos.append({'id': str(index + 1), 'owner': '123@N01', 'ownername': 'Photographer',
+                        'title': '承德街景', 'datetaken': '1983-10-01 00:00:00', 'license': '4',
+                        'url_z': f'https://live.staticflickr.com/1/{index}.jpg'})
+            data = {'photos': {'pages': 2, 'photo': photos}}
+        return httpx.Response(200, json={'stat': 'ok', **data}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', get)
+    photos = _flickr('Chengde', '1980s')
+    assert len(photos) == 10
+    assert [(c['text'], c['page']) for c in calls] == [('Chengde', 1), ('Chengde', 2), ('承德', 1)]
+    assert photos[0]['license'] == 'Attribution 2.0'
+
+
+def test_flickr_rejects_wrong_year_unknown_date_and_unlicensed_photos(monkeypatch):
+    import httpx
+    from apps.api.place_photos import _flickr
+    monkeypatch.setenv('FLICKR_API_KEY', 'test-key')
+    def get(url, **kwargs):
+        params = kwargs['params']
+        if params['method'] == 'flickr.photos.licenses.getInfo':
+            data = {'licenses': {'license': [{'id': '4', 'name': 'Attribution', 'url': 'https://creativecommons.org/licenses/by/2.0/'}]}}
+        else:
+            assert params['max_taken_date'] == '1980-12-31 23:59:59'
+            base = {'id': '1', 'owner': '123@N01', 'title': 'Chengde street', 'datetaken': '1980-10-01',
+                    'license': '4', 'url_z': 'https://live.staticflickr.com/1/1.jpg'}
+            data = {'photos': {'pages': 1, 'photo': [
+                {**base, 'datetaken': '1983-10-01'}, {**base, 'datetakenunknown': '1'},
+                {**base, 'license': '0'}, {**base, 'title': 'Chengdu street'},
+                {**base, 'url_z': 'https://untrusted.example/photo.jpg'}, base]}}
+        return httpx.Response(200, json={'stat': 'ok', **data}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', get)
+    photos = _flickr('Chengde', '1980')
+    assert len(photos) == 2  # same item encountered in both language queries
+    assert len({p['asset_id'] for p in photos}) == 1
+
+
+def test_flickr_without_key_does_not_call_network(monkeypatch):
+    from apps.api.place_photos import _flickr
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    monkeypatch.setattr('httpx.get', lambda *a, **k: (_ for _ in ()).throw(AssertionError('unexpected call')))
+    assert _flickr('Chengde', '1980s') == []
+
+
+def test_flickr_album_expansion_keeps_generic_titles_but_checks_each_date(monkeypatch):
+    import httpx
+    from apps.api.place_photos import _flickr
+    monkeypatch.setenv('FLICKR_API_KEY', 'test-key')
+    def get(url, **kwargs):
+        params = kwargs['params']
+        method = params['method']
+        if method == 'flickr.photos.licenses.getInfo':
+            data = {'licenses': {'license': [{'id': '4', 'name': 'Attribution', 'url': 'https://creativecommons.org/licenses/by/2.0/'}]}}
+        elif method == 'flickr.urls.lookupUser':
+            data = {'user': {'id': '123@N01'}}
+        elif method == 'flickr.photosets.getPhotos':
+            assert params['photoset_id'] == '72157614775600805'
+            assert 'text' not in params and 'min_taken_date' not in params
+            base = {'title': 'Willow trees', 'datetaken': '1983-10-01', 'license': '4',
+                    'url_z': 'https://live.staticflickr.com/1/1.jpg'}
+            data = {'photoset': {'pages': 1, 'photo': [{'id': '1', **base},
+                {**base, 'id': '2', 'datetaken': '1990-01-01'}]}}
+        else:
+            data = {'photos': {'pages': 1, 'photo': []}}
+        return httpx.Response(200, json={'stat': 'ok', **data}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', get)
+    photos = _flickr('Chengde', '1980s')
+    assert len(photos) == 1
+    assert photos[0]['title'] == 'Willow trees'
+    assert photos[0]['source_url'] == 'https://www.flickr.com/photos/123@N01/1/'

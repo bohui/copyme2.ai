@@ -2,11 +2,11 @@
 
 CopyMe2 Memoir has locale values in its domain and speech flows, but the browser experience is still predominantly hard-coded in English. A storyteller or family member cannot choose a Chinese interface, keep that choice after a refresh, or use a different interface language from another family member without changing the meaning of the memoir journey.
 
-This creates a more serious boundary problem than untranslated buttons. The interface and Mira's response language can currently drift apart, while UI language, source language, book-edition language, time zone, and hosting region risk being treated as one setting. Aligning the active conversation with the configured UI locale must not translate or rewrite original memories, change an edition, alter AUD pricing, or move private data between regions.
+This creates a more serious boundary problem than untranslated buttons. The interface and Mira's response language can currently drift apart, while UI language, source language, book-edition language, time zone, and hosting region risk being treated as one setting. Keeping these settings separate must not translate or rewrite original memories, change an edition, alter AUD pricing, or move private data between regions.
 
 ## Solution
 
-Add reviewed localization to the Next.js Memoir frontend with `next-intl` and Git-managed JSON message catalogues. V1 supports `en-AU` and `zh-CN`, keeps the existing `/memoir/*` and `/voice` URLs unchanged, and uses one component tree for both languages. The UI locale is independent from the optional interview language: Mira's opening and follow-up response language is inferred or profile-selected without allowing a UI change, a first reply, or a voice transcript to rewrite the page locale.
+Add reviewed localization to the Next.js Memoir frontend with `next-intl` and Git-managed JSON message catalogues. V1 supports `en-AU` and `zh-CN`, keeps the existing `/memoir/*` and `/voice` URLs unchanged, and uses one component tree for both languages. The UI locale remains independent from the optional interview language, with one bounded onboarding exception requested by the product: when there is no fixed device or account choice, the first substantive reply may switch the current UI session and Mira's first response to its detected supported language. Later interview replies and voice transcripts never rewrite the page locale.
 
 Resolve the UI locale in this order:
 
@@ -14,6 +14,13 @@ Resolve the UI locale in this order:
 2. The signed-in account's UI preference when no device choice exists.
 3. A locale match from the browser language preference.
 4. The application default, `en-AU`.
+
+On a new onboarding session without a fixed device or account choice, the first
+substantive reply may provide a temporary supported-locale signal. This signal
+is local, bounded to that first reply, and never writes a fixed account or device
+preference. A legacy locale cookie without provenance is treated as migratable
+automatic state; a newly written fixed-source cookie and an account preference
+remain authoritative.
 
 Store the device choice in the locale cookie. When an authenticated user changes language, persist the same UI preference to that account as well. The resolved UI locale is used for product copy, dates, times, and browser speech presentation; conversation language is a separate optional profile field passed to the runtime. Source language, edition language, time zone, and hosting region remain independent. Memoir translation remains a separate language-aware workflow.
 
@@ -30,7 +37,7 @@ Store the device choice in the locale cookie. When an authenticated user changes
 9. As a storyteller, I want the first server-rendered view to use the resolved language, so that I do not see a flash of English before Chinese appears.
 10. As a storyteller, I want the same Memoir components and interactions in both languages, so that localization changes words rather than product behavior.
 11. As a storyteller recording a memory, I want a language change to wait until the current recording is safely saved, so that changing UI language cannot discard audio or transcript state.
-12. As a storyteller, I want Mira's responses, opening message, and voice controls to use the same language as the configured interface, so that the conversation never unexpectedly switches back to English.
+12. As a storyteller, I want Mira's responses and voice controls to follow the configured interview language when one exists, while the interface remains independently localized, so that either setting can change without silently changing the other.
 13. As a storyteller, I want the original transcript and source wording to remain unchanged when I change the interface language, so that the source of my memoir remains authoritative.
 14. As a family member reviewing a book, I want the selected book edition language to remain independent from my current UI language, so that viewing Chinese controls does not switch an English edition.
 15. As a customer, I want prices and payment messages localized in wording and number formatting while the currency remains AUD, so that language choice never changes what I am charged.
@@ -58,8 +65,8 @@ Store the device choice in the locale cookie. When an authenticated user changes
 - UI messages use complete ICU messages with named placeholders and plural rules. Translated fragments are not assembled by concatenating separately translated words.
 - Date, time, number, and currency formatting uses locale-aware `Intl`/`next-intl` formatting. Currency remains `AUD`; uncertain memoir date expressions remain expressions rather than being converted into fabricated exact dates.
 - Backend responses used by the localized UI expose stable error/status codes and safe parameters. The frontend maps known codes to reviewed messages and uses a generic localized fallback for unknown codes.
-- UI locale state remains separate from storyteller profile language, source/transcript language, requested edition locale, time zone, and hosting region. Project creation and agent turns carry an optional allowlisted conversation language only when explicitly configured; otherwise the runtime infers it from the storyteller message. A locale change does not translate source material, consume an interview allowance, alter an approved manuscript, or move storage.
-- The language contract is implemented at the conversation boundary rather than by rewriting the model-provider configuration. The provider/model stays stable while the current locale is supplied on every turn, which makes an in-progress conversation safe to continue after a UI-language change.
+- UI locale state remains separate from storyteller profile language, source/transcript language, requested edition locale, time zone, and hosting region after the bounded first-reply bridge. Project creation and agent turns carry an optional allowlisted conversation language; the first reply can supply a temporary detected value before the runtime turn. A locale change does not translate source material, consume an interview allowance, alter an approved manuscript, or move storage.
+- The language contract is implemented at the conversation boundary rather than by rewriting the model-provider configuration. The provider/model stays stable while the optional conversation language is supplied on every turn, which makes an in-progress conversation safe to continue after a UI-language change.
 - The localization boundary remains compatible with the existing API namespace adapter and Supabase session flows. Account preference persistence updates only the authenticated user's UI preference and never mutates shared memoir content.
 - Existing browser-only recording, speech, place journey, family context, and timeline behavior remains available through the Next.js client boundary while visible copy is moved behind the shared message interface. A locale change during active recording is deferred until safe persistence is complete.
 - Translation catalogues are reviewed in Git. Automated catalogue checks run before screen tests, including ICU parsing and placeholder parity. Sensitive keys are listed in `apps/web/messages/human-review.json`; native-speaker review is required for consent, payment, privacy, and Mira's core introduction.

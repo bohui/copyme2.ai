@@ -27,6 +27,10 @@ class TurnInput(BaseModel):
     # storyteller has not explicitly chosen a conversation language so the
     # runtime can infer it from the conversation without changing the UI.
     language: Literal['en-AU', 'zh-CN'] | None = None
+    # The browser sends this only for the first onboarding answer. It is a
+    # bounded exception that lets the requested app-localization bridge win
+    # over a legacy/default saved conversation language for that turn.
+    first_reply_localization: bool = False
 
 
 class ProfileSettingsInput(BaseModel):
@@ -118,20 +122,27 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     if 'application/x-ndjson' in accept:
+        async def run_stream(emit):
+            options = {
+                'project_id': payload.project_id,
+                'language': payload.language,
+                'on_delta': emit,
+                'on_event': emit.event,
+            }
+            if payload.first_reply_localization:
+                options['first_reply_localization'] = True
+            return await runtime.turn(storage, payload.text, **options)
+
         return StreamingResponse(
-            turn_events(lambda emit: runtime.turn(storage, payload.text, project_id=payload.project_id,
-                                                 language=payload.language, on_delta=emit,
-                                                 on_event=emit.event),
+            turn_events(run_stream,
                         cleanup=lambda: asyncio.to_thread(storage.client.close)),
             media_type='application/x-ndjson', headers=STREAM_HEADERS,
         )
     try:
-        return await runtime.turn(
-            storage,
-            payload.text,
-            project_id=payload.project_id,
-            language=payload.language,
-        )
+        options = {'project_id': payload.project_id, 'language': payload.language}
+        if payload.first_reply_localization:
+            options['first_reply_localization'] = True
+        return await runtime.turn(storage, payload.text, **options)
     except (httpx.HTTPStatusError, httpx.RequestError) as error:
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     except AgentTurnBusyError as error:

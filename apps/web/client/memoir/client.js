@@ -210,10 +210,44 @@ function readCookie(name) {
 
 const UI_LOCALES = new Set(["en-AU", "zh-CN"]);
 const UI_LOCALE_COOKIE = "copyme2_ui_locale";
+const UI_LOCALE_SOURCE_COOKIE = "copyme2_ui_locale_source";
 
 function writeUiLocaleCookie(locale) {
   if (!UI_LOCALES.has(locale)) return;
   document.cookie = `${UI_LOCALE_COOKIE}=${encodeURIComponent(locale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+}
+
+function writeUiLocaleSource(source = "fixed") {
+  if (!["fixed", "automatic"].includes(source)) return;
+  document.cookie = `${UI_LOCALE_SOURCE_COOKIE}=${source}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+}
+
+function firstReplyLanguage(text) {
+  const letters = Array.from(String(text || "")).filter((character) => /\p{L}/u.test(character));
+  if (!letters.length) return undefined;
+  const han = letters.filter((character) => /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u.test(character)).length;
+  if (han >= 2 && han / letters.length >= 0.35) return "zh-CN";
+  const latin = letters.filter((character) => /[A-Za-z]/u.test(character)).length;
+  if (latin >= 3 && latin / letters.length >= 0.6) return "en-AU";
+  return undefined;
+}
+
+function hasFixedUiLocale() {
+  if (readCookie(UI_LOCALE_SOURCE_COOKIE) === "fixed") return true;
+  const accountLocale = state.supabase?.user?.user_metadata?.ui_locale;
+  return UI_LOCALES.has(accountLocale);
+}
+
+async function applyFirstReplyLocalization(locale) {
+  if (!UI_LOCALES.has(locale) || hasFixedUiLocale()) return false;
+  const setUiLocale = globalThis.__copyme2SetUiLocale;
+  if (typeof setUiLocale !== "function") return false;
+  // This is the explicitly requested product exception: only the first
+  // onboarding answer may provide a bounded UI-language signal. It changes
+  // the current session and never writes account metadata.
+  const changed = await setUiLocale(locale, { persistAccount: false });
+  if (changed) writeUiLocaleSource("automatic");
+  return changed;
 }
 
 function installUiLocaleBridge() {
@@ -296,6 +330,7 @@ function syncSupabaseSession(session) {
   const accountLocale = session?.user?.user_metadata?.ui_locale;
   if (UI_LOCALES.has(accountLocale) && !readCookie(UI_LOCALE_COOKIE)) {
     writeUiLocaleCookie(accountLocale);
+    writeUiLocaleSource("fixed");
     if (globalThis.__copyme2Intl?.locale && globalThis.__copyme2Intl.locale !== accountLocale) {
       window.location.reload();
     }
@@ -387,7 +422,7 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
   ];
 }
 
-async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage()) {
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false) {
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
@@ -457,7 +492,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         if (!step?.id) return;
         const index = liveTrace.findIndex(item => item.id === step.id);
         if (index < 0) liveTrace.push(step);
-        else liveTrace[index] = step;
+        else if (step.status === "completed" || step.status === "failed") {
+          liveTrace.splice(index, 1);
+          liveTrace.push(step);
+        } else liveTrace[index] = step;
         if (!streamedMessage) {
           streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
           state.chat.push(streamedMessage);
@@ -477,7 +515,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           .catch((error) => toast(error.message));
         return workspaceUpdateQueue;
       }
-    }, language);
+    }, language, firstReplyLocalization);
     // A saved reply is ready even when an earlier workspace write is pending.
     // Legacy responses still need their bundled workspace applied here.
     if (!body.conversation_saved) {
@@ -495,13 +533,13 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   }
 }
 
-async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage()) {
+async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false) {
   const response = await fetch(memoirApiPath("/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
       Authorization: `Bearer ${state.supabase.accessToken}`,
       "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf") },
-    body: JSON.stringify({ text, project_id: state.project?.id || null, language }),
+    body: JSON.stringify({ text, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }),
   });
   if (response.status === 401) {
     state.supabase.accessToken = null;
@@ -706,12 +744,19 @@ function updateStreamingAssistantMessage(message) {
   const scroll = $("#chat-scroll");
   const followConversation = !scroll || scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 48;
   const text = row.querySelector(".message-text");
-  if (text) text.innerHTML = formatText(message.text);
+  const responseStarted = Boolean(message.text) && Boolean(text?.hidden);
+  if (text) {
+    text.innerHTML = formatText(message.text);
+    text.hidden = !message.text;
+  }
+  const traceHtml = renderAgentTrace(message.trace || [], message.traceMode, message.streaming && !message.text);
+  const thinking = row.querySelector(".message-thinking");
+  if (thinking) thinking.hidden = !message.streaming || Boolean(message.text) || Boolean(traceHtml);
   const trace = row.querySelector(".message-trace");
   if (trace) {
     const expanded = trace.querySelector("details")?.open;
-    trace.innerHTML = message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
-    if (expanded !== undefined && trace.querySelector("details")) trace.querySelector("details").open = expanded;
+    trace.innerHTML = traceHtml;
+    if (!responseStarted && expanded !== undefined && trace.querySelector("details")) trace.querySelector("details").open = expanded;
   }
   if (scroll && followConversation) scroll.scrollTop = scroll.scrollHeight;
 }
@@ -1859,7 +1904,7 @@ function renderStory() {
       <div class="conversation-layout">
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
           <div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div><div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span></div></div>
-          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking"><span></span><span></span><span></span><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
+          <div id="chat-scroll" class="chat-scroll">${state.chat.map(renderMessage).join("")}${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
           ${chatComposer()}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
@@ -2384,19 +2429,20 @@ function renderMessage(message) {
   }
   const streaming = Boolean(message.streaming);
   const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
-  const cues = !streaming && message.cues?.length && !workspaceHasContent() ? renderCueCards(message.cues) : "";
-  const trace = message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
+  const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !message.text);
   const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}<div class="message-trace" aria-live="polite">${trace}</div>${cues}${action}</div></article>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !message.text && !trace ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${message.text ? "" : "hidden"}>${formatText(message.text)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
-function renderAgentTrace(trace, mode = "simulated") {
+function renderAgentTrace(trace, mode = "simulated", expanded = false) {
   if (!state.showThinkingSteps) return "";
+  // Routine transport and persistence events are not useful conversation steps.
+  const visibleSteps = trace.filter(step => !["context", "reply", "save"].includes(step.id)
+    && (step.id !== "workspace" || ["completed", "failed"].includes(step.status)));
+  if (!visibleSteps.length) return "";
   const title = escapeHtml(translate("Memoir.trace.title"));
-  const count = escapeHtml(translateWith("Memoir.trace.stepCount", { count: trace.length }));
-  const note = escapeHtml(translate("Memoir.trace.note"));
-  const steps = trace.map((step) => `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}"><span class="agent-loop-kind">${escapeHtml(step.label || step.kind || "step")}${step.status ? `<small> · ${escapeHtml(translate(`Memoir.trace.status.${step.status}`))}</small>` : ""}</span><span class="agent-loop-detail">${escapeHtml(step.detail || "")}</span></li>`).join("");
-  return `<details class="agent-loop" ${mode === "live" && trace.some(step => step.status === "running") ? "open" : ""}><summary><span>${title}</span><small>${count}</small></summary><p class="agent-loop-note">${note}</p><ol class="agent-loop-list">${steps}</ol></details>`;
+  const steps = visibleSteps.map((step) => `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}"><span class="agent-loop-detail">${escapeHtml(step.detail || step.label || "")}</span></li>`).join("");
+  return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}</ol></details>`;
 }
 
 function renderCueCards(cues) {
@@ -2556,12 +2602,15 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
+  const firstReply = profileIntake && !state.chat.some((message) => message.role === "user");
+  const detectedFirstReplyLanguage = firstReply ? firstReplyLanguage(messageText) : undefined;
   if ($("#chat-input")) $("#chat-input").value = "";
   state.chat.push({ role: "user", text: messageText, attachments });
   state.audioUploadId = null;
   state.audioTranscript = "";
   render();
   try {
+    if (detectedFirstReplyLanguage) await applyFirstReplyLocalization(detectedFirstReplyLanguage);
     const session = await ensureMemorySession();
     let cues = [];
     let action = null;
@@ -2585,7 +2634,13 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       }
     }
     const mediaContext = attachments.length ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
-    const result = await agentTurn(`The storyteller said: ${messageText}\n${instruction}${mediaContext}`, fallback, ["memory.save", "memory.search"]);
+    const result = await agentTurn(
+      `The storyteller said: ${messageText}\n${instruction}${mediaContext}`,
+      fallback,
+      ["memory.save", "memory.search"],
+      detectedFirstReplyLanguage || conversationLanguage(),
+      Boolean(detectedFirstReplyLanguage),
+    );
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
     await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action: result.streamedMessage?.failed ? null : action });
     if (state.voiceMode) await speakVoiceReply(result.reply || fallback);

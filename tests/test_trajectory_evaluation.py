@@ -2,6 +2,7 @@ import asyncio
 import json
 
 import httpx
+import pytest
 
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import CodexRuntime
@@ -13,6 +14,7 @@ from apps.api.trajectory_evaluation import (
     build_judge_input,
     comparison_matrix,
     evaluate_trajectory,
+    load_judge_calibration,
     minimize_for_langfuse,
 )
 
@@ -78,6 +80,53 @@ def test_provider_payload_minimizes_storyteller_text_and_identifiers():
     assert minimized["status"] == "completed"
 
 
+def test_marker_gate_requires_a_valid_json_payload():
+    recorder = TrajectoryRecorder()
+    recorder.record(
+        "worker",
+        "worker.turn.completed",
+        output={"reply": "[[MEMORY_SPARK_PLACE_JOURNEY]]not-json[[/MEMORY_SPARK_PLACE_JOURNEY]]"},
+    )
+    recorder.finish("done")
+
+    scores = evaluate_trajectory(recorder.payload(), expected={"marker_syntax": True})
+    assert next(score for score in scores if score["name"] == "marker_syntax")["value"] == 0
+
+
+def test_evaluator_credits_a_bounded_retry_but_not_a_duplicate_success():
+    recorder = TrajectoryRecorder()
+    recorder.record(
+        "worker",
+        "tool.call",
+        input={"name": "memory.search", "arguments": {"query": "Geelong"}},
+        error={"code": "TRANSIENT"},
+    )
+    recorder.record(
+        "worker",
+        "tool.call",
+        input={"name": "memory.search", "arguments": {"query": "Geelong"}},
+        output={"count": 1},
+    )
+    recorder.record("application", "worker.turn.completed")
+    recorder.finish("done")
+
+    scores = evaluate_trajectory(
+        recorder.payload(),
+        expected={
+            "allowed_action_sets": [["tool.call", "tool.call", "worker.turn.completed"]],
+            "allowed_tools": ["memory.search"],
+            "max_retries": 1,
+            "max_repeated_success": 1,
+        },
+    )
+    values = {score["name"]: score["value"] for score in scores}
+    assert values["equivalent_valid_path"] == 1
+    assert values["retry_budget"] == 1
+    assert values["recovery"] == 1
+    assert values["repetition_control"] == 1
+    assert values["execution_quality"] == 1
+
+
 def test_deterministic_evaluators_check_order_budget_and_state():
     recorder = TrajectoryRecorder()
     recorder.record("application", "memory.search")
@@ -99,6 +148,8 @@ def test_deterministic_evaluators_check_order_budget_and_state():
         "required_actions": 1.0,
         "state_assertions": 1.0,
         "trajectory_quality": 1.0,
+        "skill_selection": 1.0,
+        "skill_adherence": 1.0,
         "skill_selection_adherence": 1.0,
         "execution_quality": 1.0,
         "state_correctness": 1.0,
@@ -121,6 +172,29 @@ def test_judge_input_contains_ordered_steps_and_terminal_state():
     assert judge_input["final_state"] == {"saved": True}
     assert judge_input["rubric_version"]
     assert "final_response_quality" in judge_input["rubric"]
+
+
+def test_judge_calibration_requires_explicit_human_review():
+    example = {
+        "case_id": "place-cue-grounded",
+        "scores": {"tool_appropriateness": 1},
+        "rationale": "The selected tool is grounded in the named place.",
+    }
+    assert load_judge_calibration({
+        "schema_version": "memoir-judge-calibration/1",
+        "review_status": "human-reviewed",
+        "reviewer": "reviewer@example.test",
+        "reviewed_at": "2026-09-28",
+        "examples": [example],
+    }) == [example]
+    with pytest.raises(ValueError, match="human-reviewed"):
+        load_judge_calibration({
+            "schema_version": "memoir-judge-calibration/1",
+            "review_status": "requires-human-review",
+            "reviewer": "reviewer@example.test",
+            "reviewed_at": "2026-09-28",
+            "examples": [example],
+        })
 
 
 def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
@@ -213,12 +287,15 @@ def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
     result = asyncio.run(runner.run_case({"id": "case-1", "input": {"text": "hello"}} , run_id="run-1"))
 
     assert result["case_id"] == "case-1"
+    assert result["correlation"]["application_revision"]
     assert client.start_kwargs["metadata"]["evaluation_run_id"] == "run-1"
     assert {score["name"] for score in client.scores} == {
         "trajectory_schema",
         "step_budget",
         "terminal_completion",
         "trajectory_quality",
+        "skill_selection",
+        "skill_adherence",
         "skill_selection_adherence",
         "execution_quality",
         "state_correctness",

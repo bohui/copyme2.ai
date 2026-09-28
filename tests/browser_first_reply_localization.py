@@ -1,4 +1,4 @@
-"""Verify that storyteller language does not silently select the UI locale."""
+"""Verify the bounded first-reply UI and conversation-language bridge."""
 
 from __future__ import annotations
 
@@ -34,15 +34,16 @@ def main() -> None:
         automatic_page.get_by_role("textbox", name="Your message").fill("我叫慧博，现在生活在悉尼。")
         automatic_page.get_by_role("button", name="Send message").click()
 
-        expect(automatic_page.locator("html")).to_have_attribute("lang", "en-AU", timeout=15000)
+        expect(automatic_page.locator("html")).to_have_attribute("lang", "zh-CN", timeout=15000)
         expect(automatic_page.get_by_text("我会陪你慢慢回忆。")).to_be_visible(timeout=15000)
-        assert automatic_requests[-1].get("language") is None
-        assert not any(cookie["name"] == "copyme2_ui_locale" for cookie in automatic.cookies())
+        assert automatic_requests[-1].get("language") == "zh-CN"
+        assert automatic_requests[-1].get("first_reply_localization") is True
+        assert any(cookie["name"] == "copyme2_ui_locale_source" and cookie["value"] == "automatic" for cookie in automatic.cookies())
         automatic.close()
 
         fixed = browser.new_context(locale="en-AU")
         fixed.add_init_script(
-            "document.cookie = 'copyme2_ui_locale=en-AU; Path=/; SameSite=Lax';"
+            "document.cookie = 'copyme2_ui_locale=en-AU; Path=/; SameSite=Lax'; document.cookie = 'copyme2_ui_locale_source=fixed; Path=/; SameSite=Lax';"
         )
         fixed_page = fixed.new_page()
         fixed_requests = []
@@ -63,10 +64,11 @@ def main() -> None:
 
         expect(fixed_page.locator("html")).to_have_attribute("lang", "en-AU", timeout=15000)
         expect(fixed_page.get_by_text("I will stay with you as you remember.")).to_be_visible(timeout=15000)
-        assert fixed_requests[-1].get("language") is None
+        assert fixed_requests[-1].get("language") == "zh-CN"
+        assert fixed_requests[-1].get("first_reply_localization") is True
         fixed.close()
         browser.close()
-        print("First-reply conversation language stayed independent from the UI locale.")
+        print("First-reply localization switched the automatic UI session and preserved fixed UI choices.")
 
 
 if __name__ == "__main__":

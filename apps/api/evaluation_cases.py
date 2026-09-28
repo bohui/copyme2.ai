@@ -9,17 +9,43 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import hashlib
+import json
 import os
 from typing import Any, Mapping
 from uuid import uuid4
 
+import httpx
+
 from .codex_runtime import CodexRuntime
+from .memoir_tasks import execute_task
 from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, normalise_correlation
 
 
 DATASET_NAME = "memoir-synthetic"
-DATASET_VERSION = "memoir-synthetic/1"
+DATASET_VERSION = "memoir-synthetic/2"
 RUBRIC_VERSION = "memoir-trajectory-rubric/2"
+
+
+def normalise_case(case: Mapping[str, Any]) -> dict[str, Any]:
+    """Fill the reproducibility fields that every checked-in case must carry."""
+    normalized = deepcopy(dict(case))
+    input_value = normalized.get("input")
+    input_data = deepcopy(dict(input_value)) if isinstance(input_value, Mapping) else {
+        "text": str(normalized.get("text") or ""),
+    }
+    input_data.setdefault("language", normalized.get("language") or "en-AU")
+    normalized["input"] = input_data
+    normalized.setdefault("profile", {})
+    normalized.setdefault("memories", [])
+    normalized.setdefault("entitlement", None)
+    normalized.setdefault("enabled_skills", ["memoir-memory-context"])
+    expected = normalized.get("expected") if isinstance(normalized.get("expected"), Mapping) else {}
+    normalized.setdefault(
+        "available_tools",
+        [{"name": str(tool)} for tool in expected.get("allowed_tools", []) if tool],
+    )
+    return normalized
 
 
 class SyntheticStorage:
@@ -134,6 +160,8 @@ class SyntheticWorker:
             agent_role=kwargs.get("agent_role", "collector"),
             language=kwargs.get("language"),
             model=kwargs.get("model", "synthetic-model"),
+            enabled_skills=self.case.get("enabled_skills", []),
+            available_tools=self.case.get("available_tools", []),
         )
         recorder.record("application", "worker.turn.received", input={
             "project_id": kwargs.get("project_id"),
@@ -167,28 +195,72 @@ class SyntheticWorker:
 
 class SyntheticRuntime(CodexRuntime):
     def __init__(self, case: Mapping[str, Any]) -> None:
-        super().__init__(worker_url="http://synthetic-private-worker", worker_secret="synthetic-secret", model="synthetic-model")
+        super().__init__(
+            worker_url="http://synthetic-private-worker",
+            worker_secret="synthetic-secret",
+            model="synthetic-model",
+            task_publisher_enabled=True,
+        )
         self.worker = SyntheticWorker(case)
 
-    async def _worker_turn(self, **kwargs: Any) -> dict[str, Any]:
-        return await self.worker.turn(**kwargs)
+        async def handle(request: httpx.Request) -> httpx.Response:
+            if request.url.path != "/internal/codex/turn":
+                return httpx.Response(404, request=request)
+            payload = json.loads(request.content.decode("utf-8"))
+            result = await self.worker.turn(**payload)
+            encoded = json.dumps(result, ensure_ascii=False)
+            if "application/x-ndjson" in request.headers.get("accept", ""):
+                events = "\n".join(json.dumps(event, ensure_ascii=False) for event in (
+                    {"type": "text_delta", "text": result["reply"]},
+                    {"type": "provider_complete", "data": result},
+                    {"type": "result", "data": result},
+                )) + "\n"
+                return httpx.Response(
+                    200,
+                    headers={"content-type": "application/x-ndjson"},
+                    content=events.encode("utf-8"),
+                    request=request,
+                )
+            return httpx.Response(200, headers={"content-type": "application/json"}, content=encoded.encode("utf-8"), request=request)
+
+        self.worker_transport = httpx.MockTransport(handle)
+
+    async def publish_task(self, user_id: str, project_id: str, task: Any) -> dict[str, Any]:
+        """Execute the deterministic task locally inside the isolated fixture."""
+        encoded = json.dumps(task.model_dump(), ensure_ascii=False, sort_keys=True)
+        task_id = "synthetic-task-" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+        return {
+            "id": task_id,
+            "project_id": project_id,
+            "kind": task.kind,
+            "status": "SUCCEEDED",
+            "attempts": 1,
+            "result": execute_task(task),
+            "error": None,
+        }
 
 
 async def run_case(case: Mapping[str, Any], correlation: Mapping[str, str]) -> dict[str, Any]:
     """Execute one case through the normal runtime/private-worker seam."""
+    case = normalise_case(case)
     storage = SyntheticStorage(case, correlation)
     runtime = SyntheticRuntime(case)
 
     async def discard_delta(_chunk: str) -> None:
         return None
 
+    input_data = case["input"]
     result = await runtime.turn(
         storage,
-        str(case.get("input", {}).get("text") if isinstance(case.get("input"), Mapping) else case.get("text") or ""),
+        str(input_data.get("text") or ""),
         project_id=storage.project_id,
-        language=(case.get("input") or {}).get("language") if isinstance(case.get("input"), Mapping) else None,
+        language=input_data.get("language"),
         on_delta=discard_delta,
         evaluation=correlation,
         include_trajectory=True,
+        evaluation_context={
+            "enabled_skills": case["enabled_skills"],
+            "available_tools": case["available_tools"],
+        },
     )
     return result

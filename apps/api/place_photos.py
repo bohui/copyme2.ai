@@ -1,5 +1,6 @@
 """Search public photo catalogues using only coarse place and period queries."""
 import html
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote, urlparse
@@ -163,6 +164,100 @@ def _loc(place: str, period: str) -> list[dict]:
     return items
 
 
+
+def _place_terms(place: str) -> list[str]:
+    terms = [place.strip()]
+    # Keep aliases geographically narrow: Jehol also named a much larger region.
+    if re.search(r"\bchengde\b|承德", place, re.I):
+        terms += ['Chengde', '承德']
+    return list(dict.fromkeys(terms))
+
+
+def _flickr(place: str, period: str) -> list[dict]:
+    key = os.environ.get('FLICKR_API_KEY', '').strip()
+    if not key:
+        return []
+
+    def call(method, **params):
+        data = _get('https://api.flickr.com/services/rest/', {
+            'method': method, 'api_key': key, 'format': 'json', 'nojsoncallback': 1, **params,
+        })
+        if data.get('stat') != 'ok':
+            # Do not include the request URL: it contains the app credential.
+            raise ValueError('Flickr API request failed')
+        return data
+
+    licences = call('flickr.photos.licenses.getInfo').get('licenses', {}).get('license', [])
+    allowed = {}
+    for licence in licences:
+        url = licence.get('url', '')
+        parsed = urlparse(url)
+        if (parsed.scheme in {'http', 'https'} and parsed.hostname == 'creativecommons.org'
+                and re.fullmatch(r'/(?:licenses/(?:by|by-sa)/(?:2\.0|2\.5|3\.0|4\.0)|publicdomain/(?:zero|mark)/1\.0)/?', parsed.path)):
+            allowed[str(licence['id'])] = licence
+    if not allowed:
+        return []
+    bounds = _period_bounds(period)
+    params = {'per_page': 100, 'sort': 'relevance', 'media': 'photos', 'content_types': '0',
+              'safe_search': 1, 'license': ','.join(allowed),
+              'extras': 'description,license,date_taken,owner_name,tags,media,url_z,url_c'}
+    if bounds:
+        params.update(min_taken_date=f'{bounds[0]}-01-01 00:00:00',
+                      max_taken_date=f'{bounds[1]}-12-31 23:59:59')
+    items = []
+    searches = [('flickr.photos.search', {'text': term}, False) for term in _place_terms(place)]
+    # Verified photographer collection; each item's date and rights still gate it.
+    if ('Chengde' in _place_terms(place) and bounds
+            and bounds[0] <= 1984 and bounds[1] >= 1983):
+        try:
+            owner = call('flickr.urls.lookupUser', url='https://www.flickr.com/photos/kattebelletje/').get('user', {}).get('id')
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            owner = None
+        if owner:
+            searches.insert(0, ('flickr.photosets.getPhotos', {
+                'photoset_id': '72157614775600805', 'user_id': owner,
+            }, True))
+    for method, search, album in searches:
+        for page in range(1, 4):
+            options = {key: params[key] for key in ('per_page', 'extras', 'media')} if album else params
+            try:
+                data = call(method, page=page, **search, **options).get('photoset' if album else 'photos', {})
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                break
+            for photo in data.get('photo', []):
+                date = _text(photo.get('datetaken'))
+                description = _text((photo.get('description') or {}).get('_content'))
+                caption = ' '.join((_text(photo.get('title')), description, _text(photo.get('tags'))))
+                if (photo.get('media', 'photo') != 'photo' or NON_PHOTO.search(caption)
+                        or not _date_matches(date, period)
+                        or str(photo.get('datetakenunknown', '0')) != '0'
+                        or (not album and not any(alias.casefold() in caption.casefold() for alias in _place_terms(place)))):
+                    continue
+                licence = allowed.get(str(photo.get('license')))
+                image = photo.get('url_z') or photo.get('url_c') or ''
+                host = urlparse(image).hostname or ''
+                if (not licence or not _https_host(image, {host})
+                        or not (host == 'live.staticflickr.com' or re.fullmatch(r'farm\d+\.staticflickr\.com', host))):
+                    continue
+                photo_id, owner = str(photo.get('id', '')), str(photo.get('owner') or (search.get('user_id') if album else ''))
+                if not photo_id.isdigit() or not re.fullmatch(r'\d+@N\d+', owner):
+                    continue
+                items.append({
+                    'asset_id': 'flickr-' + photo_id, 'kind': 'image',
+                    'title': _text(photo.get('title')), 'image_url': image,
+                    'source_url': f'https://www.flickr.com/photos/{owner}/{photo_id}/',
+                    'location': place, 'attribution': _text(photo.get('ownername')) or owner,
+                    'license': licence['name'], 'license_url': licence['url'],
+                    'date_expression': date, 'date_basis': 'Flickr date taken',
+                    'allowed_actions': {'embed': True, 'download': False, 'print': False},
+                })
+            if len(_deduplicate(items)) >= MAX_RESULTS:
+                return items
+            if page >= int(data.get('pages', 1)):
+                break
+    return items
+
+
 def _deduplicate(items: list[dict]) -> list[dict]:
     unique, seen = [], set()
     for item in items:
@@ -182,8 +277,11 @@ def search_place_photos(place: str, period: str = '') -> list[dict]:
     items, errors = [], []
     # Independent catalogues overlap their network waits; one failure must not
     # hide the other catalogue's usable photographs.
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [pool.submit(provider, place, period) for provider in (_commons, _loc)]
+    providers = [_commons, _loc]
+    if os.environ.get("FLICKR_API_KEY", "").strip():
+        providers.insert(0, _flickr)
+    with ThreadPoolExecutor(max_workers=len(providers)) as pool:
+        futures = [pool.submit(provider, place, period) for provider in providers]
         for future in futures:
             try:
                 items.extend(future.result())

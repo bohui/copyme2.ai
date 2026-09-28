@@ -1,9 +1,17 @@
 {
   "dataset": "memoir-synthetic",
-  "dataset_version": "memoir-synthetic/1",
+  "dataset_version": "memoir-synthetic/2",
+  "case_defaults": {
+    "language": "en-AU",
+    "profile": {},
+    "memories": [],
+    "entitlement": null,
+    "enabled_skills": ["memoir-memory-context"]
+  },
   "cases": [
     {
       "id": "place-cue-grounded",
+      "enabled_skills": ["memoir-memory-context", "memoir-place-journey"],
       "input": {"text": "I remember a summer in Geelong near the water."},
       "project_id": "synthetic-place-project",
       "synthetic": {
@@ -47,6 +55,7 @@
     },
     {
       "id": "family-entitlement-gate",
+      "enabled_skills": ["memoir-memory-context", "memoir-family-tree", "memoir-author-timeline"],
       "input": {"text": "My sister Maya and I started school around 1984."},
       "project_id": "synthetic-family-project",
       "entitlement": {"status": "paid", "plan_key": "family_memoir_v1", "family_tree": true, "timeline": true},
@@ -64,6 +73,7 @@
         "entitlement_assertions": {"access_control.family_enabled": true},
         "state_assertions": {"access_control.user_scope": true},
         "required_markers": ["MEMORY_SPARK_FAMILY_TREE", "MEMORY_SPARK_AUTHOR_TIMELINE"],
+        "marker_syntax": true,
         "max_retries": 0
       }
     },
@@ -86,8 +96,239 @@
           "collection.source_validate": {"type": "object", "required": ["memory_ids"], "properties": {"memory_ids": {"type": "array"}}}
         },
         "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
-        "state_assertions": {"access_control.user_scope": true},
+        "state_assertions": {
+          "access_control.user_scope": true,
+          "task_count": 1,
+          "task_error_count": 0,
+          "task_kinds": ["BuildSourceExport"],
+          "task_statuses": ["SUCCEEDED"]
+        },
+        "task_result_assertions": [
+          {
+            "kind": "BuildSourceExport",
+            "status": "SUCCEEDED",
+            "result": {
+              "schema_version": 1,
+              "kind": "BuildSourceExport",
+              "source_memory_ids": ["memory-collection"]
+            }
+          }
+        ],
+        "marker_syntax": true,
         "required_markers": ["MEMORY_SPARK_TASKS"],
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "place-photo-current-day",
+      "enabled_skills": ["memoir-memory-context", "place-photo-research", "memoir-place-journey"],
+      "input": {"text": "I saw public photos from today's walk in Melbourne."},
+      "project_id": "synthetic-place-current-day",
+      "synthetic": {
+        "reply": "I found a current-day public reference for Melbourne. Treat it as a prompt, not as evidence about your life.[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"Melbourne\",\"hierarchy\":[\"Earth\",\"Australia\",\"Victoria\",\"Melbourne\"],\"granularity\":\"city\",\"duration_ms\":3200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+        "steps": [
+          {"tool": "place-photo.search", "arguments": {"place": "Melbourne", "date_mode": "current_day"}, "output": {"count": 2}},
+          {"tool": "place-photo.label", "arguments": {"public_reference": true}, "output": {"labelled": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["place-photo.search", "place-photo.label"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "place_journey_revision": 1},
+        "required_markers": ["MEMORY_SPARK_PLACE_JOURNEY"],
+        "marker_syntax": true,
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "place-photo-historical",
+      "enabled_skills": ["memoir-memory-context", "place-photo-research", "memoir-place-journey"],
+      "input": {"text": "Can you find a public photo from Hobart in 1964?"},
+      "project_id": "synthetic-place-historical",
+      "synthetic": {
+        "reply": "I found a historical public reference for Hobart from 1964. It is a prompt, not a fact about your memory.[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"Hobart\",\"hierarchy\":[\"Earth\",\"Australia\",\"Tasmania\",\"Hobart\"],\"granularity\":\"city\",\"duration_ms\":3200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+        "steps": [
+          {"tool": "place-photo.search", "arguments": {"place": "Hobart", "date_mode": "historical", "year": 1964}, "output": {"count": 1}},
+          {"tool": "place-photo.label", "arguments": {"public_reference": true}, "output": {"labelled": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["place-photo.search", "place-photo.label"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "place_journey_revision": 1},
+        "required_markers": ["MEMORY_SPARK_PLACE_JOURNEY"],
+        "marker_syntax": true,
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "place-cue-ambiguous",
+      "enabled_skills": ["memoir-memory-context", "place-photo-research", "memoir-place-journey"],
+      "input": {"text": "I remember the old town, but I am not sure which one."},
+      "synthetic": {
+        "reply": "Which town do you mean? I will wait for a clear place before showing a public reference.",
+        "steps": []
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_action_sets": [["worker.turn.received", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "place_journey_revision": null},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "unrelated-request-no-place-skill",
+      "enabled_skills": ["memoir-memory-context", "memoir-place-journey", "place-photo-research", "memoir-family-tree", "memoir-author-timeline"],
+      "input": {"text": "What is the capital of France?"},
+      "synthetic": {
+        "reply": "I am here to help with your memories. We can return to your story whenever you are ready.",
+        "steps": []
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_action_sets": [["worker.turn.received", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "family-entitlement-unpaid",
+      "enabled_skills": ["memoir-memory-context", "memoir-family-tree", "memoir-author-timeline"],
+      "input": {"text": "Please add my sister Maya to the family workspace."},
+      "project_id": "synthetic-family-unpaid",
+      "entitlement": {"status": "unpaid", "plan_key": "family_memoir_v1", "family_tree": true, "timeline": true},
+      "synthetic": {
+        "reply": "The Family workspace is not active yet, so I will not save family context.",
+        "steps": [
+          {"tool": "entitlement.check", "arguments": {"feature": "family"}, "output": {"allowed": false, "reason": "unpaid"}}
+        ]
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_tools": ["entitlement.check"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "access_control.family_enabled": false, "family_context_revision": null},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "family-entitlement-pending",
+      "enabled_skills": ["memoir-memory-context", "memoir-family-tree", "memoir-author-timeline"],
+      "input": {"text": "Please update the family timeline while payment is pending."},
+      "project_id": "synthetic-family-pending",
+      "entitlement": {"status": "pending", "plan_key": "family_memoir_v1", "family_tree": true, "timeline": true},
+      "synthetic": {
+        "reply": "Payment is still pending, so the Family workspace remains read-only.",
+        "steps": [
+          {"tool": "entitlement.check", "arguments": {"feature": "family"}, "output": {"allowed": false, "reason": "pending"}}
+        ]
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_tools": ["entitlement.check"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "access_control.family_enabled": false, "family_context_revision": null},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "family-entitlement-revoked",
+      "enabled_skills": ["memoir-memory-context", "memoir-family-tree", "memoir-author-timeline"],
+      "input": {"text": "Please show the family timeline after the package was revoked."},
+      "project_id": "synthetic-family-revoked",
+      "entitlement": {"status": "revoked", "plan_key": "family_memoir_v1", "family_tree": true, "timeline": true},
+      "synthetic": {
+        "reply": "The Family package is revoked, so I will not expose or change its private workspace.",
+        "steps": [
+          {"tool": "entitlement.check", "arguments": {"feature": "family"}, "output": {"allowed": false, "reason": "revoked"}}
+        ]
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_tools": ["entitlement.check"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "access_control.family_enabled": false, "family_context_revision": null},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "collection-review-before-selection",
+      "input": {"text": "Please review my saved collection before I choose a book."},
+      "project_id": "synthetic-collection-review",
+      "memories": [{"id": "memory-review", "kind": "memoir", "content": "A saved review memory.", "source_paths": []}],
+      "synthetic": {
+        "reply": "Your saved collection is ready for review; no book has been selected yet.",
+        "steps": [
+          {"tool": "collection.review", "arguments": {"memory_ids": ["memory-review"]}, "output": {"ready": true}},
+          {"tool": "collection.selection.defer", "arguments": {"reason": "waiting_for_choice"}, "output": {"selected": false}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["collection.review", "collection.selection.defer"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "collection-organiser-handoff",
+      "input": {"text": "The collection is ready; hand it to the organiser for a proposed outline."},
+      "project_id": "synthetic-collection-handoff",
+      "memories": [{"id": "memory-handoff", "kind": "memoir", "content": "A saved handoff memory.", "source_paths": []}],
+      "synthetic": {
+        "reply": "I handed the saved collection to the organiser for a proposed outline; nothing has been published.",
+        "steps": [
+          {"tool": "collection.review", "arguments": {"memory_ids": ["memory-handoff"]}, "output": {"ready": true}},
+          {"tool": "organiser.handoff", "arguments": {"memory_ids": ["memory-handoff"]}, "output": {"accepted": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["collection.review", "organiser.handoff"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "collection-task-result",
+      "input": {"text": "Build a preview from the saved collection."},
+      "project_id": "synthetic-collection-task",
+      "memories": [{"id": "memory-preview", "kind": "memoir", "content": "A saved preview memory.", "source_paths": []}],
+      "synthetic": {
+        "reply": "I queued a deterministic preview task from the saved collection; it is not finished yet.[[MEMORY_SPARK_TASKS]][{\"kind\":\"BuildFreePreview\",\"memory_ids\":[\"memory-preview\"],\"title\":\"Saved preview\"}][[/MEMORY_SPARK_TASKS]]",
+        "steps": [
+          {"tool": "collection.source_validate", "arguments": {"memory_ids": ["memory-preview"]}, "output": {"owned": true}},
+          {"tool": "collection.task.request", "arguments": {"kind": "BuildFreePreview"}, "output": {"bounded": true, "queued": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["collection.source_validate", "collection.task.request"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {
+          "access_control.user_scope": true,
+          "task_count": 1,
+          "task_error_count": 0,
+          "task_kinds": ["BuildFreePreview"],
+          "task_statuses": ["SUCCEEDED"]
+        },
+        "task_result_assertions": [
+          {
+            "kind": "BuildFreePreview",
+            "status": "SUCCEEDED",
+            "result": {
+              "schema_version": 1,
+              "kind": "BuildFreePreview",
+              "source_memory_ids": ["memory-preview"]
+            }
+          }
+        ],
+        "required_markers": ["MEMORY_SPARK_TASKS"],
+        "marker_syntax": true,
         "max_retries": 0
       }
     }

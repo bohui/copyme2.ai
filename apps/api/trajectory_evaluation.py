@@ -17,6 +17,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 from typing import Any, Callable, Iterable, Mapping, Sequence
 from uuid import uuid4
 
@@ -27,6 +28,8 @@ TRAJECTORY_SCHEMA_VERSION = "memoir-trajectory/1"
 EVALUATION_RUBRIC_VERSION = "memoir-trajectory-rubric/2"
 JUDGE_RUBRIC_VERSION = "memoir-judge-rubric/1"
 PRIVACY_POLICY_VERSION = "memoir-evaluation-privacy/1"
+JUDGE_CALIBRATION_SCHEMA_VERSION = "memoir-judge-calibration/1"
+JUDGE_CALIBRATION_REVIEW_STATUS = "human-reviewed"
 _MAX_STRING = 4000
 _MAX_COLLECTION = 100
 _MAX_DEPTH = 8
@@ -61,6 +64,34 @@ JUDGE_RUBRIC: dict[str, str] = {
     "instruction_adherence": "Follow the task, entitlement, privacy, ownership, and output constraints.",
     "final_response_quality": "Give a concise, accurate, uncertainty-preserving response that matches the requested outcome.",
 }
+
+
+def load_judge_calibration(payload: Any) -> list[Mapping[str, Any]]:
+    """Load only calibration examples with explicit human-review evidence."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("Judge calibration must be an object with schema_version, review_status, and examples")
+    if payload.get("schema_version") != JUDGE_CALIBRATION_SCHEMA_VERSION:
+        raise ValueError("Judge calibration schema version is missing or unsupported")
+    if payload.get("review_status") != JUDGE_CALIBRATION_REVIEW_STATUS:
+        raise ValueError("Judge calibration must be marked human-reviewed before it can be used")
+    if not payload.get("reviewer") or not payload.get("reviewed_at"):
+        raise ValueError("Judge calibration needs reviewer and reviewed_at evidence")
+    examples = payload.get("examples")
+    if not isinstance(examples, list) or not examples:
+        raise ValueError("Judge calibration must contain at least one reviewed example")
+    for example in examples:
+        if not isinstance(example, Mapping):
+            raise ValueError("Each judge calibration example must be an object")
+        if not example.get("case_id") or not isinstance(example.get("scores"), Mapping):
+            raise ValueError("Each judge calibration example needs case_id and scores")
+        if not example.get("rationale"):
+            raise ValueError("Each judge calibration example needs a human rationale")
+        for category, value in example["scores"].items():
+            if category not in JUDGE_RUBRIC:
+                raise ValueError(f"Unknown judge calibration category: {category}")
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 <= value <= 1:
+                raise ValueError(f"Judge calibration score must be between 0 and 1: {category}")
+    return examples
 
 
 def _utc_now() -> str:
@@ -170,6 +201,8 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "evaluation_run_id": "run_id",
         "case_id": "case_id",
         "evaluation_case_id": "case_id",
+        "application_revision": "application_revision",
+        "app_revision": "application_revision",
         "dataset": "dataset",
         "dataset_name": "dataset",
         "skill_hash": "skill_hash",
@@ -197,20 +230,67 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
 
 
 def build_skill_manifest(skill_root: str | Path) -> dict[str, Any]:
-    """Hash checked-in SKILL.md files so experiment runs pin their inputs."""
+    """Hash checked-in skill files so runs pin instructions and references."""
     root = Path(skill_root)
-    entries: list[dict[str, str]] = []
+    entries: list[dict[str, Any]] = []
     if root.is_dir():
-        for path in sorted(root.glob("*/SKILL.md")):
-            try:
-                content = path.read_bytes()
-            except OSError:
-                continue
-            entries.append({
-                "name": path.parent.name,
-                "sha256": hashlib.sha256(content).hexdigest(),
-            })
+        for skill_dir in sorted(path for path in root.iterdir() if path.is_dir() and not path.name.startswith(".")):
+            files: list[dict[str, str]] = []
+            for path in sorted(skill_dir.rglob("*")):
+                if not path.is_file() or any(part.startswith(".") for part in path.relative_to(skill_dir).parts):
+                    continue
+                try:
+                    content = path.read_bytes()
+                except OSError:
+                    continue
+                files.append({
+                    "path": path.relative_to(skill_dir).as_posix(),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                })
+            if files:
+                entries.append({
+                    "name": skill_dir.name,
+                    "files": files,
+                    "sha256": _sha256(files),
+                })
     return {"skills": entries, "sha256": _sha256(entries)}
+
+
+def build_application_revision(repo_root: str | Path | None = None) -> str:
+    """Resolve an explicit or checked-out revision for experiment metadata."""
+    configured = os.getenv("MEMORY_SPARK_APP_REVISION", "").strip()
+    if configured:
+        return configured[:256]
+    root = Path(repo_root) if repo_root else Path(__file__).resolve().parents[2]
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    revision = result.stdout.strip()
+    if result.returncode != 0 or not revision:
+        return "unknown"
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return revision[:256]
+    if status.returncode == 0 and status.stdout.strip():
+        dirty_hash = hashlib.sha256(status.stdout.encode("utf-8")).hexdigest()[:12]
+        return f"{revision}-dirty-{dirty_hash}"[:256]
+    return revision[:256]
 
 
 def _protocol_summary(message: Mapping[str, Any]) -> dict[str, Any]:
@@ -523,6 +603,18 @@ def _contains_marker(value: Any, marker: str) -> bool:
         return False
 
 
+def _contains_mapping(actual: Any, expected: Any) -> bool:
+    """Return whether expected is a bounded recursive subset of actual."""
+    if isinstance(expected, Mapping):
+        return isinstance(actual, Mapping) and all(
+            key in actual and _contains_mapping(actual[key], value)
+            for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return isinstance(actual, list) and actual == expected
+    return actual == expected
+
+
 _MARKER_START = re.compile(r"\[\[(MEMORY_SPARK_[A-Z0-9_]+)\]\]")
 
 
@@ -695,6 +787,21 @@ def evaluate_trajectory(
             step_failures.append(step)
     for step in step_failures:
         add("step_failure", 0, f"Step failed: {step.get('action')}", step_id=str(step.get("step_id") or "step"))
+    unrecovered_failures = []
+    for failed_step in step_failures:
+        failed_tool = _step_tool_name(failed_step)
+        failed_args = _sha256(_step_arguments(failed_step))
+        recovered = any(
+            candidate.get("sequence", 0) > failed_step.get("sequence", 0)
+            and not candidate.get("error")
+            and _step_tool_name(candidate) == failed_tool
+            and _sha256(_step_arguments(candidate)) == failed_args
+            for candidate in action_steps
+        )
+        if not recovered:
+            unrecovered_failures.append(failed_step)
+    if step_failures:
+        add("recovery", 0 if unrecovered_failures else 1, "Failed step(s) were not recovered." if unrecovered_failures else "Transient failed step(s) were recovered by a bounded repeat.")
 
     assertions = expected.get("state_assertions") or {}
     if isinstance(assertions, Mapping) and assertions:
@@ -749,6 +856,26 @@ def evaluate_trajectory(
                 failed_artifacts.append(path)
         add("artifact_existence", 0 if failed_artifacts else 1, "Artifact existence assertion(s) failed: " + ", ".join(failed_artifacts) if failed_artifacts else "Artifact existence assertions passed.")
 
+    task_result_assertions = expected.get("task_result_assertions") or []
+    if isinstance(task_result_assertions, list) and task_result_assertions:
+        state = final.get("state") if isinstance(final.get("state"), Mapping) else {}
+        task_results = state.get("task_results") if isinstance(state.get("task_results"), list) else []
+        failed_tasks = []
+        for assertion in task_result_assertions:
+            if not isinstance(assertion, Mapping):
+                failed_tasks.append("<invalid-assertion>")
+                continue
+            kind = str(assertion.get("kind") or "")
+            candidates = [task for task in task_results if isinstance(task, Mapping) and task.get("kind") == kind]
+            if not candidates or not any(_contains_mapping(candidate, assertion) for candidate in candidates):
+                failed_tasks.append(kind or "<missing-kind>")
+        add(
+            "task_result",
+            0 if failed_tasks else 1,
+            "Deterministic task result assertion(s) failed: " + ", ".join(failed_tasks)
+            if failed_tasks else "Deterministic task result assertions passed.",
+        )
+
     response_requirements = expected.get("response_requirements") or {}
     response = str(final.get("response") or "")
     if isinstance(response_requirements, Mapping):
@@ -766,19 +893,46 @@ def evaluate_trajectory(
         actual_hash = actual_manifest.get("sha256") if isinstance(actual_manifest, Mapping) else None
         add("skill_manifest", 1 if actual_hash == expected_skill_hash else 0, "Skill manifest matches the case." if actual_hash == expected_skill_hash else "Skill manifest does not match the case.")
 
+    expected_skills = expected.get("enabled_skills")
+    if isinstance(expected_skills, list):
+        context = trajectory.get("context") if isinstance(trajectory.get("context"), Mapping) else {}
+        actual_skills = context.get("enabled_skills")
+        actual_manifest = trajectory.get("skill_manifest")
+        manifest_names = {
+            str(entry.get("name"))
+            for entry in (actual_manifest.get("skills", []) if isinstance(actual_manifest, Mapping) else [])
+            if isinstance(entry, Mapping) and entry.get("name")
+        }
+        expected_names = {str(skill) for skill in expected_skills if skill}
+        actual_names = {str(skill) for skill in actual_skills} if isinstance(actual_skills, list) else set()
+        valid = actual_names == expected_names and expected_names.issubset(manifest_names)
+        add(
+            "enabled_skills",
+            1 if valid else 0,
+            "Enabled skills match the case and checked-in manifest."
+            if valid else "Enabled skills do not match the case or checked-in manifest.",
+        )
+
     # Stable category scores make comparison matrices useful even when a case
     # has optional gates. Every category is deterministic and explainable.
-    execution_names = {"step_budget", "allowed_tools", "tool_argument_schema", "retry_budget", "repetition_control"}
-    state_names = {"state_assertions", "entitlement", "ownership", "revision", "artifact_state", "artifact_existence"}
-    skill_names = {"required_actions", "forbidden_actions", "allowed_tools", "skill_manifest", "marker_syntax", "marker_grounding"}
+    execution_names = {"step_budget", "allowed_tools", "tool_argument_schema", "retry_budget", "repetition_control", "recovery"}
+    state_names = {"state_assertions", "entitlement", "ownership", "revision", "artifact_state", "artifact_existence", "task_result"}
+    skill_selection_names = {"required_actions", "forbidden_actions", "equivalent_valid_path", "allowed_tools", "enabled_skills"}
+    skill_adherence_names = {"skill_manifest", "marker_syntax", "marker_grounding"}
     final_names = {"terminal_completion", "response_contract"}
     def average(names: set[str], default: float = 1.0) -> float:
         values = [gates[name] for name in names if name in gates]
         return sum(values) / len(values) if values else default
 
     add("trajectory_quality", average({"trajectory_schema", "step_budget", "terminal_completion"}), "Ordered, bounded, terminal trajectory quality.")
-    add("skill_selection_adherence", average(skill_names), "Skill and action selection follows the case constraints.")
-    add("execution_quality", average(execution_names) * (0.0 if step_failures else 1.0), "Execution respects tool, retry, repetition, and step constraints.")
+    selection_score = average(skill_selection_names)
+    adherence_score = average(skill_adherence_names)
+    add("skill_selection", selection_score, "The selected skill/action path follows the case constraints.")
+    add("skill_adherence", adherence_score, "The observed skill output follows its manifest and marker contracts.")
+    # Keep the combined name for existing dashboards while exposing the two
+    # separately actionable dimensions above.
+    add("skill_selection_adherence", (selection_score + adherence_score) / 2, "Skill selection and adherence follow the case constraints.")
+    add("execution_quality", average(execution_names), "Execution respects tool, retry, repetition, recovery, and step constraints.")
     add("state_correctness", average(state_names), "Final persisted state satisfies the case assertions.")
     add("final_response_quality", average(final_names, 1.0 if terminal else 0.0), "The final response meets the terminal and response contract.")
     return scores
@@ -1034,6 +1188,7 @@ class MemoirEvaluationRunner:
         self.evaluator = evaluator
         self.judges = list(judges)
         self.available_tools = available_tools
+        self.application_revision = build_application_revision()
         self.default_skill_manifest = build_skill_manifest(Path(__file__).resolve().parents[2] / "skills")
 
     async def run_case(self, case: Mapping[str, Any], *, run_id: str | None = None, variant: Mapping[str, Any] | str | None = None) -> dict[str, Any]:
@@ -1044,6 +1199,7 @@ class MemoirEvaluationRunner:
             **variant_values,
             "run_id": run_id or case.get("run_id") or uuid4(),
             "case_id": case_id,
+            "application_revision": case.get("application_revision") or self.application_revision,
             "dataset": case.get("dataset") or case.get("dataset_name"),
             "dataset_version": case.get("dataset_version") or case.get("version"),
             "skill_hash": case.get("skill_manifest_sha256") or self.default_skill_manifest.get("sha256"),
@@ -1069,7 +1225,9 @@ class MemoirEvaluationRunner:
             trajectory = result.get("trajectory")
             if not isinstance(trajectory, Mapping):
                 raise ValueError("evaluation task returned no normalized trajectory")
-            expected = case.get("expected") if isinstance(case.get("expected"), Mapping) else case
+            expected = dict(case)
+            if isinstance(case.get("expected"), Mapping):
+                expected.update(case["expected"])
             scores = self.evaluator(trajectory, expected=expected)
             if self.judges:
                 judge_input = build_judge_input(
