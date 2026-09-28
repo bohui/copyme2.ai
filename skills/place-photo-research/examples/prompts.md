@@ -3,13 +3,13 @@
 ## Historical — exact decade
 
 ```text
-$place-photo-research Find 3 real photographs of Chengde, Hebei, China in the 1980s. Prioritise ordinary streets, shops and daily life over monuments. Search Chinese and English sources, inspect individual records and useful albums, and save permitted originals plus evidence and a local gallery to ./photo-research/chengde-1980s-01. Keep strong matches with unknown rights as metadata-only candidates.
+$place-photo-research Find at least 10 real photographs of Chengde, Hebei, China in the 1980s. Prioritise ordinary streets, shops and daily life over monuments. Search Chinese and English sources, inspect individual records and useful albums, and save permitted originals plus evidence and a local gallery to ./photo-research/chengde-1980s-01. Keep strong matches with unknown rights as metadata-only candidates.
 ```
 
 ## No period — automatically current
 
 ```text
-$place-photo-research Find 3 photographs of Chengde, Hebei, China. Prefer city streets and local life. Save permitted images, evidence and a gallery to ./photo-research/chengde-current-01.
+$place-photo-research Find at least 10 photographs of Chengde, Hebei, China. Prefer city streets and local life. Save permitted images, evidence and a gallery to ./photo-research/chengde-current-01.
 ```
 
 ## Chinese explicit period

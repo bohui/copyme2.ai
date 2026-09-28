@@ -10,15 +10,15 @@ there is no direct database mount inside the Codex container.
 ```text
 diagram_type: architecture
 output: /Users/bohuihan/memoir/memoir-architecture.html
-specification_sha256: 369ef019beca85f16ff480ef9cbb0cf75dbdc472820525f09727e7890efd872f
-artifact_sha256: ee9e0ee5be99bbc67d7e58ed8e14716431f65f1427df7d1ee5734f4b65ebec06
+specification_sha256: fb3c67262fd33f7e3c5df00bf596f0be2a291e9a92a901976ffad3c054d397e4
+artifact_sha256: bfba2c0461c3d46ce1d786703348a772e19c9e9522cd01fb5eb98aa931a8b291
 validation: 9/9 showcase, 0 errors, 0 warnings
 browser_evidence: passed
 visual_review: passed
 correction_rounds: 0
 ```
 
-Specification: 5,662 bytes. HTML: 814,888 bytes.
+Specification: 5,680 bytes. HTML: 814,918 bytes.
 
 The automated browser receipt is
 [`memoir-architecture.visual-check.json`](../memoir-architecture.visual-check.json).

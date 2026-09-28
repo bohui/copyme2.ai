@@ -30,7 +30,6 @@ export default function LanguageSwitcher({
 
   return (
     <label className="locale-switcher">
-      <span>{label}</span>
       <select aria-label={label} value={locale} onChange={changeLocale}>
         {locales.map((item) => (
           <option key={item} value={item}>

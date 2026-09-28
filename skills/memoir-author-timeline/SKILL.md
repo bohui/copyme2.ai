@@ -44,6 +44,11 @@ correlation keys for this marker, not database IDs. Timeline items require
 include `precision`, `place`, `person_ids`, `visibility`, and
 `include_in_print`.
 
+For both item types, `precision` accepts only `unknown`, `day`, `month`,
+`year`, `range`, `approximate`, `age`, or `season`. Use `year` for an explicit
+year such as 1960, `range` for a stated interval, and `approximate` for
+“around 1964”. Omit precision when uncertain; `exact` is not a supported value.
+
 `person_ids` must be canonical IDs from the saved family-tree document. This
 skill does not create people. If the same turn explicitly introduces a new
 relative, emit a separate `MEMORY_SPARK_FAMILY_TREE` marker for the tree skill

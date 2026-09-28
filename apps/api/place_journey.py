@@ -114,6 +114,9 @@ def normalize_persisted_place_journey(raw: Any) -> dict[str, Any] | None:
     payload.setdefault("latitude", None)
     payload.setdefault("longitude", None)
     payload.update({"status": status, "revision": revision, "updated_at": updated_at})
+    source_sequence = raw.get("source_sequence")
+    if isinstance(source_sequence, int) and not isinstance(source_sequence, bool) and source_sequence >= 0:
+        payload["source_sequence"] = source_sequence
     return payload
 
 

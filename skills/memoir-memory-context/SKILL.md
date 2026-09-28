@@ -1,9 +1,33 @@
 ---
 name: memoir-memory-context
-description: Connect an explicitly recalled place to the storyteller's life stage and infer a timeline avatar style from clear self-identifying context during typed or transcribed memoir conversation.
+description: Resolve conversation language from the first typed or transcribed memoir message, connect recalled places to life stages, and infer timeline avatar style from clear self-identifying context.
 ---
 
 # Memory context
+
+## Conversation language
+
+Apply this skill before the first visible reply when the private user profile has
+no `preferred_language`. An explicit request for English or Chinese takes priority;
+otherwise infer the language from the storyteller's own conversational words.
+Use `zh-CN` for Chinese and `en-AU` for English. Chinese text such as “我叫慧博，
+现在生活在悉尼” calls for an immediate Chinese reply, without asking permission.
+Treat speech transcripts exactly like typed messages. Names, places, quoted text,
+and attached documents alone do not establish the storyteller's language. For mixed
+text use the main conversational language; if unclear or unsupported, return null
+and let the runtime use its UI-language fallback without saving a preference.
+
+During the runtime's private language-intake pass, return only a JSON object with
+`preferred_language` set to `zh-CN`, `en-AU`, or null. The runtime validates and saves
+this result before starting the visible conversation. This pass emits no interview
+reply, follow-up question, profile marker, or other context extraction.
+
+During normal conversation, use the saved language unless the storyteller explicitly
+requests a change. Apply that change to the current reply and append the new
+`preferred_language` in the profile marker. UI locale is only a fallback and does
+not override the saved conversation preference.
+
+## Story context
 
 Keep the interview flowing with one gentle follow-up question. Extract context quietly
 into the existing MEMORY_SPARK_PROFILE marker; never narrate the extraction.

@@ -1,6 +1,6 @@
 # Place-journey integration contract
 
-The Memory Spark Codex runtime is deliberately configured without model tool execution. The place skill therefore communicates with the browser through a control marker in the model's text rather than by asking the model to call a shell, browser, or mapping tool.
+The place skill communicates through a control marker. Geographic lookup is performed by the application through the project-owned `POST /v1/projects/{project_id}/place-map` endpoint; the model does not need to execute a mapping tool.
 
 ## Transport
 
@@ -96,3 +96,23 @@ Assistant context: A public photograph from Beijing in 1960 is available.
 ```
 
 Do not emit a journey unless the storyteller independently connects their memory to Beijing.
+
+## Place identity and map resolution
+
+The browser merges saved places by normalized geographic hierarchy and name,
+independently of life stage. It preserves the union of `life_stages` and `pictures`;
+`parent_place_key` references the nearest saved ancestor. A city and its suburb
+remain separate entries. Existing histories are normalized on hydration and on
+new place events. Aliases are not guessed or merged across different hierarchies.
+
+The place-map endpoint accepts the validated journey contract and returns
+`status`, `target` (place, latitude, longitude, optional attribution), and `fallback`.
+It uses reliable existing coordinates, otherwise searches the full public place
+hierarchy from detailed place toward country. An unavailable provider still allows
+saved parent coordinates. Parent coordinates belong only to `target`, never to
+the child's persisted coordinates. No match leaves the hierarchy visible.
+
+The default geocoder is Nominatim, with cached queries and serialized requests.
+Set `MEMOIR_GEOCODING_URL` to another compatible endpoint or a shared proxy for
+multi-worker deployments requiring application-wide rate limiting. Only geographic
+labels are sent, never memoir text. The UI retains OpenStreetMap attribution.

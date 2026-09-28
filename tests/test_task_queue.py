@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 import pytest
 
@@ -82,3 +83,23 @@ def test_failed_temporal_execution_fences_late_activity(tmp_path):
     assert queue.status(entry['id']) == 'FAILED'
     assert not queue.finish(entry['id'], claim['lease_token'], result={})
     assert queue.pending_ids() == []
+
+
+def test_workspace_intent_survives_reopen_and_expired_claim(tmp_path, monkeypatch):
+    path = tmp_path / 'tasks.sqlite'
+    queue = TaskQueue(path)
+    entry = queue.submit_workspace(
+        'owner', 'project', 'turn-1', {'text': 'A memory', 'turn_sequence': 1}
+    )
+    reopened = TaskQueue(path)
+    assert reopened.pending_workspace('owner')[0]['id'] == entry['id']
+    first = reopened.claim_workspace('owner', lease_seconds=10)
+    assert first['payload']['text'] == 'A memory'
+
+    now = time.time()
+    monkeypatch.setattr('apps.api.task_queue.time.time', lambda: now + 11)
+    recovered = TaskQueue(path).claim_workspace('owner', lease_seconds=10)
+    assert recovered['id'] == entry['id']
+    assert recovered['lease_token'] != first['lease_token']
+    assert TaskQueue(path).finish_workspace(recovered['id'], recovered['lease_token'])
+    assert TaskQueue(path).pending_workspace('owner') == []

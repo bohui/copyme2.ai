@@ -7,6 +7,7 @@
   --green: #315f55;
   --green-dark: #24473f;
   --sage: #d9e7dc;
+  --locale-bg: #dce7dd;
   --coral: #d87d61;
   --gold: #d9ae63;
   --white: #fffdf8;
@@ -31,7 +32,7 @@ h3 { line-height: 1.1; }
 .app-shell { min-height: 100vh; }
 #locale-switcher-root { display: none; }
 .locale-switcher { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,253,248,.94); box-shadow: 0 8px 22px rgba(62,46,28,.08); color: var(--muted); font-size: 11px; font-weight: 700; }
-.locale-switcher select { min-height: 28px; padding: 3px 24px 3px 7px; border: 0; border-radius: 7px; background: var(--sage); color: var(--green-dark); font-size: 11px; font-weight: 700; }
+.locale-switcher select { min-height: 28px; padding: 3px 24px 3px 7px; border: 0; border-radius: 7px; background: var(--locale-bg); color: var(--green-dark); font-size: 11px; font-weight: 700; }
 .locale-switcher select:focus-visible { outline: 3px solid rgba(216,125,97,.55); outline-offset: 2px; }
 .brand { display: inline-flex; gap: 11px; align-items: center; text-decoration: none; color: var(--ink); font-weight: 700; letter-spacing: -.02em; }
 .brand-mark { width: 34px; height: 34px; display: block; object-fit: cover; border-radius: 12px 12px 12px 4px; box-shadow: 0 6px 15px rgba(49, 95, 85, .2); }
@@ -50,9 +51,13 @@ h3 { line-height: 1.1; }
 .landing { min-height: 100vh; overflow: hidden; }
 .landing-header, .landing-main { width: min(1180px, calc(100% - 44px)); margin: 0 auto; }
 .landing-header { padding: 24px 0; display: flex; align-items: center; justify-content: space-between; }
-.landing-header-actions { display: flex; align-items: center; gap: 18px; }
 .landing-language #locale-switcher-root { display: block; position: static; }
 .header-note { color: var(--muted); font-size: 13px; }
+.landing-language .locale-switcher { position: relative; display: block; padding: 0; border: 0; border-radius: 14px; background: var(--locale-bg); box-shadow: 0 10px 22px rgba(49,95,85,.12); color: var(--green-dark); transition: background .18s ease, transform .18s ease; }
+.landing-language .locale-switcher::after { content: ""; position: absolute; right: 19px; top: 50%; width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-65%) rotate(45deg); pointer-events: none; }
+.landing-language .locale-switcher:hover { background: #cfdfd4; transform: translateY(-1px); }
+.landing-language .locale-switcher select { appearance: none; min-height: 48px; padding: 13px 48px 13px 18px; border: 0; border-radius: 14px; background: transparent; color: var(--green-dark); font-size: 16px; font-weight: 700; line-height: 22px; cursor: pointer; }
+.landing-language .locale-switcher select option { background: var(--white); color: var(--ink); }
 .landing-main { padding: 62px 0 84px; }
 .hero { display: grid; grid-template-columns: 1.06fr .94fr; gap: 70px; align-items: center; }
 .hero h1 { max-width: 730px; font-size: clamp(48px, 7vw, 82px); margin: 17px 0 24px; }
@@ -80,34 +85,27 @@ h3 { line-height: 1.1; }
 .agent-connect input { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--white); }
 .agent-auth-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
 
-/* Platform landing: product first, with Memoir as the first live offering. */
+/* Platform landing: a simple identity question followed by the product cards. */
 .platform-landing { min-height: 100vh; overflow: visible; background: linear-gradient(145deg, var(--paper) 0%, #f1eadf 100%); }
 .platform-header, .platform-main { width: min(1120px, calc(100% - 44px)); margin: 0 auto; }
 .platform-header { padding-top: 28px; }
 .platform-main { padding: 76px 0 92px; }
 .platform-hero { max-width: 760px; }
 .platform-hero h1 { font-size: clamp(52px, 8vw, 92px); margin: 17px 0 22px; }
+.platform-reflection { max-width: 540px; margin-bottom: 0; color: var(--muted); font-size: clamp(17px, 2vw, 20px); line-height: 1.6; text-wrap: pretty; }
 .platform-products { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; margin-top: 60px; }
 .product-card { min-height: 270px; border-radius: 24px; padding: 30px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: flex-start; }
 .product-card-primary { color: var(--white); background: var(--green-dark); border-color: var(--green-dark); box-shadow: var(--shadow); }
 .product-card-primary .product-kicker { color: var(--gold); }
 .product-card-primary h2 { max-width: 520px; font-size: clamp(30px, 4vw, 48px); margin: 15px 0 12px; }
 .product-card-primary p { color: rgba(255,255,255,.74); max-width: 420px; line-height: 1.55; margin-bottom: 26px; }
-.product-card-actions { width: 100%; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: auto; }
-.product-card-language { width: auto; margin: 0; }
-.product-card-language #locale-switcher-root { display: block; position: static; width: max-content; }
-.product-card-language .locale-switcher { position: relative; display: block; padding: 0; border: 0; border-radius: 14px; background: var(--green); box-shadow: 0 10px 22px rgba(49,95,85,.2); color: var(--white); transition: background .18s ease, transform .18s ease; }
-.product-card-language .locale-switcher > span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.product-card-language .locale-switcher::after { content: ""; position: absolute; right: 17px; top: 19px; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); pointer-events: none; }
-.product-card-language .locale-switcher:hover { background: var(--green-dark); transform: translateY(-1px); }
-.product-card-language .locale-switcher select { appearance: none; min-height: 48px; padding: 13px 38px 13px 18px; border: 0; border-radius: 14px; background: transparent; color: var(--white); font-size: 16px; font-weight: 700; line-height: 22px; cursor: pointer; }
-.product-card-language .locale-switcher select option { background: var(--white); color: var(--ink); }
+.product-card-actions { width: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: auto; }
 .product-card-primary .button { margin-top: 0; }
 .product-card-muted { background: rgba(255,253,248,.62); }
 .product-card-muted h2 { font-size: 34px; margin: 15px 0 12px; }
 .product-card-muted p { color: var(--muted); line-height: 1.55; max-width: 270px; }
 .product-kicker { color: var(--green); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 700; }
-.product-status { display: inline-flex; margin-top: auto; color: var(--muted); background: var(--paper-deep); border-radius: 999px; padding: 8px 11px; font-size: 11px; font-weight: 700; }
+.product-status { display: inline-flex; align-self: flex-end; margin-top: auto; color: var(--muted); background: var(--paper-deep); border-radius: 999px; padding: 8px 11px; font-size: 11px; font-weight: 700; }
 
 /* Conversation shell */
 .story-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--paper); }
@@ -493,6 +491,7 @@ h3 { line-height: 1.1; }
 .chat-composer { align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 32px; background: var(--white); }
 .chat-composer:has(#chat-input) { align-items: flex-end; }
 .chat-composer textarea { min-width: 0; border: 0; background: transparent; border-radius: 22px; }
+.chat-composer textarea:focus-visible { outline: none; }
 .chat-composer .voice-button, .chat-composer .send-button { width: 42px; height: 42px; }
 .chat-composer .voice-button { color: var(--ink); background: transparent; }
 .chat-composer .voice-mode-button, .chat-composer .send-button { color: white; background: var(--ink); box-shadow: none; }
@@ -855,6 +854,36 @@ h3 { line-height: 1.1; }
   .composer-wrap { padding: 9px 12px 12px; }
   .composer-note { padding-top: 5px; }
 }
+
+/* Keep the workspace beside the conversation on compact desktop viewports.
+   A 1030px physical screenshot can be an 823px CSS viewport on a scaled
+   display; stack only at the genuinely narrow mobile breakpoint. */
+@media (min-width: 761px) and (max-width: 860px) {
+  .story-shell { height: 100dvh; min-height: 100vh; overflow: hidden; }
+  .conversation-layout { height: calc(100dvh - 76px); min-height: 0; }
+  .context-visible .conversation-layout, .workspace-visible .conversation-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+  .chat-main { height: 100%; min-height: 0; overflow: hidden; }
+  .workspace-detail { height: 100%; max-height: none; min-height: 0; overflow: hidden; border-right: 1px solid var(--line); }
+  .workspace-media-overview {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-columns: minmax(0, 1.08fr) minmax(250px, .92fr);
+    gap: 18px;
+  }
+  .workspace-media-map { display: flex; flex-direction: column; padding-right: 18px; border-right: 1px solid var(--line); }
+  .workspace-media-gallery { min-height: 0; }
+  .workspace-media-map .place-journey-card { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+  .workspace-media-map .place-journey-scene { flex: 1 1 auto; height: auto; min-height: 240px; }
+  .workspace-media-gallery > .place-pictures { min-height: 0; max-height: none; }
+  .workspace-detail > .workspace-detail-tabs { flex: 0 0 auto; }
+  .workspace-detail > .workspace-scroll { flex: 1 1 0; height: 0; min-height: 0; overflow-y: auto; }
+  .life-stage-navigator { flex: 0 0 auto; min-height: 0; padding: 10px 18px 12px; overflow: hidden; }
+}
 :root .collection-review {
   width: min(860px, calc(100vw - 32px));
   max-height: calc(100dvh - 48px);
@@ -877,3 +906,24 @@ h3 { line-height: 1.1; }
 .collection-confirm input { flex: 0 0 auto; margin-top: 5px; }
 .collection-task { border-top: 1px solid #d7d2c7; padding-block: 16px; }
 .collection-task button { margin-right: 12px; padding: 6px 12px; cursor: pointer; }
+
+.profile-settings { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; overflow: auto; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--white); color: var(--ink); box-shadow: var(--shadow); }
+.profile-settings::backdrop { background: rgba(25, 44, 38, .4); }
+.profile-settings header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.profile-settings h2 { margin: 0; font-size: 26px; }
+.profile-settings [data-close] { min-width: 44px; min-height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--ink); font-size: 28px; cursor: pointer; }
+.profile-settings-intro, .profile-settings-note, .profile-settings small { color: var(--muted); line-height: 1.6; }
+.profile-settings fieldset { min-width: 0; padding: 0; margin: 24px 0 0; border: 0; }
+.profile-settings label { display: grid; gap: 8px; font-size: 14px; font-weight: 600; }
+.profile-settings small { font-size: 12px; font-weight: 400; }
+.profile-settings input, .profile-settings select { width: 100%; min-width: 0; box-sizing: border-box; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); color: var(--ink); font: inherit; font-size: 16px; }
+.profile-settings-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 24px; }
+.profile-settings-note { margin: 24px 0 0; font-size: 13px; }
+.profile-settings [data-status] { font-size: 13px; line-height: 1.5; }
+.profile-settings footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.profile-settings :focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+@media (max-width: 480px) { .profile-settings { padding: 20px; } .profile-settings-fields { grid-template-columns: 1fr; } }
+
+.auth-history-reminder { margin: 20px 0; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--white); color: var(--ink); }
+.auth-history-reminder p { margin: 0 0 12px; line-height: 1.6; }
+[data-auth-reminder-dialog] [data-email] { margin: 16px 0; }

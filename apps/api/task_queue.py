@@ -49,6 +49,16 @@ class TaskQueue:
                     user_id TEXT NOT NULL, project_id TEXT NOT NULL,
                     document TEXT NOT NULL, PRIMARY KEY(user_id, project_id)
                 );
+                CREATE TABLE IF NOT EXISTS workspace_jobs (
+                    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, project_id TEXT,
+                    turn_id TEXT NOT NULL, payload TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'QUEUED', attempts INTEGER NOT NULL DEFAULT 0,
+                    available_at REAL NOT NULL, lease_token TEXT, lease_until REAL,
+                    error TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL,
+                    UNIQUE(user_id, turn_id)
+                );
+                CREATE INDEX IF NOT EXISTS workspace_jobs_ready
+                    ON workspace_jobs(status, available_at);
             ''')
 
     @contextmanager
@@ -161,6 +171,76 @@ class TaskQueue:
         with self._connect() as db:
             return [row['id'] for row in db.execute("""SELECT id FROM tasks
                 WHERE status IN ('QUEUED', 'RUNNING') ORDER BY created_at LIMIT ?""", (limit,))]
+
+    @staticmethod
+    def _workspace_public(row):
+        if not row:
+            return None
+        return {
+            'id': row['id'],
+            'project_id': row['project_id'],
+            'turn_id': row['turn_id'],
+            'status': row['status'],
+            'attempts': row['attempts'],
+            'created_at': row['created_at'],
+            'error': row['error'],
+        }
+
+    def submit_workspace(self, user_id, project_id, turn_id, payload):
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        now = time.time()
+        with self._transaction() as db:
+            db.execute('''INSERT OR IGNORE INTO workspace_jobs
+                (id, user_id, project_id, turn_id, payload, available_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                (str(uuid4()), user_id, project_id, turn_id, encoded, now, now, now))
+            row = db.execute('''SELECT * FROM workspace_jobs
+                WHERE user_id=? AND turn_id=?''', (user_id, turn_id)).fetchone()
+            return self._workspace_public(row)
+
+    def claim_workspace(self, user_id, *, job_id=None, lease_seconds=300):
+        now = time.time()
+        with self._transaction() as db:
+            row = db.execute('''SELECT * FROM workspace_jobs
+                WHERE user_id=? AND attempts < 3
+                  AND ((status='QUEUED' AND available_at<=?)
+                    OR (status='RUNNING' AND lease_until<=?))
+                  AND (? IS NULL OR id=?)
+                ORDER BY created_at LIMIT 1''',
+                (user_id, now, now, job_id, job_id)).fetchone()
+            if not row:
+                return None
+            token = str(uuid4())
+            db.execute('''UPDATE workspace_jobs SET status='RUNNING', attempts=attempts+1,
+                lease_token=?, lease_until=?, updated_at=? WHERE id=?''',
+                (token, now + lease_seconds, now, row['id']))
+            return {
+                'id': row['id'],
+                'lease_token': token,
+                'project_id': row['project_id'],
+                'turn_id': row['turn_id'],
+                'payload': json.loads(row['payload']),
+            }
+
+    def finish_workspace(self, job_id, token, *, error=None):
+        now = time.time()
+        with self._transaction() as db:
+            row = db.execute('''SELECT attempts FROM workspace_jobs
+                WHERE id=? AND lease_token=? AND status='RUNNING' AND lease_until>?''',
+                (job_id, token, now)).fetchone()
+            if not row:
+                return False
+            status = 'SUCCEEDED' if error is None else ('QUEUED' if row['attempts'] < 3 else 'FAILED')
+            db.execute('''UPDATE workspace_jobs SET status=?, error=?, available_at=?,
+                lease_token=NULL, lease_until=NULL, updated_at=? WHERE id=?''',
+                (status, error, now + (2 ** row['attempts'] if error else 0), now, job_id))
+            return True
+
+    def pending_workspace(self, user_id, limit=20):
+        with self._connect() as db:
+            return [self._workspace_public(row) for row in db.execute('''SELECT * FROM workspace_jobs
+                WHERE user_id=? AND status IN ('QUEUED', 'RUNNING')
+                ORDER BY created_at LIMIT ?''', (user_id, limit))]
 
     def collection(self, user_id, project_id):
         with self._connect() as db:

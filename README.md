@@ -218,6 +218,37 @@ The target loads `.env` before running, then removes rows from the application-o
 
 High-level Codex activity is hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary while private model reasoning remains hidden.
 
+### Langfuse trajectory evaluation
+
+Memoir keeps the evaluation task callback beside the application and private
+`codex-worker` boundary. The callback receives one synthetic case and the
+correlation envelope, then returns the `trajectory` from
+`CodexRuntime.turn(..., evaluation=..., include_trajectory=True)`. The recorder
+captures observable Codex protocol and application steps, tool results and
+errors, marker/state validation, persistence, and the terminal response while
+redacting credentials and private reasoning. Ordinary browser turns never
+request or return this payload.
+
+Install the optional host-side SDK and run a case file with a callback module:
+
+```bash
+python3 -m pip install -e '.[evaluation]'
+make langfuse-eval \
+  EVAL_CASES=tests/evaluation/cases.json \
+  EVAL_TASK=your_eval_module:run_case
+```
+
+Add `EVAL_PUBLISH=1` after configuring the `MEMORY_SPARK_LANGFUSE_*` variables
+to publish the root observation and deterministic scores to the project hosted
+by `llm_provider`. Publishing is optional for local regression runs; the
+application and worker do not wait for Langfuse judges. The generic correlation
+fields are forwarded to the provider through Codex's
+`responsesapiClientMetadata`, so provider generations can be joined to the
+Memoir run without moving Memoir skill or state semantics into `llm_provider`.
+The publisher also exposes Langfuse SDK v4's `run_experiment` for synchronous
+dataset callbacks; the local runner is the async adapter for the real worker
+turn boundary.
+
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 
 ### Place journeys in the integrated Codex worker

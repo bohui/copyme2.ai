@@ -179,6 +179,24 @@ class WorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t,contextlib.redirect_stdout(io.StringIO()):
             code=p.main(["init","--place","Chengde","--out",t,"--as-of","2026-09-26"])
             self.assertEqual(code,0); self.assertEqual(p.read_json(Path(t)/"request.json")["temporal"]["mode"],"current")
+    def test_init_photo_count(self):
+        for count_args, expected in (([], 10), (["--count", "15"], 15), (["--count", "3"], 3)):
+            with self.subTest(count_args=count_args), tempfile.TemporaryDirectory() as t, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(p.main(["init", "--place", "Chengde", "--out", t, *count_args]), 0)
+                request = p.read_json(Path(t) / "request.json")
+                self.assertEqual(request["count"], expected)
+                self.assertEqual(request["budgets"], {"max_queries": 40, "max_pages": 80})
+
+    def test_report_marks_duplicate_shortfall(self):
+        import copy
+        duplicate = copy.deepcopy(self.c)
+        duplicate["id"] = "duplicate-photo"
+        p.write_json(self.run / "candidates.json", [self.c, duplicate])
+        manifest = p.build_manifest(self.run)
+        self.assertEqual(manifest["summary"]["qualifying_photos"], 1)
+        self.assertEqual(manifest["summary"]["shortfall"], 2)
+        self.assertEqual(manifest["summary"]["status"], "incomplete")
+
     def test_budget(self):
         for i in range(8): p.log_event(self.run,"search",str(i),[])
         with self.assertRaises(p.ResearchError): p.log_event(self.run,"search","ninth",[])

@@ -15,7 +15,7 @@ CONTAINER_IMAGES := \
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test localization-catalog-test browser-test browser-localization-test browser-ten-round-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -36,7 +36,8 @@ migrate: ## Apply the Supabase agent, entitlement, Family, and place-journey mig
 	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250004_fenced_agent_turn_commit.sql; \
 	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250005_family_price_provenance.sql; \
 	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260001_user_family_context.sql; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260002_user_place_journey.sql
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260002_user_place_journey.sql; \
+	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609280001_agent_workspace_ordering.sql
 
 db-truncate: ## Empty local app tables, Supabase Storage, and filesystem objects; pass RESET_CONFIRM=1.
 	@test "$(RESET_CONFIRM)" = "1" || { echo "Refusing to truncate data. Re-run with RESET_CONFIRM=1."; exit 2; }
@@ -102,6 +103,13 @@ runtime-start: check ## Start the Apple Container runtime.
 
 test: ## Run the local Python test suite.
 	@python3 -m pytest -q
+
+langfuse-eval: ## Run synthetic trajectory cases through a supplied local task callback.
+	@test -n "$(EVAL_CASES)" || { echo "Pass EVAL_CASES=path/to/cases.json."; exit 2; }
+	@test -n "$(EVAL_TASK)" || { echo "Pass EVAL_TASK=module:callable."; exit 2; }
+	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
+	args=""; if test "$(EVAL_PUBLISH)" = "1"; then args="--publish"; fi; \
+		python3 scripts/run_langfuse_evaluation.py --cases "$(EVAL_CASES)" --task "$(EVAL_TASK)" $$args
 
 localization-catalog-test: ## Validate the English and Simplified Chinese message catalogues.
 	@python3 scripts/check_localization_catalog.py

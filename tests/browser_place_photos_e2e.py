@@ -32,7 +32,7 @@ def main() -> None:
         "attribution": "Public archive",
         "license": "Public domain",
         "allowed_actions": {"embed": True},
-    } for index in range(1, 4)]
+    } for index in range(1, 11)]
     metadata_only_pictures = [{
         "asset_id": f"commons-metadata-{index}",
         "kind": "image",
@@ -41,7 +41,7 @@ def main() -> None:
         "attribution": "Public archive",
         "license": "Public domain",
         "allowed_actions": {"embed": True},
-    } for index in range(1, 4)]
+    } for index in range(1, 11)]
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -71,10 +71,12 @@ def main() -> None:
         page.get_by_role("button", name="Send message").click()
 
         gallery = page.locator(".workspace-media-gallery .place-pictures figure")
-        expect(gallery).to_have_count(3, timeout=30000)
+        expect(gallery).to_have_count(10, timeout=30000)
         titles = gallery.locator("figcaption a").all_text_contents()
-        assert len(titles) == 3, titles
+        assert len(titles) == 10, titles
         assert all(title for title in titles), titles
+        expect(gallery.locator("figcaption small")).to_have_count(10)
+        expect(gallery.get_by_text("公共历史线索 · 不是个人证据")).to_have_count(0)
 
         project_id = page.url.rsplit("/", 1)[-1]
 
@@ -96,7 +98,7 @@ def main() -> None:
         ))
         page.reload(wait_until="networkidle")
         expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible(timeout=30000)
-        expect(page.locator(".workspace-media-gallery .place-pictures figure")).to_have_count(3, timeout=30000)
+        expect(page.locator(".workspace-media-gallery .place-pictures figure")).to_have_count(10, timeout=30000)
         browser.close()
 
 

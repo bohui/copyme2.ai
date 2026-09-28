@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from apps.api import agent_routes
@@ -44,6 +46,19 @@ def test_agent_turn_requires_a_supabase_bearer_token(monkeypatch):
     assert response.json()['detail'] == 'Supabase sign-in required'
 
 
+def test_project_creation_does_not_turn_missing_conversation_language_into_ui_language():
+    client = TestClient(create_app(MemoryStore()))
+
+    response = client.post(
+        "/v1/projects",
+        json={"mode": "self"},
+        headers={"X-Account-Id": "independent-language-user"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["profile"]["preferred_language"] is None
+
+
 def test_agent_turn_passes_the_configured_language_to_the_runtime(monkeypatch):
     class Client:
         def close(self):
@@ -75,6 +90,71 @@ def test_agent_turn_passes_the_configured_language_to_the_runtime(monkeypatch):
     assert captured["text"] == "我想从小时候开始。"
     assert captured["project_id"] == "project-1"
     assert captured["language"] == "zh-CN"
+
+
+def test_agent_turn_keeps_conversation_language_optional(monkeypatch):
+    class Client:
+        def close(self):
+            return None
+
+    class Storage:
+        client = Client()
+        user_id = "11111111-1111-4111-8111-111111111111"
+
+    captured = {}
+
+    class Runtime:
+        async def turn(self, storage, text, *, project_id=None, language=None):
+            captured.update(text=text, project_id=project_id, language=language)
+            return {"reply": "The conversation language is selected independently."}
+
+    monkeypatch.setattr(agent_routes, "authenticated_storage", lambda authorization: Storage())
+    monkeypatch.setattr(agent_routes, "runtime", Runtime())
+    client = TestClient(create_app(MemoryStore()))
+
+    response = client.post(
+        "/v1/agent/turn",
+        json={"text": "A Mandarin interview can have an English interface."},
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 200
+    assert captured["language"] is None
+
+
+def test_streaming_agent_turn_forwards_saved_reply_before_workspace_events(monkeypatch):
+    class Client:
+        def close(self):
+            return None
+
+    class Storage:
+        client = Client()
+        user_id = "11111111-1111-4111-8111-111111111111"
+
+    class Runtime:
+        async def turn(self, storage, text, *, project_id=None, language="en-AU", on_delta=None, on_event=None):
+            await on_delta("Hello")
+            await on_event({"type": "reply_complete", "data": {"reply": "Hello"}})
+            await on_event({"type": "conversation_saved", "data": {"reply": "Hello"}})
+            await on_event({"type": "workspace_update", "data": {"workspace_status": "ready"}})
+            return {"reply": "Hello"}
+
+    monkeypatch.setattr(agent_routes, "authenticated_storage", lambda authorization: Storage())
+    monkeypatch.setattr(agent_routes, "runtime", Runtime())
+    client = TestClient(create_app(MemoryStore()))
+
+    response = client.post(
+        "/v1/agent/turn",
+        json={"text": "Hello"},
+        headers={"Authorization": "Bearer test-token", "Accept": "application/x-ndjson"},
+    )
+
+    assert response.status_code == 200
+    events = [json.loads(line) for line in response.text.splitlines() if line]
+    assert [event["type"] for event in events] == [
+        "started", "text_delta", "reply_complete", "conversation_saved",
+        "workspace_update", "result",
+    ]
 
 
 def test_agent_turn_rejects_unsupported_conversation_language(monkeypatch):

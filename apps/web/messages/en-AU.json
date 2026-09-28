@@ -76,18 +76,19 @@
   "Platform": {
     "brand": "CopyMe2",
     "homeAria": "CopyMe2 home",
-    "headerNote": "Preserve the parts of you that matter.",
-    "eyebrow": "The CopyMe2 platform",
-    "title": "Preserve the parts of you that matter.",
-    "description": "Thoughtful tools for turning the stories, memories, and voice of a life into something a family can keep.",
+    "headerNote": "Every life holds a story.",
+    "eyebrow": "A question only you can answer",
+    "title": "Who am I?",
+    "description": "Turn your memories into stories your family can keep. Start wherever life takes you.",
+    "reflection": "The people you’ve loved. The places you’ve called home. The moments that made you, you.",
     "products": "CopyMe2 products",
     "memoirKicker": "COPYME2 · MEMOIR",
-    "memoirTitle": "Start with a conversation.",
-    "memoirBody": "Bring a memory, a photograph, a place, or simply a thought, and let the story find its shape.",
+    "memoirTitle": "Preserve the parts of you that matter.",
+    "memoirBody": "Start with a memory, place, or thought; make a story your family can keep.",
     "begin": "Begin my story",
-    "voiceKicker": "COPYME2 · VOICE",
-    "voiceTitle": "Voice",
-    "voiceBody": "Coming separately. A future product for keeping your voice close.",
+    "diaryKicker": "COPYME2 · DIARY",
+    "diaryTitle": "Keep the everyday close.",
+    "diaryBody": "A private place for the small moments, thoughts, and details you’ll want to remember.",
     "comingStatus": "Coming soon"
   },
   "Memoir": {
@@ -148,6 +149,13 @@
       "voiceAnswer": "Voice answer"
     },
     "trace": {
+      "status": {
+        "running": "In progress",
+        "completed": "Completed",
+        "triggered": "Triggered",
+        "failed": "Failed",
+        "queued": "Queued"
+      },
       "title": "Thinking steps",
       "stepCount": "{count} steps",
       "note": "High-level actions and tool results are shown here. Private model reasoning stays hidden.",
@@ -228,13 +236,41 @@
       "lifeStagePicturePlural": "{count} photographs",
       "lifeStageTellMemory": "Tell a memory",
       "lifeStages": {
-        "baby": { "label": "Baby", "description": "Family stories from your earliest days", "prompt": "Are there photographs or stories your family shared about when you were a baby?" },
-        "toddler": { "label": "Toddler", "description": "The first places and small discoveries", "prompt": "What small place, object, or routine comes back to you from those early years?" },
-        "childhood": { "label": "Childhood", "description": "The places and people you remember", "prompt": "What is the first home, classroom, or familiar place you remember?" },
-        "adolescence": { "label": "Teenage years", "description": "Finding your people and your own voice", "prompt": "Who or what helped you feel more like yourself as you grew up?" },
-        "young_adulthood": { "label": "Young adulthood", "description": "Beginnings, choices, and new independence", "prompt": "Which beginning or choice opened the next part of your life?" },
-        "midlife": { "label": "Midlife", "description": "The work, love, and responsibilities you carried", "prompt": "What was taking most of your attention and care in that season?" },
-        "later_life": { "label": "Later life", "description": "What you know now and what you want to pass on", "prompt": "What lesson, place, or person feels important to pass on?" }
+        "baby": {
+          "label": "Baby",
+          "description": "Family stories from your earliest days",
+          "prompt": "Are there photographs or stories your family shared about when you were a baby?"
+        },
+        "toddler": {
+          "label": "Toddler",
+          "description": "The first places and small discoveries",
+          "prompt": "What small place, object, or routine comes back to you from those early years?"
+        },
+        "childhood": {
+          "label": "Childhood",
+          "description": "The places and people you remember",
+          "prompt": "What is the first home, classroom, or familiar place you remember?"
+        },
+        "adolescence": {
+          "label": "Teenage years",
+          "description": "Finding your people and your own voice",
+          "prompt": "Who or what helped you feel more like yourself as you grew up?"
+        },
+        "young_adulthood": {
+          "label": "Young adulthood",
+          "description": "Beginnings, choices, and new independence",
+          "prompt": "Which beginning or choice opened the next part of your life?"
+        },
+        "midlife": {
+          "label": "Midlife",
+          "description": "The work, love, and responsibilities you carried",
+          "prompt": "What was taking most of your attention and care in that season?"
+        },
+        "later_life": {
+          "label": "Later life",
+          "description": "What you know now and what you want to pass on",
+          "prompt": "What lesson, place, or person feels important to pass on?"
+        }
       },
       "allPlaces": "All places",
       "placeHistory": "Place history",
@@ -291,7 +327,7 @@
       "electronicMemoirDelivery": "Electronic memoir delivery",
       "originalRetained": "original retained",
       "sourceNote": "source note",
-      "publicReferenceCues": "Public history cues · not personal evidence",
+      "publicReferenceCues": "Historical photographs",
       "historicalReference": "Historical reference",
       "viewSource": "View source",
       "familiar": "Familiar",
@@ -300,6 +336,7 @@
       "placeContext": "Place context",
       "exploreMap": "Explore map",
       "mapPreview": "Map preview",
+      "parentMap": "Showing the approximate area of {place}",
       "placeContextShown": "Your place context is shown above.",
       "approximate": "Approximate {placeType}",
       "placeNote": "Not quite the right place? Tell me in the conversation.",
@@ -416,5 +453,37 @@
         }
       }
     }
+  },
+  "Profile": {
+    "title": "Your profile",
+    "intro": "Mira fills in these details as you share your story. You can review or correct them here.",
+    "preferred_language": "Preferred conversation language",
+    "automatic": "Detect from my next message",
+    "languageHint": "Used for replies and voice. The page language stays the same.",
+    "name": "Name",
+    "birth_year": "Birth year",
+    "birth_place": "Birthplace",
+    "childhood_place": "Childhood place",
+    "artworkHint": "Timeline illustrations are selected automatically from your story.",
+    "close": "Close profile",
+    "cancel": "Cancel",
+    "save": "Save changes",
+    "loading": "Loading your profile…",
+    "saving": "Saving…",
+    "loadError": "Your profile could not be loaded. Close this window and try again.",
+    "saveError": "Your changes could not be saved. Wait for any current reply to finish, then try again.",
+    "syncError": "Your profile is saved, but this workspace could not be updated. Save again to retry."
+  },
+  "AuthReminder": {
+    "title": "Sign in to keep your history",
+    "message": "We’ve been chatting for 10 minutes. Connect your email or a social account to keep your conversation history. As a guest, you could lose access if you sign out, clear browser data or switch devices.",
+    "email": "Email address",
+    "continueEmail": "Continue with email",
+    "google": "Continue with Google",
+    "facebook": "Continue with Facebook",
+    "later": "Not now",
+    "checkEmail": "Check your email and follow the confirmation link to secure this conversation. You can keep chatting while you wait.",
+    "redirecting": "Opening your provider…",
+    "error": "We couldn’t connect this account. Please try again or use another email or provider. Your guest conversation is still here."
   }
 }

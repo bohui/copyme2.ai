@@ -27,13 +27,13 @@ codex --search --sandbox workspace-write --ask-for-approval on-request
 Then invoke inside Codex:
 
 ```text
-$place-photo-research Find 3 photographs of Chengde, Hebei, China in the 1980s. Prefer streets and everyday life. Save permitted images and a source-backed report under ./photo-research/chengde-1980s-01.
+$place-photo-research Find at least 10 photographs of Chengde, Hebei, China in the 1980s. Prefer streets and everyday life. Save permitted images and a source-backed report under ./photo-research/chengde-1980s-01.
 ```
 
 For a current-mode request, no date is needed:
 
 ```text
-$place-photo-research Find 3 photographs of Chengde, Hebei, China. Save the permitted images, evidence and a local gallery under ./photo-research/chengde-current-01.
+$place-photo-research Find at least 10 photographs of Chengde, Hebei, China. Save the permitted images, evidence and a local gallery under ./photo-research/chengde-current-01.
 ```
 
 Use `/skills` or type `$` to discover/select the skill. Codex's current documentation says local skill changes are detected automatically; restart Codex if the skill does not appear.
@@ -53,7 +53,7 @@ The HTML helper uses direct connections with no cookies, credentials or proxy in
 ## What the skill does
 
 1. Normalises the requested place, subject and period. Missing period becomes current in code, using a configurable 24-calendar-month preferred capture window.
-2. Searches in appropriate languages and finds image pages, archives and albums through native web search.
+2. Targets at least 10 verified photographs per location/decade, expanding bilingual web/image searches across engines, local archives, photographer albums and institutional catalogues. Each run allows 40 queries and 80 page reads; a shortfall is reported as incomplete.
 3. Inspects original pages and image-specific captions; expands promising collections within limits.
 4. Saves place/date/rights/access evidence and unresolved candidates.
 5. Runs the helper's conservative audit and downloads only eligible items.

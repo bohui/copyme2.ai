@@ -34,6 +34,31 @@ def test_text_arrives_before_persistence_and_result():
     asyncio.run(run())
 
 
+def test_saved_reply_event_can_precede_workspace_result():
+    async def run():
+        workspace_done = asyncio.Event()
+
+        async def turn(emit):
+            await emit('Hello')
+            await emit.event({'type': 'reply_complete', 'data': {'reply': 'Hello'}})
+            await emit.event({'type': 'conversation_saved', 'data': {'reply': 'Hello'}})
+            await workspace_done.wait()
+            await emit.event({'type': 'workspace_update', 'data': {'workspace_status': 'ready'}})
+            return {'reply': 'Hello', 'workspace_status': 'ready'}
+
+        stream = turn_events(turn)
+        assert json.loads(await anext(stream))['type'] == 'started'
+        assert json.loads(await anext(stream)) == {'type': 'text_delta', 'text': 'Hello'}
+        assert json.loads(await anext(stream))['type'] == 'reply_complete'
+        assert json.loads(await anext(stream))['type'] == 'conversation_saved'
+        workspace_done.set()
+        assert json.loads(await anext(stream))['type'] == 'workspace_update'
+        assert json.loads(await anext(stream))['type'] == 'result'
+        await stream.aclose()
+
+    asyncio.run(run())
+
+
 def test_disconnect_cancels_turn_and_closes_storage():
     async def run():
         cancelled = asyncio.Event()
@@ -51,6 +76,27 @@ def test_disconnect_cancels_turn_and_closes_storage():
         await anext(stream)
         await stream.aclose()
         assert cancelled.is_set() and closed.is_set()
+    asyncio.run(run())
+
+
+def test_disconnect_after_conversation_saved_allows_workspace_to_settle():
+    async def run():
+        released = asyncio.Event()
+        settled = asyncio.Event()
+
+        async def turn(emit):
+            await emit.event({'type': 'conversation_saved', 'data': {'reply': 'Hello'}})
+            await released.wait()
+            settled.set()
+            return {'reply': 'Hello'}
+
+        stream = turn_events(turn)
+        await anext(stream)
+        assert json.loads(await anext(stream))['type'] == 'conversation_saved'
+        released.set()
+        await stream.aclose()
+        assert settled.is_set()
+
     asyncio.run(run())
 
 

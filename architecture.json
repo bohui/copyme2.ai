@@ -32,7 +32,7 @@
         "id": "develop",
         "label": "Development",
         "focus": [
-          "harness",
+          "developer-cli",
           "repository"
         ]
       }
@@ -172,7 +172,7 @@
       ]
     },
     {
-      "id": "harness",
+      "id": "developer-cli",
       "type": "external",
       "label": "Developer CLI",
       "sublabel": "local checks + builds",
@@ -264,7 +264,7 @@
     },
     {
       "id": "dev-tools",
-      "from": "harness",
+      "from": "developer-cli",
       "to": "repository",
       "label": "install skills / test"
     }

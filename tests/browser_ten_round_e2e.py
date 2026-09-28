@@ -65,6 +65,7 @@ PUBLIC_CUE = {
     "location": "霍巴特",
     "scene_date_range": {"start": "1960", "end": "1969"},
     "label": "公共历史线索",
+    "allowed_actions": {"embed": True},
     "source_url": "https://example.com/hobart-reference",
 }
 
@@ -206,6 +207,7 @@ def main() -> None:
                 )
             route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
+        page.route("**/place-photos?**", lambda route: route.fulfill(json={"items": []}))
         page.route("**/api/v1/memoir/story/state", family_state)
         page.route("**/api/v1/memoir/agent/family-context*", family_context)
         page.route("**/api/v1/memoir/memory-sessions/*/answers", memory_answer)
@@ -274,10 +276,9 @@ def main() -> None:
                 expect(timeline.get_by_text("around 1964 · 大致日期 · Hobart", exact=True)).to_be_visible()
                 expect(timeline.locator("[data-renderer-status='fallback']")).to_be_visible(timeout=10000)
             elif round_number == 4:
-                page.get_by_role("button", name="照片").click()
-                pictures = page.get_by_role("complementary", name="照片 工作区")
+                pictures = page.locator(".workspace-media-gallery")
                 expect(pictures.get_by_text("霍巴特海滨，1960年代")).to_be_visible()
-                expect(pictures.get_by_text("公共历史线索 · 不是个人证据")).to_be_visible()
+                expect(pictures.get_by_text("公共历史线索 · 不是个人证据")).to_have_count(0)
 
         expect(page.locator(".user-message")).to_have_count(10)
         expect(page.locator(".assistant-message")).to_have_count(11)

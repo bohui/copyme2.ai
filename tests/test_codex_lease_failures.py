@@ -30,6 +30,9 @@ class Storage:
     def memories(self):
         return []
 
+    def profile(self):
+        return {'preferred_language': 'en-AU'}
+
     def put_agent_turn_file(self, *args):
         self.events.append('upload')
 

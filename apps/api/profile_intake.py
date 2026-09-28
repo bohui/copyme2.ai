@@ -44,6 +44,8 @@ def validate_profile_updates(raw: Any) -> dict[str, Any] | None:
         return None
 
     updates: dict[str, Any] = {}
+    if raw.get("preferred_language") in ("en-AU", "zh-CN"):
+        updates["preferred_language"] = raw["preferred_language"]
     for key, limit in PROFILE_FIELDS.items():
         value = _text(raw.get(key), limit)
         if value is not None:

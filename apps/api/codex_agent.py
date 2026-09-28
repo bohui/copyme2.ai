@@ -5,15 +5,21 @@ import os
 import signal
 from pathlib import Path
 
+from .trajectory_evaluation import normalise_correlation, protocol_request_evidence
+
 
 class CodexConnection:
-    def __init__(self, command, home, *, provider_env=None, timeout=120):
+    def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None):
         self.command = command
-        self.home = Path(home)
+        # Codex uses this value for both cwd and HOME/CODEX_HOME.  Resolve it
+        # once so a relative runtime root cannot become a nested path from the
+        # child process's working directory and make app-server exit at start.
+        self.home = Path(home).expanduser().resolve()
         self.provider_env = provider_env or {}
         self.timeout = timeout
         self.sequence = 0
         self.events = []
+        self.trajectory = trajectory
 
     async def __aenter__(self):
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -76,17 +82,28 @@ class CodexConnection:
     async def request(self, method, params):
         self.sequence += 1
         request_id = self.sequence
+        if self.trajectory:
+            self.trajectory.record('codex', f'request.{method}', input={
+                'id': request_id,
+                'params': protocol_request_evidence(method, params),
+            })
         await self.send({'id': request_id, 'method': method, 'params': params})
         async with asyncio.timeout(self.timeout):
             while True:
                 message = await self.receive()
                 if message.get('id') == request_id and 'method' not in message:
                     if 'error' in message:
+                        if self.trajectory:
+                            self.trajectory.record('codex', f'response.{method}', error=message.get('error'))
                         raise RuntimeError('Codex app-server rejected ' + method)
+                    if self.trajectory:
+                        self.trajectory.record('codex', f'response.{method}', output=message.get('result'))
                     return message['result']
                 await self.handle_event(message)
 
     async def handle_event(self, message):
+        if self.trajectory:
+            self.trajectory.record_protocol(message)
         # Never grant tool execution or approvals implicitly from model output.
         if 'id' in message and 'method' in message:
             await self.send({'id': message['id'], 'error': {'code': -32601,
@@ -94,10 +111,18 @@ class CodexConnection:
         else:
             self.events.append(message)
 
-    async def turn(self, thread_id, text, on_delta=None):
+    async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None, output_schema=None):
         self.events.clear()
-        result = await self.request('turn/start', {'threadId': thread_id,
-            'input': [{'type': 'text', 'text': text}]})
+        params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}]}
+        if output_schema is not None:
+            params['outputSchema'] = output_schema
+        metadata = normalise_correlation(responsesapi_client_metadata)
+        if metadata:
+            params['responsesapiClientMetadata'] = {
+                key: value for key, value in metadata.items()
+                if key in {'run_id', 'case_id', 'dataset', 'skill_hash', 'generation_name', 'evaluator_version'}
+            }
+        result = await self.request('turn/start', params)
         turn_id = result['turn']['id']
         messages = []
         streamed_items = set()
@@ -107,6 +132,8 @@ class CodexConnection:
                 if 'method' in event and 'id' in event:
                     await self.handle_event(event)
                     continue
+                if self.trajectory:
+                    self.trajectory.record_protocol(event, phase='codex.turn')
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:
                     continue
@@ -121,7 +148,11 @@ class CodexConnection:
                             await on_delta(item['text'])
                 if event.get('method') == 'turn/completed' and params['turn']['id'] == turn_id:
                     if params['turn']['status'] != 'completed':
+                        if self.trajectory:
+                            self.trajectory.record('codex.turn', 'turn.failed', output=params['turn'])
                         raise RuntimeError('Codex turn failed; no reply was substituted')
+                    if self.trajectory:
+                        self.trajectory.record('codex.turn', 'turn.completed', output={'turn': params['turn'], 'message_count': len(messages)})
                     return '\n'.join(messages)
 
 

@@ -35,19 +35,32 @@ class VisibleText:
 async def turn_events(run, cleanup=None):
     queue = asyncio.Queue(maxsize=64)
 
-    async def emit(text):
+    async def emit_text(text):
         if text:
             await queue.put({'type': 'text_delta', 'text': text})
 
+    async def emit_event(event):
+        if not isinstance(event, dict) or not event.get('type'):
+            raise ValueError('Invalid turn stream event')
+        await queue.put(event)
+
+    class Emitter:
+        async def __call__(self, text):
+            await emit_text(text)
+
+        async def event(self, event):
+            await emit_event(event)
+
     async def produce():
         try:
-            result = await run(emit)
+            result = await run(Emitter())
             await queue.put({'type': 'result', 'data': result})
         except Exception:
             # Never expose provider credentials, private artifacts or raw exceptions.
             await queue.put({'type': 'error', 'message': 'The response could not be completed or saved. Please try again.'})
 
     task = asyncio.create_task(produce())
+    conversation_saved = False
     try:
         yield json.dumps({'type': 'started'}) + '\n'
         while True:
@@ -59,14 +72,19 @@ async def turn_events(run, cleanup=None):
                     break
                 yield json.dumps({'type': 'heartbeat'}) + '\n'
                 continue
+            if event.get('type') == 'conversation_saved':
+                conversation_saved = True
             yield json.dumps(event, ensure_ascii=False) + '\n'
             if event['type'] in {'result', 'error'}:
                 break
     finally:
         # Starlette cancels its AnyIO scope on disconnect; settlement must
         # survive that cancellation before releasing storage and turn leases.
+        # Once the conversation boundary has been emitted, let the optional
+        # workspace phase settle instead of cancelling it with the HTTP stream.
         with anyio.CancelScope(shield=True):
-            task.cancel()
+            if not conversation_saved:
+                task.cancel()
             await asyncio.gather(task, return_exceptions=True)
             if cleanup:
                 await cleanup()

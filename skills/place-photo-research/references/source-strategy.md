@@ -35,6 +35,19 @@ For Australia, library/archive discovery may include Trove and state libraries; 
 
 Do not download Google Maps/Earth/Street View screenshots or stock-photo previews into the memoir collection by default. They have separate access/reuse terms and may not provide scene-date evidence. Satellite imagery is not a substitute for requested street photographs.
 
+## Expansion when a location/decade has fewer than 10 photos
+
+Use up to 40 discovery queries and 80 item/page reads per run. Aim to collect 20–30 candidates so date, subject, rights and duplicate checks still leave at least 10 usable matches. Track the qualifying count separately for every location/decade.
+
+1. Search the local language and English with the decade and several individual years. Vary street/market/station/school/industry/daily-life subjects. Search verified aliases separately, keeping the modern geographic boundary.
+2. Use native web and image search, then a second engine when an available browser or configured API permits it: Google Images, Bing Images, Baidu Images for Chinese captions, or DuckDuckGo. Engines are discovery routes, not original sources. Log each query and follow its actual source links. If an engine is unavailable, record that and continue with other routes; do not scrape result HTML or assume an API/key exists.
+3. Cover at least three relevant independent source families before declaring a shortfall: local municipal/provincial archives or local-history publications; photographer albums (including Flickr); and institutional catalogues such as Wikimedia Commons, Historical Photographs of China, Library of Congress, national/state libraries or museums. Use Openverse to discover additional collections, then inspect their original records. Choose collections for geographic and temporal coverage; an aggregator repeating Commons is not an independent collection.
+4. Expand useful album/catalogue results, including subsequent result pages and linked item records within depth two. A collection holding 20 photographs is a better lead than 20 articles reproducing one image. Do not require all photos to come from different institutions.
+5. Check each photograph's scene date and place against its item caption. Discard banknotes, coins, stamps, maps, paintings, modern replicas and unrelated places. A scan/upload date and a year in a general album heading cannot date a photograph. Deduplicate by source item, original image URL and image hash across engines.
+6. Stop successfully only after 10 distinct qualifying photographs per pair (or the explicit requested count). If source/access limits exhaust the budget first, preserve valid results and record `found / target`, the shortfall, failed sources and promising next leads. Never pad with wrong-decade or unknown-date photos.
+
+API references for application integrations: [Library of Congress search results](https://www.loc.gov/apis/json-and-yaml/responses/search-results/), [Openverse media properties](https://docs.openverse.org/meta/media_properties/api.html). Catalogue access is not itself a reuse licence; inspect item rights.
+
 ## Assess each candidate
 
 Prefer item-level catalogue fields or the original photographer's caption. Preserve album/item disagreements. Keep scene date, upload date, webpage date and scan/EXIF date separate. Metadata is a source assertion, not independent truth.

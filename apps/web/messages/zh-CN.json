@@ -76,18 +76,19 @@
   "Platform": {
     "brand": "CopyMe2",
     "homeAria": "CopyMe2 首页",
-    "headerNote": "保留那些对您真正重要的部分。",
-    "eyebrow": "CopyMe2 平台",
-    "title": "保留那些对您真正重要的部分。",
-    "description": "用心设计的工具，把一个人的故事、回忆和声音变成家人可以珍藏的事物。",
+    "headerNote": "每个人的人生，都有故事。",
+    "eyebrow": "一个只有您能回答的问题",
+    "title": "我是谁？",
+    "description": "把您的回忆写成家人可以珍藏的故事。从此刻想到的任何地方开始。",
+    "reflection": "您爱过的人，称之为家的地方，还有那些成就了今天的您的时刻。",
     "products": "CopyMe2 产品",
     "memoirKicker": "COPYME2 · 回忆录",
-    "memoirTitle": "从一段对话开始。",
-    "memoirBody": "带来一段回忆、一张照片、一个地点，或只是一个念头，让故事慢慢找到自己的形状。",
+    "memoirTitle": "保留那些对您真正重要的部分。",
+    "memoirBody": "从一段回忆、一个地方或一个念头开始，写成家人可以珍藏的故事。",
     "begin": "开始讲我的故事",
-    "voiceKicker": "COPYME2 · 语音",
-    "voiceTitle": "语音",
-    "voiceBody": "将独立推出。一个让您的声音常伴身边的未来产品。",
+    "diaryKicker": "COPYME2 · 日记",
+    "diaryTitle": "把每一天留在身边。",
+    "diaryBody": "为那些想留下的小事、想法与片刻，留一处私密空间。",
     "comingStatus": "即将推出"
   },
   "Memoir": {
@@ -148,6 +149,13 @@
       "voiceAnswer": "语音回答"
     },
     "trace": {
+      "status": {
+        "running": "进行中",
+        "completed": "已完成",
+        "triggered": "已触发",
+        "failed": "失败",
+        "queued": "已排队"
+      },
       "title": "思考步骤",
       "stepCount": "{count} 个步骤",
       "note": "这里显示高级操作和工具结果。模型的私密推理不会显示。",
@@ -228,13 +236,41 @@
       "lifeStagePicturePlural": "{count} 张照片",
       "lifeStageTellMemory": "讲一段回忆",
       "lifeStages": {
-        "baby": { "label": "婴儿时期", "description": "关于最初岁月的家庭故事", "prompt": "家人是否分享过您婴儿时期的照片或故事？" },
-        "toddler": { "label": "幼儿时期", "description": "最初熟悉的地方与小小发现", "prompt": "那些早年时光里，有什么小地方、物件或日常习惯仍会浮现？" },
-        "childhood": { "label": "童年", "description": "您记得的地方与身边的人", "prompt": "您最早记得的家、教室或熟悉的地方是什么？" },
-        "adolescence": { "label": "少年时期", "description": "找到同伴，也找到自己的声音", "prompt": "成长过程中，谁或什么帮助您更像自己？" },
-        "young_adulthood": { "label": "青年时期", "description": "开始、选择与新的独立", "prompt": "哪一次开始或选择打开了人生的下一段？" },
-        "midlife": { "label": "中年时期", "description": "您承担的工作、爱与责任", "prompt": "那段时期，什么最需要您的关注与照料？" },
-        "later_life": { "label": "晚年时期", "description": "如今的体会与想要传下去的事", "prompt": "有什么经验、地方或人值得您传给下一代？" }
+        "baby": {
+          "label": "婴儿时期",
+          "description": "关于最初岁月的家庭故事",
+          "prompt": "家人是否分享过您婴儿时期的照片或故事？"
+        },
+        "toddler": {
+          "label": "幼儿时期",
+          "description": "最初熟悉的地方与小小发现",
+          "prompt": "那些早年时光里，有什么小地方、物件或日常习惯仍会浮现？"
+        },
+        "childhood": {
+          "label": "童年",
+          "description": "您记得的地方与身边的人",
+          "prompt": "您最早记得的家、教室或熟悉的地方是什么？"
+        },
+        "adolescence": {
+          "label": "少年时期",
+          "description": "找到同伴，也找到自己的声音",
+          "prompt": "成长过程中，谁或什么帮助您更像自己？"
+        },
+        "young_adulthood": {
+          "label": "青年时期",
+          "description": "开始、选择与新的独立",
+          "prompt": "哪一次开始或选择打开了人生的下一段？"
+        },
+        "midlife": {
+          "label": "中年时期",
+          "description": "您承担的工作、爱与责任",
+          "prompt": "那段时期，什么最需要您的关注与照料？"
+        },
+        "later_life": {
+          "label": "晚年时期",
+          "description": "如今的体会与想要传下去的事",
+          "prompt": "有什么经验、地方或人值得您传给下一代？"
+        }
       },
       "allPlaces": "所有地点",
       "placeHistory": "地点历史",
@@ -291,7 +327,7 @@
       "electronicMemoirDelivery": "电子回忆录交付",
       "originalRetained": "已保留原件",
       "sourceNote": "来源说明",
-      "publicReferenceCues": "公共历史线索 · 不是个人证据",
+      "publicReferenceCues": "历史照片",
       "historicalReference": "历史参考资料",
       "viewSource": "查看来源",
       "familiar": "看着熟悉",
@@ -300,6 +336,7 @@
       "placeContext": "地点背景",
       "exploreMap": "探索地图",
       "mapPreview": "地图预览",
+      "parentMap": "地图显示上级地点：{place}（大致范围）",
       "placeContextShown": "您的地点背景显示在上方。",
       "approximate": "大致{placeType}",
       "placeNote": "地点不太对？请在对话中告诉我。",
@@ -416,5 +453,37 @@
         }
       }
     }
+  },
+  "Profile": {
+    "title": "个人资料",
+    "intro": "Mira 会在你讲述故事时逐步补充这些资料。你可以在这里查看或修改。",
+    "preferred_language": "首选对话语言",
+    "automatic": "从下一条消息自动识别",
+    "languageHint": "用于回复和语音，页面语言保持不变。",
+    "name": "姓名",
+    "birth_year": "出生年份",
+    "birth_place": "出生地",
+    "childhood_place": "童年生活的地方",
+    "artworkHint": "时间线插画会根据你的故事自动选择。",
+    "close": "关闭个人资料",
+    "cancel": "取消",
+    "save": "保存修改",
+    "loading": "正在读取个人资料…",
+    "saving": "正在保存…",
+    "loadError": "暂时无法读取个人资料，请关闭窗口后重试。",
+    "saveError": "修改未能保存，请等待当前回复完成后重试。",
+    "syncError": "个人资料已保存，但当前页面未能更新。请再次保存以重试。"
+  },
+  "AuthReminder": {
+    "title": "登录以保留聊天记录",
+    "message": "我们已经聊了10分钟。请绑定邮箱或社交账号以保留聊天记录。访客退出登录、清除浏览器数据或更换设备后，可能无法再访问这些记录。",
+    "email": "邮箱地址",
+    "continueEmail": "使用邮箱继续",
+    "google": "使用 Google 继续",
+    "facebook": "使用 Facebook 继续",
+    "later": "暂时不用",
+    "checkEmail": "请查看邮件并点击确认链接，以保留本次聊天。等待期间可以继续聊天。",
+    "redirecting": "正在打开登录页面…",
+    "error": "无法绑定此账号。请重试，或使用其他邮箱或社交账号。当前访客聊天仍然保留。"
   }
 }

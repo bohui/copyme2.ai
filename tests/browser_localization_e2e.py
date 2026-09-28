@@ -21,11 +21,7 @@ def main() -> None:
         def codex_turn(route) -> None:
             payload = route.request.post_data_json
             agent_requests.append(payload)
-            reply = (
-                "无论那个午后还留在您心里的是什么，都可以告诉我。"
-                if payload.get("language") == "zh-CN"
-                else "Tell me whatever part of that afternoon is still with you."
-            )
+            reply = "Tell me whatever part of that afternoon is still with you."
             route.fulfill(status=200, content_type="application/json", body=json.dumps({
                 "reply": reply,
                 "place_journey": {
@@ -79,23 +75,24 @@ def main() -> None:
         page.get_by_role("button", name="打开个人资料菜单").click()
         expect(page.get_by_text("个人资料").first).to_be_visible()
         expect(page.get_by_text("匿名会话")).to_be_visible()
-        expect(page.get_by_role("combobox", name="语言")).to_have_value("zh-CN")
+        expect(page.locator(".profile-dropdown select")).to_have_count(0)
+        expect(page.get_by_role("menuitem", name="个人资料", exact=True)).to_be_visible()
         expect(page.get_by_role("menuitem", name="退出登录")).to_be_visible()
         page.get_by_role("textbox", name="您的消息").fill("我记得在霍巴特海边的一个夏日午后。");
         page.get_by_role("button", name="发送消息").click()
-        expect(page.get_by_text("无论那个午后还留在您心里的是什么，都可以告诉我。")).to_be_visible()
+        expect(page.get_by_text("Tell me whatever part of that afternoon is still with you.")).to_be_visible(timeout=15000)
         expect(page.get_by_role("complementary", name="地点 工作区")).to_be_visible()
         expect(page.get_by_role("heading", name="地点")).to_be_visible()
         expect(page.get_by_text("大致城市")).to_be_visible()
         assert project_requests, "Expected the UI to create a Memoir project"
-        assert project_requests[-1].post_data_json["language"] == "zh-CN"
+        assert project_requests[-1].post_data_json.get("language") is None
         assert agent_requests, "Expected the UI to create a localized Codex turn"
-        assert agent_requests[-1]["language"] == "zh-CN"
+        assert agent_requests[-1].get("language") is None
 
         page.reload(wait_until="networkidle")
         expect(page.get_by_role("heading", name="让我们一起回忆。")).to_be_visible()
         page.get_by_role("button", name="打开个人资料菜单").click()
-        expect(page.get_by_role("combobox", name="语言")).to_have_value("zh-CN")
+        expect(page.locator(".profile-dropdown select")).to_have_count(0)
         expect(page.get_by_text("思考步骤")).to_be_visible()
         assert "Memoir." not in page.locator("body").inner_text(), "A raw translation key leaked into the story shell"
 
@@ -172,23 +169,23 @@ def main() -> None:
                 "trace_mode": "codex",
             }))
 
-        voice_page.route("**/api/v1/memoir/uploads/*/transcription", lambda route: route.fulfill(
+        voice_page.route("**/api/v1/memoir/story/transcriptions", lambda route: route.fulfill(
             status=200,
             content_type="application/json",
-            body=json.dumps({"source": {"text": "我叫韩博慧，我想从小时候的一个夏日午后开始。", "language": "zh"}}),
+            body=json.dumps({"text": "我叫韩博慧，我想从小时候的一个夏日午后开始。", "source": {"language": "zh"}}),
         ))
         voice_page.route("**/api/v1/memoir/agent/turn", voice_codex_turn)
         voice_page.goto(f"{args.base_url}/memoir", wait_until="networkidle")
         voice_page.get_by_role("button", name="Begin my story").click()
         expect(voice_page.get_by_role("button", name="Start voice conversation")).to_be_visible()
         voice_page.get_by_role("button", name="Start voice conversation").click()
-        expect(voice_page.locator("html")).to_have_attribute("lang", "zh-CN", timeout=15000)
+        expect(voice_page.locator("html")).to_have_attribute("lang", "en-AU", timeout=15000)
         expect(voice_page.get_by_text("我会陪你慢慢回忆那个午后。")).to_be_visible(timeout=15000)
         assert voice_agent_requests, "Expected the voice turn to reach the agent"
-        assert voice_agent_requests[-1]["language"] == "zh-CN"
+        assert voice_agent_requests[-1].get("language") is None
         voice_page.get_by_role("button", name="结束语音对话").click()
         voice_page.get_by_role("button", name="打开个人资料菜单").click()
-        expect(voice_page.get_by_role("combobox", name="语言")).to_have_value("zh-CN")
+        expect(voice_page.locator(".profile-dropdown select")).to_have_count(0)
         voice_context.close()
         browser.close()
 

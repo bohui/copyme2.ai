@@ -51,12 +51,14 @@ test_download_failure_reported (test_photo_research.WorkflowTests.test_download_
 test_evidence_without_timezone (test_photo_research.WorkflowTests.test_evidence_without_timezone) ... ok
 test_gallery_escapes_untrusted_content (test_photo_research.WorkflowTests.test_gallery_escapes_untrusted_content) ... ok
 test_init_cli_current (test_photo_research.WorkflowTests.test_init_cli_current) ... ok
+test_init_photo_count (test_photo_research.WorkflowTests.test_init_photo_count) ... ok
 test_missing_evidence_reference (test_photo_research.WorkflowTests.test_missing_evidence_reference) ... ok
 test_page_parser_preserves_figure (test_photo_research.WorkflowTests.test_page_parser_preserves_figure) ... ok
+test_report_marks_duplicate_shortfall (test_photo_research.WorkflowTests.test_report_marks_duplicate_shortfall) ... ok
 test_rights_block_no_network (test_photo_research.WorkflowTests.test_rights_block_no_network) ... ok
 test_sha_dedup (test_photo_research.WorkflowTests.test_sha_dedup) ... ok
 
 ----------------------------------------------------------------------
-Ran 57 tests in 0.055s
+Ran 59 tests in 0.124s
 
 OK

@@ -45,3 +45,11 @@ def test_profile_merge_preserves_existing_focus_and_discards_invalid_values():
 
 def test_profile_validation_drops_unbounded_birth_year():
     assert validate_profile_updates({"name": "Mina", "birth_year": 1799}) == {"name": "Mina"}
+
+
+def test_language_updates_are_validated_and_preserve_other_profile_fields():
+    assert merge_profile_updates({'name': '慧博'}, {'preferred_language': 'zh-CN'}) == {
+        'name': '慧博', 'preferred_language': 'zh-CN',
+    }
+    for value in ('invalid', '', None, {}, []):
+        assert validate_profile_updates({'preferred_language': value}) is None

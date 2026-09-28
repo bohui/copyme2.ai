@@ -125,6 +125,15 @@ def test_prompt_includes_the_project_skill_contract():
     assert "Private notes from earlier turns:\n(none)" in prompt
 
 
+def test_place_label_preserves_source_script_in_an_english_conversation():
+    prompt = build_system_prompt("(none)", language="en-AU")
+    assert "Never translate or transliterate this field" in prompt
+    journey = {"place": "承德", "hierarchy": ["Earth", "China", "Hebei", "承德"],
+               "granularity": "city"}
+    assert place_journey_matches_message(journey, "我1983年出生在河北承德附属医院。")
+    assert not place_journey_matches_message(journey, "我现在住在悉尼。")
+
+
 def test_prompt_makes_mira_a_low_pressure_oral_history_journalist():
     prompt = build_system_prompt("(none)")
 

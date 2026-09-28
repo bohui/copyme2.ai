@@ -31,6 +31,46 @@ def test_worker_allocates_stable_distinct_os_identities(tmp_path):
     assert 20000 <= second < 60000
 
 
+def test_memory_context_pass_is_ephemeral_and_never_streams_or_exports_artifacts(tmp_path, monkeypatch):
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def request(self, method, params):
+            assert method == 'thread/start'
+            assert params['ephemeral'] is True
+            assert 'memoir-memory-context' in params['baseInstructions']
+            assert 'Reply to the storyteller in English' not in params['baseInstructions']
+            return {'thread': {'id': 'intake'}}
+
+        async def turn(self, thread_id, prompt, **kwargs):
+            assert 'on_delta' not in kwargs
+            assert kwargs['output_schema']['required'] == ['preferred_language']
+            assert '我叫慧博' in prompt
+            return '{"preferred_language":"zh-CN"}'
+
+    worker = CodexWorker(home_root=tmp_path)
+    monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+
+    def no_artifacts(*args):
+        pytest.fail('Intake must not enumerate conversation artifacts')
+
+    monkeypatch.setattr('apps.api.codex_worker_service.iter_artifacts', no_artifacts)
+    result = asyncio.run(worker.turn(WorkerTurnInput(
+        user_id='11111111-1111-4111-8111-111111111111',
+        text='我叫慧博', agent_role='memory_context', thread_id='existing-conversation',
+    ), on_delta=lambda text: pytest.fail('Intake must not stream')))
+    assert result['reply'] == '{"preferred_language":"zh-CN"}'
+    assert result['artifacts'] == []
+
+
 def test_worker_home_permissions_separate_sibling_homes(monkeypatch, tmp_path):
     monkeypatch.setattr(os, 'fchown', lambda fd, uid, gid: None)
     tmp_path.chmod(0o711)

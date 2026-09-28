@@ -53,7 +53,7 @@ class StoryTranscriptionInput(BaseModel):
 
 class StorySpeechInput(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
-    language: str = "en-AU"
+    language: str | None = None
     voice: str = "marin"
     instructions: str = "Speak slowly, warmly and clearly with natural pauses."
     output_format: str = "mp3"

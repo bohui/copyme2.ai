@@ -36,7 +36,7 @@ def test_paid_family_turn_returns_validated_context_and_strips_the_marker(monkey
             return []
 
         def profile(self):
-            return {}
+            return {'preferred_language': 'en-AU'}
 
         def story_entitlement(self):
             return {

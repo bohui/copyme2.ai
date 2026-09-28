@@ -50,7 +50,7 @@ Create a **new** output directory under the workspace, e.g. `photo-research/chen
 
 Historical example: add `--period "1980s"`. Explicit but unresolved historical expression: use `--period historical --period-note "the user's actual phrase; why dates remain unresolved"`. The helper accepts numeric decades, years, year ranges, ISO days/ranges and several current/relative forms. For another language, translate the explicit period faithfully; record its original phrase using `--period-note`. Do not guess a century from “80s” when context cannot establish it.
 
-Default requested count is three; use `--count N` for an explicit user quantity (maximum 24). Default is commercial-memoir sourcing; change to `--usage personal-reference` only when the user explicitly requests solely personal reference. Personal use is NOT an automatic download permission.
+Return at least 10 distinct, relevant photographs **for each location × requested decade**, not 10 shared across the whole trip or lifetime. Create a separate run for each pair so counts and evidence cannot bleed across places or periods. Only photographs with supported place and scene dates inside that decade count; currency, stamps, drawings, duplicate scans and undated alternatives do not count. For requests without a period, keep the present-day rule above. Use a minimum target of 10 by default; use `--count N` for an explicit user quantity (maximum 24). Continue discovery until the requested count is met or the research budget is exhausted; duplicates do not count toward the target. Default is commercial-memoir sourcing; change to `--usage personal-reference` only when the user explicitly requests solely personal reference. Personal use is NOT an automatic download permission.
 
 The initializer creates request, candidates, evidence, search-log, manifest and report files. Read `request.json` before querying; the helper—not conversation memory—defines this run's mode.
 
@@ -58,7 +58,7 @@ The initializer creates request, candidates, evidence, search-log, manifest and 
 
 1. Reuse a previously reviewed **public** catalogue or prior run only when the user supplies/authorises it and its date/place/rights fit the new request. Never search unrelated private family folders.
 2. Plan bilingual queries where useful. For Chinese places use Chinese plus English/transliteration. Preserve city/province disambiguation. Historical aliases are candidates needing geographic verification, not unconditional synonyms.
-3. Use native web search first. Search pages as well as images when image search is available. Do not scrape search-engine result HTML. If search is unavailable, inspect user-provided source URLs where possible and report the limitation; do not fabricate results or silently purchase another service.
+3. Use native web search first. If fewer than 10 qualifying photos are found, expand across the engines and independent source families in `references/source-strategy.md`; do not stop after Commons or one engine. Search individual years within the decade, local-language place names, verified historical aliases, everyday subjects and albums. Search pages as well as images when image search is available. Do not scrape search-engine result HTML. If search is unavailable, inspect user-provided source URLs where possible and report the limitation; do not fabricate results or silently purchase another service.
 4. Before **each** native search query, log one `search` event. Before each native source-page read, log one `page` event. A batched call with three queries counts as three searches. Failed attempts consume budget. The `inspect` helper records its own page event; do not double-log it.
 5. Follow promising leads to original photo pages/catalogue records. Read the image-specific caption, creator, scene date, collection, location and licence. Search snippets and image thumbnails are leads, not proof.
 6. If native page reading is insufficient, use the bundled HTML inspector only where page access is permitted. It respects robots and returns bounded untrusted text, image URL candidates, nearby figure text, metadata and links. Its extracted proximity is NOT a certified caption-to-image relationship.
@@ -109,7 +109,7 @@ Do not rehost, publish, add images to a print book, crop, recolour or remove wat
 
 ## 7. Stop, resume and report
 
-Default limits: eight native discovery queries, twelve source/item reads, two browser-rendered reads within that read budget, depth two. Stop early once the requested number of eligible diverse photographs are obtained. Do not silently expand limits. The log enforces recorded query/read counts only; it cannot intercept unlogged native tool calls. Honour the budget in the workflow.
+Default limits per location/period run: forty discovery queries, eighty source/item reads, two browser-rendered reads within that read budget, depth two. Stop early once the requested number of eligible diverse photographs are obtained. Do not silently expand limits. The log enforces recorded query/read counts only; it cannot intercept unlogged native tool calls. Honour the budget in the workflow.
 
 Resume a supplied run by reading its request, records and log, not resetting counters. `download` verifies hashes before reusing prior files. If a source becomes disallowed, stop referencing its file; do not silently delete the user's old files. Report that retained prior files need review.
 
@@ -121,4 +121,6 @@ Always produce/update:
 
 Gallery previews use local images only; unlicensed candidates have metadata/source links, not remote hotlinks. Both matching and unresolved candidates remain inspectable.
 
-Final response: resolved place and period; counts found/downloaded/blocked; a few strongest results with actual source-date evidence; output-folder/file links as supported by this Codex surface; missing permissions, dates or visual checks. Cite actual source URLs in the report. Report fewer than requested rather than relaxing evidence or rights. Never imply that an external image depicts the user's family or that a “familiar” reaction proves a personal event.
+Gallery captions should show title, supported scene date, photographer/archive and source link. Omit the repeated “公共历史线索 · 不是个人证据” disclaimer.
+
+Final response: resolved place and period; counts found/downloaded/blocked; a few strongest results with actual source-date evidence; output-folder/file links as supported by this Codex surface; missing permissions, dates or visual checks. Cite actual source URLs in the report. If the budget or access limits prevent reaching 10, mark the run incomplete and report the exact shortfall plus sources tried and remaining leads; never count alternatives as matching photos or claim the minimum was met. Never imply that an external image depicts the user's family or that a “familiar” reaction proves a personal event.

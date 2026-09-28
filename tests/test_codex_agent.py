@@ -3,9 +3,16 @@ import base64
 import json
 import sys
 import pytest
+from pathlib import Path
 
 from apps.api.codex_agent import CodexConnection
-from apps.api.codex_runtime import CodexRuntime, build_loop_trace, build_system_prompt
+from apps.api.codex_runtime import (
+    CodexRuntime,
+    build_conversation_system_prompt,
+    build_loop_trace,
+    build_system_prompt,
+    build_workspace_extraction_prompt,
+)
 
 
 def test_loop_trace_exposes_actions_without_private_model_reasoning():
@@ -24,6 +31,16 @@ def test_system_prompt_requires_simplified_chinese_responses():
 
     assert "简体中文" in prompt
     assert "不要用英语回答" in prompt
+
+
+def test_visible_collector_prompt_is_separate_from_workspace_markers():
+    conversation = build_conversation_system_prompt('(none)', language='en-AU')
+    workspace = build_workspace_extraction_prompt('(none)', language='en-AU')
+
+    assert '[[MEMORY_SPARK_PROFILE]]' not in conversation
+    assert '[[MEMORY_SPARK_PLACE_JOURNEY]]' not in conversation
+    assert '[[MEMORY_SPARK_PROFILE]]' in workspace
+    assert 'Workspace extraction contract' in workspace
 
 
 def test_loop_trace_is_localized_for_simplified_chinese():
@@ -58,6 +75,26 @@ def test_same_explicit_place_is_marked_for_new_project_activation():
     assert change == {"changed": False, "kind": "unchanged", "revision": 4, "mentioned": True}
 
 
+def test_repeated_place_advances_its_source_sequence():
+    from unittest.mock import AsyncMock, Mock
+
+    current = {
+        'schema_version': 1, 'status': 'active', 'revision': 4,
+        'source_sequence': 1, 'place': 'Sydney',
+        'updated_at': '2026-09-28T00:00:00Z',
+        'hierarchy': ['Earth', 'Australia', 'Sydney'],
+        'granularity': 'city', 'duration_ms': 5200,
+    }
+    storage = Mock()
+    lease = Mock()
+    lease.io = AsyncMock(return_value={**current, 'source_sequence': 3, 'revision': 5})
+    persisted, change = asyncio.run(CodexRuntime._persist_place_journey(
+        storage, lease, current, current, source_sequence=3,
+    ))
+    assert persisted['source_sequence'] == 3
+    assert change['mentioned'] is True
+
+
 def test_app_server_initialization_and_errors(tmp_path):
     server = tmp_path / 'server.py'
     server.write_text('''import sys,json
@@ -74,6 +111,33 @@ for line in sys.stdin:
         async with CodexConnection([sys.executable, str(server)], tmp_path) as connection:
             result = await connection.request('thread/start', {'ephemeral': False})
             assert result['thread']['id'] == 'thread-123'
+    asyncio.run(run())
+
+
+def test_app_server_receives_absolute_home_for_relative_runtime_path(tmp_path, monkeypatch):
+    server = tmp_path / 'server.py'
+    server.write_text('''import json,os,sys
+for line in sys.stdin:
+ message=json.loads(line)
+ if message.get('method') == 'initialize':
+  print(json.dumps({'id':message['id'],'result':{'userAgent':'codex-test'}}),flush=True)
+ elif message.get('id'):
+  print(json.dumps({'id':message['id'],'result':{
+   'home':os.environ['HOME'],'codex_home':os.environ['CODEX_HOME']
+  }}),flush=True)
+''')
+    monkeypatch.chdir(tmp_path)
+    relative_home = Path('var/codex-users/test-user')
+    expected_home = relative_home.resolve()
+
+    async def run():
+        async with CodexConnection([sys.executable, str(server)], relative_home) as connection:
+            result = await connection.request('debug/home', {})
+            assert result == {
+                'home': str(expected_home),
+                'codex_home': str(expected_home),
+            }
+
     asyncio.run(run())
 
 
@@ -204,24 +268,40 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
 
         async def post(self, url, *, headers, json):
             self.request = {"url": url, "headers": headers, "json": json}
+            if json.get('agent_role') == 'memory_context':
+                response = Response()
+                response.json = lambda: {'thread_id': 'intake', 'reply': '{"preferred_language":"en-AU"}', 'artifacts': []}
+                return response
             return Response()
 
     client = Client()
     monkeypatch.setattr("apps.api.codex_runtime.httpx.AsyncClient", lambda **kwargs: client)
     storage = Storage()
 
+    events = []
+    async def record_event(event):
+        events.append(event)
+
     result = asyncio.run(CodexRuntime(
         worker_url="http://codex-worker:8766",
         worker_secret="worker-secret",
         model="test-model",
-    ).turn(storage, "I was a child in Geelong. Please use the female timeline illustrations."))
+    ).turn(storage, "I was a child in Geelong. Please use the female timeline illustrations.", on_event=record_event))
 
+    assert events[0]['type'] == 'progress'
+    saved_index = next(i for i, event in enumerate(events) if event['type'] == 'conversation_saved')
+    place_index = next(i for i, event in enumerate(events) if event.get('data', {}).get('skill') == 'memoir-place-journey')
+    assert place_index > saved_index
+    assert any(step.get('skill') == 'memoir-place-journey' for step in result['trace'])
+    assert not any(step.get('skill') == 'memoir-family-tree' for step in result['trace'])
+    assert events[saved_index]['data']['trace']
     assert result["trace_mode"] == "codex-worker"
     assert result["thread_id"] == "thread-new"
     path = result['source_paths'][0]
     assert path.startswith('sessions/turns/') and path.endswith('/thread-new.json')
     assert storage.saved_session == "thread-new"
     assert storage.profile_data == {
+        "preferred_language": "en-AU",
         "name": "Mina",
         "avatar_style": "female",
         "story_focus": {
@@ -261,7 +341,7 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         "user_id": storage.user_id,
         "thread_id": "thread-old",
         "memories": ["A private memory"],
-        "profile": {},
+        "profile": {"preferred_language": "en-AU"},
         "place_journey": {},
         "family_context": {},
         "family_enabled": False,

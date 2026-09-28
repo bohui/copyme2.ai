@@ -571,6 +571,20 @@ def build_manifest(run: Path, *, download: bool = False) -> dict:
                 "downloaded": sum(x["download_status"] == "downloaded" for x in results),
                 "unique_files": len({x["local_path"] for x in results if x["local_path"]})},
                 "notice": "Source-grounded assertions, not independent authentication. Local evidence flags are not a production permission boundary. No paid-app/export/print approval is granted."}
+    distinct, seen = 0, set()
+    for candidate, result in zip(candidates, results):
+        if not result["evaluation"]["eligible_for_local_download"]:
+            continue
+        keys = {candidate["source_page_url"], candidate.get("image_url")}
+        keys.discard(None)
+        if result.get("acquisition", {}).get("sha256"):
+            keys.add(result["acquisition"]["sha256"])
+        if not seen.intersection(keys):
+            distinct += 1
+        seen.update(keys)
+    manifest["summary"].update(target=request["count"], qualifying_photos=distinct,
+                               shortfall=max(0, request["count"] - distinct),
+                               status="complete" if distinct >= request["count"] else "incomplete")
     write_json(old_path, manifest)
     render_reports(run, manifest)
     return manifest
@@ -625,10 +639,10 @@ def main(argv=None) -> int:
     init.add_argument("--as-of", help="ISO date override for reproducibility")
     init.add_argument("--timezone", default="Australia/Sydney")
     init.add_argument("--recent-months", type=int, default=24)
-    init.add_argument("--count", type=int, default=3)
+    init.add_argument("--count", type=int, default=10)
     init.add_argument("--usage", choices=["commercial-memoir", "personal-reference"], default="commercial-memoir")
-    init.add_argument("--max-queries", type=int, default=8)
-    init.add_argument("--max-pages", type=int, default=12)
+    init.add_argument("--max-queries", type=int, default=40)
+    init.add_argument("--max-pages", type=int, default=80)
     log = sub.add_parser("log", help="Record ONE native search or page read BEFORE execution; counts toward budget")
     log.add_argument("--run", required=True)
     log.add_argument("--kind", choices=["search", "page", "note"], required=True)

@@ -47,7 +47,9 @@ export default function MemoirClientShell() {
       if (allowed === false) return false;
     }
     const nextMessages = messageCatalogues[nextLocale];
-    document.cookie = `${localeCookie}=${encodeURIComponent(nextLocale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    if (persistAccount) {
+      document.cookie = `${localeCookie}=${encodeURIComponent(nextLocale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    }
     globalThis.__copyme2Intl = { locale: nextLocale, messages: nextMessages };
     document.documentElement.lang = nextLocale;
     setActiveLocale(nextLocale);
@@ -94,7 +96,7 @@ export default function MemoirClientShell() {
       <div id="app" className="app-shell">
         <div className="loading">{t("loading")}</div>
       </div>
-      {languageTarget ? createPortal(languageSwitcher, languageTarget) : languageSwitcher}
+      {languageTarget ? createPortal(languageSwitcher, languageTarget) : null}
       <div id="toast" className="toast" role="status" aria-live="polite" />
     </>
   );

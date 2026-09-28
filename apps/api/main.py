@@ -16,7 +16,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -38,7 +38,8 @@ class LooseModel(BaseModel):
 
 class ProjectCreate(LooseModel):
     mode: str = "self"
-    language: str = "en-AU"
+    # This is an optional conversation preference, not the page locale.
+    language: Literal["en-AU", "zh-CN"] | None = None
     birth_year: int | None = None
     birth_date_expression: str | None = None
     birth_place: str | None = None
@@ -2209,6 +2210,17 @@ def create_app(
         assets = [deepcopy(asset) for asset in memory.context_assets.values() if region in asset["rights"].get("allowed_regions", []) and (not topic_id or topic_id in asset.get("topics", []))]
         return _paginate(assets, cursor, limit)
 
+    @app.post("/v1/projects/{project_id}/place-map")
+    def place_map(project_id: str, payload: dict[str, Any],
+                  x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
+        project = _project(memory, project_id, _account_id(x_account_id))
+        from .place_journey import validate_place_journey
+        from .place_geocoding import resolve_place_map
+        journey = validate_place_journey(payload)
+        if journey is None:
+            raise HTTPException(status_code=422, detail="Invalid place journey")
+        return resolve_place_map(journey, project.get("profile", {}).get("memory_places", []))
+
     @app.get("/v1/projects/{project_id}/place-photos")
     def place_photos(project_id: str, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
@@ -2217,7 +2229,8 @@ def create_app(
         from .place_photos import search_place_photos
         try:
             items = search_place_photos(place, period)
-            return {"items": items, "status": "READY" if items else "NO_MATCH"}
+            return {"items": items, "target_count": 10, "shortfall": max(0, 10 - len(items)),
+                    "status": "READY" if len(items) >= 10 else "PARTIAL" if items else "NO_MATCH"}
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}
 

@@ -1,6 +1,10 @@
+import { createAuthReminder } from "./auth-reminder.js";
+import { mergePlaces, placeHistoryKey, mapTarget, matchesPlaceStage } from "./places.mjs";
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { openCollectionReview } from "./collection.js";
+import { openProfileSettings } from "./profile.js";
+import { formatDateExpression } from "./dates.mjs";
 
 const state = {
   accountId: null,
@@ -80,8 +84,13 @@ const state = {
   authPromise: null,
 };
 
+const authReminder = createAuthReminder({
+  getAuth: () => state.supabase,
+  busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
+});
+
 const MEMOIR_API_PREFIX = "/api/v1/memoir";
-const PLACE_PHOTO_RESULT_LIMIT = 3;
+const PLACE_PHOTO_RESULT_LIMIT = 10;
 const CESIUM_VERSION = "1.145";
 const FAMILY_CHART_VERSION = "0.9.0";
 const VIS_TIMELINE_VERSION = "7.7.3";
@@ -92,6 +101,8 @@ const visualizationLoadPromises = new Map();
 let familyChartMountId = 0;
 let timelineMountId = 0;
 let assistantMessageSequence = 0;
+let workspaceUpdateQueue = Promise.resolve();
+const appliedWorkspaceSequences = new Map();
 
 const ASSISTANT_STREAM_CHUNK_SIZE = 3;
 const ASSISTANT_STREAM_DELAY_MS = 12;
@@ -128,8 +139,10 @@ function resizeChatInput(input = $("#chat-input")) {
   input.style.overflowY = Number.isFinite(maxHeight) && contentHeight > maxHeight ? "auto" : "hidden";
 }
 
-function conversationLocale() {
-  return currentUiLocale();
+function conversationLanguage() {
+  // Conversation language is an explicit profile preference. An omitted
+  // value lets the runtime infer it without changing the UI locale.
+  return profile().preferred_language || undefined;
 }
 
 function conversationMessage(key) {
@@ -279,6 +292,7 @@ function syncSupabaseSession(session) {
   state.supabase.accessToken = session?.access_token || null;
   state.supabase.refreshToken = session?.refresh_token || null;
   state.supabase.user = session?.user || null;
+  authReminder.tick();
   const accountLocale = session?.user?.user_metadata?.ui_locale;
   if (UI_LOCALES.has(accountLocale) && !readCookie(UI_LOCALE_COOKIE)) {
     writeUiLocaleCookie(accountLocale);
@@ -373,11 +387,60 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
   ];
 }
 
-async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage()) {
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
+  const liveTrace = [];
+  const streamProjectId = state.project?.id || null;
   try {
+    const applyWorkspace = async (update) => {
+      if (!update || typeof update !== "object") return;
+      if (update.project_id && update.project_id !== streamProjectId) return;
+      if (!streamProjectId || state.project?.id !== streamProjectId) return;
+      const sourceSequence = Number(update.source_sequence || 0);
+      const markCurrent = (component) => {
+        if (!Number.isSafeInteger(sourceSequence) || sourceSequence <= 0) return true;
+        const key = `${streamProjectId}:${component}`;
+        const previous = appliedWorkspaceSequences.get(key) || 0;
+        if (sourceSequence < previous) return false;
+        appliedWorkspaceSequences.set(key, sourceSequence);
+        return true;
+      };
+      if (update.profile_updates && markCurrent("profile")) await saveProfileUpdates(update.profile_updates, streamProjectId);
+      if (Object.prototype.hasOwnProperty.call(update, "place_journey")) {
+        if (!markCurrent("place")) return;
+        state.placeJourneyChange = update.place_journey_change || null;
+        // The API returns the latest saved journey even when this turn emitted
+        // no marker. A persisted user-level record must not activate a fresh
+        // conversation's workspace on its own.
+        if (update.place_journey && (update.place_journey_change?.changed || update.place_journey_change?.mentioned)) {
+          state.placeJourney = update.place_journey;
+          // A newly detected place is an explicit workspace trigger. Reopen the
+          // workspace if the storyteller had collapsed it earlier in the turn.
+          state.workspaceCollapsed = false;
+          const stage = update.profile_updates?.story_focus?.life_stage;
+          const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
+          const candidate = { ...update.place_journey, life_stage: lifeStage };
+          const places = mergePlaces([...(profile().memory_places || []), candidate]);
+          const entry = places.find(item => placeHistoryKey(item) === placeHistoryKey(candidate));
+          await saveProfileUpdates({ memory_places: places }, streamProjectId);
+          state.lifeStage = "all";
+          state.selectedPlace = placeHistoryKey(entry);
+          await loadPlacePictures(entry, streamProjectId);
+          rememberPlaceJourneyProject(streamProjectId);
+        }
+        // Places and pictures are presented together in the workspace overview,
+        // rather than as separate navigation destinations.
+      }
+      if (state.familyFeaturesEnabled && update.family_features_enabled === true && update.family_context_update?.persisted === true && update.family_context && markCurrent("family")) {
+        applyPersistedFamilyContext(update.family_context);
+        if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "family";
+      }
+      if (update.task_errors?.length) toast(translate("Collection.taskFailed"));
+      else if (update.tasks?.length) toast(translate("Collection.taskQueued"));
+      render();
+    };
     const body = await streamAgentTurn(text, async (delta) => {
       if (!streamedMessage) {
         streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
@@ -387,56 +450,58 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"]) {
       streamedMessage.text += delta;
       updateStreamingAssistantMessage(streamedMessage);
       await waitForAssistantPaint();
-    });
-    if (body.profile_updates) await saveProfileUpdates(body.profile_updates);
-    if (Object.prototype.hasOwnProperty.call(body, "place_journey")) {
-      state.placeJourneyChange = body.place_journey_change || null;
-      // The API returns the latest saved journey even when this turn emitted
-      // no marker. A persisted user-level record must not activate a fresh
-      // conversation's workspace on its own.
-      if (body.place_journey && (body.place_journey_change?.changed || body.place_journey_change?.mentioned)) {
-        state.placeJourney = body.place_journey;
-        const stage = body.profile_updates?.story_focus?.life_stage;
-        const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
-        const places = [...(profile().memory_places || [])];
-        const candidate = { ...body.place_journey, life_stage: lifeStage };
-        const prior = places.findIndex(item => placeHistoryKey(item) === placeHistoryKey(candidate));
-        const entry = { ...candidate, pictures: prior >= 0 ? places[prior].pictures || [] : [] };
-        if (prior >= 0) places.splice(prior, 1);
-        places.push(entry);
-        await saveProfileUpdates({ memory_places: places });
-        state.lifeStage = "all";
-        state.selectedPlace = placeHistoryKey(entry);
-        void loadPlacePictures(entry, state.project.id);
-        rememberPlaceJourneyProject(state.project?.id);
+    }, async (event) => {
+      if (event.type === "progress") {
+        if (state.project?.id !== streamProjectId) return;
+        const step = event.data;
+        if (!step?.id) return;
+        const index = liveTrace.findIndex(item => item.id === step.id);
+        if (index < 0) liveTrace.push(step);
+        else liveTrace[index] = step;
+        if (!streamedMessage) {
+          streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
+          state.chat.push(streamedMessage);
+        }
+        streamedMessage.trace = liveTrace;
+        streamedMessage.traceMode = "live";
+        updateStreamingAssistantMessage(streamedMessage);
+      } else if (event.type === "workspace_error") {
+        for (const step of liveTrace) if (step.status === "running") step.status = "failed";
+        if (streamedMessage) updateStreamingAssistantMessage(streamedMessage);
+      } else if (event.type === "workspace_update") {
+        // Workspace writes are serialized globally so late turns cannot race
+        // on the same project revision. This queue is independent of the
+        // conversation-ready promise, so the storyteller can send again.
+        workspaceUpdateQueue = workspaceUpdateQueue
+          .then(() => applyWorkspace(event.data))
+          .catch((error) => toast(error.message));
+        return workspaceUpdateQueue;
       }
-      // Places and pictures are presented together in the workspace overview,
-      // rather than as separate navigation destinations.
+    }, language);
+    // A saved reply is ready even when an earlier workspace write is pending.
+    // Legacy responses still need their bundled workspace applied here.
+    if (!body.conversation_saved) {
+      workspaceUpdateQueue = workspaceUpdateQueue.then(() => applyWorkspace(body));
+      await workspaceUpdateQueue;
     }
-    if (state.familyFeaturesEnabled && body.family_features_enabled === true && body.family_context_update?.persisted === true && body.family_context) {
-      applyPersistedFamilyContext(body.family_context);
-      if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "family";
-    }
-    if (body.task_errors?.length) toast(translate("Collection.taskFailed"));
-    else if (body.tasks?.length) toast(translate("Collection.taskQueued"));
-    return { streamedMessage, reply: body.reply || fallback || null, trace: body.trace || simulated, traceMode: body.trace_mode || "codex", placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
+    return { streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     toast(error.message);
     if (streamedMessage) {
       streamedMessage.failed = true;
       streamedMessage.error = error.message;
     }
-    return { streamedMessage, reply: streamedMessage?.text || error.message, trace: [], traceMode: "error" };
+    return { streamedMessage, reply: streamedMessage?.text || error.message, trace: liveTrace.map(step => ({ ...step, status: step.status === "running" ? "failed" : step.status })), traceMode: "error" };
   }
 }
 
-async function streamAgentTurn(text, onDelta) {
+async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage()) {
   const response = await fetch(memoirApiPath("/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
       Authorization: `Bearer ${state.supabase.accessToken}`,
       "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf") },
-    body: JSON.stringify({ text, project_id: state.project?.id || null, language: conversationLocale() }),
+    body: JSON.stringify({ text, project_id: state.project?.id || null, language }),
   });
   if (response.status === 401) {
     state.supabase.accessToken = null;
@@ -448,6 +513,13 @@ async function streamAgentTurn(text, onDelta) {
   const decoder = new TextDecoder();
   let buffer = "";
   let result = null;
+  let ready = false;
+  let resolveReady;
+  let rejectReady;
+  const readyPromise = new Promise((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
 
   function jsonObjectEnd(value) {
     const start = value.search(/\S/);
@@ -490,38 +562,96 @@ async function streamAgentTurn(text, onDelta) {
       buffer = buffer.slice(end);
       const event = JSON.parse(value);
       if (event.type === "text_delta") await onDelta(event.text || "");
-      else if (event.type === "result") result = event.data;
-      else if (event.type === "error") throw new Error(event.message);
-      else if (event && typeof event === "object" && !event.type) result = event;
+      else if (event.type === "reply_complete") result = { ...(result || {}), ...(event.data || {}) };
+      else if (event.type === "conversation_saved") {
+        result = { ...(result || {}), ...(event.data || {}) };
+        if (!ready) {
+          ready = true;
+          resolveReady(result);
+        }
+      } else if (["workspace_update", "progress", "workspace_error"].includes(event.type)) {
+        await onEvent(event);
+      } else if (event.type === "result") {
+        result = { ...(result || {}), ...(event.data || {}) };
+        if (ready) {
+          // The fast path already delivered each workspace component as its
+          // own event. Keep the terminal envelope for compatibility, but do
+          // not replay place/profile/family writes when it arrives.
+          const {
+            place_journey: _placeJourney,
+            place_journey_change: _placeJourneyChange,
+            profile_updates: _profileUpdates,
+            family_context: _familyContext,
+            family_context_update: _familyContextUpdate,
+            family_features_enabled: _familyFeaturesEnabled,
+            ...workspaceTail
+          } = event.data || {};
+          await onEvent({ type: "workspace_update", data: workspaceTail });
+        }
+        else {
+          ready = true;
+          resolveReady(result);
+        }
+      } else if (event.type === "error") {
+        if (ready) await onEvent({ type: "workspace_error", message: event.message });
+        else {
+          ready = true;
+          rejectReady(new Error(event.message));
+        }
+      } else if (event && typeof event === "object" && !event.type) {
+        result = event;
+        if (!ready) {
+          ready = true;
+          resolveReady(result);
+        } else {
+          await onEvent({ type: "workspace_update", data: event });
+        }
+      }
     }
   };
-  try {
+  const consumeStream = async () => {
+    try {
     while (true) {
       const { value, done } = await reader.read();
       buffer += decoder.decode(value, { stream: !done });
       await consumeBuffer(done);
       if (done) break;
     }
-    if (!result) throw new Error(localizedErrorMessage());
-    return result;
-  } finally {
-    await reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
+      if (!ready) {
+        if (!result) throw new Error(localizedErrorMessage());
+        ready = true;
+        resolveReady(result);
+      }
+    } catch (error) {
+      if (!ready) {
+        ready = true;
+        rejectReady(error);
+      } else {
+        await onEvent({ type: "workspace_error", message: error.message });
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  };
+  void consumeStream();
+  return readyPromise;
 }
 
 async function loadPlacePictures(entry, projectId) {
-  if (!projectId || !entry?.place || entry.pictures?.length >= PLACE_PHOTO_RESULT_LIMIT) return;
+  if (!projectId || !entry?.place) return;
+  const period = entry.period || profile().story_focus?.when || "";
+  if (entry.photo_search_period === period && entry.pictures?.length >= PLACE_PHOTO_RESULT_LIMIT) return;
   try {
-    const query = new URLSearchParams({ place: entry.place, period: profile().story_focus?.when || "" });
+    const query = new URLSearchParams({ place: entry.place, period });
     const result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
-    if (state.project?.id !== projectId || !result.items?.length) return;
+    if (state.project?.id !== projectId || !Array.isArray(result.items) || result.status === "UNAVAILABLE") return;
     const places = [...(profile().memory_places || [])];
     const key = placeHistoryKey(entry);
     const index = places.findIndex(item => placeHistoryKey(item) === key);
     const updatedEntry = index >= 0
-      ? { ...places[index], pictures: result.items }
-      : { ...entry, pictures: result.items };
+      ? { ...places[index], pictures: result.items, photo_search_period: period }
+      : { ...entry, pictures: result.items, photo_search_period: period };
     if (index >= 0) places[index] = updatedEntry;
     else places.push(updatedEntry);
     if (state.placeJourney && placeHistoryKey(state.placeJourney) === key) state.placeJourney = updatedEntry;
@@ -544,8 +674,8 @@ function pictureWall(pictures = []) {
   return `<section class="place-pictures" aria-label="${t("publicReferenceCues")}">${renderablePictures.map((picture) => {
     const src = referenceUrl(picture.image_url);
     const source = referenceUrl(picture.source_url);
-    const sceneDate = picture.date_expression
-      || [picture.scene_date_range?.start, picture.scene_date_range?.end].filter(Boolean).join("–")
+    const sceneDate = formatDateExpression(picture.date_expression ||
+      [picture.scene_date_range?.start, picture.scene_date_range?.end].filter(Boolean).join("–"), currentUiLocale())
       || translate("Memoir.workspace.dateUnknown");
     const detail = picture.attribution || picture.location || picture.label || t("historicalReference");
     const sourceLink = source
@@ -554,7 +684,7 @@ function pictureWall(pictures = []) {
     const media = src
       ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(picture.title || "")}" loading="lazy" />`
       : `<div class="picture-wall-placeholder ${picture.kind === "video" ? "video-art" : "image-art"}" aria-hidden="true"><span>${picture.kind === "video" ? "▶" : "✦"}</span></div>`;
-    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}</small><small>${t("publicReferenceCues")}</small></figcaption></figure>`;
+    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}</small></figcaption></figure>`;
   }).join("")}</section>`;
 }
 
@@ -577,6 +707,12 @@ function updateStreamingAssistantMessage(message) {
   const followConversation = !scroll || scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 48;
   const text = row.querySelector(".message-text");
   if (text) text.innerHTML = formatText(message.text);
+  const trace = row.querySelector(".message-trace");
+  if (trace) {
+    const expanded = trace.querySelector("details")?.open;
+    trace.innerHTML = message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
+    if (expanded !== undefined && trace.querySelector("details")) trace.querySelector("details").open = expanded;
+  }
   if (scroll && followConversation) scroll.scrollTop = scroll.scrollHeight;
 }
 
@@ -620,14 +756,19 @@ async function streamAssistantMessage(text, metadata = {}) {
 }
 
 async function hydratePlaceJourney() {
-  const savedPlaces = profile().memory_places;
+  const savedPlaces = mergePlaces(profile().memory_places || []);
   if (Array.isArray(savedPlaces) && savedPlaces.length) {
     state.placeJourney = savedPlaces.at(-1);
     state.lifeStage = state.placeJourney.life_stage || "all";
     state.selectedPlace = placeHistoryKey(state.placeJourney);
     state.workspaceTab = "chapters";
     rememberPlaceJourneyProject(state.project?.id);
-    void loadPlacePictures(state.placeJourney, state.project?.id);
+    const projectId = state.project?.id;
+    if (JSON.stringify(savedPlaces) !== JSON.stringify(profile().memory_places)) {
+      await saveProfileUpdates({ memory_places: savedPlaces }, projectId);
+      if (state.project?.id !== projectId) return;
+    }
+    void loadPlacePictures(state.placeJourney, projectId);
     return;
   }
   if (!state.supabase?.accessToken || !placeJourneyIsActivatedForProject()) return;
@@ -965,6 +1106,7 @@ function mergeProfileUpdates(updates) {
   ["name", "birth_date_expression", "birth_place", "childhood_place"].forEach((key) => {
     if (typeof updates[key] === "string" && updates[key].trim()) next[key] = updates[key].trim();
   });
+  if (["en-AU", "zh-CN"].includes(updates.preferred_language)) next.preferred_language = updates.preferred_language;
   if (Array.isArray(updates.memory_places)) next.memory_places = updates.memory_places;
   if (["male", "female"].includes(updates.avatar_style)) next.avatar_style = updates.avatar_style;
   if (Number.isInteger(updates.birth_year)) next.birth_year = updates.birth_year;
@@ -978,19 +1120,33 @@ function mergeProfileUpdates(updates) {
   return JSON.stringify(next) === JSON.stringify(current) ? null : next;
 }
 
-async function saveProfileUpdates(updates) {
-  const merged = mergeProfileUpdates(updates);
-  if (!merged || !state.project) return;
-  state.project = { ...state.project, profile: merged };
-  state.profileIntakePending = false;
-  try {
-    const saved = await api(`/v1/projects/${state.project.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ profile: merged, expected_revision: state.project.revision }),
-    });
-    state.project = { ...state.project, ...saved };
-  } catch (error) {
-    toast(translateWith("Memoir.conversation.profileSaveError", { error: error.message }));
+async function saveProfileUpdates(updates, expectedProjectId = null) {
+  if (!updates || !state.project || (expectedProjectId && state.project.id !== expectedProjectId)) return;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (!state.project || (expectedProjectId && state.project.id !== expectedProjectId)) return;
+    const project = state.project;
+    const merged = mergeProfileUpdates(updates);
+    if (!merged) return;
+    state.project = { ...project, profile: merged };
+    state.profileIntakePending = false;
+    try {
+      const saved = await api(`/v1/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ profile: merged, expected_revision: project.revision }),
+      });
+      if (state.project?.id === project.id) state.project = { ...state.project, ...saved };
+      return;
+    } catch (error) {
+      if (error.status === 409 && attempt === 0 && state.project?.id === project.id) {
+        // Another serialized workspace update may have advanced the project
+        // revision. Reload the base profile and retry the same explicit fields.
+        const latest = await api(`/v1/projects/${project.id}`);
+        if (state.project?.id === project.id) state.project = { ...state.project, ...latest };
+        continue;
+      }
+      toast(translateWith("Memoir.conversation.profileSaveError", { error: error.message }));
+      return;
+    }
   }
 }
 
@@ -1018,7 +1174,7 @@ function profileMenu() {
       </button>
       <div class="profile-dropdown" id="profile-menu-content" role="menu" hidden>
         <div class="profile-dropdown-header"><span class="profile-dropdown-eyebrow">${t("account")}</span><strong>${escapeHtml(details.name)}</strong><small>${escapeHtml(details.email)}</small></div>
-        <label class="profile-menu-language">${t("timelineArtwork")}<select id="timeline-artwork" aria-label="${t("timelineArtwork")}"><option value="male" ${profile().avatar_style !== "female" ? "selected" : ""}>${t("maleArtwork")}</option><option value="female" ${profile().avatar_style === "female" ? "selected" : ""}>${t("femaleArtwork")}</option></select></label><div class="profile-menu-language" role="group"><div data-language-switcher-slot></div></div>
+        <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="settings">${t("profile")}</button>
         <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="collection">${escapeHtml(translate("Collection.title"))}</button>
         <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>${t("logout")}</span><span aria-hidden="true">↗</span></button>
       </div>
@@ -1051,7 +1207,24 @@ function bindProfileMenu() {
     trigger.setAttribute("aria-expanded", "true");
     dropdown.hidden = false;
   });
-  menu.querySelector("#timeline-artwork")?.addEventListener("change", async (event) => { await saveProfileUpdates({ avatar_style: event.target.value }); render(); });
+  menu.querySelector("[data-profile-action='settings']")?.addEventListener("click", () => {
+    closeProfileMenu();
+    openProfileSettings({
+      api: storyApi,
+      onSave: async (settings) => {
+        if (state.project) {
+          const updated = { ...profile(), ...settings };
+          const saved = await api(`/v1/projects/${state.project.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ profile: updated, expected_revision: state.project.revision }),
+          });
+          state.project = { ...state.project, ...saved };
+        }
+        render();
+      },
+      onClose: () => $("[data-profile-trigger]")?.focus(),
+    });
+  });
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
   menu.querySelector("[data-profile-action='collection']")?.addEventListener("click", reviewCollection);
 }
@@ -1060,7 +1233,7 @@ async function reviewCollection() {
   closeProfileMenu();
   if (state.loading || state.recording || state.voiceMode || state.storyRecording) return;
   try {
-    await openCollectionReview({ api: storyApi, projectId: state.project.id, language: conversationLocale() });
+    await openCollectionReview({ api: storyApi, projectId: state.project.id, language: conversationLanguage() });
   } catch (error) { toast(error.message); }
 }
 
@@ -1406,7 +1579,7 @@ async function startStoryVoiceRecorder() {
         state.storyAudioBase64 = await blobToBase64(blob);
         state.storyAudioFilename = `story-round-${Date.now()}.webm`;
         state.storyAudioMimeType = (blob.type || "audio/webm").split(";")[0];
-        const transcript = await storyApi("/v1/story/transcriptions", { method: "POST", body: JSON.stringify({ audio_base64: state.storyAudioBase64, filename: state.storyAudioFilename, mime_type: state.storyAudioMimeType, language: conversationLocale() }) });
+        const transcript = await storyApi("/v1/story/transcriptions", { method: "POST", body: JSON.stringify({ audio_base64: state.storyAudioBase64, filename: state.storyAudioFilename, mime_type: state.storyAudioMimeType, language: conversationLanguage() }) });
         state.storyTranscript = transcript.text || "";
         toast(translate("Memoir.storyFlow.transcriptReady"));
       } catch (error) {
@@ -1426,7 +1599,7 @@ async function startStoryVoiceRecorder() {
 async function speakStoryQuestion(text) {
   state.storyAudioPlayer?.pause();
   try {
-    const generated = await storyApi("/v1/story/question-audio", { method: "POST", body: JSON.stringify({ text, language: conversationLocale(), voice: "marin" }) });
+    const generated = await storyApi("/v1/story/question-audio", { method: "POST", body: JSON.stringify({ text, language: conversationLanguage(), voice: "marin" }) });
     const player = new Audio(URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type)));
     state.storyAudioPlayer = player;
     player.onended = () => URL.revokeObjectURL(player.src);
@@ -1436,7 +1609,7 @@ async function speakStoryQuestion(text) {
     if (!window.speechSynthesis) return toast(translate("Memoir.storyFlow.readAloudUnavailable"));
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = conversationLocale();
+    utterance.lang = currentUiLocale();
     utterance.rate = 0.96;
     window.speechSynthesis.speak(utterance);
   }
@@ -1516,13 +1689,13 @@ function renderPlatformLanding() {
     <div class="platform-landing">
       <header class="landing-header platform-header">
         <a class="brand" href="/" aria-label="${t("homeAria")}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
-        <span class="header-note">${t("headerNote")}</span>
+        <div class="landing-language" data-language-switcher-slot></div>
       </header>
       <main class="platform-main">
         <section class="platform-hero">
           <div class="eyebrow">${t("eyebrow")}</div>
           <h1>${t("title")}</h1>
-          <p class="hero-copy">${t("description")}</p>
+          <p class="platform-reflection">${t("reflection")}</p>
         </section>
         <section class="platform-products" aria-label="${t("products")}">
           <article class="product-card product-card-primary">
@@ -1530,14 +1703,13 @@ function renderPlatformLanding() {
             <h2>${t("memoirTitle")}</h2>
             <p>${t("memoirBody")}</p>
             <div class="product-card-actions">
-              <div class="product-card-language" data-language-switcher-slot></div>
               <button class="button button-primary" data-action="open-memoir">${t("begin")} <span>↗</span></button>
             </div>
           </article>
           <article class="product-card product-card-muted">
-            <div class="product-kicker">${t("voiceKicker")}</div>
-            <h2>${t("voiceTitle")}</h2>
-            <p>${t("voiceBody")}</p>
+            <div class="product-kicker">${t("diaryKicker")}</div>
+            <h2>${t("diaryTitle")}</h2>
+            <p>${t("diaryBody")}</p>
             <span class="product-status">${t("comingStatus")}</span>
           </article>
         </section>
@@ -1552,7 +1724,7 @@ function renderMemoirLanding() {
     <div class="landing">
       <header class="landing-header">
         <a class="brand" href="/memoir" aria-label="${t("brand")} home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
-        <div class="landing-header-actions"><span class="header-note">${t("headerNote")}</span><div class="landing-language" data-language-switcher-slot></div></div>
+        <div class="landing-language" data-language-switcher-slot></div>
       </header>
       <main class="landing-main">
         <section class="hero">
@@ -1592,7 +1764,7 @@ async function startMemoirStory(mode = "self") {
     if (state.authPromise) await state.authPromise;
     if (state.loading) return;
     state.loading = true;
-    const language = conversationLocale();
+    const language = conversationLanguage();
     state.project = await api("/v1/projects", { method: "POST", body: JSON.stringify({ mode, language }) });
     localStorage.setItem("memory-spark-project", state.project.id);
     state.chat = [];
@@ -1614,8 +1786,8 @@ async function startMemoirStory(mode = "self") {
     // Consent and project hydration are independent setup work; keep them out
     // of the first-paint path so a slow request cannot hide the conversation.
     const backgroundSetup = Promise.all([
-      api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "recording", granted: true, locale: language }) }),
-      ...(mode === "self" ? [api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "storyteller_assent", granted: true, locale: language }) })] : []),
+      api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "recording", granted: true, locale: currentUiLocale() }) }),
+      ...(mode === "self" ? [api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "storyteller_assent", granted: true, locale: currentUiLocale() }) })] : []),
       refreshProject(),
       refreshFamilyEntitlement(),
     ]).catch((error) => {
@@ -1708,6 +1880,7 @@ function renderStory() {
   if (draft !== undefined && $("#chat-input")) {
     $("#chat-input").value = draft;
   }
+  authReminder.mount();
   resizeChatInput($("#chat-input"));
   if (scroll) scroll.scrollTop = followConversation ? scroll.scrollHeight : previousTop;
   if (composerFocused && $("#chat-input")) {
@@ -1717,7 +1890,10 @@ function renderStory() {
 }
 
 function workspaceHasContent() {
-  return Boolean(workspaceTabs().length || state.placeJourney || searchedPictures().length);
+  // Public cue metadata belongs in the conversation until a current place cue
+  // activates the place journey. Counting it here creates an empty Places /
+  // Pictures workspace and hides the cue cards that should remain inline.
+  return Boolean(workspaceTabs().length || state.placeJourney);
 }
 
 function workspaceDetail() {
@@ -1777,26 +1953,23 @@ function searchedPictures() {
   return items;
 }
 
-function placeHistoryKey(place) {
-  return JSON.stringify([place.place, place.hierarchy || [], place.life_stage || null]);
-}
 
 function placeHistoryChoices(places, current) {
   if (places.length < 2) return "";
   const label = escapeHtml(translate("Memoir.workspace.placeHistory"));
   return `<nav class="place-choices" aria-label="${label}">${[...places].reverse().map(item => {
     const context = (item.hierarchy || []).filter(part => part !== "Earth" && part !== item.place).join(" · ");
-    const stage = item.life_stage ? lifeStageText(item.life_stage, "label") : "";
+    const stage = (item.life_stages || [item.life_stage]).filter(Boolean).map(stage => lifeStageText(stage, "label")).join(" · ");
     return `<button type="button" data-place-choice="${escapeHtml(placeHistoryKey(item))}" aria-pressed="${placeHistoryKey(item) === placeHistoryKey(current)}"><span>${escapeHtml(item.place)}</span><small>${escapeHtml([context, stage].filter(Boolean).join(" · "))}</small></button>`;
   }).join("")}</nav>`;
 }
 
 function placeWorkspaceSelection() {
   if (!state.placeJourney) return null;
-  const places = profile().memory_places || [];
+  const places = mergePlaces(profile().memory_places || []);
   const matching = state.lifeStage === "all"
     ? places
-    : places.filter(item => item.life_stage === state.lifeStage);
+    : places.filter(item => matchesPlaceStage(item, state.lifeStage));
   const selected = matching.length ? matching : [state.placeJourney];
   return selected.find(item => placeHistoryKey(item) === state.selectedPlace) || selected.at(-1) || state.placeJourney;
 }
@@ -1815,10 +1988,10 @@ function workspacePictureItems(place) {
 
 function workspaceMediaOverview(toggle = "") {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  if (!state.placeJourney && !searchedPictures().length) return "";
+  if (!state.placeJourney) return "";
   const current = placeWorkspaceSelection();
-  const places = profile().memory_places || [];
-  const matching = state.lifeStage === "all" ? places : places.filter(item => item.life_stage === state.lifeStage);
+  const places = mergePlaces(profile().memory_places || []);
+  const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
   const choices = placeHistoryChoices(matching, current);
   const map = current
     ? placeJourneyMarkup(current, "workspace")
@@ -1864,7 +2037,7 @@ function lifeStageText(stageId, key) {
 function lifeStageEvidence(stageId) {
   const matchesStage = (item = {}) => {
     const metadata = item.metadata || item.meta || {};
-    return [item.life_stage, item.lifeStage, item.stage_id, item.stage, metadata.life_stage, metadata.stage_id]
+    return [...(item.life_stages || []), item.life_stage, item.lifeStage, item.stage_id, item.stage, metadata.life_stage, metadata.stage_id]
       .some((value) => value === stageId);
   };
   return {
@@ -1916,8 +2089,8 @@ function familyWorkspace() {
 
 function timelineWorkspace() {
   const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
-  const items = state.timeline.length ? state.timeline.map((item) => { const precisionKey = { approximate: "precision.approximate", range: "precision.range", exact: "precision.exact", year: "precision.year", decade: "precision.decade", month: "precision.month", day: "precision.day" }[item.precision]; const precision = precisionKey ? t("datePrecision", { precision: t(precisionKey) }) : t("dateUnknown"); const place = item.place ? ` · ${item.place}` : ""; return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.date_expression || translate("Memoir.workspace.dateUnknown"))} · ${precision}${escapeHtml(place)}</small></div></article>`; }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
-  const periods = state.familyPeriods.length ? `<div class="timeline-periods"><div class="eyebrow">${t("timeline")}</div>${state.familyPeriods.map((period) => `<div class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(period.title)}</strong><small>${escapeHtml(period.start_expression || translate("Memoir.workspace.dateUnknown"))} → ${escapeHtml(period.end_expression || translate("Memoir.workspace.ongoing"))}</small></div></div>`).join("")}</div>` : "";
+  const items = state.timeline.length ? state.timeline.map((item) => { const precisionKey = { approximate: "precision.approximate", range: "precision.range", exact: "precision.exact", year: "precision.year", decade: "precision.decade", month: "precision.month", day: "precision.day" }[item.precision]; const precision = precisionKey ? t("datePrecision", { precision: t(precisionKey) }) : t("dateUnknown"); const place = item.place ? ` · ${item.place}` : ""; const date = formatDateExpression(item.date_expression, currentUiLocale()) || translate("Memoir.workspace.dateUnknown"); return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(date)} · ${precision}${escapeHtml(place)}</small></div></article>`; }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
+  const periods = state.familyPeriods.length ? `<div class="timeline-periods"><div class="eyebrow">${t("timeline")}</div>${state.familyPeriods.map((period) => { const start = formatDateExpression(period.start_expression, currentUiLocale()) || translate("Memoir.workspace.dateUnknown"); const end = formatDateExpression(period.end_expression, currentUiLocale()) || translate("Memoir.workspace.ongoing"); return `<div class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(period.title)}</strong><small>${escapeHtml(start)} → ${escapeHtml(end)}</small></div></div>`; }).join("")}</div>` : "";
   return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="eyebrow">${t("lifeTimeline")}</div><div class="timeline-list">${items}</div>${periods}</div>${referencesWorkspace()}</div>`;
 }
 
@@ -1931,15 +2104,16 @@ function placeJourneyMarkup(journey, variant = "surface") {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   const tWith = (key, values) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
   const labels = (journey.hierarchy || []).filter((label) => label !== journey.place).map((label) => `<span class="place-journey-label">${escapeHtml(label)}</span>`).join('<span class="place-journey-arrow" aria-hidden="true">/</span>');
-  const mapUrl = placeMapUrl(journey);
+  const target = mapTarget(journey, []) || resolvedPlaceTargets.get(placeHistoryKey(journey)) || mapTarget(journey, mergePlaces(profile().memory_places || []));
+  const mapUrl = placeMapUrl(target);
   const mapLink = mapUrl ? `<a class="place-map-link" href="${escapeHtml(mapUrl)}" target="_blank" rel="noreferrer">${t("exploreMap")} <span aria-hidden="true">↗</span></a>` : "";
-  const latitude = Number.isFinite(journey.latitude) ? journey.latitude : "";
-  const longitude = Number.isFinite(journey.longitude) ? journey.longitude : "";
+  const latitude = Number.isFinite(target?.latitude) ? target.latitude : "";
+  const longitude = Number.isFinite(target?.longitude) ? target.longitude : "";
   const duration = Number(journey.duration_ms) || 5200;
   const placeType = currentUiLocale() === "zh-CN"
     ? ({ city: "城市", town: "城镇", region: "地区", country: "国家", neighbourhood: "街区" }[journey.granularity] || "地点")
     : (journey.granularity || "place");
-  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(journey.place)}</h2></div><div class="place-journey-hierarchy" aria-label="${t("placeContext")}">${labels}</div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-cesium-place="${escapeHtml(journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div><div class="place-journey-toolbar"><span class="place-journey-status">${tWith("approximate", { placeType })}</span>${mapLink}</div><p class="place-journey-note">${t("placeNote")}</p></section>`;
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(journey.place)}</h2></div><div class="place-journey-hierarchy" aria-label="${t("placeContext")}">${labels}</div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target?.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div><div class="place-journey-toolbar"><span class="place-journey-status">${target && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType })}</span>${mapLink}</div><p class="place-journey-note">${t("placeNote")}</p></section>`;
 }
 
 function placeJourneySurface() {
@@ -1949,8 +2123,8 @@ function placeJourneySurface() {
 function placesWorkspace() {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   if (!state.placeJourney) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("places")}</h2><p>${t("placesIntro")}</p></div><div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div></div>`;
-  const places = profile().memory_places || [];
-  const matching = state.lifeStage === "all" ? places : places.filter(item => item.life_stage === state.lifeStage);
+  const places = mergePlaces(profile().memory_places || []);
+  const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
   const selected = matching.length ? matching : (!places.length ? [state.placeJourney] : []);
   const current = placeWorkspaceSelection() || selected.at(-1);
   const choices = placeHistoryChoices(selected, current);
@@ -2005,8 +2179,27 @@ function loadCesium() {
   return cesiumLoadPromise;
 }
 
+const resolvedPlaceTargets = new Map();
+const pendingPlaceTargets = new Map();
+function resolvePlaceMap(journey) {
+  if (!journey || !state.project?.id) return;
+  const key = placeHistoryKey(journey);
+  if (mapTarget(journey, []) || resolvedPlaceTargets.has(key) || pendingPlaceTargets.has(key)) return;
+  const projectId = state.project.id;
+  const request = api(`/v1/projects/${projectId}/place-map`, {method: "POST", body: JSON.stringify(journey)})
+    .then(result => {
+      if (result.target) resolvedPlaceTargets.set(key, result.target);
+      // Cache no-match as well to avoid repeated searches on every render.
+      else resolvedPlaceTargets.set(key, null);
+      if (state.project?.id === projectId) render();
+    }).catch(() => { resolvedPlaceTargets.set(key, null); })
+    .finally(() => pendingPlaceTargets.delete(key));
+  pendingPlaceTargets.set(key, request);
+}
+
 function initCesiumPlaceJourney() {
   const container = $("[data-cesium-place]");
+  if (container) resolvePlaceMap(placeWorkspaceSelection());
   if (!container || !container.dataset.cesiumLatitude || !container.dataset.cesiumLongitude) return;
   const latitude = Number(container.dataset.cesiumLatitude);
   const longitude = Number(container.dataset.cesiumLongitude);
@@ -2192,9 +2385,9 @@ function renderMessage(message) {
   const streaming = Boolean(message.streaming);
   const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const cues = !streaming && message.cues?.length && !workspaceHasContent() ? renderCueCards(message.cues) : "";
-  const trace = !streaming && message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
+  const trace = message.trace?.length ? renderAgentTrace(message.trace, message.traceMode) : "";
   const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${trace}${cues}${action}</div></article>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-text" aria-live="polite">${formatText(message.text)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}<div class="message-trace" aria-live="polite">${trace}</div>${cues}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated") {
@@ -2202,8 +2395,8 @@ function renderAgentTrace(trace, mode = "simulated") {
   const title = escapeHtml(translate("Memoir.trace.title"));
   const count = escapeHtml(translateWith("Memoir.trace.stepCount", { count: trace.length }));
   const note = escapeHtml(translate("Memoir.trace.note"));
-  const steps = trace.map((step) => `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}"><span class="agent-loop-kind">${escapeHtml(step.label || step.kind || "step")}</span><span class="agent-loop-detail">${escapeHtml(step.detail || "")}</span></li>`).join("");
-  return `<details class="agent-loop"><summary><span>${title}</span><small>${count}</small></summary><p class="agent-loop-note">${note}</p><ol class="agent-loop-list">${steps}</ol></details>`;
+  const steps = trace.map((step) => `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}"><span class="agent-loop-kind">${escapeHtml(step.label || step.kind || "step")}${step.status ? `<small> · ${escapeHtml(translate(`Memoir.trace.status.${step.status}`))}</small>` : ""}</span><span class="agent-loop-detail">${escapeHtml(step.detail || "")}</span></li>`).join("");
+  return `<details class="agent-loop" ${mode === "live" && trace.some(step => step.status === "running") ? "open" : ""}><summary><span>${title}</span><small>${count}</small></summary><p class="agent-loop-note">${note}</p><ol class="agent-loop-list">${steps}</ol></details>`;
 }
 
 function renderCueCards(cues) {
@@ -2301,7 +2494,7 @@ async function beginMemoryConversation(renderNow = true) {
   const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
   await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   try {
-    const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLocale(), requested_media: ["image"] }) });
+  const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLanguage(), requested_media: ["image"] }) });
     if (context.items?.length) {
       await streamAssistantMessage(conversationMessage("publicContext"), { cues: context.items });
     }
@@ -2396,7 +2589,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
     await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action: result.streamedMessage?.failed ? null : action });
     if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
-  } catch (error) { toast(error.message); }
+  } catch (error) {
+    toast(error.message);
+  }
   state.loading = false;
   render();
   if (state.voiceMode) window.setTimeout(() => startVoiceModeTurn(), 260);
@@ -2448,7 +2643,7 @@ async function speakText(text) {
     try {
       const generated = await api(`/v1/memory-sessions/${state.session.id}/question-audio`, {
         method: "POST",
-        body: JSON.stringify({ language: conversationLocale(), voice: "marin" }),
+        body: JSON.stringify({ language: conversationLanguage(), voice: "marin" }),
       });
       const response = await fetch(memoirApiPath(generated.audio_url));
       if (!response.ok) throw new Error("Generated audio could not be loaded.");
@@ -2464,7 +2659,7 @@ async function speakText(text) {
   if (!window.speechSynthesis) return toast(translate("Memoir.storyFlow.readAloudUnavailable"));
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = conversationLocale();
+  utterance.lang = currentUiLocale();
   utterance.rate = 0.96;
   utterance.onend = () => { state.speaking = false; };
   state.speaking = true;
@@ -2476,7 +2671,7 @@ function speakBrowserText(text) {
   window.speechSynthesis.cancel();
   return new Promise((resolve) => {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = conversationLocale();
+    utterance.lang = currentUiLocale();
     utterance.rate = 0.96;
     const finish = () => {
       if (state.voiceModeSpeechResolve === finish) state.voiceModeSpeechResolve = null;
@@ -2566,7 +2761,7 @@ async function speakVoiceReply(text) {
       method: "POST",
       body: JSON.stringify({
         text,
-        language: conversationLocale(),
+        language: conversationLanguage(),
         voice: "marin",
         instructions: "Speak slowly, warmly and clearly with natural pauses, as a patient oral-history journalist.",
       }),
@@ -2717,7 +2912,6 @@ async function startVoiceModeTurn() {
       try {
         const saved = await transcribeRecordedAudio(blob, `voice-${Date.now()}`);
         if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
-        await syncUiLocaleFromVoiceTranscript(saved);
         if (!state.voiceMode || state.voiceModeTurnId !== turnId || !saved.text) {
           if (state.voiceMode) {
             state.voiceModeStatus = "listening";
@@ -2834,7 +3028,6 @@ async function transcribeDictation(id) {
     if (!blob.size) return;
     const saved = await transcribeRecordedAudio(blob, `dictation-${Date.now()}`);
     if (state.dictationId !== id) return;
-    await syncUiLocaleFromVoiceTranscript(saved);
     if (state.dictationId !== id) return;
     state.audioTranscript = [state.audioTranscript.trim(), saved.text].filter(Boolean).join(" ");
     shouldSend = state.dictationSend && Boolean(saved.text);
@@ -2898,39 +3091,13 @@ async function transcribeRecordedAudio(blob, filenamePrefix) {
   const extension = mimeType === "audio/mp4" ? "mp4" : "webm";
   const transcript = await storyApi("/v1/story/transcriptions", {
     method: "POST",
-    body: JSON.stringify({ audio_base64: encoded, filename: `${filenamePrefix}.${extension}`, mime_type: mimeType, language: conversationLocale() }),
+    body: JSON.stringify({ audio_base64: encoded, filename: `${filenamePrefix}.${extension}`, mime_type: mimeType, language: conversationLanguage() }),
   });
   return {
     uploadId: null,
     text: String(transcript.text || "").trim(),
     language: transcript.source?.language || "",
   };
-}
-
-function localeFromVoiceTranscript({ text = "", language = "" } = {}) {
-  const reported = String(language).trim().toLowerCase();
-  if (reported === "zh" || reported.startsWith("zh-") || reported === "cmn") return "zh-CN";
-
-  const value = String(text).trim();
-  if (!value) return null;
-  const letters = Array.from(value.matchAll(/\p{Letter}/gu)).length;
-  const han = Array.from(value.matchAll(/\p{Script=Han}/gu)).length;
-  const latin = Array.from(value.matchAll(/\p{Script=Latin}/gu)).length;
-  if (han >= 8 && han / Math.max(letters, 1) >= 0.6) return "zh-CN";
-  if (latin >= 32 && latin / Math.max(letters, 1) >= 0.9 && han === 0) return "en-AU";
-  return null;
-}
-
-async function syncUiLocaleFromVoiceTranscript(transcript) {
-  const nextLocale = localeFromVoiceTranscript(transcript);
-  if (!nextLocale || nextLocale === conversationLocale()) return;
-  const changeLocale = globalThis.__copyme2SetUiLocale;
-  if (!changeLocale) return;
-  try {
-    await changeLocale(nextLocale, { persistAccount: false });
-  } catch (error) {
-    console.warn("Unable to align the UI locale with the voice transcript.", error);
-  }
 }
 
 function blobToBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = reject; reader.readAsDataURL(blob); }); }
@@ -2993,5 +3160,6 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeProfileMenu(true);
 });
 installUiLocaleBridge();
-renderLanding();
+// Keep the shell's loading view until boot resolves the saved project.
+// Rendering the landing page here flashes it before the interview is restored.
 boot();

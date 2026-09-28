@@ -70,32 +70,50 @@ class UserStorage:
         return self.request('POST', '/storage/v1/object/memory-spark/' + quote(path, safe='/'),
                             content=content, headers={'Content-Type': content_type, 'x-upsert': str(overwrite).lower()})
 
-    def save_profile(self, profile):
+    def save_profile(self, profile, *, source_sequences=None):
+        if source_sequences is None and isinstance(profile, dict):
+            source_sequences = profile.get('_agent_source_sequences')
+        payload = {
+            'user_id': self.user_id,
+            'profile': {key: value for key, value in (profile or {}).items()
+                        if key != '_agent_source_sequences'},
+        }
+        if source_sequences is not None:
+            payload['agent_source_sequences'] = source_sequences
         return self.request('POST', '/rest/v1/user_profile',
                             headers={'Prefer': 'resolution=merge-duplicates,return=representation'},
-                            json={'user_id': self.user_id, 'profile': profile}).json()
+                            json=payload).json()
 
     def profile(self):
         rows = self.request('GET', '/rest/v1/user_profile', params={
-            'select': 'profile',
+            'select': 'profile,agent_source_sequences',
             'user_id': f'eq.{self.user_id}',
             'limit': '1',
         }).json()
-        return rows[0].get('profile') or {} if rows else {}
+        if not rows:
+            return {}
+        profile = dict(rows[0].get('profile') or {})
+        source_sequences = rows[0].get('agent_source_sequences')
+        if isinstance(source_sequences, dict) and source_sequences:
+            profile['_agent_source_sequences'] = source_sequences
+        return profile
 
     def place_journey(self):
         rows = self.request('GET', '/rest/v1/user_place_journey', params={
-            'select': 'schema_version,status,revision,place,hierarchy,granularity,latitude,longitude,duration_ms,created_at,updated_at',
+            'select': 'schema_version,status,revision,source_sequence,place,hierarchy,granularity,latitude,longitude,duration_ms,created_at,updated_at',
             'user_id': f'eq.{self.user_id}',
             'limit': '1',
         }).json()
         return rows[0] if rows else None
 
-    def save_place_journey(self, lease_token, journey):
-        return self.request('POST', '/rest/v1/rpc/upsert_user_place_journey', json={
+    def save_place_journey(self, lease_token, journey, *, source_sequence=None):
+        payload = {
             'p_lease_token': lease_token,
             'p_journey': journey,
-        }).json()
+        }
+        if source_sequence is not None:
+            payload['p_source_sequence'] = source_sequence
+        return self.request('POST', '/rest/v1/rpc/upsert_user_place_journey', json=payload).json()
 
     def story_entitlement(self):
         rows = self.request('GET', '/rest/v1/story_entitlements', params={
@@ -180,10 +198,26 @@ class UserStorage:
                   'application/octet-stream', overwrite=False)
         return path
 
-    def commit_agent_turn(self, lease_token, thread_id, text, source_paths):
-        return self.request('POST', '/rest/v1/rpc/commit_user_agent_turn', json={
+    def commit_agent_turn(self, lease_token, thread_id, text, source_paths, *, source_sequence=None):
+        payload = {
             'p_lease_token': lease_token,
             'p_thread_id': thread_id,
             'p_content': text,
             'p_source_paths': source_paths,
-        }).json()
+        }
+        if source_sequence is not None:
+            payload['p_source_sequence'] = source_sequence
+        return self.request('POST', '/rest/v1/rpc/commit_user_agent_turn', json=payload).json()
+
+    def update_agent_memory_source_paths(self, memory_id, source_paths):
+        try:
+            memory_id = str(UUID(memory_id))
+        except (ValueError, TypeError, AttributeError):
+            raise ValueError('Invalid agent memory id') from None
+        return self.request(
+            'PATCH',
+            '/rest/v1/user_memory',
+            params={'id': f'eq.{memory_id}', 'user_id': f'eq.{self.user_id}'},
+            headers={'Prefer': 'return=representation'},
+            json={'source_paths': list(source_paths or [])},
+        ).json()

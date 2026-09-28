@@ -1,5 +1,6 @@
 """Supabase-authenticated Codex conversation endpoints."""
 import asyncio
+from datetime import date
 import os
 from typing import Literal
 
@@ -9,7 +10,7 @@ from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
 
-from .agent_lock import AgentTurnBusyError
+from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .agent_routes_support import authenticated_storage
 from .codex_runtime import CodexRuntime
 from .family_context import family_features_enabled, valid_family_project_id
@@ -22,7 +23,50 @@ runtime = CodexRuntime()
 class TurnInput(BaseModel):
     text: str = Field(min_length=1, max_length=100000)
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
-    language: Literal['en-AU', 'zh-CN'] = 'en-AU'
+    # The UI locale is not the interview language.  Omit this when the
+    # storyteller has not explicitly chosen a conversation language so the
+    # runtime can infer it from the conversation without changing the UI.
+    language: Literal['en-AU', 'zh-CN'] | None = None
+
+
+class ProfileSettingsInput(BaseModel):
+    preferred_language: Literal['en-AU', 'zh-CN'] | None = None
+    name: str | None = Field(default=None, max_length=120)
+    birth_year: int | None = Field(default=None, ge=1800, le=date.today().year)
+    birth_place: str | None = Field(default=None, max_length=160)
+    childhood_place: str | None = Field(default=None, max_length=160)
+
+
+@router.get('/profile')
+async def read_profile_settings(authorization: str | None = Header(default=None)):
+    storage = await asyncio.to_thread(authenticated_storage, authorization)
+    try:
+        profile = await asyncio.to_thread(storage.profile)
+        return {key: profile.get(key) for key in ProfileSettingsInput.model_fields}
+    finally:
+        await asyncio.to_thread(storage.client.close)
+
+
+@router.patch('/profile')
+async def update_profile_settings(payload: ProfileSettingsInput, authorization: str | None = Header(default=None)):
+    storage = await asyncio.to_thread(authenticated_storage, authorization)
+    try:
+        async with AgentTurnLease(storage) as lease:
+            profile = await lease.io(storage.profile)
+            for key, value in payload.model_dump(exclude_unset=True).items():
+                if isinstance(value, str):
+                    value = value.strip() or None
+                if value is None:
+                    profile.pop(key, None)
+                else:
+                    profile[key] = value
+            await lease.check()
+            await lease.io(storage.save_profile, profile)
+            return {key: profile.get(key) for key in ProfileSettingsInput.model_fields}
+    except AgentTurnBusyError:
+        raise HTTPException(409, 'Please wait for the current reply to finish before saving your profile.') from None
+    finally:
+        await asyncio.to_thread(storage.client.close)
 
 
 class PlaceJourneyOutput(BaseModel):
@@ -76,7 +120,8 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
     if 'application/x-ndjson' in accept:
         return StreamingResponse(
             turn_events(lambda emit: runtime.turn(storage, payload.text, project_id=payload.project_id,
-                                                 language=payload.language, on_delta=emit),
+                                                 language=payload.language, on_delta=emit,
+                                                 on_event=emit.event),
                         cleanup=lambda: asyncio.to_thread(storage.client.close)),
             media_type='application/x-ndjson', headers=STREAM_HEADERS,
         )
