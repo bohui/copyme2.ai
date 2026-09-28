@@ -78,7 +78,7 @@ MEMORY_SPARK_TEST_MODE=1 python3 -m uvicorn apps.api.main:app --reload --host 12
 
 Install the web dependencies once with `npm --prefix apps/web ci`, then run the Next.js frontend with `MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8000 npm --prefix apps/web run dev -- --hostname 127.0.0.1 --port 3010`. Open [http://127.0.0.1:3010](http://127.0.0.1:3010). Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then enable **Allow manual linking** and **Allow anonymous sign-ins** under Supabase Auth → Sign In / Providers. Configure both Google and Facebook there as well; the browser uses Supabase `linkIdentity` after round five. See [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous) and [manual identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking#manual-linking-beta).
 
-Memoir's UI supports reviewed `en-AU` and `zh-CN` catalogues through `next-intl`. The language selector keeps the current URL, persists a device choice in `copyme2_ui_locale`, negotiates the browser language when no choice exists, and updates the authenticated Supabase user's `ui_locale` metadata when available. The active Memoir conversation, agent trace, and speech requests use that same locale; source language, edition language, and the memoir's AUD pricing remain separate. Validate the catalogues with `make localization-catalog-test` and the rendered browser journey with `make browser-localization-test`. The implementation spec is [`docs/Memoir_Localization_Spec.md`](docs/Memoir_Localization_Spec.md).
+Memoir's UI supports `en-AU` and `zh-CN` catalogues through `next-intl`. The language selector keeps the current URL, persists a device choice in `copyme2_ui_locale`, negotiates the browser language when no choice exists, and updates the authenticated Supabase user's `ui_locale` metadata when available. UI locale is independent from the optional interview-language preference: changing the interface never changes Mira's language, source language, edition language, time zone, or the memoir's AUD pricing. Exact dates/times are formatted with the UI locale while uncertain expressions remain expressions. Validate the catalogues with `make localization-catalog-test` and the rendered browser journey with `make browser-localization-test`. Sensitive copy is listed in [`apps/web/messages/human-review.json`](apps/web/messages/human-review.json) for human/native-speaker sign-off. The implementation spec is [`docs/Memoir_Localization_Spec.md`](docs/Memoir_Localization_Spec.md).
 
 To enable server-side voice, set `OPENAI_API_KEY` in `.env`. The API uses `gpt-4o-mini-transcribe` for recordings and `gpt-4o-mini-tts` for spoken questions by default; override them with `MEMORY_SPARK_STT_MODEL` and `MEMORY_SPARK_TTS_MODEL`. Keep the key server-side. If it is unset or speech is unavailable, typed answers and browser read-aloud remain available.
 
@@ -220,34 +220,34 @@ High-level Codex activity is hidden from storytellers by default. For local debu
 
 ### Langfuse trajectory evaluation
 
-Memoir keeps the evaluation task callback beside the application and private
-`codex-worker` boundary. The callback receives one synthetic case and the
-correlation envelope, then returns the `trajectory` from
-`CodexRuntime.turn(..., evaluation=..., include_trajectory=True)`. The recorder
-captures observable Codex protocol and application steps, tool results and
-errors, marker/state validation, persistence, and the terminal response while
-redacting credentials and private reasoning. Ordinary browser turns never
-request or return this payload.
+Memoir keeps the evaluation runner beside the application and private
+`codex-worker` boundary. The default dataset and callback are checked in at
+[`tests/evaluation/cases.json`](tests/evaluation/cases.json) and
+`apps.api.evaluation_cases:run_case`; each case uses an isolated synthetic
+identity/project and calls `CodexRuntime.turn(..., evaluation=..., include_trajectory=True)`.
+The recorder captures observable Codex protocol and application steps, pre-action
+context, normalized tool arguments, results/errors/retries, marker/state
+validation, persistence, and the terminal response while excluding private
+reasoning. Ordinary browser turns never request or return this payload.
 
 Install the optional host-side SDK and run a case file with a callback module:
 
 ```bash
 python3 -m pip install -e '.[evaluation]'
-make langfuse-eval \
-  EVAL_CASES=tests/evaluation/cases.json \
-  EVAL_TASK=your_eval_module:run_case
+make langfuse-eval
 ```
 
 Add `EVAL_PUBLISH=1` after configuring the `MEMORY_SPARK_LANGFUSE_*` variables
-to publish the root observation and deterministic scores to the project hosted
-by `llm_provider`. Publishing is optional for local regression runs; the
-application and worker do not wait for Langfuse judges. The generic correlation
-fields are forwarded to the provider through Codex's
-`responsesapiClientMetadata`, so provider generations can be joined to the
-Memoir run without moving Memoir skill or state semantics into `llm_provider`.
-The publisher also exposes Langfuse SDK v4's `run_experiment` for synchronous
-dataset callbacks; the local runner is the async adapter for the real worker
-turn boundary.
+to publish the minimized root observation and deterministic scores to the
+project hosted by `llm_provider`. Full local results and per-case failure
+evidence are written under `var/evaluation-failures/`; the application and
+worker do not wait for Langfuse judges. Use the CLI's `--variant` option to
+compare model/provider or skill variants and `--judge-base-url` plus
+`--judge-model` to opt into the calibrated JSON judge. Dataset, rubric, skill
+manifest, model, provider, and case IDs are included in the correlation
+metadata. The publisher also exposes Langfuse SDK v4's `run_experiment` for
+synchronous dataset callbacks; the local runner is the async adapter for the
+real worker turn boundary.
 
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 

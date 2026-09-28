@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,10 +34,23 @@ def load(locale: str) -> dict[str, str]:
         return leaves(json.load(handle))
 
 
+def load_review_manifest(catalogue_keys: set[str]) -> list[str]:
+    path = MESSAGES / "human-review.json"
+    with path.open(encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    keys = manifest.get("keys") if isinstance(manifest, dict) else None
+    status = manifest.get("status") if isinstance(manifest, dict) else None
+    if status != "requires-human-review" or not isinstance(keys, list):
+        return ["human-review.json must declare status=requires-human-review and a keys list"]
+    missing = sorted(str(key) for key in keys if str(key) not in catalogue_keys)
+    return [f"human-review.json references missing key(s): {', '.join(missing)}"] if missing else []
+
+
 def main() -> int:
     catalogues = {locale: load(locale) for locale in LOCALES}
     reference = catalogues[LOCALES[0]]
     failures: list[str] = []
+    failures.extend(load_review_manifest(set(reference)))
     for locale in LOCALES[1:]:
         current = catalogues[locale]
         missing = sorted(set(reference) - set(current))
@@ -53,6 +67,22 @@ def main() -> int:
     if failures:
         print("Localization catalogue validation failed:")
         print("\n".join(f"- {failure}" for failure in failures))
+        return 1
+    icu_check = ROOT / "apps" / "web" / "scripts" / "check_localization_icu.mjs"
+    try:
+        result = subprocess.run(
+            ["node", str(icu_check)],
+            cwd=ROOT / "apps" / "web",
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        print(f"Localization catalogue validation failed: unable to run ICU parser: {error}")
+        return 1
+    if result.returncode:
+        print("Localization catalogue validation failed:")
+        print(result.stdout or result.stderr)
         return 1
     print(f"Localization catalogues valid: {len(reference)} messages across {', '.join(LOCALES)}")
     return 0

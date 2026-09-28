@@ -6,7 +6,7 @@ This creates a more serious boundary problem than untranslated buttons. The inte
 
 ## Solution
 
-Add reviewed localization to the Next.js Memoir frontend with `next-intl` and Git-managed JSON message catalogues. V1 supports `en-AU` and `zh-CN`, keeps the existing `/memoir/*` and `/voice` URLs unchanged, and uses one component tree for both languages. The active Memoir conversation uses the same resolved locale as the interface, so Mira's opening, follow-up responses, trace labels, read-aloud, transcription, and generated question audio stay aligned with the visible language.
+Add reviewed localization to the Next.js Memoir frontend with `next-intl` and Git-managed JSON message catalogues. V1 supports `en-AU` and `zh-CN`, keeps the existing `/memoir/*` and `/voice` URLs unchanged, and uses one component tree for both languages. The UI locale is independent from the optional interview language: Mira's opening and follow-up response language is inferred or profile-selected without allowing a UI change, a first reply, or a voice transcript to rewrite the page locale.
 
 Resolve the UI locale in this order:
 
@@ -15,7 +15,7 @@ Resolve the UI locale in this order:
 3. A locale match from the browser language preference.
 4. The application default, `en-AU`.
 
-Store the device choice in the locale cookie. When an authenticated user changes language, persist the same UI preference to that account as well. The resolved UI locale is the active Memoir conversation locale, while source language, edition language, time zone, and hosting region remain independent. Prepared translations are used for product copy; Mira's personalized questions follow the active locale through the runtime language contract, and memoir translation remains a separate language-aware workflow.
+Store the device choice in the locale cookie. When an authenticated user changes language, persist the same UI preference to that account as well. The resolved UI locale is used for product copy, dates, times, and browser speech presentation; conversation language is a separate optional profile field passed to the runtime. Source language, edition language, time zone, and hosting region remain independent. Memoir translation remains a separate language-aware workflow.
 
 ## User Stories
 
@@ -58,11 +58,11 @@ Store the device choice in the locale cookie. When an authenticated user changes
 - UI messages use complete ICU messages with named placeholders and plural rules. Translated fragments are not assembled by concatenating separately translated words.
 - Date, time, number, and currency formatting uses locale-aware `Intl`/`next-intl` formatting. Currency remains `AUD`; uncertain memoir date expressions remain expressions rather than being converted into fabricated exact dates.
 - Backend responses used by the localized UI expose stable error/status codes and safe parameters. The frontend maps known codes to reviewed messages and uses a generic localized fallback for unknown codes.
-- UI locale state remains separate from storyteller profile language, source/transcript language, requested edition locale, time zone, and hosting region. It is also the active Memoir conversation locale: each project creation and agent turn carries the allowlisted locale, and the runtime injects an explicit response-language contract into both new and resumed Codex turns. A locale change does not translate source material, consume an interview allowance, alter an approved manuscript, or move storage.
+- UI locale state remains separate from storyteller profile language, source/transcript language, requested edition locale, time zone, and hosting region. Project creation and agent turns carry an optional allowlisted conversation language only when explicitly configured; otherwise the runtime infers it from the storyteller message. A locale change does not translate source material, consume an interview allowance, alter an approved manuscript, or move storage.
 - The language contract is implemented at the conversation boundary rather than by rewriting the model-provider configuration. The provider/model stays stable while the current locale is supplied on every turn, which makes an in-progress conversation safe to continue after a UI-language change.
 - The localization boundary remains compatible with the existing API namespace adapter and Supabase session flows. Account preference persistence updates only the authenticated user's UI preference and never mutates shared memoir content.
 - Existing browser-only recording, speech, place journey, family context, and timeline behavior remains available through the Next.js client boundary while visible copy is moved behind the shared message interface. A locale change during active recording is deferred until safe persistence is complete.
-- Translation catalogues are reviewed in Git. Automated catalogue checks run before screen tests; native-speaker review is required for consent, payment, privacy, and Mira's core introduction.
+- Translation catalogues are reviewed in Git. Automated catalogue checks run before screen tests, including ICU parsing and placeholder parity. Sensitive keys are listed in `apps/web/messages/human-review.json`; native-speaker review is required for consent, payment, privacy, and Mira's core introduction.
 
 ## Testing Decisions
 
@@ -88,4 +88,4 @@ Store the device choice in the locale cookie. When an authenticated user changes
 
 ## Further Notes
 
-Chinese copy should be adapted for the experience and reviewed by a native speaker rather than mechanically translated. Public references, place cues, place journeys, and family context must retain their existing evidence and privacy boundaries in every language. The UI catalogues are product copy; personalized Mira conversation follows the active allowlisted locale through a per-turn runtime instruction, while source-linked memoir content remains separate language-aware data.
+Chinese copy should be adapted for the experience and reviewed by a native speaker rather than mechanically translated. Public references, place cues, place journeys, and family context must retain their existing evidence and privacy boundaries in every language. The UI catalogues are product copy; personalized Mira conversation follows the optional profile language or runtime inference, while source-linked memoir content remains separate language-aware data. Exact dates/times use locale formatting, but uncertain expressions remain unchanged.

@@ -67,7 +67,6 @@ window.AudioContext = class {
   resume() { return Promise.resolve(); }
   close() { this.closed = true; return Promise.resolve(); }
 };
-syncUiLocaleFromVoiceTranscript = async () => {};
 ensureMemorySession = async () => null;
 agentTurn = async () => { turns++; return {reply: 'What do you remember?'}; };
 streamAssistantMessage = async () => {};

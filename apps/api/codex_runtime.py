@@ -821,7 +821,13 @@ class CodexRuntime:
                     status='completed',
                     stop_reason='turn.completed',
                     state={
+                        'access_control': {
+                            'user_scope': bool(user_id),
+                            'project_id': project_id,
+                            'family_enabled': family_enabled,
+                        },
                         'source_path_count': len(paths),
+                        'source_paths': paths,
                         'profile_fields': sorted(profile_updates or {}),
                         'place_journey_revision': (place_journey or {}).get('revision') if isinstance(place_journey, dict) else None,
                         'family_context_revision': (family_context or {}).get('revision') if isinstance(family_context, dict) else None,

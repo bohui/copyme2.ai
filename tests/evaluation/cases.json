@@ -1,0 +1,95 @@
+{
+  "dataset": "memoir-synthetic",
+  "dataset_version": "memoir-synthetic/1",
+  "cases": [
+    {
+      "id": "place-cue-grounded",
+      "input": {"text": "I remember a summer in Geelong near the water."},
+      "project_id": "synthetic-place-project",
+      "synthetic": {
+        "reply": "I can keep that Geelong memory grounded. What detail from that summer stays with you?[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"Geelong\",\"hierarchy\":[\"Earth\",\"Australia\",\"Victoria\",\"Geelong\"],\"granularity\":\"city\",\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+        "steps": [
+          {"tool": "memory.search", "arguments": {"project_id": "synthetic-place-project"}, "output": {"count": 1}},
+          {"tool": "place.validate", "arguments": {"place": "Geelong"}, "output": {"grounded": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_tools": ["memory.search", "place.validate"],
+        "tool_argument_schemas": {
+          "place.validate": {"type": "object", "required": ["place"], "properties": {"place": {"type": "string"}}}
+        },
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true, "access_control.family_enabled": false},
+        "marker_syntax": true,
+        "max_retries": 0,
+        "max_repeated_success": 1
+      }
+    },
+    {
+      "id": "uncertain-date-preserved",
+      "input": {"text": "It was around 1976, but I am not certain."},
+      "synthetic": {
+        "reply": "Around 1976 is enough to keep; we do not need to make the date more exact. What scene do you remember?",
+        "steps": [
+          {"tool": "memory.search", "arguments": {"query_kind": "date_context"}, "output": {"count": 0}},
+          {"tool": "memory.save", "arguments": {"precision": "approximate"}, "output": {"saved": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 20,
+        "allowed_tools": ["memory.search", "memory.save"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true},
+        "response_requirements": {"contains": ["around 1976"], "excludes": ["1976-01-01"]},
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "family-entitlement-gate",
+      "input": {"text": "My sister Maya and I started school around 1984."},
+      "project_id": "synthetic-family-project",
+      "entitlement": {"status": "paid", "plan_key": "family_memoir_v1", "family_tree": true, "timeline": true},
+      "synthetic": {
+        "reply": "I will keep Maya and the approximate school date as explicit family context. What else do you remember?[[MEMORY_SPARK_FAMILY_TREE]]{\"people\":[{\"id\":\"maya\",\"name\":\"Maya\",\"family_title\":\"sister\",\"living_status\":\"unknown\"}],\"relationships\":[]}[[/MEMORY_SPARK_FAMILY_TREE]][[MEMORY_SPARK_AUTHOR_TIMELINE]]{\"timeline\":[{\"id\":\"school-1984\",\"title\":\"Started school\",\"date_expression\":\"around 1984\",\"precision\":\"approximate\"}],\"life_periods\":[]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]",
+        "steps": [
+          {"tool": "entitlement.check", "arguments": {"feature": "family"}, "output": {"allowed": true}},
+          {"tool": "family.context.validate", "arguments": {"skills": ["family_tree", "author_timeline"]}, "output": {"valid": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["entitlement.check", "family.context.validate"],
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "entitlement_assertions": {"access_control.family_enabled": true},
+        "state_assertions": {"access_control.user_scope": true},
+        "required_markers": ["MEMORY_SPARK_FAMILY_TREE", "MEMORY_SPARK_AUTHOR_TIMELINE"],
+        "max_retries": 0
+      }
+    },
+    {
+      "id": "collection-source-ownership",
+      "input": {"text": "Please prepare a source export of this saved memory."},
+      "project_id": "synthetic-collection-project",
+      "memories": [{"id": "memory-collection", "kind": "memoir", "content": "A saved market memory.", "source_paths": []}],
+      "synthetic": {
+        "reply": "I can queue a source export from the saved memory after you confirm the collection is ready.[[MEMORY_SPARK_TASKS]][{\"kind\":\"BuildSourceExport\",\"memory_ids\":[\"memory-collection\"],\"title\":\"Saved market memory\"}][[/MEMORY_SPARK_TASKS]]",
+        "steps": [
+          {"tool": "collection.source_validate", "arguments": {"memory_ids": ["memory-collection"]}, "output": {"owned": true}},
+          {"tool": "collection.task.request", "arguments": {"kind": "BuildSourceExport"}, "output": {"bounded": true}}
+        ]
+      },
+      "expected": {
+        "max_steps": 24,
+        "allowed_tools": ["collection.source_validate", "collection.task.request"],
+        "tool_argument_schemas": {
+          "collection.source_validate": {"type": "object", "required": ["memory_ids"], "properties": {"memory_ids": {"type": "array"}}}
+        },
+        "allowed_action_sets": [["worker.turn.received", "tool.call", "tool.call", "worker.turn.completed"]],
+        "state_assertions": {"access_control.user_scope": true},
+        "required_markers": ["MEMORY_SPARK_TASKS"],
+        "max_retries": 0
+      }
+    }
+  ]
+}

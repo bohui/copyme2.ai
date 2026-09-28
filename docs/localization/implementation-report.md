@@ -4,22 +4,21 @@
 
 - The active Memoir profile menu contains profile settings without the removed artwork/language selectors. The pre-conversation landing screen keeps the reviewed UI language selector so a visitor can choose a fixed language before starting.
 - Locale changes update the active client catalogue and `<html lang>` without reloading the page, preserving the current conversation and voice state.
-- The first typed or transcribed storyteller reply uses a conservative Unicode script check to align the live UI before the first agent request. The detected locale is sent with that request so the first streamed reply and controls use the same language. This automatic session switch does not write the fixed `copyme2_ui_locale` cookie or signed-in account metadata; explicit selector changes still persist the device/account choice.
-- Voice transcripts use the provider language metadata and the same safe live switch path. A fixed device cookie or account UI preference always wins over inference.
-
-The first-reply text signal is an explicit product request for this memoir onboarding flow; it is deliberately limited to that first submitted reply rather than a global chat listener.
+- UI locale and interview language are separate contracts. The browser sends an explicit profile preference only when one exists; otherwise the API/runtime infers the conversation language without changing the UI cookie, account `ui_locale`, or page catalogue.
+- Voice transcripts and first replies no longer change the UI locale. Speech synthesis and browser read-aloud use the selected interview language when configured, with the UI locale as the presentation fallback.
+- Exact machine-readable dates and times use `Intl.DateTimeFormat(currentUiLocale())`; uncertain expressions such as `around 1976` and `the late 1960s` are preserved verbatim.
+- The catalog checker now validates keys/placeholders and parses every message with FormatJS ICU syntax. Sensitive consent, payment, privacy, and Mira copy is listed in [`apps/web/messages/human-review.json`](../../apps/web/messages/human-review.json) for bilingual human/native-speaker review.
 
 ## Verification
 
-- `npm run build` — passed.
-- `make browser-localization-test` — the current rerun stopped at the initial page load with Playwright `ERR_EMPTY_RESPONSE` after the helper reported both servers ready; the targeted first-reply contract below passed against the running web server.
-- `python3 tests/browser_first_reply_localization.py --base-url http://127.0.0.1:3011` — passed, including automatic Chinese first reply, first-request locale, no fixed-cookie write, and fixed-device precedence.
-- `pytest -q tests/test_conversation_language.py tests/test_profile_settings.py` — 11 passed.
-- `python3 -m pytest -q tests/test_speech.py tests/test_agent_routes.py tests/test_web_container_config.py` — 9 passed.
-- `tests/browser_e2e.py --expect-thinking-steps` — passed.
+- `npm run build` — passed before the independent-language slice; rerun after the final client patch is still required.
+- `python3 scripts/check_localization_catalog.py` — passed: 427 messages plus ICU parsing and the human-review manifest.
+- `node --test tests/js/dates.test.mjs` — passed: exact dates/times localize and uncertain expressions remain unchanged.
+- `python3 -m pytest -q tests/test_conversation_language.py tests/test_profile_settings.py tests/test_trajectory_evaluation.py` — passed.
+- `python3 scripts/run_langfuse_evaluation.py` — passed all four checked-in synthetic cases with no failure evidence.
 
-The default `make browser-test` expectation is currently inconsistent with the repository `.env`: the API reports thinking steps enabled even when that command prefixes `MEMORY_SPARK_SHOW_THINKING_STEPS=0`. This is unrelated to the localization changes.
+The browser regression suite must be rerun against fresh API and Next.js processes before closing the localization ticket; a previous long-lived dev process still served the pre-decoupling client during part of this work.
 
 ## Limitation
 
-Voice auto-detection is intentionally limited to the existing `en-AU` and `zh-CN` choices. It is not a general-purpose speech-language classifier, and ambiguous or short transcripts leave the current locale unchanged.
+The checked-in sensitive-copy manifest marks human/native-speaker review as required; automated checks do not claim that external bilingual sign-off has occurred.

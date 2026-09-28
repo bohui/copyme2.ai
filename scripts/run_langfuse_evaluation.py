@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Run Memoir trajectory cases through a local task callback.
-
-The callback is intentionally supplied by the caller so a test can construct
-an isolated UserStorage/worker fixture while production code keeps its normal
-authentication and persistence boundaries. It must accept ``(case,
-correlation)`` and return a mapping containing the normalized ``trajectory``
-returned by ``CodexRuntime.turn(..., include_trajectory=True)``.
-"""
+"""Run the checked-in Memoir trajectory dataset through the app/worker seam."""
 
 from __future__ import annotations
 
@@ -26,7 +19,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from apps.api.trajectory_evaluation import LangfusePublisher, MemoirEvaluationRunner
+from apps.api.trajectory_evaluation import (
+    LangfusePublisher,
+    MemoirEvaluationRunner,
+    OpenAICompatibleJudge,
+    comparison_matrix,
+)
 
 
 def _load_callable(reference: str):
@@ -40,12 +38,13 @@ def _load_callable(reference: str):
     return callback
 
 
-def _load_cases(path: Path) -> list[Mapping[str, Any]]:
+def _load_cases(path: Path) -> tuple[list[Mapping[str, Any]], Mapping[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     cases = payload.get("cases") if isinstance(payload, Mapping) else payload
     if not isinstance(cases, list) or not all(isinstance(case, Mapping) for case in cases):
         raise ValueError("Case file must contain a JSON array or {\"cases\": [...]}")
-    return cases
+    defaults = {key: payload[key] for key in ("dataset", "dataset_version") if isinstance(payload, Mapping) and payload.get(key)}
+    return [{**defaults, **dict(case)} for case in cases], defaults
 
 
 async def _invoke(callback, case, correlation):
@@ -57,23 +56,58 @@ async def _invoke(callback, case, correlation):
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", required=True, type=Path, help="JSON file containing evaluation cases")
-    parser.add_argument("--task", required=True, help="Python callback using module:callable syntax")
+    parser.add_argument("--cases", type=Path, default=REPO_ROOT / "tests/evaluation/cases.json", help="JSON file containing evaluation cases")
+    parser.add_argument("--task", default="apps.api.evaluation_cases:run_case", help="Python callback using module:callable syntax")
     parser.add_argument("--run-id", help="Stable run ID to reuse across retries")
     parser.add_argument("--output", type=Path, help="Write JSON results to this file instead of stdout")
+    parser.add_argument("--failure-dir", type=Path, default=REPO_ROOT / "var/evaluation-failures", help="Directory for local per-case failure evidence")
+    parser.add_argument("--variant", action="append", help="Model/provider variant name; repeat to build a comparison matrix")
+    parser.add_argument("--baseline-variant", help="Variant used as the comparison baseline")
+    parser.add_argument("--concurrency", type=int, default=1, help="Maximum concurrent isolated cases")
+    parser.add_argument("--judge-base-url", help="Optional OpenAI-compatible judge base URL")
+    parser.add_argument("--judge-model", help="Optional judge model; requires --judge-base-url")
+    parser.add_argument("--judge-api-key", default="", help="Optional judge API key")
+    parser.add_argument("--judge-calibration", type=Path, help="Optional JSON calibration examples for the semantic judge")
     parser.add_argument("--publish", action="store_true", help="Publish observations and scores to Langfuse")
     return parser
 
 
 async def _main(args: argparse.Namespace) -> list[dict[str, Any]]:
     callback = _load_callable(args.task)
-    cases = _load_cases(args.cases)
+    cases, _dataset_metadata = _load_cases(args.cases)
     publisher = LangfusePublisher() if args.publish else None
+    judges = []
+    if args.judge_base_url or args.judge_model:
+        if not args.judge_base_url or not args.judge_model:
+            raise ValueError("--judge-base-url and --judge-model must be supplied together")
+        calibration = []
+        if args.judge_calibration:
+            payload = json.loads(args.judge_calibration.read_text(encoding="utf-8"))
+            calibration = payload if isinstance(payload, list) else payload.get("examples", [])
+        judges.append(OpenAICompatibleJudge(
+            base_url=args.judge_base_url,
+            model=args.judge_model,
+            api_key=args.judge_api_key,
+            calibration_examples=calibration,
+        ))
     runner = MemoirEvaluationRunner(
         lambda case, correlation: _invoke(callback, case, correlation),
         publisher=publisher,
+        judges=judges,
     )
-    return await runner.run(cases, run_id=args.run_id)
+    variants = [{"variant": variant} for variant in args.variant] if args.variant else None
+    results = await runner.run(cases, run_id=args.run_id, variants=variants, max_concurrency=args.concurrency)
+    args.failure_dir.mkdir(parents=True, exist_ok=True)
+    for result in results:
+        failures = result.get("failure_evidence") or []
+        if not failures:
+            continue
+        variant = str((result.get("correlation") or {}).get("variant") or "default").replace("/", "_")
+        path = args.failure_dir / f"{result['case_id']}-{variant}.json"
+        path.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if args.variant or args.baseline_variant:
+        return {"results": results, "comparisons": comparison_matrix(results, baseline_variant=args.baseline_variant)}
+    return results
 
 
 def main() -> int:

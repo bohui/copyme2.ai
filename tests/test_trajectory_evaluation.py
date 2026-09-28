@@ -6,11 +6,14 @@ import httpx
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.trajectory_evaluation import (
+    EVALUATION_RUBRIC_VERSION,
     LangfusePublisher,
     MemoirEvaluationRunner,
     TrajectoryRecorder,
     build_judge_input,
+    comparison_matrix,
     evaluate_trajectory,
+    minimize_for_langfuse,
 )
 
 
@@ -34,6 +37,47 @@ def test_recorder_keeps_observable_results_and_omits_private_fields():
     assert payload["final"]["response"] == "A grounded reply"
 
 
+def test_recorder_adds_pre_action_context_normalized_actions_and_reports_overflow():
+    recorder = TrajectoryRecorder({"run_id": "run-1"}, max_steps=1)
+    recorder.set_context(project_revision=3, entitlement="paid")
+    step = recorder.record(
+        "codex",
+        "tool.call",
+        input={"name": "memory.search", "arguments": {"query": "private story"}},
+    )
+    recorder.record("codex", "tool.call", input={"name": "memory.save"})
+
+    assert step["pre_action_context"] == {"project_revision": 3, "entitlement": "paid"}
+    assert step["normalized_action"] == {
+        "name": "tool.call",
+        "category": "tool",
+        "tool_name": "memory.search",
+        "arguments": {"query": "private story"},
+    }
+    assert recorder.payload()["limits"] == {
+        "max_steps": 1,
+        "observed_steps": 1,
+        "dropped_steps": 1,
+        "overflowed": True,
+    }
+    scores = evaluate_trajectory(recorder.payload(), expected={"max_steps": 1})
+    assert next(score for score in scores if score["name"] == "step_budget")["value"] == 0
+
+
+def test_provider_payload_minimizes_storyteller_text_and_identifiers():
+    minimized = minimize_for_langfuse({
+        "text": "My private story is not provider evidence.",
+        "project_id": "project-secret",
+        "tool_name": "memory.search",
+        "status": "completed",
+    })
+    encoded = json.dumps(minimized)
+    assert "My private story" not in encoded
+    assert "project-secret" not in encoded
+    assert minimized["tool_name"] == "memory.search"
+    assert minimized["status"] == "completed"
+
+
 def test_deterministic_evaluators_check_order_budget_and_state():
     recorder = TrajectoryRecorder()
     recorder.record("application", "memory.search")
@@ -54,6 +98,11 @@ def test_deterministic_evaluators_check_order_budget_and_state():
         "terminal_completion": 1.0,
         "required_actions": 1.0,
         "state_assertions": 1.0,
+        "trajectory_quality": 1.0,
+        "skill_selection_adherence": 1.0,
+        "execution_quality": 1.0,
+        "state_correctness": 1.0,
+        "final_response_quality": 1.0,
     }
 
 
@@ -70,6 +119,8 @@ def test_judge_input_contains_ordered_steps_and_terminal_state():
     assert judge_input["ordered_steps"][0]["action"] == "tool.call"
     assert judge_input["final_response"] == "reply"
     assert judge_input["final_state"] == {"saved": True}
+    assert judge_input["rubric_version"]
+    assert "final_response_quality" in judge_input["rubric"]
 
 
 def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
@@ -167,6 +218,11 @@ def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
         "trajectory_schema",
         "step_budget",
         "terminal_completion",
+        "trajectory_quality",
+        "skill_selection_adherence",
+        "execution_quality",
+        "state_correctness",
+        "final_response_quality",
     }
     assert len({score["score_id"] for score in client.scores}) == len(client.scores)
     assert client.flushed
@@ -176,6 +232,30 @@ def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
     }
     assert client.observation.updated[0]["metadata"]["evaluation_run_id"] == "run-1"
     assert client.observation.updated[0]["metadata"]["trajectory_sha256"] == result["trajectory_sha256"]
+
+
+def test_runner_can_add_a_semantic_judge_and_compare_variants():
+    async def judge(judge_input):
+        assert judge_input["ordered_steps"]
+        return {"judge": "calibration", "scores": {"evidence_use": 0.8}, "comments": {"evidence_use": "Grounded."}}
+
+    async def task(case, correlation):
+        recorder = TrajectoryRecorder(correlation)
+        recorder.record("application", "memory.search")
+        recorder.finish(f"reply-{correlation.get('variant', 'default')}")
+        return {"trajectory": recorder.payload()}
+
+    runner = MemoirEvaluationRunner(task, judges=[judge])
+    results = asyncio.run(runner.run(
+        [{"id": "case-1", "input": {"text": "hello"}}],
+        run_id="run-1",
+        variants=[{"variant": "baseline"}, {"variant": "candidate"}],
+        max_concurrency=2,
+    ))
+    assert all(any(score["name"] == "judge.calibration.evidence_use" for score in result["scores"]) for result in results)
+    matrix = comparison_matrix(results, baseline_variant="baseline")
+    assert {row["variant"] for row in matrix} == {"baseline", "candidate"}
+    assert all(result["correlation"]["evaluator_version"] == EVALUATION_RUBRIC_VERSION for result in results)
 
 
 def test_worker_turn_adds_evaluation_envelope_only_when_requested(monkeypatch):

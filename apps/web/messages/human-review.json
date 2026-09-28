@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "status": "requires-human-review",
+  "purpose": "Sensitive product copy must receive bilingual human/native-speaker review before release.",
+  "keys": [
+    "Common.finishRecordingFirst",
+    "Errors.paymentRequired",
+    "Errors.invalidAudio",
+    "Errors.supabaseNotConfigured",
+    "Memoir.conversation.opening",
+    "Memoir.conversation.fallback",
+    "Memoir.story.reviewTranscript",
+    "Memoir.workspace.familyReferenceNote",
+    "Memoir.storyFlow.savedPrivately",
+    "Memoir.storyFlow.pricesNote"
+  ]
+}

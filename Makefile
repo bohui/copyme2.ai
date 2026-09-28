@@ -6,6 +6,10 @@ WEB_PORT ?= 3010
 API_BASE ?= http://127.0.0.1:$(API_PORT)
 WEB_BASE ?= http://127.0.0.1:$(WEB_PORT)
 SERVICE ?= api
+EVAL_CASES ?= tests/evaluation/cases.json
+EVAL_TASK ?= apps.api.evaluation_cases:run_case
+EVAL_FAILURE_DIR ?= var/evaluation-failures
+EVAL_CONCURRENCY ?= 1
 CONTAINER_BUILD ?= 0
 ENV_FILE ?= .env
 CONTAINER_IMAGES := \
@@ -104,12 +108,10 @@ runtime-start: check ## Start the Apple Container runtime.
 test: ## Run the local Python test suite.
 	@python3 -m pytest -q
 
-langfuse-eval: ## Run synthetic trajectory cases through a supplied local task callback.
-	@test -n "$(EVAL_CASES)" || { echo "Pass EVAL_CASES=path/to/cases.json."; exit 2; }
-	@test -n "$(EVAL_TASK)" || { echo "Pass EVAL_TASK=module:callable."; exit 2; }
+langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/worker seam.
 	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
 	args=""; if test "$(EVAL_PUBLISH)" = "1"; then args="--publish"; fi; \
-		python3 scripts/run_langfuse_evaluation.py --cases "$(EVAL_CASES)" --task "$(EVAL_TASK)" $$args
+		python3 scripts/run_langfuse_evaluation.py --cases "$(EVAL_CASES)" --task "$(EVAL_TASK)" --failure-dir "$(EVAL_FAILURE_DIR)" --concurrency "$(EVAL_CONCURRENCY)" $$args
 
 localization-catalog-test: ## Validate the English and Simplified Chinese message catalogues.
 	@python3 scripts/check_localization_catalog.py

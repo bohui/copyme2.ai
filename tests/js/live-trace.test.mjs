@@ -8,7 +8,7 @@ test('forwards progress before text and skill events after conversation save', a
  const seen=[];
  const events=[{type:'progress',data:{id:'context',label:'Loading context'}},{type:'text_delta',text:'Hello'}, {type:'conversation_saved',data:{reply:'Hello',conversation_saved:true}}, {type:'progress',data:{id:'place',skill:'memoir-place-journey'}},{type:'result',data:{reply:'Hello'}}];
  const body=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(events.map(JSON.stringify).join('\n')));controller.close();}});
- const context=vm.createContext({fetch:async()=>({ok:true,status:200,body}),state:{supabase:{accessToken:'test'},project:{id:'p'}},memoirApiPath:p=>p,readCookie:()=>'',TextDecoder,conversationLocale:()=> 'en-AU'});
+ const context=vm.createContext({fetch:async()=>({ok:true,status:200,body}),state:{supabase:{accessToken:'test'},project:{id:'p'}},memoirApiPath:p=>p,readCookie:()=>'',TextDecoder,conversationLanguage:()=> undefined});
  vm.runInContext(extract('streamAgentTurn'),context);
  await context.streamAgentTurn('Hi',async text=>seen.push(text),async event=>seen.push(event));
  await new Promise(resolve=>setImmediate(resolve));
@@ -18,7 +18,7 @@ test('forwards progress before text and skill events after conversation save', a
 });
 test('fast saved response retains live trace and later triggered skills', async () => {
  let emitEvent;
- const context=vm.createContext({state:{supabase:{accessToken:'test'},project:{id:'p'},chat:[]},conversationLocale:()=> 'en-AU', simulatedLoopTrace:()=>[{label:'fake'}], nextAssistantMessageId:()=> 'm1', render:()=>{}, updateStreamingAssistantMessage:()=>{},waitForAssistantPaint:async()=>{},
+ const context=vm.createContext({state:{supabase:{accessToken:'test'},project:{id:'p'},chat:[]},conversationLanguage:()=> undefined, simulatedLoopTrace:()=>[{label:'fake'}], nextAssistantMessageId:()=> 'm1', render:()=>{}, updateStreamingAssistantMessage:()=>{},waitForAssistantPaint:async()=>{},
  streamAgentTurn:async (text,onDelta,onEvent)=>{
    emitEvent=onEvent;
    await onEvent({type:'progress',data:{id:'context',label:'Context',status:'running'}});

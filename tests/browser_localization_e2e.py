@@ -183,8 +183,8 @@ def main() -> None:
         expect(voice_page.get_by_text("我会陪你慢慢回忆那个午后。")).to_be_visible(timeout=15000)
         assert voice_agent_requests, "Expected the voice turn to reach the agent"
         assert voice_agent_requests[-1].get("language") is None
-        voice_page.get_by_role("button", name="结束语音对话").click()
-        voice_page.get_by_role("button", name="打开个人资料菜单").click()
+        voice_page.get_by_role("button", name="End voice conversation").click()
+        voice_page.get_by_role("button", name="Open profile menu").click()
         expect(voice_page.locator(".profile-dropdown select")).to_have_count(0)
         voice_context.close()
         browser.close()
