@@ -1,14 +1,21 @@
 import { translate } from '../i18n.js';
 import { createGuestUsage } from './auth-reminder.mjs';
+import { linkSocialIdentity } from './social-auth.mjs';
 
-export function createAuthReminder({ getAuth, busy }) {
+export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransfer }) {
   let usage, userId, due = false, prompted = false;
   let last = performance.now();
   let visible = document.visibilityState === 'visible';
   let refreshing = false;
   const callbackParams = new URLSearchParams(window.location.search);
-  const callbackError = callbackParams.get('error_code') || callbackParams.get('error');
+  const callbackHash = new URLSearchParams(window.location.hash.slice(1));
+  const callbackError = callbackParams.get('error_code') || callbackHash.get('error_code') || callbackParams.get('error') || callbackHash.get('error');
   const t = (key) => translate(`AuthReminder.${key}`);
+  const errorMessage = (code) => t(code === 'identity_already_exists' ? 'identityExists' : 'error');
+  let conflict = callbackError === 'identity_already_exists';
+  let conflictProvider = 'google';
+  try { conflictProvider = sessionStorage.getItem('memoir-link-provider') || 'google'; } catch { /* use Google */ }
+  if (!['google', 'facebook'].includes(conflictProvider)) conflictProvider = 'google';
 
   function open() {
     if (!getAuth()?.user?.is_anonymous || document.querySelector('[data-auth-reminder-dialog]')) return;
@@ -17,26 +24,44 @@ export function createAuthReminder({ getAuth, busy }) {
     dialog.dataset.authReminderDialog = '';
     dialog.setAttribute('aria-labelledby', 'auth-reminder-title');
     // All translated copy is assigned as text, never interpolated into HTML.
-    dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div></fieldset><p role="status" aria-live="polite"></p></form>`;
+    dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div><div data-conflict hidden><p data-choice-copy></p><div class="story-auth-actions"><button class="button button-primary" type="button" data-existing></button><button class="button button-secondary" type="button" data-new></button></div></div></fieldset><p role="status" aria-live="polite"></p></form>`;
     dialog.querySelector('h2').textContent = t('title');
     dialog.querySelector('[data-close]').setAttribute('aria-label', t('later'));
     dialog.querySelector('[data-intro]').textContent = t('message');
-    if (callbackError) dialog.querySelector('[role=status]').textContent = t(callbackError === 'identity_already_exists' ? 'identityExists' : 'error');
+    if (callbackError) dialog.querySelector('[role=status]').textContent = errorMessage(callbackError);
     dialog.querySelector('[data-email-label]').textContent = t('email');
     dialog.querySelector('[data-email]').textContent = t('continueEmail');
     for (const button of dialog.querySelectorAll('[data-provider]')) button.textContent = t(button.dataset.provider);
+    dialog.querySelector('[data-choice-copy]').textContent = t('choiceMessage');
+    dialog.querySelector('[data-existing]').textContent = t('mergeExisting');
+    dialog.querySelector('[data-new]').textContent = t('chooseNew');
+    function showChoices() {
+      const fieldset = dialog.querySelector('fieldset');
+      for (const child of fieldset.children) {
+        child.hidden = child.hasAttribute('data-conflict') ? !conflict : conflict;
+      }
+    }
+    showChoices();
     dialog.querySelector('[data-close]').onclick = () => dialog.close();
     dialog.addEventListener('close', () => dialog.remove(), { once: true });
-    const run = async (provider) => {
+    const run = async (provider, merge = false) => {
       const fieldset = dialog.querySelector('fieldset');
       const status = dialog.querySelector('[role=status]');
       fieldset.disabled = true;
       try {
+        if (busy()) throw new Error('Reply in progress');
+        if (merge) {
+          if (!signInExisting) throw new Error('Unavailable');
+          await signInExisting(provider);
+          status.textContent = t('redirecting');
+          return;
+        }
+        cancelTransfer?.();
         const auth = getAuth()?.client?.auth;
         if (!auth) throw new Error('Unavailable');
         const redirectTo = window.location.origin + window.location.pathname;
         const result = provider
-          ? await auth.linkIdentity({ provider, options: { redirectTo } })
+          ? await linkSocialIdentity(auth, provider, redirectTo)
           : await auth.updateUser({ email: dialog.querySelector('input').value.trim() }, { emailRedirectTo: redirectTo });
         if (result.error) throw result.error;
         if (result.data?.user && result.data.user.id === getAuth()?.user?.id) {
@@ -44,12 +69,19 @@ export function createAuthReminder({ getAuth, busy }) {
           tick();
         }
         status.textContent = t(provider ? 'redirecting' : 'checkEmail');
-      } catch {
-        status.textContent = t('error');
+      } catch (error) {
+        status.textContent = errorMessage(error?.code);
+        if (error?.code === 'identity_already_exists') {
+          conflict = true;
+          if (provider) conflictProvider = provider;
+          showChoices();
+        }
       } finally { fieldset.disabled = false; }
     };
     dialog.querySelector('form').onsubmit = (event) => { event.preventDefault(); run(); };
     for (const button of dialog.querySelectorAll('[data-provider]')) button.onclick = () => run(button.dataset.provider);
+    dialog.querySelector('[data-existing]').onclick = () => run(conflictProvider, true);
+    dialog.querySelector('[data-new]').onclick = () => run(conflictProvider);
     document.body.append(dialog);
     dialog.showModal();
   }
@@ -121,5 +153,5 @@ export function createAuthReminder({ getAuth, busy }) {
   setInterval(tick, 1000);
   document.addEventListener('visibilitychange', tick);
   window.addEventListener('pagehide', tick);
-  return { mount, tick };
+  return { mount, tick, open };
 }

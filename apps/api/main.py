@@ -1256,7 +1256,7 @@ def create_app(
                 raise HTTPException(status_code=422, detail="Invalid timeline artwork")
             if "memory_places" in fields:
                 places = fields["memory_places"]
-                if not isinstance(places, list) or len(places) > 500:
+                if not isinstance(places, list) or len(places) > 1000:
                     raise HTTPException(status_code=422, detail="Invalid place history")
                 for place in places:
                     if not isinstance(place, dict) or validate_place_journey(place) is None:
@@ -1265,7 +1265,7 @@ def create_app(
                     if stage is not None and (not isinstance(stage, str) or stage not in LIFE_STAGES):
                         raise HTTPException(status_code=422, detail="Invalid life stage")
                     pictures = place.get("pictures", [])
-                    if not isinstance(pictures, list) or len(pictures) > 24 or any(not isinstance(item, dict) for item in pictures):
+                    if not isinstance(pictures, list) or len(pictures) > 1000 or any(not isinstance(item, dict) for item in pictures):
                         raise HTTPException(status_code=422, detail="Invalid place pictures")
         for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
             if key in data:
@@ -2221,16 +2221,17 @@ def create_app(
             raise HTTPException(status_code=422, detail="Invalid place journey")
         return resolve_place_map(journey, project.get("profile", {}).get("memory_places", []))
 
+    from .place_photo_pages import PhotoPages
+    photo_pages = PhotoPages()
+
     @app.get("/v1/projects/{project_id}/place-photos")
     def place_photos(project_id: str, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
+                     cursor: str | None = Query(default=None, max_length=160),
                      x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         _project(memory, project_id, _account_id(x_account_id))
-        from .place_photos import search_place_photos
         try:
-            items = search_place_photos(place, period)
-            return {"items": items, "target_count": 10, "shortfall": max(0, 10 - len(items)),
-                    "status": "READY" if len(items) >= 10 else "PARTIAL" if items else "NO_MATCH"}
+            return photo_pages.page(project_id, place, period, cursor)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}
 

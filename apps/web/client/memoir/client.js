@@ -1,4 +1,7 @@
 import { createAuthReminder } from "./auth-reminder.js";
+import { linkSocialIdentity } from "./social-auth.mjs";
+import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
+import { openAttachedConversations, retryConversationTransfer } from "./conversation-attachments.js";
 import { mergePlaces, placeHistoryKey, mapTarget, matchesPlaceStage } from "./places.mjs";
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
@@ -20,6 +23,7 @@ const state = {
   preview: null,
   chat: [],
   chatHistoryCollapsed: false,
+  freshAnonymousSession: false,
   codexStarting: false,
   codexReady: false,
   showThinkingSteps: false,
@@ -34,6 +38,7 @@ const state = {
   chapterDecision: null,
   story: null,
   familyEntitlement: null,
+  recallStatus: null,
   familyFeaturesEnabled: false,
   familyContext: null,
   familyPeriods: [],
@@ -85,14 +90,50 @@ const state = {
   authPromise: null,
 };
 
+const guestTransfer = createGuestConversationTransfer({
+  getAuth: () => state.supabase,
+  getConversation: () => ({
+    project_id: state.project?.id || localStorage.getItem("memory-spark-project") || "guest-conversation",
+    messages: state.chat.filter(message => ["user", "assistant"].includes(message.role) && message.text)
+      .map(message => ({ role: message.role, text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text) })),
+    workspace_profile: profile(),
+    ui_locale: currentUiLocale(),
+  }),
+  api: storyApi,
+  storage: {
+    getItem: key => sessionStorage.getItem(key),
+    setItem: (key, value) => sessionStorage.setItem(key, value),
+    removeItem: key => sessionStorage.removeItem(key),
+  },
+  redirectTo: window.location.origin + window.location.pathname,
+  onMerged: async result => {
+    const { data, error } = await state.supabase.client.auth.getUser();
+    if (error) throw error;
+    if (data?.user) state.supabase.user = data.user;
+    await applyProfileUiLocale(result.ui_locale || result.profile?.preferred_language);
+  },
+});
+
 const authReminder = createAuthReminder({
   getAuth: () => state.supabase,
   busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
+  signInExisting: provider => guestTransfer.signIn(provider),
+  cancelTransfer: () => guestTransfer.cancel(),
 });
 
 const MEMOIR_API_PREFIX = "/api/v1/memoir";
 const PLACE_PHOTO_RESULT_LIMIT = 10;
+let photoPaginationObserver = null;
 const CESIUM_VERSION = "1.145";
+const PLACE_MAP_VIEW_HEIGHTS = {
+  country: 1_400_000,
+  region: 420_000,
+  city: 40_000,
+  town: 28_000,
+  suburb: 16_000,
+  neighbourhood: 12_000,
+  landmark: 6_000,
+};
 const FAMILY_CHART_VERSION = "0.9.0";
 const VIS_TIMELINE_VERSION = "7.7.3";
 const PLACE_JOURNEY_PROJECT_STORAGE_KEY = "memory-spark-place-journey-project";
@@ -130,6 +171,11 @@ activity, or something they hoped to talk about today.`;
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;", "'":"&#039;"}[char]));
 const formatText = (value = "") => escapeHtml(value).replace(/\n/g, "<br>");
+function cleanAssistantText(value = "") {
+  return String(value || "")
+    .replace(/\[\[MEMORY_SPARK_PROFILE\]\][\s\S]*?\[\[\/MEMORY_SPARK_PROFILE\]\]/g, "")
+    .replace(/<!--\s*profile\s*:[\s\S]*?(?:-->|$)/gi, "");
+}
 
 function resizeChatInput(input = $("#chat-input")) {
   if (!input) return;
@@ -226,7 +272,7 @@ function persistChatHistory() {
       const saved = {
         id: message.id,
         role: message.role,
-        text: String(message.text || ""),
+        text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text || ""),
         error: message.error || "",
       };
       if (Array.isArray(message.cues) && message.cues.length) saved.cues = message.cues;
@@ -259,7 +305,7 @@ function restoreChatHistory(projectId) {
         return {
           id: typeof message.id === "string" ? message.id : undefined,
           role: message.role,
-          text: message.text,
+          text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
           error: typeof message.error === "string" ? message.error : "",
           cues: Array.isArray(message.cues) ? message.cues : undefined,
           action,
@@ -616,7 +662,9 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       workspaceUpdateQueue = workspaceUpdateQueue.then(() => applyWorkspace(body));
       await workspaceUpdateQueue;
     }
-    return { streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
+    if (body.recall_status) state.recallStatus = body.recall_status;
+    if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
+    return { blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     toast(error.message);
     if (streamedMessage) {
@@ -770,26 +818,125 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
   return readyPromise;
 }
 
-async function loadPlacePictures(entry, projectId) {
+async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   if (!projectId || !entry?.place) return;
-  const period = entry.period || profile().story_focus?.when || "";
-  if (entry.photo_search_period === period && entry.pictures?.length >= PLACE_PHOTO_RESULT_LIMIT) return;
+  const key = placeHistoryKey(entry);
+  entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === key) || entry;
+  const period = photoSearchPeriod(entry, profile().story_focus);
+  const sameSearch = entry.photo_search_period === period;
+  if (more && (!sameSearch || !entry.photo_next_cursor)) return;
+  if (!more && sameSearch && Object.hasOwn(entry, "photo_next_cursor")
+      && entry.photo_search_policy === "bilingual-decade-v1"
+      && Date.now() - (entry.photo_search_at || 0) < 15 * 60 * 1000) return;
+  state.photoRequests ||= new Map();
+  const requestKey = JSON.stringify([projectId, key, period]);
+  if (state.photoRequests.get(requestKey)?.loading) return;
+  state.photoRequests.set(requestKey, { loading: true });
+  const control = document.querySelector("[data-photo-more]");
+  if (control) { control.disabled = true; control.setAttribute("aria-busy", "true"); }
   try {
     const query = new URLSearchParams({ place: entry.place, period });
-    const result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
-    if (state.project?.id !== projectId || !Array.isArray(result.items) || result.status === "UNAVAILABLE") return;
+    if (more) query.set("cursor", entry.photo_next_cursor);
+    let result;
+    try {
+      result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
+    } catch (error) {
+      if (!more || error.status !== 410) throw error;
+      // Restart an expired public snapshot, retaining and deduplicating the
+      // already visible images. Never send a cursor for a different period.
+      query.delete("cursor");
+      result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
+    }
+    if (state.project?.id !== projectId) return;
+    if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
+      state.photoRequests.set(requestKey, { error: true });
+      return;
+    }
     const places = [...(profile().memory_places || [])];
-    const key = placeHistoryKey(entry);
     const index = places.findIndex(item => placeHistoryKey(item) === key);
-    const updatedEntry = index >= 0
-      ? { ...places[index], pictures: result.items, photo_search_period: period }
-      : { ...entry, pictures: result.items, photo_search_period: period };
+    const latest = index >= 0 ? places[index] : entry;
+    if (photoSearchPeriod(latest, profile().story_focus) !== period) return;
+    const pictures = mergePlacePictures(sameSearch ? latest.pictures || [] : [], result.items);
+    const updatedEntry = { ...latest, pictures, photo_search_period: period,
+    photo_next_cursor: result.next_cursor || null, photo_search_at: Date.now(),
+    photo_search_policy: "bilingual-decade-v1" };
     if (index >= 0) places[index] = updatedEntry;
     else places.push(updatedEntry);
     if (state.placeJourney && placeHistoryKey(state.placeJourney) === key) state.placeJourney = updatedEntry;
-    await saveProfileUpdates({ memory_places: places });
+    await saveProfileUpdates({ memory_places: places }, projectId);
+  } catch { /* Pictures are optional; retry explicitly without erasing them. */
+    state.photoRequests.set(requestKey, { error: true });
+  } finally {
+    const failed = state.photoRequests.get(requestKey)?.error;
+    state.photoRequests.set(requestKey, { error: failed, loading: false });
     if (state.project?.id === projectId) render();
-  } catch { /* Pictures are optional; the interview continues. */ }
+  }
+}
+
+function mergePlacePictures(existing, incoming) {
+  const seen = new Set();
+  return [...existing, ...incoming].filter(picture => {
+    const keys = [picture.asset_id && `asset:${picture.asset_id}`, picture.content_hash && `hash:${picture.content_hash}`];
+    for (const value of [picture.original_url, picture.image_url]) {
+      if (!value) continue;
+      try {
+        const url = new URL(value, window.location.origin);
+        url.hash = "";
+        if (url.hostname === "upload.wikimedia.org" && url.pathname.includes("/thumb/")) {
+          url.pathname = url.pathname.replace("/thumb/", "/").split("/").slice(0, -1).join("/");
+        }
+        if (/^(live|farm\d+)\.staticflickr\.com$/.test(url.hostname)) {
+          url.hostname = "staticflickr.com";
+          url.pathname = url.pathname.replace(/_[sqtmnzcbhokw](\.[a-z]+)$/i, "$1");
+        }
+        for (const key of [...url.searchParams.keys()]) {
+          if (key.startsWith("utm_") || ["width", "height", "w", "h", "fbclid", "gclid"].includes(key)) url.searchParams.delete(key);
+        }
+        url.searchParams.sort();
+        keys.push(`image:${url.href}`);
+      } catch { /* Invalid URLs cannot create image identities. */ }
+    }
+    const valid = keys.filter(Boolean);
+    if (valid.some(key => seen.has(key))) return false;
+    valid.forEach(key => seen.add(key));
+    return true;
+  });
+}
+
+function photoPaginationMarkup(entry) {
+  if (!entry?.photo_next_cursor) return "";
+  const requestKey = JSON.stringify([state.project?.id, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus)]);
+  const request = state.photoRequests?.get(requestKey);
+  const label = request?.loading ? "picturesLoading" : request?.error ? "picturesRetry" : "picturesMore";
+  return `<div class="photo-pagination"><button type="button" class="button button-secondary button-small" data-photo-more="${escapeHtml(placeHistoryKey(entry))}" ${request?.loading ? 'disabled aria-busy="true"' : ""}>${escapeHtml(translate(`Memoir.workspace.${label}`))}</button></div>`;
+}
+
+function bindPhotoPagination() {
+  photoPaginationObserver?.disconnect();
+  const button = document.querySelector("[data-photo-more]");
+  if (!button) return;
+  const projectId = state.project?.id;
+  const entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === button.dataset.photoMore);
+  if (!entry || !entry.photo_next_cursor) return;
+  const load = () => {
+    if (button.isConnected && state.project?.id === projectId) void loadPlacePictures(entry, projectId, { more: true });
+  };
+  button.addEventListener("click", load);
+  const requestKey = JSON.stringify([projectId, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus)]);
+  if (state.photoRequests?.get(requestKey)?.error || !("IntersectionObserver" in window)) return;
+  const wall = button.closest(".place-pictures");
+  photoPaginationObserver = new IntersectionObserver(entries => {
+    if (entries.some(item => item.isIntersecting)) load();
+  }, { root: wall && wall.scrollHeight > wall.clientHeight + 1 ? wall : null,
+    rootMargin: "0px 0px 160px 0px" });
+  photoPaginationObserver.observe(button);
+}
+
+function photoSearchPeriod(entry, focus) {
+  // Life-stage labels such as 青年时期 describe the memoir, not calendar
+  // dates. Only a grounded year/range can restrict a historical photo search.
+  const expression = entry?.period || focus?.when || "";
+  return /(?:18|19|20)\d{2}/.test(expression) ? expression : "";
 }
 
 function referenceUrl(value) {
@@ -799,11 +946,11 @@ function referenceUrl(value) {
   } catch { return ""; }
 }
 
-function pictureWall(pictures = []) {
+function pictureWall(pictures = [], entry = null) {
   const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
   const renderablePictures = pictures.filter((picture) => picture.allowed_actions?.embed);
   if (!renderablePictures.length) return "";
-  return `<section class="place-pictures" aria-label="${t("publicReferenceCues")}">${renderablePictures.map((picture) => {
+  return `<section class="place-pictures" ${entry ? `data-photo-place="${escapeHtml(placeHistoryKey(entry))}"` : ""} aria-label="${t("publicReferenceCues")}">${renderablePictures.map((picture) => {
     const src = referenceUrl(picture.image_url);
     const source = referenceUrl(picture.source_url);
     const sceneDate = formatDateExpression(picture.date_expression ||
@@ -816,8 +963,9 @@ function pictureWall(pictures = []) {
     const media = src
       ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(picture.title || "")}" loading="lazy" />`
       : `<div class="picture-wall-placeholder ${picture.kind === "video" ? "video-art" : "image-art"}" aria-hidden="true"><span>${picture.kind === "video" ? "▶" : "✦"}</span></div>`;
-    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}</small></figcaption></figure>`;
-  }).join("")}</section>`;
+    const periodNote = picture.period_match === "decade" ? ` · ${t("sameDecadeReference")}` : "";
+    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}${periodNote}</small></figcaption></figure>`;
+  }).join("")}${photoPaginationMarkup(entry)}</section>`;
 }
 
 function placePictures(pictures = []) {
@@ -838,14 +986,15 @@ function updateStreamingAssistantMessage(message) {
   const scroll = $("#chat-scroll");
   const followConversation = !scroll || scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 48;
   const text = row.querySelector(".message-text");
-  const responseStarted = Boolean(message.text) && Boolean(text?.hidden);
+  const visibleText = cleanAssistantText(message.text);
+  const responseStarted = Boolean(visibleText) && Boolean(text?.hidden);
   if (text) {
-    text.innerHTML = formatText(message.text);
-    text.hidden = !message.text;
+    text.innerHTML = formatText(visibleText);
+    text.hidden = !visibleText;
   }
-  const traceHtml = renderAgentTrace(message.trace || [], message.traceMode, message.streaming && !message.text);
+  const traceHtml = renderAgentTrace(message.trace || [], message.traceMode, message.streaming && !visibleText);
   const thinking = row.querySelector(".message-thinking");
-  if (thinking) thinking.hidden = !message.streaming || Boolean(message.text) || Boolean(traceHtml);
+  if (thinking) thinking.hidden = !message.streaming || Boolean(visibleText);
   const trace = row.querySelector(".message-trace");
   if (trace) {
     const expanded = trace.querySelector("details")?.open;
@@ -866,11 +1015,11 @@ function waitForAssistantPaint() {
 async function streamAssistantMessage(text, metadata = {}) {
   if (metadata.streamedMessage) {
     const { streamedMessage, ...details } = metadata;
-    Object.assign(streamedMessage, details, { text: String(text || streamedMessage.text), streaming: false });
+    Object.assign(streamedMessage, details, { text: cleanAssistantText(String(text || streamedMessage.text)), streaming: false });
     render();
     return streamedMessage;
   }
-  const value = String(text || "");
+  const value = cleanAssistantText(String(text || ""));
   if (!value) return null;
   const message = {
     ...metadata,
@@ -970,6 +1119,7 @@ async function refreshFamilyEntitlement() {
     const entitlement = await storyApi("/v1/story/state");
     const features = new Set(entitlement.payment_features || []);
     state.familyEntitlement = entitlement;
+    state.recallStatus = entitlement.recall_status || null;
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")
       && features.has("timeline");
@@ -1171,6 +1321,7 @@ function initFamilyVisualizations() {
 
 async function startCodexConversation({ resume = false } = {}) {
   if (!state.project || state.codexStarting || state.codexReady || state.chat.length) return;
+  if (state.recallStatus?.payment_required) return;
   state.codexStarting = true;
   const profileOpening = !resume || state.profileIntakePending;
   if (profileOpening) {
@@ -1196,12 +1347,10 @@ async function startCodexConversation({ resume = false } = {}) {
 
   state.loading = true;
   render();
-  const prompt = "Resume this storyteller's conversation naturally. Their profile and memories are already available. Welcome them back briefly and invite them to continue wherever the story leads.";
   const fallback = conversationMessage("resume");
   try {
-    const result = await agentTurn(prompt, fallback, ["conversation.start", "memory.search"]);
-    const text = result.reply || fallback;
-    const message = await streamAssistantMessage(text, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
+    // Returning to saved memories is navigation, not a new recall round.
+    const message = await streamAssistantMessage(fallback, { traceMode: "simulated" });
     if (message) render();
   } finally {
     state.codexStarting = false;
@@ -1226,6 +1375,10 @@ function setLoading(value) {
 
 function profile() {
   return state.project?.profile || {};
+}
+
+function isFreshAnonymousSession() {
+  return Boolean(state.freshAnonymousSession && state.supabase?.user?.is_anonymous);
 }
 
 function profileHasContext(profileValue = profile()) {
@@ -1315,6 +1468,7 @@ function profileMenu() {
       <div class="profile-dropdown" id="profile-menu-content" role="menu" hidden>
         <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="settings">${t("profile")}</button>
         <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="collection">${escapeHtml(translate("Collection.title"))}</button>
+        ${state.supabase?.user && !state.supabase.user.is_anonymous ? `<button class="profile-menu-item" type="button" role="menuitem" data-profile-action="attached-history">${escapeHtml(translate("AuthReminder.attachedHistory"))}</button>` : ""}
         <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>${t("logout")}</span><span aria-hidden="true">↗</span></button>
       </div>
     </div>`;
@@ -1368,6 +1522,10 @@ function bindProfileMenu() {
   });
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
   menu.querySelector("[data-profile-action='collection']")?.addEventListener("click", reviewCollection);
+  menu.querySelector("[data-profile-action='attached-history']")?.addEventListener("click", () => {
+    closeProfileMenu();
+    openAttachedConversations(storyApi);
+  });
 }
 
 async function reviewCollection() {
@@ -1401,6 +1559,7 @@ async function signOut() {
     state.timeline = [];
     state.preview = null;
     state.chat = [];
+    state.freshAnonymousSession = false;
     state.codexStarting = false;
     state.codexReady = false;
     state.profileIntakePending = true;
@@ -1765,10 +1924,9 @@ function base64ToBlob(value, mimeType = "application/octet-stream") {
 
 async function linkStoryIdentity(provider) {
   if (!state.supabase?.client) return toast(translate("Errors.supabaseNotConfigured"));
-  const { error } = await state.supabase.client.auth.linkIdentity({
-    provider,
-    options: { redirectTo: `${window.location.origin}${MEMOIR_ROUTES.start}` },
-  });
+  const { error } = await linkSocialIdentity(
+    state.supabase.client.auth, provider, `${window.location.origin}${MEMOIR_ROUTES.start}`,
+  );
   if (error) toast(translate("Errors.identityLinkFailed"));
 }
 
@@ -1794,6 +1952,13 @@ async function requestStoryCheckout() {
   const bookCount = plan?.electronic_only ? 0 : (Number($("#story-book-count")?.value) || state.storyBookCount || 2);
   state.selectedStoryPlan = selectedPlan;
   state.storyBookCount = bookCount || 2;
+  try {
+    sessionStorage.setItem("memoir-package-choice", JSON.stringify({ plan: selectedPlan, books: state.storyBookCount }));
+  } catch { /* The current selection remains usable without browser storage. */ }
+  if (state.supabase?.user?.is_anonymous) {
+    authReminder.open();
+    return;
+  }
   state.loading = true;
   try {
     state.checkout = await storyApi("/v1/story/checkout", {
@@ -1909,9 +2074,14 @@ async function startMemoirStory(mode = "self") {
     state.loading = true;
     const language = conversationLanguage();
     state.project = await api("/v1/projects", { method: "POST", body: JSON.stringify({ mode, language }) });
+    if (state.supabase?.user && !state.supabase.user.is_anonymous) {
+      const savedProfile = await storyApi("/v1/user/profile");
+      state.project.profile = { ...state.project.profile, ...savedProfile };
+    }
     localStorage.setItem("memory-spark-project", state.project.id);
     state.chat = [];
     state.chatHistoryCollapsed = false;
+    state.freshAnonymousSession = Boolean(state.supabase?.user?.is_anonymous);
     state.codexStarting = false;
     state.codexReady = false;
     state.profileIntakePending = true;
@@ -1951,6 +2121,11 @@ async function refreshProject() {
   const base = await api(`/v1/projects/${projectId}`);
   const journey = await api(`/v1/projects/${projectId}/journey`);
   state.project = { ...base, ...journey };
+  if (state.supabase?.user && !state.supabase.user.is_anonymous) {
+    const savedProfile = await storyApi("/v1/user/profile");
+    state.project.profile = { ...state.project.profile, ...savedProfile,
+      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])]) };
+  }
   state.session = journey.active_session;
   state.preview = state.project.preview || null;
   state.workspaceUnlocked = Boolean(state.workspaceUnlocked || state.project.workspace_unlocked);
@@ -1974,10 +2149,14 @@ async function refreshProject() {
 }
 
 function renderStory() {
+  const hadRecallPrompt = Boolean($(".recall-package-prompt"));
   const previousScene = $(".place-journey-scene");
   const previousMap = previousScene?.querySelector("[data-cesium-place]");
   const previousScroll = $("#chat-scroll");
   const previousTop = previousScroll?.scrollTop || 0;
+  const previousGallery = $(".place-pictures[data-photo-place]");
+  const galleryTop = previousGallery?.scrollTop || 0;
+  const galleryPlace = previousGallery?.dataset.photoPlace;
   const followConversation = !previousScroll || previousScroll.scrollHeight - previousTop - previousScroll.clientHeight < 48;
   const composer = $("#chat-input");
   const draft = composer?.value;
@@ -1994,8 +2173,11 @@ function renderStory() {
   const shellClass = `${baseShellClass}${!workspaceVisible && workspaceAvailable ? " workspace-collapsed" : ""}`;
   const chatClass = "chat-main";
   const historyToggleLabel = t(state.chatHistoryCollapsed ? "showHistory" : "hideHistory");
-  const historyToggle = state.chat.length
+  const historyToggle = !isFreshAnonymousSession() && state.chat.length
     ? `<button type="button" class="button button-secondary button-small chat-history-toggle" data-action="toggle-chat-history" aria-expanded="${!state.chatHistoryCollapsed}" aria-controls="chat-history">${historyToggleLabel}</button>`
+    : "";
+  const headerActions = !isFreshAnonymousSession()
+    ? `<div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}</div>`
     : "";
   activeWorkspaceTab();
   $("#app").innerHTML = `
@@ -2006,8 +2188,8 @@ function renderStory() {
       </header>
       <div class="conversation-layout">
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
-          <div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div><div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}</div></div>
-          <div id="chat-scroll" class="chat-scroll"><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}</div>
+          <div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div>
+          <div id="chat-scroll" class="chat-scroll"><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
@@ -2024,13 +2206,21 @@ function renderStory() {
     initCesiumPlaceJourney();
   }
   initFamilyVisualizations();
+  const nextGallery = $(".place-pictures[data-photo-place]");
+  if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
+  bindPhotoPagination();
   const scroll = $("#chat-scroll");
   if (draft !== undefined && $("#chat-input")) {
     $("#chat-input").value = draft;
   }
   authReminder.mount();
   resizeChatInput($("#chat-input"));
-  if (scroll) scroll.scrollTop = followConversation ? scroll.scrollHeight : previousTop;
+  if (scroll) {
+    const recallPrompt = $(".recall-package-prompt");
+    scroll.scrollTop = recallPrompt
+      ? (hadRecallPrompt ? previousTop : recallPrompt.getBoundingClientRect().top - scroll.getBoundingClientRect().top)
+      : followConversation ? scroll.scrollHeight : previousTop;
+  }
   if (composerFocused && $("#chat-input")) {
     $("#chat-input").focus({ preventScroll: true });
     $("#chat-input").setSelectionRange(...selection);
@@ -2170,13 +2360,14 @@ function workspaceMediaOverview(toggle = "") {
     : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
   const pictureItems = renderablePictureItems(workspacePictureItems(current));
   const gallery = pictureItems.length
-    ? `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictureWall(pictureItems)}</div>`
+    ? `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictureWall(pictureItems, current)}</div>`
     : "";
   const layoutClass = gallery ? "" : " no-gallery";
   return `<section class="workspace-media-overview${layoutClass}" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && mappedPlaces.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
 function deliveryAvailable() {
+  if (state.recallStatus?.payment_required) return false;
   return Boolean(state.storyPlans.length || state.checkout || state.storyChapter || state.story?.next_action === "payment" || state.story?.payment_status === "paid");
 }
 
@@ -2272,7 +2463,14 @@ function timelineWorkspace() {
 
 function placeMapUrl(journey) {
   if (!Number.isFinite(journey?.latitude) || !Number.isFinite(journey?.longitude)) return "";
-  return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(journey.latitude)}&mlon=${encodeURIComponent(journey.longitude)}#map=11/${encodeURIComponent(journey.latitude)}/${encodeURIComponent(journey.longitude)}`;
+  const query = encodeURIComponent(`${journey.latitude},${journey.longitude}`);
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+}
+
+function placeMapViewHeight(journey, target = journey) {
+  const granularity = target?.granularity
+    || (target?.place === journey?.place ? journey?.granularity : "city");
+  return PLACE_MAP_VIEW_HEIGHTS[granularity] || PLACE_MAP_VIEW_HEIGHTS.city;
 }
 
 function placeJourneyMarkup(journey, variant = "surface") {
@@ -2382,81 +2580,114 @@ function initCesiumPlaceJourney() {
   if (!container || !container.dataset.cesiumLatitude || !container.dataset.cesiumLongitude) return;
   const latitude = Number(container.dataset.cesiumLatitude);
   const longitude = Number(container.dataset.cesiumLongitude);
+  const journey = placeWorkspaceSelection() || state.placeJourney;
+  const finalMapHeight = placeMapViewHeight(journey, placeMapTarget(journey));
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
   loadCesium().then((cesium) => {
     if (!container.isConnected) return;
     let viewer = null;
+    let arrivalComplete = false;
+    let roadmapReady = false;
+    let finalViewStarted = false;
     try {
       viewer = new cesium.Viewer(container, {
-      animation: false,
-      baseLayer: false,
-      baseLayerPicker: false,
-      fullscreenButton: false,
-      geocoder: false,
-      homeButton: false,
-      infoBox: false,
-      navigationHelpButton: false,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      timeline: false,
-      scene3DOnly: true,
-      shouldAnimate: false,
+        animation: false,
+        baseLayer: false,
+        baseLayerPicker: false,
+        fullscreenButton: false,
+        geocoder: false,
+        homeButton: false,
+        infoBox: false,
+        navigationHelpButton: false,
+        sceneModePicker: false,
+        selectionIndicator: false,
+        timeline: false,
+        scene3DOnly: false,
+        mapProjection: new cesium.WebMercatorProjection(),
+        shouldAnimate: false,
       });
       cesiumPlaceJourneyViewer = viewer;
       viewer.scene.backgroundColor = cesium.Color.fromCssColorString("#173f45");
-      viewer.scene.globe.enableLighting = true;
+      viewer.scene.globe.enableLighting = false;
+      viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.skyAtmosphere.show = true;
       viewer.scene.globe.baseColor = cesium.Color.fromCssColorString("#2a756b");
-      try {
-        viewer.imageryLayers.addImageryProvider(new cesium.OpenStreetMapImageryProvider({
-          url: "https://tile.openstreetmap.org/",
-          credit: new cesium.Credit("© OpenStreetMap contributors"),
-          enablePickFeatures: false,
-        }));
-      } catch (error) {
-        console.warn("Cesium map imagery unavailable; using the globe surface.", error);
-      }
-      const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, 7_500);
+      const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight);
       viewer.entities.add({
-      position: destination,
-      point: {
-        color: cesium.Color.fromCssColorString("#f3c66b"),
-        outlineColor: cesium.Color.fromCssColorString("#fff8e7"),
-        outlineWidth: 2,
-        pixelSize: 12,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      label: {
-        text: container.dataset.cesiumPlace || "Memory place",
-        fillColor: cesium.Color.WHITE,
-        font: "600 14px DM Sans, sans-serif",
-        style: cesium.LabelStyle.FILL_AND_OUTLINE,
-        outlineColor: cesium.Color.fromCssColorString("#173f45"),
-        outlineWidth: 3,
-        pixelOffset: new cesium.Cartesian2(0, -24),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
+        position: cesium.Cartesian3.fromDegrees(longitude, latitude),
+        point: {
+          color: cesium.Color.fromCssColorString("#f3c66b"),
+          outlineColor: cesium.Color.fromCssColorString("#fff8e7"),
+          outlineWidth: 2,
+          pixelSize: 12,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: container.dataset.cesiumPlace || "Memory place",
+          fillColor: cesium.Color.WHITE,
+          font: "600 14px DM Sans, sans-serif",
+          style: cesium.LabelStyle.FILL_AND_OUTLINE,
+          outlineColor: cesium.Color.fromCssColorString("#173f45"),
+          outlineWidth: 3,
+          pixelOffset: new cesium.Cartesian2(0, -24),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
       });
+
+      const showFinalRoadMap = () => {
+        if (!arrivalComplete || !roadmapReady || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
+        finalViewStarted = true;
+        // The flight already arrives looking straight down. Switch projection
+        // without Cesium's world-scale unfolding animation pulling us away.
+        viewer.scene.morphTo2D(0);
+        viewer.camera.setView({
+          destination,
+          orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+        });
+        container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
+        viewer.scene.requestRender();
+      };
+
+      // Fit the whole Earth in the narrower dimension of this panel. Looking
+      // off-nadir at orbital altitude pushes the globe below the viewport.
+      viewer.resize();
+      const frustum = viewer.camera.frustum;
+      const halfFov = Math.min(frustum.fovy / 2, Math.atan(Math.tan(frustum.fovy / 2) * frustum.aspectRatio));
+      const radius = viewer.scene.globe.ellipsoid.maximumRadius;
+      const startHeight = radius * (1.15 / Math.sin(halfFov) - 1);
       viewer.camera.setView({
-      destination: cesium.Cartesian3.fromDegrees(0, 18, 31_000_000),
-      orientation: {
-        heading: 0,
-        pitch: cesium.Math.toRadians(-68),
-        roll: 0,
-      },
+        destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
+        orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
       });
       viewer.camera.flyTo({
-      destination,
-      orientation: {
-        heading: cesium.Math.toRadians(8),
-        pitch: cesium.Math.toRadians(-38),
-        roll: 0,
-      },
-      duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
-      easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+        destination,
+        orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+        duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 0 : Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+        easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+        complete: () => {
+          arrivalComplete = true;
+          showFinalRoadMap();
+        },
       });
       container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
       container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
+
+      const googleMapsKey = state.supabase?.google_maps_browser_api_key;
+      if (!googleMapsKey || typeof cesium.Google2DImageryProvider?.fromUrl !== "function") return;
+      cesium.Google2DImageryProvider.fromUrl({
+        key: googleMapsKey,
+        mapType: "roadmap",
+        language: currentUiLocale(),
+        region: currentUiLocale() === "zh-CN" ? "CN" : "AU",
+      }).then((imagery) => {
+        if (!container.isConnected || !viewer || viewer.isDestroyed()) return;
+        viewer.imageryLayers.addImageryProvider(imagery);
+        roadmapReady = true;
+        showFinalRoadMap();
+      }).catch((error) => {
+        console.warn("Google Maps roadmap imagery unavailable; using the globe surface.", error);
+      });
     } catch (error) {
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
       if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;
@@ -2541,7 +2772,15 @@ async function uploadAttachments(items) {
   }
 }
 
+function recallPackagePrompt() {
+  if (!state.recallStatus?.payment_required) return "";
+  const t = key => escapeHtml(translate(`Memoir.recall.${key}`));
+  const pending = new URLSearchParams(window.location.search).get("checkout") === "success";
+  return `<section class="recall-package-prompt" aria-labelledby="recall-package-title"><h2 id="recall-package-title">${t("title")}</h2><p>${t("description")}</p>${state.supabase?.user?.is_anonymous ? `<p class="fine-print">${t("signIn")}</p>` : ""}${pending ? `<p role="status">${escapeHtml(translate("Memoir.storyFlow.paymentConfirming"))}</p>` : ""}<button type="button" class="text-button" data-check-recall-payment ${state.loading ? "disabled" : ""}>${t("checkPayment")}</button>${storyCheckoutForm()}</section>`;
+}
+
 function chatComposer() {
+  if (state.recallStatus?.payment_required) return "";
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
@@ -2562,10 +2801,11 @@ function renderMessage(message) {
     return `<article class="chat-row user-message"><div class="chat-bubble"><div class="message-label">${you}</div><div class="message-text">${formatText(message.text)}</div>${message.attachments?.length ? `<div class="composer-attachments">${message.attachments.map(item => `<div class="composer-attachment">${attachmentPreview(item)}</div>`).join("")}</div>` : ""}</div></article>`;
   }
   const streaming = Boolean(message.streaming);
+  const visibleText = cleanAssistantText(message.text);
   const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
-  const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !message.text);
-  const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(message.text)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !message.text && !trace ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${message.text ? "" : "hidden"}>${formatText(message.text)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
+  const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !visibleText);
+  const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated", expanded = false) {
@@ -2585,6 +2825,25 @@ function renderCueCards(cues) {
 }
 
 function bindViewActions() {
+  $("[data-check-recall-payment]")?.addEventListener("click", async () => {
+    state.loading = true;
+    render();
+    await refreshFamilyEntitlement();
+    state.loading = false;
+    render();
+  });
+  $("#story-checkout-form")?.addEventListener("submit", event => {
+    event.preventDefault();
+    requestStoryCheckout();
+  });
+  document.querySelectorAll("input[name='plan_key']").forEach(input => input.addEventListener("change", () => {
+    state.selectedStoryPlan = input.value;
+    render();
+  }));
+  $("#story-book-count")?.addEventListener("change", event => {
+    state.storyBookCount = Number(event.target.value) || 2;
+    render();
+  });
   $("[data-all-places]")?.addEventListener("click", () => { state.lifeStage = "all"; state.selectedPlace = null; render(); });
   document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => { state.selectedPlace = button.dataset.placeChoice; render(); }));
   $("[data-action='toggle-workspace']")?.addEventListener("click", () => {
@@ -2674,6 +2933,7 @@ async function ensureMemorySession() {
 }
 
 async function beginMemoryConversation(renderNow = true) {
+  if (state.recallStatus?.payment_required) return;
   await ensureMemorySession();
   const fallback = conversationMessage("fallback");
   const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
@@ -2690,6 +2950,7 @@ async function beginMemoryConversation(renderNow = true) {
 }
 
 async function startMemory() {
+  if (state.recallStatus?.payment_required) return;
   if (state.loading) return;
   try {
     state.loading = true;
@@ -2704,6 +2965,7 @@ async function startMemory() {
 }
 
 async function sendChatMessage({ voiceTurn = false } = {}) {
+  if (state.recallStatus?.payment_required) return;
   if (state.loading || state.dictationStatus !== "off") return;
   if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
   if (state.voiceMode && state.voiceModeRecorder && !voiceTurn) {
@@ -2726,6 +2988,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   if (state.voiceMode) state.voiceModeStatus = "processing";
   state.loading = true;
+  state.freshAnonymousSession = false;
   if (attachments.length) {
     try { await uploadAttachments(attachments); }
     catch (error) {
@@ -2784,6 +3047,14 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       detectedFirstReplyLanguage || configuredConversationLanguage,
       Boolean(detectedFirstReplyLanguage),
     );
+    if (result.blocked) {
+      // Another tab may have used the final free reply. Keep the unsent draft.
+      state.chat.pop();
+      state.audioTranscript = messageText;
+      state.loading = false;
+      render();
+      return;
+    }
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
     await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action: result.streamedMessage?.failed ? null : action });
     if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
@@ -3314,9 +3585,24 @@ async function addTimeline() {
 }
 
 async function boot() {
+  try {
+    const choice = JSON.parse(sessionStorage.getItem("memoir-package-choice") || "null");
+    if (FALLBACK_STORY_PLANS.some(plan => plan.plan_key === choice?.plan)) {
+      state.selectedStoryPlan = choice.plan;
+      state.storyBookCount = Math.max(2, Math.min(20, Number(choice.books) || 2));
+    }
+  } catch { /* Ignore unavailable storage or an invalid saved selection. */ }
   state.authPromise = ensureAuth();
   try {
     await state.authPromise;
+    try {
+      if (await guestTransfer.complete()) toast(translate("AuthReminder.mergeSuccess"));
+    } catch {
+      retryConversationTransfer(() => guestTransfer.complete(), async () => {
+        await guestTransfer.restoreGuest();
+        window.location.reload();
+      });
+    }
     await syncProfileUiLocale();
     // The old five-round entry point was client-only state. Clear it so a
     // refresh always returns to the persistent Codex conversation instead of
@@ -3326,6 +3612,7 @@ async function boot() {
     if (saved) {
       try {
         state.project = { id: saved };
+        state.freshAnonymousSession = false;
         state.chat = restoreChatHistory(saved);
         state.chatHistoryCollapsed = true;
         await refreshProject();

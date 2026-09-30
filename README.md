@@ -2,6 +2,19 @@
 
 CopyMe2 is the platform umbrella: **preserve the parts of you that matter**. The first live product is Memoir, a guided, source-linked memoir journey that turns memories, photographs, and the storyteller's own voice into a family book.
 
+Memoir recall includes 20 successful conversation replies by default. Set the
+positive integer `MEMORY_SPARK_FREE_RECALL_ROUNDS` to change this allowance.
+Usage belongs to the user across projects and is recorded atomically with each
+saved reply; failed replies do not consume it. Once exhausted, the interview
+shows package selection and resumes only after a verified paid entitlement.
+Customer-facing copy does not show the free-round allowance.
+
+Before deploying this change, apply
+`supabase/migrations/202609300003_recall_usage.sql` after the guest conversation
+attachment and workspace merge migrations. It backfills usage from existing
+conversation records, makes usage read-only for customers, and preserves guest
+usage when attaching a conversation to an existing account.
+
 ## Product URLs
 
 The public URL structure is product-scoped so future products can live beside Memoir:
@@ -256,7 +269,9 @@ Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp
 
 ### Place journeys in the integrated Codex worker
 
-The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` for the Places surface without treating a location as biographical fact. The skill is baked into the API and private Codex worker images and is refreshed with `make install_skill`.
+The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with Google Geocoding and Google 2D roadmap imagery when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. Google keys are split by trust boundary: `GOOGLE_MAPS_GEOCODING_API_KEY` stays server-side and `GOOGLE_MAPS_BROWSER_API_KEY` is restricted to the web origin and Map Tiles API. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The skill is baked into the API and private Codex worker images and is refreshed with `make install_skill`.
+
+In Google Cloud, enable billing plus the [Geocoding API](https://developers.google.com/maps/documentation/geocoding) and [Map Tiles API](https://developers.google.com/maps/documentation/tile). Create a server-restricted key for geocoding and a separate HTTP-referrer-restricted browser key for Map Tiles, then place them in the two environment variables above. Google 2D Tiles must be paired with Google geocoding; the app does that through the server place-map endpoint rather than a model tool call.
 
 ### Family tree and author timeline in the integrated Codex worker
 
@@ -327,8 +342,42 @@ The full implementation covers consent, invitations, resumable uploads, cue reac
 
 ### Historical photo search
 
-The app's photo endpoint searches catalogues independently of the Codex research
-skill. To enable Flickr alongside Wikimedia Commons and the Library of Congress,
+The app's photo endpoint searches catalogues independently of local research
+runs. When `GOOGLE_CSE_API_KEY` is blank, it automatically browses the configured
+`GOOGLE_CSE_ID` or `GOOGLE_CSE_URL` with Crawl4AI, follows the visible image-result
+links, and extracts photographs from their public source pages. When
+`FLICKR_API_KEY` is blank, it browses Flickr's public search and item pages with
+the same bounded crawler. The API image includes Crawl4AI and Chromium; for a
+local Python server install `.[photo-browser]` and run
+`python -m playwright install chromium`. Rebuild the API image after upgrading.
+Blocked pages or browser failures leave the other catalogues available.
+Catalogues and bilingual browser queries run in parallel within shared search
+budgets. The original place language is queried first in the result order, with
+verified aliases (currently Chengde/承德) searched separately rather than assuming
+Google and Flickr share OR syntax. If fewer than ten exact-period matches are
+found, a narrower historical range wholly inside one decade expands to that
+decade (for example `承德 1983年` then `承德 80年代`, also in English). Exact-period
+matches stay first; wider matches retain their capture dates and show a
+same-decade reference label. The supplied Chengde Flickr album is also a bounded
+discovery source: its title establishes location, never individual capture dates.
+Every result is filtered against the requested locality and capture period (or
+the explicitly labelled containing-decade fallback);
+without a period, the preceding 24-month current-photo window applies. Page,
+upload and modification dates do not establish capture dates. Results are
+interleaved by their original source host and deduplicated across providers by
+asset ID, canonical original/thumbnail URLs and content hashes when available.
+The gallery appends ten-photo pages when its bottom comes into view, with a
+manual load/retry button. A bounded discovery pool (at most 150 matches) is
+cached per project/place/period for 15 minutes, making pages stable without
+repeating crawls on every scroll. An expired cursor starts a new snapshot and
+retains/deduplicates visible photos. Robots and research budgets still limit
+coverage; scroll loading does not bypass them.
+Browser results retain source and capture-date metadata and are marked
+`memory_reference_only`, with download, publish and print disabled. Unresolved
+rights remain labelled unknown. Life-stage labels without years do not restrict
+the automatic search; an explicit year/range still does.
+
+To use Flickr's API alongside Wikimedia Commons and the Library of Congress,
 set `FLICKR_API_KEY` in the server `.env` using your own Flickr application key,
 then recreate the API service so Compose passes it through. Keep this key out of
 browser configuration. To add the supplied Google Programmable Search Engine,
@@ -343,11 +392,11 @@ requests use the engine ID, `searchType=image`, rights filtering and ten-result
 pagination. See [the API research notes](docs/Historical_Photo_API_Research.md)
 for sources, setup links and live coverage findings.
 
-Flickr queries use capture dates, bilingual Chengde/承德 terms and up to three
-pages per term. Only supported CC BY, CC BY-SA, CC0 or public-domain-marked items
+Flickr API queries use capture dates, bilingual Chengde/承德 terms and up to three
+pages per term. API catalogues admit only supported CC BY, CC BY-SA, CC0 or public-domain-marked items
 are admitted for embedding; noncommercial photos remain research leads. A bare
 year such as `1980` means the ten-year window `1980–1989`; use `1980–1980` for
 an exact year. The app reports a shortfall when
-fewer than ten qualifying photographs are found; Google CSE results are also
+fewer than ten qualifying photographs are found; Google CSE API results are also
 post-filtered by location, item date metadata and compatible licence after each
 page. Adding an API does not guarantee coverage for every year and place.

@@ -1,6 +1,13 @@
 from fastapi.testclient import TestClient
+import pytest
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
+
+
+@pytest.fixture(autouse=True)
+def no_live_browser_search(monkeypatch):
+    # Catalogue unit tests never launch real browsers or query external sites.
+    monkeypatch.setattr('apps.api.place_photo_browser.crawl_place_photos', lambda *args, **kwargs: [])
 
 
 def test_project_retains_places_with_their_stages_and_picture_references():
@@ -62,7 +69,7 @@ def test_place_photo_search_excludes_wrong_decade_undated_and_banknotes(monkeypa
 def test_bare_year_search_covers_the_following_ten_calendar_years(monkeypatch):
     from apps.api.place_photos import _date_matches, _period_bounds, _search_queries
     assert _period_bounds("1980") == (1980, 1989)
-    assert _period_bounds("1980年") == (1980, 1989)
+    assert _period_bounds("1980年") == (1980, 1980)
     assert _date_matches("1980-01-01", "1980")
     assert _date_matches("1989-12-31", "1980")
     assert not _date_matches("1990-01-01", "1980")
@@ -261,7 +268,7 @@ def test_google_cse_filters_location_and_created_range_across_pages(monkeypatch)
         assert params['searchType'] == 'image'
         assert params['num'] == 10
         assert params['rights'] == 'cc_publicdomain|cc_attribute|cc_sharealike'
-        assert params['sort'] == 'date:r:19800101:19891231'
+        assert 'sort' not in params  # Capture dates, not webpage publication dates.
         assert 'Chengde' in params['q'] and '承德' in params['q']
         assert '1980' in params['q'] and '1989' in params['q']
         if params['start'] == 1:

@@ -17,6 +17,14 @@ def test_markers_hidden_at_every_chunk_boundary():
     assert visible.feed('Hello [[MEMORY_S', final=True) == 'Hello '
 
 
+def test_legacy_profile_comments_hidden_at_every_chunk_boundary():
+    text = 'Hello 慧博! <!-- profile: {"who":"慧博","when":"1983年4月"} -->'
+    for boundary in range(len(text) + 1):
+        visible = VisibleText()
+        result = visible.feed(text[:boundary]) + visible.feed(text[boundary:]) + visible.feed('', final=True)
+        assert result == 'Hello 慧博! '
+
+
 def test_text_arrives_before_persistence_and_result():
     async def run():
         saved = asyncio.Event()

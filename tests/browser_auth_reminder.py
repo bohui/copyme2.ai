@@ -15,7 +15,9 @@ def main():
         def serve(route):
             path = route.request.url.split('http://reminder.test')[-1]
             if path == '/':
-                route.fulfill(content_type='text/html', body='<div id="chat-scroll"></div>')
+                route.fulfill(content_type='text/html', body='<link rel="stylesheet" href="/public/styles.css"><div id="chat-scroll"></div>')
+            elif path == '/public/styles.css':
+                route.fulfill(content_type='text/css', body=(ROOT / 'apps/web/public/styles.css').read_text())
             elif path == '/client/i18n.js':
                 route.fulfill(content_type='text/javascript', body=f'const copy = {json.dumps(messages)}; export const translate = key => copy[key.split(".").at(-1)];')
             else:
@@ -48,10 +50,19 @@ def main():
         page.get_by_role('button', name='Not now').click()
         page.clock.run_for(5000)
         expect(page.locator('dialog')).to_have_count(0)
-        page.get_by_role('button', name='Sign in to keep your history').click()
+        if not page.locator('dialog[open]').count():
+            page.get_by_role('button', name='Sign in to keep your history').click()
         page.get_by_role('button', name='Continue with Google').click()
         expect(page.get_by_role('status')).to_contain_text('Opening')
         assert page.evaluate('calls[1][1].provider') == 'google'
+        assert page.evaluate('calls[1][1].options.queryParams') == {
+            'prompt': 'consent select_account'
+        }
+        assert page.evaluate('calls[1][1].options.redirectTo') == 'http://reminder.test/'
+        page.get_by_role('button', name='Continue with Facebook').click()
+        assert page.evaluate('calls[2][1]') == {
+            'provider': 'facebook', 'options': {'redirectTo': 'http://reminder.test/'}
+        }
         page.evaluate("serverUser = {id: 'guest-1', is_anonymous: false}; window.dispatchEvent(new Event('focus'))")
         expect(page.locator('dialog')).to_have_count(0)
         expect(page.locator('[data-auth-reminder]')).to_have_count(0)
@@ -60,13 +71,62 @@ def main():
         # A provider error is not a successful login: retain history and explain it.
         page.evaluate('''async () => {
           history.replaceState({}, '', '/?error=server_error&error_code=identity_already_exists');
+          sessionStorage.setItem('memoir-link-provider', 'google');
           account.user = {id: 'guest-1', is_anonymous: true};
           const {createAuthReminder} = await import('/client/memoir/auth-reminder.js');
-          window.retryReminder = createAuthReminder({getAuth: () => account, busy: () => false});
+          window.retryReminder = createAuthReminder({getAuth: () => account, busy: () => false,
+            signInExisting: async provider => { calls.push(['existing', provider]); }
+          });
           retryReminder.tick();
         }''')
         expect(page.get_by_role('dialog')).to_be_visible()
-        expect(page.get_by_role('status')).to_contain_text('sign-in did not complete')
+        expect(page.get_by_role('status')).to_contain_text('already belongs to a Memoir account')
+        expect(page.get_by_role('status')).to_contain_text('choose a different account')
+        expect(page.get_by_role('button', name='Sign in and attach conversation')).to_be_visible()
+        expect(page.get_by_role('button', name='Choose a different account')).to_be_visible()
+        expect(page.get_by_role('button', name='Continue with Google')).to_be_hidden()
+        expect(page.get_by_label('Email address')).to_be_hidden()
+        page.get_by_role('button', name='Sign in and attach conversation').click()
+        expect(page.get_by_role('status')).to_contain_text('Opening')
+        assert page.evaluate('calls.at(-1)') == ['existing', 'google']
+        # A direct provider rejection has the same useful retry instructions.
+        page.evaluate('''account.client.auth.linkIdentity = async () => ({
+          error: {code: 'identity_already_exists'}
+        })''')
+        page.get_by_role('button', name='Choose a different account').click()
+        expect(page.get_by_role('status')).to_contain_text('choose a different account')
+        page.screenshot(path='/tmp/memoir-auth-choice.png')
+        # Supabase implicit callbacks can carry errors in the fragment too.
+        page.get_by_role('button', name='Not now').click()
+        page.evaluate('''async () => {
+          history.replaceState({}, '', '/#error=server_error&error_code=identity_already_exists');
+          const {createAuthReminder} = await import('/client/memoir/auth-reminder.js');
+          window.hashReminder = createAuthReminder({getAuth: () => account, busy: () => false});
+          hashReminder.tick();
+        }''')
+        expect(page.get_by_role('status')).to_contain_text('choose a different account')
+        # Choosing an unused social identity converts the same guest user.
+        page.evaluate('''account.client.auth.linkIdentity = async (options) => {
+          calls.push(['retry', options]);
+          return {data: {user: {id: 'guest-1', is_anonymous: false}}};
+        }''')
+        page.get_by_role('button', name='Choose a different account').click()
+        expect(page.locator('dialog')).to_have_count(0)
+        expect(page.locator('[data-auth-reminder]')).to_have_count(0)
+        assert page.evaluate('account.user.id') == 'guest-1'
+        assert page.evaluate('account.user.is_anonymous') is False
+        assert page.evaluate('calls.at(-1)[1].options.queryParams.prompt') == 'consent select_account'
+        page.evaluate('''account.user = {id: 'guest-1', is_anonymous: true};
+          history.replaceState({}, '', '/');
+          hashReminder.tick(); hashReminder.mount();''')
+        if not page.locator('dialog[open]').count():
+            page.get_by_role('button', name='Sign in to keep your history').click()
+        # Open a fresh reminder without a callback conflict for the email path.
+        page.get_by_role('button', name='Not now').click()
+        page.evaluate('''async () => {
+          const {createAuthReminder} = await import('/client/memoir/auth-reminder.js');
+          createAuthReminder({getAuth: () => account, busy: () => false}).tick();
+        }''')
         # A confirmed update response also clears both surfaces immediately.
         page.evaluate('''account.client.auth.updateUser = async () => ({data: {
           user: {id: 'guest-1', is_anonymous: false}
@@ -77,8 +137,19 @@ def main():
         expect(page.locator('[data-auth-reminder]')).to_have_count(0)
         page.evaluate('reminder.mount(); retryReminder.mount()')
         expect(page.locator('[data-auth-reminder]')).to_have_count(0)
+        # Attached transcripts render as text and can be read on another device.
+        page.evaluate('''async () => {
+          const {openAttachedConversations} = await import('/client/memoir/conversation-attachments.js');
+          await openAttachedConversations(async () => ({items: [{project_id: 'guest-project', messages: [
+            {role: 'user', text: '<img src=x onerror=alert(1)> Childhood'},
+            {role: 'assistant', text: 'Tell me more.'}
+          ]}]}));
+        }''')
+        page.locator('summary').click()
+        expect(page.get_by_role('dialog')).to_contain_text('Tell me more.')
+        expect(page.locator('dialog img')).to_have_count(0)
         browser.close()
-        print('PASS: timing, chat reminder, dismissal/reopen, email/social linking, signed-in suppression')
+        print('PASS: timing, email/social linking, Google consent/account selection, callback errors, retry, signed-in suppression')
 
 
 if __name__ == '__main__':

@@ -15,6 +15,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
+from .recall import recall_status, storage_recall_status
 from .agent_storage import UserStorage
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
@@ -32,7 +33,11 @@ from .place_journey import (
     place_journey_matches_message,
     place_journey_fingerprint,
 )
-from .profile_intake import extract_profile_updates, merge_profile_updates
+from .profile_intake import (
+    extract_profile_updates,
+    merge_profile_updates,
+    profile_marker_present,
+)
 from .agent_tasks import TaskRequest, extract_task_requests, resolve_task
 from .memoir_tasks import MemorySource
 from .trajectory_evaluation import (
@@ -493,11 +498,17 @@ class CodexRuntime:
                 'project_id': project_id,
                 'language': language,
             })
-        await progress.update('context', 'Loading saved conversation context', '正在加载已保存的对话背景')
         async with AsyncExitStack() as turn_scope:
             await turn_scope.enter_async_context(self._lock(user_id))
             turn_sequence = self._next_turn_sequence(user_id)
             lease = await turn_scope.enter_async_context(AgentTurnLease(storage))
+            recall_access = None
+            if callable(getattr(storage, 'recall_rounds_completed', None)):
+                entitlement = await lease.io(storage.story_entitlement)
+                recall_access = await lease.io(storage_recall_status, storage, entitlement)
+                if recall_access['payment_required']:
+                    return {'project_id': project_id, 'recall_status': recall_access, 'reply': None}
+            await progress.update('context', 'Loading saved conversation context', '正在加载已保存的对话背景')
             prior = await lease.io(storage.agent_session)
             memories = await lease.io(storage.memories)
             if trajectory:
@@ -666,7 +677,7 @@ class CodexRuntime:
             # Keep a compatibility bridge for an older worker that still emits
             # markers from the collector. New workers have a marker-free
             # collector and use the dedicated workspace pass below.
-            legacy_markers = any(marker in reply for marker in (
+            legacy_markers = profile_marker_present(reply) or any(marker in reply for marker in (
                 '[[MEMORY_SPARK_PROFILE]]',
                 '[[MEMORY_SPARK_TASKS]]',
                 '[[MEMORY_SPARK_PLACE_JOURNEY]]',
@@ -724,6 +735,8 @@ class CodexRuntime:
                     paths,
                 )
             await progress.update('save', 'Conversation memory saved', '对话记忆已保存', status='completed')
+            if recall_access is not None:
+                recall_access = recall_status(recall_access['rounds_completed'] + 1, entitlement)
             turn_sequence = self._stored_memory_sequence(stored) or turn_sequence
             if trajectory:
                 trajectory.record('application', 'memory.persist', output={
@@ -792,6 +805,7 @@ class CodexRuntime:
                         'thread_id': thread_id,
                         'reply': reply,
                         'conversation_saved': True,
+                        'recall_status': recall_access,
                         'trace': list(progress.steps),
                         'trace_mode': 'live',
                     },
@@ -870,6 +884,7 @@ class CodexRuntime:
                     },
                 )
             response = {
+                'recall_status': recall_access,
                 'turn_id': turn_id,
                 'source_sequence': turn_sequence,
                 'project_id': project_id,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from datetime import datetime
 from typing import Any
@@ -10,6 +11,8 @@ from typing import Any
 
 PROFILE_MARKER_START = "[[MEMORY_SPARK_PROFILE]]"
 PROFILE_MARKER_END = "[[/MEMORY_SPARK_PROFILE]]"
+LEGACY_PROFILE_MARKER_PATTERN = re.compile(r"<!--\s*profile\s*:", re.IGNORECASE)
+LEGACY_PROFILE_MARKER_END = "-->"
 PROFILE_FIELDS = {
     "name": 120,
     "birth_date_expression": 120,
@@ -84,19 +87,62 @@ def merge_profile_updates(profile: Any, updates: Any) -> dict[str, Any]:
     return current
 
 
+def profile_marker_present(text: str) -> bool:
+    """Return whether a reply contains a supported profile marker."""
+    return PROFILE_MARKER_START in text or LEGACY_PROFILE_MARKER_PATTERN.search(text) is not None
+
+
+def _normalize_legacy_profile(raw: Any) -> Any:
+    """Translate the pre-Memory-Spark profile shape into the current schema."""
+    if not isinstance(raw, dict):
+        return raw
+
+    normalized = dict(raw)
+    aliases = {
+        "who": "name",
+        "when": "birth_date_expression",
+        "where": "birth_place",
+    }
+    for legacy_key, current_key in aliases.items():
+        if current_key not in normalized and legacy_key in raw:
+            normalized[current_key] = raw[legacy_key]
+    if "what" in raw and "story_focus" not in normalized:
+        normalized["story_focus"] = {"what": raw["what"]}
+    return normalized
+
+
 def extract_profile_updates(text: str) -> tuple[str, dict[str, Any] | None]:
-    """Strip the first profile marker and return its validated payload."""
-    start = text.find(PROFILE_MARKER_START)
-    if start < 0:
+    """Strip the first profile marker and return its validated payload.
+
+    The HTML-comment form is retained as a compatibility bridge for replies
+    produced by older profile-intake prompts.
+    """
+    canonical_start = text.find(PROFILE_MARKER_START)
+    legacy_match = LEGACY_PROFILE_MARKER_PATTERN.search(text)
+    legacy_start = legacy_match.start() if legacy_match else -1
+    if canonical_start < 0 and legacy_start < 0:
         return text.strip(), None
-    payload_start = start + len(PROFILE_MARKER_START)
-    end = text.find(PROFILE_MARKER_END, payload_start)
+
+    if canonical_start >= 0 and (legacy_start < 0 or canonical_start <= legacy_start):
+        start = canonical_start
+        payload_start = start + len(PROFILE_MARKER_START)
+        end_marker = PROFILE_MARKER_END
+        legacy = False
+    else:
+        start = legacy_start
+        payload_start = legacy_match.end()
+        end_marker = LEGACY_PROFILE_MARKER_END
+        legacy = True
+
+    end = text.find(end_marker, payload_start)
     if end < 0:
         return text[:start].rstrip(), None
 
-    visible = f"{text[:start]}{text[end + len(PROFILE_MARKER_END):]}".strip()
+    visible = f"{text[:start]}{text[end + len(end_marker):]}".strip()
     try:
         raw = json.loads(text[payload_start:end].strip())
     except json.JSONDecodeError:
         return visible, None
+    if legacy:
+        raw = _normalize_legacy_profile(raw)
     return visible, validate_profile_updates(raw)

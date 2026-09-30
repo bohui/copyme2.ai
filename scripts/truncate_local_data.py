@@ -25,6 +25,7 @@ APP_TABLES = (
     "public.user_memory",
     "public.user_agent_session",
     "public.user_agent_turn_lease",
+    "public.user_recall_usage",
     "public.story_entitlements",
     "public.user_family_context",
     "public.user_place_journey",

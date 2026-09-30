@@ -27,7 +27,7 @@ def main() -> None:
         "asset_id": f"commons-cached-{index}",
         "kind": "image",
         "title": f"Chengde landscape {index}.jpg",
-        "image_url": "/static/timeline_avatar_child_female.png",
+        "image_url": f"/static/timeline_avatar_child_female.png?photo={index}",
         "source_url": "https://commons.wikimedia.org/wiki/File:Chengde_landscape.jpg",
         "attribution": "Public archive",
         "license": "Public domain",

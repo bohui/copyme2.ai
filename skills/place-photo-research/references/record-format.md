@@ -29,6 +29,7 @@ All URLs and values here are **non-runnable placeholders**, not an actual photog
   "title": "Example caption — replace with actual source title",
   "source_page_url": "https://example.invalid/item/123",
   "image_url": null,
+  "observed_image_url": null,
   "creator": null,
   "collection_page_url": null,
   "authenticity": "unresolved",
@@ -62,6 +63,8 @@ All URLs and values here are **non-runnable placeholders**, not an actual photog
   "notes": []
 }
 ```
+
+`observed_image_url` is optional provenance used by the Crawl4AI route when a source page exposes an HTTP image URL. In that case `image_url` may contain the same observed host/path with an HTTPS scheme for the HTTPS-only memory-reference surface; the original HTTP URL remains recorded in `observed_image_url`. Never invent a different path, filename or host.
 
 For a supported scene-date range, use ISO interval bounds and preserve precision:
 

@@ -37,7 +37,7 @@ test('fast saved response retains live trace and later triggered skills', async 
  assert.equal(result.streamedMessage.trace[1].skill,'memoir-place-journey');
 });
 test('live trace is collapsed while reply text is streaming', () => {
- const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String});
+ const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String,cleanAssistantText:String});
  vm.runInContext(extract('renderAgentTrace'),context);
  vm.runInContext(extract('renderMessage'),context);
  const html=context.renderMessage({id:'m',role:'assistant',text:'Hello',streaming:true,traceMode:'live',trace:[{id:'place',label:'Checking places',status:'running'}]});
@@ -46,7 +46,7 @@ test('live trace is collapsed while reply text is streaming', () => {
  assert.match(html,/data-step-status="running"/);
 });
 test('thinking and text-only steps precede the reply, with no inline photo cards', () => {
- const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String});
+ const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String,cleanAssistantText:String});
  vm.runInContext(extract('renderAgentTrace'),context);
  vm.runInContext(extract('renderMessage'),context);
  const message={id:'m',role:'assistant',text:'',progressText:'Checking places…',streaming:true,traceMode:'live',trace:[{id:'reply',label:'Reply',status:'running'}],cues:[{title:'Photograph'}]};
@@ -66,7 +66,7 @@ test('incoming text replaces thinking without a standalone progress row', () => 
  const thinking={hidden:false};
  const progress={textContent:'',hidden:true};
  const row={querySelector:selector=>({'.message-text':text,'.message-thinking':thinking,'.message-progress':progress}[selector] || null)};
- const context=vm.createContext({document:{querySelector:()=>row},$:()=>null,formatText:String,renderAgentTrace:()=>''});
+ const context=vm.createContext({document:{querySelector:()=>row},$:()=>null,formatText:String,cleanAssistantText:String,renderAgentTrace:()=>''});
  vm.runInContext(extract('updateStreamingAssistantMessage'),context);
  context.updateStreamingAssistantMessage({id:'m',text:'Hello',streaming:true,progressText:'Preparing your reply'});
  assert.equal(text.innerHTML,'Hello');
@@ -76,9 +76,17 @@ test('incoming text replaces thinking without a standalone progress row', () => 
  assert.equal(progress.hidden,true);
 });
 
+test('assistant rendering hides legacy profile comments', () => {
+ const context=vm.createContext({state:{showThinkingSteps:false},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,formatText:value=>String(value)});
+ for (const name of ['cleanAssistantText','renderAgentTrace','renderMessage']) vm.runInContext(extract(name),context);
+ const html=context.renderMessage({id:'m',role:'assistant',text:'慧博，你好。 <!-- profile: {"who":"慧博"} -->',streaming:false});
+ assert.match(html,/慧博，你好。/);
+ assert.doesNotMatch(html,/profile:/);
+});
+
 test('finished workspace checks appear last inside the collapsed thinking steps', async () => {
  let emitEvent;
- const context=vm.createContext({state:{showThinkingSteps:true,supabase:{accessToken:'test'},project:{id:'p'},chat:[]},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String,simulatedLoopTrace:()=>[],conversationLanguage:()=>undefined,nextAssistantMessageId:()=> 'm1',render:()=>{},updateStreamingAssistantMessage:()=>{},
+ const context=vm.createContext({state:{showThinkingSteps:true,supabase:{accessToken:'test'},project:{id:'p'},chat:[]},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String,cleanAssistantText:String,simulatedLoopTrace:()=>[],conversationLanguage:()=>undefined,nextAssistantMessageId:()=> 'm1',render:()=>{},updateStreamingAssistantMessage:()=>{},
  streamAgentTurn:async (text,onDelta,onEvent)=>{
    emitEvent=onEvent;
    await onEvent({type:'progress',data:{id:'workspace',detail:'Checking workspace',status:'running'}});
@@ -96,8 +104,8 @@ test('finished workspace checks appear last inside the collapsed thinking steps'
  assert.equal(html.split('Workspace checks completed').length-1,1);
 });
 
-test('placeholder gives way to steps, then steps collapse when the response begins', () => {
- const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,formatText:String});
+test('thinking status stays visible through steps, then hides when the response begins', () => {
+ const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,formatText:String,cleanAssistantText:String});
  for (const name of ['renderAgentTrace','renderMessage','updateStreamingAssistantMessage']) vm.runInContext(extract(name),context);
  const message={id:'m',role:'assistant',text:'',streaming:true,traceMode:'live',trace:[]};
  assert.match(context.renderMessage(message),/class="message-thinking" role="status" >/);
@@ -107,7 +115,7 @@ test('placeholder gives way to steps, then steps collapse when the response begi
  assert.doesNotMatch(routine,/Preparing a streamed reply|Conversation context|Loaded memory|<details/);
  message.trace.push({id:'language',detail:'Checking conversation language',status:'running'});
  const steps=context.renderMessage(message);
- assert.match(steps,/class="message-thinking" role="status" hidden/);
+ assert.match(steps,/class="message-thinking" role="status" >/);
  assert.match(steps,/class="agent-loop" open/);
  assert.match(steps,/Checking conversation language/);
  assert.doesNotMatch(steps,/agent-loop-note|agent-loop-kind|<small>|Memoir.trace.status/);
@@ -119,7 +127,7 @@ test('placeholder gives way to steps, then steps collapse when the response begi
  context.document={querySelector:()=>row};
  context.$=()=>null;
  context.updateStreamingAssistantMessage(message);
- assert.equal(thinking.hidden,true);
+ assert.equal(thinking.hidden,false);
  assert.equal(details.open,true);
  message.text='Hello';
  context.updateStreamingAssistantMessage(message);

@@ -8,6 +8,32 @@ CITY = {"place": "承德", "hierarchy": ["Earth", "中国", "河北", "承德"],
 SUBURB = {"place": "大石庙镇", "hierarchy": [*CITY['hierarchy'], "大石庙镇"], "granularity": "suburb"}
 
 
+def test_search_place_uses_google_geocoding(monkeypatch):
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append((url, kwargs))
+        return httpx.Response(200, json={
+            "status": "OK",
+            "results": [{"geometry": {"location": {"lat": 40.921285, "lng": 117.961817}}}],
+        }, request=httpx.Request("GET", url))
+
+    monkeypatch.setenv("GOOGLE_MAPS_GEOCODING_API_KEY", "server-key")
+    monkeypatch.setattr(httpx, "get", get)
+    geo.search_place.cache_clear()
+
+    assert geo.search_place("大石庙镇, 承德, 河北, 中国") == {
+        "latitude": 40.921285,
+        "longitude": 117.961817,
+        "attribution": "Google Maps",
+    }
+    assert calls == [("https://maps.googleapis.com/maps/api/geocode/json", {
+        "params": {"address": "大石庙镇, 承德, 河北, 中国", "key": "server-key"},
+        "headers": {"Accept": "application/json"},
+        "timeout": 5,
+    })]
+
+
 def test_searches_detailed_place_before_nearest_saved_parent(monkeypatch):
     queries = []
     monkeypatch.setattr(geo, 'search_place', lambda query: queries.append(query))

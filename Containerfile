@@ -2,7 +2,8 @@ FROM node:26-bookworm-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 
 WORKDIR /app
 
@@ -19,7 +20,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/memory-spark-venv \
     && /opt/memory-spark-venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/memory-spark-venv/bin/pip install --no-cache-dir .
+    && /opt/memory-spark-venv/bin/pip install --no-cache-dir '.[photo-browser]' \
+    && /opt/memory-spark-venv/bin/python -m playwright install --with-deps chromium
 
 ENV PATH=/opt/memory-spark-venv/bin:$PATH
 

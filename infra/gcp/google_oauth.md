@@ -136,6 +136,34 @@ Supabase Auth settings:
 - **Allow anonymous sign-ins**
 - **Allow manual linking**
 
+The Google linking request includes `prompt=consent select_account`, so Google
+shows consent and lets the user select an account on every attempt. If Supabase
+returns `identity_already_exists`, that Google identity belongs to another Memoir
+user. The reminder offers two choices: sign into an existing account and attach
+the guest conversation, or select a different account and link it to the current
+guest user. Granting consent again does not resolve an identity conflict.
+
+Apply both `supabase/migrations/202609300001_guest_conversation_attachments.sql`
+and `supabase/migrations/202609300002_guest_workspace_merge.sql` before using
+the existing-account option. The guest session prepares a one-hour transfer
+capability, OAuth authenticates the chosen destination account, and the app then
+redeems that capability. The merge includes the transcript, collected memories,
+profile fields, language preferences, places, photo galleries, family context,
+uploaded files, generated documents, and collection coverage. Existing profile
+values take precedence; guest values fill gaps and distinct list entries are
+combined. Both original contexts remain available in the attached record.
+
+Database records are merged transactionally, files are copied through the
+Storage API, and completed generated documents are imported with their memory
+citations remapped. Retries reuse the same imported IDs and file destinations.
+The app waits for active replies and pending generated results before merging.
+The account's current Codex thread and payment entitlements remain intact.
+Attached transcripts and downloadable workspace context can be read from
+**Profile → Attached conversations**, including on another device.
+The original guest session is retained only in this tab's session storage until
+attachment succeeds, so a failed or expired transfer offers **Return to guest
+conversation**. This recovery session is never sent to the transfer API.
+
 If the application is changed to start directly with Google sign-in, these two
 settings are not required. The relevant Supabase references are [anonymous
 sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous) and [manual

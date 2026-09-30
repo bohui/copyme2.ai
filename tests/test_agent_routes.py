@@ -21,6 +21,7 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
         'auth_mode': 'supabase',
         'supabase_url': 'https://example.supabase.co',
         'supabase_publishable_key': 'public-key',
+        'google_maps_browser_api_key': None,
         'show_thinking_steps': False,
     }
 
@@ -33,6 +34,17 @@ def test_agent_config_exposes_enabled_thinking_steps_flag(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()['show_thinking_steps'] is True
+
+
+def test_agent_config_exposes_only_the_browser_maps_key(monkeypatch):
+    monkeypatch.setenv('GOOGLE_MAPS_BROWSER_API_KEY', 'browser-key')
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY', 'server-key')
+    response = TestClient(create_app(MemoryStore())).get('/v1/agent/config')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['google_maps_browser_api_key'] == 'browser-key'
+    assert 'server-key' not in json.dumps(body)
 
 
 def test_agent_turn_requires_a_supabase_bearer_token(monkeypatch):

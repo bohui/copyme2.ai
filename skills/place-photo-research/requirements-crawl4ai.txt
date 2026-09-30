@@ -1,0 +1,2 @@
+# Optional browser-rendered discovery path. Run crawl4ai-setup once after install.
+crawl4ai>=0.8.0,<1

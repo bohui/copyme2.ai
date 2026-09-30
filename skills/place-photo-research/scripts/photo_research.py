@@ -10,6 +10,7 @@ Python 3.10+; Pillow is required only for image validation/downloads.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import calendar
 import hashlib
 import html
@@ -27,7 +28,7 @@ import sys
 import tempfile
 import time
 from datetime import date, datetime, timezone
-from urllib.parse import urljoin, urlsplit, urlunsplit, quote
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 import warnings
 from zoneinfo import ZoneInfo
@@ -37,7 +38,11 @@ UA = "PlacePhotoResearch/1.0"
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
 MAX_PAGE_BYTES = 2 * 1024 * 1024
 MAX_PIXELS = 40_000_000
+CRAWL4AI_MAX_SEARCH_PAGES = 10
+CRAWL4AI_MAX_SOURCE_PAGES = 24
+CRAWL4AI_PAGE_TIMEOUT_MS = 30_000
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+NON_PHOTO = re.compile(r"\b(banknotes?|coins?|currency|stamps?|maps?|paintings?|illustrations?|drawings?|engravings?|logo|icon|avatar|qr)\b|纸币|鈔票|钞票|邮票|绘画|地圖|地图|图标|头像|二维码", re.I)
 LICENSE_URLS = {
     "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
     "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
@@ -49,6 +54,18 @@ WEAK_DATE_BASES = {"unknown", "upload_date", "page_publication", "visual_guess"}
 
 class ResearchError(Exception):
     pass
+
+
+def _text(value) -> str:
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(item) for item in value)
+    return html.unescape(re.sub(r"<[^>]*>", "", str(value or "")))[:4000]
+
+
+def _configured_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    return "" if value.casefold() in {"", "null", "<null>", "none"} else value
+
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -376,6 +393,440 @@ class PageParser(HTMLParser):
                 "links": self.links, "json_ld": self.jsonld[:20], "text_excerpt": " ".join(self.text)[:12000],
                 "warning": "UNTRUSTED source data. Candidate URLs/nearby text are not verified photo identity, dates or licences."}
 
+
+def parse_crawl4ai_image_results(source_html: str) -> list[dict]:
+    html_source = source_html or ""
+    starts = []
+    for match in re.finditer(r"<div\b[^>]*class=[\"'][^\"']*[\"'][^>]*>", html_source, re.I | re.S):
+        class_match = re.search(r"\bclass\s*=\s*([\"'])(.*?)\1", match.group(0), re.I | re.S)
+        classes = set((class_match.group(2) if class_match else "").split())
+        if {"gsc-imageResult", "gsc-result"}.issubset(classes):
+            starts.append(match)
+    results = []
+
+    def attribute(tag: str, name: str) -> str:
+        match = re.search(rf"\b{re.escape(name)}\s*=\s*([\"'])(.*?)\1", tag, re.I | re.S)
+        return html.unescape(match.group(2)) if match else ""
+
+    def inner_text(value: str) -> str:
+        return " ".join(html.unescape(re.sub(r"<[^>]*>", " ", value or "")).split())
+
+    for index, match in enumerate(starts):
+        chunk = html_source[match.start():starts[index + 1].start() if index + 1 < len(starts) else len(html_source)]
+        link_match = re.search(r"<a\b(?=[^>]*\bclass=[\"'][^\"']*\bgs-previewLink\b)(?=[^>]*\bhref=)[^>]*>", chunk, re.I | re.S)
+        image_match = re.search(r"<img\b(?=[^>]*\bclass=[\"'][^\"']*\bgs-image\b)[^>]*>", chunk, re.I | re.S)
+        if not link_match or not image_match:
+            continue
+        title_match = re.search(r"<[^>]+class=[\"'][^\"']*\bgs-previewTitle\b[^\"']*[\"'][^>]*>(.*?)</", chunk, re.I | re.S)
+        description_match = re.search(r"<[^>]+class=[\"'][^\"']*\bgs-previewDescription\b[^\"']*[\"'][^>]*>(.*?)</", chunk, re.I | re.S)
+        title = inner_text(title_match.group(1) if title_match else "")
+        description = inner_text(description_match.group(1) if description_match else "")
+        alt = attribute(image_match.group(0), "alt") or attribute(image_match.group(0), "title")
+        result = {"source_url": attribute(link_match.group(0), "href"),
+                  "preview_url": attribute(image_match.group(0), "src"), "title": title,
+                  "description": description, "alt": alt,
+                  "width": attribute(image_match.group(0), "width") or None,
+                  "height": attribute(image_match.group(0), "height") or None}
+        result["text"] = " ".join(value for value in (title, description, alt) if value)
+        if result["source_url"] and result["preview_url"]:
+            results.append(result)
+    return results
+
+
+def _crawl4ai_place_terms(place: str) -> list[str]:
+    parts = [part.strip() for part in re.split(r"[/|,，、]", place) if part.strip()]
+    terms = []
+    for part in parts:
+        if len(part) >= 2:
+            terms.append(part)
+    if re.search(r"\bchengde\b|承德", place, re.I):
+        terms.extend(["Chengde", "承德", "河北承德"])
+    return list(dict.fromkeys(terms))
+
+
+def _crawl4ai_location_matches(text: str, place: str) -> bool:
+    haystack = _text(text).casefold()
+    terms = _crawl4ai_place_terms(place)
+    return any(term.casefold() in haystack for term in terms)
+
+
+def _crawl4ai_years(text: str) -> list[int]:
+    return [int(value) for value in re.findall(r"(?<!\d)((?:18|19|20)\d{2})(?!\d)", text or "")]
+
+
+def _crawl4ai_scene_date(text: str, temporal: dict) -> dict | None:
+    """Return a supported source assertion without treating upload dates as scene dates."""
+    bounds = None
+    if temporal.get("mode") == "historical_range":
+        bounds = (date.fromisoformat(temporal["start"]).year, date.fromisoformat(temporal["end"]).year)
+    years = _crawl4ai_years(text)
+    if bounds:
+        matching = [year for year in years if bounds[0] <= year <= bounds[1]]
+        if matching:
+            year = matching[0]
+            return {"start": f"{year:04d}-01-01", "end": f"{year:04d}-12-31", "precision": "year",
+                    "basis": "source_caption", "conflicting": False}
+        if re.search(fr"\b{bounds[0]}s\b", text or "", re.I) or (
+                bounds == (1980, 1989) and re.search(r"(?:上世纪|20世纪)?\s*(?:80|八十)年代", text or "", re.I)):
+            return {"start": f"{bounds[0]:04d}-01-01", "end": f"{bounds[1]:04d}-12-31", "precision": "decade",
+                    "basis": "source_caption", "conflicting": False}
+    return None
+
+
+def _crawl4ai_image_url(value: str) -> str | None:
+    if not isinstance(value, str) or not value or value.startswith(("data:", "blob:")):
+        return None
+    try:
+        p, host, _ = valid_url(value)
+    except ResearchError:
+        return None
+    blocked_hosts = {"encrypted-tbn0.gstatic.com", "sync.intentiq.com", "www.google-analytics.com", "pixel.mathtag.com", "mixern.sina.cn"}
+    blocked_path = re.search(r"profiles_engine|pixel|tracking|spacer|favicon|sprite|btn_|cancel|vote|service/buzz|auto/crop|(?:^|/)(?:default|mfp|view)(?:/|$)", p.path, re.I)
+    if host in blocked_hosts or blocked_path:
+        return None
+    # A few public archives still emit HTTP image URLs from an HTTPS article
+    # (for example Sina's k.sinaimg.cn CDN).  Keep the exact observed host/path
+    # and upgrade only the scheme so the reference remains renderable in the
+    # app's HTTPS-only image surface.  We never invent a path or follow a
+    # redirect here; the source-page crawl supplied this URL verbatim.
+    scheme = "https" if p.scheme == "http" else p.scheme
+    return urlunsplit((scheme, p.netloc, p.path, p.query, ""))
+
+
+def _crawl4ai_load_dotenv() -> None:
+    """Load only missing, simple KEY=VALUE entries for local skill invocation."""
+    roots = [Path.cwd(), Path(__file__).resolve().parents[3]]
+    for root in dict.fromkeys(roots):
+        path = root / ".env"
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key, value = key.strip(), value.strip().strip("\"'")
+            if re.fullmatch(r"[A-Z][A-Z0-9_]{1,80}", key) and key not in os.environ:
+                os.environ[key] = value
+        return
+
+
+def _crawl4ai_search_url(search_url: str | None, request: dict) -> str:
+    _crawl4ai_load_dotenv()
+    search_url = search_url or _configured_env("GOOGLE_CSE_URL")
+    if not search_url:
+        cx = _configured_env("GOOGLE_CSE_ID")
+        if cx:
+            search_url = f"https://cse.google.com/cse?cx={quote(cx, safe='')}"
+    if not search_url:
+        fail("Crawl4AI search requires --search-url or GOOGLE_CSE_ID")
+    parsed = urlsplit(search_url)
+    if parsed.scheme != "https" or parsed.hostname not in {"cse.google.com", "www.google.com"}:
+        fail("Crawl4AI search URL must be a public Google Programmable Search page")
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    if not params.get("cx", [""])[0]:
+        fail("Crawl4AI search URL must include a Programmable Search cx")
+    temporal = request["temporal"]
+    place_terms = _crawl4ai_place_terms(request["place"])
+    if re.search(r"\bchengde\b|承德", request["place"], re.I):
+        place_query = "承德"
+    else:
+        place_query = " OR ".join(place_terms[:2]) or request["place"]
+    terms = [place_query, "老照片"]
+    if temporal.get("mode") == "historical_range":
+        start, end = date.fromisoformat(temporal["start"]).year, date.fromisoformat(temporal["end"]).year
+        terms.insert(1, f"{start}年代" if start % 10 == 0 else f"{start}-{end}")
+    query = " ".join(" ".join(str(term).split()) for term in terms if term)
+    params["q"] = [query]
+    params.pop("start", None)
+    params.pop("page", None)
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/cse", urlencode(params, doseq=True), ""))
+
+
+def _crawl4ai_search_js(page_number: int) -> str:
+    if page_number == 1:
+        return """const deadline=Date.now()+12000;
+while(Date.now()<deadline){
+ const tabs=[...document.querySelectorAll('.gsc-tabHeader')];
+ const image=tabs.find(el=>/图片|image/i.test(el.textContent||''))||tabs[1];
+ if(image){
+  if(!image.classList.contains('gsc-tabhActive')) image.click();
+  while(Date.now()<deadline && !document.querySelector('.gsc-results.gsc-imageResult .gsc-imageResult.gsc-result')) await new Promise(r=>setTimeout(r,250));
+  return {clicked:true,results:document.querySelectorAll('.gsc-results.gsc-imageResult .gsc-imageResult.gsc-result').length};
+ }
+ await new Promise(r=>setTimeout(r,250));
+}
+return {clicked:false};"""
+    return f"""const deadline=Date.now()+12000;
+const roots=[...document.querySelectorAll('.gsc-results.gsc-imageResult')];
+const root=roots.find(el=>el.offsetParent!==null)||roots.at(-1);
+while(Date.now()<deadline){{
+ const pages=[...(root?.querySelectorAll('.gsc-cursor-page')||[])];
+ const target=pages.find(el=>el.textContent.trim()==='{page_number}'&&!el.classList.contains('gsc-cursor-current-page'));
+ if(target){{
+  target.click();
+  while(Date.now()<deadline){{
+   const current=root?.querySelector('.gsc-cursor-current-page');
+   if(current&&current.textContent.trim()==='{page_number}'&&root.querySelectorAll('.gsc-imageResult.gsc-result').length)
+    return {{page:{page_number},results:root.querySelectorAll('.gsc-imageResult.gsc-result').length}};
+   await new Promise(r=>setTimeout(r,250));
+  }}
+  return {{page:{page_number},timeout:true}};
+ }}
+ await new Promise(r=>setTimeout(r,250));
+}}
+return {{page:{page_number},found:false}};"""
+
+
+def _crawl4ai_run(coro):
+    try:
+        return asyncio.run(coro)
+    except RuntimeError as error:
+        if "event loop" in str(error).lower():
+            fail("Crawl4AI CLI must run outside an active asyncio event loop")
+        raise
+
+
+def _crawl4ai_search_pages(search_url: str, max_pages: int, before_page=None) -> list[dict]:
+    try:
+        from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
+    except ImportError:
+        fail("Crawl4AI is required for this command. Install the optional crawl4ai dependency and run crawl4ai-setup.")
+
+    async def collect():
+        cards = []
+        session_id = "place-photo-search-" + hashlib.sha256(f"{search_url}-{time.time_ns()}".encode()).hexdigest()[:16]
+        async with AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False)) as crawler:
+            for page_number in range(1, max_pages + 1):
+                if before_page:
+                    before_page(page_number, search_url)
+                config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS, page_timeout=CRAWL4AI_PAGE_TIMEOUT_MS,
+                    delay_before_return_html=0.5, js_code=[_crawl4ai_search_js(page_number)],
+                    session_id=session_id, js_only=page_number > 1,
+                    # The user supplied this Programmable Search page explicitly. Google’s
+                    # widget robots policy blocks browser rendering even though the same page
+                    # is available interactively; source pages still use robots checks below.
+                    check_robots_txt=False, verbose=False,
+                )
+                result = await crawler.arun(url=search_url, config=config)
+                if not result.success:
+                    if page_number == 1:
+                        fail(f"Crawl4AI search failed: {result.error_message or result.status_code}")
+                    break
+                page_cards = parse_crawl4ai_image_results(result.html or "")
+                for card in page_cards:
+                    card["search_page"] = page_number
+                cards.extend(page_cards)
+                if not page_cards:
+                    break
+        return cards
+
+    return _crawl4ai_run(collect())
+
+
+def _crawl4ai_source_page(source_url: str) -> dict:
+    try:
+        from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
+    except ImportError:
+        fail("Crawl4AI is required for this command. Install the optional crawl4ai dependency and run crawl4ai-setup.")
+    try:
+        _, host, port = valid_url(source_url)
+        public_addresses(host, port)
+    except ResearchError:
+        raise
+
+    async def fetch():
+        config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS, page_timeout=CRAWL4AI_PAGE_TIMEOUT_MS,
+            wait_for="css:body", scan_full_page=True, scroll_delay=0.35, max_scroll_steps=24,
+            delay_before_return_html=0.5, check_robots_txt=True, verbose=False,
+        )
+        async with AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False)) as crawler:
+            result = await crawler.arun(url=source_url, config=config)
+            if not result.success:
+                fail(f"Crawl4AI source page failed: {result.error_message or result.status_code}")
+            media = (result.media or {}).get("images", []) if isinstance(result.media, dict) else []
+            return {"url": source_url, "html": result.html or "", "markdown": result.markdown or "",
+                    "media": media, "status_code": result.status_code}
+
+    return _crawl4ai_run(fetch())
+
+
+def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]:
+    source_url = page["url"]
+    parsed = PageParser(source_url)
+    parsed.feed(page.get("html", ""))
+    page_record = parsed.output()
+    page_title = page_record.get("title", "") or page.get("title", "")
+    page_excerpt = page_record.get("text_excerpt", "") or page.get("text", "")
+    identity_text = " ".join([page_title, page_excerpt[:2000]])
+    if not _crawl4ai_location_matches(identity_text, request["place"]):
+        return []
+    if _crawl4ai_scene_date(identity_text, request["temporal"]) is None:
+        return []
+    page_text = " ".join([identity_text, page.get("markdown", ""), card.get("text", "")])
+    if NON_PHOTO.search(page_text) and not re.search(r"照片|photo|photograph", page_text, re.I):
+        return []
+    if not _crawl4ai_location_matches(page_text, request["place"]):
+        return []
+    source_date = _crawl4ai_scene_date(page_text, request["temporal"])
+    if source_date is None:
+        return []
+    media = page.get("media") if isinstance(page.get("media"), list) else []
+    image_records = []
+    for item in media:
+        if not isinstance(item, dict):
+            continue
+        image_records.append({"url": item.get("src") or item.get("url"), "alt": item.get("alt", ""),
+                              "description": item.get("desc", ""), "width": item.get("width"), "height": item.get("height", "")})
+    for item in page_record.get("image_candidates", []):
+        for image_url in item.get("candidate_urls", []):
+            image_records.append({"url": image_url, "alt": item.get("alt", ""),
+                                  "description": item.get("figure_text", ""), "width": None, "height": None})
+    unique, seen = [], set()
+    for image in image_records:
+        observed_url = image.get("url")
+        if isinstance(observed_url, str) and observed_url.startswith("//"):
+            observed_url = urljoin(source_url, observed_url)
+        image_url = _crawl4ai_image_url(observed_url)
+        if not image_url or image_url in seen:
+            continue
+        seen.add(image_url)
+        image_text = " ".join([str(image.get("alt", "")), str(image.get("description", "")),
+                                card.get("title", ""), page_title])
+        image_alt = _text(image.get("alt"))
+        image_description = _text(image.get("description"))
+        if image_alt and not (
+                _crawl4ai_location_matches(image_alt, request["place"])
+                or _crawl4ai_scene_date(image_alt, request["temporal"])):
+            continue
+        if not image_alt and image_description and not (
+                _crawl4ai_location_matches(image_description, request["place"])
+                or _crawl4ai_scene_date(image_description, request["temporal"])):
+            # Related-video cards and recommendation thumbnails often appear in
+            # Crawl4AI's media inventory. Keep them out even when the article
+            # itself is a valid historical source.
+            continue
+        if NON_PHOTO.search(image_text):
+            continue
+        scene_date = _crawl4ai_scene_date(image_text, request["temporal"]) or source_date
+        if scene_date is None:
+            continue
+        title = _text(image.get("alt")) or _text(image.get("description")) or _text(card.get("title")) or page_title or "Historical photo reference"
+        unique.append({"image_url": image_url, "observed_image_url": observed_url,
+                       "title": title[:1000], "scene_date": scene_date,
+                       "source_excerpt": _text(image_text)[:1200]})
+    return unique
+
+
+def _crawl4ai_evidence_id(source_url: str, image_url: str, kind: str) -> str:
+    return "c4a-" + hashlib.sha256(f"{source_url}\n{image_url}\n{kind}".encode()).hexdigest()[:24]
+
+
+def crawl4ai_discover(run: Path, search_url: str | None = None, *, max_search_pages: int = CRAWL4AI_MAX_SEARCH_PAGES,
+                      source_limit: int = CRAWL4AI_MAX_SOURCE_PAGES) -> dict:
+    """Populate metadata-only memory-reference candidates through Crawl4AI."""
+    if not 1 <= max_search_pages <= CRAWL4AI_MAX_SEARCH_PAGES:
+        fail(f"max_search_pages must be 1..{CRAWL4AI_MAX_SEARCH_PAGES}")
+    if not 1 <= source_limit <= CRAWL4AI_MAX_SOURCE_PAGES:
+        fail(f"source_limit must be 1..{CRAWL4AI_MAX_SOURCE_PAGES}")
+    run = run.resolve()
+    request, existing, evidence = load_records(run)
+    target = request["count"]
+    search = _crawl4ai_search_url(search_url, request)
+    log_event(run, "search", "Crawl4AI Programmable Search image discovery", [search])
+    seen_search_pages = set()
+
+    def before_search_page(page_number, url):
+        if page_number not in seen_search_pages:
+            log_event(run, "page", f"Crawl4AI image-search page {page_number}", [url])
+            seen_search_pages.add(page_number)
+
+    cards = _crawl4ai_search_pages(search, max_search_pages, before_page=before_search_page)
+    if not seen_search_pages:
+        log_event(run, "page", "Crawl4AI image-search page 1", [search])
+    merged = list(existing)
+    existing_ids = {candidate.get("id") for candidate in merged}
+    seen_sources, qualifying = set(), 0
+    for card in cards:
+        source_url = card.get("source_url")
+        if not source_url or source_url in seen_sources or len(seen_sources) >= source_limit:
+            continue
+        try:
+            _, source_host, source_port = valid_url(source_url)
+            public_addresses(source_host, source_port)
+        except ResearchError as error:
+            log_event(run, "note", f"Skipped unsafe CSE source URL: {error}", [search])
+            continue
+        if not _crawl4ai_location_matches(card.get("text", ""), request["place"]):
+            continue
+        if _crawl4ai_scene_date(card.get("text", ""), request["temporal"]) is None:
+            continue
+        seen_sources.add(source_url)
+        log_event(run, "page", "Crawl4AI source-page inspection", [source_url])
+        try:
+            page = _crawl4ai_source_page(source_url)
+            images = _crawl4ai_source_images(page, card, request)
+        except (ResearchError, OSError, ValueError, http.client.HTTPException) as error:
+            log_event(run, "note", f"Crawl4AI source skipped: {type(error).__name__}: {error}", [source_url])
+            continue
+        for image in images:
+            if qualifying >= target or len(merged) >= 100:
+                break
+            image_url = image["image_url"]
+            candidate_id = "crawl4ai-" + hashlib.sha256(f"{source_url}\n{image_url}".encode()).hexdigest()[:24]
+            if candidate_id in existing_ids or any(c.get("image_url") == image_url for c in merged):
+                continue
+            evidence_ids = []
+            for kind, excerpt in (("place", image["source_excerpt"]), ("scene_date", image["source_excerpt"]),
+                                  ("access_terms", "Public source page fetched through the user-requested Crawl4AI reference search.")):
+                eid = _crawl4ai_evidence_id(source_url, image_url, kind)
+                if eid not in evidence:
+                    evidence[eid] = {"id": eid, "kind": kind, "url": source_url,
+                                     "locator": "Crawl4AI source-page metadata and rendered text",
+                                     "excerpt": excerpt[:4000], "observed_at": utcnow()}
+                evidence_ids.append(eid)
+            _, source_host, _ = valid_url(source_url)
+            try:
+                _, image_host, image_port = valid_url(image_url)
+                public_addresses(image_host, image_port)
+            except ResearchError as error:
+                log_event(run, "note", f"Skipped non-public C4A image URL: {error}", [source_url])
+                continue
+            candidate = {
+                "id": candidate_id, "title": image["title"], "source_page_url": source_url,
+                "image_url": image_url, "observed_image_url": image.get("observed_image_url") or image_url,
+                "creator": None, "collection_page_url": search,
+                "authenticity": "source_described_photograph", "memory_reference_only": True,
+                "place": {"label": request["place"], "match": "exact", "evidence_ids": [evidence_ids[0]]},
+                "scene_date": {**image["scene_date"], "evidence_ids": [evidence_ids[1]]},
+                "rights": {"license_id": "unknown", "license_url": None, "scope": "unknown",
+                           "download_permitted": None, "commercial_use_permitted": None,
+                           "attribution": None, "evidence_ids": []},
+                "acquisition": {"access_permitted": True, "allowed_hosts": sorted({source_host, image_host}),
+                                "evidence_ids": [evidence_ids[2]]},
+                "allowed_actions": {"embed": True, "memory_reference": True, "download": False, "print": False, "publish": False},
+                "notes": ["Crawl4AI discovery candidate for memory reference only; source rights remain unresolved."]
+            }
+            merged.append(candidate)
+            existing_ids.add(candidate_id)
+            qualifying += 1
+        if qualifying >= target:
+            break
+    write_json(run / "candidates.json", merged[:100])
+    write_text(run / "evidence.jsonl", "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in evidence.values()))
+    manifest = build_manifest(run)
+    summary = {"search_url": search, "search_cards": len(cards), "source_pages": len(seen_sources),
+               "qualifying": qualifying, "target": target, "shortfall": max(0, target - qualifying),
+               "reference_status": "complete" if qualifying >= target else "incomplete",
+               "manifest": manifest["summary"]}
+    return summary
+
 def image_info(data: bytes, content_type: str) -> dict:
     try:
         from PIL import Image
@@ -439,6 +890,7 @@ def load_records(run: Path) -> tuple[dict, list[dict], dict]:
         required_string(c, "title", 1000)
         valid_url(required_string(c, "source_page_url"))
         if c.get("image_url") is not None: valid_url(c["image_url"])
+        if c.get("observed_image_url") is not None: valid_url(c["observed_image_url"])
         for key in ("place", "scene_date", "rights", "acquisition"):
             if not isinstance(c.get(key), dict): fail(f"Missing candidate object: {key}")
             refs = c[key].get("evidence_ids", [])
@@ -530,6 +982,7 @@ def build_manifest(run: Path, *, download: bool = False) -> dict:
         verdict = evaluate(c, request, evidence)
         entry = {"id": c["id"], "title": c["title"], "source_page_url": c["source_page_url"],
                  "scene_date": c["scene_date"], "creator": c.get("creator"), "rights": c["rights"],
+                 "memory_reference_only": bool(c.get("memory_reference_only")),
                  "evaluation": verdict, "download_status": "not_downloaded", "local_path": None}
         old_entry = prior.get(c["id"], {})
         old_acq = old_entry.get("acquisition", {})
@@ -568,9 +1021,10 @@ def build_manifest(run: Path, *, download: bool = False) -> dict:
         results.append(entry)
     manifest = {"schema_version": "1.0", "skill_version": VERSION, "created_at": utcnow(), "request": request,
                 "results": results, "summary": {"candidates": len(results), "eligible": sum(x["evaluation"]["eligible_for_local_download"] for x in results),
+                "memory_references": sum(x["memory_reference_only"] for x in results),
                 "downloaded": sum(x["download_status"] == "downloaded" for x in results),
                 "unique_files": len({x["local_path"] for x in results if x["local_path"]})},
-                "notice": "Source-grounded assertions, not independent authentication. Local evidence flags are not a production permission boundary. No paid-app/export/print approval is granted."}
+                "notice": "Source-grounded assertions, not independent authentication. Crawl4AI candidates marked memory_reference_only are prompts for recollection and are not approved for memoir publication, paid-app export or print."}
     distinct, seen = 0, set()
     for candidate, result in zip(candidates, results):
         if not result["evaluation"]["eligible_for_local_download"]:
@@ -653,6 +1107,11 @@ def main(argv=None) -> int:
     inspect.add_argument("--url", required=True)
     inspect.add_argument("--allow-host", action="append", default=[])
     inspect.add_argument("--access-permitted", action="store_true", help="Explicit attestation that source/page access is permitted")
+    crawl = sub.add_parser("crawl4ai", help="Use Crawl4AI to discover memory-reference images from a user-supplied Google CSE")
+    crawl.add_argument("--run", required=True)
+    crawl.add_argument("--search-url", help="Google Programmable Search page URL; defaults to GOOGLE_CSE_URL or GOOGLE_CSE_ID")
+    crawl.add_argument("--max-search-pages", type=int, default=CRAWL4AI_MAX_SEARCH_PAGES)
+    crawl.add_argument("--source-limit", type=int, default=CRAWL4AI_MAX_SOURCE_PAGES)
     for name in ("audit", "download", "report"):
         p = sub.add_parser(name)
         p.add_argument("--run", required=True)
@@ -701,6 +1160,10 @@ def main(argv=None) -> int:
             rel = "pages/" + hashlib.sha256(args.url.encode()).hexdigest()[:16] + ".json"
             write_json(checked_path(run, rel), record)
             print(json.dumps({"saved": str(checked_path(run, rel)), "images": len(record["image_candidates"]), "title": record["title"]}, ensure_ascii=False))
+        elif args.command == "crawl4ai":
+            summary = crawl4ai_discover(Path(args.run).resolve(), args.search_url,
+                                         max_search_pages=args.max_search_pages, source_limit=args.source_limit)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
         else:
             manifest = build_manifest(Path(args.run).resolve(), download=args.command == "download")
             print(json.dumps(manifest["summary"], indent=2))

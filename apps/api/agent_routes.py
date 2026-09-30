@@ -99,6 +99,9 @@ def config():
         'auth_mode': 'supabase' if configured else ('test' if os.getenv('MEMORY_SPARK_TEST_MODE') == '1' else 'disabled'),
         'supabase_url': os.getenv('SUPABASE_URL'),
         'supabase_publishable_key': os.getenv('SUPABASE_PUBLISHABLE_KEY'),
+        # This is a browser-restricted key for Cesium's Google 2D Tiles only.
+        # The server-side geocoding key is intentionally never returned here.
+        'google_maps_browser_api_key': os.getenv('GOOGLE_MAPS_BROWSER_API_KEY'),
         'show_thinking_steps': show_thinking_steps,
     }
 

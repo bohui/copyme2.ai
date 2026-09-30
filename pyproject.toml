@@ -19,6 +19,9 @@ dependencies = [
 packages = ["apps", "apps.api"]
 
 [project.optional-dependencies]
+photo-browser = [
+  "crawl4ai>=0.8.0,<0.9",
+]
 test = [
   "pytest>=9.1.1,<10",
   "httpx>=0.28.1,<1",

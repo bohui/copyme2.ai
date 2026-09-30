@@ -1,10 +1,12 @@
 # Place Photo Research — a directly usable Codex skill
 
-Version 1.0.0 · 26 September 2026
+Version 1.0.0 · 30 September 2026
 
 **No period mentioned → present-day photos.** A specified historical period is preserved. The skill uses Codex's native web search for discovery, its available reading tools for source inspection, and the bundled Python helper for date normalization, evidence checks, permitted local downloads and reports.
 
 It does not require the memoir app, a custom tool host, database, MCP server or an additional Serper/SerpApi account for the native Codex workflow. The app's optional Google Programmable Search Engine image provider uses a server-side `GOOGLE_CSE_ID` and `GOOGLE_CSE_API_KEY`; neither belongs in browser configuration. The engine ID identifies the Programmable Search Engine, while the API key identifies the Google Cloud project that owns it, so the Programmable Search control panel has no project selector. An API-key restriction does not itself grant that project access to the Custom Search JSON API. The skill still requires your usual Codex access, Python 3.10+, and permitted network access. Pillow is needed for downloading/validating image files.
+
+When native search does not return enough historical leads, the optional Crawl4AI route can render a user-supplied Google Programmable Search page, paginate its visible image cards and crawl their public source pages. Install `requirements-crawl4ai.txt` only when using that route; it adds a headless browser runtime and is not required for the normal skill.
 
 ## Install into a project
 
@@ -20,6 +22,14 @@ python3 -m venv .venv-photo-research
 
 export PHOTO_RESEARCH_PYTHON="$PWD/.venv-photo-research/bin/python"
 codex --search --sandbox workspace-write --ask-for-approval on-request
+```
+
+For browser-rendered CSE discovery, install the optional dependency in the same environment and initialize its browser once:
+
+```bash
+.venv-photo-research/bin/python -m pip install \
+  -r .agents/skills/place-photo-research/requirements-crawl4ai.txt
+.venv-photo-research/bin/crawl4ai-setup
 ```
 
 `unzip -n` deliberately does not overwrite an existing installation. For upgrades, review/replace the old skill intentionally rather than merging blindly. Do not check the virtual environment or private research outputs into Git; add appropriate entries to your project's `.gitignore` yourself.
@@ -59,6 +69,8 @@ The HTML helper uses direct connections with no cookies, credentials or proxy in
 5. Runs the helper's conservative audit and downloads only eligible items.
 6. Builds `manifest.json`, `report.md` and a local-only `gallery.html`.
 
+The optional `crawl4ai` helper is invoked with `photo_research.py crawl4ai --run RUN_DIR`. It uses `GOOGLE_CSE_URL` or `GOOGLE_CSE_ID` (or an explicit `--search-url`), adds the requested place and decade to the CSE query, paginates up to ten image-result pages, then reads each linked source page with robots checks. The CSE thumbnails are discovery metadata only; source-page media URLs are filtered by location, scene-date assertions and obvious non-photo/recommendation labels. The resulting candidates are marked `memory_reference_only`, keep rights as unknown, and cannot be downloaded, printed or published by this skill. A target of ten means ten distinct references for that location and decade; a shortfall is reported rather than padded.
+
 A title saying 1983 does not date every item in an album. Recent uploads do not prove recent scenes. Unlicensed matches remain in the report without automatic image downloads or remote hotlinks. The skill does not generate photographs or claim that external references are the user's family pictures.
 
 ## Package layout
@@ -68,6 +80,7 @@ place-photo-research/
   SKILL.md
   README.md
   requirements.txt
+  requirements-crawl4ai.txt
   agents/openai.yaml
   scripts/photo_research.py
   references/record-format.md
@@ -101,6 +114,10 @@ RUN_DIR="$PWD/photo-research/chengde-current-01"
 "$PY" "$SKILL_DIR/scripts/photo_research.py" audit --run "$RUN_DIR"
 "$PY" "$SKILL_DIR/scripts/photo_research.py" download --run "$RUN_DIR"
 "$PY" "$SKILL_DIR/scripts/photo_research.py" report --run "$RUN_DIR"
+
+# Optional browser-rendered Google CSE discovery (GOOGLE_CSE_URL or GOOGLE_CSE_ID):
+"$PY" "$SKILL_DIR/scripts/photo_research.py" crawl4ai \
+  --run "$RUN_DIR" --max-search-pages 10 --source-limit 24
 ```
 
 `--help` describes each command. `inspect` is a permitted-HTML fallback and requires an explicit `--access-permitted` attestation. It does not certify copyright permission.
@@ -126,7 +143,7 @@ Open `gallery.html` locally or read `report.md`. The manifest distinguishes disc
 
 ## What has and has not been tested
 
-The package includes offline unit/integration tests for temporal rules, evidence references, date/place/rights gates, public-network URL/DNS checks, robots decisions, format/decode checks, budget logging, local reports, hash deduplication and resume behaviour. Network responses in integration tests are mocked; synthetic image bytes are generated in memory.
+The package includes offline unit/integration tests for temporal rules, evidence references, date/place/rights gates, public-network URL/DNS checks, robots decisions, format/decode checks, budget logging, local reports, hash deduplication and resume behaviour, plus CSE-card parsing, Crawl4AI pagination/source filtering and HTTP-CDN normalization. Network responses in integration tests are mocked; synthetic image bytes are generated in memory.
 
 Run them:
 
@@ -135,7 +152,9 @@ Run them:
   -s .agents/skills/place-photo-research/tests -v
 ```
 
-**Not verified:** live installation or activation in your Codex account; native search relevance; live Google CSE credentials or quota; end-to-end real archive downloads; every website's access terms; independent authenticity of photo metadata; legal title/licensing; China/Australia production deployment. See `VALIDATION.json` for the precise local test result.
+The current local validation also ran a real Crawl4AI smoke for `Chengde, Hebei, China` with input year `1980`: two CSE image pages returned 40 cards, two source pages yielded ten 1980–1989 memory-reference candidates, and no image bytes were downloaded. This verifies the configured CSE route, not the legal status or future availability of those sources.
+
+**Not verified:** live installation or activation in your Codex account; native search relevance; Google CSE quota outside the configured smoke; end-to-end real archive downloads; every website's access terms; independent authenticity of photo metadata; legal title/licensing; China/Australia production deployment. See `VALIDATION.json` for the precise local test result.
 
 The helper enforces consistency of supplied evidence, not the truth of that evidence. Its records are editable by the same local agent/user, so it is not a hardened permission boundary. Its query budget applies to correctly logged actions, not unlogged native tool calls. Keep Codex sandbox/approvals enabled and review external source claims.
 

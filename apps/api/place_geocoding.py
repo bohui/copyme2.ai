@@ -1,42 +1,55 @@
-"""Resolve public place centres; parent targets never overwrite the named place."""
+"""Resolve public place centres with Google Geocoding; parents never overwrite the named place."""
 from __future__ import annotations
 
 from functools import lru_cache
 import math
 import os
 from threading import Lock
-import time
 
 import httpx
 
 _lock = Lock()
-_last_request = 0.0
+GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+
+
+class GoogleMapsUnavailable(RuntimeError):
+    """The Google provider is unavailable or not configured."""
 
 
 @lru_cache(maxsize=1024)
 def search_place(query: str):
-    global _last_request
-    # Serialize and cache this low-volume provider boundary. Multi-worker deployments
-    # should configure a shared geocoding proxy with application-wide rate limiting.
+    api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
+    if not api_key:
+        raise GoogleMapsUnavailable("Google Maps geocoding API key is not configured")
+
+    # Serialize and cache this low-volume provider boundary. The key stays server-side;
+    # the browser receives only its separately restricted Map Tiles key.
     with _lock:
-        time.sleep(max(0, 1.1 - (time.monotonic() - _last_request)))
-        _last_request = time.monotonic()
         response = httpx.get(
-            os.environ.get("MEMOIR_GEOCODING_URL", "https://nominatim.openstreetmap.org/search"),
-            params={"q": query, "format": "jsonv2", "limit": 1, "layer": "address"},
-            headers={"User-Agent": "CopyMe2-Memoir/1.0 (place journey maps)"}, timeout=5,
+            os.environ.get("GOOGLE_MAPS_GEOCODING_URL", GOOGLE_GEOCODING_URL),
+            params={"address": query, "key": api_key},
+            headers={"Accept": "application/json"}, timeout=5,
         )
         response.raise_for_status()
-        results = response.json()
-    if not isinstance(results, list) or not results:
+        body = response.json()
+    if not isinstance(body, dict):
+        raise ValueError("Google Geocoding returned an invalid response")
+    provider_status = body.get("status")
+    if provider_status == "ZERO_RESULTS":
+        return None
+    if provider_status != "OK":
+        raise GoogleMapsUnavailable(f"Google Geocoding returned {provider_status or 'no status'}")
+    results = body.get("results")
+    if not isinstance(results, list) or not results or not isinstance(results[0], dict):
         return None
     try:
-        latitude, longitude = float(results[0]["lat"]), float(results[0]["lon"])
+        location = results[0]["geometry"]["location"]
+        latitude, longitude = float(location["lat"]), float(location["lng"])
         if not (math.isfinite(latitude) and math.isfinite(longitude) and -90 <= latitude <= 90 and -180 <= longitude <= 180):
             return None
     except (KeyError, TypeError, ValueError):
         return None
-    return {"latitude": latitude, "longitude": longitude, "attribution": "© OpenStreetMap contributors"}
+    return {"latitude": latitude, "longitude": longitude, "attribution": "Google Maps"}
 
 
 def resolve_place_map(journey: dict, saved_places: list) -> dict:
@@ -59,7 +72,7 @@ def resolve_place_map(journey: dict, saved_places: list) -> dict:
             continue
         try:
             coordinates = search_place(", ".join(reversed(target_path)))
-        except (httpx.HTTPError, ValueError, TypeError):
+        except (GoogleMapsUnavailable, httpx.HTTPError, ValueError, TypeError):
             unavailable = True
             continue
         if coordinates:

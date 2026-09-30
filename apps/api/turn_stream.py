@@ -6,7 +6,7 @@ import anyio
 
 class VisibleText:
     """Hold split marker prefixes and suppress the appended machine-only suffix."""
-    prefix = '[[MEMORY_SPARK_'
+    prefixes = ('[[MEMORY_SPARK_', '<!-- profile:')
 
     def __init__(self):
         self.pending = ''
@@ -16,16 +16,20 @@ class VisibleText:
         if self.hidden:
             return ''
         self.pending += text
-        index = self.pending.find(self.prefix)
-        if index >= 0:
+        lowered = self.pending.casefold()
+        matches = [lowered.find(prefix.casefold()) for prefix in self.prefixes]
+        matches = [index for index in matches if index >= 0]
+        if matches:
+            index = min(matches)
             visible = self.pending[:index]
             self.pending = ''
             self.hidden = True
             return visible
         keep = 0
-        for size in range(1, len(self.prefix)):
-            if self.pending.endswith(self.prefix[:size]):
-                keep = size
+        for prefix in self.prefixes:
+            for size in range(1, len(prefix)):
+                if lowered.endswith(prefix.casefold()[:size]):
+                    keep = max(keep, size)
         # Drop incomplete machine marker prefixes at EOF too.
         visible = self.pending[:-keep] if keep else self.pending
         self.pending = '' if final else (self.pending[-keep:] if keep else '')

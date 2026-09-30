@@ -11,7 +11,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from uuid import uuid4
+from uuid import uuid4, uuid5, NAMESPACE_URL
 
 from .memoir_tasks import MemoirTask
 
@@ -59,6 +59,10 @@ class TaskQueue:
                 );
                 CREATE INDEX IF NOT EXISTS workspace_jobs_ready
                     ON workspace_jobs(status, available_at);
+                CREATE TABLE IF NOT EXISTS guest_workspace_imports (
+                    transfer_id TEXT PRIMARY KEY, source_user_id TEXT NOT NULL,
+                    target_user_id TEXT NOT NULL
+                );
             ''')
 
     @contextmanager
@@ -185,6 +189,52 @@ class TaskQueue:
             'created_at': row['created_at'],
             'error': row['error'],
         }
+
+    def has_pending_user_work(self, user_id):
+        with self._connect() as db:
+            return any(db.execute(f"SELECT 1 FROM {table} WHERE user_id=? "
+                                  "AND status IN ('QUEUED', 'RUNNING') LIMIT 1", (user_id,)).fetchone()
+                       for table in ('tasks', 'workspace_jobs'))
+
+    def import_guest_results(self, guest_id, owner_id, transfer_id, memory_id_map):
+        """Copy completed deliveries and coverage; keep the guest recoverable.
+
+        Task IDs remain stable across retries. Memory citations are translated
+        to the corresponding imported Supabase rows, never discarded.
+        """
+        from .workspace_merge import remap_memory_ids, merge_collection_periods
+        with self._transaction() as db:
+            imported = db.execute('SELECT * FROM guest_workspace_imports WHERE transfer_id=?', (transfer_id,)).fetchone()
+            if imported:
+                if (imported['source_user_id'], imported['target_user_id']) != (guest_id, owner_id):
+                    raise ValueError('Transfer owner changed')
+                return
+            for table in ('tasks', 'workspace_jobs'):
+                if db.execute(f"SELECT 1 FROM {table} WHERE user_id=? AND status IN ('QUEUED', 'RUNNING') LIMIT 1",
+                              (guest_id,)).fetchone():
+                    raise ValueError('Guest deliveries are still being generated')
+            for row in db.execute('SELECT * FROM tasks WHERE user_id=?', (guest_id,)).fetchall():
+                payload = remap_memory_ids(json.loads(row['payload']), memory_id_map)
+                result = remap_memory_ids(json.loads(row['result']), memory_id_map) if row['result'] else None
+                task_id = str(uuid5(NAMESPACE_URL, f'memoir-guest-task:{owner_id}:{row["id"]}'))
+                db.execute('''INSERT OR IGNORE INTO tasks
+                    (id, user_id, project_id, dedup_key, payload, status, attempts, available_at,
+                     result, error, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (task_id, owner_id, row['project_id'], f'guest:{guest_id}:{row["dedup_key"]}',
+                     json.dumps(payload), row['status'], row['attempts'], row['available_at'],
+                     json.dumps(result) if result is not None else None, row['error'], row['created_at'], row['updated_at']))
+            for row in db.execute('SELECT * FROM collection WHERE user_id=?', (guest_id,)).fetchall():
+                source = remap_memory_ids(json.loads(row['document']), memory_id_map)
+                existing = db.execute('SELECT document FROM collection WHERE user_id=? AND project_id=?',
+                                      (owner_id, row['project_id'])).fetchone()
+                target = json.loads(existing['document']) if existing else {'revision': 0, 'periods': {}}
+                document = {'revision': target['revision'] + 1, 'ready': False,
+                            'periods': merge_collection_periods(target.get('periods', {}), source.get('periods', {}))}
+                db.execute('''INSERT INTO collection VALUES (?, ?, ?) ON CONFLICT(user_id, project_id)
+                              DO UPDATE SET document=excluded.document''',
+                           (owner_id, row['project_id'], json.dumps(document)))
+            db.execute('INSERT INTO guest_workspace_imports VALUES (?, ?, ?)', (transfer_id, guest_id, owner_id))
 
     def submit_workspace(self, user_id, project_id, turn_id, payload):
         encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)

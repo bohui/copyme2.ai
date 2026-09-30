@@ -53,3 +53,18 @@ def test_language_updates_are_validated_and_preserve_other_profile_fields():
     }
     for value in ('invalid', '', None, {}, []):
         assert validate_profile_updates({'preferred_language': value}) is None
+
+
+def test_extracts_and_removes_legacy_html_profile_context():
+    visible, updates = extract_profile_updates(
+        '慧博，你好。\n'
+        '<!-- profile: {"who":"慧博","when":"1983年4月",'
+        '"where":"河南省开封市中心医院（出生地）；现居悉尼","what":""} -->'
+    )
+
+    assert visible == '慧博，你好。'
+    assert updates == {
+        'name': '慧博',
+        'birth_date_expression': '1983年4月',
+        'birth_place': '河南省开封市中心医院（出生地）；现居悉尼',
+    }

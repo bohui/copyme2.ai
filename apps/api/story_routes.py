@@ -17,6 +17,7 @@ from .agent_routes_support import authenticated_storage
 from .family_context import family_features_enabled
 from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService
 from .store import MemoryStore, new_id, sha256_json
+from .recall import storage_recall_status
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -170,6 +171,7 @@ def _next_action(storage: Any, state: dict[str, Any]) -> str:
 
 def _state_response(storage: Any, state: dict[str, Any]) -> dict[str, Any]:
     return {
+        "recall_status": storage_recall_status(storage, {"status": state["payment_status"]}),
         "user_id": storage.user_id,
         "is_anonymous": bool(getattr(storage, "is_anonymous", False)),
         **state,
@@ -406,7 +408,8 @@ def build_router(
             state = _state(profile, _entitlement(payment_store, storage))
             if getattr(storage, "is_anonymous", False):
                 raise HTTPException(403, "Link Google or Facebook before purchasing the full memoir.", headers={"X-Error-Code": "AUTH_REQUIRED"})
-            if not state["free_chapter_claimed"]:
+            recall_access = storage_recall_status(storage, {"status": state["payment_status"]})
+            if not state["free_chapter_claimed"] and not (recall_access and recall_access["payment_required"]):
                 raise HTTPException(409, "Claim the free chapter before purchasing the full memoir.", headers={"X-Error-Code": "FREE_CHAPTER_REQUIRED"})
             if state["payment_status"] == "paid":
                 raise HTTPException(409, "This memoir already has a paid package.", headers={"X-Error-Code": "ALREADY_PAID"})

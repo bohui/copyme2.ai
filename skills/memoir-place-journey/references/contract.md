@@ -68,7 +68,9 @@ from later turn responses. A saved user-level journey must not create a Places
 surface in a fresh conversation. Before the full workspace is unlocked, it
 shows a compact CesiumJS globe under the conversation. After unlock, the Places
 tab shows the same CesiumJS event with the hierarchy, approximate-place notice,
-and optional OpenStreetMap link. Replacing a journey is safe; deleting a
+and a Google Maps link. When configured, the Cesium surface uses Google 2D
+satellite imagery and displays the provider credit; without a browser key it
+keeps the globe and hierarchy fallback. Replacing a journey is safe; deleting a
 journey is not a deletion of the user's memory.
 
 ## Example conversations
@@ -112,7 +114,9 @@ hierarchy from detailed place toward country. An unavailable provider still allo
 saved parent coordinates. Parent coordinates belong only to `target`, never to
 the child's persisted coordinates. No match leaves the hierarchy visible.
 
-The default geocoder is Nominatim, with cached queries and serialized requests.
-Set `MEMOIR_GEOCODING_URL` to another compatible endpoint or a shared proxy for
-multi-worker deployments requiring application-wide rate limiting. Only geographic
-labels are sent, never memoir text. The UI retains OpenStreetMap attribution.
+The default geocoder is Google Geocoding, with cached queries and serialized
+requests. Set the server-only `GOOGLE_MAPS_GEOCODING_API_KEY` and, when a
+compatible Google proxy is needed, override `GOOGLE_MAPS_GEOCODING_URL`. Set
+the separately restricted `GOOGLE_MAPS_BROWSER_API_KEY` for Cesium's Google 2D
+Tiles. Only geographic labels are sent, never memoir text. Google attribution
+is supplied by the Cesium provider and the external map link.

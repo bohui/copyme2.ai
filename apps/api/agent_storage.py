@@ -123,6 +123,14 @@ class UserStorage:
         }).json()
         return rows[0] if rows else None
 
+    def recall_rounds_completed(self):
+        rows = self.request('GET', '/rest/v1/user_recall_usage', params={
+            'select': 'rounds_completed',
+            'user_id': f'eq.{self.user_id}',
+            'limit': '1',
+        }).json()
+        return int(rows[0]['rounds_completed']) if rows else 0
+
     def family_context(self, project_id):
         """Read the renderable Family document under the user's RLS scope."""
         rows = self.request('GET', '/rest/v1/user_family_context', params={

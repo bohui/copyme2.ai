@@ -25,6 +25,21 @@ def interview():
         page.route("**/api/v1/memoir/story/state", lambda route: route.fulfill(
             content_type="application/json", body='{"family_features_enabled":false}'))
         page.route("**/place-photos?**", lambda route: route.fulfill(content_type="application/json", body='{"items":[]}'))
+        def google_place_map(route):
+            payload = route.request.post_data_json or {}
+            place = payload.get("place")
+            coordinates = {
+                "Chengde": (40.9515, 117.9634),
+                "Sydney": (-33.8688, 151.2093),
+            }.get(place)
+            if not coordinates:
+                return route.fulfill(content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None}))
+            return route.fulfill(content_type="application/json", body=json.dumps({
+                "status": "READY",
+                "target": {"place": place, "latitude": coordinates[0], "longitude": coordinates[1], "attribution": "Google Maps"},
+                "fallback": False,
+            }))
+        page.route("**/place-map", google_place_map)
         journey = {"schema_version": 1, "status": "active", "revision": 1,
                    "place": "Chengde", "hierarchy": ["Earth", "China", "Hebei", "Chengde"],
                    "granularity": "city", "latitude": 40.9515, "longitude": 117.9634,
@@ -40,6 +55,8 @@ def interview():
         page.get_by_role("button", name="Begin my story").click()
         expect(page.locator(".assistant-message .listen-button").first).to_be_visible(timeout=30000)
         expect(page.locator(".message-streaming")).to_have_count(0, timeout=30000)
+        expect(page.get_by_text("Before chapter one", exact=True)).to_have_count(0)
+        expect(page.get_by_role("button", name="Hide history", exact=True)).to_have_count(0)
         page.get_by_role("textbox", name="Your message").fill("I grew up in Chengde. " + "I remember the streets and my friends. " * 25)
         page.get_by_role("button", name="Send message").click()
         expect(page.get_by_role("button", name="Collapse workspace")).to_be_visible(timeout=20000)

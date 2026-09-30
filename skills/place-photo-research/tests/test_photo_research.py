@@ -9,8 +9,10 @@ from pathlib import Path
 import socket
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "photo_research.py"
 spec = importlib.util.spec_from_file_location("photo_research", SCRIPT)
@@ -183,6 +185,25 @@ class WorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t,contextlib.redirect_stdout(io.StringIO()):
             code=p.main(["init","--place","Chengde","--out",t,"--as-of","2026-09-26"])
             self.assertEqual(code,0); self.assertEqual(p.read_json(Path(t)/"request.json")["temporal"]["mode"],"current")
+
+    def test_crawl4ai_cli_dispatch(self):
+        summary = {"qualifying": 10, "target": 10, "shortfall": 0}
+        with patch.object(p, "crawl4ai_discover", return_value=summary) as discover, \
+             contextlib.redirect_stdout(io.StringIO()):
+            code = p.main(["crawl4ai", "--run", str(self.run),
+                           "--search-url", "https://cse.google.com/cse?cx=test",
+                           "--max-search-pages", "2", "--source-limit", "3"])
+        self.assertEqual(code, 0)
+        discover.assert_called_once_with(self.run.resolve(), "https://cse.google.com/cse?cx=test",
+                                         max_search_pages=2, source_limit=3)
+
+    def test_crawl4ai_search_url_adds_decade_and_removes_paging_query(self):
+        request = {"place": "Chengde, Hebei, China / 河北承德",
+                   "temporal": p.normalize_period("1980", ASOF)}
+        url = p._crawl4ai_search_url("https://cse.google.com/cse?cx=test&start=11", request)
+        params = parse_qs(urlsplit(url).query)
+        self.assertEqual(params["q"], ["承德 1980年代 老照片"])
+        self.assertNotIn("start", params)
     def test_init_photo_count(self):
         for count_args, expected in (([], 10), (["--count", "15"], 15), (["--count", "3"], 3)):
             with self.subTest(count_args=count_args), tempfile.TemporaryDirectory() as t, contextlib.redirect_stdout(io.StringIO()):
@@ -242,5 +263,112 @@ class WorkflowTests(unittest.TestCase):
         parser.feed('<figure><img src="/1.jpg"><figcaption>Chengde 1983</figcaption></figure><script>ignore()</script>')
         out=parser.output();self.assertEqual(out["image_candidates"][0]["figure_text"],"Chengde 1983")
         self.assertNotIn("ignore()",out["text_excerpt"])
+
+    def test_crawl4ai_image_parser_keeps_source_links_and_thumbnails(self):
+        html = '''
+        <div class="gsc-results gsc-imageResult"><div class="gsc-expansionArea">
+          <div class="gsc-result gsc-imageResult">
+            <img class="gs-image gs-image-scalable" src="https://encrypted-tbn0.gstatic.com/thumb.jpg"
+                 alt="Chengde 1983 street" width="640" height="480">
+            <a class="gs-previewLink" href="https://archive.example/item/1">item</a>
+            <div class="gs-previewTitle">Chengde 1983 street</div>
+            <div class="gs-previewDescription">Chengde 1980s photograph</div>
+          </div>
+        </div></div>'''
+        results = p.parse_crawl4ai_image_results(html)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["source_url"], "https://archive.example/item/1")
+        self.assertEqual(results[0]["preview_url"], "https://encrypted-tbn0.gstatic.com/thumb.jpg")
+        self.assertIn("1980s", results[0]["text"])
+
+    def test_crawl4ai_search_wrapper_collects_paginated_cards(self):
+        def card(page_number):
+            return f'''<div class="gsc-imageResult gsc-result">
+              <img class="gs-image" src="https://encrypted-tbn0.gstatic.com/{page_number}.jpg" alt="Chengde 198{page_number} street">
+              <a class="gs-previewLink" href="https://archive.example/item/{page_number}">item</a>
+              <div class="gs-previewTitle">Chengde 198{page_number} street</div>
+              <div class="gs-previewDescription">Chengde 1980s photograph</div>
+            </div>'''
+
+        calls, pages_seen = [], []
+        html_pages = [card(1), card(2)]
+
+        class FakeCrawler:
+            def __init__(self, config): self.config = config
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return None
+            async def arun(self, url, config):
+                calls.append((url, config))
+                return types.SimpleNamespace(success=True, error_message="", status_code=200,
+                                            html=html_pages[len(calls) - 1])
+
+        fake_module = types.SimpleNamespace(
+            AsyncWebCrawler=FakeCrawler,
+            BrowserConfig=lambda **kwargs: kwargs,
+            CacheMode=types.SimpleNamespace(BYPASS="bypass"),
+            CrawlerRunConfig=lambda **kwargs: types.SimpleNamespace(**kwargs),
+        )
+        with patch.dict(sys.modules, {"crawl4ai": fake_module}):
+            cards = p._crawl4ai_search_pages("https://cse.google.com/cse?cx=test", 2,
+                                              before_page=lambda number, url: pages_seen.append(number))
+        self.assertEqual(pages_seen, [1, 2])
+        self.assertEqual([card["search_page"] for card in cards], [1, 2])
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(calls[0][1].js_only)
+        self.assertTrue(calls[1][1].js_only)
+
+    def test_crawl4ai_discovery_paginates_source_pages_and_filters_metadata(self):
+        self.req.update({"temporal": p.normalize_period("1980s", ASOF), "count": 10})
+        p.write_json(self.run / "request.json", self.req)
+        p.write_json(self.run / "candidates.json", [])
+        p.write_text(self.run / "evidence.jsonl", "")
+        cards = [{"source_url": f"https://archive.example/item/{i}",
+                  "title": "Chengde 1980s street photo", "text": "Chengde 1980s photograph"}
+                 for i in range(1, 13)]
+        source_pages = {
+            card["source_url"]: {
+                "url": card["source_url"],
+                "title": card["title"],
+                "text": "Chengde 1983 street photograph",
+                "media": [{"src": f"https://images.example/{i}.jpg", "alt": "Chengde street 1983",
+                           "desc": "Chengde 1983 street photograph", "width": 1200, "height": 800}],
+            }
+            for i, card in enumerate(cards, 1)
+        }
+        with patch.object(p, "_crawl4ai_search_pages", return_value=cards), \
+             patch.object(p, "_crawl4ai_source_page", side_effect=lambda url: source_pages[url]), \
+             patch.object(p, "public_addresses", return_value=["93.184.216.34"]):
+            summary = p.crawl4ai_discover(self.run, "https://cse.google.com/cse?cx=test", max_search_pages=2,
+                                           source_limit=12)
+        self.assertEqual(summary["qualifying"], 10)
+        self.assertEqual(summary["manifest"]["memory_references"], 10)
+        candidates = p.read_json(self.run / "candidates.json")
+        self.assertEqual(len(candidates), 10)
+        self.assertTrue(all(candidate["memory_reference_only"] for candidate in candidates))
+        self.assertTrue(all(candidate["rights"]["license_id"] == "unknown" for candidate in candidates))
+        events = p.read_jsonl(self.run / "search_log.jsonl")
+        self.assertEqual(sum(event["kind"] == "search" for event in events), 1)
+        self.assertEqual(sum(event["kind"] == "page" for event in events), 11)
+
+    def test_crawl4ai_source_filter_drops_related_media(self):
+        request = {"place": "Chengde, Hebei", "temporal": p.normalize_period("1980s", ASOF)}
+        page = {"url": "https://archive.example/item/1", "title": "Chengde 1980s photographs",
+                "text": "Chengde 1980s photographs", "markdown": "",
+                "media": [{"src": "https://images.example/historical.jpg", "alt": "Chengde 1983 street photo",
+                           "desc": "Chengde 1983 street photo"},
+                          {"src": "https://images.example/related.jpg", "alt": "Football highlights",
+                           "desc": "Latest football match highlights"},
+                          {"src": "https://images.example/banknote.jpg", "alt": "Chengde 1983 banknote photo",
+                           "desc": "Currency scan"}]}
+        card = {"title": "Chengde 1980s photographs", "text": "Chengde 1980s photographs"}
+        images = p._crawl4ai_source_images(page, card, request)
+        self.assertEqual([item["image_url"] for item in images], ["https://images.example/historical.jpg"])
+
+    def test_crawl4ai_image_url_upgrades_observed_http_cdn(self):
+        observed = "http://k.sinaimg.cn/n/sinacn/w550h329/20180116/photo.png/w700d1q75cms.jpg"
+        self.assertEqual(
+            p._crawl4ai_image_url(observed),
+            observed.replace("http://", "https://", 1),
+        )
 
 if __name__ == '__main__': unittest.main()

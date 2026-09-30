@@ -3,12 +3,16 @@ import hashlib
 import html
 import os
 import re
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import unquote, urlparse
+from itertools import zip_longest
+from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
+from zoneinfo import ZoneInfo
 
 import httpx
 
 MAX_RESULTS = 10
+DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
@@ -38,7 +42,7 @@ def _period_bounds(period: str, *, expand_bare_year: bool = True) -> tuple[int, 
         return None
     if re.search(r'(?:18|19|20)\d0\s*(?:s|年代)', period, re.I):
         return years[0], years[0] + 9
-    if expand_bare_year and re.fullmatch(r'\s*(?:18|19|20)\d{2}\s*年?\s*', period):
+    if expand_bare_year and re.fullmatch(r'\s*(?:18|19|20)\d{2}\s*', period):
         # A bare year from the memoir is the start of a ten-year visual
         # window. This keeps "1980" useful for a decade search while an
         # explicit range remains authoritative.
@@ -47,12 +51,30 @@ def _period_bounds(period: str, *, expand_bare_year: bool = True) -> tuple[int, 
 
 
 def _date_matches(date: str, period: str) -> bool:
-    if not period.strip():
-        return True
     bounds = _period_bounds(period)
     years = _years(date)
     # Unresolved periods/dates must not silently turn into unrestricted results.
-    if not bounds or not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I):
+    if not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I):
+        return False
+    if not period.strip():
+        from .place_photo_browser import _research
+        current = _research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
+        exact = re.fullmatch(r'(\d{4}-\d{2}-\d{2})(?:[T ].*)?', date.strip())
+        if not exact:
+            try:
+                captured = datetime.strptime(date.replace(',', '').strip(), '%B %d %Y').date().isoformat()
+                exact = re.fullmatch(r'(\d{4}-\d{2}-\d{2})', captured)
+            except ValueError:
+                pass
+        start = exact[1] if exact else f'{min(years):04d}-01-01'
+        end = exact[1] if exact else f'{max(years):04d}-12-31'
+        try:
+            datetime.fromisoformat(start)
+            datetime.fromisoformat(end)
+        except ValueError:
+            return False
+        return current['start'] <= start <= end <= current['end']
+    if not bounds:
         return False
     # A source caption containing only "1985" is an observed year, not a
     # request to expand another ten-year window.
@@ -61,12 +83,39 @@ def _date_matches(date: str, period: str) -> bool:
 
 
 def _search_queries(place: str, period: str) -> list[str]:
-    clean = ' '.join(place.replace('"', ' ').split())
     bounds = _period_bounds(period)
-    if bounds:
-        years = ' OR '.join(str(year) for year in range(bounds[0], min(bounds[1], bounds[0] + 99) + 1))
-        return [f'"{clean}" filetype:bitmap ({years})', f'"{clean}" filetype:bitmap']
-    return [f'"{clean}" filetype:bitmap', clean]
+    queries = []
+    for term in _place_terms(place):
+        clean = ' '.join(term.replace('"', ' ').split())
+        if bounds:
+            years = ' OR '.join(str(year) for year in range(bounds[0], min(bounds[1], bounds[0] + 99) + 1))
+            queries.extend([f'"{clean}" filetype:bitmap ({years})', f'"{clean}" filetype:bitmap'])
+        else:
+            queries.extend([f'"{clean}" filetype:bitmap', clean])
+    return queries
+
+
+def _localized_photo_query(place: str, period: str) -> str:
+    bounds = _period_bounds(period)
+    chinese = bool(re.search(r'[\u3400-\u9fff]', place))
+    if not bounds:
+        return f'{place} 街景' if chinese else f'{place} street photos'
+    start, end = bounds
+    if start % 10 == 0 and end == start + 9:
+        label = f'{start % 100:02d}年代' if chinese else f'{start}s photos'
+    elif start == end:
+        label = f'{start}年' if chinese else f'{start} photos'
+    else:
+        label = f'{start}–{end}年' if chinese else f'{start}–{end} photos'
+    return f'{place} {label}'
+
+
+def _decade_fallback(period: str) -> str | None:
+    bounds = _period_bounds(period)
+    if not bounds or bounds[0] // 10 != bounds[1] // 10:
+        return None
+    start = bounds[0] // 10 * 10
+    return f'{start}s' if bounds != (start, start + 9) else None
 
 
 def _get(url: str, params: dict) -> dict:
@@ -101,7 +150,7 @@ def _commons(place: str, period: str) -> list[dict]:
             title = page.get('title', '').removeprefix('File:')
             caption = ' '.join((title, value('ImageDescription'), value('Categories')))
             date = value('DateTimeOriginal')
-            if NON_PHOTO.search(caption) or not _date_matches(date, period):
+            if NON_PHOTO.search(caption) or not _location_matches(caption, place) or not _date_matches(date, period):
                 continue
             license_name = value('LicenseShortName')
             if license_name not in {'CC0', 'CC0 1.0', 'Public domain', 'CC BY 4.0', 'CC BY-SA 4.0'}:
@@ -114,7 +163,7 @@ def _commons(place: str, period: str) -> list[dict]:
             items.append({
                 'asset_id': f"commons-{page.get('pageid')}", 'kind': 'image',
                 'title': title, 'image_url': image, 'source_url': source, 'location': place,
-                'attribution': value('Artist'), 'license': license_name,
+                'location_evidence': caption, 'attribution': value('Artist'), 'license': license_name,
                 'license_url': value('LicenseUrl'), 'date_expression': date,
                 'original_url': info.get('url', image), 'content_hash': info.get('sha1', ''),
                 'allowed_actions': {'embed': True, 'download': False, 'print': False},
@@ -164,6 +213,10 @@ def _loc(place: str, period: str) -> list[dict]:
         # Search summaries may omit medium and rights. Do not invent either or
         # treat unrestricted online access as copyright permission.
         item = record.get('item') or {}
+        caption = ' '.join((title, _text(record.get('description')), _text(record.get('subject')),
+                            _text(item.get('title')), _text(item.get('location')), _text(item.get('subject'))))
+        if not _location_matches(caption, place):
+            continue
         medium = _text(item.get('medium', []))
         rights = _text(item.get('rights', []))
         if not re.search(r'photograph|negative|transparenc', medium, re.I):
@@ -178,7 +231,7 @@ def _loc(place: str, period: str) -> list[dict]:
         items.append({
             'asset_id': 'loc-' + source.rstrip('/').rsplit('/', 1)[-1], 'kind': 'image',
             'title': title, 'image_url': images[-1], 'source_url': source, 'location': place,
-            'attribution': _text(record.get('contributor')) or 'Library of Congress',
+            'location_evidence': caption, 'attribution': _text(record.get('contributor')) or 'Library of Congress',
             'license': rights, 'license_url': source, 'date_expression': date,
             'allowed_actions': {'embed': True, 'download': False, 'print': False},
         })
@@ -234,15 +287,11 @@ def _google_date_values(item: dict) -> list[tuple[str, str]]:
         ('title', _text(item.get('title'))),
         ('snippet', _text(item.get('snippet'))),
     ])
-    return [(basis, value) for basis, value in values if value]
+    return [(basis, value) for basis, value in values
+            if value and not re.search(r'publish|modified|upload|scan', basis, re.I)]
 
 
 def _google_date(item: dict, period: str) -> tuple[str, str] | None:
-    if not period.strip():
-        for basis, value in _google_date_values(item):
-            if _years(value):
-                return value, basis
-        return '', 'unknown'
     for basis, value in _google_date_values(item):
         if _date_matches(value, period):
             return value, basis
@@ -283,14 +332,22 @@ def _google_location_matches(item: dict, place: str) -> bool:
         _text(item.get('title')), _text(item.get('snippet')), _text(item.get('displayLink')),
         _text(image.get('contextLink')),
     ]).casefold()
-    terms = []
-    for term in _place_terms(place):
-        terms.append(term)
-        terms.extend(part.strip() for part in re.split(r'[,/]', term) if len(part.strip()) >= 3)
-    return any(term.casefold() in haystack for term in terms if term)
+    return _location_matches(haystack, place)
 
 
-def _google_cse(place: str, period: str) -> list[dict]:
+def _location_matches(caption: str, place: str) -> bool:
+    # Require the requested locality, not merely a province/country component.
+    locality = re.split(r'[,/]', place)[0].strip()
+    for term in _place_terms(locality):
+        pattern = re.escape(term.casefold())
+        if term.isascii():
+            pattern = r'(?<!\w)' + pattern + r'(?!\w)'
+        if term and re.search(pattern, caption.casefold()):
+            return True
+    return False
+
+
+def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[dict]:
     """Search an optional Google Programmable Search Engine image index.
 
     Google returns image links and source-page links, but it does not guarantee
@@ -311,9 +368,8 @@ def _google_cse(place: str, period: str) -> list[dict]:
         # result itself to expose a matching licence URL before displaying it.
         'rights': 'cc_publicdomain|cc_attribute|cc_sharealike',
     }
-    sort = _google_date_sort(period)
-    if sort:
-        common['sort'] = sort
+    # A scan/article published recently can depict an older scene. Year terms
+    # and item capture evidence filter the photo, not webpage publication sort.
 
     items = []
     start = 1
@@ -344,14 +400,14 @@ def _google_cse(place: str, period: str) -> list[dict]:
             items.append({
                 'asset_id': asset_id, 'kind': 'image', 'title': title or 'Google image result',
                 'image_url': image, 'source_url': source, 'location': place,
-                'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
+                'location_evidence': caption, 'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
                 'license': license_name, 'license_url': license_url,
                 'date_expression': scene_date[0], 'date_basis': f'Google {scene_date[1]}',
                 'allowed_actions': {'embed': True, 'download': False, 'print': False},
             })
         unique = _deduplicate(items)
-        if len(unique) >= MAX_RESULTS:
-            return unique[:MAX_RESULTS]
+        if len(unique) >= limit:
+            return unique[:limit]
         next_pages = data.get('queries', {}).get('nextPage', [])
         if next_pages and isinstance(next_pages[0], dict) and next_pages[0].get('startIndex'):
             next_start = int(next_pages[0]['startIndex'])
@@ -432,7 +488,7 @@ def _flickr(place: str, period: str) -> list[dict]:
                 if (photo.get('media', 'photo') != 'photo' or NON_PHOTO.search(caption)
                         or not _date_matches(date, period)
                         or str(photo.get('datetakenunknown', '0')) != '0'
-                        or (not album and not any(alias.casefold() in caption.casefold() for alias in _place_terms(place)))):
+                        or (not album and not _location_matches(caption, place))):
                     continue
                 licence = allowed.get(str(photo.get('license')))
                 image = photo.get('url_z') or photo.get('url_c') or ''
@@ -447,7 +503,8 @@ def _flickr(place: str, period: str) -> list[dict]:
                     'asset_id': 'flickr-' + photo_id, 'kind': 'image',
                     'title': _text(photo.get('title')), 'image_url': image,
                     'source_url': f'https://www.flickr.com/photos/{owner}/{photo_id}/',
-                    'location': place, 'attribution': _text(photo.get('ownername')) or owner,
+                    'location': place, 'location_evidence': caption if not album else f'{place}: verified photographer collection',
+                    'attribution': _text(photo.get('ownername')) or owner,
                     'license': licence['name'], 'license_url': licence['url'],
                     'date_expression': date, 'date_basis': 'Flickr date taken',
                     'allowed_actions': {'embed': True, 'download': False, 'print': False},
@@ -459,12 +516,35 @@ def _flickr(place: str, period: str) -> list[dict]:
     return items
 
 
+def _canonical_image(url: str) -> str:
+    parsed = urlparse(unquote(url))
+    host = (parsed.hostname or '').lower()
+    path = parsed.path
+    if host == 'upload.wikimedia.org' and '/thumb/' in path:
+        path = path.replace('/thumb/', '/', 1).rsplit('/', 1)[0]
+    if re.fullmatch(r'(?:live|farm\d+)\.staticflickr\.com', host):
+        host = 'staticflickr.com'
+        path = re.sub(r'_[sqtmnzcbhokw](\.[a-zA-Z]+)$', r'\1', path)
+    params = sorted((key, value) for key, value in parse_qsl(parsed.query)
+                    if not key.startswith('utm_') and key not in {'width', 'height', 'w', 'h', 'fbclid', 'gclid'})
+    return urlunparse(('https', host, path, '', urlencode(params), ''))
+
+
 def _deduplicate(items: list[dict]) -> list[dict]:
     unique, seen = [], set()
     for item in items:
-        keys = {item['asset_id'], item['source_url'], unquote(item.get('original_url') or item['image_url']).split('#')[0]}
+        original = _canonical_image(item.get('original_url') or item['image_url'])
+        # A crawled article can contain several distinct photographs. Its
+        # source-page URL alone must not collapse the whole article to one.
+        source_key = (item['source_url'], original) if item.get('memory_reference_only') else item['source_url']
+        source = urlparse(item['source_url'])
+        flickr_id = re.fullmatch(r'/photos/[^/]+/(\d+)/?', source.path)
+        if source.hostname in {'www.flickr.com', 'flickr.com'} and flickr_id:
+            source_key = ('flickr', flickr_id[1])
+        keys = {('asset', item['asset_id']), ('source', source_key), ('image', original),
+                ('image', _canonical_image(item['image_url']))}
         if item.get('content_hash'):
-            keys.add(item['content_hash'])
+            keys.add(('hash', item['content_hash']))
         if seen.intersection(keys):
             continue
         unique.append(item)
@@ -472,7 +552,15 @@ def _deduplicate(items: list[dict]) -> list[dict]:
     return unique
 
 
-def search_place_photos(place: str, period: str = '') -> list[dict]:
+def _mix_sources(items: list[dict]) -> list[dict]:
+    groups = {}
+    for item in items:
+        host = (urlparse(item['source_url']).hostname or '').removeprefix('www.')
+        groups.setdefault(host, []).append(item)
+    return [item for row in zip_longest(*groups.values()) for item in row if item is not None]
+
+
+def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS) -> list[dict]:
     if period.strip() and not _period_bounds(period):
         return []
     items, errors = [], []
@@ -480,9 +568,10 @@ def search_place_photos(place: str, period: str = '') -> list[dict]:
     # hide the other catalogue's usable photographs.
     providers = [_commons, _loc]
     if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
-        providers.insert(0, _google_cse)
-    if _configured_env('FLICKR_API_KEY'):
-        providers.insert(0, _flickr)
+        providers.insert(0, lambda p, t: _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit))
+    elif _configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID'):
+        providers.insert(0, _google_browser)
+    providers.insert(0, _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser)
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
         futures = [pool.submit(provider, place, period) for provider in providers]
         for future in futures:
@@ -492,4 +581,38 @@ def search_place_photos(place: str, period: str = '') -> list[dict]:
                 errors.append(error)
     if not items and len(errors) == len(futures):
         raise errors[-1]
-    return _deduplicate(items)[:MAX_RESULTS]
+    matching = [item for item in items
+                if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
+                and _date_matches(item.get('date_expression', ''), period)]
+    mixed = _deduplicate(_mix_sources(matching))
+    return mixed[:limit] if limit is not None else mixed[:150]
+
+
+def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX_RESULTS) -> list[dict]:
+    requested = _search_period(place, period, limit=limit)
+    fallback = _decade_fallback(period)
+    broader = []
+    if fallback and len(requested) < MAX_RESULTS:
+        try:
+            broader = _search_period(place, fallback, limit=None)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            pass  # A wider search must not erase exact-year results.
+    exact, decade = [], []
+    for item in requested + broader:
+        matches_requested = _date_matches(item.get('date_expression', ''), period)
+        labelled = {**item, 'requested_period': period,
+                    'matched_period': period if matches_requested else fallback,
+                    'period_match': 'requested' if matches_requested else 'decade'}
+        (exact if matches_requested else decade).append(labelled)
+    mixed = _deduplicate(_mix_sources(exact) + _mix_sources(decade))
+    return mixed[:limit] if limit is not None else mixed[:150]
+
+
+def _google_browser(place: str, period: str) -> list[dict]:
+    from .place_photo_browser import crawl_place_photos
+    return crawl_place_photos('google', place, period, limit=DISCOVERY_LIMIT, timeout=45)
+
+
+def _flickr_browser(place: str, period: str) -> list[dict]:
+    from .place_photo_browser import crawl_place_photos
+    return crawl_place_photos('flickr', place, period, limit=DISCOVERY_LIMIT, timeout=45)

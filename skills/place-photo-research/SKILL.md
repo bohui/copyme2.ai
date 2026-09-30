@@ -17,6 +17,8 @@ Read `references/record-format.md` before writing records. Read `references/sour
 
 Find this skill's actual absolute directory from the skill path in context. Do not assume it is under the current working directory. Set `SKILL_DIR` to that directory. Use `PHOTO_RESEARCH_PYTHON` when supplied, otherwise a Python 3.10+ interpreter. Pillow is required for downloads. Do not silently install globally or alter Codex security configuration.
 
+An optional browser-rendered discovery path is available when native search does not expose enough historical image leads. Install `requirements-crawl4ai.txt` in the project-local environment and run `crawl4ai-setup` once. This path accepts only a user-supplied Google Programmable Search page (`--search-url`, `GOOGLE_CSE_URL` or `GOOGLE_CSE_ID`), paginates its visible image-result cards within the run budget, then visits the linked public source pages with Crawl4AI. The source pages, not Google's preview thumbnails, provide the candidate image URLs. Source-page robots checks remain enabled; the explicitly supplied CSE page is the only browser-rendered page whose widget robots check is disabled because Google's widget blocks automated rendering.
+
 ## 2. Temporal rule — mandatory
 
 **No time/period in the user's image request means PRESENT-DAY pictures.** Do not infer childhood, a historical decade, or the previous topic merely because the request occurs in a memoir conversation.
@@ -59,7 +61,7 @@ The initializer creates request, candidates, evidence, search-log, manifest and 
 
 1. Reuse a previously reviewed **public** catalogue or prior run only when the user supplies/authorises it and its date/place/rights fit the new request. Never search unrelated private family folders.
 2. Plan bilingual queries where useful. For Chinese places use Chinese plus English/transliteration. Preserve city/province disambiguation. Historical aliases are candidates needing geographic verification, not unconditional synonyms.
-3. Use native web search first. If fewer than 10 qualifying photos are found, expand across the engines and independent source families in `references/source-strategy.md`; do not stop after Commons or one engine. Search individual years within the decade, local-language place names, verified historical aliases, everyday subjects and albums. Search pages as well as images when image search is available. Do not scrape search-engine result HTML. If search is unavailable, inspect user-provided source URLs where possible and report the limitation; do not fabricate results or silently purchase another service.
+3. Use native web search first. If fewer than 10 qualifying photos are found, expand across the engines and independent source families in `references/source-strategy.md`; do not stop after Commons or one engine. Search individual years within the decade, local-language place names, verified historical aliases, everyday subjects and albums. Search pages as well as images when image search is available. Do not scrape generic search-engine result HTML. When the user supplies a Google Programmable Search page, the optional `crawl4ai` command is the bounded exception: it renders that page in a browser, reads visible image-result cards only to find source links, and then extracts originals from the linked source pages. Do not treat CSE preview thumbnails or their page dates as photo evidence. If search is unavailable, inspect user-provided source URLs where possible and report the limitation; do not fabricate results or silently purchase another service.
 4. Before **each** native search query, log one `search` event. Before each native source-page read, log one `page` event. A batched call with three queries counts as three searches. Failed attempts consume budget. The `inspect` helper records its own page event; do not double-log it.
 5. Follow promising leads to original photo pages/catalogue records. Read the image-specific caption, creator, scene date, collection, location and licence. Search snippets and image thumbnails are leads, not proof.
 6. If native page reading is insufficient, use the bundled HTML inspector only where page access is permitted. It respects robots and returns bounded untrusted text, image URL candidates, nearby figure text, metadata and links. Its extracted proximity is NOT a certified caption-to-image relationship.
@@ -68,6 +70,18 @@ The initializer creates request, candidates, evidence, search-log, manifest and 
 9. Prefer diverse subjects and original sources. Avoid filling all slots with near-identical monuments when the user asked for ordinary streets. Compare source IDs, canonical image URLs and hashes for duplicates.
 
 When the app's optional Google Programmable Search Engine provider is enabled, it uses Google's documented image-search JSON endpoint with the configured `cx`, `searchType=image`, a rights filter and pages starting at 1, 11, 21 and so on until ten eligible results or the API's 100-result ceiling. The provider combines the location and year range in the query, applies a date-range sort where supported, and still requires item metadata to confirm the location, scene date and a commercially compatible licence. Google result dates can describe a page rather than the depicted scene; unknown or conflicting dates remain excluded. The provider is a discovery source and does not replace reading the original item page.
+
+For a user-supplied CSE page, install the optional dependency and run the browser-rendered route from the run directory:
+
+```bash
+"${PHOTO_RESEARCH_PYTHON:-python3}" -m pip install -r "$SKILL_DIR/requirements-crawl4ai.txt"
+# Run this from the environment that contains PHOTO_RESEARCH_PYTHON.
+crawl4ai-setup
+"${PHOTO_RESEARCH_PYTHON:-python3}" "$SKILL_DIR/scripts/photo_research.py" crawl4ai \
+  --run "$RUN_DIR" --max-search-pages 10 --source-limit 24
+```
+
+The command reads `GOOGLE_CSE_URL` or `GOOGLE_CSE_ID` from the environment (a `.env` in the project root is loaded when the variables are absent); `--search-url` overrides both. It resolves a bare year such as `1980` to the `1980–1989` scene-date window, paginates up to ten CSE image pages, and stops after the run's requested count (10 by default). It records metadata-only candidates marked `memory_reference_only` with unknown rights and `download:false`, `print:false`, `publish:false`; these are prompts for recollection and source links, not memoir-book or paid-app assets. The manifest therefore keeps them blocked from local download until separate item-level rights evidence is supplied. C4A source-page reads count against the ordinary page budget.
 
 Examples, using the existing run directory:
 
@@ -108,7 +122,7 @@ The downloader checks each redirect and public IP, pins connections to validated
 
 When Codex exposes a local-image viewing tool, visually inspect downloaded finalists for subject mismatch, scans/watermarks, orientation and legibility. Visual inspection cannot establish an exact year by itself. If no viewer is exposed, state that source/technical checks were performed but visual inspection was unavailable. Record findings in candidate notes and re-run `report`.
 
-Do not rehost, publish, add images to a print book, crop, recolour or remove watermarks. This skill produces a local research collection; downstream app/export/print usage requires a separate permission review.
+Do not rehost, publish, add images to a print book, crop, recolour or remove watermarks. Crawl4AI candidates are memory references only and remain outside book/export/print workflows until a separate permission review. This skill produces a local research collection; downstream app/export/print usage requires that review.
 
 ## 7. Stop, resume and report
 

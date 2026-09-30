@@ -116,6 +116,8 @@ def main() -> None:
         expect(page.locator(".assistant-message .assistant-avatar img").first).to_have_attribute("alt", "Mira")
         expect(page.locator(".assistant-message .message-text").first).to_contain_text("Hi, I’m Mira. It’s nice to meet you.")
         expect(page.locator(".assistant-message .message-text").first).to_contain_text("First, what would you like me to call you?")
+        expect(page.get_by_text("Before chapter one", exact=True)).to_have_count(0)
+        expect(page.get_by_role("button", name="Hide history", exact=True)).to_have_count(0)
         assert codex_calls == 0, f"The fixed opening must not start an agent turn; got {codex_calls} call(s)"
         expect(page.locator(".thinking")).to_have_count(0)
         if args.expect_thinking_steps:

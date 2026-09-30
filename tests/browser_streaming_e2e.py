@@ -10,6 +10,8 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        page.route('**/agent/config', lambda route: route.fulfill(
+            content_type='application/json', body='{"auth_mode":"test","show_thinking_steps":true}'))
         page.add_init_script('''
           const originalFetch = window.fetch.bind(window);
           window.turnCalls = 0;
@@ -26,7 +28,8 @@ def main():
                 // Split every UTF-8 byte, including within Chinese characters.
                 for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
               };
-              emit({type: 'text_delta', text: 'Hello 承德'});
+              emit({type: 'progress', data: {id: 'analysis', kind: 'analysis', status: 'running', detail: 'Choosing the next question.'}});
+              window.sendInitialText = () => emit({type: 'text_delta', text: 'Hello 承德'});
               window.finishTurn = () => {
                 emit({type: 'text_delta', text: ', what do you remember?'});
                 emit({type: 'result', data: {reply: 'Hello 承德, what do you remember?', trace: [], profile_updates: {name: 'Avery'}}});
@@ -46,7 +49,16 @@ def main():
         assert page.evaluate('window.turnCalls') == 0
         page.get_by_role('textbox', name='Your message').fill('My name is Avery')
         page.get_by_role('button', name='Send message').click()
+        expect(page.locator('.assistant-message').nth(1).locator('.message-thinking')).to_be_visible()
+        expect(page.locator('.assistant-message').nth(1).locator('.agent-loop')).to_be_visible()
+        assert page.locator('.assistant-message').nth(1).locator('.message-thinking').evaluate(
+            '(node) => getComputedStyle(node).animationName') == 'assistant-progress-color'
+        assert page.locator('.assistant-message').nth(1).locator('.agent-loop-step[data-step-status="running"] .agent-loop-detail').evaluate(
+            '(node) => getComputedStyle(node).animationName') == 'assistant-progress-color'
+        expect(page.locator('.assistant-message .message-text').nth(1)).to_be_hidden()
+        page.evaluate('window.sendInitialText()')
         expect(page.locator('.assistant-message .message-text').nth(1)).to_have_text('Hello 承德')
+        expect(page.locator('.assistant-message').nth(1).locator('.message-thinking')).to_be_hidden()
         expect(page.locator('.thinking')).to_have_count(0)
         expect(page.locator('.profile-trigger-name')).not_to_have_text('Avery')
         expect(page.get_by_role('button', name='Send message')).to_be_disabled()

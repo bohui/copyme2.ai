@@ -74,6 +74,8 @@ test('renderer keeps detailed title and labels parent map coordinates', async ()
  assert.match(markup,/<h2>大石庙镇<\/h2>/);
  assert.match(markup,/data-cesium-place="承德"/);
  assert.match(markup,/data-cesium-latitude="40.97"/);
+ assert.equal(context.placeMapUrl({latitude: 40.97, longitude: 117.93}), 'https://www.google.com/maps/search/?api=1&query=40.97%2C117.93');
+ assert.doesNotMatch(markup,/openstreetmap/);
  assert.match(markup,/parentMap 承德/);
  assert.doesNotMatch(markup,/placeNote/);
 });
@@ -114,4 +116,18 @@ test('does not activate the workspace without a map target', async () => {
  context.state.placeJourney = mapped;
  context.state.selectedPlace = placeHistoryKey(mapped);
  assert.equal(context.workspaceHasContent(), true);
+});
+
+test('map framing retains a geocoded place scale and uses a saved parent scale', async () => {
+ const fs = await import('node:fs');
+ const vm = await import('node:vm');
+ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const context = vm.createContext({});
+ vm.runInContext(source.match(/const PLACE_MAP_VIEW_HEIGHTS = \{[^]*?\n\};/)[0], context);
+ vm.runInContext(source.match(/function placeMapViewHeight\([^]*?\n\}/)[0], context);
+ const country = {place: 'China', granularity: 'country'};
+ assert.equal(context.placeMapViewHeight(country, {place: 'China'}), context.placeMapViewHeight(country));
+ assert.ok(context.placeMapViewHeight(country) > context.placeMapViewHeight(city));
+ assert.equal(context.placeMapViewHeight(suburb, city), context.placeMapViewHeight(city));
+ assert.ok(context.placeMapViewHeight(suburb) < context.placeMapViewHeight(suburb, city));
 });
