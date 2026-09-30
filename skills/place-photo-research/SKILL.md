@@ -11,7 +11,7 @@ Find relevant source-backed photographs, investigate their original pages and co
 
 This skill runs **directly in Codex**. Use the real web-search/page-reading tools exposed in this session, plus the shell and local-file tools. Do not invent `catalogue.search`, `source.inspect`, `asset.acquire_approved` or other application tools. Do not assume this harness has ChatGPT's `web.run`, image search or a browser tool: use the actual available capability.
 
-No separate search API key, paid search-provider account, MCP server, database, Temporal service or app backend is required. The user's Codex access is still required. Native web search, shell internet permissions and image-viewing capabilities are separate; one does not guarantee the others.
+The native Codex search path does not require a separate search API key, paid search-provider account, MCP server, database, Temporal service or app backend. The memoir app can optionally use a server-side Google Programmable Search Engine integration when `GOOGLE_CSE_ID` and `GOOGLE_CSE_API_KEY` are configured; keep that key out of browser configuration. `GOOGLE_CSE_ID` identifies the search engine, while the API key identifies the Google Cloud project that owns the key; the Programmable Search control panel therefore has no project selector. An API-key restriction does not itself grant the project access to the Custom Search JSON API. The user's Codex access is still required. Native web search, shell internet permissions and image-viewing capabilities are separate; one does not guarantee the others.
 
 Read `references/record-format.md` before writing records. Read `references/source-strategy.md` when planning the search or encountering uncertain metadata/rights. Use the bundled script instead of writing a second downloader.
 
@@ -24,6 +24,7 @@ Find this skill's actual absolute directory from the skill path in context. Do n
 | Request | Resolve to |
 |---|---|
 | “Find pictures of Chengde, Hebei.” | Current, default recent capture window. |
+| “Find Chengde in 1980.” | 1980-01-01 through 1989-12-31; a bare year starts a ten-year search window. |
 | “Find Chengde in the 1980s.” | 1980-01-01 through 1989-12-31. |
 | “What does it look like now?” | Current, overriding previous historical context. |
 | “More from that same time.” | Explicit reference: resolve only the clearly referenced period and record the derivation. |
@@ -48,7 +49,7 @@ Create a **new** output directory under the workspace, e.g. `photo-research/chen
   --out "photo-research/chengde-current-01"
 ```
 
-Historical example: add `--period "1980s"`. Explicit but unresolved historical expression: use `--period historical --period-note "the user's actual phrase; why dates remain unresolved"`. The helper accepts numeric decades, years, year ranges, ISO days/ranges and several current/relative forms. For another language, translate the explicit period faithfully; record its original phrase using `--period-note`. Do not guess a century from “80s” when context cannot establish it.
+Historical example: add `--period "1980s"`. A bare four-digit year such as `1980` resolves to `1980–1989`; use an explicit ISO day or range when the user means a narrower interval. Explicit but unresolved historical expression: use `--period historical --period-note "the user's actual phrase; why dates remain unresolved"`. The helper accepts numeric decades, years, year ranges, ISO days/ranges and several current/relative forms. For another language, translate the explicit period faithfully; record its original phrase using `--period-note`. Do not guess a century from “80s” when context cannot establish it.
 
 Return at least 10 distinct, relevant photographs **for each location × requested decade**, not 10 shared across the whole trip or lifetime. Create a separate run for each pair so counts and evidence cannot bleed across places or periods. Only photographs with supported place and scene dates inside that decade count; currency, stamps, drawings, duplicate scans and undated alternatives do not count. For requests without a period, keep the present-day rule above. Use a minimum target of 10 by default; use `--count N` for an explicit user quantity (maximum 24). Continue discovery until the requested count is met or the research budget is exhausted; duplicates do not count toward the target. Default is commercial-memoir sourcing; change to `--usage personal-reference` only when the user explicitly requests solely personal reference. Personal use is NOT an automatic download permission.
 
@@ -65,6 +66,8 @@ The initializer creates request, candidates, evidence, search-log, manifest and 
 7. Explore a promising album/collection up to depth two, within the overall budget. Inspect selected item records; do not mirror a whole album. Do not apply an album's title year to every image when item captions differ.
 8. Use an already available, approved browser tool only for genuinely necessary rendering. Do not install a browser/MCP service, bypass CAPTCHA/login/paywall, change region or disable sandbox restrictions to force access.
 9. Prefer diverse subjects and original sources. Avoid filling all slots with near-identical monuments when the user asked for ordinary streets. Compare source IDs, canonical image URLs and hashes for duplicates.
+
+When the app's optional Google Programmable Search Engine provider is enabled, it uses Google's documented image-search JSON endpoint with the configured `cx`, `searchType=image`, a rights filter and pages starting at 1, 11, 21 and so on until ten eligible results or the API's 100-result ceiling. The provider combines the location and year range in the query, applies a date-range sort where supported, and still requires item metadata to confirm the location, scene date and a commercially compatible licence. Google result dates can describe a page rather than the depicted scene; unknown or conflicting dates remain excluded. The provider is a discovery source and does not replace reading the original item page.
 
 Examples, using the existing run directory:
 

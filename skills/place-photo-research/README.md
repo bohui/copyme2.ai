@@ -4,7 +4,7 @@ Version 1.0.0 · 26 September 2026
 
 **No period mentioned → present-day photos.** A specified historical period is preserved. The skill uses Codex's native web search for discovery, its available reading tools for source inspection, and the bundled Python helper for date normalization, evidence checks, permitted local downloads and reports.
 
-It does not require the memoir app, a custom tool host, database, MCP server or an additional Serper/SerpApi account. It does require your usual Codex access, Python 3.10+, and permitted network access. Pillow is needed for downloading/validating image files.
+It does not require the memoir app, a custom tool host, database, MCP server or an additional Serper/SerpApi account for the native Codex workflow. The app's optional Google Programmable Search Engine image provider uses a server-side `GOOGLE_CSE_ID` and `GOOGLE_CSE_API_KEY`; neither belongs in browser configuration. The engine ID identifies the Programmable Search Engine, while the API key identifies the Google Cloud project that owns it, so the Programmable Search control panel has no project selector. An API-key restriction does not itself grant that project access to the Custom Search JSON API. The skill still requires your usual Codex access, Python 3.10+, and permitted network access. Pillow is needed for downloading/validating image files.
 
 ## Install into a project
 
@@ -52,8 +52,8 @@ The HTML helper uses direct connections with no cookies, credentials or proxy in
 
 ## What the skill does
 
-1. Normalises the requested place, subject and period. Missing period becomes current in code, using a configurable 24-calendar-month preferred capture window.
-2. Targets at least 10 verified photographs per location/decade, expanding bilingual web/image searches across engines, local archives, photographer albums and institutional catalogues. Each run allows 40 queries and 80 page reads; a shortfall is reported as incomplete.
+1. Normalises the requested place, subject and period. Missing period becomes current in code, using a configurable 24-calendar-month preferred capture window. A bare year such as `1980` becomes the ten-year window `1980–1989`; explicit ranges and dates remain unchanged.
+2. Targets at least 10 verified photographs per location/decade, expanding bilingual web/image searches across engines, local archives, photographer albums and institutional catalogues. The optional Google CSE provider paginates ten-image API pages and stops only after ten item-level date/place/licence matches or the provider's 100-result ceiling. Each run allows 40 queries and 80 page reads; a shortfall is reported as incomplete.
 3. Inspects original pages and image-specific captions; expands promising collections within limits.
 4. Saves place/date/rights/access evidence and unresolved candidates.
 5. Runs the helper's conservative audit and downloads only eligible items.
@@ -135,7 +135,7 @@ Run them:
   -s .agents/skills/place-photo-research/tests -v
 ```
 
-**Not verified:** live installation or activation in your Codex account; native search relevance; end-to-end real archive downloads; every website's access terms; independent authenticity of photo metadata; legal title/licensing; China/Australia production deployment. See `VALIDATION.json` for the precise local test result.
+**Not verified:** live installation or activation in your Codex account; native search relevance; live Google CSE credentials or quota; end-to-end real archive downloads; every website's access terms; independent authenticity of photo metadata; legal title/licensing; China/Australia production deployment. See `VALIDATION.json` for the precise local test result.
 
 The helper enforces consistency of supplied evidence, not the truth of that evidence. Its records are editable by the same local agent/user, so it is not a hardened permission boundary. Its query budget applies to correctly logged actions, not unlogged native tool calls. Keep Codex sandbox/approvals enabled and review external source claims.
 

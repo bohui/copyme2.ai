@@ -182,6 +182,8 @@
       "beforeChapter": "Before chapter one",
       "chapter": "Chapter",
       "chapterLabel": "Chapter {number}",
+      "showHistory": "Show all history",
+      "hideHistory": "Hide history",
       "expand": "Expand",
       "minimize": "Minimize",
       "voiceConversation": "Voice conversation",
@@ -459,7 +461,7 @@
     "intro": "Mira fills in these details as you share your story. You can review or correct them here.",
     "preferred_language": "Preferred conversation language",
     "automatic": "Detect from my next message",
-    "languageHint": "Used for replies and voice. The page language stays the same.",
+    "languageHint": "Used for replies, voice, and the page language unless you choose a different page language.",
     "name": "Name",
     "birth_year": "Birth year",
     "birth_place": "Birthplace",
@@ -484,6 +486,7 @@
     "later": "Not now",
     "checkEmail": "Check your email and follow the confirmation link to secure this conversation. You can keep chatting while you wait.",
     "redirecting": "Opening your provider…",
-    "error": "We couldn’t connect this account. Please try again or use another email or provider. Your guest conversation is still here."
+    "error": "We couldn’t connect this account. Please try again or use another email or provider. Your guest conversation is still here.",
+    "identityExists": "This social account is already linked to another account, so sign-in did not complete. Your conversation is still in this guest session. Use a different email or social account to keep this history."
   }
 }

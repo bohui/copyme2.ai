@@ -136,3 +136,14 @@ test('placeholder gives way to steps, then steps collapse when the response begi
  context.state.showThinkingSteps=false;
  assert.match(context.renderMessage({...message,text:''}),/class="message-thinking" role="status" >/);
 });
+
+test('real memory saves and named skill events remain visible, simulated traces do not', () => {
+ const context=vm.createContext({state:{showThinkingSteps:true},escapeHtml:String,translate:key=>key});
+ vm.runInContext(extract('renderAgentTrace'),context);
+ const steps=[{id:'save',detail:'Conversation memory saved',status:'completed'},
+  {id:'place',skill:'memoir-place-journey',detail:'Validating the place',status:'triggered'}];
+ const html=context.renderAgentTrace(steps,'live');
+ assert.match(html,/Conversation memory saved/);
+ assert.match(html,/memoir-place-journey · Memoir.trace.status.triggered/);
+ assert.equal(context.renderAgentTrace(steps,'simulated'),'');
+});

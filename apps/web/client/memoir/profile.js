@@ -3,7 +3,7 @@ import { translate } from '../i18n.js';
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 const fields = ['name', 'birth_year', 'birth_place', 'childhood_place'];
 
-export async function openProfileSettings({ api, onSave, onClose }) {
+export async function openProfileSettings({ api, onSave, onLanguageChange, onClose }) {
   if (document.querySelector('[data-profile-settings]')) return;
   const t = (key) => escape(translate(`Profile.${key}`));
   const dialog = document.createElement('dialog');
@@ -39,6 +39,8 @@ export async function openProfileSettings({ api, onSave, onClose }) {
     const settings = await api('/v1/agent/profile');
     if (!dialog.open) return;
     for (const key of ['preferred_language', ...fields]) form.elements[key].value = settings[key] ?? '';
+    if (settings.preferred_language) await onLanguageChange?.(settings.preferred_language);
+    if (!dialog.open) return;
     fieldset.disabled = false;
     submit.disabled = false;
     status.textContent = '';

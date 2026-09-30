@@ -73,8 +73,7 @@ def main() -> None:
         expect(page.get_by_text("可以进行语音对话")).to_be_visible()
         expect(page.get_by_text("你好，我是 Mira。很高兴认识你。")).to_be_visible()
         page.get_by_role("button", name="打开个人资料菜单").click()
-        expect(page.get_by_text("个人资料").first).to_be_visible()
-        expect(page.get_by_text("匿名会话")).to_be_visible()
+        expect(page.locator(".profile-trigger-name")).to_have_text("个人资料")
         expect(page.locator(".profile-dropdown select")).to_have_count(0)
         expect(page.get_by_role("menuitem", name="个人资料", exact=True)).to_be_visible()
         expect(page.get_by_role("menuitem", name="退出登录")).to_be_visible()
@@ -87,13 +86,14 @@ def main() -> None:
         assert project_requests, "Expected the UI to create a Memoir project"
         assert project_requests[-1].post_data_json.get("language") is None
         assert agent_requests, "Expected the UI to create a localized Codex turn"
-        assert agent_requests[-1].get("language") is None
+        assert agent_requests[-1].get("language") == "zh-CN"
+        assert agent_requests[-1].get("first_reply_localization") is True
 
         page.reload(wait_until="networkidle")
         expect(page.get_by_role("heading", name="让我们一起回忆。")).to_be_visible()
         page.get_by_role("button", name="打开个人资料菜单").click()
         expect(page.locator(".profile-dropdown select")).to_have_count(0)
-        expect(page.get_by_text("思考步骤")).to_be_visible()
+        expect(page.get_by_role("menuitem", name="个人资料", exact=True)).to_be_visible()
         assert "Memoir." not in page.locator("body").inner_text(), "A raw translation key leaked into the story shell"
 
         browser_locale_context = browser.new_context(locale="zh-CN")
@@ -132,6 +132,8 @@ def main() -> None:
         voice_page = voice_context.new_page()
         voice_page.add_init_script(
             """
+            document.cookie = 'copyme2_ui_locale=en-AU; Path=/; SameSite=Lax';
+            document.cookie = 'copyme2_ui_locale_source=fixed; Path=/; SameSite=Lax';
             let recorderStarts = 0;
             class FakeTrack { stop() {} }
             class FakeStream {
@@ -176,13 +178,14 @@ def main() -> None:
         ))
         voice_page.route("**/api/v1/memoir/agent/turn", voice_codex_turn)
         voice_page.goto(f"{args.base_url}/memoir", wait_until="networkidle")
-        voice_page.get_by_role("button", name="Begin my story").click()
+        voice_page.locator("[data-action='start-story'][data-mode='self']").click()
         expect(voice_page.get_by_role("button", name="Start voice conversation")).to_be_visible()
         voice_page.get_by_role("button", name="Start voice conversation").click()
         expect(voice_page.locator("html")).to_have_attribute("lang", "en-AU", timeout=15000)
         expect(voice_page.get_by_text("我会陪你慢慢回忆那个午后。")).to_be_visible(timeout=15000)
         assert voice_agent_requests, "Expected the voice turn to reach the agent"
-        assert voice_agent_requests[-1].get("language") is None
+        assert voice_agent_requests[-1].get("language") == "zh-CN"
+        assert voice_agent_requests[-1].get("first_reply_localization") is True
         voice_page.get_by_role("button", name="End voice conversation").click()
         voice_page.get_by_role("button", name="Open profile menu").click()
         expect(voice_page.locator(".profile-dropdown select")).to_have_count(0)

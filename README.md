@@ -78,7 +78,7 @@ MEMORY_SPARK_TEST_MODE=1 python3 -m uvicorn apps.api.main:app --reload --host 12
 
 Install the web dependencies once with `npm --prefix apps/web ci`, then run the Next.js frontend with `MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8000 npm --prefix apps/web run dev -- --hostname 127.0.0.1 --port 3010`. Open [http://127.0.0.1:3010](http://127.0.0.1:3010). Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, then enable **Allow manual linking** and **Allow anonymous sign-ins** under Supabase Auth → Sign In / Providers. Configure both Google and Facebook there as well; the browser uses Supabase `linkIdentity` after round five. See [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous) and [manual identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking#manual-linking-beta).
 
-Memoir's UI supports `en-AU` and `zh-CN` catalogues through `next-intl`. The language selector keeps the current URL, persists a device choice in `copyme2_ui_locale`, negotiates the browser language when no choice exists, and updates the authenticated Supabase user's `ui_locale` metadata when available. With no fixed device or account choice, the first substantive onboarding reply can switch the current UI session and first Mira response to its detected supported language; later interview replies and voice transcripts remain separate from UI locale. Source language, edition language, time zone, and memoir AUD pricing stay unchanged. Exact dates/times are formatted with the UI locale while uncertain expressions remain expressions. Validate the catalogues with `make localization-catalog-test` and the rendered browser journey with `make browser-localization-test`. Sensitive copy is listed in [`apps/web/messages/human-review.json`](apps/web/messages/human-review.json) for human/native-speaker sign-off. The implementation spec is [`docs/Memoir_Localization_Spec.md`](docs/Memoir_Localization_Spec.md).
+Memoir's UI supports `en-AU` and `zh-CN` catalogues through `next-intl`. The language selector keeps the current URL, persists an explicit device choice in `copyme2_ui_locale`, negotiates the browser language when no choice exists, and updates the authenticated Supabase user's `ui_locale` metadata when available. A saved profile conversation language also seeds the page language when no explicit page-language choice exists, so a Chinese profile remains Chinese after refresh; an explicit page-language choice wins. With no fixed device, account, or profile language choice, the first substantive onboarding reply can switch the current UI session and first Mira response to its detected supported language. Later interview replies and voice transcripts remain separate from UI locale. Source language, edition language, time zone, and memoir AUD pricing stay unchanged. Exact dates/times are formatted with the UI locale while uncertain expressions remain expressions. Validate the catalogues with `make localization-catalog-test` and the rendered browser journey with `make browser-localization-test`. Sensitive copy is listed in [`apps/web/messages/human-review.json`](apps/web/messages/human-review.json) for human/native-speaker sign-off. The implementation spec is [`docs/Memoir_Localization_Spec.md`](docs/Memoir_Localization_Spec.md).
 
 To enable server-side voice, set `OPENAI_API_KEY` in `.env`. The API uses `gpt-4o-mini-transcribe` for recordings and `gpt-4o-mini-tts` for spoken questions by default; override them with `MEMORY_SPARK_STT_MODEL` and `MEMORY_SPARK_TTS_MODEL`. Keep the key server-side. If it is unset or speech is unavailable, typed answers and browser read-aloud remain available.
 
@@ -331,12 +331,23 @@ The app's photo endpoint searches catalogues independently of the Codex research
 skill. To enable Flickr alongside Wikimedia Commons and the Library of Congress,
 set `FLICKR_API_KEY` in the server `.env` using your own Flickr application key,
 then recreate the API service so Compose passes it through. Keep this key out of
-browser configuration. See [the API research notes](docs/Historical_Photo_API_Research.md)
+browser configuration. To add the supplied Google Programmable Search Engine,
+set `GOOGLE_CSE_API_KEY` server-side; the public engine ID is already configured
+as [`GOOGLE_CSE_ID=b2de41f6592f74c3e`](https://cse.google.com/cse?cx=b2de41f6592f74c3e)
+and can be overridden. `GOOGLE_CSE_ID` identifies the search engine, not a
+Google Cloud project; the Cloud project is the one that owns the API key. The
+Programmable Search control panel therefore has no project selector. An API-key
+restriction only limits which services a key may call; it does not grant the
+project access to the Custom Search JSON API. Google image API
+requests use the engine ID, `searchType=image`, rights filtering and ten-result
+pagination. See [the API research notes](docs/Historical_Photo_API_Research.md)
 for sources, setup links and live coverage findings.
 
 Flickr queries use capture dates, bilingual Chengde/承德 terms and up to three
 pages per term. Only supported CC BY, CC BY-SA, CC0 or public-domain-marked items
-are admitted for embedding; noncommercial photos remain research leads. `1980`
-means that exact year; `1980s` means 1980–1989. The app reports a shortfall when
-fewer than ten qualifying photographs are found; adding an API does not guarantee
-coverage for every year and place.
+are admitted for embedding; noncommercial photos remain research leads. A bare
+year such as `1980` means the ten-year window `1980–1989`; use `1980–1980` for
+an exact year. The app reports a shortfall when
+fewer than ten qualifying photographs are found; Google CSE results are also
+post-filtered by location, item date metadata and compatible licence after each
+page. Adding an API does not guarantee coverage for every year and place.

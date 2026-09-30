@@ -51,6 +51,10 @@ class TemporalTests(unittest.TestCase):
     def test_current_window(self): self.assertEqual(p.normalize_period(None,ASOF)["start"],"2024-09-26")
     def test_decade(self):
         r=p.normalize_period("1980s",ASOF); self.assertEqual((r["start"],r["end"]),("1980-01-01","1989-12-31"))
+    def test_bare_year_starts_ten_year_window(self):
+        r=p.normalize_period("1980",ASOF)
+        self.assertEqual((r["start"],r["end"],r["precision"]),("1980-01-01","1989-12-31","decade_from_year"))
+        self.assertEqual(p.normalize_period("1980年",ASOF)["end"],"1989-12-31")
     def test_chinese_numeric_decade(self): self.assertEqual(p.normalize_period("1980年代",ASOF)["end"],"1989-12-31")
     def test_old_unknown(self): self.assertEqual(p.normalize_period("old",ASOF)["mode"],"historical_unspecified")
     def test_now_explicit(self): self.assertEqual(p.normalize_period("现在",ASOF)["basis"],"explicit_current")

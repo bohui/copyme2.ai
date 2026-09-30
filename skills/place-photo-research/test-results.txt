@@ -33,6 +33,7 @@ test_verified_image (test_photo_research.SecurityTests.test_verified_image) ... 
 test_ambiguous_century_not_guessed (test_photo_research.TemporalTests.test_ambiguous_century_not_guessed) ... ok
 test_chinese_numeric_decade (test_photo_research.TemporalTests.test_chinese_numeric_decade) ... ok
 test_current_window (test_photo_research.TemporalTests.test_current_window) ... ok
+test_bare_year_starts_ten_year_window (test_photo_research.TemporalTests.test_bare_year_starts_ten_year_window) ... ok
 test_decade (test_photo_research.TemporalTests.test_decade) ... ok
 test_empty_is_current (test_photo_research.TemporalTests.test_empty_is_current) ... ok
 test_future_rejected (test_photo_research.TemporalTests.test_future_rejected) ... ok
@@ -59,6 +60,6 @@ test_rights_block_no_network (test_photo_research.WorkflowTests.test_rights_bloc
 test_sha_dedup (test_photo_research.WorkflowTests.test_sha_dedup) ... ok
 
 ----------------------------------------------------------------------
-Ran 59 tests in 0.124s
+Ran 60 tests in 0.190s
 
 OK

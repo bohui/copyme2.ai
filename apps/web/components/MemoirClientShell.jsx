@@ -38,7 +38,11 @@ export default function MemoirClientShell() {
     document.documentElement.lang = activeLocale;
   }, [activeLocale, activeMessages]);
 
-  async function changeLocale(nextLocale, { persistAccount = true } = {}) {
+  async function changeLocale(nextLocale, {
+    persistAccount = true,
+    persistCookie = persistAccount,
+    source = "fixed",
+  } = {}) {
     if (!locales.includes(nextLocale) || !Object.prototype.hasOwnProperty.call(messageCatalogues, nextLocale)) return false;
     if (nextLocale === activeLocale) return true;
     const beforeChange = globalThis.__copyme2BeforeUiLocaleChange;
@@ -47,9 +51,9 @@ export default function MemoirClientShell() {
       if (allowed === false) return false;
     }
     const nextMessages = messageCatalogues[nextLocale];
-    if (persistAccount) {
+    if (persistCookie) {
       document.cookie = `${localeCookie}=${encodeURIComponent(nextLocale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-      document.cookie = `${localeSourceCookie}=fixed; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+      document.cookie = `${localeSourceCookie}=${encodeURIComponent(source)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
     }
     globalThis.__copyme2Intl = { locale: nextLocale, messages: nextMessages };
     document.documentElement.lang = nextLocale;

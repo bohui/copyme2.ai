@@ -1,4 +1,5 @@
 """Search public photo catalogues using only coarse place and period queries."""
+import hashlib
 import html
 import os
 import re
@@ -9,6 +10,9 @@ import httpx
 
 MAX_RESULTS = 10
 SEARCH_LIMIT = 50
+GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
+GOOGLE_CSE_PAGE_SIZE = 10
+GOOGLE_CSE_MAX_PAGES = 10
 HEADERS = {'User-Agent': 'MemorySpark/1.0 (memoir place reference images)'}
 NON_PHOTO = re.compile(r'\b(banknotes?|coins?|currency|stamps?|maps?|paintings?|illustrations?|drawings?|engravings?)\b|纸币|鈔票|钞票|邮票|绘画|地圖|地图', re.I)
 
@@ -19,15 +23,25 @@ def _text(value) -> str:
     return html.unescape(re.sub(r'<[^>]*>', '', str(value or '')))[:4000]
 
 
+def _configured_env(name: str) -> str:
+    value = os.environ.get(name, '').strip()
+    return '' if value.casefold() in {'', 'null', '<null>', 'none'} else value
+
+
 def _years(value: str) -> list[int]:
     return [int(year) for year in re.findall(r'(?<!\d)((?:18|19|20)\d{2})(?!\d)', value)]
 
 
-def _period_bounds(period: str) -> tuple[int, int] | None:
+def _period_bounds(period: str, *, expand_bare_year: bool = True) -> tuple[int, int] | None:
     years = _years(period)
     if not years:
         return None
     if re.search(r'(?:18|19|20)\d0\s*(?:s|年代)', period, re.I):
+        return years[0], years[0] + 9
+    if expand_bare_year and re.fullmatch(r'\s*(?:18|19|20)\d{2}\s*年?\s*', period):
+        # A bare year from the memoir is the start of a ten-year visual
+        # window. This keeps "1980" useful for a decade search while an
+        # explicit range remains authoritative.
         return years[0], years[0] + 9
     return min(years), max(years)
 
@@ -40,7 +54,9 @@ def _date_matches(date: str, period: str) -> bool:
     # Unresolved periods/dates must not silently turn into unrestricted results.
     if not bounds or not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I):
         return False
-    scene = _period_bounds(date)
+    # A source caption containing only "1985" is an observed year, not a
+    # request to expand another ten-year window.
+    scene = _period_bounds(date, expand_bare_year=False)
     return bool(scene and bounds[0] <= scene[0] <= scene[1] <= bounds[1])
 
 
@@ -62,6 +78,11 @@ def _get(url: str, params: dict) -> dict:
 def _https_host(url: str, hosts: set[str]) -> bool:
     parsed = urlparse(url)
     return parsed.scheme == 'https' and parsed.hostname in hosts and not parsed.username and not parsed.password
+
+
+def _https_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return bool(parsed.hostname) and parsed.scheme == 'https' and not parsed.username and not parsed.password
 
 
 def _commons(place: str, period: str) -> list[dict]:
@@ -164,6 +185,186 @@ def _loc(place: str, period: str) -> list[dict]:
     return items
 
 
+_GOOGLE_LICENSES = (
+    (re.compile(r'https?://creativecommons\.org/licenses/by-sa/(?:2\.0|2\.5|3\.0|4\.0)(?:/|\b)', re.I), 'CC BY-SA'),
+    (re.compile(r'https?://creativecommons\.org/licenses/by/(?:2\.0|2\.5|3\.0|4\.0)(?:/|\b)', re.I), 'CC BY'),
+    (re.compile(r'https?://creativecommons\.org/publicdomain/(?:zero|mark)/1\.0(?:/|\b)', re.I), 'Public domain'),
+)
+
+
+def _google_page_map_values(item: dict, key_pattern: str) -> list[tuple[str, str]]:
+    page_map = item.get('pagemap') or {}
+    if not isinstance(page_map, dict):
+        return []
+    values = []
+    for object_name, objects in page_map.items():
+        if isinstance(objects, dict):
+            objects = [objects]
+        if not isinstance(objects, list):
+            continue
+        for obj in objects:
+            if not isinstance(obj, dict):
+                continue
+            for key, value in obj.items():
+                if re.search(key_pattern, str(key), re.I):
+                    values.append((str(key), _text(value)))
+    return values
+
+
+def _google_license(item: dict) -> tuple[str, str] | None:
+    for _, value in _google_page_map_values(item, r'license|rights|creativecommons'):
+        for pattern, name in _GOOGLE_LICENSES:
+            match = pattern.search(value)
+            if match:
+                return name, match.group(0).rstrip('/')
+    for value in (item.get('license'), item.get('rights')):
+        for pattern, name in _GOOGLE_LICENSES:
+            match = pattern.search(_text(value))
+            if match:
+                return name, match.group(0).rstrip('/')
+    return None
+
+
+def _google_date_values(item: dict) -> list[tuple[str, str]]:
+    values = _google_page_map_values(item, r'date|time|created|taken|published|modified')
+    # Titles and snippets often carry the historical capture year when a page
+    # does not expose structured metadata. Treat them as source assertions and
+    # still apply the same strict year-range check.
+    values.extend([
+        ('title', _text(item.get('title'))),
+        ('snippet', _text(item.get('snippet'))),
+    ])
+    return [(basis, value) for basis, value in values if value]
+
+
+def _google_date(item: dict, period: str) -> tuple[str, str] | None:
+    if not period.strip():
+        for basis, value in _google_date_values(item):
+            if _years(value):
+                return value, basis
+        return '', 'unknown'
+    for basis, value in _google_date_values(item):
+        if _date_matches(value, period):
+            return value, basis
+    return None
+
+
+def _google_creator(item: dict) -> str:
+    for _, value in _google_page_map_values(item, r'author|creator|artist|photographer|byline'):
+        if value:
+            return value
+    return ''
+
+
+def _google_query(place: str, period: str) -> str:
+    locations = []
+    for term in _place_terms(place):
+        clean = term.replace('"', ' ').strip()
+        if clean:
+            locations.append(f'"{clean}"')
+    location_query = ' OR '.join(locations)
+    bounds = _period_bounds(period)
+    if not bounds:
+        return f'({location_query})'
+    years = ' OR '.join(str(year) for year in range(bounds[0], min(bounds[1], bounds[0] + 99) + 1))
+    return f'({location_query}) ({years})'
+
+
+def _google_date_sort(period: str) -> str | None:
+    bounds = _period_bounds(period)
+    if not bounds:
+        return None
+    return f'date:r:{bounds[0]:04d}0101:{bounds[1]:04d}1231'
+
+
+def _google_location_matches(item: dict, place: str) -> bool:
+    image = item.get('image') if isinstance(item.get('image'), dict) else {}
+    haystack = ' '.join([
+        _text(item.get('title')), _text(item.get('snippet')), _text(item.get('displayLink')),
+        _text(image.get('contextLink')),
+    ]).casefold()
+    terms = []
+    for term in _place_terms(place):
+        terms.append(term)
+        terms.extend(part.strip() for part in re.split(r'[,/]', term) if len(part.strip()) >= 3)
+    return any(term.casefold() in haystack for term in terms if term)
+
+
+def _google_cse(place: str, period: str) -> list[dict]:
+    """Search an optional Google Programmable Search Engine image index.
+
+    Google returns image links and source-page links, but it does not guarantee
+    that every result exposes an item-level licence or capture date. Such hits
+    stay out of the gallery until a compatible licence and date assertion are
+    present in the result metadata.
+    """
+    key = _configured_env('GOOGLE_CSE_API_KEY')
+    cx = _configured_env('GOOGLE_CSE_ID')
+    if not key or not cx:
+        return []
+
+    query = _google_query(place, period)
+    common = {
+        'key': key, 'cx': cx, 'q': query, 'searchType': 'image',
+        'num': GOOGLE_CSE_PAGE_SIZE, 'safe': 'active', 'filter': '1',
+        # Ask Google for commercially compatible candidates, then require the
+        # result itself to expose a matching licence URL before displaying it.
+        'rights': 'cc_publicdomain|cc_attribute|cc_sharealike',
+    }
+    sort = _google_date_sort(period)
+    if sort:
+        common['sort'] = sort
+
+    items = []
+    start = 1
+    for _ in range(GOOGLE_CSE_MAX_PAGES):
+        data = _get(GOOGLE_CSE_ENDPOINT, {**common, 'start': start})
+        results = data.get('items') or []
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+            image_info = result.get('image') if isinstance(result.get('image'), dict) else {}
+            image = _text(result.get('link'))
+            source = _text(image_info.get('contextLink'))
+            if not _https_url(image) or not _https_url(source):
+                continue
+            title = _text(result.get('title'))
+            snippet = _text(result.get('snippet'))
+            caption = ' '.join((title, snippet, _text(result.get('displayLink'))))
+            if NON_PHOTO.search(caption) or not _google_location_matches(result, place):
+                continue
+            scene_date = _google_date(result, period)
+            if scene_date is None:
+                continue
+            licence = _google_license(result)
+            if not licence:
+                continue
+            license_name, license_url = licence
+            asset_id = 'google-' + hashlib.sha256(f'{source}\n{image}'.encode('utf-8')).hexdigest()[:24]
+            items.append({
+                'asset_id': asset_id, 'kind': 'image', 'title': title or 'Google image result',
+                'image_url': image, 'source_url': source, 'location': place,
+                'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
+                'license': license_name, 'license_url': license_url,
+                'date_expression': scene_date[0], 'date_basis': f'Google {scene_date[1]}',
+                'allowed_actions': {'embed': True, 'download': False, 'print': False},
+            })
+        unique = _deduplicate(items)
+        if len(unique) >= MAX_RESULTS:
+            return unique[:MAX_RESULTS]
+        next_pages = data.get('queries', {}).get('nextPage', [])
+        if next_pages and isinstance(next_pages[0], dict) and next_pages[0].get('startIndex'):
+            next_start = int(next_pages[0]['startIndex'])
+        elif len(results) == GOOGLE_CSE_PAGE_SIZE:
+            next_start = start + GOOGLE_CSE_PAGE_SIZE
+        else:
+            break
+        if next_start <= start or next_start > 100:
+            break
+        start = next_start
+    return _deduplicate(items)
+
+
 
 def _place_terms(place: str) -> list[str]:
     terms = [place.strip()]
@@ -174,7 +375,7 @@ def _place_terms(place: str) -> list[str]:
 
 
 def _flickr(place: str, period: str) -> list[dict]:
-    key = os.environ.get('FLICKR_API_KEY', '').strip()
+    key = _configured_env('FLICKR_API_KEY')
     if not key:
         return []
 
@@ -278,7 +479,9 @@ def search_place_photos(place: str, period: str = '') -> list[dict]:
     # Independent catalogues overlap their network waits; one failure must not
     # hide the other catalogue's usable photographs.
     providers = [_commons, _loc]
-    if os.environ.get("FLICKR_API_KEY", "").strip():
+    if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
+        providers.insert(0, _google_cse)
+    if _configured_env('FLICKR_API_KEY'):
         providers.insert(0, _flickr)
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
         futures = [pool.submit(provider, place, period) for provider in providers]

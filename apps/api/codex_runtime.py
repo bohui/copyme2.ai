@@ -595,6 +595,7 @@ class CodexRuntime:
                     language=language,
                     **({'evaluation': correlation} if correlation else {}),
                     **({'on_delta': emit_visible} if on_delta else {}),
+                    **({'on_event': progress.harness_event} if on_event else {}),
                 )
                 thread_id = result['thread_id']
                 reply = result['reply']
@@ -650,6 +651,7 @@ class CodexRuntime:
                         thread_id,
                         prompt,
                         **({'on_delta': emit_visible} if on_delta else {}),
+                        **({'on_event': progress.harness_event} if on_event else {}),
                         **({'responsesapi_client_metadata': correlation} if correlation else {}),
                     )
                 await lease.check()
@@ -701,7 +703,7 @@ class CodexRuntime:
             # Workspace extraction and public-reference work below may be
             # slow or optional, so do not make the browser wait for them
             # before it can render the completed question.
-            await progress.update('save', 'Saving the conversation', '正在保存对话')
+            await progress.update('save', 'Saving conversation memory', '正在保存对话记忆')
             try:
                 stored = await lease.io(
                     storage.commit_agent_turn,
@@ -721,7 +723,7 @@ class CodexRuntime:
                     f'Storyteller: {text}\nMemory Spark: {reply}',
                     paths,
                 )
-            await progress.update('save', 'Conversation saved', '对话已保存', status='completed')
+            await progress.update('save', 'Conversation memory saved', '对话记忆已保存', status='completed')
             turn_sequence = self._stored_memory_sequence(stored) or turn_sequence
             if trajectory:
                 trajectory.record('application', 'memory.persist', output={
@@ -1007,7 +1009,7 @@ class CodexRuntime:
 
     async def _workspace_extraction(self, *, user_id, memories, profile,
                                      place_journey, family_enabled,
-                                     family_context, project_id, text, language):
+                                     family_context, project_id, text, language, on_event=None):
         """Run marker extraction in a separate, non-conversational pass."""
         async with self._workspace_lock(user_id):
             task_sources = self._task_sources(memories) if project_id else []
@@ -1024,7 +1026,10 @@ class CodexRuntime:
                     text=text,
                     language=language,
                     agent_role='workspace',
+                    **({'on_event': on_event} if on_event else {}),
                 )
+                if result.get('_artifact_task') is not None:
+                    await result['_artifact_task']
                 return result['reply']
 
             home = await asyncio.to_thread(self._home, user_id, 'workspace')
@@ -1051,7 +1056,7 @@ class CodexRuntime:
                     'approvalPolicy': 'never', 'sandbox': 'read-only',
                     'baseInstructions': instructions,
                 })
-                return await connection.turn(result['thread']['id'], prompt)
+                return await connection.turn(result['thread']['id'], prompt, **({'on_event': on_event} if on_event else {}))
 
     @staticmethod
     def _stored_memory_id(memory):
@@ -1127,6 +1132,7 @@ class CodexRuntime:
                 project_id=project_id,
                 text=text,
                 language=language,
+                **({'on_event': progress.harness_event} if on_event else {}),
             )
             _ignored_visible, extracted_profile_updates = extract_profile_updates(enrichment_reply)
             _ignored_visible, task_requests = extract_task_requests(_ignored_visible)
@@ -1444,7 +1450,7 @@ class CodexRuntime:
 
     async def _worker_turn(self, *, user_id, prior, memories, profile, place_journey,
                            family_enabled, family_context, project_id, text,
-                           language, on_delta=None, evaluation=None, agent_role='collector'):
+                           language, on_delta=None, evaluation=None, agent_role='collector', on_event=None):
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
         payload = {
@@ -1467,7 +1473,7 @@ class CodexRuntime:
         if project_id:
             payload['task_sources'] = [source.model_dump() for source in self._task_sources(memories)]
         try:
-            if on_delta:
+            if on_delta or on_event:
                 # Keep consuming the worker stream after provider_complete so
                 # artifact enumeration can finish after the API has committed
                 # the visible reply. The returned task owns the HTTP client.
@@ -1494,8 +1500,10 @@ class CodexRuntime:
                                     if not line:
                                         continue
                                     event = json.loads(line)
-                                    if event['type'] == 'text_delta':
+                                    if event['type'] == 'text_delta' and on_delta:
                                         await on_delta(event['text'])
+                                    elif event['type'] == 'codex_activity' and on_event:
+                                        await on_event(event)
                                     elif event['type'] == 'provider_complete':
                                         provider = event.get('data') or {}
                                         if not provider_complete.done():

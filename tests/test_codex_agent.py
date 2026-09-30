@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 import base64
 import json
 import sys
@@ -266,6 +267,15 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         async def __aexit__(self, exc_type, exc, tb):
             return None
 
+        @asynccontextmanager
+        async def stream(self, method, url, *, headers, json):
+            response = await self.post(url, headers=headers, json=json)
+            async def lines():
+                import json as json_module
+                yield json_module.dumps({'type': 'result', 'data': response.json()})
+            response.aiter_lines = lines
+            yield response
+
         async def post(self, url, *, headers, json):
             self.request = {"url": url, "headers": headers, "json": json}
             if json.get('agent_role') == 'memory_context':
@@ -289,6 +299,9 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     ).turn(storage, "I was a child in Geelong. Please use the female timeline illustrations.", on_event=record_event))
 
     assert events[0]['type'] == 'progress'
+    assert any(event.get('data', {}).get('id') == 'save'
+               and event['data']['status'] == 'completed'
+               and event['data']['detail'] == 'Conversation memory saved' for event in events)
     saved_index = next(i for i, event in enumerate(events) if event['type'] == 'conversation_saved')
     place_index = next(i for i, event in enumerate(events) if event.get('data', {}).get('skill') == 'memoir-place-journey')
     assert place_index > saved_index
@@ -336,7 +349,7 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     assert "MEMORY_SPARK_PLACE_JOURNEY" not in result["reply"]
     assert storage.files[path] == b"session state"
     assert client.request["url"] == "http://codex-worker:8766/internal/codex/turn"
-    assert client.request["headers"] == {"X-Codex-Worker-Secret": "worker-secret"}
+    assert client.request["headers"] == {"X-Codex-Worker-Secret": "worker-secret", "Accept": "application/x-ndjson"}
     assert client.request["json"] == {
         "user_id": storage.user_id,
         "thread_id": "thread-old",

@@ -5,6 +5,9 @@ export function createAuthReminder({ getAuth, busy }) {
   let usage, userId, due = false, prompted = false;
   let last = performance.now();
   let visible = document.visibilityState === 'visible';
+  let refreshing = false;
+  const callbackParams = new URLSearchParams(window.location.search);
+  const callbackError = callbackParams.get('error_code') || callbackParams.get('error');
   const t = (key) => translate(`AuthReminder.${key}`);
 
   function open() {
@@ -18,6 +21,7 @@ export function createAuthReminder({ getAuth, busy }) {
     dialog.querySelector('h2').textContent = t('title');
     dialog.querySelector('[data-close]').setAttribute('aria-label', t('later'));
     dialog.querySelector('[data-intro]').textContent = t('message');
+    if (callbackError) dialog.querySelector('[role=status]').textContent = t(callbackError === 'identity_already_exists' ? 'identityExists' : 'error');
     dialog.querySelector('[data-email-label]').textContent = t('email');
     dialog.querySelector('[data-email]').textContent = t('continueEmail');
     for (const button of dialog.querySelectorAll('[data-provider]')) button.textContent = t(button.dataset.provider);
@@ -35,6 +39,10 @@ export function createAuthReminder({ getAuth, busy }) {
           ? await auth.linkIdentity({ provider, options: { redirectTo } })
           : await auth.updateUser({ email: dialog.querySelector('input').value.trim() }, { emailRedirectTo: redirectTo });
         if (result.error) throw result.error;
+        if (result.data?.user && result.data.user.id === getAuth()?.user?.id) {
+          getAuth().user = result.data.user;
+          tick();
+        }
         status.textContent = t(provider ? 'redirecting' : 'checkEmail');
       } catch {
         status.textContent = t('error');
@@ -49,8 +57,8 @@ export function createAuthReminder({ getAuth, busy }) {
   function mount() {
     const guest = getAuth()?.user?.is_anonymous;
     if (!guest) {
-      document.querySelector('[data-auth-reminder]')?.remove();
-      document.querySelector('[data-auth-reminder-dialog]')?.close();
+      document.querySelectorAll('[data-auth-reminder]').forEach(node => node.remove());
+      document.querySelectorAll('[data-auth-reminder-dialog]').forEach(dialog => { dialog.close(); dialog.remove(); });
       return;
     }
     const chat = document.querySelector('#chat-scroll');
@@ -91,6 +99,25 @@ export function createAuthReminder({ getAuth, busy }) {
     last = now;
     visible = document.visibilityState === 'visible';
   }
+  // Email confirmation may complete in another tab while this page still has
+  // the anonymous user cached. Verify on return without switching accounts.
+  async function refreshUser() {
+    const account = getAuth();
+    if (refreshing || !account?.user?.is_anonymous || !account.client?.auth?.getUser) return;
+    refreshing = true;
+    try {
+      const { data, error } = await account.client.auth.getUser();
+      if (!error && data?.user && getAuth() === account && data.user.id === account.user?.id) {
+        account.user = data.user;
+        tick();
+      }
+    } catch { /* Keep the guest reminder when verification is unavailable. */ }
+    finally { refreshing = false; }
+  }
+  window.addEventListener('focus', refreshUser);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshUser();
+  });
   setInterval(tick, 1000);
   document.addEventListener('visibilitychange', tick);
   window.addEventListener('pagehide', tick);

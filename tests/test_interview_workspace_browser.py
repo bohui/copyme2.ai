@@ -53,6 +53,26 @@ def test_narrow_conversation_heading_leaves_room_for_history(interview):
     assert heading.evaluate("el => parseFloat(getComputedStyle(el).fontSize)") <= 30
 
 
+def test_refresh_collapses_chat_history_until_expanded(interview):
+    page = interview
+    expect(page.get_by_role("button", name="Hide history", exact=True)).to_be_visible()
+    expect(page.locator("#chat-history")).not_to_have_attribute("hidden", "")
+
+    page.reload()
+
+    show_history = page.get_by_role("button", name="Show all history", exact=True)
+    expect(show_history).to_be_visible(timeout=20000)
+    expect(page.locator("#chat-history")).to_have_attribute("hidden", "")
+    expect(page.locator("#chat-history .chat-row").first).not_to_be_visible()
+    expect(page.locator("#chat-history .user-message").first).not_to_be_visible()
+
+    show_history.click()
+    expect(page.get_by_role("button", name="Hide history", exact=True)).to_be_visible()
+    expect(page.locator("#chat-history")).not_to_have_attribute("hidden", "")
+    expect(page.locator("#chat-history .chat-row").first).to_be_visible()
+    expect(page.locator("#chat-history .user-message").first).to_be_visible()
+
+
 def test_workspace_navigation_preserves_chat_reading_position(interview):
     scroll = interview.locator("#chat-scroll")
     scroll.evaluate("el => { el.style.scrollBehavior = 'auto'; el.scrollTop = 100; }")
@@ -64,6 +84,8 @@ def test_workspace_navigation_preserves_chat_reading_position(interview):
 
 def test_workspace_prioritizes_map_and_places_toggle_at_left(interview):
     expect(interview.get_by_text("1 memory in conversation · Place context added", exact=True)).to_have_count(0)
+    expect(interview.locator(".workspace-media-gallery")).to_have_count(0)
+    expect(interview.get_by_text("Not quite the right place? Tell me in the conversation.", exact=True)).to_have_count(0)
     workspace = interview.get_by_role("complementary", name="Places workspace").bounding_box()
     toggle = interview.get_by_role("button", name="Collapse workspace").bounding_box()
     assert toggle["x"] - workspace["x"] < 50
@@ -177,8 +199,10 @@ def test_saved_project_places_survive_reload_without_new_place_cue(interview):
     expect(page.get_by_role("button", name="Childhood", exact=False)).to_have_attribute("aria-pressed", "true")
 
 
-def test_two_places_in_one_stage_can_be_revisited(interview):
+def test_unmapped_place_does_not_replace_the_workspace(interview):
     page = interview
+    page.route("**/place-map", lambda route: route.fulfill(
+        content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None})))
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What was your new neighbourhood like?",
         "profile_updates": {"story_focus": {"life_stage": "childhood"}},
@@ -186,10 +210,8 @@ def test_two_places_in_one_stage_can_be_revisited(interview):
         "place_journey_change": {"changed": True}})))
     page.get_by_role("textbox", name="Your message").fill("We moved to Beijing when I was a child.")
     page.get_by_role("button", name="Send message").click()
-    expect(page.get_by_role("heading", name="Beijing", exact=True)).to_be_visible(timeout=20000)
-    page.get_by_role("button", name="Chengde", exact=True).click()
-    expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible()
-    expect(page.get_by_role("heading", name="Beijing", exact=True)).to_have_count(0)
+    expect(page.get_by_role("complementary", name="Places workspace")).to_have_count(0, timeout=20000)
+    expect(page.locator(".place-journey-card")).to_have_count(0)
 
 
 def test_conversation_keeps_inviting_memories_after_session_followups(interview):
@@ -207,15 +229,15 @@ def test_conversation_keeps_inviting_memories_after_session_followups(interview)
     assert 'follow-up question' in captured[0]
 
 
-def test_places_without_known_stage_remain_reachable(interview):
+def test_places_without_a_map_do_not_open_workspace(interview):
     page = interview
+    page.route("**/place-map", lambda route: route.fulfill(
+        content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None})))
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What comes to mind about that place?",
         "place_journey": {"place": "Hobart", "hierarchy": ["Earth", "Australia", "Hobart"], "granularity": "city"},
         "place_journey_change": {"changed": True}})))
     page.get_by_role("textbox", name="Your message").fill("I also remember Hobart.")
     page.get_by_role("button", name="Send message").click()
-    expect(page.get_by_role("heading", name="Hobart", exact=True)).to_be_visible(timeout=20000)
-    page.get_by_role("button", name="Childhood", exact=False).click()
-    page.get_by_role("button", name="All places", exact=True).click()
-    expect(page.get_by_role("heading", name="Hobart", exact=True)).to_be_visible()
+    expect(page.get_by_role("complementary", name="Places workspace")).to_have_count(0, timeout=20000)
+    expect(page.locator(".place-journey-card")).to_have_count(0)

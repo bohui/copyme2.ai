@@ -182,6 +182,8 @@
       "beforeChapter": "第一章之前",
       "chapter": "第",
       "chapterLabel": "第 {number} 章",
+      "showHistory": "显示全部历史",
+      "hideHistory": "隐藏历史",
       "expand": "展开",
       "minimize": "最小化",
       "voiceConversation": "语音对话",
@@ -459,7 +461,7 @@
     "intro": "Mira 会在你讲述故事时逐步补充这些资料。你可以在这里查看或修改。",
     "preferred_language": "首选对话语言",
     "automatic": "从下一条消息自动识别",
-    "languageHint": "用于回复和语音，页面语言保持不变。",
+    "languageHint": "用于回复、语音和页面语言，除非你另外选择页面语言。",
     "name": "姓名",
     "birth_year": "出生年份",
     "birth_place": "出生地",
@@ -484,6 +486,7 @@
     "later": "暂时不用",
     "checkEmail": "请查看邮件并点击确认链接，以保留本次聊天。等待期间可以继续聊天。",
     "redirecting": "正在打开登录页面…",
-    "error": "无法绑定此账号。请重试，或使用其他邮箱或社交账号。当前访客聊天仍然保留。"
+    "error": "无法绑定此账号。请重试，或使用其他邮箱或社交账号。当前访客聊天仍然保留。",
+    "identityExists": "此社交账号已绑定其他账号，因此本次登录未完成。聊天记录仍在当前访客会话中。请使用其他邮箱或社交账号来保留这些记录。"
   }
 }

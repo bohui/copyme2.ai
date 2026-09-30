@@ -124,10 +124,6 @@ h3 { line-height: 1.1; }
 .profile-menu.is-open .profile-chevron { margin-top: 4px; transform: rotate(225deg); }
 .profile-dropdown { position: absolute; top: calc(100% + 10px); right: 0; width: 248px; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--white); box-shadow: var(--shadow); }
 .profile-dropdown[hidden] { display: none; }
-.profile-dropdown-header { display: grid; gap: 4px; padding: 11px 11px 13px; border-bottom: 1px solid var(--line); }
-.profile-dropdown-eyebrow { color: var(--green); font-size: 9px; font-weight: 700; letter-spacing: .14em; }
-.profile-dropdown-header strong { overflow: hidden; color: var(--ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.profile-dropdown-header small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .profile-menu-language { padding: 10px 11px 12px; border-bottom: 1px solid var(--line); }
 .profile-menu-language #locale-switcher-root { display: block; position: static; }
 .profile-menu-language .locale-switcher { width: 100%; justify-content: space-between; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
@@ -193,6 +189,7 @@ h3 { line-height: 1.1; }
 .voice-floating .chat-main.is-collapsed { height: auto; }
 .voice-floating .chat-main.is-collapsed .chat-scroll, .voice-floating .chat-main.is-collapsed .composer-wrap { display: none; }
 .chat-heading-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.chat-history-toggle { white-space: nowrap; }
 .chat-panel-toggle { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; color: var(--green-dark); background: var(--white); font-size: 18px; line-height: 1; }
 .chat-panel-toggle:hover { color: var(--white); background: var(--green); }
 .workspace-progress-summary { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); gap: 24px; align-items: end; width: min(1240px, calc(100% - 56px)); margin: 28px auto 0; padding: 22px 0 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -613,6 +610,8 @@ h3 { line-height: 1.1; }
   border-bottom: 1px solid var(--line);
   background: rgba(255,253,248,.36);
 }
+.workspace-media-overview.no-gallery { grid-template-columns: minmax(0, 1fr); }
+.workspace-media-overview.no-gallery .workspace-media-map { padding-right: 0; border-right: 0; }
 .workspace-media-map,
 .workspace-media-gallery {
   min-width: 0;

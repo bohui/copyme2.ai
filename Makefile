@@ -135,7 +135,7 @@ browser-ten-round-test: localization-catalog-test ## Run ten localized chat turn
 		--server "MEMORY_SPARK_TEST_MODE=1 MEMORY_SPARK_SHOW_THINKING_STEPS=0 python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port $(API_PORT)" \
 		--port $(API_PORT) \
 		--server "cd apps/web && MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:$(API_PORT) npm run dev -- --hostname 127.0.0.1 --port $(WEB_PORT)" \
-		--port $(WEB_PORT) -- python3 tests/browser_ten_round_e2e.py --base-url http://127.0.0.1:$(WEB_PORT)
+		--port $(WEB_PORT) -- python3 tests/browser_ten_round_e2e.py --base-url http://127.0.0.1:$(WEB_PORT) --locale all
 
 acceptance-evidence: ## Run AT-001 through AT-055 and write the evidence report.
 	@python3 scripts/run_acceptance_evidence.py

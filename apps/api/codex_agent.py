@@ -111,7 +111,7 @@ class CodexConnection:
         else:
             self.events.append(message)
 
-    async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None, output_schema=None):
+    async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None, output_schema=None, on_event=None):
         self.events.clear()
         params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}]}
         if output_schema is not None:
@@ -142,6 +142,23 @@ class CodexConnection:
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:
                     continue
+                if on_event and event.get('method') in ('item/started', 'item/completed') and params.get('turnId') == turn_id:
+                    item = params.get('item', {})
+                    # Forward only public operation metadata, never arguments,
+                    # command output, agent text, or private reasoning.
+                    names = {'commandExecution': 'Command', 'mcpToolCall': 'Tool',
+                             'dynamicToolCall': 'Tool', 'fileChange': 'File update',
+                             'webSearch': 'Web search'}
+                    kind = item.get('type')
+                    if kind in names and item.get('id'):
+                        status = 'running' if event['method'] == 'item/started' else 'completed'
+                        if item.get('status') in ('failed', 'declined') or item.get('exitCode') not in (None, 0):
+                            status = 'failed'
+                        await on_event({'type': 'codex_activity', 'data': {
+                            'id': f"codex:{thread_id}:{turn_id}:{item['id']}",
+                            'kind': 'tool_call', 'label': item.get('tool') or names[kind],
+                            'operation': kind, 'status': status,
+                        }})
                 if event.get('method') == 'item/agentMessage/delta' and on_delta:
                     streamed_items.add(params.get('itemId'))
                     await on_delta(params.get('delta', ''))

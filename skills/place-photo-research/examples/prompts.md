@@ -12,6 +12,12 @@ $place-photo-research Find at least 10 real photographs of Chengde, Hebei, China
 $place-photo-research Find at least 10 photographs of Chengde, Hebei, China. Prefer city streets and local life. Save permitted images, evidence and a gallery to ./photo-research/chengde-current-01.
 ```
 
+## Historical — bare year expands to ten years
+
+```text
+$place-photo-research Find at least 10 real photographs of Chengde, Hebei, China in 1980. Treat 1980 as the start of the 1980–1989 decade; inspect individual capture dates, source pages and licences.
+```
+
 ## Chinese explicit period
 
 ```text
@@ -49,6 +55,7 @@ $place-photo-research Find photographs of Chengde in 1983, but do not download i
 | Find pictures of Chengde | Current |
 | Find pictures of Chengde after an earlier discussion of 1983 | Current; no hidden inheritance |
 | Find Chengde in the 1980s | 1980–1989 |
+| Find Chengde in 1980 | 1980–1989; bare year starts a ten-year window |
 | More photos from that same period | Resolve explicit reference and record basis |
 | Show that street | Resolve place, not unstated period |
 | Old photos | Historical unspecified |

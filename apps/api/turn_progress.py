@@ -25,3 +25,12 @@ class TurnProgress:
         if self.emit:
             await self.emit({'type': 'progress', 'turn_id': self.turn_id,
                              'project_id': self.project_id, 'data': step})
+
+    async def harness_event(self, event):
+        if event.get('type') != 'codex_activity':
+            return
+        data = event['data']
+        statuses = {'running': ('Running', '正在执行'), 'completed': ('Completed', '已完成'), 'failed': ('Failed', '失败')}
+        english, chinese = statuses[data['status']]
+        await self.update(data['id'], f"{data['label']} · {english}",
+                          f"{data['label']} · {chinese}", status=data['status'])

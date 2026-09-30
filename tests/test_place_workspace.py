@@ -59,6 +59,16 @@ def test_place_photo_search_excludes_wrong_decade_undated_and_banknotes(monkeypa
     assert search_place_photos("Chengde", "unknown childhood period") == []
 
 
+def test_bare_year_search_covers_the_following_ten_calendar_years(monkeypatch):
+    from apps.api.place_photos import _date_matches, _period_bounds, _search_queries
+    assert _period_bounds("1980") == (1980, 1989)
+    assert _period_bounds("1980年") == (1980, 1989)
+    assert _date_matches("1980-01-01", "1980")
+    assert _date_matches("1989-12-31", "1980")
+    assert not _date_matches("1990-01-01", "1980")
+    assert "1989" in _search_queries("Chengde", "1980")[0]
+
+
 def test_place_photo_search_expands_queries_and_deduplicates(monkeypatch):
     import httpx
     from apps.api.place_photos import search_place_photos
@@ -181,7 +191,7 @@ def test_flickr_rejects_wrong_year_unknown_date_and_unlicensed_photos(monkeypatc
                 {**base, 'url_z': 'https://untrusted.example/photo.jpg'}, base]}}
         return httpx.Response(200, json={'stat': 'ok', **data}, request=httpx.Request('GET', url))
     monkeypatch.setattr(httpx, 'get', get)
-    photos = _flickr('Chengde', '1980')
+    photos = _flickr('Chengde', '1980-1980')
     assert len(photos) == 2  # same item encountered in both language queries
     assert len({p['asset_id'] for p in photos}) == 1
 
@@ -219,3 +229,102 @@ def test_flickr_album_expansion_keeps_generic_titles_but_checks_each_date(monkey
     assert len(photos) == 1
     assert photos[0]['title'] == 'Willow trees'
     assert photos[0]['source_url'] == 'https://www.flickr.com/photos/123@N01/1/'
+
+
+def google_result(index, *, place='Chengde', date='1983', title=None,
+                  license_url='https://creativecommons.org/licenses/by/4.0/'):
+    result = {
+        'title': title or f'{place} street photograph {date} #{index}',
+        'link': f'https://images.example/{index}.jpg',
+        'snippet': f'{place} historical street photograph, captured {date}.',
+        'displayLink': 'archive.example',
+        'image': {'contextLink': f'https://archive.example/photos/{index}'},
+        'pagemap': {'metatags': [{'dateCreated': date, 'license': license_url, 'author': 'Archive photographer'}]},
+    }
+    return result
+
+
+def test_google_cse_filters_location_and_created_range_across_pages(monkeypatch):
+    import httpx
+    from apps.api.place_photos import _google_cse
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'test-google-key')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'b2de41f6592f74c3e')
+    calls = []
+
+    def get(url, **kwargs):
+        if 'customsearch.googleapis.com' not in url:
+            return httpx.Response(200, json={'results': []}, request=httpx.Request('GET', url))
+        params = kwargs['params']
+        calls.append(params.copy())
+        assert params['cx'] == 'b2de41f6592f74c3e'
+        assert params['key'] == 'test-google-key'
+        assert params['searchType'] == 'image'
+        assert params['num'] == 10
+        assert params['rights'] == 'cc_publicdomain|cc_attribute|cc_sharealike'
+        assert params['sort'] == 'date:r:19800101:19891231'
+        assert 'Chengde' in params['q'] and '承德' in params['q']
+        assert '1980' in params['q'] and '1989' in params['q']
+        if params['start'] == 1:
+            items = [google_result(1)]
+            items.extend([
+                google_result(2, date='1979'),
+                google_result(3, place='Chengdu'),
+                google_result(4, license_url='https://creativecommons.org/licenses/by-nc/2.0/'),
+                google_result(5, date='1990'),
+                google_result(6, title='Banknote', date='1983'),
+            ])
+            return httpx.Response(200, json={
+                'items': items,
+                'queries': {'nextPage': [{'startIndex': 11}]},
+            }, request=httpx.Request('GET', url))
+        assert params['start'] == 11
+        return httpx.Response(200, json={'items': [google_result(i) for i in range(10, 19)]},
+                              request=httpx.Request('GET', url))
+
+    monkeypatch.setattr(httpx, 'get', get)
+    photos = _google_cse('Chengde', '1980s')
+    assert len(photos) == 10
+    assert len({photo['asset_id'] for photo in photos}) == 10
+    assert [call['start'] for call in calls] == [1, 11]
+    assert all(photo['allowed_actions']['embed'] for photo in photos)
+    assert all(photo['license'] == 'CC BY' for photo in photos)
+    assert all(photo['date_expression'] == '1983' for photo in photos)
+
+
+def test_google_cse_requires_server_credentials(monkeypatch):
+    from apps.api.place_photos import _google_cse
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'b2de41f6592f74c3e')
+    monkeypatch.setattr('httpx.get', lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('unexpected call')))
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', '<null>')
+    assert _google_cse('Chengde', '1980s') == []
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    assert _google_cse('Chengde', '1980s') == []
+
+
+def test_google_cse_pagination_makes_place_endpoint_ready(monkeypatch):
+    import httpx
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'test-google-key')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'b2de41f6592f74c3e')
+
+    def get(url, **kwargs):
+        if 'customsearch.googleapis.com' not in url:
+            if 'commons' in url:
+                return httpx.Response(200, json={}, request=httpx.Request('GET', url))
+            return httpx.Response(200, json={'results': []}, request=httpx.Request('GET', url))
+        params = kwargs['params']
+        if params['start'] == 1:
+            data = {'items': [google_result(1)], 'queries': {'nextPage': [{'startIndex': 11}]}}
+        else:
+            data = {'items': [google_result(index) for index in range(10, 19)]}
+        return httpx.Response(200, json=data, request=httpx.Request('GET', url))
+
+    monkeypatch.setattr(httpx, 'get', get)
+    client = TestClient(create_app(MemoryStore()))
+    headers = {'X-Account-Id': 'google-photo-owner'}
+    project = client.post('/v1/projects', headers=headers, json={'mode': 'self', 'language': 'en-AU'}).json()
+    result = client.get(f"/v1/projects/{project['id']}/place-photos", headers=headers,
+                        params={'place': 'Chengde', 'period': '1980s'}).json()
+    assert result['status'] == 'READY'
+    assert result['target_count'] == 10 and result['shortfall'] == 0
+    assert len(result['items']) == 10
+    assert all(item['asset_id'].startswith('google-') for item in result['items'])

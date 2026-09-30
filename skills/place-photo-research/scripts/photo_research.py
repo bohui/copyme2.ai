@@ -138,9 +138,9 @@ def normalize_period(period: str | None, as_of: date, recent_months: int = 24) -
         if year % 10:
             fail("A decade must start in a year divisible by 10")
         start, end, precision = date(year, 1, 1), date(year + 9, 12, 31), "decade"
-    elif re.fullmatch(r"\d{4}", p):
-        year = int(p)
-        start, end, precision = date(year, 1, 1), date(year, 12, 31), "year"
+    elif re.fullmatch(r"\d{4}\s*年?", p):
+        year = int(re.search(r"\d{4}", p).group())
+        start, end, precision = date(year, 1, 1), date(year + 9, 12, 31), "decade_from_year"
     elif re.fullmatch(r"\d{4}\s*[-–—:]\s*\d{4}", p):
         a, b = re.split(r"\s*[-–—:]\s*", p)
         start, end, precision = date(int(a), 1, 1), date(int(b), 12, 31), "range"
@@ -151,7 +151,7 @@ def normalize_period(period: str | None, as_of: date, recent_months: int = 24) -
         a, b = p.split("..")
         start, end, precision = date.fromisoformat(a), date.fromisoformat(b), "range"
     else:
-        fail("Unsupported period. Codex must resolve an explicit expression to YYYY, YYYYs, YYYY-YYYY, "
+        fail("Unsupported period. Codex must resolve an explicit expression to YYYY (a ten-year window), YYYYs, YYYY-YYYY, "
              "YYYY-MM-DD..YYYY-MM-DD, current or historical; do not silently guess a century/range.")
     if start > end:
         fail("Period start is after its end")

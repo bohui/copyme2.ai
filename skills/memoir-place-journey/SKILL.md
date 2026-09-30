@@ -1,4 +1,4 @@
----
+    ---
 name: memoir-place-journey
 description: This skill should be used by the integrated Memory Spark Codex worker when a storyteller explicitly mentions a geographic place, recalls where a memory happened, or asks to revisit a location. Extract a coarse, user-grounded place and emit a validated place-journey event for the Memoir workspace while keeping the visible reply gentle and concise.
 ---

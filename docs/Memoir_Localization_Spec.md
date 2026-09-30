@@ -6,23 +6,25 @@ This creates a more serious boundary problem than untranslated buttons. The inte
 
 ## Solution
 
-Add reviewed localization to the Next.js Memoir frontend with `next-intl` and Git-managed JSON message catalogues. V1 supports `en-AU` and `zh-CN`, keeps the existing `/memoir/*` and `/voice` URLs unchanged, and uses one component tree for both languages. The UI locale remains independent from the optional interview language, with one bounded onboarding exception requested by the product: when there is no fixed device or account choice, the first substantive reply may switch the current UI session and Mira's first response to its detected supported language. Later interview replies and voice transcripts never rewrite the page locale.
+Add reviewed localization to the Next.js Memoir frontend with `next-intl` and Git-managed JSON message catalogues. V1 supports `en-AU` and `zh-CN`, keeps the existing `/memoir/*` and `/voice` URLs unchanged, and uses one component tree for both languages. The UI locale remains separately stored from the optional interview language, but a saved profile language seeds the page locale when no explicit page-language choice exists. With no fixed device, account, or profile choice, the first substantive reply may switch the current UI session and Mira's first response to its detected supported language. Later interview replies and voice transcripts never rewrite the page locale.
 
 Resolve the UI locale in this order:
 
 1. An explicit device choice.
 2. The signed-in account's UI preference when no device choice exists.
-3. A locale match from the browser language preference.
-4. The application default, `en-AU`.
+3. The saved profile conversation language when no device or account UI choice exists.
+4. A locale match from the browser language preference.
+5. The application default, `en-AU`.
 
-On a new onboarding session without a fixed device or account choice, the first
-substantive reply may provide a temporary supported-locale signal. This signal
-is local, bounded to that first reply, and never writes a fixed account or device
-preference. A legacy locale cookie without provenance is treated as migratable
-automatic state; a newly written fixed-source cookie and an account preference
-remain authoritative.
+On a new onboarding session without a fixed device, account, or conversation
+language choice, the first substantive reply may provide a temporary supported-
+locale signal. This signal is local, bounded to that first reply, and never
+writes a fixed account or device preference. A configured profile conversation
+language bypasses the detector and is passed directly to Mira. A legacy locale
+cookie without provenance is treated as migratable automatic state; a newly
+written fixed-source cookie and an account preference remain authoritative.
 
-Store the device choice in the locale cookie. When an authenticated user changes language, persist the same UI preference to that account as well. The resolved UI locale is used for product copy, dates, times, and browser speech presentation; conversation language is a separate optional profile field passed to the runtime. Source language, edition language, time zone, and hosting region remain independent. Memoir translation remains a separate language-aware workflow.
+Store the device choice in the locale cookie. When a profile language is present and no explicit page-language choice exists, persist that resolved page locale in the locale cookie so refreshes retain it. When an authenticated user changes the page language explicitly, persist the same UI preference to that account as well. The resolved UI locale is used for product copy, dates, times, and browser speech presentation; conversation language remains a separate profile field passed to the runtime. Source language, edition language, time zone, and hosting region remain independent. Memoir translation remains a separate language-aware workflow.
 
 ## User Stories
 
@@ -65,7 +67,7 @@ Store the device choice in the locale cookie. When an authenticated user changes
 - UI messages use complete ICU messages with named placeholders and plural rules. Translated fragments are not assembled by concatenating separately translated words.
 - Date, time, number, and currency formatting uses locale-aware `Intl`/`next-intl` formatting. Currency remains `AUD`; uncertain memoir date expressions remain expressions rather than being converted into fabricated exact dates.
 - Backend responses used by the localized UI expose stable error/status codes and safe parameters. The frontend maps known codes to reviewed messages and uses a generic localized fallback for unknown codes.
-- UI locale state remains separate from storyteller profile language, source/transcript language, requested edition locale, time zone, and hosting region after the bounded first-reply bridge. Project creation and agent turns carry an optional allowlisted conversation language; the first reply can supply a temporary detected value before the runtime turn. A locale change does not translate source material, consume an interview allowance, alter an approved manuscript, or move storage.
+- UI locale state remains separately stored from storyteller profile language, source/transcript language, requested edition locale, time zone, and hosting region. A saved profile language can seed the UI locale when no explicit page-language choice exists; project creation and agent turns carry the same optional allowlisted conversation language. The first reply can supply a temporary detected value only when no profile language exists. A locale change does not translate source material, consume an interview allowance, alter an approved manuscript, or move storage.
 - The language contract is implemented at the conversation boundary rather than by rewriting the model-provider configuration. The provider/model stays stable while the optional conversation language is supplied on every turn, which makes an in-progress conversation safe to continue after a UI-language change.
 - The localization boundary remains compatible with the existing API namespace adapter and Supabase session flows. Account preference persistence updates only the authenticated user's UI preference and never mutates shared memoir content.
 - Existing browser-only recording, speech, place journey, family context, and timeline behavior remains available through the Next.js client boundary while visible copy is moved behind the shared message interface. A locale change during active recording is deferred until safe persistence is complete.

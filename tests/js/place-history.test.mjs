@@ -30,15 +30,88 @@ test('preserves known coordinates when later mention omits them', () => {
  const result = mergePlaces([city,{...city,latitude:null,longitude:null}]);
  assert.equal(result[0].latitude,city.latitude);
 });
+test('orders places by life-stage chronology instead of mention order', () => {
+ const places = mergePlaces([
+  {...city, place:'Sydney', hierarchy:['Earth','Australia','Sydney'], life_stage:'young_adulthood', source_sequence:1},
+  {...city, place:'Chengde', hierarchy:['Earth','China','Hebei','Chengde'], life_stage:'childhood', source_sequence:2},
+  {...city, place:'Shanghai', hierarchy:['Earth','China','Shanghai'], life_stage:'adolescence', source_sequence:3},
+ ]);
+ assert.deepEqual(places.map(place => place.place), ['Chengde','Shanghai','Sydney']);
+});
+
+test('uses source sequence only for places without a distinct stage', () => {
+ const places = mergePlaces([
+  {...city, place:'Later place', hierarchy:['Earth','Australia','Later place'], life_stage:'midlife', source_sequence:1},
+  {...city, place:'Early place', hierarchy:['Earth','Australia','Early place'], life_stage:'childhood', source_sequence:2},
+  {...city, place:'Unstaged place', hierarchy:['Earth','Australia','Unstaged place'], source_sequence:3},
+ ]);
+ assert.deepEqual(places.map(place => place.place), ['Early place','Later place','Unstaged place']);
+});
+
+test('renders the place history navigation in chronological order', async () => {
+ const fs = await import('node:fs');
+ const vm = await import('node:vm');
+ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const context = vm.createContext({
+  escapeHtml: String, translate: key => key, lifeStageText: stage => stage, placeHistoryKey,
+ });
+ vm.runInContext(source.match(/function placeHistoryChoices\([^]*?\n\}/)[0], context);
+ const places = mergePlaces([
+  {...city, place:'Sydney', hierarchy:['Earth','Australia','Sydney'], life_stage:'young_adulthood'},
+  {...city, place:'Chengde', hierarchy:['Earth','China','Hebei','Chengde'], life_stage:'childhood'},
+ ]);
+ const markup = context.placeHistoryChoices(places, places.at(-1));
+ assert.ok(markup.indexOf('>Chengde<') < markup.indexOf('>Sydney<'));
+});
+
 test('renderer keeps detailed title and labels parent map coordinates', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
  const context=vm.createContext({mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
- for (const name of ['placeMapUrl','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
+ for (const name of ['placeMapTarget','placeMapUrl','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
  const markup=context.placeJourneyMarkup(suburb);
  assert.match(markup,/<h2>大石庙镇<\/h2>/);
  assert.match(markup,/data-cesium-place="承德"/);
  assert.match(markup,/data-cesium-latitude="40.97"/);
  assert.match(markup,/parentMap 承德/);
+ assert.doesNotMatch(markup,/placeNote/);
+});
+
+test('does not render a place card when no map target is available', async () => {
+ const fs = await import('node:fs');
+ const vm = await import('node:vm');
+ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const context = vm.createContext({
+  mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
+  profile: () => ({memory_places: []}), escapeHtml: String,
+  translate: key => key, translateWith: (key, values) => `${key} ${values.place || ''}`,
+  currentUiLocale: () => 'en-AU',
+ });
+ for (const name of ['placeMapTarget', 'placeJourneyMarkup']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+ }
+ assert.equal(context.placeJourneyMarkup({
+  place: 'Somewhere unknown', hierarchy: ['Earth', 'Somewhere unknown'], granularity: 'city',
+ }), '');
+});
+
+test('does not activate the workspace without a map target', async () => {
+ const fs = await import('node:fs');
+ const vm = await import('node:vm');
+ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const unknown = {place: 'Somewhere unknown', hierarchy: ['Earth', 'Somewhere unknown'], granularity: 'city'};
+ const mapped = {place: 'Hobart', hierarchy: ['Earth', 'Australia', 'Hobart'], granularity: 'city', latitude: -42.88, longitude: 147.33};
+ const context = vm.createContext({
+  state: {placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
+  mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
+  profile: () => ({memory_places: [unknown, mapped]}), workspaceTabs: () => [],
+ });
+ for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'workspaceHasContent']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+ }
+ assert.equal(context.workspaceHasContent(), false);
+ context.state.placeJourney = mapped;
+ context.state.selectedPlace = placeHistoryKey(mapped);
+ assert.equal(context.workspaceHasContent(), true);
 });

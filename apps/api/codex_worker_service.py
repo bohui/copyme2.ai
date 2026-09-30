@@ -245,6 +245,7 @@ class CodexWorker:
                     prompt,
                     **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role == 'collector' else {}),
+                    **({'on_event': on_event} if on_event else {}),
                     **({'responsesapi_client_metadata': correlation} if correlation else {}),
                 )
             if trajectory:

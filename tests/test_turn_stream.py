@@ -154,3 +154,56 @@ def test_worker_http_stream_forwards_delta_before_final_artifacts(monkeypatch):
             text='Hi', language='en-AU', on_delta=emit)
         assert result['reply'] == 'Hello'
     asyncio.run(run())
+
+
+def test_codex_activity_is_scoped_and_excludes_private_content():
+    from apps.api.turn_progress import TurnProgress
+
+    async def run():
+        connection = CodexConnection([], '.')
+        events = []
+        async def emit(event):
+            events.append(event)
+        progress = TurnProgress(emit, 'round', 'project', 'en-AU')
+        async def request(method, params):
+            for thread, turn, kind, identity in [('other', 'turn', 'mcpToolCall', 'other'),
+                    ('t', 'old', 'mcpToolCall', 'old'), ('t', 'turn', 'reasoning', 'private'),
+                    ('t', 'turn', 'mcpToolCall', 'call')]:
+                for method in ('item/started', 'item/completed'):
+                    connection.events.append({'method': method, 'params': {
+                        'threadId': thread, 'turnId': turn, 'item': {
+                            'id': identity, 'type': kind, 'tool': 'memory.search',
+                            'arguments': 'secret input', 'result': 'secret output', 'text': 'private reasoning'}}})
+            connection.events.append({'method': 'turn/completed', 'params': {
+                'threadId': 't', 'turn': {'id': 'turn', 'status': 'completed'}}})
+            return {'turn': {'id': 'turn'}}
+        connection.request = request
+        await connection.turn('t', 'Hi', on_event=progress.harness_event)
+        assert [event['data']['status'] for event in events] == ['running', 'completed']
+        assert all(event['data']['id'] == 'codex:t:turn:call' for event in events)
+        assert progress.steps[0]['detail'] == 'memory.search · Completed'
+        assert 'secret' not in str(events) and 'private reasoning' not in str(events)
+    asyncio.run(run())
+
+
+def test_worker_stream_forwards_harness_activity_without_text_callback():
+    async def run():
+        events = []
+        activity = {'type': 'codex_activity', 'data': {
+            'id': 'call', 'label': 'memory.search', 'status': 'completed'}}
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield (json.dumps(activity) + '\n').encode()
+                yield b'{"type":"result","data":{"thread_id":"t","reply":"Hello","artifacts":[]}}\n'
+        def handle(request):
+            return httpx.Response(200, stream=Body())
+        async def emit(event):
+            events.append(event)
+        runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret',
+                               worker_transport=httpx.MockTransport(handle))
+        result = await runtime._worker_turn(user_id='test', prior=None, memories=[], profile={},
+            place_journey={}, family_enabled=False, family_context={}, project_id=None,
+            text='Hi', language='en-AU', on_event=emit)
+        await result['_artifact_task']
+        assert events == [activity]
+    asyncio.run(run())
