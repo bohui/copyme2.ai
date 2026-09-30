@@ -1,0 +1,44 @@
+[
+  {
+    "id": "summary_e_child",
+    "text": "Childhood in Suzhou",
+    "source_refs": [
+      {
+        "source_id": "s_child",
+        "version": "1"
+      }
+    ],
+    "event_ids": [
+      "e_child"
+    ],
+    "uncertainty": []
+  },
+  {
+    "id": "summary_e_work",
+    "text": "First factory job and wages given to mother",
+    "source_refs": [
+      {
+        "source_id": "s_work",
+        "version": "1"
+      }
+    ],
+    "event_ids": [
+      "e_work"
+    ],
+    "uncertainty": []
+  },
+  {
+    "id": "summary_e_sydney",
+    "text": "Moved to Sydney and lived in a rented flat",
+    "source_refs": [
+      {
+        "source_id": "s_sydney",
+        "version": "1"
+      }
+    ],
+    "event_ids": [
+      "e_sydney"
+    ],
+    "uncertainty": []
+  }
+]

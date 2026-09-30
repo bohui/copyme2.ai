@@ -1,0 +1,23 @@
+[
+  {
+    "chapter_id": "ch_childhood",
+    "order": 0,
+    "title": "The House with the Blue Door",
+    "period_ids": [
+      "childhood"
+    ],
+    "event_ids": [
+      "e_home",
+      "e_room",
+      "e_noodles"
+    ],
+    "status": "draft",
+    "rationale": "A supported chronological stretch of the narrator’s life.",
+    "source_refs": [
+      {
+        "source_id": "s_home",
+        "version": "1"
+      }
+    ]
+  }
+]

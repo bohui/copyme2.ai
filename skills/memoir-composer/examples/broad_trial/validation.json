@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "SEMANTIC_REVIEW_REQUIRED",
+      "at": "$",
+      "message": "Reference existence and exact quoting do not prove prose entailment, chronology or caption accuracy. This is a review-only artifact, never publication approval."
+    }
+  ],
+  "kind": "sample_storyline",
+  "input_fingerprint": "ed502e220d62821570a7f68710ba5c43b9162c06d367d2f73119a163da7245d5",
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "chapter_counts": [
+    {
+      "chapter_id": "sample_storyline",
+      "scope": "storyline",
+      "words": 45,
+      "characters": 215,
+      "hard_limit": 7000
+    }
+  ],
+  "storyline_words": 45,
+  "active_chapter_ids": [],
+  "source_summary_words": 20,
+  "publication_authorized": false
+}

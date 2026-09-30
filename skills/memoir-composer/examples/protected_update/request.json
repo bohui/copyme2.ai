@@ -1,0 +1,339 @@
+{
+  "schema_version": "1.0",
+  "request_id": "demo_request",
+  "event_id": "demo_new_context",
+  "project_id": "demo_memoir",
+  "trigger": {
+    "type": "new_context",
+    "confirmed": true,
+    "free_rounds_completed": 5,
+    "free_round_limit": 5,
+    "storytelling_confirmation_ref": "app_confirmation_demo",
+    "composition_authorized": true
+  },
+  "target": {
+    "locale": "en-AU",
+    "audience": "storyteller",
+    "medium": "web"
+  },
+  "snapshot": {
+    "id": "demo_snapshot_2",
+    "policy_epoch": 1,
+    "expected_manuscript_revision": 1,
+    "retrieval_complete": true,
+    "glossary_version": "1",
+    "preferences_version": "1"
+  },
+  "policy": {
+    "max_chapter_words": 7000,
+    "soft_chapter_words": 6000,
+    "focus_threshold": 0.65,
+    "max_followup_questions": 3,
+    "preview_preference": "auto"
+  },
+  "sources": [
+    {
+      "id": "s_child",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "I spent my childhood in Suzhou in the 1960s.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    },
+    {
+      "id": "s_work",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "I started work in a textile factory in 1974. I gave my first wages to my mother.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    },
+    {
+      "id": "s_sydney",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "I moved to Sydney in 1995. At first I lived in a small rented flat.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    },
+    {
+      "id": "s_friend",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "The first friend I made in Sydney was a neighbour named Sam. We met outside our flats.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    }
+  ],
+  "assets": [],
+  "periods": [
+    {
+      "id": "childhood",
+      "order": 0,
+      "label": "Childhood in the 1960s",
+      "source_refs": [
+        {
+          "source_id": "s_child",
+          "version": "1"
+        }
+      ]
+    },
+    {
+      "id": "work",
+      "order": 1,
+      "label": "Working life from 1974",
+      "source_refs": [
+        {
+          "source_id": "s_work",
+          "version": "1"
+        }
+      ]
+    },
+    {
+      "id": "sydney",
+      "order": 2,
+      "label": "Sydney from 1995",
+      "source_refs": [
+        {
+          "source_id": "s_sydney",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "e_child",
+      "period_id": "childhood",
+      "summary": "Childhood in Suzhou",
+      "source_refs": [
+        {
+          "source_id": "s_child",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "in the 1960s",
+        "start_year": 1960,
+        "end_year": 1969,
+        "precision": "decade"
+      },
+      "status": "active",
+      "narrative": true
+    },
+    {
+      "id": "e_work",
+      "period_id": "work",
+      "summary": "First factory job and wages given to mother",
+      "source_refs": [
+        {
+          "source_id": "s_work",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "in 1974",
+        "start_year": 1974,
+        "end_year": 1974,
+        "precision": "year"
+      },
+      "status": "active",
+      "narrative": true
+    },
+    {
+      "id": "e_sydney",
+      "period_id": "sydney",
+      "summary": "Moved to Sydney and lived in a rented flat",
+      "source_refs": [
+        {
+          "source_id": "s_sydney",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "in 1995",
+        "start_year": 1995,
+        "end_year": 1995,
+        "precision": "year"
+      },
+      "status": "active",
+      "narrative": true
+    },
+    {
+      "id": "e_friend",
+      "period_id": "sydney",
+      "summary": "Met neighbour Sam in Sydney",
+      "source_refs": [
+        {
+          "source_id": "s_friend",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "after arriving in Sydney",
+        "start_year": null,
+        "end_year": null,
+        "precision": "relative"
+      },
+      "status": "active",
+      "narrative": true
+    }
+  ],
+  "prior_state": {
+    "kind": "formal_memoir",
+    "revision": 1,
+    "chapters": [
+      {
+        "revision": 1,
+        "approved": false,
+        "human_locked": false,
+        "chapter": {
+          "id": "ch_child",
+          "base_revision": 0,
+          "title": "Growing Up in Suzhou",
+          "subtitle": "",
+          "period_ids": [
+            "childhood"
+          ],
+          "event_ids": [
+            "e_child"
+          ],
+          "source_refs": [
+            {
+              "source_id": "s_child",
+              "version": "1"
+            }
+          ],
+          "blocks": [
+            {
+              "id": "formal_0",
+              "type": "paragraph",
+              "text": "I spent my childhood in Suzhou in the 1960s.",
+              "asset_id": null,
+              "asset_version": null,
+              "caption": "",
+              "alt": "",
+              "credit": "",
+              "source_refs": [
+                {
+                  "source_id": "s_child",
+                  "version": "1"
+                }
+              ],
+              "uncertainty": []
+            }
+          ],
+          "change_type": "create",
+          "update_reason": "Initial draft from the cited narrator statements."
+        }
+      },
+      {
+        "revision": 1,
+        "approved": false,
+        "human_locked": false,
+        "chapter": {
+          "id": "ch_work",
+          "base_revision": 0,
+          "title": "My First Wages",
+          "subtitle": "",
+          "period_ids": [
+            "work"
+          ],
+          "event_ids": [
+            "e_work"
+          ],
+          "source_refs": [
+            {
+              "source_id": "s_work",
+              "version": "1"
+            }
+          ],
+          "blocks": [
+            {
+              "id": "formal_1",
+              "type": "paragraph",
+              "text": "I started work in a textile factory in 1974. I gave my first wages to my mother.",
+              "asset_id": null,
+              "asset_version": null,
+              "caption": "",
+              "alt": "",
+              "credit": "",
+              "source_refs": [
+                {
+                  "source_id": "s_work",
+                  "version": "1"
+                }
+              ],
+              "uncertainty": []
+            }
+          ],
+          "change_type": "create",
+          "update_reason": "Initial draft from the cited narrator statements."
+        }
+      },
+      {
+        "revision": 1,
+        "approved": true,
+        "human_locked": false,
+        "chapter": {
+          "id": "ch_sydney",
+          "base_revision": 0,
+          "title": "A New Home in Sydney",
+          "subtitle": "",
+          "period_ids": [
+            "sydney"
+          ],
+          "event_ids": [
+            "e_sydney"
+          ],
+          "source_refs": [
+            {
+              "source_id": "s_sydney",
+              "version": "1"
+            }
+          ],
+          "blocks": [
+            {
+              "id": "formal_2",
+              "type": "paragraph",
+              "text": "I moved to Sydney in 1995. At first I lived in a small rented flat.",
+              "asset_id": null,
+              "asset_version": null,
+              "caption": "",
+              "alt": "",
+              "credit": "",
+              "source_refs": [
+                {
+                  "source_id": "s_sydney",
+                  "version": "1"
+                }
+              ],
+              "uncertainty": []
+            }
+          ],
+          "change_type": "create",
+          "update_reason": "Initial draft from the cited narrator statements."
+        }
+      }
+    ],
+    "last_snapshot_fingerprint": "ed502e220d62821570a7f68710ba5c43b9162c06d367d2f73119a163da7245d5"
+  },
+  "authorised_retirements": [],
+  "context": {
+    "synthetic_fixture": true,
+    "storyteller_display_name": "Fictional storyteller",
+    "style": "plain, warm, faithful"
+  }
+}

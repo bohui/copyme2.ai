@@ -1,0 +1,59 @@
+[
+  {
+    "chapter_id": "ch_child",
+    "order": 0,
+    "title": "Growing Up in Suzhou",
+    "period_ids": [
+      "childhood"
+    ],
+    "event_ids": [
+      "e_child"
+    ],
+    "status": "draft",
+    "rationale": "A supported chronological stretch of the narrator’s life.",
+    "source_refs": [
+      {
+        "source_id": "s_child",
+        "version": "1"
+      }
+    ]
+  },
+  {
+    "chapter_id": "ch_work",
+    "order": 1,
+    "title": "My First Wages",
+    "period_ids": [
+      "work"
+    ],
+    "event_ids": [
+      "e_work"
+    ],
+    "status": "draft",
+    "rationale": "A supported chronological stretch of the narrator’s life.",
+    "source_refs": [
+      {
+        "source_id": "s_work",
+        "version": "1"
+      }
+    ]
+  },
+  {
+    "chapter_id": "ch_sydney",
+    "order": 2,
+    "title": "A New Home in Sydney",
+    "period_ids": [
+      "sydney"
+    ],
+    "event_ids": [
+      "e_sydney"
+    ],
+    "status": "draft",
+    "rationale": "A supported chronological stretch of the narrator’s life.",
+    "source_refs": [
+      {
+        "source_id": "s_sydney",
+        "version": "1"
+      }
+    ]
+  }
+]

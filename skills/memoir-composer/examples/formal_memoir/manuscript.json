@@ -1,0 +1,192 @@
+{
+  "project_id": "demo_memoir",
+  "kind": "formal_memoir",
+  "status": "draft",
+  "title": "The Places and Years I Remember",
+  "outline": [
+    {
+      "chapter_id": "ch_child",
+      "order": 0,
+      "title": "Growing Up in Suzhou",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_child"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_child",
+          "version": "1"
+        }
+      ]
+    },
+    {
+      "chapter_id": "ch_work",
+      "order": 1,
+      "title": "My First Wages",
+      "period_ids": [
+        "work"
+      ],
+      "event_ids": [
+        "e_work"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_work",
+          "version": "1"
+        }
+      ]
+    },
+    {
+      "chapter_id": "ch_sydney",
+      "order": 2,
+      "title": "A New Home in Sydney",
+      "period_ids": [
+        "sydney"
+      ],
+      "event_ids": [
+        "e_sydney"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_sydney",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "ch_child",
+      "base_revision": 0,
+      "title": "Growing Up in Suzhou",
+      "subtitle": "",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_child"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_child",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "formal_0",
+          "type": "paragraph",
+          "text": "I spent my childhood in Suzhou in the 1960s.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_child",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    },
+    {
+      "id": "ch_work",
+      "base_revision": 0,
+      "title": "My First Wages",
+      "subtitle": "",
+      "period_ids": [
+        "work"
+      ],
+      "event_ids": [
+        "e_work"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_work",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "formal_1",
+          "type": "paragraph",
+          "text": "I started work in a textile factory in 1974. I gave my first wages to my mother.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_work",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    },
+    {
+      "id": "ch_sydney",
+      "base_revision": 0,
+      "title": "A New Home in Sydney",
+      "subtitle": "",
+      "period_ids": [
+        "sydney"
+      ],
+      "event_ids": [
+        "e_sydney"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_sydney",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "formal_2",
+          "type": "paragraph",
+          "text": "I moved to Sydney in 1995. At first I lived in a small rented flat.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_sydney",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    }
+  ],
+  "storyline": {
+    "title": "",
+    "source_refs": [],
+    "event_ids": [],
+    "blocks": []
+  },
+  "input_fingerprint": "ed502e220d62821570a7f68710ba5c43b9162c06d367d2f73119a163da7245d5",
+  "publication_authorized": false
+}

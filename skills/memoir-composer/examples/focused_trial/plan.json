@@ -1,0 +1,47 @@
+{
+  "skill_version": "1.0.0",
+  "project_id": "demo_memoir",
+  "input_snapshot_id": "demo_snapshot",
+  "input_fingerprint": "df83cb4c5a6c3f21e21c09d3f56f5a6cb158f1baf07571b6bea54d7d8e48d933",
+  "expected_manuscript_revision": 0,
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "hard_max_chapter_words": 7000,
+  "ready": true,
+  "status": "ready_to_compose",
+  "kind": "sample_chapter",
+  "operation": "initial",
+  "selection": {
+    "period_count": 1,
+    "dominant_share": 1,
+    "focus_period_id": "childhood",
+    "reason": "Use a focused supported episode; do not imply a complete life.",
+    "heuristic_not_quality_score": true
+  },
+  "period_coverage": [
+    {
+      "period_id": "childhood",
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "count": 3,
+      "order": 0
+    }
+  ],
+  "eligible_event_ids": [
+    "e_home",
+    "e_room",
+    "e_noodles"
+  ],
+  "unplaced_event_ids": [],
+  "affected_chapters": [],
+  "known_chapter_ids": [],
+  "host_run_key": "ea57a6131f17aeaaa37abe16e0f7cc6a92cb15ad7bb44902527251a8b6048ab3",
+  "note": "Confirm title grounding, true event deduplication, factual entailment and complete change detection editorially; these are not established by this utility."
+}

@@ -1,0 +1,131 @@
+{
+  "project_id": "demo_memoir",
+  "kind": "sample_chapter",
+  "status": "draft",
+  "title": "The Beginning of My Story",
+  "outline": [
+    {
+      "chapter_id": "ch_childhood",
+      "order": 0,
+      "title": "The House with the Blue Door",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "ch_childhood",
+      "base_revision": 0,
+      "title": "The House with the Blue Door",
+      "subtitle": "",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "b_home",
+          "type": "paragraph",
+          "text": "I grew up in a lane in Suzhou. Our house had a blue door. I think it was in the early 1960s.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_home",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_room",
+          "type": "paragraph",
+          "text": "My older brother and I shared a small bedroom.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_room",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_photo",
+          "type": "image",
+          "text": "",
+          "asset_id": "photo_door",
+          "asset_version": "1",
+          "caption": "Our blue door; the date of the photograph is not known.",
+          "alt": "Photograph of a blue door.",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_photo",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_noodles",
+          "type": "paragraph",
+          "text": "On Sundays, my mother made noodles. I remember waiting in the kitchen.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_noodles",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    }
+  ],
+  "storyline": {
+    "title": "",
+    "source_refs": [],
+    "event_ids": [],
+    "blocks": []
+  },
+  "input_fingerprint": "df83cb4c5a6c3f21e21c09d3f56f5a6cb158f1baf07571b6bea54d7d8e48d933",
+  "publication_authorized": false
+}

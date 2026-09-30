@@ -1,0 +1,187 @@
+{
+  "schema_version": "1.0",
+  "request_id": "demo_request",
+  "event_id": "demo_event",
+  "project_id": "demo_memoir",
+  "trigger": {
+    "type": "free_rounds_completed",
+    "confirmed": true,
+    "free_rounds_completed": 5,
+    "free_round_limit": 5,
+    "storytelling_confirmation_ref": null,
+    "composition_authorized": false
+  },
+  "target": {
+    "locale": "en-AU",
+    "audience": "storyteller",
+    "medium": "web"
+  },
+  "snapshot": {
+    "id": "demo_snapshot",
+    "policy_epoch": 1,
+    "expected_manuscript_revision": 0,
+    "retrieval_complete": true,
+    "glossary_version": "1",
+    "preferences_version": "1"
+  },
+  "policy": {
+    "max_chapter_words": 7000,
+    "soft_chapter_words": 6000,
+    "focus_threshold": 0.65,
+    "max_followup_questions": 3,
+    "preview_preference": "auto"
+  },
+  "sources": [
+    {
+      "id": "s_home",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "I grew up in a lane in Suzhou. Our house had a blue door. I think it was in the early 1960s.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    },
+    {
+      "id": "s_room",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "My older brother and I shared a small bedroom.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    },
+    {
+      "id": "s_noodles",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "narrator_chat",
+      "author_role": "storyteller",
+      "text": "On Sundays, my mother made noodles. I remember waiting in the kitchen.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    },
+    {
+      "id": "s_photo",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "kind": "photo_caption",
+      "author_role": "storyteller",
+      "text": "This photograph shows our blue door. I do not know when it was taken.",
+      "status": "active",
+      "allowed": true,
+      "derived_from": []
+    }
+  ],
+  "assets": [
+    {
+      "id": "photo_door",
+      "version": "1",
+      "project_id": "demo_memoir",
+      "origin": "user_upload",
+      "resolver_ref": "asset://demo_memoir/photo_door/1",
+      "content_sha256": "97b7fbc627766c8cf4037d03698e56ad5ad18b43bf07173ca462ab4e32800709",
+      "status": "active",
+      "allowed": true,
+      "capabilities": {
+        "web": true,
+        "download": true,
+        "print": false
+      },
+      "metadata_source_refs": [
+        {
+          "source_id": "s_photo",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "periods": [
+    {
+      "id": "childhood",
+      "order": 0,
+      "label": "Childhood, approximately the early 1960s",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "e_home",
+      "period_id": "childhood",
+      "summary": "Childhood home with a blue door in Suzhou",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "I think it was in the early 1960s",
+        "start_year": 1960,
+        "end_year": 1964,
+        "precision": "range"
+      },
+      "status": "active",
+      "narrative": true
+    },
+    {
+      "id": "e_room",
+      "period_id": "childhood",
+      "summary": "Shared a bedroom with an older brother",
+      "source_refs": [
+        {
+          "source_id": "s_room",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "during childhood",
+        "start_year": null,
+        "end_year": null,
+        "precision": "relative"
+      },
+      "status": "active",
+      "narrative": true
+    },
+    {
+      "id": "e_noodles",
+      "period_id": "childhood",
+      "summary": "Mother made noodles on Sundays",
+      "source_refs": [
+        {
+          "source_id": "s_noodles",
+          "version": "1"
+        }
+      ],
+      "date": {
+        "original_expression": "during childhood",
+        "start_year": null,
+        "end_year": null,
+        "precision": "relative"
+      },
+      "status": "active",
+      "narrative": true
+    }
+  ],
+  "prior_state": {
+    "kind": "none",
+    "revision": 0,
+    "chapters": [],
+    "last_snapshot_fingerprint": ""
+  },
+  "authorised_retirements": [],
+  "context": {
+    "synthetic_fixture": true,
+    "storyteller_display_name": "Fictional storyteller",
+    "style": "plain, warm, faithful"
+  }
+}

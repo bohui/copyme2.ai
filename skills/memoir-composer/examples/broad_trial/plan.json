@@ -1,0 +1,61 @@
+{
+  "skill_version": "1.0.0",
+  "project_id": "demo_memoir",
+  "input_snapshot_id": "demo_snapshot",
+  "input_fingerprint": "ed502e220d62821570a7f68710ba5c43b9162c06d367d2f73119a163da7245d5",
+  "expected_manuscript_revision": 0,
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "hard_max_chapter_words": 7000,
+  "ready": true,
+  "status": "ready_to_compose",
+  "kind": "sample_storyline",
+  "operation": "initial",
+  "selection": {
+    "period_count": 3,
+    "dominant_share": 0.3333333333333333,
+    "focus_period_id": "childhood",
+    "reason": "Several grounded periods with no dominant period.",
+    "heuristic_not_quality_score": true
+  },
+  "period_coverage": [
+    {
+      "period_id": "childhood",
+      "event_ids": [
+        "e_child"
+      ],
+      "count": 1,
+      "order": 0
+    },
+    {
+      "period_id": "work",
+      "event_ids": [
+        "e_work"
+      ],
+      "count": 1,
+      "order": 1
+    },
+    {
+      "period_id": "sydney",
+      "event_ids": [
+        "e_sydney"
+      ],
+      "count": 1,
+      "order": 2
+    }
+  ],
+  "eligible_event_ids": [
+    "e_child",
+    "e_work",
+    "e_sydney"
+  ],
+  "unplaced_event_ids": [],
+  "affected_chapters": [],
+  "known_chapter_ids": [],
+  "host_run_key": "26f2f0a0743e1300b7820370778029ffee508a6380bb82557b456a6ddb81bd1d",
+  "note": "Confirm title grounding, true event deduplication, factual entailment and complete change detection editorially; these are not established by this utility."
+}

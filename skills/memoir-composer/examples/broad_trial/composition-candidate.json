@@ -1,0 +1,218 @@
+{
+  "schema_version": "1.0",
+  "project_id": "demo_memoir",
+  "input_snapshot_id": "demo_snapshot",
+  "input_fingerprint": "ed502e220d62821570a7f68710ba5c43b9162c06d367d2f73119a163da7245d5",
+  "expected_manuscript_revision": 0,
+  "kind": "sample_storyline",
+  "status": "draft",
+  "title": "The Places and Years I Remember",
+  "title_source_refs": [],
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "source_summary": [
+    {
+      "id": "summary_e_child",
+      "text": "Childhood in Suzhou",
+      "source_refs": [
+        {
+          "source_id": "s_child",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_child"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "summary_e_work",
+      "text": "First factory job and wages given to mother",
+      "source_refs": [
+        {
+          "source_id": "s_work",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_work"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "summary_e_sydney",
+      "text": "Moved to Sydney and lived in a rented flat",
+      "source_refs": [
+        {
+          "source_id": "s_sydney",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_sydney"
+      ],
+      "uncertainty": []
+    }
+  ],
+  "outline": [
+    {
+      "chapter_id": "ch_child",
+      "order": 0,
+      "title": "Growing Up in Suzhou",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_child"
+      ],
+      "status": "planned",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_child",
+          "version": "1"
+        }
+      ]
+    },
+    {
+      "chapter_id": "ch_work",
+      "order": 1,
+      "title": "My First Wages",
+      "period_ids": [
+        "work"
+      ],
+      "event_ids": [
+        "e_work"
+      ],
+      "status": "planned",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_work",
+          "version": "1"
+        }
+      ]
+    },
+    {
+      "chapter_id": "ch_sydney",
+      "order": 2,
+      "title": "A New Home in Sydney",
+      "period_ids": [
+        "sydney"
+      ],
+      "event_ids": [
+        "e_sydney"
+      ],
+      "status": "planned",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_sydney",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "chapters": [],
+  "storyline": {
+    "title": "From Suzhou to Sydney",
+    "source_refs": [
+      {
+        "source_id": "s_child",
+        "version": "1"
+      },
+      {
+        "source_id": "s_sydney",
+        "version": "1"
+      }
+    ],
+    "event_ids": [
+      "e_child",
+      "e_work",
+      "e_sydney"
+    ],
+    "blocks": [
+      {
+        "id": "b_0",
+        "type": "paragraph",
+        "text": "I spent my childhood in Suzhou in the 1960s.",
+        "asset_id": null,
+        "asset_version": null,
+        "caption": "",
+        "alt": "",
+        "credit": "",
+        "source_refs": [
+          {
+            "source_id": "s_child",
+            "version": "1"
+          }
+        ],
+        "uncertainty": []
+      },
+      {
+        "id": "b_1",
+        "type": "paragraph",
+        "text": "I started work in a textile factory in 1974. I gave my first wages to my mother.",
+        "asset_id": null,
+        "asset_version": null,
+        "caption": "",
+        "alt": "",
+        "credit": "",
+        "source_refs": [
+          {
+            "source_id": "s_work",
+            "version": "1"
+          }
+        ],
+        "uncertainty": []
+      },
+      {
+        "id": "b_2",
+        "type": "paragraph",
+        "text": "I moved to Sydney in 1995. At first I lived in a small rented flat.",
+        "asset_id": null,
+        "asset_version": null,
+        "caption": "",
+        "alt": "",
+        "credit": "",
+        "source_refs": [
+          {
+            "source_id": "s_sydney",
+            "version": "1"
+          }
+        ],
+        "uncertainty": []
+      }
+    ]
+  },
+  "carry_forward_chapter_ids": [],
+  "retired_chapter_ids": [],
+  "proposed_replacements": [],
+  "event_dispositions": [
+    {
+      "event_id": "e_child",
+      "disposition": "included",
+      "chapter_ids": [],
+      "reason": "Represented in the draft using its original evidence."
+    },
+    {
+      "event_id": "e_work",
+      "disposition": "included",
+      "chapter_ids": [],
+      "reason": "Represented in the draft using its original evidence."
+    },
+    {
+      "event_id": "e_sydney",
+      "disposition": "included",
+      "chapter_ids": [],
+      "reason": "Represented in the draft using its original evidence."
+    }
+  ],
+  "questions_for_mira": [],
+  "review_flags": [],
+  "next_action": "review_preview"
+}

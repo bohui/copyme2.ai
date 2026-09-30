@@ -1,0 +1,233 @@
+{
+  "schema_version": "1.0",
+  "project_id": "demo_memoir",
+  "input_snapshot_id": "demo_snapshot",
+  "input_fingerprint": "df83cb4c5a6c3f21e21c09d3f56f5a6cb158f1baf07571b6bea54d7d8e48d933",
+  "expected_manuscript_revision": 0,
+  "kind": "sample_chapter",
+  "status": "draft",
+  "title": "The Beginning of My Story",
+  "title_source_refs": [],
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "source_summary": [
+    {
+      "id": "summary_e_home",
+      "text": "Childhood home with a blue door in Suzhou",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_home"
+      ],
+      "uncertainty": [
+        "approximate date"
+      ]
+    },
+    {
+      "id": "summary_e_room",
+      "text": "Shared a bedroom with an older brother",
+      "source_refs": [
+        {
+          "source_id": "s_room",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_room"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "summary_e_noodles",
+      "text": "Mother made noodles on Sundays",
+      "source_refs": [
+        {
+          "source_id": "s_noodles",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_noodles"
+      ],
+      "uncertainty": []
+    }
+  ],
+  "outline": [
+    {
+      "chapter_id": "ch_childhood",
+      "order": 0,
+      "title": "The House with the Blue Door",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "ch_childhood",
+      "base_revision": 0,
+      "title": "The House with the Blue Door",
+      "subtitle": "",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "b_home",
+          "type": "paragraph",
+          "text": "I grew up in a lane in Suzhou. Our house had a blue door. I think it was in the early 1960s.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_home",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_room",
+          "type": "paragraph",
+          "text": "My older brother and I shared a small bedroom.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_room",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_photo",
+          "type": "image",
+          "text": "",
+          "asset_id": "photo_door",
+          "asset_version": "1",
+          "caption": "Our blue door; the date of the photograph is not known.",
+          "alt": "Photograph of a blue door.",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_photo",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_noodles",
+          "type": "paragraph",
+          "text": "On Sundays, my mother made noodles. I remember waiting in the kitchen.",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_noodles",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    }
+  ],
+  "storyline": {
+    "title": "",
+    "source_refs": [],
+    "event_ids": [],
+    "blocks": []
+  },
+  "carry_forward_chapter_ids": [],
+  "retired_chapter_ids": [],
+  "proposed_replacements": [],
+  "event_dispositions": [
+    {
+      "event_id": "e_home",
+      "disposition": "included",
+      "chapter_ids": [
+        "ch_childhood"
+      ],
+      "reason": "Represented in the draft using its original evidence."
+    },
+    {
+      "event_id": "e_room",
+      "disposition": "included",
+      "chapter_ids": [
+        "ch_childhood"
+      ],
+      "reason": "Represented in the draft using its original evidence."
+    },
+    {
+      "event_id": "e_noodles",
+      "disposition": "included",
+      "chapter_ids": [
+        "ch_childhood"
+      ],
+      "reason": "Represented in the draft using its original evidence."
+    }
+  ],
+  "questions_for_mira": [
+    {
+      "id": "q_door",
+      "question": "What do you remember seeing just outside the blue door?",
+      "reason": "An optional continuation of the narrator’s own detail.",
+      "event_ids": [
+        "e_home"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "review_flags": [],
+  "next_action": "review_preview"
+}

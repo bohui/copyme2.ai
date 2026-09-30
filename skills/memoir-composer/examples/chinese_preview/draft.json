@@ -1,0 +1,173 @@
+{
+  "schema_version": "1.0",
+  "project_id": "demo_memoir",
+  "input_snapshot_id": "demo_snapshot",
+  "input_fingerprint": "ba33f0d7fc232e0dba04c2518e7f4a59c418177754c6bbfdd367067e3dcf60d0",
+  "expected_manuscript_revision": 0,
+  "kind": "sample_chapter",
+  "status": "draft",
+  "title": "我的第一段回忆",
+  "title_source_refs": [],
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "source_summary": [
+    {
+      "id": "summary_home",
+      "text": "讲述者记得童年住在苏州小巷里，家门是蓝色的，年份不确定。",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "event_ids": [
+        "e_home"
+      ],
+      "uncertainty": [
+        "年份不确定"
+      ]
+    }
+  ],
+  "outline": [
+    {
+      "chapter_id": "ch_childhood",
+      "order": 0,
+      "title": "小巷里的蓝门",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "ch_childhood",
+      "base_revision": 0,
+      "title": "小巷里的蓝门",
+      "subtitle": "",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "b_home",
+          "type": "paragraph",
+          "text": "我小时候住在苏州的一条小巷里，家门是蓝色的。大概是二十世纪六十年代初。",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_home",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_room",
+          "type": "paragraph",
+          "text": "我和哥哥住在一间小卧室里。",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_room",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_noodles",
+          "type": "paragraph",
+          "text": "星期天，妈妈会做面条。我记得自己在厨房里等着。",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_noodles",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    }
+  ],
+  "storyline": {
+    "title": "",
+    "source_refs": [],
+    "event_ids": [],
+    "blocks": []
+  },
+  "carry_forward_chapter_ids": [],
+  "retired_chapter_ids": [],
+  "proposed_replacements": [],
+  "event_dispositions": [
+    {
+      "event_id": "e_home",
+      "disposition": "included",
+      "chapter_ids": [
+        "ch_childhood"
+      ],
+      "reason": "Represented in the draft using its original evidence."
+    },
+    {
+      "event_id": "e_room",
+      "disposition": "included",
+      "chapter_ids": [
+        "ch_childhood"
+      ],
+      "reason": "Represented in the draft using its original evidence."
+    },
+    {
+      "event_id": "e_noodles",
+      "disposition": "included",
+      "chapter_ids": [
+        "ch_childhood"
+      ],
+      "reason": "Represented in the draft using its original evidence."
+    }
+  ],
+  "questions_for_mira": [],
+  "review_flags": [],
+  "next_action": "review_preview"
+}

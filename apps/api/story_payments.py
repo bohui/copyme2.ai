@@ -13,7 +13,7 @@ import os
 import time
 from copy import deepcopy
 from typing import Any, Callable
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -351,7 +351,8 @@ class StripeCheckoutClient:
         try:
             response = self.request_fn(
                 "https://api.stripe.com/v1/checkout/sessions",
-                data=fields,
+                content=urlencode(fields),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
                 auth=(self.secret_key, ""),
                 timeout=20,
             )

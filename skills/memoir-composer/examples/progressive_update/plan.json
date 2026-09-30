@@ -1,0 +1,91 @@
+{
+  "skill_version": "1.0.0",
+  "project_id": "demo_memoir",
+  "input_snapshot_id": "demo_snapshot_2",
+  "input_fingerprint": "ab513e021514223c28b493a2a7095d27338e6dae5cd1e101159ed37f3ad0526a",
+  "expected_manuscript_revision": 1,
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "hard_max_chapter_words": 7000,
+  "ready": true,
+  "status": "ready_to_compose",
+  "kind": "formal_memoir",
+  "operation": "update",
+  "selection": {
+    "period_count": 3,
+    "dominant_share": 0.5,
+    "focus_period_id": "sydney",
+    "reason": "Compose all supported material chronologically.",
+    "heuristic_not_quality_score": true
+  },
+  "period_coverage": [
+    {
+      "period_id": "childhood",
+      "event_ids": [
+        "e_child"
+      ],
+      "count": 1,
+      "order": 0
+    },
+    {
+      "period_id": "work",
+      "event_ids": [
+        "e_work"
+      ],
+      "count": 1,
+      "order": 1
+    },
+    {
+      "period_id": "sydney",
+      "event_ids": [
+        "e_sydney",
+        "e_friend"
+      ],
+      "count": 2,
+      "order": 2
+    }
+  ],
+  "eligible_event_ids": [
+    "e_child",
+    "e_work",
+    "e_sydney",
+    "e_friend"
+  ],
+  "unplaced_event_ids": [],
+  "affected_chapters": [
+    {
+      "chapter_id": "ch_child",
+      "base_revision": 1,
+      "protected": false,
+      "needs_attention": false,
+      "reasons": []
+    },
+    {
+      "chapter_id": "ch_work",
+      "base_revision": 1,
+      "protected": false,
+      "needs_attention": false,
+      "reasons": []
+    },
+    {
+      "chapter_id": "ch_sydney",
+      "base_revision": 1,
+      "protected": false,
+      "needs_attention": true,
+      "reasons": [
+        "new_events_in_period"
+      ]
+    }
+  ],
+  "known_chapter_ids": [
+    "ch_child",
+    "ch_work",
+    "ch_sydney"
+  ],
+  "host_run_key": "11aa0865be359be7390ce8d590ba9a9eb8014ed27069d11c185c3ef710605468",
+  "note": "Confirm title grounding, true event deduplication, factual entailment and complete change detection editorially; these are not established by this utility."
+}

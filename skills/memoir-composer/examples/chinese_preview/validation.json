@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "SEMANTIC_REVIEW_REQUIRED",
+      "at": "$",
+      "message": "Reference existence and exact quoting do not prove prose entailment, chronology or caption accuracy. This is a review-only artifact, never publication approval."
+    }
+  ],
+  "kind": "sample_chapter",
+  "input_fingerprint": "ba33f0d7fc232e0dba04c2518e7f4a59c418177754c6bbfdd367067e3dcf60d0",
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "chapter_counts": [
+    {
+      "chapter_id": "ch_childhood",
+      "scope": "chapters.ch_childhood",
+      "words": 44,
+      "characters": 80,
+      "hard_limit": 7000
+    }
+  ],
+  "storyline_words": 0,
+  "active_chapter_ids": [
+    "ch_childhood"
+  ],
+  "source_summary_words": 15,
+  "publication_authorized": false
+}

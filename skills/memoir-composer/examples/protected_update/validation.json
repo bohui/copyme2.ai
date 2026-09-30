@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "PROPOSAL_NOT_APPLIED",
+      "at": "ch_sydney",
+      "message": "Human approval is still required; this proposal is not in the assembled memoir"
+    },
+    {
+      "code": "SEMANTIC_REVIEW_REQUIRED",
+      "at": "$",
+      "message": "Reference existence and exact quoting do not prove prose entailment, chronology or caption accuracy. This is a review-only artifact, never publication approval."
+    }
+  ],
+  "kind": "formal_memoir",
+  "input_fingerprint": "f334747dde4f280cb6c3b2932febc4c48b7ac69c2c0a5b07a8a01ca3105fd1f3",
+  "counter": {
+    "algorithm": "intl-segmenter-wordlike-v1",
+    "node": "v22.16.0",
+    "icu": "77.1",
+    "unicode": "16.0"
+  },
+  "chapter_counts": [
+    {
+      "chapter_id": "ch_child",
+      "scope": "carried.ch_child",
+      "words": 13,
+      "characters": 65,
+      "hard_limit": 7000
+    },
+    {
+      "chapter_id": "ch_work",
+      "scope": "carried.ch_work",
+      "words": 20,
+      "characters": 95,
+      "hard_limit": 7000
+    },
+    {
+      "chapter_id": "ch_sydney",
+      "scope": "carried.ch_sydney",
+      "words": 20,
+      "characters": 88,
+      "hard_limit": 7000
+    },
+    {
+      "chapter_id": "ch_sydney",
+      "scope": "proposal.ch_sydney",
+      "words": 37,
+      "characters": 175,
+      "hard_limit": 7000
+    }
+  ],
+  "storyline_words": 0,
+  "active_chapter_ids": [
+    "ch_child",
+    "ch_work",
+    "ch_sydney"
+  ],
+  "source_summary_words": 31,
+  "publication_authorized": false
+}

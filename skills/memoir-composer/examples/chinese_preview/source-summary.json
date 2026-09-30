@@ -1,0 +1,18 @@
+[
+  {
+    "id": "summary_home",
+    "text": "讲述者记得童年住在苏州小巷里，家门是蓝色的，年份不确定。",
+    "source_refs": [
+      {
+        "source_id": "s_home",
+        "version": "1"
+      }
+    ],
+    "event_ids": [
+      "e_home"
+    ],
+    "uncertainty": [
+      "年份不确定"
+    ]
+  }
+]

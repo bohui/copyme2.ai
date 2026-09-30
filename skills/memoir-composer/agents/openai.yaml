@@ -1,0 +1,6 @@
+interface:
+  display_name: "Memoir Composer"
+  short_description: "Progressive, source-backed memoirs and free previews"
+  default_prompt: "Use $memoir-composer to build or update a memoir from the authorised project snapshot. Choose the correct free-preview or formal-composition mode and enforce 7000 words per chapter."
+policy:
+  allow_implicit_invocation: false

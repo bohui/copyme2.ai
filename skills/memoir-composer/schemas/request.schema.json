@@ -1,0 +1,729 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "free_rounds_completed",
+            "storytelling_complete",
+            "new_context",
+            "manual_revision"
+          ]
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "free_rounds_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "free_round_limit": {
+          "const": 5
+        },
+        "storytelling_confirmation_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "composition_authorized": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "confirmed",
+        "free_rounds_completed",
+        "free_round_limit",
+        "storytelling_confirmation_ref",
+        "composition_authorized"
+      ],
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "locale": {
+          "type": "string",
+          "minLength": 2
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "storyteller",
+            "family"
+          ]
+        },
+        "medium": {
+          "type": "string",
+          "enum": [
+            "web",
+            "download",
+            "print"
+          ]
+        }
+      },
+      "required": [
+        "locale",
+        "audience",
+        "medium"
+      ],
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "policy_epoch": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_manuscript_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retrieval_complete": {
+          "type": "boolean"
+        },
+        "glossary_version": {
+          "type": "string"
+        },
+        "preferences_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "policy_epoch",
+        "expected_manuscript_revision",
+        "retrieval_complete",
+        "glossary_version",
+        "preferences_version"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "max_chapter_words": {
+          "const": 7000
+        },
+        "soft_chapter_words": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7000
+        },
+        "focus_threshold": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1
+        },
+        "max_followup_questions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "preview_preference": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "sample_chapter",
+            "sample_storyline"
+          ]
+        }
+      },
+      "required": [
+        "max_chapter_words",
+        "soft_chapter_words",
+        "focus_threshold",
+        "max_followup_questions",
+        "preview_preference"
+      ],
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      },
+      "minItems": 0
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/asset"
+      },
+      "minItems": 0
+    },
+    "periods": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/period"
+      },
+      "minItems": 0
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      },
+      "minItems": 0
+    },
+    "prior_state": {
+      "$ref": "#/$defs/prior"
+    },
+    "authorised_retirements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,100}$"
+      },
+      "minItems": 0
+    },
+    "context": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request_id",
+    "event_id",
+    "project_id",
+    "trigger",
+    "target",
+    "snapshot",
+    "policy",
+    "sources",
+    "assets",
+    "periods",
+    "events",
+    "prior_state",
+    "authorised_retirements",
+    "context"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CopyMe2 authorised composition request v1",
+  "$defs": {
+    "ref": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "char_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "char_end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "source_id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "block": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "heading",
+            "paragraph",
+            "quote",
+            "image",
+            "context",
+            "editorial_note"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "asset_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "asset_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "caption": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        },
+        "credit": {
+          "type": "string"
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ref"
+          },
+          "minItems": 0
+        },
+        "uncertainty": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "text",
+        "asset_id",
+        "asset_version",
+        "caption",
+        "alt",
+        "credit",
+        "source_refs",
+        "uncertainty"
+      ],
+      "additionalProperties": false
+    },
+    "chapter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "base_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "period_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          },
+          "minItems": 0
+        },
+        "event_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          },
+          "minItems": 0
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ref"
+          },
+          "minItems": 0
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/block"
+          },
+          "minItems": 1
+        },
+        "change_type": {
+          "type": "string",
+          "enum": [
+            "create",
+            "enrich",
+            "correct",
+            "condense",
+            "split",
+            "merge",
+            "redact"
+          ]
+        },
+        "update_reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "base_revision",
+        "title",
+        "subtitle",
+        "period_ids",
+        "event_ids",
+        "source_refs",
+        "blocks",
+        "change_type",
+        "update_reason"
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "version": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "narrator_chat",
+            "transcript",
+            "diary",
+            "photo_caption",
+            "family_statement",
+            "historical_context",
+            "assistant_message",
+            "derived_memory"
+          ]
+        },
+        "author_role": {
+          "type": "string",
+          "enum": [
+            "storyteller",
+            "family",
+            "assistant",
+            "archive",
+            "unknown"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked",
+            "superseded"
+          ]
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "derived_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ref"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "project_id",
+        "kind",
+        "author_role",
+        "text",
+        "status",
+        "allowed",
+        "derived_from"
+      ],
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "version": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "user_upload",
+            "chat_attachment",
+            "memory_attachment",
+            "external"
+          ]
+        },
+        "resolver_ref": {
+          "type": "string"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked",
+            "missing"
+          ]
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "web": {
+              "type": "boolean"
+            },
+            "download": {
+              "type": "boolean"
+            },
+            "print": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "web",
+            "download",
+            "print"
+          ],
+          "additionalProperties": false
+        },
+        "metadata_source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ref"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "project_id",
+        "origin",
+        "resolver_ref",
+        "content_sha256",
+        "status",
+        "allowed",
+        "capabilities",
+        "metadata_source_refs"
+      ],
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "period_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ref"
+          },
+          "minItems": 0
+        },
+        "date": {
+          "type": "object",
+          "properties": {
+            "original_expression": {
+              "type": "string"
+            },
+            "start_year": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "end_year": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "precision": {
+              "type": "string",
+              "enum": [
+                "year",
+                "range",
+                "decade",
+                "relative",
+                "unknown"
+              ]
+            }
+          },
+          "required": [
+            "original_expression",
+            "start_year",
+            "end_year",
+            "precision"
+          ],
+          "additionalProperties": false
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "disputed",
+            "superseded"
+          ]
+        },
+        "narrative": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "period_id",
+        "summary",
+        "source_refs",
+        "date",
+        "status",
+        "narrative"
+      ],
+      "additionalProperties": false
+    },
+    "period": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "label": {
+          "type": "string"
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ref"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "order",
+        "label",
+        "source_refs"
+      ],
+      "additionalProperties": false
+    },
+    "prior": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "none",
+            "sample_chapter",
+            "sample_storyline",
+            "formal_memoir"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "approved": {
+                "type": "boolean"
+              },
+              "human_locked": {
+                "type": "boolean"
+              },
+              "chapter": {
+                "$ref": "#/$defs/chapter"
+              }
+            },
+            "required": [
+              "revision",
+              "approved",
+              "human_locked",
+              "chapter"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0
+        },
+        "last_snapshot_fingerprint": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "revision",
+        "chapters",
+        "last_snapshot_fingerprint"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

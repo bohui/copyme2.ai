@@ -1,0 +1,114 @@
+{
+  "project_id": "demo_memoir",
+  "kind": "sample_chapter",
+  "status": "draft",
+  "title": "我的第一段回忆",
+  "outline": [
+    {
+      "chapter_id": "ch_childhood",
+      "order": 0,
+      "title": "小巷里的蓝门",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "status": "draft",
+      "rationale": "A supported chronological stretch of the narrator’s life.",
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "ch_childhood",
+      "base_revision": 0,
+      "title": "小巷里的蓝门",
+      "subtitle": "",
+      "period_ids": [
+        "childhood"
+      ],
+      "event_ids": [
+        "e_home",
+        "e_room",
+        "e_noodles"
+      ],
+      "source_refs": [
+        {
+          "source_id": "s_home",
+          "version": "1"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "b_home",
+          "type": "paragraph",
+          "text": "我小时候住在苏州的一条小巷里，家门是蓝色的。大概是二十世纪六十年代初。",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_home",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_room",
+          "type": "paragraph",
+          "text": "我和哥哥住在一间小卧室里。",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_room",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        },
+        {
+          "id": "b_noodles",
+          "type": "paragraph",
+          "text": "星期天，妈妈会做面条。我记得自己在厨房里等着。",
+          "asset_id": null,
+          "asset_version": null,
+          "caption": "",
+          "alt": "",
+          "credit": "",
+          "source_refs": [
+            {
+              "source_id": "s_noodles",
+              "version": "1"
+            }
+          ],
+          "uncertainty": []
+        }
+      ],
+      "change_type": "create",
+      "update_reason": "Initial draft from the cited narrator statements."
+    }
+  ],
+  "storyline": {
+    "title": "",
+    "source_refs": [],
+    "event_ids": [],
+    "blocks": []
+  },
+  "input_fingerprint": "ba33f0d7fc232e0dba04c2518e7f4a59c418177754c6bbfdd367067e3dcf60d0",
+  "publication_authorized": false
+}

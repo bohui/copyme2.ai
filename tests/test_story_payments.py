@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import time
+from urllib.parse import parse_qs
 
 import httpx
 from fastapi.testclient import TestClient
@@ -157,12 +158,20 @@ def test_family_webhook_rejects_a_different_configured_price(monkeypatch):
     assert client.get("/v1/story/state", headers=_auth_headers()).json()["payment_status"] == "unpaid"
 
 
-def test_stripe_checkout_client_sends_server_computed_line_items():
+def test_stripe_checkout_client_sends_server_computed_line_items(monkeypatch):
+    monkeypatch.setenv("MEMORY_SPARK_PRINT_COUNTRIES", "AU,NZ")
     calls = []
 
     def request(url, **kwargs):
-        calls.append((url, kwargs))
-        return httpx.Response(200, request=httpx.Request("POST", url), json={"id": "cs_test", "url": "https://checkout.stripe.test/cs_test"})
+        prepared = httpx.Request(
+            "POST",
+            url,
+            content=kwargs["content"],
+            headers=kwargs["headers"],
+        )
+        prepared.read()
+        calls.append((url, kwargs, prepared))
+        return httpx.Response(200, request=prepared, json={"id": "cs_test", "url": "https://checkout.stripe.test/cs_test"})
 
     client = StripeCheckoutClient(secret_key="sk_test_story", request_fn=request)
     result = client.create_checkout_session(
@@ -175,12 +184,13 @@ def test_stripe_checkout_client_sends_server_computed_line_items():
 
     assert result["id"] == "cs_test"
     assert calls[0][0] == "https://api.stripe.com/v1/checkout/sessions"
-    fields = dict(calls[0][1]["data"])
-    assert fields["line_items[0][price_data][unit_amount]"] == "7900"
-    assert fields["line_items[1][price_data][unit_amount]"] == "1000"
-    assert fields["line_items[1][quantity]"] == "3"
-    assert fields["metadata[plan_key]"] == "printed_memoir_v1"
-    assert fields["shipping_address_collection[allowed_countries][]"] == "AU"
+    fields = parse_qs(calls[0][2].content.decode())
+    assert calls[0][2].headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert fields["line_items[0][price_data][unit_amount]"] == ["7900"]
+    assert fields["line_items[1][price_data][unit_amount]"] == ["1000"]
+    assert fields["line_items[1][quantity]"] == ["3"]
+    assert fields["metadata[plan_key]"] == ["printed_memoir_v1"]
+    assert fields["shipping_address_collection[allowed_countries][]"] == ["AU", "NZ"]
 
 
 def test_family_checkout_carries_the_configured_price_provenance(monkeypatch):
@@ -188,8 +198,15 @@ def test_family_checkout_carries_the_configured_price_provenance(monkeypatch):
     calls = []
 
     def request(url, **kwargs):
-        calls.append((url, kwargs))
-        return httpx.Response(200, request=httpx.Request("POST", url), json={"id": "cs_family", "url": "https://checkout.stripe.test/cs_family"})
+        prepared = httpx.Request(
+            "POST",
+            url,
+            content=kwargs["content"],
+            headers=kwargs["headers"],
+        )
+        prepared.read()
+        calls.append((url, kwargs, prepared))
+        return httpx.Response(200, request=prepared, json={"id": "cs_family", "url": "https://checkout.stripe.test/cs_family"})
 
     client = StripeCheckoutClient(secret_key="sk_test_story", request_fn=request)
     client.create_checkout_session(
@@ -200,5 +217,5 @@ def test_family_checkout_carries_the_configured_price_provenance(monkeypatch):
         cancel_url="https://copyme2.test/cancel",
     )
 
-    fields = dict(calls[0][1]["data"])
-    assert fields["metadata[stripe_price_id]"] == "price_family_live"
+    fields = parse_qs(calls[0][2].content.decode())
+    assert fields["metadata[stripe_price_id]"] == ["price_family_live"]
