@@ -2,6 +2,16 @@
 
 ## Query planning
 
+Resolve names before searching. For a Chengde memory referring to `离宫`, verified popular search terms include `避暑山庄`, `Mountain Resort`, `Bishu Shanzhuang` and a city-qualified `summer palace`. [UNESCO's Chengde record](https://whc.unesco.org/en/list/703/) identifies the Mountain Resort as a Qing summer palace; [Beijing's Summer Palace](https://whc.unesco.org/en/list/880/) is a separate site. Do not map an unqualified `离宫` or `Summer Palace` to Chengde without geographic evidence.
+
+For a memory dated 1983, the app's single Google discovery query can be:
+
+```text
+("离宫" OR "避暑山庄" OR "Mountain Resort" OR "summer palace" OR "Bishu Shanzhuang") ("承德" OR "Chengde") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")
+```
+
+The app labels containing-decade alternatives separately; original photo evidence must still identify the site, city and capture period. The standalone helper keeps its run's resolved temporal window. Broaden names, never silently remove the geographic anchor or replace the requested period with webpage/upload dates. For other places, verify suitable aliases first; add a bounded expansion only after a successful search has no relevant candidates. Prefer one combined query to repeated synonym searches.
+
 For a current-mode request, start with modern place names and a mix of current-year, recent-year and unqualified queries. Example templates:
 
 ```text
@@ -39,7 +49,7 @@ Do not download Google Maps/Earth/Street View screenshots or stock-photo preview
 
 Use up to 40 discovery queries and 80 item/page reads per run. Aim to collect 20–30 candidates so date, subject, rights and duplicate checks still leave at least 10 usable matches. Track the qualifying count separately for every location/decade.
 
-1. Search the local language and English with the decade and several individual years. Vary street/market/station/school/industry/daily-life subjects. Search verified aliases separately, keeping the modern geographic boundary.
+1. Search the local language and English with the decade and several individual years. Vary street/market/station/school/industry/daily-life subjects. Combine verified aliases with `OR` first, keeping the modern geographic boundary; vary names further only when the completed search has no relevant candidates.
 2. Use native web and image search, then a second engine when an available browser or configured API permits it: Google Images, Bing Images, Baidu Images for Chinese captions, or DuckDuckGo. The app's optional Google Programmable Search Engine provider uses `GOOGLE_CSE_ID` plus the server-side `GOOGLE_CSE_API_KEY`, requests `searchType=image`, applies `rights=cc_publicdomain|cc_attribute|cc_sharealike`, and paginates from `start=1` in increments of ten. For a historical range it also sends a `date:r:YYYYMMDD:YYYYMMDD` sort restriction and year terms, then verifies item-level date metadata; Google page dates are not automatically photograph capture dates. Engines are discovery routes, not original sources. Log each query and follow its actual source links. If an engine is unavailable, record that and continue with other routes; do not scrape generic result HTML or assume an API/key exists. The explicit user-CSE exception is described below.
 3. Cover at least three relevant independent source families before declaring a shortfall: local municipal/provincial archives or local-history publications; photographer albums (including Flickr); and institutional catalogues such as Wikimedia Commons, Historical Photographs of China, Library of Congress, national/state libraries or museums. Use Openverse to discover additional collections, then inspect their original records. Choose collections for geographic and temporal coverage; an aggregator repeating Commons is not an independent collection.
 4. Expand useful album/catalogue results, including subsequent result pages and linked item records within depth two. A collection holding 20 photographs is a better lead than 20 articles reproducing one image. Do not require all photos to come from different institutions.

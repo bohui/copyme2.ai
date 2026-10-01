@@ -323,23 +323,19 @@ def _google_creator(item: dict) -> str:
 
 
 def _google_query(place: str, period: str, *, include_decade: bool = False) -> str:
-    locations = []
-    for term in _place_terms(place):
-        clean = term.replace('"', ' ').strip()
-        if clean:
-            locations.append(f'"{clean}"')
-    location_query = ' OR '.join(locations)
+    from .place_photo_browser import _research
+    location_query = _research()._crawl4ai_place_query(place)
     bounds = _period_bounds(period)
     if not bounds:
-        return f'({location_query})'
+        return location_query
     fallback = _decade_fallback(period) if include_decade else None
     if fallback:
         decade = int(fallback[:4])
         terms = [str(year) for year in range(bounds[0], bounds[1] + 1)]
         terms += [f'{decade % 100:02d}年代', f'{decade % 100:02d}s', f'{decade}年代', f'{decade}s']
-        return f'({location_query}) (' + ' OR '.join(f'"{term}"' for term in terms) + ')'
+        return f'{location_query} (' + ' OR '.join(f'"{term}"' for term in terms) + ')'
     years = ' OR '.join(str(year) for year in range(bounds[0], min(bounds[1], bounds[0] + 99) + 1))
-    return f'({location_query}) ({years})'
+    return f'{location_query} ({years})'
 
 
 def _google_date_sort(period: str) -> str | None:
@@ -359,15 +355,8 @@ def _google_location_matches(item: dict, place: str) -> bool:
 
 
 def _location_matches(caption: str, place: str) -> bool:
-    # Require the requested locality, not merely a province/country component.
-    locality = re.split(r'[,/]', place)[0].strip()
-    for term in _place_terms(locality):
-        pattern = re.escape(term.casefold())
-        if term.isascii():
-            pattern = r'(?<!\w)' + pattern + r'(?!\w)'
-        if term and re.search(pattern, caption.casefold()):
-            return True
-    return False
+    from .place_photo_browser import _research
+    return _research()._crawl4ai_location_matches(caption, place)
 
 
 def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[dict]:

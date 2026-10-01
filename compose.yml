@@ -67,6 +67,7 @@ services:
       - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
       - ./skills/memoir-composer:/app/skills/memoir-composer:ro
+      - ./skills/place-photo-research:/app/skills/place-photo-research:ro
       - ./var/memory-spark:/var/lib/memory-spark
       - memoir-tasks:/var/lib/memoir-tasks
     depends_on:

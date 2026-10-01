@@ -202,8 +202,16 @@ class WorkflowTests(unittest.TestCase):
                    "temporal": p.normalize_period("1980", ASOF)}
         url = p._crawl4ai_search_url("https://cse.google.com/cse?cx=test&start=11", request)
         params = parse_qs(urlsplit(url).query)
-        self.assertEqual(params["q"], ["承德 1980年代 老照片"])
+        self.assertEqual(params["q"], ['("Chengde" OR "承德") 1980年代 老照片'])
         self.assertNotIn("start", params)
+
+    def test_chengde_landmark_aliases_keep_city_and_memory_period(self):
+        request = {"place": "离宫, 承德市", "temporal": p.normalize_period("1983", ASOF)}
+        query = parse_qs(urlsplit(p._crawl4ai_search_url("https://cse.google.com/cse?cx=test", request)).query)["q"][0]
+        for term in ('"离宫"', '"避暑山庄"', '"Mountain Resort"', '"summer palace"', '"承德"', '"Chengde"', '1983-1992'):
+            self.assertIn(term, query)
+        self.assertTrue(p._crawl4ai_location_matches("Chengde Mountain Resort 1983", request["place"]))
+        self.assertFalse(p._crawl4ai_location_matches("Beijing Summer Palace 1983", request["place"]))
     def test_init_photo_count(self):
         for count_args, expected in (([], 10), (["--count", "15"], 15), (["--count", "3"], 3)):
             with self.subTest(count_args=count_args), tempfile.TemporaryDirectory() as t, contextlib.redirect_stdout(io.StringIO()):

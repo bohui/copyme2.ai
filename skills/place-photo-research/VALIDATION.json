@@ -1,11 +1,11 @@
 {
   "skill_version": "1.0.0",
-  "validated_at": "2026-09-30",
+  "validated_at": "2026-10-01",
   "python": "3.12.11",
   "pillow": "12.0.0",
   "crawl4ai": "0.8.0",
-  "offline_tests": 67,
-  "passed": 67,
+  "offline_tests": 68,
+  "passed": 68,
   "failed": 0,
   "skill_frontmatter": "valid",
   "openai_yaml": "valid",
@@ -16,11 +16,12 @@
     "paginated CSE wrapper sessions",
     "paginated source discovery to ten candidates",
     "location/date filtering of related media",
-    "HTTPS normalization for observed HTTP image CDNs"
+    "HTTPS normalization for observed HTTP image CDNs",
+    "verified Chengde landmark aliases retain city and memory period"
   ],
   "live_smoke": {
     "date": "2026-09-30",
-    "place": "Chengde, Hebei, China / 河北承德",
+    "place": "Chengde, Hebei, China / \u6cb3\u5317\u627f\u5fb7",
     "input_period": "1980",
     "resolved_period": "1980-01-01..1989-12-31",
     "search_pages": 2,

@@ -30,6 +30,35 @@ def cse_html(sources):
                    for i, url in enumerate(sources))
 
 
+def test_chengde_palace_query_expands_verified_names_without_losing_period():
+    query = photos._google_query('离宫, 承德市', '1983年', include_decade=True)
+    for term in ('离宫', '避暑山庄', 'Mountain Resort', 'summer palace', '承德', 'Chengde', '1983', '80年代', '80s'):
+        assert f'"{term}"' in query
+    assert ') (' in query, 'landmark, city and date must be separate required groups'
+
+
+@pytest.mark.parametrize('caption,expected', [
+    ('承德避暑山庄 1983', True), ('Chengde Mountain Resort 1983', True),
+    ('Chengde summer palace 1983', True), ('Beijing Summer Palace 1983', False),
+    ('承德街景 1983', False), ('Summer Palace 1983', False),
+])
+def test_palace_alias_matches_require_the_landmark_and_city(caption, expected):
+    assert photos._location_matches(caption, '离宫, 承德市') is expected
+    assert browser._research()._crawl4ai_location_matches(caption, '离宫, 承德市') is expected
+
+
+def test_generic_palace_name_without_chengde_context_is_not_reinterpreted():
+    assert '避暑山庄' not in photos._google_query('离宫, 北京', '1983年')
+
+
+def test_alias_source_photos_still_require_the_memory_capture_period():
+    place = '离宫, 承德市'
+    source = 'https://www.flickr.com/photos/author/1/'
+    assert browser._source_items(photo_html(place='Chengde Mountain Resort'), source, place, '1983年')
+    assert not browser._source_items(photo_html(place='Beijing Summer Palace'), source, place, '1983年')
+    assert not browser._source_items(photo_html(place='Chengde Mountain Resort', date='1993-01-01'), source, place, '1983年')
+
+
 @pytest.fixture
 def fake_crawler(monkeypatch):
     pages, calls, hooks = {}, [], {}

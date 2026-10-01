@@ -899,10 +899,14 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   const key = placeHistoryKey(entry);
   entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === key) || entry;
   const period = photoSearchPeriod(entry, profile().story_focus);
-  const sameSearch = entry.photo_search_period === period;
+  const parents = (entry.hierarchy || []).filter(label => label && label !== entry.place && label !== "Earth");
+  const parent = ["suburb", "landmark"].includes(entry.granularity) ? parents.at(-1) : "";
+  const searchPlace = parent && !entry.place.includes(parent) ? `${entry.place}, ${parent}` : entry.place;
+  const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
+  const sameSearch = entry.photo_search_period === period && samePlace;
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && sameSearch && Object.hasOwn(entry, "photo_next_cursor")
-      && entry.photo_search_policy === "warm-progressive-v3"
+      && entry.photo_search_policy === "place-aliases-v4"
       && Date.now() - (entry.photo_search_at || 0) < 15 * 60 * 1000) return;
   state.photoRequests ||= new Map();
   const requestKey = JSON.stringify([projectId, key, period]);
@@ -912,7 +916,7 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   const control = document.querySelector("[data-photo-more]");
   if (control) { control.disabled = true; control.setAttribute("aria-busy", "true"); }
   try {
-    const query = new URLSearchParams({ place: entry.place, period });
+    const query = new URLSearchParams({ place: searchPlace, period });
     if (more) query.set("cursor", entry.photo_next_cursor);
     let deliveredFinal = false;
     const acceptPage = async (result) => {
@@ -930,11 +934,13 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
         const index = places.findIndex(item => placeHistoryKey(item) === key);
         const latest = index >= 0 ? places[index] : entry;
         if (photoSearchPeriod(latest, profile().story_focus) !== period) return;
-        const pictures = mergePlacePictures(latest.photo_search_period === period ? latest.pictures || [] : [], result.items);
+        const pictures = mergePlacePictures(latest.photo_search_period === period
+          && (latest.photo_search_place || latest.place) === searchPlace ? latest.pictures || [] : [], result.items);
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
+          photo_search_place: searchPlace,
           photo_next_cursor: result.next_cursor || null,
           photo_search_at: result.searching ? 0 : Date.now(),
-          photo_search_policy: "warm-progressive-v3" };
+          photo_search_policy: "place-aliases-v4" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;

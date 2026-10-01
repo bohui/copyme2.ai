@@ -1,0 +1,8 @@
+# Generated config.yml uses the absolute credentials path for this Mac.
+tunnel: dff6a4c3-fb6b-4c7b-89b9-f8ccb7733bbb
+credentials-file: /absolute/path/to/.cloudflared/dff6a4c3-fb6b-4c7b-89b9-f8ccb7733bbb.json
+
+ingress:
+  - hostname: copyme2.ai
+    service: http://127.0.0.1:3010
+  - service: http_status:404

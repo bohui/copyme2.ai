@@ -12,6 +12,9 @@ EVAL_FAILURE_DIR ?= var/evaluation-failures
 EVAL_CONCURRENCY ?= 1
 CONTAINER_BUILD ?= 0
 ENV_FILE ?= .env
+TUNNEL_ARGS ?=
+TUNNEL_CONFIG := $(CURDIR)/infra/cloudflare/config.yml
+TUNNEL_LABEL := com.cloudflare.cloudflared.copyme2
 CONTAINER_IMAGES := \
 	localhost/memory-spark:dev \
 	localhost/memory-spark-codex-worker:dev \
@@ -208,3 +211,26 @@ container-shell: check ## Open a shell in SERVICE=api.
 
 container-down: check ## Stop and remove the stack.
 	@$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans
+
+.PHONY: tunnel-plan tunnel-setup tunnel-start tunnel-stop tunnel-status tunnel-health
+
+tunnel-plan: ## Preview the copyme2.ai Cloudflare Tunnel setup.
+	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; scripts/setup-cloudflare-tunnel.sh
+
+tunnel-setup: ## Configure CopyMe2 DNS and install its launch agent; pass TUNNEL_ARGS=--replace-existing for the first cutover.
+	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; scripts/setup-cloudflare-tunnel.sh --apply $(TUNNEL_ARGS)
+
+tunnel-start: ## Install/start the tunnel launch agent using its existing local config.
+	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; scripts/setup-cloudflare-tunnel.sh --service-only
+
+tunnel-stop: ## Stop this Mac's CopyMe2 tunnel connector.
+	@launchctl bootout gui/$$(id -u)/$(TUNNEL_LABEL)
+
+tunnel-status: ## Show the CopyMe2 launch agent state and ingress validation.
+	@launchctl print gui/$$(id -u)/$(TUNNEL_LABEL)
+	@cloudflared tunnel --config "$(TUNNEL_CONFIG)" ingress validate
+
+tunnel-health: ## Verify the public landing page, Memoir route, and API proxy.
+	@curl --fail --silent --show-error --max-time 30 --output /dev/null https://copyme2.ai/
+	@curl --fail --silent --show-error --max-time 30 --output /dev/null https://copyme2.ai/memoir/start
+	@curl --fail --silent --show-error --max-time 30 https://copyme2.ai/api/v1/memoir/config | python3 -c 'import json,sys; assert json.load(sys.stdin)["product"] == "Memory Spark"; print("CopyMe2 public web and API proxy: healthy")'

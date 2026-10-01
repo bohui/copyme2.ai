@@ -28,3 +28,5 @@ dist/
 
 CONTEXT.md
 *.zip
+# Machine-specific Cloudflare paths; credentials stay in ~/.cloudflared/.
+infra/cloudflare/config.yml

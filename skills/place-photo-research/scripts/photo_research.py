@@ -433,21 +433,48 @@ def parse_crawl4ai_image_results(source_html: str) -> list[dict]:
     return results
 
 
-def _crawl4ai_place_terms(place: str) -> list[str]:
+def _crawl4ai_place_groups(place: str) -> list[list[str]]:
+    """Verified landmark aliases require their geographic anchor as well.
+
+    Chengde Mountain Resort: https://whc.unesco.org/en/list/703/
+    Summer Palace in Beijing is a different site: /en/list/880/.
+    """
     parts = [part.strip() for part in re.split(r"[/|,，、]", place) if part.strip()]
-    terms = []
-    for part in parts:
-        if len(part) >= 2:
-            terms.append(part)
-    if re.search(r"\bchengde\b|承德", place, re.I):
-        terms.extend(["Chengde", "承德", "河北承德"])
-    return list(dict.fromkeys(terms))
+    if not parts:
+        return []
+    target = parts[0]
+    chengde = bool(re.search(r"\bchengde\b|承德", place, re.I))
+    if chengde and re.search(r"离宫|避暑山庄|\bmountain resort\b|\bsummer palace\b|\bbishu shanzhuang\b", target, re.I):
+        return [list(dict.fromkeys([target, "离宫", "避暑山庄", "Mountain Resort", "summer palace", "Bishu Shanzhuang"])),
+                ["承德", "Chengde"]]
+    if re.fullmatch(r"(?:河北(?:省)?\s*)?承德(?:市)?|Chengde", target, re.I):
+        return [list(dict.fromkeys([target, "Chengde", "承德"]))]
+    # Keep a parent locality as a separate required search term, never an
+    # alternative to the actual landmark or neighbourhood being requested.
+    return [[target]] + ([[parts[1]]] if len(parts) > 1 else [])
+
+
+def _crawl4ai_place_query(place: str) -> str:
+    return " ".join("(" + " OR ".join('"' + term.replace('"', ' ').strip() + '"'
+                                          for term in group) + ")"
+                    for group in _crawl4ai_place_groups(place))
+
+
+def _crawl4ai_place_terms(place: str) -> list[str]:
+    return list(dict.fromkeys(term for group in _crawl4ai_place_groups(place) for term in group))
 
 
 def _crawl4ai_location_matches(text: str, place: str) -> bool:
     haystack = _text(text).casefold()
-    terms = _crawl4ai_place_terms(place)
-    return any(term.casefold() in haystack for term in terms)
+    groups = _crawl4ai_place_groups(place)
+    # Only the verified alias group requires both site and city evidence.
+    required = groups if len(groups) > 1 and "Mountain Resort" in groups[0] else groups[:1]
+    def matches(term):
+        pattern = re.escape(term.casefold())
+        if term.isascii():
+            pattern = r"(?<!\w)" + pattern + r"(?!\w)"
+        return bool(re.search(pattern, haystack))
+    return bool(required) and all(any(matches(term) for term in group) for group in required)
 
 
 def _crawl4ai_years(text: str) -> list[int]:
@@ -531,11 +558,7 @@ def _crawl4ai_search_url(search_url: str | None, request: dict) -> str:
     if not params.get("cx", [""])[0]:
         fail("Crawl4AI search URL must include a Programmable Search cx")
     temporal = request["temporal"]
-    place_terms = _crawl4ai_place_terms(request["place"])
-    if re.search(r"\bchengde\b|承德", request["place"], re.I):
-        place_query = "承德"
-    else:
-        place_query = " OR ".join(place_terms[:2]) or request["place"]
+    place_query = _crawl4ai_place_query(request["place"])
     terms = [place_query, "老照片"]
     if temporal.get("mode") == "historical_range":
         start, end = date.fromisoformat(temporal["start"]).year, date.fromisoformat(temporal["end"]).year

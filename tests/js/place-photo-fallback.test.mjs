@@ -68,7 +68,7 @@ test('saved city photos stay visible during a child search and switch to arrivin
   const search = h.context.loadPlacePictures(h.entry(), 'p');
   assertCityFallback(h);
   assert.match(h.context.workspaceMediaOverview(), /role="status"/);
-  assert.equal(new URL(calls[0], 'http://localhost').searchParams.get('place'), '大石庙镇');
+  assert.equal(new URL(calls[0], 'http://localhost').searchParams.get('place'), '大石庙镇, 承德');
   assert.equal(new URL(calls[0], 'http://localhost').searchParams.get('period'), '1989年');
   finish();
   await search;

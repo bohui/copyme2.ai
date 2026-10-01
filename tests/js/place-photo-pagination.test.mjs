@@ -20,6 +20,36 @@ function harness(entry, api) {
   return {context, state, entry: () => saved.memory_places[0]};
 }
 
+test('landmark search keeps its geographic parent and memory period', async () => {
+  const calls = [];
+  const h = harness({place: '离宫', hierarchy: ['Earth', '中国', '河北省', '承德市'],
+    granularity: 'landmark', period: '1983年'}, async url => {
+    calls.push(url); return {items: [], next_cursor: null};
+  });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  const query = new URL(calls[0], 'http://localhost').searchParams;
+  assert.equal(query.get('place'), '离宫, 承德市');
+  assert.equal(query.get('period'), '1983年');
+  assert.equal(h.entry().place, '离宫');
+});
+
+test('a newly contextualized place retires the old cursor and accumulates arriving photos', async () => {
+  const calls = [];
+  const h = harness({place: '离宫', hierarchy: ['Earth', '中国', '承德市', '离宫'],
+    granularity: 'landmark', period: '1983年', photo_search_period: '1983年',
+    photo_next_cursor: 'old:10', pictures: [picture('old')]}, async (url, options) => {
+    calls.push(url);
+    await options.onPhotoPage({items: [picture('a')], searching: true});
+    await options.onPhotoPage({items: [picture('b')], searching: false, next_cursor: null});
+    return {};
+  });
+  await h.context.loadPlacePictures(h.entry(), 'project', {more: true});
+  assert.equal(calls.length, 0);
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(new URL(calls[0], 'http://localhost').searchParams.has('cursor'), false);
+  assert.deepEqual(Array.from(h.entry().pictures, item => item.asset_id), ['a', 'b']);
+});
+
 test('appends pages, deduplicates overlaps and stops at exhaustion', async () => {
   const calls = [];
   const h = harness({place: 'Chengde', period: '1980s'}, async url => {
@@ -123,7 +153,7 @@ test('older empty searches are retried under the bilingual search policy', async
   await h.context.loadPlacePictures(h.entry(), 'project');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 1);
-  assert.equal(h.entry().photo_search_policy, 'warm-progressive-v3');
+  assert.equal(h.entry().photo_search_policy, 'place-aliases-v4');
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {

@@ -172,6 +172,29 @@ is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
 
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
 
+### Public hostname through Cloudflare Tunnel
+
+The local Apple Container stack can serve [https://copyme2.ai](https://copyme2.ai)
+through the dedicated `copyme2-memoir` tunnel. A macOS launch agent keeps
+`cloudflared` running and forwards the hostname to the Next.js frontend on
+`127.0.0.1:3010`; Next.js forwards `/api/v1/memoir/*` to the private API.
+
+```bash
+make container-up
+make tunnel-plan
+make tunnel-setup TUNNEL_ARGS=--replace-existing # first cutover from copyme2-serenity
+make tunnel-health
+make tunnel-status
+```
+
+Set `MEMORY_SPARK_PUBLIC_URL=https://copyme2.ai` in `.env` before starting
+containers. Tunnel login requires selecting `copyme2.ai` in Cloudflare; its
+certificate and tunnel credentials stay outside the repository. The tunnel
+launch agent starts at user login; the container stack must also be running and
+this Mac must remain awake and online. See
+[`infra/cloudflare/README.md`](infra/cloudflare/README.md) for restart, logs,
+auth callback settings, and rollback.
+
 ### Collection agents and background tasks
 
 For streamed conversations, private workspace extraction runs alongside the
