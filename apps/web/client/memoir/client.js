@@ -2,7 +2,7 @@ import { createAuthReminder } from "./auth-reminder.js";
 import { linkSocialIdentity } from "./social-auth.mjs";
 import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
 import { openAttachedConversations, retryConversationTransfer } from "./conversation-attachments.js";
-import { mergePlaces, placeHistoryKey, mapTarget, matchesPlaceStage } from "./places.mjs";
+import { mergePlaces, placeHistoryKey, mapTarget, matchesPlaceStage, groupPlaces, groupMapPins, groupMapFrame } from "./places.mjs";
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { openCollectionReview } from "./collection.js";
@@ -39,6 +39,7 @@ const state = {
   story: null,
   familyEntitlement: null,
   recallStatus: null,
+  recallPreview: null,
   familyFeaturesEnabled: false,
   familyContext: null,
   familyPeriods: [],
@@ -598,6 +599,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   let streamedMessage = null;
   const liveTrace = [];
   const streamProjectId = state.project?.id || null;
+  const previousJourney = state.placeJourney;
+  const previousSelection = state.selectedPlace;
+  let previewJourney = null;
+  if (state.supabase.google_maps_browser_api_key) void loadCesium().catch(() => {});
   try {
     const applyWorkspace = async (update) => {
       if (!update || typeof update !== "object") return;
@@ -605,13 +610,26 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       if (!streamProjectId || state.project?.id !== streamProjectId) return;
       const sourceSequence = Number(update.source_sequence || 0);
       const markCurrent = (component) => {
-        if (!Number.isSafeInteger(sourceSequence) || sourceSequence <= 0) return true;
+        // Server sequences are nanosecond timestamps, larger than MAX_SAFE_INTEGER.
+        // Distinct turns remain ordered even after JSON's sub-microsecond rounding.
+        if (!Number.isInteger(sourceSequence) || sourceSequence <= 0) return true;
         const key = `${streamProjectId}:${component}`;
         const previous = appliedWorkspaceSequences.get(key) || 0;
         if (sourceSequence < previous) return false;
         appliedWorkspaceSequences.set(key, sourceSequence);
         return true;
       };
+      if (update.preview === true) {
+        if (!update.place_journey || !markCurrent("place")) return;
+        previewJourney = { ...update.place_journey, preview: true };
+        state.placeJourney = previewJourney;
+        state.selectedPlace = placeHistoryKey(previewJourney);
+        state.lifeStage = "all";
+        state.workspaceCollapsed = false;
+        resolvePlaceMap(previewJourney);
+        render();
+        return;
+      }
       if (update.profile_updates && markCurrent("profile")) {
         await saveProfileUpdates(update.profile_updates, streamProjectId);
         if (update.profile_updates.story_focus?.when && state.placeJourney) {
@@ -633,17 +651,21 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           state.workspaceCollapsed = false;
           const stage = update.profile_updates?.story_focus?.life_stage;
           const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
-          const candidate = { ...update.place_journey, life_stage: lifeStage };
-          const places = mergePlaces([...(profile().memory_places || []), candidate]);
-          const entry = places.find(item => placeHistoryKey(item) === placeHistoryKey(candidate));
+          const candidates = (update.place_journeys?.length ? update.place_journeys : [update.place_journey])
+            .map(journey => ({ ...journey, life_stage: lifeStage }));
+          const places = mergePlaces([...(profile().memory_places || []), ...candidates]);
+          const entries = candidates.map(candidate => places.find(item => placeHistoryKey(item) === placeHistoryKey(candidate)));
+          const entry = entries.at(-1);
           await saveProfileUpdates({ memory_places: places }, streamProjectId);
           state.lifeStage = "all";
           state.selectedPlace = placeHistoryKey(entry);
           rememberPlaceJourneyProject(streamProjectId);
-          resolvePlaceMap(entry);
           // Discovery can take much longer than the saved place update.
           // Render the map and loading panel while it runs independently.
-          void loadPlacePictures(entry, streamProjectId);
+          for (const place of entries) {
+            resolvePlaceMap(place);
+            void loadPlacePictures(place, streamProjectId);
+          }
         }
         // Places and pictures are presented together in the workspace overview,
         // rather than as separate navigation destinations.
@@ -685,6 +707,8 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       } else if (event.type === "workspace_error") {
         for (const step of liveTrace) if (step.status === "running") step.status = "failed";
         if (streamedMessage) updateStreamingAssistantMessage(streamedMessage);
+      } else if (event.type === "place_preview") {
+        await applyWorkspace({ ...event.data, preview: true });
       } else if (event.type === "workspace_update") {
         // Workspace writes are serialized globally so late turns cannot race
         // on the same project revision. This queue is independent of the
@@ -701,6 +725,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       await workspaceUpdateQueue;
     }
     if (body.recall_status) state.recallStatus = body.recall_status;
+    if (state.recallStatus?.payment_required) void ensureRecallPreview();
     if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
     if (!streamedMessage && body.reply) {
       // Compatibility responses may contain the entire reply in one event.
@@ -711,6 +736,11 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     }
     return { blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
+    if (state.project?.id === streamProjectId && state.placeJourney === previewJourney && previewJourney) {
+      state.placeJourney = previousJourney;
+      state.selectedPlace = previousSelection;
+      render();
+    }
     toast(error.message);
     if (streamedMessage) {
       streamedMessage.failed = true;
@@ -794,7 +824,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
           ready = true;
           resolveReady(result);
         }
-      } else if (["workspace_update", "progress", "workspace_error"].includes(event.type)) {
+      } else if (["place_preview", "workspace_update", "progress", "workspace_error"].includes(event.type)) {
         await onEvent(event);
       } else if (event.type === "result") {
         result = { ...(result || {}), ...(event.data || {}) };
@@ -805,6 +835,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
           const {
             place_journey: _placeJourney,
             place_journey_change: _placeJourneyChange,
+            place_journeys: _placeJourneys,
             profile_updates: _profileUpdates,
             family_context: _familyContext,
             family_context_update: _familyContextUpdate,
@@ -871,7 +902,7 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   const sameSearch = entry.photo_search_period === period;
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && sameSearch && Object.hasOwn(entry, "photo_next_cursor")
-      && entry.photo_search_policy === "warm-progressive-v2"
+      && entry.photo_search_policy === "warm-progressive-v3"
       && Date.now() - (entry.photo_search_at || 0) < 15 * 60 * 1000) return;
   state.photoRequests ||= new Map();
   const requestKey = JSON.stringify([projectId, key, period]);
@@ -887,7 +918,7 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
     const acceptPage = async (result) => {
       if (state.project?.id !== projectId) return;
       if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
-        state.photoRequests.set(requestKey, { error: true });
+        state.photoRequests.set(requestKey, { error: true, failures: result.failures || [] });
         return;
       }
       if (result.searching && !result.items.length) return;
@@ -903,7 +934,7 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
           photo_next_cursor: result.next_cursor || null,
           photo_search_at: result.searching ? 0 : Date.now(),
-          photo_search_policy: "warm-progressive-v2" };
+          photo_search_policy: "warm-progressive-v3" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;
@@ -931,8 +962,7 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   } catch { /* Pictures are optional; retry explicitly without erasing them. */
     state.photoRequests.set(requestKey, { error: true });
   } finally {
-    const failed = state.photoRequests.get(requestKey)?.error;
-    state.photoRequests.set(requestKey, { error: failed, loading: false });
+    state.photoRequests.set(requestKey, {...state.photoRequests.get(requestKey), loading: false});
     if (state.project?.id === projectId) render();
   }
 }
@@ -1030,7 +1060,8 @@ function pictureWall(pictures = [], entry = null) {
     const sceneDate = formatDateExpression(picture.date_expression ||
       [picture.scene_date_range?.start, picture.scene_date_range?.end].filter(Boolean).join("–"), currentUiLocale())
       || translate("Memoir.workspace.dateUnknown");
-    const detail = picture.attribution || picture.location || picture.label || t("historicalReference");
+    const detail = [...new Set([picture.reference_place,
+      picture.attribution || picture.location || picture.label || t("historicalReference")].filter(Boolean))].join(" · ");
     const sourceLink = source
       ? `<a href="${escapeHtml(source)}" target="_blank" rel="noreferrer">${escapeHtml(picture.title || t("historicalReference"))}</a>`
       : `<strong>${escapeHtml(picture.title || t("historicalReference"))}</strong>`;
@@ -1194,6 +1225,7 @@ async function refreshFamilyEntitlement() {
     const features = new Set(entitlement.payment_features || []);
     state.familyEntitlement = entitlement;
     state.recallStatus = entitlement.recall_status || null;
+    if (state.recallStatus?.payment_required) void ensureRecallPreview();
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")
       && features.has("timeline");
@@ -1532,6 +1564,8 @@ function profileDetails() {
 function profileMenu() {
   const details = profileDetails();
   const t = (key) => escapeHtml(translate(`Common.${key}`));
+  const anonymous = Boolean(state.supabase?.user?.is_anonymous);
+  const authAction = anonymous ? "login" : "logout";
   return `
     <div class="profile-menu" data-profile-menu>
       <button class="profile-trigger" type="button" data-profile-trigger aria-label="${t("openProfile")}" aria-expanded="false" aria-haspopup="menu" aria-controls="profile-menu-content">
@@ -1543,7 +1577,7 @@ function profileMenu() {
         <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="settings">${t("profile")}</button>
         <button class="profile-menu-item" type="button" role="menuitem" data-profile-action="collection">${escapeHtml(translate("Collection.title"))}</button>
         ${state.supabase?.user && !state.supabase.user.is_anonymous ? `<button class="profile-menu-item" type="button" role="menuitem" data-profile-action="attached-history">${escapeHtml(translate("AuthReminder.attachedHistory"))}</button>` : ""}
-        <button class="profile-menu-item profile-logout" type="button" role="menuitem" data-profile-action="logout"><span>${t("logout")}</span><span aria-hidden="true">↗</span></button>
+        <button class="profile-menu-item profile-auth-action" type="button" role="menuitem" data-profile-action="${authAction}"><span>${t(authAction)}</span><span aria-hidden="true">↗</span></button>
       </div>
     </div>`;
 }
@@ -1595,6 +1629,10 @@ function bindProfileMenu() {
     });
   });
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
+  menu.querySelector("[data-profile-action='login']")?.addEventListener("click", () => {
+    closeProfileMenu();
+    authReminder.open();
+  });
   menu.querySelector("[data-profile-action='collection']")?.addEventListener("click", reviewCollection);
   menu.querySelector("[data-profile-action='attached-history']")?.addEventListener("click", () => {
     closeProfileMenu();
@@ -2148,6 +2186,7 @@ async function startMemoirStory(mode = "self") {
     state.loading = true;
     const language = conversationLanguage();
     state.project = await api("/v1/projects", { method: "POST", body: JSON.stringify({ mode, language }) });
+    state.recallPreview = null;
     if (state.supabase?.user && !state.supabase.user.is_anonymous) {
       const savedProfile = await storyApi("/v1/user/profile");
       state.project.profile = { ...state.project.profile, ...savedProfile };
@@ -2373,12 +2412,16 @@ function placeHistoryChoices(places, current) {
   return `<nav class="place-choices" aria-label="${label}">${places.map(item => {
     const context = (item.hierarchy || []).filter(part => part !== "Earth" && part !== item.place).join(" · ");
     const stage = (item.life_stages || [item.life_stage]).filter(Boolean).map(stage => lifeStageText(stage, "label")).join(" · ");
-    return `<button type="button" data-place-choice="${escapeHtml(placeHistoryKey(item))}" aria-pressed="${placeHistoryKey(item) === placeHistoryKey(current)}"><span>${escapeHtml(item.place)}</span><small>${escapeHtml([context, stage].filter(Boolean).join(" · "))}</small></button>`;
+    const selected = placeHistoryKey(item) === placeHistoryKey(current) || item.group_members?.includes(placeHistoryKey(current));
+    return `<button type="button" data-place-choice="${escapeHtml(placeHistoryKey(item))}" aria-pressed="${selected}"><span>${escapeHtml(item.place)}</span><small>${escapeHtml([context, stage].filter(Boolean).join(" · "))}</small></button>`;
   }).join("")}</nav>`;
 }
 
 function placeWorkspaceSelection() {
   if (!state.placeJourney) return null;
+  if (state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)) {
+    return placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+  }
   const places = mergePlaces(profile().memory_places || []);
   const matching = state.lifeStage === "all"
     ? places
@@ -2387,6 +2430,11 @@ function placeWorkspaceSelection() {
     ? matching.find(item => placeHistoryKey(item) === state.selectedPlace)
     : null;
   if (explicitlySelected) return placeMapTarget(explicitlySelected) ? explicitlySelected : null;
+  if (state.selectedPlace) {
+    const group = workspacePlaceGroups(matching).find(item => placeHistoryKey(item.city) === state.selectedPlace);
+    const member = group?.members.find(item => placeMapTarget(item));
+    if (member) return member;
+  }
   const current = matching.find(item => placeHistoryKey(item) === placeHistoryKey(state.placeJourney));
   if (current) return placeMapTarget(current) ? current : null;
   const selected = matching.filter((item) => placeMapTarget(item));
@@ -2408,10 +2456,26 @@ function renderablePictureItems(pictures = []) {
   return pictures.filter((picture) => picture.allowed_actions?.embed);
 }
 
-function workspacePictureItems(place) {
+function workspacePictureItems(place, group = null) {
+  const period = photoSearchPeriod(place, profile().story_focus);
+  const matchesPeriod = source => !source || !Object.hasOwn(source, "photo_search_period") || source.photo_search_period === period;
+  let pictures = matchesPeriod(place) ? renderablePictureItems(place?.pictures || []) : [];
+  if (!pictures.length && group) {
+    // Grouping changes the map, while photographs remain attached to their
+    // source. Keep the city's saved references visible during a child search.
+    const members = group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(place));
+    const cityKey = placeHistoryKey(group.city);
+    const ordered = [...members.filter(member => placeHistoryKey(member) === cityKey),
+      ...members.filter(member => placeHistoryKey(member) !== cityKey)];
+    const samePeriod = ordered.filter(member => matchesPeriod(member) && renderablePictureItems(member.pictures).length);
+    pictures = (samePeriod.length ? samePeriod : ordered).flatMap(member =>
+      renderablePictureItems(member.pictures).map(picture => ({...picture, reference_place: member.place})));
+  }
+  // Retain any prior references with their dates when no closer match exists.
+  if (!pictures.length) pictures = place?.pictures || [];
   const items = [];
   const seen = new Set();
-  for (const picture of [...(place?.pictures || []), ...searchedPictures()]) {
+  for (const picture of [...pictures, ...searchedPictures()]) {
     const key = picture.asset_id || picture.id || picture.source_url || picture.title;
     if (!key || seen.has(key)) continue;
     seen.add(key);
@@ -2427,21 +2491,24 @@ function workspaceMediaOverview(toggle = "") {
   if (!current || !placeMapTarget(current)) return "";
   const places = mergePlaces(profile().memory_places || []);
   const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
-  const mappedPlaces = matching.filter((item) => placeMapTarget(item));
-  const choices = placeHistoryChoices(mappedPlaces, current);
+  const groups = workspacePlaceGroups(matching);
+  const activeGroup = groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+  const photoGroup = state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
+    .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+  const choices = placeHistoryChoices(groupChoices(groups), current);
   const map = current
-    ? placeJourneyMarkup(current, "workspace")
+    ? placeJourneyMarkup(current, "workspace", activeGroup)
     : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
-  const pictureItems = renderablePictureItems(workspacePictureItems(current));
+  const pictureItems = renderablePictureItems(workspacePictureItems(current, photoGroup));
   const requestKey = JSON.stringify([state.project?.id, placeHistoryKey(current), photoSearchPeriod(current, profile().story_focus)]);
   const request = state.photoRequests?.get(requestKey);
   const empty = request?.loading
     ? `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`
     : request?.error
-      ? `<div class="workspace-photo-status"><p role="status">${t("picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
+      ? `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
       : `<p class="workspace-photo-status" role="status">${t(Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
   const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
-  return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && mappedPlaces.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
+  return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
 function deliveryAvailable() {
@@ -2551,12 +2618,13 @@ function placeMapViewHeight(journey, target = journey) {
   return PLACE_MAP_VIEW_HEIGHTS[granularity] || PLACE_MAP_VIEW_HEIGHTS.city;
 }
 
-function placeJourneyMarkup(journey, variant = "surface") {
+function placeJourneyMarkup(journey, variant = "surface", group = null) {
   if (!journey) return "";
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   const tWith = (key, values) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
-  const labels = (journey.hierarchy || []).filter((label) => label !== journey.place).map((label) => `<span class="place-journey-label">${escapeHtml(label)}</span>`).join('<span class="place-journey-arrow" aria-hidden="true">/</span>');
-  const target = placeMapTarget(journey);
+  const title = group?.city || journey;
+  const labels = (title.hierarchy || []).filter((label) => label !== title.place).map((label) => `<span class="place-journey-label">${escapeHtml(label)}</span>`).join('<span class="place-journey-arrow" aria-hidden="true">/</span>');
+  const target = group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
   if (!target) return "";
   const mapUrl = placeMapUrl(target);
   const mapLink = mapUrl ? `<a class="place-map-link" href="${escapeHtml(mapUrl)}" target="_blank" rel="noreferrer">${t("exploreMap")} <span aria-hidden="true">↗</span></a>` : "";
@@ -2566,7 +2634,10 @@ function placeJourneyMarkup(journey, variant = "surface") {
   const placeType = currentUiLocale() === "zh-CN"
     ? ({ city: "城市", town: "城镇", region: "地区", country: "国家", neighbourhood: "街区" }[journey.granularity] || "地点")
     : (journey.granularity || "place");
-  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(journey.place)}</h2></div><div class="place-journey-hierarchy" aria-label="${t("placeContext")}">${labels}</div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div><div class="place-journey-toolbar"><span class="place-journey-status">${target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType })}</span>${mapLink}</div></section>`;
+  const pins = target.pins || [];
+  const pinData = group ? ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"` : "";
+  const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-hierarchy" aria-label="${t("placeContext")}">${labels}</div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${!group && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
 }
 
 function placeJourneySurface() {
@@ -2581,8 +2652,12 @@ function placesWorkspace() {
   const mappedPlaces = matching.filter((item) => placeMapTarget(item));
   const current = placeWorkspaceSelection() || mappedPlaces.at(-1);
   if (!current || !placeMapTarget(current)) return "";
-  const choices = placeHistoryChoices(mappedPlaces, current);
-  return `<div class="workspace-scroll workspace-places"><button class="text-button" data-all-places>${t("allPlaces")}</button>${choices}${current ? placeJourneyMarkup(current, "workspace") + placePictures(current.pictures) : `<div class="workspace-empty"><p>${t("placesEmpty")}</p></div>`}</div>`;
+  const groups = workspacePlaceGroups(matching);
+  const group = groups.find(item => item.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+  const photoGroup = state.lifeStage === "all" ? group : workspacePlaceGroups(places)
+    .find(item => item.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+  const choices = placeHistoryChoices(groupChoices(groups), current);
+  return `<div class="workspace-scroll workspace-places"><button class="text-button" data-all-places>${t("allPlaces")}</button>${choices}${current ? placeJourneyMarkup(current, "workspace", group) + pictureWall(workspacePictureItems(current, photoGroup), current) : `<div class="workspace-empty"><p>${t("placesEmpty")}</p></div>`}</div>`;
 }
 
 function picturesWorkspace() {
@@ -2636,8 +2711,65 @@ function loadCesium() {
 
 const resolvedPlaceTargets = new Map();
 const pendingPlaceTargets = new Map();
+const placeGroupRecords = new Map();
+const placeGroupRequests = new Map();
+const placeGroupLatest = new Map();
+
+function publicPlaceFields(place) {
+  return {place: place.place, hierarchy: place.hierarchy, granularity: place.granularity,
+    latitude: place.latitude, longitude: place.longitude};
+}
+
+function workspacePlaceGroups(places) {
+  const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])]);
+  return groupPlaces(entries.map(place => {
+    const record = placeGroupRecords.get(`${state.project?.id}:${placeHistoryKey(place)}`);
+    return record && record.input === JSON.stringify(publicPlaceFields(place))
+      ? {...place, map_city: record.city, map_city_key: record.city_key, map_pin: record.pin} : place;
+  }));
+}
+
+function groupChoices(groups) {
+  return groups.map(group => ({...group.city,
+    group_members: group.members.map(placeHistoryKey),
+    life_stages: [...new Set(group.members.flatMap(member => member.life_stages || [member.life_stage]).filter(Boolean))]}));
+}
+
+function resolvePlaceGroups(journey) {
+  const projectId = state.project?.id;
+  if (!projectId || !journey) return;
+  const merged = mergePlaces([...(profile().memory_places || []), journey]);
+  // Resolve the newest mention first even when history is sorted by life stage.
+  const places = [merged.find(place => placeHistoryKey(place) === placeHistoryKey(journey)),
+    ...merged.filter(place => placeHistoryKey(place) !== placeHistoryKey(journey))];
+  // The grouping service receives only public geographic fields.
+  const publicPlaces = places.map(publicPlaceFields);
+  const signature = JSON.stringify([projectId, publicPlaces]);
+  if (placeGroupRequests.has(signature)) return;
+  placeGroupLatest.set(projectId, signature);
+  const request = api(`/v1/projects/${projectId}/place-groups`, {
+    method: "POST", body: JSON.stringify({places: publicPlaces}),
+  }).then(result => {
+    if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
+    for (const record of result.places || []) {
+      const place = places[record.index];
+      if (place) placeGroupRecords.set(`${projectId}:${placeHistoryKey(place)}`,
+        {...record, input: JSON.stringify(publicPlaces[record.index])});
+    }
+    render();
+  }).catch(() => {}).finally(() => {
+    // Keep a completed signature briefly; renders must not repeat failed lookups.
+    setTimeout(() => {
+      if (placeGroupRequests.get(signature) === request) placeGroupRequests.delete(signature);
+    }, 60_000);
+  });
+  placeGroupRequests.set(signature, request);
+  while (placeGroupRequests.size > 32) placeGroupRequests.delete(placeGroupRequests.keys().next().value);
+}
+
 function resolvePlaceMap(journey) {
   if (!journey || !state.project?.id) return;
+  void resolvePlaceGroups(journey);
   const key = placeHistoryKey(journey);
   if (mapTarget(journey, []) || resolvedPlaceTargets.has(key) || pendingPlaceTargets.has(key)) return;
   const projectId = state.project.id;
@@ -2659,7 +2791,7 @@ function initCesiumPlaceJourney() {
   const latitude = Number(container.dataset.cesiumLatitude);
   const longitude = Number(container.dataset.cesiumLongitude);
   const journey = placeWorkspaceSelection() || state.placeJourney;
-  const finalMapHeight = placeMapViewHeight(journey, placeMapTarget(journey));
+  const finalMapHeight = Number(container.dataset.cesiumHeight) || placeMapViewHeight(journey, placeMapTarget(journey));
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
   loadCesium().then((cesium) => {
     if (!container.isConnected) return;
@@ -2691,8 +2823,11 @@ function initCesiumPlaceJourney() {
       viewer.scene.skyAtmosphere.show = true;
       viewer.scene.globe.baseColor = cesium.Color.fromCssColorString("#2a756b");
       const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight);
-      viewer.entities.add({
-        position: cesium.Cartesian3.fromDegrees(longitude, latitude),
+      const pins = container.dataset.cesiumPins ? JSON.parse(container.dataset.cesiumPins) : [
+        {place: container.dataset.cesiumPlace, latitude, longitude}];
+      for (const pin of pins) viewer.entities.add({
+        id: pin.key,
+        position: cesium.Cartesian3.fromDegrees(pin.longitude, pin.latitude),
         point: {
           color: cesium.Color.fromCssColorString("#f3c66b"),
           outlineColor: cesium.Color.fromCssColorString("#fff8e7"),
@@ -2701,7 +2836,7 @@ function initCesiumPlaceJourney() {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: container.dataset.cesiumPlace || "Memory place",
+          text: pin.place || "Memory place",
           fillColor: cesium.Color.WHITE,
           font: "600 14px DM Sans, sans-serif",
           style: cesium.LabelStyle.FILL_AND_OUTLINE,
@@ -2711,6 +2846,15 @@ function initCesiumPlaceJourney() {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
+      viewer.screenSpaceEventHandler.setInputAction(event => {
+        const picked = viewer.scene.pick(event.position)?.id;
+        if (!picked?.id) return;
+        const member = (profile().memory_places || []).find(place => placeHistoryKey(place) === picked.id);
+        if (!member) return;
+        state.selectedPlace = picked.id;
+        void loadPlacePictures(member, state.project?.id);
+        render();
+      }, cesium.ScreenSpaceEventType.LEFT_CLICK);
 
       const showFinalRoadMap = () => {
         if (!arrivalComplete || !roadmapReady || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
@@ -2850,11 +2994,47 @@ async function uploadAttachments(items) {
   }
 }
 
+async function ensureRecallPreview({ retry = false } = {}) {
+  const projectId = state.project?.id;
+  if (!projectId || !state.recallStatus?.payment_required) return;
+  if (!retry && state.recallPreview?.projectId === projectId) return;
+  state.recallPreview = { projectId, status: "loading" };
+  render();
+  try {
+    let result;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        result = await storyApi("/v1/story/preview", {
+          method: "POST",
+          body: JSON.stringify({ project_id: projectId, language: conversationLanguage() }),
+        });
+        break;
+      } catch (error) {
+        if (error.code !== "AGENT_TURN_IN_PROGRESS" || attempt === 3) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+    if (state.project?.id === projectId) state.recallPreview = { projectId, ...result };
+  } catch {
+    if (state.project?.id === projectId) state.recallPreview = { projectId, status: "error" };
+  }
+  if (state.project?.id === projectId) render();
+}
+
 function recallPackagePrompt() {
   if (!state.recallStatus?.payment_required) return "";
   const t = key => escapeHtml(translate(`Memoir.recall.${key}`));
+  const sample = state.recallPreview?.projectId === state.project?.id ? state.recallPreview : null;
+  if (!sample || sample.status === "loading") {
+    return `<section class="recall-preview" aria-busy="true"><h2>${t("previewTitle")}</h2><p role="status">${t("previewPreparing")}</p></section>`;
+  }
+  if (sample.status !== "ready" || !sample.preview) {
+    return `<section class="recall-preview"><h2>${t("previewTitle")}</h2><p role="status">${t(sample.status === "insufficient_context" ? "previewInsufficient" : "previewFailed")}</p><button type="button" class="button button-secondary" data-retry-recall-preview>${t("previewRetry")}</button></section>`;
+  }
+  const preview = sample.preview;
+  const excerpt = `<article class="recall-preview"><div class="eyebrow">${t(preview.kind === "sample_storyline" ? "sampleStoryline" : "sampleChapter")}</div><h2>${escapeHtml(preview.title)}</h2><div class="recall-preview-text">${formatText(preview.text)}</div>${preview.kind === "sample_storyline" && preview.outline?.length ? `<ol>${preview.outline.map(title => `<li>${escapeHtml(title)}</li>`).join("")}</ol>` : ""}<p class="fine-print">${t("previewNote")}</p></article>`;
   const pending = new URLSearchParams(window.location.search).get("checkout") === "success";
-  return `<section class="recall-package-prompt" aria-labelledby="recall-package-title"><h2 id="recall-package-title">${t("title")}</h2><p>${t("description")}</p>${state.supabase?.user?.is_anonymous ? `<p class="fine-print">${t("signIn")}</p>` : ""}${pending ? `<p role="status">${escapeHtml(translate("Memoir.storyFlow.paymentConfirming"))}</p>` : ""}<button type="button" class="text-button" data-check-recall-payment ${state.loading ? "disabled" : ""}>${t("checkPayment")}</button>${storyCheckoutForm()}</section>`;
+  return `${excerpt}<section class="recall-package-prompt" aria-labelledby="recall-package-title"><h2 id="recall-package-title">${t("title")}</h2><p>${t("description")}</p>${state.supabase?.user?.is_anonymous ? `<p class="fine-print">${t("signIn")}</p>` : ""}${pending ? `<p role="status">${escapeHtml(translate("Memoir.storyFlow.paymentConfirming"))}</p>` : ""}<button type="button" class="text-button" data-check-recall-payment ${state.loading ? "disabled" : ""}>${t("checkPayment")}</button>${storyCheckoutForm()}</section>`;
 }
 
 function chatComposer() {
@@ -2903,6 +3083,7 @@ function renderCueCards(cues) {
 }
 
 function bindViewActions() {
+  $("[data-retry-recall-preview]")?.addEventListener("click", () => ensureRecallPreview({ retry: true }));
   $("[data-check-recall-payment]")?.addEventListener("click", async () => {
     state.loading = true;
     render();

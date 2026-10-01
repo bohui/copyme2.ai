@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Reset the application-owned local development data.
+"""Reset all application-owned local development data.
 
 Supabase Storage objects are removed through the Storage API rather than by
 deleting rows from ``storage.objects``. The latter leaves the physical blobs
-orphaned in the backing object store.
+orphaned in the backing object store. Authentication users are deleted from
+``auth.users`` after the application tables are cleared; Supabase's cascading
+foreign keys remove their identities, sessions, and other account records.
 """
 
 from __future__ import annotations
@@ -29,6 +31,9 @@ APP_TABLES = (
     "public.story_entitlements",
     "public.user_family_context",
     "public.user_place_journey",
+    "public.guest_conversation_transfer",
+    "public.user_conversation_attachment",
+    "public.guest_merge_asset_access",
     # These tables are optional and only exist on installations that applied
     # the retired JSONB-state migration.
     "public.memory_spark_outbox",
@@ -37,9 +42,15 @@ APP_TABLES = (
 STORAGE_PAGE_SIZE = 1000
 STORAGE_REMOVE_BATCH_SIZE = 1000
 
+LOCAL_CODEX_DATA_PATHS = (
+    ("LOCAL_CODEX_HOME_PATH", "var/codex-users", "codex-users"),
+    ("LOCAL_CODEX_WORKER_HOME_PATH", "var/codex-worker-users", "codex-worker-users"),
+    ("LOCAL_LEGACY_CODEX_HOME_PATH", "var/memory-spark/codex-users", "codex-users"),
+)
+
 
 class StorageClient:
-    def __init__(self, url: str, key: str, bucket: str) -> None:
+    def __init__(self, url: str, key: str, bucket: str | None = None) -> None:
         self.base_url = url.rstrip("/") + "/storage/v1"
         self.bucket = bucket
         self.headers = {
@@ -48,10 +59,11 @@ class StorageClient:
             "apikey": key,
         }
 
-    def _request(self, method: str, path: str, payload: object) -> object:
+    def _request(self, method: str, path: str, payload: object | None = None) -> object:
+        data = None if payload is None else json.dumps(payload).encode("utf-8")
         request = Request(
             f"{self.base_url}/{path}",
-            data=json.dumps(payload).encode("utf-8"),
+            data=data,
             headers=self.headers,
             method=method,
         )
@@ -75,10 +87,28 @@ class StorageClient:
     def _delete(self, path: str, payload: object) -> object:
         return self._request("DELETE", path, payload)
 
-    def list_objects(self) -> list[str]:
+    def list_buckets(self) -> list[str]:
+        entries = self._request("GET", "bucket")
+        if not isinstance(entries, list):
+            raise RuntimeError("Supabase Storage bucket response was not an array")
+        buckets = {
+            str(entry["name"])
+            for entry in entries
+            if isinstance(entry, dict) and entry.get("name")
+        }
+        return sorted(buckets)
+
+    def _bucket_name(self, bucket: str | None) -> str:
+        name = bucket or self.bucket
+        if not name:
+            raise RuntimeError("A Supabase Storage bucket is required")
+        return name
+
+    def list_objects(self, bucket: str | None = None) -> list[str]:
         objects: list[str] = []
         visited_prefixes: set[str] = set()
-        bucket = quote(self.bucket, safe="")
+        bucket_name = self._bucket_name(bucket)
+        encoded_bucket = quote(bucket_name, safe="")
 
         def walk(prefix: str) -> None:
             if prefix in visited_prefixes:
@@ -87,7 +117,7 @@ class StorageClient:
             offset = 0
             while True:
                 entries = self._post(
-                    f"object/list/{bucket}",
+                    f"object/list/{encoded_bucket}",
                     {
                         "prefix": prefix,
                         "limit": STORAGE_PAGE_SIZE,
@@ -112,13 +142,24 @@ class StorageClient:
         walk("")
         return sorted(set(objects))
 
-    def remove_objects(self, objects: list[str]) -> None:
-        bucket = quote(self.bucket, safe="")
+    def remove_objects(self, objects: list[str], bucket: str | None = None) -> None:
+        encoded_bucket = quote(self._bucket_name(bucket), safe="")
         for start in range(0, len(objects), STORAGE_REMOVE_BATCH_SIZE):
             self._delete(
-                f"object/{bucket}",
+                f"object/{encoded_bucket}",
                 {"prefixes": objects[start : start + STORAGE_REMOVE_BATCH_SIZE]},
             )
+
+    def clear_bucket(self, bucket: str) -> int:
+        objects = self.list_objects(bucket)
+        self.remove_objects(objects, bucket)
+        remaining = self.list_objects(bucket)
+        if remaining:
+            raise RuntimeError(
+                f"Supabase Storage bucket {bucket!r} still contains "
+                f"{len(remaining)} object(s) after deletion"
+            )
+        return len(objects)
 
 
 def truncate_database(database_url: str) -> None:
@@ -137,10 +178,11 @@ begin
    where relation.relkind in ('r', 'p');
 
   if truncate_list is not null then
-    execute 'truncate table ' || truncate_list || ' restart identity';
+    execute 'truncate table ' || truncate_list || ' restart identity cascade';
   end if;
 end
 $$;
+delete from auth.users;
 commit;
 """
     try:
@@ -154,20 +196,26 @@ commit;
         raise RuntimeError(f"psql failed with exit status {error.returncode}") from error
 
 
-def clear_local_object_store(path_value: str, repo_root: Path) -> int:
+def clear_local_data_path(
+    path_value: str,
+    repo_root: Path,
+    *,
+    allowed_root: Path,
+    expected_name: str,
+) -> int:
     path = Path(path_value)
     if not path.is_absolute():
         path = repo_root / path
     path = path.resolve()
-    allowed_root = (repo_root / "var" / "memory-spark").resolve()
+    allowed_root = (repo_root / allowed_root).resolve()
     try:
         path.relative_to(allowed_root)
     except ValueError as error:
         raise RuntimeError(
-            f"Refusing to clear LOCAL_OBJECT_STORE_PATH outside {allowed_root}: {path}"
+            f"Refusing to clear local data outside {allowed_root}: {path}"
         ) from error
-    if path == allowed_root or path.name != "objects":
-        raise RuntimeError(f"Refusing to clear unexpected local object path: {path}")
+    if path == allowed_root or path.name != expected_name:
+        raise RuntimeError(f"Refusing to clear unexpected local data path: {path}")
 
     path.mkdir(parents=True, exist_ok=True)
     removed = 0
@@ -180,14 +228,38 @@ def clear_local_object_store(path_value: str, repo_root: Path) -> int:
             child.unlink()
         removed += 1
     if any(path.iterdir()):
-        raise RuntimeError(f"Local object storage is not empty after deletion: {path}")
+        raise RuntimeError(f"Local data path is not empty after deletion: {path}")
+    return removed
+
+
+def clear_local_object_store(path_value: str, repo_root: Path) -> int:
+    return clear_local_data_path(
+        path_value,
+        repo_root,
+        allowed_root=Path("var/memory-spark"),
+        expected_name="objects",
+    )
+
+
+def clear_local_codex_data(repo_root: Path) -> int:
+    removed = 0
+    for env_name, default_path, expected_name in LOCAL_CODEX_DATA_PATHS:
+        path_value = os.environ.get(env_name, default_path)
+        count = clear_local_data_path(
+            path_value,
+            repo_root,
+            allowed_root=Path("var"),
+            expected_name=expected_name,
+        )
+        removed += count
+        print(f"Removed {count} item(s) from local Codex user data {path_value!r}.")
     return removed
 
 
 def required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
-        raise RuntimeError(f"Set {name} before running make db-truncate.")
+        raise RuntimeError(f"Set {name} before running the destructive data reset.")
     return value
 
 
@@ -198,29 +270,25 @@ def reset_data() -> None:
         "SUPABASE_SERVICE_ROLE_KEY", ""
     ).strip()
     if not storage_key:
-        raise RuntimeError("Set SUPABASE_SECRET_KEY before running make db-truncate.")
-    bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "memory-spark").strip()
-    if not bucket:
-        raise RuntimeError("SUPABASE_STORAGE_BUCKET must not be empty.")
-
-    storage = StorageClient(supabase_url, storage_key, bucket)
-    objects = storage.list_objects()
-    print(f"Removing {len(objects)} object(s) from Supabase bucket {bucket!r}...")
-    storage.remove_objects(objects)
-    remaining_objects = storage.list_objects()
-    if remaining_objects:
         raise RuntimeError(
-            f"Supabase Storage still contains {len(remaining_objects)} object(s) after deletion"
+            "Set SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY before running make db-truncate."
         )
+    storage = StorageClient(supabase_url, storage_key)
+    buckets = storage.list_buckets()
+    print(f"Clearing {len(buckets)} Supabase Storage bucket(s)...")
+    for bucket in buckets:
+        removed = storage.clear_bucket(bucket)
+        print(f"Removed {removed} object(s) from Supabase bucket {bucket!r}.")
 
     repo_root = Path(__file__).resolve().parents[1]
     local_path = os.environ.get("LOCAL_OBJECT_STORE_PATH", "var/memory-spark/objects")
     removed_local = clear_local_object_store(local_path, repo_root)
     print(f"Removed {removed_local} item(s) from local object storage.")
+    clear_local_codex_data(repo_root)
 
-    print("Truncating application tables...")
+    print("Truncating application tables and deleting all Supabase Auth users...")
     truncate_database(database_url)
-    print("Local application data reset complete.")
+    print("All application database, storage, and user data reset complete.")
 
 
 def main() -> int:
@@ -228,7 +296,7 @@ def main() -> int:
     parser.add_argument(
         "--yes",
         action="store_true",
-        help="confirm that application data and storage should be permanently deleted",
+        help="confirm that application, storage, authentication, and local user data should be permanently deleted",
     )
     args = parser.parse_args()
     if not args.yes:

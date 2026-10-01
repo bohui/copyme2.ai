@@ -76,7 +76,7 @@ def main() -> None:
         expect(page.locator(".profile-trigger-name")).to_have_text("个人资料")
         expect(page.locator(".profile-dropdown select")).to_have_count(0)
         expect(page.get_by_role("menuitem", name="个人资料", exact=True)).to_be_visible()
-        expect(page.get_by_role("menuitem", name="退出登录")).to_be_visible()
+        expect(page.get_by_role("menuitem", name="登录")).to_be_visible()
         page.get_by_role("textbox", name="您的消息").fill("我记得在霍巴特海边的一个夏日午后。");
         page.get_by_role("button", name="发送消息").click()
         expect(page.get_by_text("Tell me whatever part of that afternoon is still with you.")).to_be_visible(timeout=15000)

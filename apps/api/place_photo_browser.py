@@ -15,6 +15,8 @@ from threading import BoundedSemaphore
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
+from .place_photos import PhotoResearchUnavailable, photo_failure_reason
+
 logger = logging.getLogger(__name__)
 MAX_SEARCH_PAGES = 3
 MAX_SOURCE_PAGES = 12
@@ -22,6 +24,14 @@ BROWSE_TIMEOUT = 90
 # Standalone callers retain a bounded fallback; the app uses the warm worker.
 _browser_slot = BoundedSemaphore(1)
 _warm_runtime = None
+
+
+def _crawl_failure(result):
+    headers = getattr(result, 'response_headers', {}) or {}
+    if headers.get('X-Robots-Status') or 'robots.txt' in (getattr(result, 'error_message', '') or ''):
+        return 'robots_denied'
+    status = getattr(result, 'status_code', None)
+    return f'http_{status}' if status else 'network_error'
 
 
 @lru_cache(maxsize=1)
@@ -36,10 +46,10 @@ def _research():
 
 
 def _search_url(provider: str, place: str, period: str) -> str:
-    from .place_photos import _configured_env, _localized_photo_query
-    query = _localized_photo_query(place, period)
+    from .place_photos import _configured_env, _google_query, _localized_photo_query
     if provider == 'flickr':
-        return 'https://www.flickr.com/search/?' + urlencode({'text': query})
+        return 'https://www.flickr.com/search/?' + urlencode({'text': _localized_photo_query(place, period)})
+    query = _google_query(place, period, include_decade=True)
     raw = _configured_env('GOOGLE_CSE_URL')
     if not raw:
         cx = _configured_env('GOOGLE_CSE_ID')
@@ -191,8 +201,9 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                         source_budget: int = MAX_SOURCE_PAGES, album: bool = False,
                         crawler=None, source_slots=None, on_items=None) -> list[dict]:
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
-    from .place_photos import _deduplicate
+    from .place_photos import _decade_fallback, _deduplicate
     helper = _research()
+    source_period = (_decade_fallback(period) or period) if provider == 'google' else period
     seen_sources, items = set(), []
     checked_hosts = {}
     deadline = time.monotonic() + timeout - min(10, timeout / 4)
@@ -218,7 +229,9 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
         session = f'place-photo-{provider}-{time.time_ns()}'
         for page_number in range(1, page_budget + 1):
             if time.monotonic() >= deadline:
-                break
+                if items:
+                    return items[:limit]
+                raise PhotoResearchUnavailable(provider, 'timeout')
             url = search_url if provider == 'google' or album else search_url + f'&page={page_number}'
             search_config = CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS, page_timeout=20000, verbose=False,
@@ -237,10 +250,20 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 )
             except Exception as error:
                 logger.info('%s photo browser search unavailable: %s', provider, type(error).__name__)
-                break
+                if items:
+                    return items[:limit]
+                raise PhotoResearchUnavailable(provider, photo_failure_reason(error)) from None
             if not result.success:
                 logger.info('%s photo browser search unavailable (HTTP %s)', provider, result.status_code)
-                break
+                if items:
+                    return items[:limit]
+                raise PhotoResearchUnavailable(provider, _crawl_failure(result))
+            if provider == 'google' and re.search(
+                    r'please verify that you are not a robot|unusual traffic from your computer network',
+                    result.html or '', re.I):
+                if items:
+                    return items[:limit]
+                raise PhotoResearchUnavailable(provider, 'verification_required')
             cards = (helper.parse_crawl4ai_image_results(result.html or '') if provider == 'google'
                      else _flickr_cards(result.html or '', url))
             album_context = ''
@@ -273,9 +296,11 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 if not cards:
                     break
                 continue
+            source_errors = []
             async def inspect_source(source):
                 async with source_slots:
                     if time.monotonic() >= deadline:
+                        source_errors.append('timeout')
                         return []
                     try:
                         detail = await asyncio.wait_for(crawler.arun(url=source, config=CrawlerRunConfig(
@@ -283,10 +308,12 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                             check_robots_txt=True, delay_before_return_html=0.2,
                         )), timeout=min(15, max(0.1, deadline - time.monotonic())))
                         if detail.success:
-                            return _source_items(detail.html or '', source, place, period,
+                            return _source_items(detail.html or '', source, place, source_period,
                                                  location_context=album_context)
+                        source_errors.append(_crawl_failure(detail))
                     except Exception as error:
                         logger.info('%s photo source unavailable: %s', provider, type(error).__name__)
+                        source_errors.append(photo_failure_reason(error))
                     return []
 
             tasks = [asyncio.create_task(inspect_source(source)) for source in pending]
@@ -303,6 +330,8 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                     if not task.done():
                         task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
+            if not items and source_errors:
+                raise PhotoResearchUnavailable(provider, source_errors[0])
             if len(seen_sources) >= source_budget:
                 break
     return items[:limit]
@@ -311,6 +340,9 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
 def _discovery_queries(provider: str, place: str, period: str, search_url: str) -> list[tuple[str, bool]]:
     from .place_photos import _localized_photo_query, _period_bounds, _place_terms
     queries = [(search_url, False)]
+    if provider == 'google':
+        # The CSE query already combines verified aliases and years with OR.
+        return queries
     parsed = urlsplit(search_url)
     for term in _place_terms(place)[1:]:
         params = parse_qs(parsed.query)
@@ -335,7 +367,7 @@ async def _browse(provider: str, place: str, period: str, search_url: str, *, li
     from .place_photos import _deduplicate, _mix_sources
     queries = _discovery_queries(provider, place, period, search_url)
     deadline = time.monotonic() + timeout
-    items = []
+    items, failures = [], []
     for index, (url, album) in enumerate(queries):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -349,8 +381,14 @@ async def _browse(provider: str, place: str, period: str, search_url: str, *, li
             ))
         except Exception as error:
             logger.warning('%s photo browser query unavailable: %s', provider, type(error).__name__)
+            failures.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
+                            else [{'provider': provider, 'reason': photo_failure_reason(error)}])
+            if any(failure['reason'] in {'verification_required', 'robots_denied'} for failure in failures):
+                break
         if len(_deduplicate(items)) >= limit:
             break
+    if not items and failures:
+        raise PhotoResearchUnavailable(failures=failures)
     return _deduplicate(_mix_sources(items))[:limit]
 
 
@@ -370,7 +408,9 @@ def crawl_place_photos(provider: str, place: str, period: str, *, limit: int = 1
         except Exception as error:
             future.cancel()
             logger.warning('%s photo browser unavailable: %s', provider, type(error).__name__)
-            return []
+            if isinstance(error, PhotoResearchUnavailable):
+                raise
+            raise PhotoResearchUnavailable(provider, photo_failure_reason(error)) from None
     async def bounded():
         return await asyncio.wait_for(_browse(provider, place, period, url, limit=limit,
                                              timeout=timeout, on_items=on_items), timeout=timeout)
@@ -378,13 +418,15 @@ def crawl_place_photos(provider: str, place: str, period: str, *, limit: int = 1
     # loop: cancelling an async waiter must never leak a browser slot.
     if not _browser_slot.acquire(timeout=timeout):
         logger.warning('%s photo browser unavailable: busy', provider)
-        return []
+        raise PhotoResearchUnavailable(provider, 'busy')
     try:
         return asyncio.run(bounded())
     except Exception as error:
         # URLs can contain search details; log only provider/type, never credentials.
         logger.warning('%s photo browser unavailable: %s', provider, type(error).__name__)
-        return []
+        if isinstance(error, PhotoResearchUnavailable):
+            raise
+        raise PhotoResearchUnavailable(provider, photo_failure_reason(error)) from None
     finally:
         _browser_slot.release()
 

@@ -25,7 +25,7 @@ In a filesystem-only Codex run, the harness can mount a read-only authorised sna
 
 The full machine contract is `schemas/request.schema.json`; six complete synthetic packets are in `examples/`. Important fields:
 
-- `trigger`: backend-confirmed event. Free previews require five completed primary rounds. A new formal memoir requires a non-null host confirmation reference and composition authorisation.
+- `trigger`: backend-confirmed event. Free previews require completion of the backend's configured `free_round_limit` (currently 20 saved context-collection turns). A new formal memoir requires a non-null host confirmation reference and composition authorisation.
 - `target`: edition locale, intended audience and medium. UI locale is distinct and may be supplied in `context` only for the final conversational summary.
 - `snapshot`: immutable snapshot ID, policy epoch, expected manuscript revision, source-retrieval completeness, glossary version and preference version.
 - `sources`: immutable text records with stable IDs/versions, author role, kind, current eligibility and derived lineage. This may include revocation/supersession tombstones needed to invalidate old dependencies.

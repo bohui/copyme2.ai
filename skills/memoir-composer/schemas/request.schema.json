@@ -36,7 +36,8 @@
           "minimum": 0
         },
         "free_round_limit": {
-          "const": 5
+          "type": "integer",
+          "minimum": 1
         },
         "storytelling_confirmation_ref": {
           "type": [

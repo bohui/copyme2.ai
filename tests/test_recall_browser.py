@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize('anonymous', [False, True])
 def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
     copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())
-    model = {'completed': 19, 'paid': False, 'turns': 0, 'checkouts': []}
+    model = {'completed': 19, 'paid': False, 'turns': 0, 'checkouts': [], 'previews': 0}
     project = {'id': 'recall-project', 'revision': 1, 'profile': {'preferred_language': locale}, 'mode': 'self'}
 
     def status():
@@ -50,6 +50,13 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         elif path == '/story/checkout':
             model['checkouts'].append(route.request.post_data_json)
             data = {'message': 'Checkout prepared.'}
+        elif path == '/story/preview':
+            model['previews'] += 1
+            data = {'status': 'ready', 'preview': {
+                'kind': 'sample_chapter', 'title': 'The garden' if locale == 'en-AU' else '那个花园',
+                'text': 'I spent my childhood in that garden.' if locale == 'en-AU' else '我的童年在那个花园里度过。',
+                'outline': [],
+            }}
         return route.fulfill(content_type='application/json', body=json.dumps(data))
 
     with sync_playwright() as pw:
@@ -81,6 +88,9 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         send.click()
         prompt = page.locator('.recall-package-prompt')
         expect(prompt).to_be_visible(timeout=30000)
+        expect(page.locator('.recall-preview')).to_contain_text('childhood' if locale == 'en-AU' else '童年')
+        assert model['previews'] == 1
+        assert page.locator('.recall-preview').evaluate('(el) => Boolean(el.compareDocumentPosition(document.querySelector(".recall-package-prompt")) & Node.DOCUMENT_POSITION_FOLLOWING)')
         expect(page.locator('.assistant-message .message-text').last).to_contain_text('garden' if locale == 'en-AU' else '花园')
         expect(page.locator('#chat-input')).to_have_count(0)
         assert model['turns'] == 1

@@ -8,6 +8,7 @@ for(const [name,fn] of Object.entries({focused:focusedFixture,broad:broadFixture
  test(`synthetic ${name} fixture validates`,()=>{const p=fn();const v=validateDraft(p.request,p.draft);assert.equal(v.ok,true,JSON.stringify(v.errors));});
 
 test('focused trial chooses one sample chapter',()=>assert.equal(preparePlan(focusedFixture().request).kind,'sample_chapter'));
+test('backend configured twenty-round trial gates composition',()=>{const r=focusedFixture().request;r.trigger.free_round_limit=20;r.trigger.free_rounds_completed=19;assert.equal(preparePlan(r).status,'trial_not_finished');r.trigger.free_rounds_completed=20;assert.equal(preparePlan(r).kind,'sample_chapter');});
 test('broad trial chooses a chronological narrative preview',()=>assert.equal(preparePlan(broadFixture().request).kind,'sample_storyline'));
 test('four completed free rounds do not trigger the sample',()=>{const {request:r}=focusedFixture();r.trigger.free_rounds_completed=4;assert.equal(preparePlan(r).status,'trial_not_finished');});
 test('incomplete retrieval is not treated as absence of memories',()=>{const {request:r}=focusedFixture();r.snapshot.retrieval_complete=false;assert.equal(preparePlan(r).status,'retrieval_incomplete');});

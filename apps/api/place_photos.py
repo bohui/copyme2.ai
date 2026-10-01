@@ -21,6 +21,23 @@ HEADERS = {'User-Agent': 'MemorySpark/1.0 (memoir place reference images)'}
 NON_PHOTO = re.compile(r'\b(banknotes?|coins?|currency|stamps?|maps?|paintings?|illustrations?|drawings?|engravings?)\b|纸币|鈔票|钞票|邮票|绘画|地圖|地图', re.I)
 
 
+class PhotoResearchUnavailable(ValueError):
+    """Safe provider diagnostics, without request URLs or credentials."""
+    def __init__(self, provider='', reason='unavailable', *, failures=None):
+        self.failures = failures if failures is not None else [{'provider': provider, 'reason': reason}]
+        super().__init__('Photo sources unavailable')
+
+
+def photo_failure_reason(error):
+    if isinstance(error, httpx.HTTPStatusError):
+        return f'http_{error.response.status_code}'
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)):
+        return 'timeout'
+    if isinstance(error, httpx.HTTPError):
+        return 'network_error'
+    return 'invalid_response'
+
+
 def _text(value) -> str:
     if isinstance(value, list):
         value = ' '.join(str(item) for item in value)
@@ -305,7 +322,7 @@ def _google_creator(item: dict) -> str:
     return ''
 
 
-def _google_query(place: str, period: str) -> str:
+def _google_query(place: str, period: str, *, include_decade: bool = False) -> str:
     locations = []
     for term in _place_terms(place):
         clean = term.replace('"', ' ').strip()
@@ -315,6 +332,12 @@ def _google_query(place: str, period: str) -> str:
     bounds = _period_bounds(period)
     if not bounds:
         return f'({location_query})'
+    fallback = _decade_fallback(period) if include_decade else None
+    if fallback:
+        decade = int(fallback[:4])
+        terms = [str(year) for year in range(bounds[0], bounds[1] + 1)]
+        terms += [f'{decade % 100:02d}年代', f'{decade % 100:02d}s', f'{decade}年代', f'{decade}s']
+        return f'({location_query}) (' + ' OR '.join(f'"{term}"' for term in terms) + ')'
     years = ' OR '.join(str(year) for year in range(bounds[0], min(bounds[1], bounds[0] + 99) + 1))
     return f'({location_query}) ({years})'
 
@@ -560,46 +583,51 @@ def _mix_sources(items: list[dict]) -> list[dict]:
     return [item for row in zip_longest(*groups.values()) for item in row if item is not None]
 
 
-def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None) -> list[dict]:
+def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None,
+                   skip_google_browser: bool = False) -> list[dict]:
     if period.strip() and not _period_bounds(period):
         return []
     items, errors = [], []
     # Independent catalogues overlap their network waits; one failure must not
     # hide the other catalogue's usable photographs.
-    providers = [_commons, _loc]
+    providers = [('commons', _commons), ('loc', _loc)]
     if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
-        providers.insert(0, lambda p, t: _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit))
-    elif _configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID'):
-        providers.insert(0, _google_browser)
-    providers.insert(0, _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser)
-    def publish(found):
-        matching = [item for item in found
-                    if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
-                    and _date_matches(item.get('date_expression', ''), period)]
-        if matching and on_items:
-            on_items(_deduplicate(matching))
-
+        providers.insert(0, ('google', lambda p, t: _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit)))
+    elif not skip_google_browser and (_configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID')):
+        providers.insert(0, ('google', _google_browser))
+    providers.insert(0, ('flickr', _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser))
     def run(provider):
+        # The combined browser query already discovers the containing decade.
+        scope = (_decade_fallback(period) or period) if provider is _google_browser else period
+        def matching(found):
+            return [item for item in found
+                    if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
+                    and _date_matches(item.get('date_expression', ''), scope)]
+        def publish(found):
+            accepted = matching(found)
+            if accepted and on_items:
+                on_items(_deduplicate(accepted))
         if on_items and provider in (_google_browser, _flickr_browser):
             found = provider(place, period, on_items=publish)
         else:
             found = provider(place, period)
         publish(found)
-        return found
+        return matching(found)
 
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
-        futures = [pool.submit(run, provider) for provider in providers]
-        for future in futures:
+        futures = [(name, pool.submit(run, provider)) for name, provider in providers]
+        for name, future in futures:
             try:
                 items.extend(future.result())
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
-                errors.append(error)
-    if not items and len(errors) == len(futures):
-        raise errors[-1]
-    matching = [item for item in items
-                if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
-                and _date_matches(item.get('date_expression', ''), period)]
-    mixed = _deduplicate(_mix_sources(matching))
+                errors.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
+                              else [{'provider': name, 'reason': photo_failure_reason(error)}])
+    exact = [item for item in items if _date_matches(item.get('date_expression', ''), period)]
+    broader = [item for item in items if not _date_matches(item.get('date_expression', ''), period)]
+    mixed = _deduplicate(_mix_sources(exact) + _mix_sources(broader))
+    # A successful empty catalogue cannot establish no-match for blocked sources.
+    if not mixed and errors:
+        raise PhotoResearchUnavailable(failures=errors)
     return mixed[:limit] if limit is not None else mixed[:150]
 
 
@@ -613,13 +641,23 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
 
     def run(search_period, search_limit):
         progress = {'on_items': lambda items: on_items(label(items))} if on_items else {}
+        # Google browser has already searched both scopes, including when blocked.
+        if search_period != period:
+            progress['skip_google_browser'] = True
         return _search_period(place, search_period, limit=search_limit, **progress)
 
-    requested = run(period, limit)
+    failures = []
+    try:
+        requested = run(period, limit)
+    except PhotoResearchUnavailable as error:
+        requested = []
+        failures.extend(error.failures)
     broader = []
-    if fallback and len(requested) < MAX_RESULTS:
+    if fallback and sum(_date_matches(item.get('date_expression', ''), period) for item in requested) < MAX_RESULTS:
         try:
             broader = run(fallback, None)
+        except PhotoResearchUnavailable as error:
+            failures.extend(error.failures)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             pass  # A wider search must not erase exact-year results.
     exact, decade = [], []
@@ -630,6 +668,9 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
                     'period_match': 'requested' if matches_requested else 'decade'}
         (exact if matches_requested else decade).append(labelled)
     mixed = _deduplicate(_mix_sources(exact) + _mix_sources(decade))
+    if not mixed and failures:
+        raise PhotoResearchUnavailable(failures=[dict(item) for item in dict.fromkeys(
+            tuple(failure.items()) for failure in failures)])
     return mixed[:limit] if limit is not None else mixed[:150]
 
 

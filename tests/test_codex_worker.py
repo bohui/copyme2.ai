@@ -90,15 +90,18 @@ def test_worker_sends_instructions_once_instead_of_repeating_them_in_user_input(
         async def turn(self, thread_id, prompt, **kwargs):
             assert self.instructions not in prompt, 'system instructions were sent twice'
             assert prompt == 'Storyteller message:\nI grew up in Sydney.'
+            assert 'on_delta' in kwargs, 'private workspace deltas must reach the API preview parser'
+            await kwargs['on_delta']('Hello')
             return 'Hello'
 
     worker = CodexWorker(home_root=tmp_path)
     monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    async def delta(text): pass
     asyncio.run(worker.turn(WorkerTurnInput(
         user_id='11111111-1111-4111-8111-111111111111',
         text='I grew up in Sydney.', agent_role=role,
-    )))
+    ), on_delta=delta))
 
 
 def test_worker_home_permissions_separate_sibling_homes(monkeypatch, tmp_path):

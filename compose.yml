@@ -66,6 +66,7 @@ services:
       - ./apps/web/public:/app/apps/web/public:ro
       - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
+      - ./skills/memoir-composer:/app/skills/memoir-composer:ro
       - ./var/memory-spark:/var/lib/memory-spark
       - memoir-tasks:/var/lib/memoir-tasks
     depends_on:
@@ -133,6 +134,8 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - codex-worker-home:/var/lib/memory-spark/codex-users
+      - ./apps/api:/app/apps/api:ro
+      - ./skills/memoir-composer:/app/skills/memoir-composer:ro
       # Read only for one-time import; stop the old API before upgrading.
       - ./var/memory-spark/codex-users:/var/lib/memory-spark/legacy-codex-users:ro
     read_only: true

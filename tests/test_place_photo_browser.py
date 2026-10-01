@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 import pytest
+import httpx
 
 from apps.api import place_photo_browser as browser
 from apps.api import place_photos as photos
@@ -104,7 +105,7 @@ def test_cse_url_and_id_have_same_query_without_page_date_filter(monkeypatch):
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
     query = parse_qs(urlsplit(browser._search_url('google', '承德', '1980')).query)
-    assert query['cx'] == ['engine'] and query['q'] == ['承德 80年代']
+    assert query['cx'] == ['engine'] and query['q'] == [photos._google_query('承德', '1980')]
     assert 'sort' not in query
     monkeypatch.setenv('GOOGLE_CSE_URL', 'https://cse.google.com/cse?cx=url-engine&page=9')
     query = parse_qs(urlsplit(browser._search_url('google', '承德', '')).query)
@@ -112,6 +113,21 @@ def test_cse_url_and_id_have_same_query_without_page_date_filter(monkeypatch):
     monkeypatch.setenv('GOOGLE_CSE_URL', 'http://localhost/cse?cx=engine')
     with pytest.raises(ValueError):
         browser._search_url('google', '承德', '')
+
+
+@pytest.mark.parametrize('place,period', [('承德', '1980s'), ('Chengde', ''), ('Chengdu', '1983年')])
+def test_google_or_query_is_one_search_and_preserves_place_and_period(monkeypatch, place, period):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    url = browser._search_url('google', place, period)
+    query = parse_qs(urlsplit(url).query)['q'][0]
+    assert browser._discovery_queries('google', place, period, url) == [(url, False)]
+    if place == '承德':
+        assert query == '("承德" OR "Chengde") (1980 OR 1981 OR 1982 OR 1983 OR 1984 OR 1985 OR 1986 OR 1987 OR 1988 OR 1989)'
+    elif place == 'Chengde':
+        assert query == '("Chengde" OR "承德")'
+    else:
+        assert query == '("Chengdu") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")'
 
 
 def test_cse_reads_originals_deduplicates_and_checks_source_robots(fake_crawler):
@@ -157,7 +173,9 @@ def test_blocked_or_failed_browser_does_not_erase_other_catalogues(fake_crawler,
     async def fail(*args):
         raise RuntimeError('browser launch failed')
     monkeypatch.setattr(browser, '_browse', fail)
-    assert browser.crawl_place_photos('flickr', 'Chengde', '1980s') == []
+    with pytest.raises(photos.PhotoResearchUnavailable):
+        browser.crawl_place_photos('flickr', 'Chengde', '1980s')
+    assert len(photos.search_place_photos('Chengde', '1980s')) == 1
 
 
 def test_source_and_later_search_failures_preserve_collected_photos(fake_crawler):
@@ -200,7 +218,8 @@ def test_bilingual_queries_and_album_share_budgets_without_overlapping_browsers(
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
     queries = browser._discovery_queries('google', '承德', '1983年', browser._search_url('google', '承德', '1983年'))
-    assert [parse_qs(urlsplit(url).query)['q'][0] for url, _ in queries] == ['承德 1983年', 'Chengde 1983 photos']
+    assert [parse_qs(urlsplit(url).query)['q'][0] for url, _ in queries] == [
+        '("承德" OR "Chengde") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")']
     calls = []
     active = 0
     peak = 0
@@ -327,7 +346,8 @@ def test_one_crawler_serves_all_language_queries(fake_crawler, monkeypatch):
         return created[-1]
     monkeypatch.setattr(crawl4ai, 'AsyncWebCrawler', create)
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
-    asyncio.run(browser._browse('google', '承德', '1980s', browser._search_url('google', '承德', '1980s')))
+    with pytest.raises(photos.PhotoResearchUnavailable):
+        asyncio.run(browser._browse('google', '承德', '1980s', browser._search_url('google', '承德', '1980s')))
     assert len(created) == 1
 
 
@@ -353,11 +373,139 @@ def test_warm_worker_reuses_chromium_across_requests_and_closes_search_contexts(
         runtime = await browser.WarmPhotoBrowser().start()
         try:
             for period in ('1980s', '1990s'):
-                await runtime.search('google', 'Chengde', period, 'https://cse.google.com/cse?cx=engine',
-                                     limit=10, timeout=1)
+                with pytest.raises(photos.PhotoResearchUnavailable):
+                    await runtime.search('google', 'Chengde', period, 'https://cse.google.com/cse?cx=engine',
+                                         limit=10, timeout=1)
             assert len(created) == 1
             assert len(closed) == 2
             assert not runtime.crawler.crawler_strategy.browser_manager.contexts_by_config
         finally:
             await runtime.close()
     asyncio.run(check())
+
+
+def test_google_verification_screen_is_unavailable_not_a_successful_empty_search(fake_crawler):
+    pages, calls, _ = fake_crawler
+    search = 'https://cse.google.com/cse?cx=engine'
+    pages[search] = '<title>Programmable Search Engine</title><p>Please verify that you are not a robot.</p>'
+    with pytest.raises(ValueError) as error:
+        asyncio.run(browser._browse_query('google', 'Chengde', '1980s', search))
+    assert error.value.failures == [{'provider': 'google', 'reason': 'verification_required'}]
+    assert len(calls) == 1
+
+
+def test_robots_denial_is_not_an_empty_album(fake_crawler):
+    with pytest.raises(ValueError) as error:
+        asyncio.run(browser._browse_query('flickr', 'Chengde', '1980s',
+            'https://www.flickr.com/photos/author/albums/1/', album=True))
+    assert error.value.failures[0]['reason'] == 'http_403'
+
+
+def test_empty_results_with_blocked_providers_reach_retryable_response(monkeypatch):
+    from apps.api.place_photo_pages import PhotoPages
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    def blocked(*args, **kwargs):
+        raise httpx.HTTPStatusError('blocked', request=httpx.Request('GET', 'https://archive.example'),
+                                   response=httpx.Response(403))
+    monkeypatch.setattr(photos, '_google_browser', blocked)
+    monkeypatch.setattr(photos, '_flickr_browser', blocked)
+    monkeypatch.setattr(photos, '_loc', blocked)
+    monkeypatch.setattr(photos, '_commons', lambda *args: [])
+    cache = PhotoPages()
+    try:
+        result = cache.page('owner', 'Chengde', '', None)
+        assert result['status'] == 'UNAVAILABLE'
+        assert result['failures'] == [
+            {'provider': 'flickr', 'reason': 'http_403'},
+            {'provider': 'google', 'reason': 'http_403'},
+            {'provider': 'loc', 'reason': 'http_403'}]
+    finally:
+        cache.close()
+
+
+def test_challenge_stops_language_retries_but_other_providers_keep_their_photos(fake_crawler, monkeypatch):
+    pages, calls, _ = fake_crawler
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    search = browser._search_url('google', '承德', '1980s')
+    pages[search] = '<p>Please verify that you are not a robot.</p>'
+    with pytest.raises(ValueError):
+        asyncio.run(browser._browse('google', '承德', '1980s', search))
+    assert len(calls) == 1
+
+
+def test_crawl4ai_synthetic_robots_response_has_a_distinct_failure_reason():
+    result = SimpleNamespace(status_code=403, response_headers={'X-Robots-Status': 'Blocked by robots.txt'},
+                             error_message='Access denied by robots.txt')
+    assert browser._crawl_failure(result) == 'robots_denied'
+
+
+def test_blocked_exact_search_can_still_return_labelled_decade_photos(monkeypatch):
+    def search(place, period, **kwargs):
+        if period == '1983年':
+            raise photos.PhotoResearchUnavailable('google', 'verification_required')
+        return [{'asset_id': 'commons-1', 'title': 'Chengde street',
+                 'image_url': 'https://archive.example/1.jpg', 'date_expression': '1985',
+                 'source_url': 'https://archive.example/photos/1'}]
+    monkeypatch.setattr(photos, '_search_period', search)
+    result = photos.search_place_photos('承德', '1983年')
+    assert len(result) == 1
+    assert result[0]['period_match'] == 'decade'
+
+
+def test_combined_google_search_returns_exact_then_decade_without_second_query(monkeypatch):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    calls, streamed = [], []
+    def google(place, period, **kwargs):
+        calls.append(period)
+        items = browser._source_items(photo_html(2, date='1986-05-01'),
+                                      'https://www.flickr.com/photos/author/2/', place, '1980s')
+        items += browser._source_items(photo_html(1), 'https://www.flickr.com/photos/author/1/', place, '1980s')
+        items += [{**items[0], 'asset_id': 'wrong-decade', 'date_expression': '1993'}]
+        if kwargs.get('on_items'):
+            kwargs['on_items'](items)
+        return items
+    monkeypatch.setattr(photos, '_google_browser', google)
+    for name in ('_flickr_browser', '_commons', '_loc'):
+        monkeypatch.setattr(photos, name, lambda *args, **kwargs: [])
+    items = photos.search_place_photos('承德', '1983年', limit=None, on_items=streamed.extend)
+    assert calls == ['1983年']
+    assert [item['period_match'] for item in items] == ['requested', 'decade']
+    assert items[1]['matched_period'] == '1980s'
+    assert any(item['period_match'] == 'decade' for item in streamed)
+    assert all(item['date_expression'] != '1993' for item in items + streamed)
+
+
+def test_combined_google_source_inspection_accepts_only_the_containing_decade(fake_crawler):
+    pages, calls, _ = fake_crawler
+    search = 'https://cse.google.com/cse?cx=engine'
+    sources = [f'https://www.flickr.com/photos/author/{i}/' for i in range(1, 4)]
+    pages[search] = cse_html(sources)
+    for index, date in enumerate(('1983-10-01', '1986-05-01', '1993-01-01'), 1):
+        pages[sources[index - 1]] = photo_html(index, date=date)
+    items = asyncio.run(browser._browse_query('google', 'Chengde', '1983年', search,
+                                             page_budget=1))
+    assert sorted(item['date_expression'] for item in items) == ['1983-10-01', '1986-05-01']
+
+
+def test_blocked_combined_google_query_is_not_repeated_for_decade_fallback(monkeypatch):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    calls = []
+    def google(place, period, **kwargs):
+        calls.append(period)
+        raise photos.PhotoResearchUnavailable('google', 'verification_required')
+    monkeypatch.setattr(photos, '_google_browser', google)
+    for name in ('_flickr_browser', '_commons', '_loc'):
+        monkeypatch.setattr(photos, name, lambda *args, **kwargs: [])
+    with pytest.raises(photos.PhotoResearchUnavailable) as error:
+        photos.search_place_photos('承德', '1983年')
+    assert calls == ['1983年']
+    assert error.value.failures == [{'provider': 'google', 'reason': 'verification_required'}]

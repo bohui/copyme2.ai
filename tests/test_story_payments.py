@@ -5,13 +5,30 @@ import time
 from urllib.parse import parse_qs
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
-from apps.api.story_payments import LocalStoryEntitlementStore, StripeCheckoutClient, checkout_summary
+from apps.api.story_payments import LocalStoryEntitlementStore, StripeCheckoutClient, checkout_summary, public_checkout_urls
 
 from test_story_flow import FakeSupabaseUserStorage, _auth_headers, _complete_rounds
+
+
+@pytest.mark.parametrize('placeholder', ['', '<null>', 'null', 'None', 'undefined'])
+def test_placeholder_stripe_key_is_unconfigured(placeholder):
+    client = StripeCheckoutClient(secret_key=placeholder)
+    assert client.configured is False
+
+
+def test_container_null_optional_settings_use_valid_checkout_defaults(monkeypatch):
+    for name in ['STRIPE_SUCCESS_URL', 'STRIPE_CANCEL_URL', 'STRIPE_PRICE_ELECTRONIC']:
+        monkeypatch.setenv(name, '<null>')
+    monkeypatch.setenv('MEMORY_SPARK_PUBLIC_URL', 'http://localhost:3010')
+    success, cancel = public_checkout_urls('http://api:8000')
+    assert success.startswith('http://localhost:3010/')
+    assert cancel.startswith('http://localhost:3010/')
+    assert StripeCheckoutClient(secret_key='sk_test').price_ids['electronic_memoir_v1'] == ''
 
 
 class FakeStripeCheckout:

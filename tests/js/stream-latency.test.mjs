@@ -7,6 +7,57 @@ import {mergePlaces} from '../../apps/web/client/memoir/places.mjs';
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
 
+test('map preview renders during text streaming without a profile write or photo wait', async () => {
+  let renders = 0;
+  const context = vm.createContext({
+    state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: []},
+    appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
+    conversationLanguage: () => 'en-AU', simulatedLoopTrace: () => [],
+    nextAssistantMessageId: () => 'm', render: () => { renders++; }, updateStreamingAssistantMessage: () => {},
+    placeHistoryKey: item => item.place, resolvePlaceMap: () => {},
+    saveProfileUpdates: () => assert.fail('preview must not persist'),
+    loadPlacePictures: () => assert.fail('preview must not block on photos'),
+    streamAgentTurn: async (_text, onDelta, onEvent) => {
+      await onDelta('I remember ');
+      await onEvent({type: 'place_preview', data: {project_id: 'p', source_sequence: 1810000000001000000,
+        place_journey: {place: 'Sydney', hierarchy: ['Earth', 'Australia', 'Sydney']}}});
+      assert.equal(context.state.placeJourney.place, 'Sydney');
+      assert.equal(context.state.chat.at(-1).streaming, true);
+      assert.equal(context.state.selectedPlace, 'Sydney');
+      await onEvent({type: 'place_preview', data: {project_id: 'other', source_sequence: 2,
+        place_journey: {place: 'Paris'}}});
+      await onEvent({type: 'place_preview', data: {project_id: 'p', source_sequence: 1810000000000000000,
+        place_journey: {place: 'Paris'}}});
+      assert.equal(context.state.placeJourney.place, 'Sydney');
+      await onDelta('Sydney.');
+      return {reply: 'I remember Sydney.', conversation_saved: true};
+    },
+  });
+  vm.runInContext(extract('agentTurn'), context);
+  await context.agentTurn('Sydney');
+  assert.ok(renders >= 2);
+});
+
+test('a failed conversational save restores the previous place preview', async () => {
+  const previous = {place: 'Chengde'};
+  const context = vm.createContext({
+    state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: [],
+      placeJourney: previous, selectedPlace: 'Chengde'},
+    appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
+    conversationLanguage: () => 'en-AU', simulatedLoopTrace: () => [],
+    render: () => {}, toast: () => {}, placeHistoryKey: item => item.place, resolvePlaceMap: () => {},
+    streamAgentTurn: async (_text, _onDelta, onEvent) => {
+      await onEvent({type: 'place_preview', data: {project_id: 'p', source_sequence: 1,
+        place_journey: {place: 'Sydney'}}});
+      throw new Error('save failed');
+    },
+  });
+  vm.runInContext(extract('agentTurn'), context);
+  await context.agentTurn('Sydney');
+  assert.equal(context.state.placeJourney, previous);
+  assert.equal(context.state.selectedPlace, 'Chengde');
+});
+
 test('buffered response is not paced by one animation frame per delta', async () => {
   let frames = 0;
   const context = vm.createContext({
@@ -103,6 +154,59 @@ test('reload restores the latest mentioned place while preserving chronological 
   assert.equal(mergePlaces(places).at(-1).place, 'Sydney');
 });
 
+test('one turn saves and groups every place while retaining existing photographs', async () => {
+  const town = {place: '大石庙镇', hierarchy: ['Earth', '中国', '河北', '承德', '大石庙镇'], granularity: 'suburb'};
+  const district = {place: '双桥区', hierarchy: ['Earth', '中国', '河北', '承德', '双桥区'], granularity: 'suburb'};
+  let currentProfile = {memory_places: [{...town, life_stage: 'childhood', pictures: [{asset_id: 'old-photo'}]}]};
+  const requests = [], photos = [];
+  let event, saves = 0;
+  const context = vm.createContext({
+    state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: []},
+    LIFE_STAGES: [{id: 'childhood'}], appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
+    placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(),
+    setTimeout: () => {},
+    conversationLanguage: () => 'zh-CN', simulatedLoopTrace: () => [],
+    nextAssistantMessageId: () => 'm', render: () => {}, toast: () => {},
+    profile: () => currentProfile, mergePlaces, placeHistoryKey: entry => entry.place,
+    saveProfileUpdates: async update => { saves++; currentProfile = {...currentProfile, ...update}; },
+    resolvePlaceMap: journey => context.resolvePlaceGroups(journey),
+    loadPlacePictures: journey => { photos.push(journey.place); },
+    rememberPlaceJourneyProject: () => {},
+    api: async (url, options) => {
+      requests.push({url, body: JSON.parse(options.body)});
+      return {places: []};
+    },
+    streamAgentTurn: async (_text, _delta, onEvent) => {
+      event = onEvent;
+      return {reply: '童年的两个地方。', conversation_saved: true};
+    },
+  });
+  for (const name of ['publicPlaceFields', 'resolvePlaceGroups', 'agentTurn']) vm.runInContext(extract(name), context);
+  await context.agentTurn('从大石庙镇搬到双桥区');
+  await event({type: 'workspace_update', data: {
+    source_sequence: 10, place_journey: district, place_journey_change: {changed: false, mentioned: true},
+    place_journeys: [town, district],
+  }});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(saves, 1);
+  assert.deepEqual(currentProfile.memory_places.map(place => place.place), ['大石庙镇', '双桥区']);
+  assert.equal(currentProfile.memory_places[0].pictures[0].asset_id, 'old-photo');
+  assert.equal(context.state.selectedPlace, '双桥区');
+  assert.deepEqual(photos, ['大石庙镇', '双桥区']);
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.equal(request.url, '/v1/projects/p/place-groups');
+    assert.deepEqual(new Set(request.body.places.map(place => place.place)), new Set(['大石庙镇', '双桥区']));
+    assert.ok(request.body.places.every(place => !('pictures' in place) && !('life_stage' in place)));
+  }
+  await event({type: 'workspace_update', data: {
+    source_sequence: 9, place_journey: town, place_journey_change: {changed: true}, place_journeys: [town],
+  }});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(saves, 1);
+  assert.equal(context.state.selectedPlace, '双桥区');
+});
+
 test('photo workspace exposes discovery even before any eligible result', () => {
   const entry = {place: 'Chengde'};
   const context = vm.createContext({
@@ -110,6 +214,7 @@ test('photo workspace exposes discovery even before any eligible result', () => 
     escapeHtml: String, translate: key => key, placeWorkspaceSelection: () => entry,
     placeMapTarget: () => ({}), profile: () => ({memory_places: [entry]}), mergePlaces: items => items,
     placeHistoryChoices: () => '', placeJourneyMarkup: () => '<div>map</div>',
+    workspacePlaceGroups: () => [{city: entry, members: [entry]}], groupChoices: () => [entry],
     renderablePictureItems: items => items, workspacePictureItems: () => [], pictureWall: () => '',
     placeHistoryKey: item => item.place, photoSearchPeriod: () => '',
   });

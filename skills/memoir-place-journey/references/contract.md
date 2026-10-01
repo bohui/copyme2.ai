@@ -4,18 +4,20 @@ The place skill communicates through a control marker. Geographic lookup is perf
 
 ## Transport
 
-The model appends one line in this form:
+The model appends one line per distinct clear place, in first-mention order, in this form:
 
 ```text
 [[MEMORY_SPARK_PLACE_JOURNEY]]<JSON>[[/MEMORY_SPARK_PLACE_JOURNEY]]
 ```
 
-`apps/api/place_journey.py` extracts the first marker, parses JSON, validates the schema and bounds, and returns the visible reply with the marker removed. Invalid markers are dropped rather than shown to the storyteller.
+`apps/api/place_journey.py` extracts every marker, parses JSON, validates each schema and bounds, deduplicates geographic identities, and returns the visible reply with all markers removed. Invalid and unterminated markers are dropped rather than shown to the storyteller; a bad marker does not discard later valid markers. Each accepted place must independently match the current storyteller message. The single-place extraction helper remains available for compatibility.
 
 The validated marker is persisted by the authenticated agent storage boundary in
 the RLS-protected `user_place_journey` table. There is one current record per
-storyteller; a changed place increments its server-owned `revision` and refreshes
-`updated_at`. The browser must not treat the marker itself as durable state.
+storyteller; accepted places are persisted in order, and the last one remains
+current. A changed place increments its server-owned `revision` and refreshes
+`updated_at`. The browser stores all accepted records in project `memory_places`.
+The browser must not treat a streamed preview as durable state.
 
 The API response from `POST /v1/agent/turn` contains:
 
@@ -42,6 +44,13 @@ The API response from `POST /v1/agent/turn` contains:
 }
 ```
 
+The response and confirmed workspace events also contain `place_journeys`, an
+array of all accepted records from this turn in marker order. It is empty when
+there are no accepted markers or the turn is stale. `place_journey` and
+`place_journey_change` remain the last record and its change for existing clients.
+Streaming extraction emits a `place_preview` for each complete grounded marker
+without waiting for the remaining markers or the visible conversation to finish.
+
 `place_journey` is the latest persisted record, even when the current turn did
 not emit a marker. It is `null` when the storyteller has no saved place. The
 optional `place_journey_change` object reports `created`, `updated`, or
@@ -57,8 +66,8 @@ model understand a place the storyteller has just named, but it cannot activate
 the workspace by itself.
 
 The Codex prompt includes the current saved record as untrusted context. The
-skill emits a replacement marker only when the storyteller explicitly names or
-corrects a place; otherwise the existing record is returned unchanged.
+skill emits markers only for places the storyteller explicitly names or
+corrects; otherwise the existing record is returned unchanged.
 
 ## Browser behavior
 
@@ -83,6 +92,19 @@ Storyteller: I grew up near Chatswood station.
 
 Emit a journey for `Chatswood` at `suburb` granularity, with approximate centre coordinates if known. Do not use a station entrance as the storyteller's home.
 
+Multiple places:
+
+```text
+Storyteller: 原来学校的家属院在大石庙镇，后来搬到了市区双桥区。每到放假我都回大石庙找小伙伴们玩。
+```
+
+Emit separate `suburb` journeys for `大石庙镇` and `双桥区`, each with its
+resolved containing-city hierarchy. Use the original full town name for repeat
+mentions of `大石庙`; generic `市区` does not create a third location. Both source
+records join the 承德 city map after membership resolution, with their own pins
+when resolved. A containing city present only in context is a hierarchy label,
+not an additional marker. If another mention is ambiguous, omit only that marker.
+
 Ambiguous:
 
 ```text
@@ -104,7 +126,11 @@ Do not emit a journey unless the storyteller independently connects their memory
 The browser merges saved places by normalized geographic hierarchy and name,
 independently of life stage. It preserves the union of `life_stages` and `pictures`;
 `parent_place_key` references the nearest saved ancestor. A city and its suburb
-remain separate entries. Existing histories are normalized on hydration and on
+remain separate source entries, with distinct photos and life stages, but appear
+as one city map with independent child pins. The `memoir-place-groups` background
+service checks each new mention for membership and either adds its pin to an
+existing city group or creates another group. Its contract is in
+`skills/memoir-place-groups/references/contract.md`. Existing histories are normalized on hydration and on
 new place events. Aliases are not guessed or merged across different hierarchies.
 
 The place-map endpoint accepts the validated journey contract and returns

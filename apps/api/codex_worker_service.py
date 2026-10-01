@@ -34,6 +34,7 @@ from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, nor
 from .agent_lock import AgentTurnBusyError
 from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
+from .memoir_preview import composer_instructions
 
 
 class WorkerTurnInput(BaseModel):
@@ -48,7 +49,9 @@ class WorkerTurnInput(BaseModel):
     text: str = Field(min_length=1, max_length=100000)
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
-    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace'] = 'collector'
+    conversation_rounds_completed: int | None = Field(default=None, ge=0)
+    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer'] = 'collector'
+    composer_phase: Literal['index', 'draft', 'review'] = 'draft'
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
     # Present only for local/CI evaluation. Normal product turns do not carry
     # evaluation IDs and therefore do not return trajectory evidence.
@@ -185,6 +188,7 @@ class CodexWorker:
                 place_journey=payload.place_journey,
                 family_context=payload.family_context,
                 language=language,
+                conversation_rounds_completed=payload.conversation_rounds_completed,
             )
         elif payload.agent_role == 'workspace':
             instructions = build_workspace_extraction_prompt(
@@ -209,6 +213,8 @@ class CodexWorker:
             instructions = organiser_prompt(payload.task_sources, language)
         elif payload.agent_role == 'memory_context':
             instructions = build_language_intake_prompt()
+        elif payload.agent_role == 'composer':
+            instructions = composer_instructions(payload.composer_phase)
         # thread/start and thread/resume already install baseInstructions.
         # Repeating them as user input doubles prompt processing each turn.
         prompt = f"Storyteller message:\n{payload.text}"
@@ -234,7 +240,7 @@ class CodexWorker:
                 else:
                     result = await connection.request("thread/start", {
                         "cwd": str(home),
-                        "ephemeral": payload.agent_role in {'memory_context', 'workspace'},
+                        "ephemeral": payload.agent_role in {'memory_context', 'workspace', 'composer'},
                         "modelProvider": "llm_provider",
                         "model": model,
                         "approvalPolicy": "never",
@@ -246,7 +252,7 @@ class CodexWorker:
                     thread_id,
                     prompt,
                     **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else {}),
-                    **({'on_delta': on_delta} if on_delta and payload.agent_role == 'collector' else {}),
+                    **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
                     **({'responsesapi_client_metadata': correlation} if correlation else {}),
                 )

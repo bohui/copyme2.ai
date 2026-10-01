@@ -1,13 +1,36 @@
+import json
 from pathlib import Path
 
 from apps.api.codex_runtime import build_system_prompt
 from apps.api.place_journey import (
     extract_place_journey,
+    extract_place_journeys,
     normalize_persisted_place_journey,
     place_journey_matches_message,
     place_journey_fingerprint,
     validate_place_journey,
 )
+
+
+def test_extracts_all_places_and_removes_invalid_duplicate_and_incomplete_markers():
+    def marker(place, **overrides):
+        return ('[[MEMORY_SPARK_PLACE_JOURNEY]]' + json.dumps({
+            'place': place, 'hierarchy': ['Earth', '中国', '河北', '承德', place],
+            'granularity': 'suburb', **overrides,
+        }, ensure_ascii=False) + '[[/MEMORY_SPARK_PLACE_JOURNEY]]')
+
+    text = ('童年的两处地方。\n'
+            + marker('大石庙镇')
+            + marker('invalid', latitude=91, longitude=120)
+            + '[[MEMORY_SPARK_PLACE_JOURNEY]]not json[[/MEMORY_SPARK_PLACE_JOURNEY]]'
+            + '[[MEMORY_SPARK_PLACE_JOURNEY]]unfinished'
+            + marker('双桥区') + marker('大石庙镇')
+            + '[[MEMORY_SPARK_PLACE_JOURNEY]]trailing')
+    visible, journeys = extract_place_journeys(text)
+    assert visible == '童年的两处地方。'
+    assert [place['place'] for place in journeys] == ['大石庙镇', '双桥区']
+    assert all(place['granularity'] == 'suburb' for place in journeys)
+    assert extract_place_journey(text) == (visible, journeys[0])
 
 
 def test_extracts_and_removes_valid_place_journey_marker():

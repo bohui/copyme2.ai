@@ -76,3 +76,61 @@ export function mapTarget(place, places) {
     return coordinates(other) && ancestor.length < labels.length && ancestor.every((label,index) => labels[index] === label);
   }).sort((a,b) => path(b).length - path(a).length)[0] || null;
 }
+
+// Group the map presentation, while keeping every source place and its photos.
+const groupLabel = value => {
+  let label = normalize(value);
+  label = ({chengde: '承德', china: '中国', hebei: '河北'})[label] || label;
+  return label.replace(/[市省]$/, '');
+};
+const groupPath = place => path(place).map(groupLabel);
+export const cityGroupKey = place => JSON.stringify(groupPath(place));
+
+export function groupPlaces(places) {
+  const cities = places.filter(place => place.granularity === 'city');
+  const groups = new Map();
+  for (const place of places) {
+    const labels = groupPath(place);
+    const ancestors = cities.filter(city => {
+      const ancestor = groupPath(city);
+      return ancestor.length <= labels.length && ancestor.every((label, index) => labels[index] === label);
+    }).sort((left, right) => groupPath(left).length - groupPath(right).length);
+    const city = place.map_city || ancestors[0] || place;
+    const key = place.map_city_key || cityGroupKey(city);
+    if (!groups.has(key)) groups.set(key, {key, city, members: []});
+    const group = groups.get(key);
+    // Prefer the storyteller's saved city name and coordinates for the title.
+    const savedCity = cities.find(item => cityGroupKey(item) === key);
+    if (savedCity) group.city = savedCity;
+    group.members.push(place);
+  }
+  return [...groups.values()];
+}
+
+export function groupMapPins(group) {
+  const pins = group.members.flatMap(place => {
+    const own = Object.hasOwn(place, 'map_pin') ? place.map_pin : place;
+    if (!coordinates(own)) return [];
+    const isChild = cityGroupKey(place) !== cityGroupKey(group.city);
+    if (isChild && own.latitude === group.city.latitude && own.longitude === group.city.longitude) return [];
+    return [{place: place.place, key: placeHistoryKey(place), latitude: own.latitude,
+      longitude: own.longitude, granularity: place.granularity, isChild}];
+  });
+  return pins.some(pin => pin.isChild) ? pins.filter(pin => pin.isChild) : pins;
+}
+
+export function groupMapFrame(group, fallback) {
+  const pins = groupMapPins(group);
+  if (!pins.length) return fallback ? {...fallback, pins: []} : null;
+  const latitudes = pins.map(pin => pin.latitude);
+  const longitudes = pins.map(pin => pin.longitude);
+  // Unwrap longitudes around the first pin for cities near the date line.
+  const origin = longitudes[0];
+  const unwrapped = longitudes.map(value => origin + ((value - origin + 540) % 360 - 180));
+  const latitude = (Math.min(...latitudes) + Math.max(...latitudes)) / 2;
+  const longitude = ((Math.min(...unwrapped) + Math.max(...unwrapped)) / 2 + 540) % 360 - 180;
+  const span = Math.max((Math.max(...latitudes) - Math.min(...latitudes)) * 111_320,
+    (Math.max(...unwrapped) - Math.min(...unwrapped)) * 111_320 * Math.cos(latitude * Math.PI / 180));
+  return {place: group.city.place, latitude, longitude, pins,
+    height: Math.max(pins.some(pin => pin.isChild) ? 1800 : 24_000, span * 3)};
+}

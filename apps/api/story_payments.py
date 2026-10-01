@@ -83,6 +83,11 @@ class StripeAPIError(RuntimeError):
     """Raised when Stripe rejects a Checkout Session request."""
 
 
+def _setting(value: str) -> str:
+    value = value.strip()
+    return '' if value.lower() in {'<null>', 'null', 'none', 'undefined'} else value
+
+
 def _public_plan(plan: dict[str, Any]) -> dict[str, Any]:
     return {
         "plan_key": plan["plan_key"],
@@ -263,13 +268,13 @@ class StripeCheckoutClient:
     """Minimal Stripe REST client for one-time hosted Checkout sessions."""
 
     def __init__(self, *, secret_key: str | None = None, request_fn: Callable[..., httpx.Response] | None = None):
-        self.secret_key = (secret_key if secret_key is not None else os.getenv("STRIPE_SECRET_KEY", "")).strip()
+        self.secret_key = _setting(secret_key if secret_key is not None else os.getenv("STRIPE_SECRET_KEY", ""))
         self.request_fn = request_fn or httpx.post
         self.price_ids = {
-            "electronic_memoir_v1": os.getenv("STRIPE_PRICE_ELECTRONIC", "").strip(),
-            "printed_memoir_v1": os.getenv("STRIPE_PRICE_PRINTED", "").strip(),
-            "family_memoir_v1": os.getenv("STRIPE_PRICE_FAMILY", "").strip(),
-            "additional_book": os.getenv("STRIPE_PRICE_ADDITIONAL_BOOK", "").strip(),
+            "electronic_memoir_v1": _setting(os.getenv("STRIPE_PRICE_ELECTRONIC", "")),
+            "printed_memoir_v1": _setting(os.getenv("STRIPE_PRICE_PRINTED", "")),
+            "family_memoir_v1": _setting(os.getenv("STRIPE_PRICE_FAMILY", "")),
+            "additional_book": _setting(os.getenv("STRIPE_PRICE_ADDITIONAL_BOOK", "")),
         }
 
     @property
@@ -324,7 +329,7 @@ class StripeCheckoutClient:
         if not summary["electronic_only"]:
             allowed_countries = [
                 country.strip().upper()
-                for country in os.getenv("MEMORY_SPARK_PRINT_COUNTRIES", "AU").split(",")
+                for country in (_setting(os.getenv("MEMORY_SPARK_PRINT_COUNTRIES", "AU")) or 'AU').split(",")
                 if country.strip()
             ] or ["AU"]
             fields.extend(("shipping_address_collection[allowed_countries][]", country) for country in allowed_countries)
@@ -363,6 +368,8 @@ class StripeCheckoutClient:
             if isinstance(error, httpx.HTTPStatusError):
                 try:
                     detail = error.response.json().get("error", {}).get("message") or detail
+                    # Stripe's invalid-key errors can echo the supplied secret.
+                    detail = detail.replace(self.secret_key, '<REDACTED>')
                 except (ValueError, AttributeError):
                     pass
             raise StripeAPIError(detail) from error
@@ -401,7 +408,7 @@ def verify_stripe_signature(payload: bytes, signature: str | None, secret: str, 
 
 
 def public_checkout_urls(request_base_url: str) -> tuple[str, str]:
-    public_base = os.getenv("MEMORY_SPARK_PUBLIC_URL", "").strip().rstrip("/") or request_base_url.rstrip("/")
-    success = os.getenv("STRIPE_SUCCESS_URL", "").strip() or f"{public_base}/memoir/start?checkout=success&session_id={{CHECKOUT_SESSION_ID}}"
-    cancel = os.getenv("STRIPE_CANCEL_URL", "").strip() or f"{public_base}/memoir/start?checkout=cancelled"
+    public_base = _setting(os.getenv("MEMORY_SPARK_PUBLIC_URL", "")).rstrip("/") or request_base_url.rstrip("/")
+    success = _setting(os.getenv("STRIPE_SUCCESS_URL", "")) or f"{public_base}/memoir/start?checkout=success&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel = _setting(os.getenv("STRIPE_CANCEL_URL", "")) or f"{public_base}/memoir/start?checkout=cancelled"
     return success, cancel

@@ -75,3 +75,26 @@ def test_provider_outage_still_uses_saved_parent(monkeypatch):
     monkeypatch.setattr(geo, 'search_place', fail)
     assert geo.resolve_place_map(SUBURB, [CITY])['target']['place'] == '承德'
     assert geo.resolve_place_map(SUBURB, [])['status'] == 'UNAVAILABLE'
+
+
+def test_grouping_metadata_shares_map_cache_and_preserves_partial_match(monkeypatch):
+    calls = []
+    def get(url, **kwargs):
+        calls.append(kwargs['params']['address'])
+        return httpx.Response(200, json={'status': 'OK', 'results': [{
+            'geometry': {'location': {'lat': 40.92, 'lng': 117.96}}, 'partial_match': True,
+            'address_components': [
+                {'long_name': '大石庙镇', 'types': ['locality']},
+                {'long_name': '承德市', 'types': ['administrative_area_level_2']},
+                {'long_name': '河北省', 'types': ['administrative_area_level_1']},
+                {'long_name': '中国', 'types': ['country']}]}]}, request=httpx.Request('GET', url))
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY', 'server-key')
+    monkeypatch.setattr(httpx, 'get', get)
+    geo.search_place.cache_clear()
+    assert geo.search_place('cached grouping query')['latitude'] == 40.92
+    details = geo.search_place_details('cached grouping query')
+    assert details['city'] == '承德市'
+    assert details['partial_match'] is True
+    assert details['region'] == '河北省'
+    assert calls == ['cached grouping query']
+    geo.search_place.cache_clear()

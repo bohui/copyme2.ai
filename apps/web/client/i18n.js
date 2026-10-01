@@ -5,6 +5,7 @@ const fallbackMessages = {
     profile: "Profile",
     account: "ACCOUNT",
     openProfile: "Open profile menu",
+    login: "Log in",
     logout: "Log out",
     privateSession: "Private session",
     anonymousSession: "Anonymous session",

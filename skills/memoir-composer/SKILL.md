@@ -23,7 +23,7 @@ Read [the runtime contract](references/runtime-contract.md) before integration. 
 
 ### A. `free_rounds_completed` → free preview
 
-Run when the backend confirms that the five primary free Memory Sparks are complete. A primary round includes its clarifications and hints; do not count individual chat messages as rounds. Do not require paid access to generate or read this preview.
+Run when the backend confirms that its configured free-round limit is complete (currently 20 saved context-collection turns). Use the backend's durable counter and supplied `free_round_limit`; never infer completion from message count. Do not require paid access to generate or read this preview.
 
 Inspect the actual distribution of distinct supported memories:
 

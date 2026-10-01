@@ -174,6 +174,14 @@ The API uses the user's Supabase bearer token for RLS-protected story and Codex-
 
 ### Collection agents and background tasks
 
+For streamed conversations, private workspace extraction runs alongside the
+visible reply. A complete, validated place marker emits a temporary map preview
+immediately, without waiting for profile extraction or artifact transfer. The
+browser preloads Cesium while the reply streams. Preview events do not write the
+profile or start photo persistence; the normal workspace event confirms and
+saves the place after the conversation commit. Ambiguous or ungrounded places
+produce no preview, and project/turn ordering guards reject late results.
+
 There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-worker`,
 `worker`, and `temporal`. `container-up` recreates all six containers;
 normally it rebuilds only `web` (all buildable images when missing or when
@@ -221,13 +229,21 @@ aliases are populated. `make container-up` handles this. `container-health` also
 checks the worker's Temporal connection. This is a persistent **local development**
 setup, not a production Temporal deployment.
 
-To reset local application data, stop the local API/worker first and run:
+To permanently reset all local application data, run:
 
 ```bash
 make db-truncate RESET_CONFIRM=1
 ```
 
-The target loads `.env` before running, then removes rows from the application-owned Supabase tables, deletes every object in the `memory-spark` bucket through the Storage API, and clears `var/memory-spark/objects`. It requires `SUPABASE_DB_URL`, `SUPABASE_URL`, and the server-only `SUPABASE_SECRET_KEY`; Supabase Auth/system schemas and the bucket definition are preserved. Use `ENV_FILE=path/to/.env` to load a different file.
+The guarded target stops the local Compose stack and removes its persistent
+`codex-worker-home`, `memoir-tasks`, and `temporal-data` volumes. It then loads
+`.env`, clears every object in every Supabase Storage bucket through the Storage
+API, clears local object and per-user Codex files, truncates the application
+tables, and deletes every Supabase Auth user. It requires `SUPABASE_DB_URL`,
+`SUPABASE_URL`, and the server-only `SUPABASE_SECRET_KEY` (or
+`SUPABASE_SERVICE_ROLE_KEY`). Schemas, migration history, and Storage bucket
+definitions are preserved. Use
+`ENV_FILE=path/to/.env` to load a different file.
 
 High-level Codex activity is hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary while private model reasoning remains hidden.
 
@@ -270,6 +286,8 @@ Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp
 ### Place journeys in the integrated Codex worker
 
 The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with Google Geocoding and Google 2D roadmap imagery when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. Google keys are split by trust boundary: `GOOGLE_MAPS_GEOCODING_API_KEY` stays server-side and `GOOGLE_MAPS_BROWSER_API_KEY` is restricted to the web origin and Map Tiles API. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The skill is baked into the API and private Codex worker images and is refreshed with `make install_skill`.
+
+The background [`memoir-place-groups` skill](skills/memoir-place-groups/SKILL.md) checks every new place preview, confirmed update, and restored history against existing city groups. `POST /v1/projects/{project_id}/place-groups` uses public hierarchy and cached geocoder administrative metadata without another model call. A city's schools, towns, and other public locations share one detailed map with independent pins; another city creates another choice. Original location records, stages, and photographs stay distinct. Partial matches and missing child coordinates remain visibly pending, rather than receiving the parent's centre coordinates. The newest mention is checked first, and stale responses cannot overwrite a correction or another project's workspace. Grouping and photo requests run independently of the conversation stream.
 
 In Google Cloud, enable billing plus the [Geocoding API](https://developers.google.com/maps/documentation/geocoding) and [Map Tiles API](https://developers.google.com/maps/documentation/tile). Create a server-restricted key for geocoding and a separate HTTP-referrer-restricted browser key for Map Tiles, then place them in the two environment variables above. Google 2D Tiles must be paired with Google geocoding; the app does that through the server place-map endpoint rather than a model tool call.
 
@@ -342,17 +360,28 @@ the same bounded crawler. The API image includes Crawl4AI and Chromium; for a
 local Python server install `.[photo-browser]` and run
 `python -m playwright install chromium`. Rebuild the API image after upgrading.
 Blocked pages or browser failures leave the other catalogues available.
+If none returns eligible photos and a provider fails, the endpoint reports
+`UNAVAILABLE` with safe provider/reason diagnostics, and the gallery offers a
+retry. It reports `NO_MATCH` only for completed, empty searches. Human verification
+and robots denials stop browser retries; they are not bypassed. Failed empty
+searches are not cached, and the client invalidates the older empty-result cache.
 The private `photo-worker` warms one Chromium process at startup and reuses it
 across searches. Its separate 2 GiB container keeps browser memory outside the
 API. Original source pages are checked two at a time; browser queries share the
 warm process and fixed research budgets. Contexts and cookies are cleared between
 searches. Set `MEMORY_SPARK_PHOTO_WORKER_SECRET` to a random server-only secret
-outside local development. The original place language is queried first, with
-verified aliases (currently Chengde/承德) searched separately rather than assuming
-Google and Flickr share OR syntax. If fewer than ten exact-period matches are
-found, a narrower historical range wholly inside one decade expands to that
-decade (for example `承德 1983年` then `承德 80年代`, also in English). Exact-period
-matches stay first; wider matches retain their capture dates and show a
+outside local development. Google CSE combines verified aliases (currently
+Chengde/承德) and years with uppercase `OR` in one query. For a narrow historical
+range wholly inside one decade, its browser query includes that decade's Chinese
+and English labels alongside the requested years, for example
+`("承德" OR "Chengde") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")`.
+Source capture dates must fit the containing decade; a generic `80s` search hit
+cannot establish the century. Google browser is skipped in the subsequent
+decade fallback, including after a blocked search, because it already covered
+both scopes. Flickr queries the original place language and verified aliases
+separately. Other catalogues expand to the containing decade if fewer than ten
+exact-period matches are found. Completed results place exact-period matches
+first; streamed batches keep their arrival order. Wider matches retain their capture dates and show a
 same-decade reference label. The supplied Chengde Flickr album is also a bounded
 discovery source: its title establishes location, never individual capture dates.
 Every result is filtered against the requested locality and capture period (or
@@ -377,8 +406,8 @@ the automatic search; an explicit year/range still does.
 
 To use Flickr's API alongside Wikimedia Commons and the Library of Congress,
 set `FLICKR_API_KEY` in the server `.env` using your own Flickr application key,
-then recreate the API service so Compose passes it through. Keep this key out of
-browser configuration. To add the supplied Google Programmable Search Engine,
+then recreate the API and photo-worker services so Compose passes it through. Keep this key out of
+browser configuration. Existing Google Custom Search JSON API customers can
 set `GOOGLE_CSE_API_KEY` server-side; the public engine ID is already configured
 as [`GOOGLE_CSE_ID=b2de41f6592f74c3e`](https://cse.google.com/cse?cx=b2de41f6592f74c3e)
 and can be overridden. `GOOGLE_CSE_ID` identifies the search engine, not a
@@ -387,7 +416,9 @@ Programmable Search control panel therefore has no project selector. An API-key
 restriction only limits which services a key may call; it does not grant the
 project access to the Custom Search JSON API. Google image API
 requests use the engine ID, `searchType=image`, rights filtering and ten-result
-pagination. See [the API research notes](docs/Historical_Photo_API_Research.md)
+pagination. [Google's current documentation](https://developers.google.com/custom-search/v1/overview)
+states that this API is closed to new customers and existing customers must
+transition by January 1, 2027. See [the API research notes](docs/Historical_Photo_API_Research.md)
 for sources, setup links and live coverage findings.
 
 Flickr API queries use capture dates, bilingual Chengde/承德 terms and up to three

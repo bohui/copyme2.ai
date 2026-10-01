@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import binascii
 import json
 import os
 from copy import deepcopy
 from typing import Any, Callable
+
+import httpx
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -18,6 +21,8 @@ from .family_context import family_features_enabled
 from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService
 from .store import MemoryStore, new_id, sha256_json
 from .recall import storage_recall_status
+from .agent_lock import AgentTurnLease, AgentTurnBusyError
+from .memoir_preview import compose_preview
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -63,6 +68,11 @@ class StorySpeechInput(BaseModel):
 class StoryCheckoutCreate(BaseModel):
     plan_key: str = "electronic_memoir_v1"
     book_count: int | None = Field(default=None, ge=0, le=20)
+
+
+class StoryPreviewCreate(BaseModel):
+    project_id: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
+    language: str | None = Field(default=None, pattern=r'^(en-AU|zh-CN)$')
 
 
 class InMemoryStoryStorage:
@@ -395,6 +405,25 @@ def build_router(
             return {"chapter": chapter, **_state_response(storage, state)}
         finally:
             _close(storage)
+
+    @router.post('/preview')
+    async def preview(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            async with AgentTurnLease(storage) as lease:
+                access = await lease.io(storage_recall_status, storage, None)
+                if not access or access['rounds_completed'] < access['free_rounds']:
+                    raise HTTPException(409, 'Complete the free recall experience before composing the sample',
+                                        headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
+                return await compose_preview(storage, lease, payload.project_id, language=payload.language)
+        except AgentTurnBusyError:
+            raise HTTPException(409, 'The last memory is still being saved; retry shortly',
+                                headers={'X-Error-Code': 'AGENT_TURN_IN_PROGRESS'}) from None
+        except (RuntimeError, ValueError, KeyError, httpx.HTTPError, OSError):
+            raise HTTPException(503, 'Your sample could not be prepared yet. Please try again.',
+                                headers={'X-Error-Code': 'PREVIEW_UNAVAILABLE'}) from None
+        finally:
+            await asyncio.to_thread(_close, storage)
 
     @router.post("/checkout")
     def checkout(

@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException
 
-from .place_photos import MAX_RESULTS, _deduplicate, search_place_photos
+from .place_photos import MAX_RESULTS, PhotoResearchUnavailable, _deduplicate, search_place_photos
 
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
@@ -35,9 +35,10 @@ class PhotoPages:
                 job['revision'] += 1
         try:
             publish(search_place_photos(place, period, limit=None, on_items=publish))
-        except Exception:
+        except Exception as error:
             with self.lock:
                 job['error'] = True
+                job['failures'] = error.failures if isinstance(error, PhotoResearchUnavailable) else []
         finally:
             with self.lock:
                 job['revision'] += 1
@@ -80,7 +81,7 @@ class PhotoPages:
                     if completed is None:
                         raise HTTPException(status_code=503, detail='Photo research is busy; retry shortly')
                     del self.searches[completed]
-                job = {'items': [], 'done': Event(), 'error': False, 'revision': 0,
+                job = {'items': [], 'done': Event(), 'error': False, 'failures': [], 'revision': 0,
                        'expires': float('inf')}
                 self.searches[query] = job
                 self.pool.submit(self._search, job, place, period)
@@ -102,6 +103,7 @@ class PhotoPages:
             return {'items': items, 'count': count, 'target_count': MAX_RESULTS,
                     'shortfall': max(0, MAX_RESULTS - count), 'status': status,
                     'searching': searching,
+                    'failures': deepcopy(job.get('failures', [])),
                     'next_cursor': f'{token}:{offset + len(items)}'
                     if not searching and offset + len(items) < count else None}
 

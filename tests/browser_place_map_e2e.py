@@ -168,11 +168,22 @@ def main():
                 workspace = page.locator(".workspace-media-overview").bounding_box()
                 assert scene["y"] + scene["height"] <= workspace["y"] + workspace["height"], scene
         page.set_viewport_size({"width": 1440, "height": 960})
-        page.evaluate("""() => {
+        page.wait_for_function("""() => {
+            const v = window.__mapViewer;
+            const rect = document.querySelector('.place-journey-scene').getBoundingClientRect();
+            return Math.abs(v.scene.drawingBufferWidth - rect.width) < 1 &&
+                Math.abs(v.scene.drawingBufferHeight - rect.height) < 1;
+        }""")
+        page.evaluate("""() => new Promise(resolve => {
             window.__previousMapViewer = window.__mapViewer;
             window.__mapViewer.camera.moveRight(1000);
-            window.__previousCamera = Cesium.Cartesian3.clone(window.__mapViewer.camera.position);
-        }""")
+            const remove = window.__mapViewer.scene.postRender.addEventListener(() => {
+                remove();
+                window.__previousCamera = Cesium.Cartesian3.clone(window.__mapViewer.camera.position);
+                resolve();
+            });
+            window.__mapViewer.scene.requestRender();
+        })""")
         page.get_by_role("button", name="Childhood", exact=True).click()
         assert page.evaluate("window.__previousMapViewer === window.__mapViewer"), "Rerender recreated the camera"
         assert page.evaluate("Cesium.Cartesian3.equals(window.__previousCamera, window.__mapViewer.camera.position)"), "Rerender moved the camera"

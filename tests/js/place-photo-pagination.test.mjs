@@ -123,7 +123,7 @@ test('older empty searches are retried under the bilingual search policy', async
   await h.context.loadPlacePictures(h.entry(), 'project');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 1);
-  assert.equal(h.entry().photo_search_policy, 'warm-progressive-v2');
+  assert.equal(h.entry().photo_search_policy, 'warm-progressive-v3');
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {
@@ -188,4 +188,20 @@ test('an interrupted search retains early photos and exposes retry without a cur
   h.context.translate = value => value;
   vm.runInContext(source.match(/function photoPaginationMarkup\([^]*?\n\}/)[0], h.context);
   assert.ok(h.context.photoPaginationMarkup(h.entry()).includes('data-photo-retry="Chengde"'));
+});
+
+test('old cached empty results are rechecked and blocked sources remain retryable', async () => {
+  let calls = 0;
+  const h = harness({place: 'Chengde', photo_search_period: '', pictures: [],
+    photo_search_policy: 'warm-progressive-v2', photo_search_at: Date.now(), photo_next_cursor: null},
+    async () => {
+      calls++;
+      return {status: 'UNAVAILABLE', items: [], failures: [{provider: 'google', reason: 'verification_required'}]};
+    });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls, 1);
+  assert.ok(Array.from(h.state.photoRequests.values())[0].error);
+  assert.equal(Array.from(h.state.photoRequests.values())[0].failures[0].reason, 'verification_required');
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls, 2, 'failed search was cached as a completed no-match');
 });

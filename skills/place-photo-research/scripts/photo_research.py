@@ -550,12 +550,17 @@ def _crawl4ai_search_url(search_url: str | None, request: dict) -> str:
 def _crawl4ai_search_js(page_number: int) -> str:
     if page_number == 1:
         return """const deadline=Date.now()+12000;
+const blocked=()=>/please verify that you are not a robot|unusual traffic from your computer network/i.test(document.body?.innerText||'');
 while(Date.now()<deadline){
+ if(blocked()) return {blocked:true};
  const tabs=[...document.querySelectorAll('.gsc-tabHeader')];
  const image=tabs.find(el=>/图片|image/i.test(el.textContent||''))||tabs[1];
  if(image){
   if(!image.classList.contains('gsc-tabhActive')) image.click();
-  while(Date.now()<deadline && !document.querySelector('.gsc-results.gsc-imageResult .gsc-imageResult.gsc-result')) await new Promise(r=>setTimeout(r,250));
+  while(Date.now()<deadline && !document.querySelector('.gsc-results.gsc-imageResult .gsc-imageResult.gsc-result')){
+   if(blocked()) return {blocked:true};
+   await new Promise(r=>setTimeout(r,250));
+  }
   return {clicked:true,results:document.querySelectorAll('.gsc-results.gsc-imageResult .gsc-imageResult.gsc-result').length};
  }
  await new Promise(r=>setTimeout(r,250));

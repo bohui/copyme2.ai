@@ -44,6 +44,20 @@ def test_visible_collector_prompt_is_separate_from_workspace_markers():
     assert 'Workspace extraction contract' in workspace
 
 
+def test_collector_prompt_reviews_breadth_after_twenty_focused_turns():
+    before_checkpoint = build_conversation_system_prompt(
+        '(none)', language='en-AU', conversation_rounds_completed=19
+    )
+    checkpoint = build_conversation_system_prompt(
+        '(none)', language='en-AU', conversation_rounds_completed=20
+    )
+
+    assert 'A breadth review is due after 1 more focused turn' in before_checkpoint
+    assert 'This is a breadth-review checkpoint' in checkpoint
+    assert 'one promising, evidence-grounded area' in checkpoint
+    assert 'do not force a topic change' in checkpoint.lower()
+
+
 def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
     from apps.api.codex_runtime import MEMOIR_SYSTEM_PROMPT
     workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)

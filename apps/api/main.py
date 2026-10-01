@@ -2221,6 +2221,20 @@ def create_app(
             raise HTTPException(status_code=422, detail="Invalid place journey")
         return resolve_place_map(journey, project.get("profile", {}).get("memory_places", []))
 
+    @app.post("/v1/projects/{project_id}/place-groups")
+    def place_groups(project_id: str, payload: dict[str, Any],
+                     x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
+        _project(memory, project_id, _account_id(x_account_id))
+        from .place_journey import validate_place_journey
+        from .place_groups import resolve_place_groups
+        raw_places = payload.get('places')
+        if not isinstance(raw_places, list) or len(raw_places) > 1000:
+            raise HTTPException(status_code=422, detail='Invalid place group input')
+        places = [validate_place_journey(place) for place in raw_places]
+        if any(place is None for place in places):
+            raise HTTPException(status_code=422, detail='Invalid place group input')
+        return resolve_place_groups(places)
+
     from .place_photo_pages import PhotoPages
     photo_pages = PhotoPages()
 

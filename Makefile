@@ -38,12 +38,16 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
-db-truncate: ## Empty local app tables, Supabase Storage, and filesystem objects; pass RESET_CONFIRM=1.
+db-truncate: check ## Permanently clear all app database rows, Supabase Auth users, every Storage bucket, local user files, and Compose data; pass RESET_CONFIRM=1.
 	@test "$(RESET_CONFIRM)" = "1" || { echo "Refusing to truncate data. Re-run with RESET_CONFIRM=1."; exit 2; }
 	@test -f "$(ENV_FILE)" || { echo "Missing $(ENV_FILE). Copy .env.example to .env first."; exit 2; }
 	@set -a; \
 	. "$(ENV_FILE)"; \
 	set +a; \
+	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in $(ENV_FILE)."; exit 2; }; \
+	test -n "$${SUPABASE_URL:-}" || { echo "Set SUPABASE_URL in $(ENV_FILE)."; exit 2; }; \
+	test -n "$${SUPABASE_SECRET_KEY:-$${SUPABASE_SERVICE_ROLE_KEY:-}}" || { echo "Set SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) in $(ENV_FILE)."; exit 2; }; \
+	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans --volumes; \
 	python3 scripts/truncate_local_data.py --yes
 
 install_skill: check ## Validate every repository skill, rebuild the skill-bearing app images, and restart their services.
@@ -175,6 +179,7 @@ container-up: runtime-start ## Start the local stack from cached images; use CON
 		$(MOCKER) compose build -f $(COMPOSE_FILE) web; \
 	fi
 	@set -e; \
+	set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
 	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-temporal-1 memory-spark-photo-worker-1 >/dev/null 2>&1 || true; \
 	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach temporal api worker web codex-worker photo-worker; \

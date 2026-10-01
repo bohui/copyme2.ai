@@ -17,7 +17,7 @@ class GoogleMapsUnavailable(RuntimeError):
 
 
 @lru_cache(maxsize=1024)
-def search_place(query: str):
+def _geocode_record(query: str):
     api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
     if not api_key:
         raise GoogleMapsUnavailable("Google Maps geocoding API key is not configured")
@@ -49,7 +49,33 @@ def search_place(query: str):
             return None
     except (KeyError, TypeError, ValueError):
         return None
-    return {"latitude": latitude, "longitude": longitude, "attribution": "Google Maps"}
+    return {**results[0], 'latitude': latitude, 'longitude': longitude}
+
+
+def search_place(query: str):
+    record = _geocode_record(query)
+    return {'latitude': record['latitude'], 'longitude': record['longitude'],
+            'attribution': 'Google Maps'} if record else None
+
+
+search_place.cache_clear = _geocode_record.cache_clear
+
+
+def search_place_details(query: str):
+    """Public administrative membership; partial results are not precise pins."""
+    record = _geocode_record(query)
+    if not record:
+        return None
+    components = {kind: part.get('long_name', '') for part in record.get('address_components', [])
+                  for kind in part.get('types', [])}
+    city = components.get('locality', '')
+    prefecture = components.get('administrative_area_level_2', '')
+    if prefecture.endswith('市'):
+        city = prefecture
+    return {'latitude': record['latitude'], 'longitude': record['longitude'],
+            'city': city, 'region': components.get('administrative_area_level_1', ''),
+            'country': components.get('country', ''),
+            'partial_match': bool(record.get('partial_match')), 'attribution': 'Google Maps'}
 
 
 def resolve_place_map(journey: dict, saved_places: list) -> dict:

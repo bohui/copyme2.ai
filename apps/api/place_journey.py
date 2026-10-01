@@ -25,28 +25,50 @@ PERSISTED_FIELDS = (
 
 
 def extract_place_journey(text: str) -> tuple[str, dict[str, Any] | None]:
-    """Return visible text and a validated journey payload.
+    """Compatibility wrapper returning the first valid journey."""
+    visible, journeys = extract_place_journeys(text)
+    return visible, journeys[0] if journeys else None
+
+
+def extract_place_journeys(text: str) -> tuple[str, list[dict[str, Any]]]:
+    """Return visible text and every distinct validated journey in marker order.
 
     Invalid control markers are removed rather than shown to the storyteller.
     This keeps model formatting mistakes from becoming visible UI content.
     """
     if not isinstance(text, str):
-        return "", None
-    start = text.find(MARKER_START)
-    if start < 0:
-        return text.strip(), None
-    end = text.find(MARKER_END, start + len(MARKER_START))
-    if end < 0:
-        return text[:start].strip(), None
-    payload_text = text[start + len(MARKER_START):end].strip()
-    visible = (text[:start] + text[end + len(MARKER_END):]).strip()
-    if len(payload_text) > MAX_MARKER_CHARS:
-        return visible, None
-    try:
-        raw = json.loads(payload_text)
-    except (json.JSONDecodeError, TypeError):
-        return visible, None
-    return visible, validate_place_journey(raw)
+        return "", []
+    visible, journeys, seen = [], [], set()
+    offset = 0
+    while (start := text.find(MARKER_START, offset)) >= 0:
+        visible.append(text[offset:start])
+        payload_start = start + len(MARKER_START)
+        end = text.find(MARKER_END, payload_start)
+        next_start = text.find(MARKER_START, payload_start)
+        if next_start >= 0 and (end < 0 or next_start < end):
+            offset = next_start
+            continue
+        if end < 0:
+            offset = len(text)
+            break
+        offset = end + len(MARKER_END)
+        payload_text = text[payload_start:end].strip()
+        if len(payload_text) > MAX_MARKER_CHARS:
+            continue
+        try:
+            candidate = validate_place_journey(json.loads(payload_text))
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if candidate is None:
+            continue
+        key = (_normalize_for_match(candidate['place']),
+               tuple(_normalize_for_match(label) for label in candidate['hierarchy']),
+               candidate['granularity'])
+        if key not in seen:
+            seen.add(key)
+            journeys.append(candidate)
+    visible.append(text[offset:])
+    return ''.join(visible).strip(), journeys
 
 
 def validate_place_journey(raw: Any) -> dict[str, Any] | None:
