@@ -233,12 +233,17 @@ function navigateTo(path, replace = false) {
 }
 
 async function api(path, options = {}) {
+  const { onPhotoPage, ...requestOptions } = options;
   const method = (options.method || "GET").toUpperCase();
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (!path.startsWith("/v1/auth/") && method !== "GET" && method !== "HEAD") {
     headers["X-CSRF-Token"] = state.csrfToken || readCookie("memory_spark_csrf");
   }
-  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  if (onPhotoPage) headers.Accept = "application/x-ndjson";
+  const response = await fetch(memoirApiPath(path), { ...requestOptions, headers });
+  if (response.ok && onPhotoPage && response.headers.get("Content-Type")?.includes("application/x-ndjson")) {
+    return consumePhotoStream(response, onPhotoPage);
+  }
   let body = null;
   try { body = await response.json(); } catch { body = { detail: response.statusText }; }
   if (!response.ok) {
@@ -248,6 +253,32 @@ async function api(path, options = {}) {
     throw error;
   }
   return body;
+}
+
+async function consumePhotoStream(response, onPage) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = null;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = done ? "" : lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        result = JSON.parse(line);
+        await onPage(result);
+      }
+      if (done) break;
+    }
+    if (!result || result.searching) throw new Error(localizedErrorMessage());
+    return result;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
 function readCookie(name) {
@@ -581,7 +612,14 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         appliedWorkspaceSequences.set(key, sourceSequence);
         return true;
       };
-      if (update.profile_updates && markCurrent("profile")) await saveProfileUpdates(update.profile_updates, streamProjectId);
+      if (update.profile_updates && markCurrent("profile")) {
+        await saveProfileUpdates(update.profile_updates, streamProjectId);
+        if (update.profile_updates.story_focus?.when && state.placeJourney) {
+          // Profile and place are separate stream events. Restart discovery
+          // for the new period even if the earlier search is still pending.
+          void loadPlacePictures(state.placeJourney, streamProjectId);
+        }
+      }
       if (Object.prototype.hasOwnProperty.call(update, "place_journey")) {
         if (!markCurrent("place")) return;
         state.placeJourneyChange = update.place_journey_change || null;
@@ -601,9 +639,11 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           await saveProfileUpdates({ memory_places: places }, streamProjectId);
           state.lifeStage = "all";
           state.selectedPlace = placeHistoryKey(entry);
-          resolvePlaceMap(entry);
-          await loadPlacePictures(entry, streamProjectId);
           rememberPlaceJourneyProject(streamProjectId);
+          resolvePlaceMap(entry);
+          // Discovery can take much longer than the saved place update.
+          // Render the map and loading panel while it runs independently.
+          void loadPlacePictures(entry, streamProjectId);
         }
         // Places and pictures are presented together in the workspace overview,
         // rather than as separate navigation destinations.
@@ -624,7 +664,6 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       }
       streamedMessage.text += delta;
       updateStreamingAssistantMessage(streamedMessage);
-      await waitForAssistantPaint();
     }, async (event) => {
       if (event.type === "progress") {
         if (state.project?.id !== streamProjectId) return;
@@ -653,7 +692,6 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         workspaceUpdateQueue = workspaceUpdateQueue
           .then(() => applyWorkspace(event.data))
           .catch((error) => toast(error.message));
-        return workspaceUpdateQueue;
       }
     }, language, firstReplyLocalization);
     // A saved reply is ready even when an earlier workspace write is pending.
@@ -664,6 +702,13 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     }
     if (body.recall_status) state.recallStatus = body.recall_status;
     if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
+    if (!streamedMessage && body.reply) {
+      // Compatibility responses may contain the entire reply in one event.
+      // They are already complete; do not replay them as simulated typing.
+      streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: body.reply, streaming: false };
+      state.chat.push(streamedMessage);
+      render();
+    }
     return { blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     toast(error.message);
@@ -826,44 +871,63 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   const sameSearch = entry.photo_search_period === period;
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && sameSearch && Object.hasOwn(entry, "photo_next_cursor")
-      && entry.photo_search_policy === "bilingual-decade-v1"
+      && entry.photo_search_policy === "warm-progressive-v2"
       && Date.now() - (entry.photo_search_at || 0) < 15 * 60 * 1000) return;
   state.photoRequests ||= new Map();
   const requestKey = JSON.stringify([projectId, key, period]);
   if (state.photoRequests.get(requestKey)?.loading) return;
   state.photoRequests.set(requestKey, { loading: true });
+  render();
   const control = document.querySelector("[data-photo-more]");
   if (control) { control.disabled = true; control.setAttribute("aria-busy", "true"); }
   try {
     const query = new URLSearchParams({ place: entry.place, period });
     if (more) query.set("cursor", entry.photo_next_cursor);
+    let deliveredFinal = false;
+    const acceptPage = async (result) => {
+      if (state.project?.id !== projectId) return;
+      if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
+        state.photoRequests.set(requestKey, { error: true });
+        return;
+      }
+      if (result.searching && !result.items.length) return;
+      // Discovery overlaps workspace events. Serialize persistence against the
+      // latest places, but paint each verified batch before saving it.
+      const persist = workspaceUpdateQueue.then(async () => {
+        if (state.project?.id !== projectId) return;
+        const places = [...(profile().memory_places || [])];
+        const index = places.findIndex(item => placeHistoryKey(item) === key);
+        const latest = index >= 0 ? places[index] : entry;
+        if (photoSearchPeriod(latest, profile().story_focus) !== period) return;
+        const pictures = mergePlacePictures(latest.photo_search_period === period ? latest.pictures || [] : [], result.items);
+        const updatedEntry = { ...latest, pictures, photo_search_period: period,
+          photo_next_cursor: result.next_cursor || null,
+          photo_search_at: result.searching ? 0 : Date.now(),
+          photo_search_policy: "warm-progressive-v2" };
+        if (index >= 0) places[index] = updatedEntry;
+        else places.push(updatedEntry);
+        profile().memory_places = places;
+        if (state.placeJourney && placeHistoryKey(state.placeJourney) === key) state.placeJourney = updatedEntry;
+        render();
+        await saveProfileUpdates({ memory_places: places }, projectId);
+      });
+      workspaceUpdateQueue = persist.catch(() => {});
+      await persist;
+    };
+    const options = { onPhotoPage: async result => {
+      await acceptPage(result);
+      if (!result.searching) deliveredFinal = true;
+    } };
     let result;
     try {
-      result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
+      result = await api(`/v1/projects/${projectId}/place-photos?${query}`, options);
     } catch (error) {
       if (!more || error.status !== 410) throw error;
-      // Restart an expired public snapshot, retaining and deduplicating the
-      // already visible images. Never send a cursor for a different period.
       query.delete("cursor");
-      result = await api(`/v1/projects/${projectId}/place-photos?${query}`);
+      result = await api(`/v1/projects/${projectId}/place-photos?${query}`, options);
     }
-    if (state.project?.id !== projectId) return;
-    if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
-      state.photoRequests.set(requestKey, { error: true });
-      return;
-    }
-    const places = [...(profile().memory_places || [])];
-    const index = places.findIndex(item => placeHistoryKey(item) === key);
-    const latest = index >= 0 ? places[index] : entry;
-    if (photoSearchPeriod(latest, profile().story_focus) !== period) return;
-    const pictures = mergePlacePictures(sameSearch ? latest.pictures || [] : [], result.items);
-    const updatedEntry = { ...latest, pictures, photo_search_period: period,
-    photo_next_cursor: result.next_cursor || null, photo_search_at: Date.now(),
-    photo_search_policy: "bilingual-decade-v1" };
-    if (index >= 0) places[index] = updatedEntry;
-    else places.push(updatedEntry);
-    if (state.placeJourney && placeHistoryKey(state.placeJourney) === key) state.placeJourney = updatedEntry;
-    await saveProfileUpdates({ memory_places: places }, projectId);
+    // JSON-only servers and cached responses retain the existing contract.
+    if (!deliveredFinal) await acceptPage(result);
   } catch { /* Pictures are optional; retry explicitly without erasing them. */
     state.photoRequests.set(requestKey, { error: true });
   } finally {
@@ -904,15 +968,25 @@ function mergePlacePictures(existing, incoming) {
 }
 
 function photoPaginationMarkup(entry) {
-  if (!entry?.photo_next_cursor) return "";
+  if (!entry) return "";
   const requestKey = JSON.stringify([state.project?.id, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus)]);
   const request = state.photoRequests?.get(requestKey);
+  if (!entry.photo_next_cursor) {
+    if (request?.loading) return `<p class="photo-search-status assistant-progress-shimmer" role="status">${escapeHtml(translate("Memoir.workspace.picturesLoading"))}</p>`;
+    if (request?.error) return `<button type="button" class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(entry))}">${escapeHtml(translate("Memoir.workspace.picturesSearchRetry"))}</button>`;
+    return "";
+  }
   const label = request?.loading ? "picturesLoading" : request?.error ? "picturesRetry" : "picturesMore";
   return `<div class="photo-pagination"><button type="button" class="button button-secondary button-small" data-photo-more="${escapeHtml(placeHistoryKey(entry))}" ${request?.loading ? 'disabled aria-busy="true"' : ""}>${escapeHtml(translate(`Memoir.workspace.${label}`))}</button></div>`;
 }
 
 function bindPhotoPagination() {
   photoPaginationObserver?.disconnect();
+  const retry = document.querySelector("[data-photo-retry]");
+  if (retry) retry.addEventListener("click", () => {
+    const entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === retry.dataset.photoRetry);
+    if (entry) void loadPlacePictures(entry, state.project?.id);
+  });
   const button = document.querySelector("[data-photo-more]");
   if (!button) return;
   const projectId = state.project?.id;
@@ -1008,10 +1082,6 @@ function waitForAssistantStream() {
   return new Promise((resolve) => window.setTimeout(resolve, ASSISTANT_STREAM_DELAY_MS));
 }
 
-function waitForAssistantPaint() {
-  return new Promise((resolve) => window.requestAnimationFrame(resolve));
-}
-
 async function streamAssistantMessage(text, metadata = {}) {
   if (metadata.streamedMessage) {
     const { streamedMessage, ...details } = metadata;
@@ -1046,7 +1116,11 @@ async function streamAssistantMessage(text, metadata = {}) {
 async function hydratePlaceJourney() {
   const savedPlaces = mergePlaces(profile().memory_places || []);
   if (Array.isArray(savedPlaces) && savedPlaces.length) {
-    state.placeJourney = savedPlaces.at(-1);
+    // History is ordered by life stage, while the current place follows the
+    // most recent explicit mention. Server sequence/revision records recency.
+    state.placeJourney = savedPlaces.reduce((current, place) =>
+      Number(place.source_sequence || place.revision || 0) > Number(current.source_sequence || current.revision || 0)
+        ? place : current, savedPlaces.at(-1));
     state.lifeStage = state.placeJourney.life_stage || "all";
     state.selectedPlace = placeHistoryKey(state.placeJourney);
     state.workspaceTab = "chapters";
@@ -2359,11 +2433,15 @@ function workspaceMediaOverview(toggle = "") {
     ? placeJourneyMarkup(current, "workspace")
     : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
   const pictureItems = renderablePictureItems(workspacePictureItems(current));
-  const gallery = pictureItems.length
-    ? `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictureWall(pictureItems, current)}</div>`
-    : "";
-  const layoutClass = gallery ? "" : " no-gallery";
-  return `<section class="workspace-media-overview${layoutClass}" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && mappedPlaces.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
+  const requestKey = JSON.stringify([state.project?.id, placeHistoryKey(current), photoSearchPeriod(current, profile().story_focus)]);
+  const request = state.photoRequests?.get(requestKey);
+  const empty = request?.loading
+    ? `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`
+    : request?.error
+      ? `<div class="workspace-photo-status"><p role="status">${t("picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
+      : `<p class="workspace-photo-status" role="status">${t(Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
+  const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
+  return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && mappedPlaces.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
 function deliveryAvailable() {

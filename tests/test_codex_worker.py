@@ -71,6 +71,36 @@ def test_memory_context_pass_is_ephemeral_and_never_streams_or_exports_artifacts
     assert result['artifacts'] == []
 
 
+@pytest.mark.parametrize('role', ['collector', 'workspace'])
+def test_worker_sends_instructions_once_instead_of_repeating_them_in_user_input(tmp_path, monkeypatch, role):
+    class Connection:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def request(self, method, params):
+            self.instructions = params['baseInstructions']
+            return {'thread': {'id': 'test'}}
+
+        async def turn(self, thread_id, prompt, **kwargs):
+            assert self.instructions not in prompt, 'system instructions were sent twice'
+            assert prompt == 'Storyteller message:\nI grew up in Sydney.'
+            return 'Hello'
+
+    worker = CodexWorker(home_root=tmp_path)
+    monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    asyncio.run(worker.turn(WorkerTurnInput(
+        user_id='11111111-1111-4111-8111-111111111111',
+        text='I grew up in Sydney.', agent_role=role,
+    )))
+
+
 def test_worker_home_permissions_separate_sibling_homes(monkeypatch, tmp_path):
     monkeypatch.setattr(os, 'fchown', lambda fd, uid, gid: None)
     tmp_path.chmod(0o711)

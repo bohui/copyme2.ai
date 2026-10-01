@@ -48,7 +48,7 @@ def database():
                 create function storage.foldername(text) returns text[] language sql as
                   $$select string_to_array($1, '/')$$;
             ''')
-            root = Path(__file__).resolve().parents[1] / 'supabase' / 'migrations'
+            root = Path(__file__).resolve().parents[1] / 'supabase' / 'legacy-migrations'
             for name in ('202609230001_user_agent_storage.sql', '202609230002_agent_sessions.sql',
                          '202609250002_agent_turn_leases.sql', '202609250004_fenced_agent_turn_commit.sql'):
                 sql((root / name).read_text())

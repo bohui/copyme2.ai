@@ -37,7 +37,12 @@ def fake_crawler(monkeypatch):
             self.__dict__.update(kwargs)
     class Crawler:
         def __init__(self, **kwargs):
-            self.crawler_strategy = SimpleNamespace(set_hook=lambda name, hook: hooks.update({name: hook}))
+            self.crawler_strategy = SimpleNamespace(set_hook=lambda name, hook: hooks.update({name: hook}),
+                browser_manager=SimpleNamespace(contexts_by_config={}, sessions={}))
+        async def start(self):
+            return self
+        async def close(self):
+            pass
         async def __aenter__(self):
             return self
         async def __aexit__(self, *args):
@@ -191,23 +196,51 @@ def test_article_extracts_multiple_originals_from_one_relevant_source():
     assert len(photos._deduplicate(items + items)) == 10
 
 
-def test_parallel_bilingual_queries_and_album_share_budgets(monkeypatch):
+def test_bilingual_queries_and_album_share_budgets_without_overlapping_browsers(monkeypatch, fake_crawler):
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
     queries = browser._discovery_queries('google', '承德', '1983年', browser._search_url('google', '承德', '1983年'))
     assert [parse_qs(urlsplit(url).query)['q'][0] for url, _ in queries] == ['承德 1983年', 'Chengde 1983 photos']
     calls = []
+    active = 0
+    peak = 0
     async def query(provider, place, period, url, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
         calls.append((url, kwargs))
-        # A serial implementation would deadlock here.
-        while len(calls) < 3:
-            await asyncio.sleep(0)
+        await asyncio.sleep(0.01)
+        active -= 1
         return []
     monkeypatch.setattr(browser, '_browse_query', query)
     asyncio.run(asyncio.wait_for(browser._browse('flickr', '承德', '1983年', browser._search_url('flickr', '承德', '1983年')), 1))
     assert sum(options['page_budget'] for _, options in calls) == browser.MAX_SEARCH_PAGES
     assert sum(options['source_budget'] for _, options in calls) <= browser.MAX_SOURCE_PAGES
     assert sum(options['album'] for _, options in calls) == 1
+    assert peak == 1
+
+
+def test_browser_providers_and_requests_do_not_launch_chromium_together(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Lock
+    active = peak = 0
+    guard = Lock()
+    async def browse(*args, **kwargs):
+        nonlocal active, peak
+        with guard:
+            active += 1
+            peak = max(peak, active)
+        await asyncio.sleep(0.03)
+        with guard:
+            active -= 1
+        return []
+    monkeypatch.setattr(browser, '_browse', browse)
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda provider: browser.crawl_place_photos(provider, 'Chengde', '1980s'),
+                      ['google', 'flickr', 'google', 'flickr']))
+    assert peak == 1
 
 
 def test_album_location_does_not_inherit_album_date(fake_crawler):
@@ -253,3 +286,78 @@ def test_failed_decade_search_preserves_exact_matches(monkeypatch):
         return exact
     monkeypatch.setattr(photos, '_search_period', search)
     assert photos.search_place_photos('承德', '1983年')[0]['period_match'] == 'requested'
+
+
+def test_source_pages_overlap_with_a_bound_and_publish_before_the_slow_page(fake_crawler, monkeypatch):
+    import crawl4ai
+    pages, calls, _ = fake_crawler
+    search = 'https://cse.google.com/cse?cx=engine'
+    sources = [f'https://www.flickr.com/photos/author/{i}/' for i in range(1, 5)]
+    pages[search] = cse_html(sources)
+    crawler = crawl4ai.AsyncWebCrawler()
+    original = crawler.arun
+    active = peak = 0
+    published = []
+    async def run(url, config):
+        nonlocal active, peak
+        if url not in sources:
+            return await original(url, config)
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.08 if url == sources[0] else 0.01)
+        active -= 1
+        return SimpleNamespace(success=True, html=photo_html(sources.index(url) + 1), status_code=200)
+    crawler.arun = run
+    async def check():
+        result = await browser._browse_query('google', 'Chengde', '1980s', search,
+            crawler=crawler, source_slots=asyncio.Semaphore(2),
+            on_items=lambda items: published.append((items, active)))
+        assert len(result) == 4
+    asyncio.run(check())
+    assert peak == 2
+    assert published[0][1] > 0, 'The first photo waited for every original page'
+
+
+def test_one_crawler_serves_all_language_queries(fake_crawler, monkeypatch):
+    import crawl4ai
+    created = []
+    original = crawl4ai.AsyncWebCrawler
+    def create(**kwargs):
+        created.append(original(**kwargs))
+        return created[-1]
+    monkeypatch.setattr(crawl4ai, 'AsyncWebCrawler', create)
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    asyncio.run(browser._browse('google', '承德', '1980s', browser._search_url('google', '承德', '1980s')))
+    assert len(created) == 1
+
+
+def test_warm_worker_reuses_chromium_across_requests_and_closes_search_contexts(fake_crawler, monkeypatch):
+    import crawl4ai
+    created, closed = [], []
+    original = crawl4ai.AsyncWebCrawler
+    class Context:
+        pages = []
+        async def close(self):
+            closed.append(self)
+    def create(**kwargs):
+        instance = original(**kwargs)
+        created.append(instance)
+        run = instance.arun
+        async def arun(url, config):
+            instance.crawler_strategy.browser_manager.contexts_by_config.setdefault('query', Context())
+            return await run(url, config)
+        instance.arun = arun
+        return instance
+    monkeypatch.setattr(crawl4ai, 'AsyncWebCrawler', create)
+    async def check():
+        runtime = await browser.WarmPhotoBrowser().start()
+        try:
+            for period in ('1980s', '1990s'):
+                await runtime.search('google', 'Chengde', period, 'https://cse.google.com/cse?cx=engine',
+                                     limit=10, timeout=1)
+            assert len(created) == 1
+            assert len(closed) == 2
+            assert not runtime.crawler.crawler_strategy.browser_manager.contexts_by_config
+        finally:
+            await runtime.close()
+    asyncio.run(check())

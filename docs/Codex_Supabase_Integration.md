@@ -2,9 +2,8 @@
 
 ## Verified
 
-- Supabase session-pooler connection succeeded. The checked-in user-data,
-  agent-session, turn-lease, and entitlement migrations were applied to the
-  requested project.
+- Supabase session-pooler connection succeeded. The checked-in consolidated
+  schema migration was applied to the requested project.
 - `user_profile`, `user_memory`, and `user_agent_session` use authenticated-user
   ownership policies.
 - The private `memory-spark` bucket uses the first path component as owner UUID.
@@ -119,9 +118,8 @@ Sources:
 
 ## Isolation upgrade rollout
 
-Apply `202609250004_fenced_agent_turn_commit.sql` before deploying the updated
-API. This migration was verified against a disposable local PostgreSQL instance;
-it has **not** been applied to the hosted project as part of this upgrade.
+Run `make migrate` before deploying the updated API. The consolidated Supabase
+migration includes the fenced agent-turn commit schema.
 Drain/stop all old API writers before importing legacy homes: a read-only mount
 does not make a concurrently changing SQLite/WAL pair a consistent snapshot.
 Imports preserve the original home and never replace an existing worker home.

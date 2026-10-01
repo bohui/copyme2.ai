@@ -24,8 +24,9 @@ def main():
             window.finishPhotos = null;
             window.fetch = async (url, options) => {
               if (String(url).includes('/place-photos?')) {
+                window.photoCalls = (window.photoCalls || 0) + 1;
                 return new Promise(resolve => {
-                  window.finishPhotos = () => resolve(new Response(JSON.stringify({items: []}), {
+                  window.finishPhotos = () => resolve(new Response(JSON.stringify({items: [], status: window.photoUnavailable ? 'UNAVAILABLE' : 'NO_MATCH'}), {
                     headers: {'Content-Type': 'application/json'},
                   }));
                 });
@@ -77,6 +78,8 @@ def main():
 
         page.evaluate("window.finishFirstWorkspace()")
         page.wait_for_function("typeof window.finishPhotos === 'function'")
+        expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
+        expect(page.locator(".workspace-media-gallery [role='status']")).to_have_text("Finding reference photos…")
 
         page.get_by_role("textbox", name="Your message").fill("The harbour was bright.")
         page.get_by_role("button", name="Send message").click()
@@ -87,8 +90,17 @@ def main():
         expect(page.locator(".thinking")).to_have_count(0)
         expect(page.get_by_role("button", name="Send message")).to_be_enabled()
 
-        page.evaluate("window.finishPhotos()")
+        page.evaluate("window.photoUnavailable = true; window.finishPhotos()")
+        expect(page.locator(".workspace-media-gallery [role='status']")).to_have_text(
+            "Photo search could not finish. You can try again."
+        )
+        page.get_by_role("button", name="Try photo search again").click()
+        page.wait_for_function("window.photoCalls === 2")
+        page.evaluate("window.photoUnavailable = false; window.finishPhotos()")
         expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
+        expect(page.locator(".workspace-media-gallery [role='status']")).to_have_text(
+            "No matching reference photos were found for this place and period."
+        )
         expect(page.locator(".message-streaming")).to_have_count(0)
         print("PASS: reply and next turn complete before delayed workspace enrichment")
         browser.close()

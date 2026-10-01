@@ -52,9 +52,13 @@ def main():
         expect(page.locator('.assistant-message').nth(1).locator('.message-thinking')).to_be_visible()
         expect(page.locator('.assistant-message').nth(1).locator('.agent-loop')).to_be_visible()
         assert page.locator('.assistant-message').nth(1).locator('.message-thinking').evaluate(
-            '(node) => getComputedStyle(node).animationName') == 'assistant-progress-color'
+            '(node) => getComputedStyle(node).animationName') == 'assistant-progress-shimmer'
         assert page.locator('.assistant-message').nth(1).locator('.agent-loop-step[data-step-status="running"] .agent-loop-detail').evaluate(
-            '(node) => getComputedStyle(node).animationName') == 'assistant-progress-color'
+            '(node) => getComputedStyle(node).animationName') == 'assistant-progress-shimmer'
+        thinking = page.locator('.assistant-message').nth(1).locator('.message-thinking')
+        before = thinking.evaluate('(node) => getComputedStyle(node).backgroundPositionX')
+        page.wait_for_timeout(150)
+        assert thinking.evaluate('(node) => getComputedStyle(node).backgroundPositionX') != before
         expect(page.locator('.assistant-message .message-text').nth(1)).to_be_hidden()
         page.evaluate('window.sendInitialText()')
         expect(page.locator('.assistant-message .message-text').nth(1)).to_have_text('Hello 承德')

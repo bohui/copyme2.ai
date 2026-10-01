@@ -59,17 +59,12 @@ The two targets pass the explicitly supplied key through the process environment
 
 `STRIPE_WEBHOOK_URL` is generated for either target when `MEMORY_SPARK_PUBLIC_URL` is supplied. You can still override it with a complete `STRIPE_WEBHOOK_URL`. Omit both for test mode when using `stripe listen` for local forwarding. Live mode requires a real public HTTPS endpoint. `make stripe_login` remains available for local Stripe CLI webhook forwarding, but is not required by these setup targets. If an existing webhook is reused, Stripe does not return its signing secret; retrieve the existing `whsec_...` value from Stripe Dashboard or the API environment.
 
-## 1. Apply the Supabase entitlement migration
+## 1. Apply the Supabase schema
 
-Payment state is stored separately from the user-editable memoir profile in `public.story_entitlements`. Apply the migration once to each Supabase database:
+Payment state is stored separately from the user-editable memoir profile in `public.story_entitlements`. Apply the consolidated migration once to each Supabase database:
 
 ```bash
-psql "<your Supabase Postgres connection string>" \
-  -f supabase/migrations/202609250003_story_entitlements.sql
-psql "<your Supabase Postgres connection string>" \
-  -f supabase/migrations/202609250005_family_price_provenance.sql
-psql "<your Supabase Postgres connection string>" \
-  -f supabase/migrations/202609260001_user_family_context.sql
+make migrate
 ```
 
 The API uses `SUPABASE_SECRET_KEY` for server-side entitlement writes. Keep this key on the API service only; never expose it in browser code.
@@ -214,7 +209,7 @@ The automated tests cover plan pricing, quantity calculation, Checkout Session c
 | `STRIPE_NOT_CONFIGURED` | `STRIPE_SECRET_KEY` is missing from the API environment | Add the correct test or live secret key and restart the API |
 | `STRIPE_WEBHOOK_NOT_CONFIGURED` | `STRIPE_WEBHOOK_SECRET` is missing | Copy the signing secret for this exact endpoint into the API environment |
 | `INVALID_STRIPE_SIGNATURE` | The endpoint secret does not match the sender, or the body was modified | Use the secret printed by the current Stripe CLI listener locally, or the Dashboard endpoint secret in production |
-| `PAYMENT_STORAGE_UNAVAILABLE` | Supabase migration, URL, or server key is unavailable | Apply the entitlement migration and verify `SUPABASE_URL` and `SUPABASE_SECRET_KEY` |
+| `PAYMENT_STORAGE_UNAVAILABLE` | Supabase migration, URL, or server key is unavailable | Run `make migrate` and verify `SUPABASE_URL` and `SUPABASE_SECRET_KEY` |
 | `STRIPE_ORDER_MISMATCH` | A Dashboard Price ID does not match the server-side AUD amount | Correct the Stripe Price or remove the corresponding `STRIPE_PRICE_*` variable to use inline `price_data` |
 | Checkout shows “payment required” | Stripe is intentionally not configured on the API | Configure `STRIPE_SECRET_KEY`; the response is useful for local UI development but does not create a payment |
 | Payment succeeds but access remains locked | The webhook was not delivered or entitlement storage failed | Inspect Stripe webhook delivery, API logs, and the Supabase entitlement row; do not unlock access from the redirect alone |
@@ -223,7 +218,7 @@ The automated tests cover plan pricing, quantity calculation, Checkout Session c
 
 - Use a live-mode `STRIPE_SECRET_KEY` and a live-mode webhook signing secret together.
 - Register the production endpoint at `https://<api-domain>/api/v1/memoir/story/stripe/webhook`.
-- Apply `202609250003_story_entitlements.sql` to the production Supabase database.
+- Apply the consolidated Supabase migration to the production database.
 - Set `MEMORY_SPARK_PUBLIC_URL` to the real public application URL.
 - Keep Stripe and Supabase secrets out of the frontend bundle, repository, logs, and client-visible responses.
 - Confirm that printed-package shipping countries and fulfillment operations are ready before enabling printed sales.

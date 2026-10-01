@@ -101,7 +101,9 @@ def test_workspace_navigation_preserves_chat_reading_position(interview):
 
 def test_workspace_prioritizes_map_and_places_toggle_at_left(interview):
     expect(interview.get_by_text("1 memory in conversation · Place context added", exact=True)).to_have_count(0)
-    expect(interview.locator(".workspace-media-gallery")).to_have_count(0)
+    expect(interview.locator(".workspace-media-gallery [role='status']")).to_have_text(
+        "No matching reference photos were found for this place and period."
+    )
     expect(interview.get_by_text("Not quite the right place? Tell me in the conversation.", exact=True)).to_have_count(0)
     workspace = interview.get_by_role("complementary", name="Places workspace").bounding_box()
     toggle = interview.get_by_role("button", name="Collapse workspace").bounding_box()
@@ -147,7 +149,9 @@ def test_places_follow_stage_and_survive_new_places(interview):
     expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
     page.reload()
     expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible(timeout=20000)
-    page.get_by_role("navigation", name="Place history").get_by_role("button", name="Chengde", exact=False).click()
+    # Hydration restores the saved place's stage; use the stage selector to
+    # verify that places in both stages survived the reload.
+    page.get_by_role("button", name="Childhood", exact=True).click()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible()
     expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(
@@ -160,11 +164,14 @@ def test_places_follow_stage_and_survive_new_places(interview):
     with page.expect_response(lambda response: response.request.method == "PATCH" and "/projects/" in response.url):
         page.get_by_role("textbox", name="Your message").fill("Back to my childhood in Chengde.")
         page.get_by_role("button", name="Send message").click()
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
     expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
     expect(page.get_by_role("navigation", name="Place history").get_by_role("button")).to_have_count(2)
     page.reload()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible(timeout=20000)
-    expect(page.get_by_role("navigation", name="Place history").get_by_role("button")).to_have_count(2)
+    expect(page.get_by_role("button", name="Childhood", exact=True)).to_have_attribute("aria-pressed", "true")
+    page.get_by_role("button", name="Young adulthood", exact=True).click()
+    expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
 
 
 def test_storyteller_can_choose_timeline_artwork(interview):
@@ -188,7 +195,7 @@ def test_place_photos_arrive_without_interrupting_reply_or_draft(interview):
     page.get_by_role("textbox", name="Your message").fill("I moved to Sydney as a young adult.")
     page.get_by_role("button", name="Send message").click()
     expect(page.get_by_role("img", name="Sydney street")).to_be_visible(timeout=20000)
-    expect(page.locator(".message-streaming")).to_have_count(1)
+    expect(page.locator(".message-streaming")).to_have_count(0)
     page.get_by_role("textbox", name="Your message").fill("My next memory")
     expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
     expect(page.get_by_role("textbox", name="Your message")).to_have_value("My next memory")

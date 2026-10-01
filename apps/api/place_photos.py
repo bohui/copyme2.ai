@@ -560,7 +560,7 @@ def _mix_sources(items: list[dict]) -> list[dict]:
     return [item for row in zip_longest(*groups.values()) for item in row if item is not None]
 
 
-def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS) -> list[dict]:
+def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None) -> list[dict]:
     if period.strip() and not _period_bounds(period):
         return []
     items, errors = [], []
@@ -572,8 +572,23 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS) 
     elif _configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID'):
         providers.insert(0, _google_browser)
     providers.insert(0, _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser)
+    def publish(found):
+        matching = [item for item in found
+                    if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
+                    and _date_matches(item.get('date_expression', ''), period)]
+        if matching and on_items:
+            on_items(_deduplicate(matching))
+
+    def run(provider):
+        if on_items and provider in (_google_browser, _flickr_browser):
+            found = provider(place, period, on_items=publish)
+        else:
+            found = provider(place, period)
+        publish(found)
+        return found
+
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
-        futures = [pool.submit(provider, place, period) for provider in providers]
+        futures = [pool.submit(run, provider) for provider in providers]
         for future in futures:
             try:
                 items.extend(future.result())
@@ -588,13 +603,23 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS) 
     return mixed[:limit] if limit is not None else mixed[:150]
 
 
-def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX_RESULTS) -> list[dict]:
-    requested = _search_period(place, period, limit=limit)
+def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX_RESULTS, on_items=None) -> list[dict]:
     fallback = _decade_fallback(period)
+    def label(items):
+        return [{**item, 'requested_period': period,
+                 'matched_period': period if _date_matches(item.get('date_expression', ''), period) else fallback,
+                 'period_match': 'requested' if _date_matches(item.get('date_expression', ''), period) else 'decade'}
+                for item in items]
+
+    def run(search_period, search_limit):
+        progress = {'on_items': lambda items: on_items(label(items))} if on_items else {}
+        return _search_period(place, search_period, limit=search_limit, **progress)
+
+    requested = run(period, limit)
     broader = []
     if fallback and len(requested) < MAX_RESULTS:
         try:
-            broader = _search_period(place, fallback, limit=None)
+            broader = run(fallback, None)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             pass  # A wider search must not erase exact-year results.
     exact, decade = [], []
@@ -608,11 +633,11 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
     return mixed[:limit] if limit is not None else mixed[:150]
 
 
-def _google_browser(place: str, period: str) -> list[dict]:
+def _google_browser(place: str, period: str, *, on_items=None) -> list[dict]:
     from .place_photo_browser import crawl_place_photos
-    return crawl_place_photos('google', place, period, limit=DISCOVERY_LIMIT, timeout=45)
+    return crawl_place_photos('google', place, period, limit=DISCOVERY_LIMIT, timeout=45, on_items=on_items)
 
 
-def _flickr_browser(place: str, period: str) -> list[dict]:
+def _flickr_browser(place: str, period: str, *, on_items=None) -> list[dict]:
     from .place_photo_browser import crawl_place_photos
-    return crawl_place_photos('flickr', place, period, limit=DISCOVERY_LIMIT, timeout=45)
+    return crawl_place_photos('flickr', place, period, limit=DISCOVERY_LIMIT, timeout=45, on_items=on_items)

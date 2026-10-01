@@ -12,7 +12,7 @@ test('life-stage labels do not suppress the automatic photo request', async () =
     const saved = [];
     const item = {asset_id: 'crawl4ai-one', image_url: 'https://images.example/one.jpg', allowed_actions: {embed: true}};
     const context = vm.createContext({
-      state: {project: {id: 'project'}, placeJourney: entry}, URLSearchParams,
+      state: {project: {id: 'project'}, placeJourney: entry}, URLSearchParams, workspaceUpdateQueue: Promise.resolve(),
       URL, window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
       PLACE_PHOTO_RESULT_LIMIT: 10,
       profile: () => ({story_focus: {when}, memory_places: [entry]}),

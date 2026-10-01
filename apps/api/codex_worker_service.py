@@ -209,7 +209,9 @@ class CodexWorker:
             instructions = organiser_prompt(payload.task_sources, language)
         elif payload.agent_role == 'memory_context':
             instructions = build_language_intake_prompt()
-        prompt = f"{instructions}\n\nStoryteller message:\n{payload.text}"
+        # thread/start and thread/resume already install baseInstructions.
+        # Repeating them as user input doubles prompt processing each turn.
+        prompt = f"Storyteller message:\n{payload.text}"
         environment = {"MEMORY_SPARK_LLM_API_KEY": self.api_key}
         try:
             async with CodexConnection(

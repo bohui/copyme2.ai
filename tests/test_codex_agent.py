@@ -44,6 +44,14 @@ def test_visible_collector_prompt_is_separate_from_workspace_markers():
     assert 'Workspace extraction contract' in workspace
 
 
+def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
+    from apps.api.codex_runtime import MEMOIR_SYSTEM_PROMPT
+    workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)
+    assert MEMOIR_SYSTEM_PROMPT not in workspace
+    for marker in ('PROFILE', 'PLACE_JOURNEY', 'FAMILY_TREE', 'AUTHOR_TIMELINE'):
+        assert f'[[MEMORY_SPARK_{marker}]]' in workspace
+
+
 def test_loop_trace_is_localized_for_simplified_chinese():
     trace = build_loop_trace(memory_count=2, resumed=False, saved_paths=1, language="zh-CN")
 

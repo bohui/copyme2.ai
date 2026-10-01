@@ -55,6 +55,8 @@ services:
       MEMORY_SPARK_REALTIME_VOICE: ${MEMORY_SPARK_REALTIME_VOICE:-marin}
       MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
+      MEMORY_SPARK_PHOTO_WORKER_URL: http://photo-worker:8767
+      MEMORY_SPARK_PHOTO_WORKER_SECRET: ${MEMORY_SPARK_PHOTO_WORKER_SECRET:-memory-spark-local-photo-secret}
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
       MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
       MEMORY_SPARK_TASK_DB: /var/lib/memoir-tasks/tasks.sqlite
@@ -69,6 +71,8 @@ services:
     depends_on:
       codex-worker:
         condition: service_healthy
+      photo-worker:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test:
@@ -80,6 +84,33 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+
+  photo-worker:
+    image: localhost/memory-spark:dev
+    build:
+      context: .
+      dockerfile: Containerfile
+    command: ["uvicorn", "apps.api.photo_worker_service:app", "--host", "0.0.0.0", "--port", "8767"]
+    expose: ["8767"]
+    init: true
+    mem_limit: 2g
+    environment:
+      FLICKR_API_KEY: ${FLICKR_API_KEY:-}
+      GOOGLE_CSE_ID: ${GOOGLE_CSE_ID:-b2de41f6592f74c3e}
+      GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
+      GOOGLE_CSE_URL: ${GOOGLE_CSE_URL:-}
+      MEMORY_SPARK_PHOTO_WORKER_SECRET: ${MEMORY_SPARK_PHOTO_WORKER_SECRET:-memory-spark-local-photo-secret}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./apps/api:/app/apps/api:ro
+      - ./skills/place-photo-research:/app/skills/place-photo-research:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8767/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
 
   codex-worker:
     image: localhost/memory-spark-codex-worker:dev

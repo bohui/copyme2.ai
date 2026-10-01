@@ -42,6 +42,7 @@ def main():
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page(viewport={'width': 1440, 'height': 960}, locale='en-AU')
         page.on('pageerror', lambda error: errors.append(str(error)))
+        page.route('**/agent/config', lambda route: route.fulfill(json={'auth_mode': 'test'}))
         page.route('**/place-photos?**', photos)
         page.route('**/api/v1/memoir/agent/turn', lambda route: route.fulfill(json={
             'reply': 'What do you remember about Chengde?', 'trace': [], 'trace_mode': 'codex',

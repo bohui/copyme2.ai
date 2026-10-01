@@ -21,20 +21,22 @@ def test_runtime_store_uses_supabase_user_storage_without_db_url(monkeypatch):
     assert isinstance(app.state.store, MemoryStore)
 
 
-def test_migrate_target_applies_fenced_agent_commit_migration_in_order():
+def test_migrate_target_uses_supabase_migration_tracking():
     makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text()
     recipe_start = makefile.index("migrate:")
     recipe_end = makefile.index("\n\ninstall_skill:", recipe_start)
     recipe = makefile[recipe_start:recipe_end]
-    migrations = [
-        "202609250003_story_entitlements.sql",
-        "202609250004_fenced_agent_turn_commit.sql",
-        "202609250005_family_price_provenance.sql",
-    ]
 
-    positions = [recipe.index(migration) for migration in migrations]
+    assert "supabase db push --db-url" in recipe
+    assert "--yes" in recipe
+    assert "SUPABASE_DB_URL" in recipe
+    assert "psql" not in recipe
 
-    assert positions == sorted(positions)
+
+def test_supabase_has_one_active_migration_file():
+    migrations = sorted((Path(__file__).resolve().parents[1] / "supabase/migrations").glob("*.sql"))
+
+    assert [migration.name for migration in migrations] == ["202610010001_initial_schema.sql"]
 
 
 def test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness():

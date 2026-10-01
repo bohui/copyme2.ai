@@ -143,9 +143,8 @@ user. The reminder offers two choices: sign into an existing account and attach
 the guest conversation, or select a different account and link it to the current
 guest user. Granting consent again does not resolve an identity conflict.
 
-Apply both `supabase/migrations/202609300001_guest_conversation_attachments.sql`
-and `supabase/migrations/202609300002_guest_workspace_merge.sql` before using
-the existing-account option. The guest session prepares a one-hour transfer
+Run `make migrate` before using the existing-account option. The guest session
+prepares a one-hour transfer
 capability, OAuth authenticates the chosen destination account, and the app then
 redeems that capability. The merge includes the transcript, collected memories,
 profile fields, language preferences, places, photo galleries, family context,

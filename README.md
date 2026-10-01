@@ -9,11 +9,11 @@ saved reply; failed replies do not consume it. Once exhausted, the interview
 shows package selection and resumes only after a verified paid entitlement.
 Customer-facing copy does not show the free-round allowance.
 
-Before deploying this change, apply
-`supabase/migrations/202609300003_recall_usage.sql` after the guest conversation
-attachment and workspace merge migrations. It backfills usage from existing
-conversation records, makes usage read-only for customers, and preserves guest
-usage when attaching a conversation to an existing account.
+The development database schema is consolidated into one Supabase migration.
+Run `make migrate` to apply it through Supabase's tracked migration history.
+For a disposable development database after changing the schema baseline, use
+`supabase db reset --db-url "$SUPABASE_DB_URL" --yes`; this recreates the
+schema and applies the consolidated migration.
 
 ## Product URLs
 
@@ -174,8 +174,8 @@ The API uses the user's Supabase bearer token for RLS-protected story and Codex-
 
 ### Collection agents and background tasks
 
-There are **five local Compose services**: `web`, `api`, `codex-worker`, `worker`,
-and `temporal`. `container-up` recreates all five containers;
+There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-worker`,
+`worker`, and `temporal`. `container-up` recreates all six containers;
 normally it rebuilds only `web` (all buildable images when missing or when
 `CONTAINER_BUILD=1`). API and worker Python sources are bind-mounted;
 `codex-worker` Python and skills are image-baked and require a rebuild.
@@ -216,7 +216,7 @@ Verify the real publisher → Temporal → worker path using synthetic data:
 mocker compose exec -f compose.yml -i -T api python - < scripts/verify_task_pipeline.py
 ```
 
-Keep all five services in the same Mocker `compose up` invocation so their service
+Keep all six services in the same Mocker `compose up` invocation so their service
 aliases are populated. `make container-up` handles this. `container-health` also
 checks the worker's Temporal connection. This is a persistent **local development**
 setup, not a production Temporal deployment.
@@ -277,17 +277,10 @@ In Google Cloud, enable billing plus the [Geocoding API](https://developers.goog
 
 The project skills at [`skills/memoir-family-tree/SKILL.md`](skills/memoir-family-tree/SKILL.md) and [`skills/memoir-author-timeline/SKILL.md`](skills/memoir-author-timeline/SKILL.md) are loaded only after the server confirms a paid Family legacy entitlement backed by `STRIPE_PRICE_FAMILY`. The family-tree skill emits and validates `MEMORY_SPARK_FAMILY_TREE` for people and relationships; the author-timeline skill emits and validates `MEMORY_SPARK_AUTHOR_TIMELINE` for the author's events and life periods. Both persist into the shared, versioned `family_context` document under the authenticated Supabase user and Memoir project, and the response's `family_context_update.skills` field identifies which skill changed it. Unpaid, pending, revoked, and non-Family packages receive neither skill; uncertain dates and relationships remain explicit.
 
-Apply the checked-in migrations before using the connected agent:
+Apply the checked-in schema before using the connected agent:
 
 ```bash
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609230001_user_agent_storage.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609230002_agent_sessions.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250002_agent_turn_leases.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250003_story_entitlements.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250004_fenced_agent_turn_commit.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609250005_family_price_provenance.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609260001_user_family_context.sql
-psql "<your Supabase Postgres connection string>" -f supabase/migrations/202609260002_user_place_journey.sql
+make migrate
 ```
 
 With the local Compose stack running, refresh every repository skill with:
@@ -302,15 +295,13 @@ their cached skill loaders reload, and removes the temporary ZIPs. Use
 `SKILLS="memoir-place-journey"` only when debugging one skill. Generated
 archives remain temporary, so `dist/` stays ignored.
 
-For an installation that previously applied the retired JSONB-state migration, run `supabase/migrations/202609250001_remove_memory_spark_state.sql` once with your normal Supabase migration connection. It drops only the retired `memory_spark_state` and `memory_spark_outbox` tables.
-
 When upgrading from API-hosted Codex, drain and stop **all old API/Codex writers**
 before starting the new worker. Compose mounts the old `var/memory-spark/codex-users`
 directory read-only; the worker atomically imports each user's complete offline
 home (including SQLite/WAL and rollouts) on first use. Existing worker homes are
 never overwritten, and the original files remain intact. Keep the legacy mount
-until every existing user has migrated. Apply the fenced-commit migration before
-starting the updated API; it intentionally has no unfenced-save fallback.
+until every existing user has migrated. Run `make migrate` before starting the
+updated API; the consolidated schema intentionally has no unfenced-save fallback.
 
 Artifact snapshots now use `agent/<root>/turns/<lease UUID>/<relative path>`.
 Only the lease-checked database commit publishes their paths. Failed attempts
@@ -351,8 +342,12 @@ the same bounded crawler. The API image includes Crawl4AI and Chromium; for a
 local Python server install `.[photo-browser]` and run
 `python -m playwright install chromium`. Rebuild the API image after upgrading.
 Blocked pages or browser failures leave the other catalogues available.
-Catalogues and bilingual browser queries run in parallel within shared search
-budgets. The original place language is queried first in the result order, with
+The private `photo-worker` warms one Chromium process at startup and reuses it
+across searches. Its separate 2 GiB container keeps browser memory outside the
+API. Original source pages are checked two at a time; browser queries share the
+warm process and fixed research budgets. Contexts and cookies are cleared between
+searches. Set `MEMORY_SPARK_PHOTO_WORKER_SECRET` to a random server-only secret
+outside local development. The original place language is queried first, with
 verified aliases (currently Chengde/承德) searched separately rather than assuming
 Google and Flickr share OR syntax. If fewer than ten exact-period matches are
 found, a narrower historical range wholly inside one decade expands to that
@@ -364,12 +359,15 @@ Every result is filtered against the requested locality and capture period (or
 the explicitly labelled containing-decade fallback);
 without a period, the preceding 24-month current-photo window applies. Page,
 upload and modification dates do not establish capture dates. Results are
-interleaved by their original source host and deduplicated across providers by
+deduplicated across providers by
 asset ID, canonical original/thumbnail URLs and content hashes when available.
 The gallery appends ten-photo pages when its bottom comes into view, with a
 manual load/retry button. A bounded discovery pool (at most 150 matches) is
-cached per project/place/period for 15 minutes, making pages stable without
-repeating crawls on every scroll. An expired cursor starts a new snapshot and
+cached by public place/period for 15 minutes, making repeated searches across
+projects fast. Cursors remain project-bound. The client requests NDJSON and
+displays verified batches immediately, keeping a loading indicator while the
+remaining sources are checked. Streamed results retain stable arrival order;
+ordinary JSON clients still receive completed pages. An expired cursor starts a new snapshot and
 retains/deduplicates visible photos. Robots and research budgets still limit
 coverage; scroll loading does not bypass them.
 Browser results retain source and capture-date metadata and are marked

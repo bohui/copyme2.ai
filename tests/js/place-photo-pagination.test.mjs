@@ -9,7 +9,7 @@ const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.j
 function harness(entry, api) {
   let saved = {memory_places: [entry]};
   const state = {project: {id: 'project'}, placeJourney: entry};
-  const context = vm.createContext({state, URLSearchParams, URL,
+  const context = vm.createContext({state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
     window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
     profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {},
     saveProfileUpdates: async updates => { saved = {...saved, ...updates}; },
@@ -35,6 +35,21 @@ test('appends pages, deduplicates overlaps and stops at exhaustion', async () =>
   assert.equal(calls.length, 2);
   assert.equal(new URL(calls[1], 'http://localhost').searchParams.get('cursor'), 'snapshot:2');
   assert.equal(Array.from(h.entry().pictures, item => item.asset_id).join(','), 'a,b,c');
+});
+
+test('photo results wait for workspace writes and preserve a newer place', async () => {
+  let release;
+  const pendingWrite = new Promise(resolve => { release = resolve; });
+  const h = harness({place: 'Chengde'}, async () => ({items: [picture('a')], status: 'READY'}));
+  h.context.workspaceUpdateQueue = pendingWrite;
+  const photos = h.context.loadPlacePictures(h.entry(), 'project');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.entry().pictures, undefined, 'photo persistence raced the workspace write');
+  await h.context.saveProfileUpdates({memory_places: [h.entry(), {place: 'Sydney'}]});
+  release();
+  await photos;
+  assert.equal(h.context.profile().memory_places.length, 2);
+  assert.equal(h.entry().pictures[0].asset_id, 'a');
 });
 
 test('concurrent scroll events issue only one request', async () => {
@@ -108,7 +123,7 @@ test('older empty searches are retried under the bilingual search policy', async
   await h.context.loadPlacePictures(h.entry(), 'project');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 1);
-  assert.equal(h.entry().photo_search_policy, 'bilingual-decade-v1');
+  assert.equal(h.entry().photo_search_policy, 'warm-progressive-v2');
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {
@@ -122,4 +137,55 @@ test('decade matches are labelled and a zero-image wall stays hidden', () => {
     date_expression: '1984', period_match: 'decade'}]);
   assert.ok(html.includes('1984'));
   assert.ok(html.includes('Memoir.workspace.sameDecadeReference'));
+});
+
+test('verified photos are visible while the response is still researching', async () => {
+  let release;
+  const finished = new Promise(resolve => { release = resolve; });
+  const h = harness({place: 'Chengde', period: '1980s'}, async (url, options) => {
+    await options.onPhotoPage({items: [picture('early')], searching: true, status: 'PARTIAL'});
+    await finished;
+    const result = {items: [picture('early'), picture('late')], searching: false, next_cursor: null};
+    await options.onPhotoPage(result);
+    return result;
+  });
+  const request = h.context.loadPlacePictures(h.entry(), 'project');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.entry().pictures[0].asset_id, 'early');
+  assert.equal(h.entry().photo_search_at, 0, 'Incomplete results were marked cached');
+  assert.ok(Array.from(h.state.photoRequests.values())[0].loading);
+  release();
+  await request;
+  assert.equal(h.entry().pictures.length, 2);
+  assert.ok(h.entry().photo_search_at > 0);
+  assert.equal(Array.from(h.state.photoRequests.values())[0].loading, false);
+});
+
+test('photo transport handles split records and rejects interrupted streams', async () => {
+  const context = vm.createContext({TextDecoder, localizedErrorMessage: () => 'interrupted'});
+  vm.runInContext(source.match(/async function consumePhotoStream\([^]*?\n\}/)[0], context);
+  const response = chunks => ({body: new ReadableStream({start(controller) {
+    chunks.forEach(chunk => controller.enqueue(new TextEncoder().encode(chunk)));
+    controller.close();
+  }})});
+  const seen = [];
+  const result = await context.consumePhotoStream(response([
+    '{"items":[{"asset_id":"early"}],"sear', 'ching":true}\n',
+    '{"items":[{"asset_id":"early"}],"searching":false}']), page => seen.push(page));
+  assert.equal(seen.length, 2);
+  assert.equal(result.searching, false);
+  await assert.rejects(context.consumePhotoStream(response(['{"items":[],"searching":true}\n']), () => {}), /interrupted/);
+});
+
+test('an interrupted search retains early photos and exposes retry without a cursor', async () => {
+  const h = harness({place: 'Chengde', period: '1980s'}, async (url, options) => {
+    await options.onPhotoPage({items: [picture('early')], searching: true});
+    throw Error('disconnected');
+  });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(h.entry().pictures[0].asset_id, 'early');
+  h.context.escapeHtml = value => value;
+  h.context.translate = value => value;
+  vm.runInContext(source.match(/function photoPaginationMarkup\([^]*?\n\}/)[0], h.context);
+  assert.ok(h.context.photoPaginationMarkup(h.entry()).includes('data-photo-retry="Chengde"'));
 });

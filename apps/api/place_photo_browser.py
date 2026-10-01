@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
 from datetime import datetime
 from functools import lru_cache
 import hashlib
@@ -10,6 +11,7 @@ import logging
 from pathlib import Path
 import re
 import time
+from threading import BoundedSemaphore
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
@@ -17,6 +19,9 @@ logger = logging.getLogger(__name__)
 MAX_SEARCH_PAGES = 3
 MAX_SOURCE_PAGES = 12
 BROWSE_TIMEOUT = 90
+# Standalone callers retain a bounded fallback; the app uses the warm worker.
+_browser_slot = BoundedSemaphore(1)
+_warm_runtime = None
 
 
 @lru_cache(maxsize=1)
@@ -183,7 +188,8 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
 
 async def _browse_query(provider: str, place: str, period: str, search_url: str, *, limit: int = 10,
                         timeout: float = BROWSE_TIMEOUT, page_budget: int = MAX_SEARCH_PAGES,
-                        source_budget: int = MAX_SOURCE_PAGES, album: bool = False) -> list[dict]:
+                        source_budget: int = MAX_SOURCE_PAGES, album: bool = False,
+                        crawler=None, source_slots=None, on_items=None) -> list[dict]:
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
     from .place_photos import _deduplicate
     helper = _research()
@@ -204,7 +210,10 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
         await page.route('**/*', public_request)
         return page
 
-    async with AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False, ignore_https_errors=False)) as crawler:
+    source_slots = source_slots or asyncio.Semaphore(2)
+    manager = nullcontext(crawler) if crawler is not None else AsyncWebCrawler(
+        config=BrowserConfig(headless=True, verbose=False, ignore_https_errors=False))
+    async with manager as crawler:
         crawler.crawler_strategy.set_hook('on_page_context_created', setup_page)
         session = f'place-photo-{provider}-{time.time_ns()}'
         for page_number in range(1, page_budget + 1):
@@ -264,23 +273,36 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 if not cards:
                     break
                 continue
-            for source in pending:
-                if time.monotonic() >= deadline:
-                    return items[:limit]
-                try:
-                    detail = await asyncio.wait_for(crawler.arun(url=source, config=CrawlerRunConfig(
-                        cache_mode=CacheMode.BYPASS, page_timeout=12000, verbose=False,
-                        check_robots_txt=True, delay_before_return_html=0.2,
-                    )), timeout=min(15, max(0.1, deadline - time.monotonic())))
-                    if detail.success:
-                        items.extend(_source_items(detail.html or '', source, place, period,
-                                                   location_context=album_context))
-                except Exception as error:
-                    logger.info('%s photo source unavailable: %s', provider, type(error).__name__)
-                    continue
-                items = _deduplicate(items)
-                if len(items) >= limit:
-                    return items[:limit]
+            async def inspect_source(source):
+                async with source_slots:
+                    if time.monotonic() >= deadline:
+                        return []
+                    try:
+                        detail = await asyncio.wait_for(crawler.arun(url=source, config=CrawlerRunConfig(
+                            cache_mode=CacheMode.BYPASS, page_timeout=12000, verbose=False,
+                            check_robots_txt=True, delay_before_return_html=0.2,
+                        )), timeout=min(15, max(0.1, deadline - time.monotonic())))
+                        if detail.success:
+                            return _source_items(detail.html or '', source, place, period,
+                                                 location_context=album_context)
+                    except Exception as error:
+                        logger.info('%s photo source unavailable: %s', provider, type(error).__name__)
+                    return []
+
+            tasks = [asyncio.create_task(inspect_source(source)) for source in pending]
+            try:
+                for completed in asyncio.as_completed(tasks):
+                    found = await completed
+                    items = _deduplicate(items + found)
+                    if found and on_items:
+                        on_items(found)
+                    if len(items) >= limit:
+                        return items[:limit]
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
             if len(seen_sources) >= source_budget:
                 break
     return items[:limit]
@@ -303,32 +325,105 @@ def _discovery_queries(provider: str, place: str, period: str, search_url: str) 
 
 
 async def _browse(provider: str, place: str, period: str, search_url: str, *, limit: int = 10,
-                  timeout: float = BROWSE_TIMEOUT) -> list[dict]:
+                  timeout: float = BROWSE_TIMEOUT, crawler=None, source_slots=None, on_items=None) -> list[dict]:
+    if crawler is None:
+        from crawl4ai import AsyncWebCrawler, BrowserConfig
+        async with AsyncWebCrawler(config=BrowserConfig(
+                headless=True, verbose=False, ignore_https_errors=False)) as opened:
+            return await _browse(provider, place, period, search_url, limit=limit, timeout=timeout,
+                                 crawler=opened, source_slots=asyncio.Semaphore(2), on_items=on_items)
     from .place_photos import _deduplicate, _mix_sources
     queries = _discovery_queries(provider, place, period, search_url)
-    # Independent language/album searches run together, sharing fixed budgets.
-    # Each retains its own browser session; CSE pagination cannot cross queries.
-    results = await asyncio.gather(*(
-        _browse_query(provider, place, period, url, limit=limit, timeout=timeout,
-                      page_budget=MAX_SEARCH_PAGES // len(queries) + (index < MAX_SEARCH_PAGES % len(queries)),
-                      source_budget=MAX_SOURCE_PAGES // len(queries), album=album)
-        for index, (url, album) in enumerate(queries)
-    ), return_exceptions=True)
-    return _deduplicate(_mix_sources([item for result in results if isinstance(result, list)
-                                     for item in result]))[:limit]
+    deadline = time.monotonic() + timeout
+    items = []
+    for index, (url, album) in enumerate(queries):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            items.extend(await _browse_query(
+                provider, place, period, url, limit=limit, timeout=remaining,
+                page_budget=MAX_SEARCH_PAGES // len(queries) + (index < MAX_SEARCH_PAGES % len(queries)),
+                source_budget=MAX_SOURCE_PAGES // len(queries), album=album,
+                crawler=crawler, source_slots=source_slots, on_items=on_items,
+            ))
+        except Exception as error:
+            logger.warning('%s photo browser query unavailable: %s', provider, type(error).__name__)
+        if len(_deduplicate(items)) >= limit:
+            break
+    return _deduplicate(_mix_sources(items))[:limit]
 
 
 def crawl_place_photos(provider: str, place: str, period: str, *, limit: int = 10,
-                       timeout: float = BROWSE_TIMEOUT) -> list[dict]:
+                       timeout: float = BROWSE_TIMEOUT, on_items=None) -> list[dict]:
     """Run in the catalogue thread pool; a browser failure cannot hide other sources."""
     url = _search_url(provider, place, period)
     if not url:
         return []
+    if _warm_runtime is not None:
+        future = asyncio.run_coroutine_threadsafe(
+            _warm_runtime.search(provider, place, period, url, limit=limit, timeout=timeout, on_items=on_items),
+            _warm_runtime.loop,
+        )
+        try:
+            return future.result(timeout=timeout * 2 + 5)
+        except Exception as error:
+            future.cancel()
+            logger.warning('%s photo browser unavailable: %s', provider, type(error).__name__)
+            return []
     async def bounded():
-        return await asyncio.wait_for(_browse(provider, place, period, url, limit=limit, timeout=timeout), timeout=timeout)
+        return await asyncio.wait_for(_browse(provider, place, period, url, limit=limit,
+                                             timeout=timeout, on_items=on_items), timeout=timeout)
+    # Acquire in this synchronous catalogue thread, before creating an event
+    # loop: cancelling an async waiter must never leak a browser slot.
+    if not _browser_slot.acquire(timeout=timeout):
+        logger.warning('%s photo browser unavailable: busy', provider)
+        return []
     try:
         return asyncio.run(bounded())
     except Exception as error:
         # URLs can contain search details; log only provider/type, never credentials.
         logger.warning('%s photo browser unavailable: %s', provider, type(error).__name__)
         return []
+    finally:
+        _browser_slot.release()
+
+
+class WarmPhotoBrowser:
+    """One worker-owned Chromium process; two original pages at a time."""
+
+    async def start(self):
+        from crawl4ai import AsyncWebCrawler, BrowserConfig
+        self.loop = asyncio.get_running_loop()
+        self.lock = asyncio.Lock()
+        self.source_slots = asyncio.Semaphore(2)
+        self.crawler = AsyncWebCrawler(config=BrowserConfig(
+            headless=True, verbose=False, ignore_https_errors=False))
+        await self.crawler.start()
+        return self
+
+    async def search(self, provider, place, period, url, *, limit, timeout, on_items=None):
+        async with self.lock:
+            try:
+                return await asyncio.wait_for(_browse(
+                    provider, place, period, url, limit=limit, timeout=timeout,
+                    crawler=self.crawler, source_slots=self.source_slots, on_items=on_items,
+                ), timeout)
+            finally:
+                # Crawl4AI caches contexts by run configuration. Clear their
+                # cookies/storage between public searches, retaining Chromium.
+                manager = self.crawler.crawler_strategy.browser_manager
+                for context in list(manager.contexts_by_config.values()):
+                    for page in context.pages:
+                        await page.unroute_all(behavior='ignoreErrors')
+                    await context.close()
+                manager.contexts_by_config.clear()
+                manager.sessions.clear()
+
+    async def close(self):
+        await self.crawler.close()
+
+
+def set_warm_browser(runtime):
+    global _warm_runtime
+    _warm_runtime = runtime

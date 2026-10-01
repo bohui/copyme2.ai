@@ -2225,13 +2225,15 @@ def create_app(
     photo_pages = PhotoPages()
 
     @app.get("/v1/projects/{project_id}/place-photos")
-    def place_photos(project_id: str, place: str = Query(min_length=1, max_length=120),
+    async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
                      cursor: str | None = Query(default=None, max_length=160),
                      x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         _project(memory, project_id, _account_id(x_account_id))
         try:
-            return photo_pages.page(project_id, place, period, cursor)
+            from .place_photo_transport import photo_response
+            return await photo_response(photo_pages, project_id, place, period, cursor,
+                                        stream='application/x-ndjson' in request.headers.get('accept', ''))
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}
 

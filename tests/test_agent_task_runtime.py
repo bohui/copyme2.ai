@@ -23,6 +23,7 @@ def test_collector_publishes_only_after_commit_and_invalidates_confirmation(monk
     storage.profile.return_value = {'preferred_language': 'en-AU'}
     storage.place_journey.return_value = None
     storage.story_entitlement.return_value = None
+    storage.recall_rounds_completed.return_value = 0
     storage.commit_agent_turn.return_value = {'id': 'new-turn'}
     queue = configured_queue()
     queue.update_collection(storage.user_id, 'project', expected_revision=0, periods={}, ready=True)

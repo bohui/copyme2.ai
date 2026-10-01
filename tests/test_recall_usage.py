@@ -9,7 +9,7 @@ from test_guest_conversation_transfer import attachment_database, prepare, attac
 
 @pytest.fixture(scope='module')
 def recall_database(attachment_database):
-    migration = Path(__file__).resolve().parents[1] / 'supabase/migrations/202609300003_recall_usage.sql'
+    migration = Path(__file__).resolve().parents[1] / 'supabase/legacy-migrations/202609300003_recall_usage.sql'
     attachment_database(f"insert into public.user_memory(user_id, kind, content) values ('{OWNER}', 'agent', 'old reply');")
     attachment_database(migration.read_text())
     assert attachment_database(f"select rounds_completed from public.user_recall_usage where user_id = '{OWNER}';").stdout.strip() == '1'

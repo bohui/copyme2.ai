@@ -30,18 +30,13 @@ check: ## Verify Mocker and Apple Container are installed.
 	@echo "Mocker: $$($(MOCKER) --version)"
 	@echo "Apple Container: $$($(APPLE_CONTAINER_BIN) --version)"
 
-migrate: ## Apply the Supabase agent, entitlement, Family, and place-journey migrations.
+migrate: ## Apply the consolidated Supabase migration using tracked migration history.
 	@set -a; \
-	if test -f .env; then . ./.env; fi; \
+	if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; \
 	set +a; \
 	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in .env."; exit 2; }; \
-	command -v psql >/dev/null || { echo "Missing psql. Install the PostgreSQL client first."; exit 1; }; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250003_story_entitlements.sql; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250004_fenced_agent_turn_commit.sql; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609250005_family_price_provenance.sql; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260001_user_family_context.sql; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609260002_user_place_journey.sql; \
-	psql "$${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/migrations/202609280001_agent_workspace_ordering.sql
+	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
+	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
 db-truncate: ## Empty local app tables, Supabase Storage, and filesystem objects; pass RESET_CONFIRM=1.
 	@test "$(RESET_CONFIRM)" = "1" || { echo "Refusing to truncate data. Re-run with RESET_CONFIRM=1."; exit 2; }
@@ -181,14 +176,15 @@ container-up: runtime-start ## Start the local stack from cached images; use CON
 	fi
 	@set -e; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
-	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-temporal-1 >/dev/null 2>&1 || true; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach temporal api worker web codex-worker; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 temporal api worker web codex-worker
+	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-temporal-1 memory-spark-photo-worker-1 >/dev/null 2>&1 || true; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach temporal api worker web codex-worker photo-worker; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 temporal api worker web codex-worker photo-worker
 	@$(MAKE) --no-print-directory container-health
 
-container-health: check ## Verify API, web, Temporal worker, and Codex worker.
+container-health: check ## Verify API, web, Temporal, Codex and photo workers.
 	@python3 scripts/verify_container_stack.py --api-base $(API_BASE) --web-base $(WEB_BASE) --expected-storage supabase-user-memory+filesystem-objects
 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T worker python scripts/worker.py --readiness
+	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T photo-worker python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8767/health').read()"
 
 container-check: ## Run the repository and specification checks locally.
 	@$(MAKE) --no-print-directory acceptance-evidence
@@ -199,7 +195,7 @@ container-ps: check ## Show the running services.
 	@$(MOCKER) ps --format '{{.Names}} {{.Status}}' | awk '$$1 ~ /^memory-spark-/'
 	@$(MOCKER) compose ps -f $(COMPOSE_FILE)
 
-container-logs: check ## Follow logs for SERVICE=api, web, codex-worker, or worker.
+container-logs: check ## Follow logs for SERVICE=api, web, codex-worker, photo-worker, or worker.
 	@$(MOCKER) compose logs -f $(COMPOSE_FILE) --tail 200 $(SERVICE)
 
 container-shell: check ## Open a shell in SERVICE=api.

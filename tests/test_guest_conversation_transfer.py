@@ -23,11 +23,11 @@ def attachment_database(database):
     database('alter table auth.users add column is_anonymous boolean not null default false;')
     database("alter table auth.users add column raw_user_meta_data jsonb default '{}'::jsonb;")
     database("alter table storage.objects add column metadata jsonb default '{}'::jsonb; create role service_role;")
-    root = Path(__file__).resolve().parents[1] / 'supabase/migrations'
+    root = Path(__file__).resolve().parents[1] / 'supabase/legacy-migrations'
     for name in ('202609260001_user_family_context.sql', '202609260002_user_place_journey.sql',
                  '202609280001_agent_workspace_ordering.sql'):
         database((root / name).read_text())
-    database((Path(__file__).resolve().parents[1] / 'supabase/migrations/'
+    database((Path(__file__).resolve().parents[1] / 'supabase/legacy-migrations/'
               '202609300001_guest_conversation_attachments.sql').read_text())
     database((root / '202609300002_guest_workspace_merge.sql').read_text())
     database(f"insert into auth.users(id) values ('{THIRD}');")
