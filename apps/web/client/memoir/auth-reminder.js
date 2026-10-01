@@ -2,7 +2,7 @@ import { translate } from '../i18n.js';
 import { createGuestUsage } from './auth-reminder.mjs';
 import { linkSocialIdentity } from './social-auth.mjs';
 
-export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransfer }) {
+export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransfer, onUserChanged }) {
   let usage, userId, due = false, prompted = false;
   let last = performance.now();
   let visible = document.visibilityState === 'visible';
@@ -17,7 +17,7 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
   try { conflictProvider = sessionStorage.getItem('memoir-link-provider') || 'google'; } catch { /* use Google */ }
   if (!['google', 'facebook'].includes(conflictProvider)) conflictProvider = 'google';
 
-  function open() {
+  function open({ signIn = false } = {}) {
     if (!getAuth()?.user?.is_anonymous || document.querySelector('[data-auth-reminder-dialog]')) return;
     const dialog = document.createElement('dialog');
     dialog.className = 'profile-settings';
@@ -27,7 +27,7 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
     dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div><div data-conflict hidden><p data-choice-copy></p><div class="story-auth-actions"><button class="button button-primary" type="button" data-existing></button><button class="button button-secondary" type="button" data-new></button></div></div></fieldset><p role="status" aria-live="polite"></p></form>`;
     dialog.querySelector('h2').textContent = t('title');
     dialog.querySelector('[data-close]').setAttribute('aria-label', t('later'));
-    dialog.querySelector('[data-intro]').textContent = t('message');
+    dialog.querySelector('[data-intro]').textContent = t(signIn ? 'loginMessage' : 'message');
     if (callbackError) dialog.querySelector('[role=status]').textContent = errorMessage(callbackError);
     dialog.querySelector('[data-email-label]').textContent = t('email');
     dialog.querySelector('[data-email]').textContent = t('continueEmail');
@@ -38,7 +38,8 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
     function showChoices() {
       const fieldset = dialog.querySelector('fieldset');
       for (const child of fieldset.children) {
-        child.hidden = child.hasAttribute('data-conflict') ? !conflict : conflict;
+        child.hidden = child.hasAttribute('data-conflict') ? !conflict
+          : conflict || (signIn && (child.tagName === 'LABEL' || child.hasAttribute('data-email')));
       }
     }
     showChoices();
@@ -67,6 +68,7 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
         if (result.data?.user && result.data.user.id === getAuth()?.user?.id) {
           getAuth().user = result.data.user;
           tick();
+          onUserChanged?.();
         }
         status.textContent = t(provider ? 'redirecting' : 'checkEmail');
       } catch (error) {
@@ -79,7 +81,8 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
       } finally { fieldset.disabled = false; }
     };
     dialog.querySelector('form').onsubmit = (event) => { event.preventDefault(); run(); };
-    for (const button of dialog.querySelectorAll('[data-provider]')) button.onclick = () => run(button.dataset.provider);
+    // Login enters the selected account; transfer saves the guest first.
+    for (const button of dialog.querySelectorAll('[data-provider]')) button.onclick = () => run(button.dataset.provider, signIn);
     dialog.querySelector('[data-existing]').onclick = () => run(conflictProvider, true);
     dialog.querySelector('[data-new]').onclick = () => run(conflictProvider);
     document.body.append(dialog);
@@ -142,6 +145,7 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
       if (!error && data?.user && getAuth() === account && data.user.id === account.user?.id) {
         account.user = data.user;
         tick();
+        onUserChanged?.();
       }
     } catch { /* Keep the guest reminder when verification is unavailable. */ }
     finally { refreshing = false; }

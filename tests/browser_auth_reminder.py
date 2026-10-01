@@ -1,5 +1,6 @@
 """Exercise the actual reminder module with a controlled clock and mocked auth."""
 import json
+import re
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
@@ -148,6 +149,59 @@ def main():
         page.locator('summary').click()
         expect(page.get_by_role('dialog')).to_contain_text('Tell me more.')
         expect(page.locator('dialog img')).to_have_count(0)
+        page.get_by_role('button', name='Not now').click()
+        # Profile-menu login enters an existing OAuth account directly, rather
+        # than attempting to link its identity to the anonymous account.
+        page.evaluate('''async () => {
+          history.replaceState({}, '', '/');
+          account.user = {id: 'guest-1', is_anonymous: true};
+          const {createAuthReminder} = await import('/client/memoir/auth-reminder.js');
+          window.loginReminder = createAuthReminder({getAuth: () => account, busy: () => false,
+            signInExisting: async provider => { calls.push(['login', provider]); }
+          });
+          loginReminder.open({signIn: true});
+        }''')
+        expect(page.get_by_role('dialog')).to_contain_text('access your saved conversations')
+        expect(page.get_by_label('Email address')).to_be_hidden()
+        page.get_by_role('button', name='Continue with Google').click()
+        assert page.evaluate('calls.at(-1)') == ['login', 'google']
+        expect(page.get_by_role('status')).to_contain_text('Opening')
+        page.get_by_role('button', name='Not now').click()
+        # Exercise the real menu replacement and event bindings while leaving
+        # the active conversation/composer DOM intact.
+        source = (ROOT / 'apps/web/client/memoir/client.js').read_text()
+        functions = '\n'.join(re.search(r'function ' + name + r'\(.*?\n\}', source, re.S).group(0)
+                              for name in ['profileDetails', 'profileMenu', 'closeProfileMenu',
+                                           'refreshProfileMenu', 'bindProfileMenu', 'syncSupabaseSession'])
+        page.evaluate('''functions => {
+          window.state = {supabase: {user: {id: 'guest-1', is_anonymous: true}}};
+          window.$ = selector => document.querySelector(selector);
+          window.profile = () => ({});
+          window.escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+          window.translate = key => key;
+          window.UI_LOCALES = new Set();
+          window.authReminder = {tick() {}, open() {}};
+          window.signOut = () => {};
+          window.reviewCollection = () => {};
+          (0, eval)(functions);
+          document.body.innerHTML = profileMenu() + '<textarea id="chat-input">Unsent memory</textarea>';
+          bindProfileMenu();
+        }''', functions)
+        page.locator('[data-profile-trigger]').click()
+        expect(page.locator('[data-profile-action="login"]')).to_be_visible()
+        page.evaluate('''syncSupabaseSession({access_token: 'test-token', user: {
+          id: 'owner', email: 'owner@example.com', is_anonymous: false
+        }})''')
+        expect(page.locator('[data-profile-action="login"]')).to_have_count(0)
+        expect(page.locator('[data-profile-action="logout"]')).to_be_visible()
+        expect(page.locator('[data-profile-action="attached-history"]')).to_be_visible()
+        expect(page.locator('[data-profile-trigger]')).to_contain_text('owner@example.com')
+        expect(page.locator('#chat-input')).to_have_value('Unsent memory')
+        page.locator('#chat-input').focus()
+        page.evaluate('''syncSupabaseSession({access_token: 'refreshed-token', user: {
+          id: 'owner', email: 'owner@example.com', is_anonymous: false
+        }})''')
+        assert page.evaluate('document.activeElement.id') == 'chat-input'
         browser.close()
         print('PASS: timing, email/social linking, Google consent/account selection, callback errors, retry, signed-in suppression')
 

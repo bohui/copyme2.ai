@@ -502,6 +502,7 @@
     "syncError": "Your profile is saved, but this workspace could not be updated. Save again to retry."
   },
   "AuthReminder": {
+    "loginMessage": "Sign in to access your saved conversations. Your current guest conversation and collected memories will be attached to the account you choose.",
     "title": "Sign in to keep your history",
     "message": "We’ve been chatting for 10 minutes. Connect your email or a social account to keep your conversation history. As a guest, you could lose access if you sign out, clear browser data or switch devices.",
     "email": "Email address",
@@ -521,9 +522,9 @@
     "retryMerge": "Retry attaching conversation",
     "returnGuest": "Return to guest conversation",
     "restoreError": "The guest session could not be restored. Keep this tab open and try again.",
-    "attachedHistory": "Attached conversations",
+    "attachedHistory": "Conversation history",
     "historyLoading": "Loading conversations…",
-    "historyEmpty": "No guest conversations have been attached to this account yet.",
+    "historyEmpty": "No saved conversations were found for this account.",
     "historyError": "Conversations could not be loaded. Please close and try again.",
     "historyYou": "You",
     "historyMemoir": "Memoir",

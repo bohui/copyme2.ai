@@ -124,6 +124,27 @@ def conversation_attachments(authorization: str | None = Header(default=None)):
             for item in items:
                 item.setdefault('workspace', {})['generated_documents'] = queue.list(service.user_id, item['project_id'])
                 item['workspace']['collection'] = queue.collection(service.user_id, item['project_id'])
+        # Normal OAuth conversations are persisted as agent memories; they
+        # never pass through the guest-attachment table. Show both sources.
+        imported_ids = {str(memory_id) for item in items
+                        for memory_id in (item.get('workspace', {}).get('memory_id_map') or {}).values()}
+        messages = []
+        created_at = None
+        for memory in service.all_memories():
+            if memory.get('kind') != 'agent' or str(memory.get('id')) in imported_ids:
+                continue
+            content = memory.get('content') or ''
+            if not content.startswith('Storyteller: '):
+                continue
+            question, separator, reply = content.removeprefix('Storyteller: ').partition('\nMemory Spark: ')
+            if not separator:
+                continue
+            messages.extend([{'role': 'user', 'text': question}, {'role': 'assistant', 'text': reply}])
+            created_at = memory.get('created_at')
+        if messages:
+            items.append({'id': 'account-conversation', 'project_id': 'account-conversation',
+                          'messages': messages, 'workspace': {}, 'created_at': created_at})
+        items.sort(key=lambda item: item.get('created_at') or '', reverse=True)
         return {'items': items}
     finally:
         service.client.close()

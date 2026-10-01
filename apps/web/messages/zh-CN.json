@@ -502,6 +502,7 @@
     "syncError": "个人资料已保存，但当前页面未能更新。请再次保存以重试。"
   },
   "AuthReminder": {
+    "loginMessage": "登录以查看已保存的聊天记录。当前访客聊天和收集的回忆将附加到您选择的账号。",
     "title": "登录以保留聊天记录",
     "message": "我们已经聊了10分钟。请绑定邮箱或社交账号以保留聊天记录。访客退出登录、清除浏览器数据或更换设备后，可能无法再访问这些记录。",
     "email": "邮箱地址",
@@ -521,9 +522,9 @@
     "retryMerge": "重试附加聊天",
     "returnGuest": "返回访客聊天",
     "restoreError": "暂时无法恢复访客会话，请保留本标签页并重试。",
-    "attachedHistory": "已附加的聊天",
+    "attachedHistory": "聊天记录",
     "historyLoading": "正在加载聊天…",
-    "historyEmpty": "此账号尚未附加访客聊天。",
+    "historyEmpty": "此账号暂无已保存的聊天记录。",
     "historyError": "暂时无法加载聊天，请关闭后重试。",
     "historyYou": "您",
     "historyMemoir": "Memoir",

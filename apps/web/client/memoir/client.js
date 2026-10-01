@@ -120,6 +120,7 @@ const authReminder = createAuthReminder({
   busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
   signInExisting: provider => guestTransfer.signIn(provider),
   cancelTransfer: () => guestTransfer.cancel(),
+  onUserChanged: () => refreshProfileMenu(),
 });
 
 const MEMOIR_API_PREFIX = "/api/v1/memoir";
@@ -494,10 +495,16 @@ async function loadSupabaseConfig() {
 function syncSupabaseSession(session) {
   state.supabaseSession = session || null;
   if (!state.supabase) return;
+  const previousUser = state.supabase.user;
   state.supabase.accessToken = session?.access_token || null;
   state.supabase.refreshToken = session?.refresh_token || null;
   state.supabase.user = session?.user || null;
   authReminder.tick();
+  const user = state.supabase.user;
+  if (previousUser?.id !== user?.id || previousUser?.is_anonymous !== user?.is_anonymous
+      || previousUser?.email !== user?.email
+      || previousUser?.user_metadata?.full_name !== user?.user_metadata?.full_name
+      || previousUser?.user_metadata?.name !== user?.user_metadata?.name) refreshProfileMenu();
   const accountLocale = session?.user?.user_metadata?.ui_locale;
   if (UI_LOCALES.has(accountLocale) && !readCookie(UI_LOCALE_COOKIE)) {
     writeUiLocaleCookie(accountLocale);
@@ -1599,6 +1606,15 @@ function closeProfileMenu(restoreFocus = false) {
   if (restoreFocus) trigger.focus();
 }
 
+function refreshProfileMenu() {
+  const menu = $("[data-profile-menu]");
+  if (!menu) return;
+  const open = menu.querySelector("[data-profile-trigger]")?.getAttribute("aria-expanded") === "true";
+  menu.outerHTML = profileMenu();
+  bindProfileMenu();
+  if (open) $("[data-profile-trigger]")?.click();
+}
+
 function bindProfileMenu() {
   const menu = $("[data-profile-menu]");
   const trigger = menu?.querySelector("[data-profile-trigger]");
@@ -1637,7 +1653,7 @@ function bindProfileMenu() {
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
   menu.querySelector("[data-profile-action='login']")?.addEventListener("click", () => {
     closeProfileMenu();
-    authReminder.open();
+    authReminder.open({ signIn: true });
   });
   menu.querySelector("[data-profile-action='collection']")?.addEventListener("click", reviewCollection);
   menu.querySelector("[data-profile-action='attached-history']")?.addEventListener("click", () => {
