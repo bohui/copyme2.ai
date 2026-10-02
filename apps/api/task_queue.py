@@ -190,11 +190,18 @@ class TaskQueue:
             'error': row['error'],
         }
 
+    @staticmethod
+    def _delivery_tables(db):
+        tables = ['tasks', 'workspace_jobs']
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='preview_jobs'").fetchone():
+            tables.append('preview_jobs')
+        return tables
+
     def has_pending_user_work(self, user_id):
         with self._connect() as db:
             return any(db.execute(f"SELECT 1 FROM {table} WHERE user_id=? "
                                   "AND status IN ('QUEUED', 'RUNNING') LIMIT 1", (user_id,)).fetchone()
-                       for table in ('tasks', 'workspace_jobs'))
+                       for table in self._delivery_tables(db))
 
     def import_guest_results(self, guest_id, owner_id, transfer_id, memory_id_map):
         """Copy completed deliveries and coverage; keep the guest recoverable.
@@ -209,7 +216,7 @@ class TaskQueue:
                 if (imported['source_user_id'], imported['target_user_id']) != (guest_id, owner_id):
                     raise ValueError('Transfer owner changed')
                 return
-            for table in ('tasks', 'workspace_jobs'):
+            for table in self._delivery_tables(db):
                 if db.execute(f"SELECT 1 FROM {table} WHERE user_id=? AND status IN ('QUEUED', 'RUNNING') LIMIT 1",
                               (guest_id,)).fetchone():
                     raise ValueError('Guest deliveries are still being generated')

@@ -17,7 +17,7 @@ from uuid import UUID
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
 from .codex_artifacts import iter_artifacts
@@ -34,7 +34,7 @@ from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, nor
 from .agent_lock import AgentTurnBusyError
 from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
-from .memoir_preview import composer_instructions
+from .memoir_preview import COMPOSER_TIMEOUT, composer_instructions, composer_output_schema
 
 
 class WorkerTurnInput(BaseModel):
@@ -46,7 +46,7 @@ class WorkerTurnInput(BaseModel):
     family_enabled: bool = False
     family_context: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
-    text: str = Field(min_length=1, max_length=100000)
+    text: str = Field(min_length=1, max_length=500000)
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
@@ -56,6 +56,13 @@ class WorkerTurnInput(BaseModel):
     # Present only for local/CI evaluation. Normal product turns do not carry
     # evaluation IDs and therefore do not return trajectory evidence.
     evaluation: dict[str, str] = Field(default_factory=dict, max_length=12)
+
+
+    @model_validator(mode='after')
+    def bound_conversation_input(self):
+        if self.agent_role != 'composer' and len(self.text) > 100000:
+            raise ValueError('Conversation input exceeds the supported limit')
+        return self
 
 
 class CodexWorker:
@@ -153,7 +160,7 @@ class CodexWorker:
                     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
                     raise AgentTurnBusyError('Codex worker is busy for this user') from None
-                async with asyncio.timeout(self.timeout):
+                async with asyncio.timeout(COMPOSER_TIMEOUT if payload.agent_role == 'composer' else self.timeout):
                     options = {}
                     if on_delta:
                         options['on_delta'] = on_delta
@@ -224,7 +231,7 @@ class CodexWorker:
                 self._run_command(uid),
                 home,
                 provider_env=environment,
-                timeout=self.timeout,
+                timeout=COMPOSER_TIMEOUT if payload.agent_role == 'composer' else self.timeout,
                 trajectory=trajectory,
             ) as connection:
                 if payload.thread_id and payload.agent_role == 'collector':
@@ -251,7 +258,8 @@ class CodexWorker:
                 reply = await connection.turn(
                     thread_id,
                     prompt,
-                    **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else {}),
+                    **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else
+                       {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
                     **({'responsesapi_client_metadata': correlation} if correlation else {}),

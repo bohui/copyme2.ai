@@ -265,3 +265,35 @@ def test_disconnected_api_cancels_and_settles_worker(monkeypatch):
                                Request(), 'test-secret')
     asyncio.run(run())
     assert stopped == [True]
+
+
+def test_composer_has_its_own_budget_and_structured_output(tmp_path, monkeypatch):
+    from apps.api.memoir_preview import COMPOSER_TIMEOUT
+    seen = []
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            seen.append(kwargs['timeout'])
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def request(self, method, params):
+            assert params['ephemeral'] is True
+            return {'thread': {'id': 'composer'}}
+        async def turn(self, thread_id, prompt, **kwargs):
+            assert kwargs['output_schema']['required'] == ['periods', 'events']
+            return '{"periods":[],"events":[]}'
+    worker = CodexWorker(home_root=tmp_path, timeout=1)
+    monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    asyncio.run(worker.turn(WorkerTurnInput(user_id='11111111-1111-4111-8111-111111111111',
+                                          text='test', agent_role='composer', composer_phase='index')))
+    assert seen == [COMPOSER_TIMEOUT]
+
+
+def test_only_composer_accepts_larger_structured_packets():
+    from pydantic import ValidationError
+    options = {'user_id': '11111111-1111-4111-8111-111111111111', 'text': 'x' * 120001}
+    with pytest.raises(ValidationError):
+        WorkerTurnInput(**options)
+    assert WorkerTurnInput(**options, agent_role='composer').agent_role == 'composer'

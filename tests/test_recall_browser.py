@@ -123,3 +123,92 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         destination.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(destination), full_page=True)
         browser.close()
+
+
+@pytest.mark.parametrize('locale,width', [('en-AU', 1440), ('zh-CN', 390)])
+def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
+    """Exercise the real client with a slow credential-free job fixture."""
+    from datetime import datetime, timedelta
+    copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())['Memoir']['recall']
+    model = {'posts': 0, 'polls': 0, 'ready': False, 'poll_error': False, 'held': None}
+    project = {'id': 'preview-fixture', 'revision': 1, 'profile': {'preferred_language': locale}, 'mode': 'self'}
+
+    def api(route):
+        path = route.request.url.split('/api/v1/memoir')[-1]
+        data = {}
+        if path == '/agent/config':
+            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public', 'auth_mode': 'supabase'}
+        elif path in ('/agent/profile', '/user/profile'):
+            data = project['profile']
+        elif path == '/projects/preview-fixture':
+            data = project
+        elif path == '/user/conversations':
+            data = {'items': []}
+        elif path == '/story/state':
+            data = {'recall_status': {'rounds_completed': 20, 'free_rounds': 20,
+                                      'payment_required': True, 'paid': False}, 'family_features_enabled': False}
+        elif path == '/story/preview':
+            model['posts'] += 1
+            if model['posts'] == 1:
+                return route.fulfill(status=503, headers={'X-Error-Code': 'PREVIEW_UNAVAILABLE'},
+                                     content_type='application/json', body='{}')
+            model['held'] = route
+            return
+        elif path == '/story/preview/fixture-job':
+            model['polls'] += 1
+            if model['poll_error']:
+                model['poll_error'] = False
+                return route.fulfill(status=503, content_type='application/json', body='{}')
+            data = {'status': 'ready', 'preview': {'kind': 'sample_chapter', 'title': 'A saved memory',
+                    'text': 'A short sample from a synthetic story.', 'outline': []}} if model['ready'] else {
+                    'status': 'pending', 'job': {'id': 'fixture-job', 'status': 'RUNNING'}, 'retry_after': 3}
+        return route.fulfill(content_type='application/json', body=json.dumps(data))
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        context = browser.new_context(viewport={'width': width, 'height': 1000})
+        base = os.environ['MEMOIR_BROWSER_URL']
+        context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
+                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
+        page = context.new_page()
+        page.clock.install()
+        page.clock.pause_at(datetime.now() + timedelta(hours=1))
+        page.add_init_script("localStorage.setItem('memory-spark-project', 'preview-fixture');")
+        auth_script = '''window.supabase = {createClient: () => ({auth: {
+          getSession: async () => ({data: {session: {access_token: 'test-fixture', user: {id: 'owner', is_anonymous: false}}}}),
+          onAuthStateChange: () => ({})
+        }})};'''
+        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
+            content_type='text/javascript', body=auth_script))
+        page.route('**/api/v1/memoir/**', api)
+        page.goto(base + '/memoir/interview/preview-fixture')
+        page.wait_for_load_state('networkidle')
+        card = page.locator('.recall-preview')
+        retry = page.get_by_role('button', name=copy['previewRetry'], exact=True)
+        expect(retry).to_be_visible(timeout=30000)
+        destination = ROOT / 'output/preview-debug'
+        destination.mkdir(parents=True, exist_ok=True)
+        card.screenshot(path=str(destination / f'before-{locale}.png'))
+        retry.click()
+        expect(card).to_have_attribute('aria-busy', 'true')
+        expect(card.get_by_role('status')).to_contain_text(copy['previewPreparing'])
+        expect(card.get_by_role('button', name=copy['previewWorking'], exact=True)).to_be_disabled()
+        card.screenshot(path=str(destination / f'loading-{locale}.png'))
+        assert model['posts'] == 2
+        assert model['held'] is not None
+        model['held'].fulfill(status=202, content_type='application/json', body=json.dumps({
+            'status': 'pending', 'preview': None, 'job': {'id': 'fixture-job', 'status': 'RUNNING'}, 'retry_after': 3}))
+        page.clock.fast_forward(31000)
+        expect(card.get_by_role('status')).to_contain_text(copy['previewSlow'])
+        card.screenshot(path=str(destination / f'slow-{locale}.png'))
+        assert model['posts'] == 2
+        model['poll_error'] = True
+        page.clock.fast_forward(4000)
+        expect(card.get_by_role('status')).to_contain_text(copy['previewReconnecting'])
+        model['ready'] = True
+        page.clock.fast_forward(4000)
+        expect(card).to_contain_text('A short sample from a synthetic story.')
+        card.screenshot(path=str(destination / f'ready-{locale}.png'))
+        assert model['posts'] == 2
+        assert model['polls'] >= 3
+        browser.close()

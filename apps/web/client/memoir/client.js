@@ -3016,42 +3016,75 @@ async function uploadAttachments(items) {
   }
 }
 
-async function ensureRecallPreview({ retry = false } = {}) {
+async function ensureRecallPreview({ retry = false, poll = false } = {}) {
   const projectId = state.project?.id;
+  const userId = state.supabase?.user?.id;
   if (!projectId || !state.recallStatus?.payment_required) return;
-  if (!retry && state.recallPreview?.projectId === projectId) return;
-  state.recallPreview = { projectId, status: "loading" };
+  const previous = state.recallPreview?.projectId === projectId && state.recallPreview.userId === userId
+    ? state.recallPreview : null;
+  if (previous?.inFlight || previous?.status === "loading") return;
+  if (!retry && !poll && previous) return;
+  if (previous?.timer) clearTimeout(previous.timer);
+  const checking = poll || (retry && previous?.status === "paused");
+  const attempt = { projectId, userId, status: checking ? "pending" : "loading", inFlight: true,
+    startedAt: checking ? previous?.startedAt || Date.now() : Date.now(), job: checking ? previous?.job : null,
+    pollErrors: checking ? previous?.pollErrors || 0 : 0,
+    slow: checking && Date.now() - (previous?.startedAt || Date.now()) >= 30000 };
+  state.recallPreview = attempt;
   render();
+  const current = () => state.recallPreview === attempt && state.project?.id === projectId
+    && state.supabase?.user?.id === userId;
+  const slowTimer = setTimeout(() => {
+    if (current()) { attempt.slow = true; render(); }
+  }, 30000);
+  const controller = new AbortController();
+  const requestTimer = setTimeout(() => controller.abort(), 30000);
   try {
-    let result;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        result = await storyApi("/v1/story/preview", {
-          method: "POST",
-          body: JSON.stringify({ project_id: projectId, language: conversationLanguage() }),
-        });
-        break;
-      } catch (error) {
-        if (error.code !== "AGENT_TURN_IN_PROGRESS" || attempt === 3) throw error;
-        await new Promise(resolve => setTimeout(resolve, 1500));
+    const result = await storyApi(checking && attempt.job?.id
+      ? `/v1/story/preview/${encodeURIComponent(attempt.job.id)}` : "/v1/story/preview", {
+      ...(checking && attempt.job?.id ? {} : { method: "POST",
+        body: JSON.stringify({ project_id: projectId, language: conversationLanguage() }) }),
+      signal: controller.signal,
+    });
+    if (!current()) return;
+    Object.assign(attempt, result, { pollErrors: 0, reconnect: false });
+  } catch (error) {
+    if (!current()) return;
+    const pending = error.code === "AGENT_TURN_IN_PROGRESS";
+    const reconnecting = checking && attempt.job && (error.name === "AbortError" || !error.status || error.status >= 500);
+    attempt.pollErrors += reconnecting ? 1 : 0;
+    attempt.status = pending || (reconnecting && attempt.pollErrors <= 3) ? "pending" : "error";
+    attempt.reconnect = reconnecting;
+    attempt.authRequired = error.status === 401 || error.status === 403;
+  } finally {
+    clearTimeout(slowTimer);
+    clearTimeout(requestTimer);
+    if (current()) {
+      attempt.inFlight = false;
+      attempt.slow = Date.now() - attempt.startedAt >= 30000;
+      if (attempt.status === "pending") {
+        if (Date.now() - attempt.startedAt >= 900000) attempt.status = "paused";
+        else attempt.timer = setTimeout(() => {
+          if (state.recallPreview === attempt && state.project?.id === projectId
+              && state.supabase?.user?.id === userId) void ensureRecallPreview({ poll: true });
+        }, attempt.job ? Math.min(15000, Math.max(3000, (attempt.retry_after || 3) * 1000)) : 15000);
       }
+      render();
     }
-    if (state.project?.id === projectId) state.recallPreview = { projectId, ...result };
-  } catch {
-    if (state.project?.id === projectId) state.recallPreview = { projectId, status: "error" };
   }
-  if (state.project?.id === projectId) render();
 }
 
 function recallPackagePrompt() {
   if (!state.recallStatus?.payment_required) return "";
   const t = key => escapeHtml(translate(`Memoir.recall.${key}`));
-  const sample = state.recallPreview?.projectId === state.project?.id ? state.recallPreview : null;
-  if (!sample || sample.status === "loading") {
-    return `<section class="recall-preview" aria-busy="true"><h2>${t("previewTitle")}</h2><p role="status">${t("previewPreparing")}</p></section>`;
+  const sample = state.recallPreview?.projectId === state.project?.id
+    && state.recallPreview.userId === state.supabase?.user?.id ? state.recallPreview : null;
+  if (!sample || sample.status === "loading" || sample.status === "pending") {
+    const message = sample?.reconnect ? "previewReconnecting" : sample?.slow ? "previewSlow" : "previewPreparing";
+    return `<section class="recall-preview" aria-busy="true"><h2>${t("previewTitle")}</h2><p role="status" aria-live="polite"><span class="preview-spinner" aria-hidden="true"></span>${t(message)}</p><button type="button" class="button button-secondary" disabled>${t("previewWorking")}</button></section>`;
   }
   if (sample.status !== "ready" || !sample.preview) {
-    return `<section class="recall-preview"><h2>${t("previewTitle")}</h2><p role="status">${t(sample.status === "insufficient_context" ? "previewInsufficient" : "previewFailed")}</p><button type="button" class="button button-secondary" data-retry-recall-preview>${t("previewRetry")}</button></section>`;
+    return `<section class="recall-preview"><h2>${t("previewTitle")}</h2><p role="status" aria-live="polite">${t(sample.authRequired ? "previewSignIn" : sample.status === "paused" ? "previewPaused" : sample.status === "stale" ? "previewStale" : sample.status === "insufficient_context" ? "previewInsufficient" : "previewFailed")}</p><button type="button" class="button button-secondary" data-retry-recall-preview>${t(sample.status === "paused" ? "previewCheck" : "previewRetry")}</button></section>`;
   }
   const preview = sample.preview;
   const excerpt = `<article class="recall-preview"><div class="eyebrow">${t(preview.kind === "sample_storyline" ? "sampleStoryline" : "sampleChapter")}</div><h2>${escapeHtml(preview.title)}</h2><div class="recall-preview-text">${formatText(preview.text)}</div>${preview.kind === "sample_storyline" && preview.outline?.length ? `<ol>${preview.outline.map(title => `<li>${escapeHtml(title)}</li>`).join("")}</ol>` : ""}<p class="fine-print">${t("previewNote")}</p></article>`;
