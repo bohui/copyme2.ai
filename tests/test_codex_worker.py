@@ -284,6 +284,8 @@ def test_composer_has_its_own_budget_and_structured_output(tmp_path, monkeypatch
             assert kwargs['output_schema']['required'] == ['periods', 'events']
             return '{"periods":[],"events":[]}'
     worker = CodexWorker(home_root=tmp_path, timeout=1)
+    async def reachable(): pass
+    monkeypatch.setattr(worker, '_ensure_composer_provider', reachable)
     monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
     asyncio.run(worker.turn(WorkerTurnInput(user_id='11111111-1111-4111-8111-111111111111',
@@ -297,3 +299,27 @@ def test_only_composer_accepts_larger_structured_packets():
     with pytest.raises(ValidationError):
         WorkerTurnInput(**options)
     assert WorkerTurnInput(**options, agent_role='composer').agent_role == 'composer'
+
+
+def test_composer_offline_provider_fails_before_model_start(tmp_path, monkeypatch):
+    from apps.api.codex_worker_service import ComposerProviderUnavailable
+    async def refused(*args):
+        raise ConnectionRefusedError('private endpoint details must not escape')
+    monkeypatch.setattr(asyncio, 'open_connection', refused)
+    worker = CodexWorker(home_root=tmp_path)
+    monkeypatch.setattr(worker, '_turn', lambda *args: pytest.fail('Offline provider must not start model work'))
+    with pytest.raises(ComposerProviderUnavailable, match='^The model provider is unavailable$'):
+        asyncio.run(worker.turn(WorkerTurnInput(user_id=UUID(int=1), text='synthetic', agent_role='composer')))
+
+
+def test_composer_offline_endpoint_has_safe_terminal_code(monkeypatch):
+    from apps.api import codex_worker_service as service
+    monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET', 'test-secret')
+    async def offline(payload):
+        raise service.ComposerProviderUnavailable('private diagnostic')
+    monkeypatch.setattr(service.worker, 'turn', offline)
+    response = TestClient(app).post('/internal/codex/turn', headers={'X-Codex-Worker-Secret':'test-secret'},
+        json={'user_id':str(UUID(int=1)), 'text':'synthetic', 'agent_role':'composer'})
+    assert response.status_code == 503
+    assert response.headers['X-Error-Code'] == 'COMPOSER_PROVIDER_UNAVAILABLE'
+    assert 'private' not in response.text

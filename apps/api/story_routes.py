@@ -455,12 +455,13 @@ def build_router(
             error = 'PREVIEW_SOURCE_CHANGED'
         except Exception as failure:
             # Exception strings can contain private text, headers or URLs.
-            error = 'AGENT_TURN_IN_PROGRESS' if isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code == 409 else 'PREVIEW_TIMEOUT' if isinstance(failure, (TimeoutError, httpx.TimeoutException)) or (
+            offline = isinstance(failure, httpx.HTTPStatusError) and failure.response.headers.get('X-Error-Code') == 'COMPOSER_PROVIDER_UNAVAILABLE'
+            error = 'PREVIEW_PROVIDER_UNAVAILABLE' if offline else 'AGENT_TURN_IN_PROGRESS' if isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code == 409 else 'PREVIEW_TIMEOUT' if isinstance(failure, (TimeoutError, httpx.TimeoutException)) or (
                 isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code == 504
             ) else 'PREVIEW_UNAVAILABLE'
-            retryable = isinstance(failure, (TimeoutError, httpx.TransportError)) or (
+            retryable = not offline and (isinstance(failure, (TimeoutError, httpx.TransportError)) or (
                 isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code in {409, 429, 502, 503, 504}
-            )
+            ))
             logging.getLogger(__name__).warning('memoir_preview failure_type=%s code=%s', type(failure).__name__, error)
         finally:
             try:

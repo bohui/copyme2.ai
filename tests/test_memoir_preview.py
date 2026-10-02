@@ -208,6 +208,27 @@ def test_failed_review_is_terminal_and_error_logs_omit_private_details(monkeypat
     assert not storage.held
 
 
+def test_offline_provider_is_terminal_without_automatic_retry(monkeypatch):
+    import httpx
+    storage, _ = fixture_storage()
+    calls = []
+    async def offline(*args):
+        calls.append(args[4])
+        response = httpx.Response(503, headers={'X-Error-Code':'COMPOSER_PROVIDER_UNAVAILABLE'},
+                                  request=httpx.Request('POST','http://worker.test/turn'))
+        response.raise_for_status()
+    monkeypatch.setattr(memoir_preview, 'composer_call', offline)
+    with TestClient(create_app(MemoryStore(), story_storage_factory=lambda authorization: storage)) as client:
+        result = prepare(client, {'project_id':'project-preview'})
+        assert result['status'] == 'error'
+        assert result['job']['error'] == 'PREVIEW_PROVIDER_UNAVAILABLE'
+        assert result['job']['attempts'] == 1
+        for _ in range(3):
+            assert client.get('/v1/story/preview/' + result['job']['id'],headers=_auth_headers()).json()['status'] == 'error'
+        assert calls == ['index']
+    assert not storage.held
+
+
 def test_review_retry_reuses_validated_index_and_draft(monkeypatch):
     import httpx
     storage, _ = fixture_storage()

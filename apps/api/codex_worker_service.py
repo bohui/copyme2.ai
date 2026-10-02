@@ -13,6 +13,7 @@ import httpx
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -35,6 +36,10 @@ from .agent_lock import AgentTurnBusyError
 from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
 from .memoir_preview import COMPOSER_TIMEOUT, composer_instructions, composer_output_schema
+
+
+class ComposerProviderUnavailable(RuntimeError):
+    """The configured provider is offline; no model work has been attempted."""
 
 
 class WorkerTurnInput(BaseModel):
@@ -150,6 +155,8 @@ class CodexWorker:
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
         user_id = str(payload.user_id)
         async with self._lock(user_id, payload.agent_role):
+            if payload.agent_role == 'composer':
+                await self._ensure_composer_provider()
             # Shared-volume lock also covers API disconnect/lease expiry and
             # multiple worker processes. Collector and workspace passes have
             # separate homes and therefore separate locks.
@@ -167,6 +174,18 @@ class CodexWorker:
                     if on_event:
                         options['on_event'] = on_event
                     return await self._turn(payload, **options)
+
+    async def _ensure_composer_provider(self):
+        # Codex internally retries connection failures. Reject an unreachable
+        # endpoint before starting that loop, without sending source data.
+        endpoint = urlsplit(self.base_url)
+        try:
+            _, writer = await asyncio.wait_for(asyncio.open_connection(
+                endpoint.hostname, endpoint.port or (443 if endpoint.scheme == 'https' else 80)), 5)
+            writer.close()
+            await writer.wait_closed()
+        except (OSError, TimeoutError):
+            raise ComposerProviderUnavailable('The model provider is unavailable') from None
 
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
         user_id = str(payload.user_id)
@@ -340,6 +359,9 @@ async def turn(payload: WorkerTurnInput, request: Request,
         return await task
     except AgentTurnBusyError as error:
         raise HTTPException(status_code=409, detail=str(error)) from None
+    except ComposerProviderUnavailable:
+        raise HTTPException(status_code=503, detail='The model provider is unavailable',
+                            headers={'X-Error-Code': 'COMPOSER_PROVIDER_UNAVAILABLE'}) from None
     except TimeoutError:
         raise HTTPException(status_code=504, detail='Codex worker turn timed out') from None
     except RuntimeError as error:
