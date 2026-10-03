@@ -22,7 +22,7 @@ CONTAINER_IMAGES := \
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -41,7 +41,7 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
-db-truncate: check ## Permanently clear all app database rows, Supabase Auth users, every Storage bucket, local user files, and Compose data; pass RESET_CONFIRM=1.
+db-truncate: check ## Clear user/app data, Auth, Storage and local Compose state; preserve shared photo search cache; pass RESET_CONFIRM=1.
 	@test "$(RESET_CONFIRM)" = "1" || { echo "Refusing to truncate data. Re-run with RESET_CONFIRM=1."; exit 2; }
 	@test -f "$(ENV_FILE)" || { echo "Missing $(ENV_FILE). Copy .env.example to .env first."; exit 2; }
 	@set -a; \
@@ -50,6 +50,7 @@ db-truncate: check ## Permanently clear all app database rows, Supabase Auth use
 	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in $(ENV_FILE)."; exit 2; }; \
 	test -n "$${SUPABASE_URL:-}" || { echo "Set SUPABASE_URL in $(ENV_FILE)."; exit 2; }; \
 	test -n "$${SUPABASE_SECRET_KEY:-$${SUPABASE_SERVICE_ROLE_KEY:-}}" || { echo "Set SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) in $(ENV_FILE)."; exit 2; }; \
+	python3 scripts/truncate_local_data.py --check-scope || exit $$?; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans --volumes; \
 	python3 scripts/truncate_local_data.py --yes
 
@@ -139,6 +140,14 @@ browser-ten-round-test: localization-catalog-test ## Run ten localized chat turn
 		--server "cd apps/web && MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:$(API_PORT) npm run dev -- --hostname 127.0.0.1 --port $(WEB_PORT)" \
 		--port $(WEB_PORT) -- python3 tests/browser_ten_round_e2e.py --base-url http://127.0.0.1:$(WEB_PORT) --locale all
 
+memoir-progressive-test: localization-catalog-test ## Run 10 grounded 31-round memoir compositions plus China/Australia UI delivery checks.
+	@node --test skills/memoir-composer/tests/*.test.mjs
+	@python3 /Users/bohuihan/.codex/skills/webapp-testing/scripts/with_server.py \
+		--server "MEMORY_SPARK_TEST_MODE=1 MEMORY_SPARK_SHOW_THINKING_STEPS=0 python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port $(API_PORT)" \
+		--port $(API_PORT) \
+		--server "cd apps/web && MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:$(API_PORT) npm run dev -- --hostname 127.0.0.1 --port $(WEB_PORT) >/dev/null 2>&1" \
+		--port $(WEB_PORT) -- python3 tests/browser_memoir_progressive_e2e.py --base-url http://127.0.0.1:$(WEB_PORT) --locale all
+
 acceptance-evidence: ## Run AT-001 through AT-055 and write the evidence report.
 	@python3 scripts/run_acceptance_evidence.py
 
@@ -154,6 +163,10 @@ container-config: check ## Validate the Compose model through Mocker.
 
 container-build: runtime-start ## Build the local images without changing running services.
 	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE)
+
+.PHONY: up down
+
+up: container-up ## Start the local stack (alias for container-up).
 
 container-up: runtime-start ## Start the local stack from cached images; use CONTAINER_BUILD=1 to rebuild.
 	@mkdir -p var/memory-spark
@@ -208,6 +221,8 @@ container-logs: check ## Follow logs for SERVICE=api, web, codex-worker, photo-w
 
 container-shell: check ## Open a shell in SERVICE=api.
 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -it $(SERVICE) sh
+
+down: container-down ## Stop and remove the stack (alias for container-down).
 
 container-down: check ## Stop and remove the stack.
 	@$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans

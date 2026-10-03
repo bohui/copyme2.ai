@@ -35,3 +35,34 @@ The test suite validates deterministic behaviour, not factual entailment or book
 No production database transaction, permission service, distributed event delivery, original photo resolution, real model composition, full PDF/EPUB build or printer submission was tested. Those integrations remain the application's responsibility. `references/editorial-review.prompt.md` specifies the separate source-to-prose review pass.
 
 The JSON schemas are also checked against all example request/candidate packets during packaging. The CLI implements only the JSON Schema subset used in this bundle; it is not a general JSON Schema library.
+
+## Private checkpoint extension (2 October 2026)
+
+The suite now passes 57 tests, including an explicitly host-authorized five-round private sample with a truthful twenty-round free allowance, denied missing authorization, denied formal composition, and the unchanged free-limit gate. These synthetic tests do not establish live model availability.
+
+## Response-stage extension (2 October 2026)
+
+The suite now passes 58 tests. The additional case accepts optional stage/capture-order
+metadata, checks fingerprint invalidation after stage reassignment, and rejects an
+unknown stage. Existing packets without these fields still validate. Host integration
+tests separately cover ordered retrieval, bounded incremental indexing, changed/deleted
+dependencies and atomic PostgreSQL stage assignment. These checks use synthetic sources
+and a disposable database; the new deployment migration remains unapplied.
+
+## Progressive memoir extension (2 October 2026)
+
+The suite now passes 60 tests. The progressive case adds ten distinct 31-round lives
+across five China `zh-CN` profiles and five Australia `en-AU` profiles. It exercises the
+private five-round checkpoint, twenty-round free-preview gate, review-only formal draft,
+stable chronological chapter IDs, source-backed updates, photo rights metadata and
+progressive enrichment. The browser companion checks both localized 31-round journeys
+and the stage-3 structured delivery workspace. The worker responses are deterministic;
+live model quality and semantic entailment remain separate review concerns.
+
+
+## Sample title rendering (3 October 2026)
+
+The suite passes 62 synthetic checks, including shared sample titles rendered once
+in Markdown and HTML, distinct section titles retained, and canonical candidates
+left unchanged. Backend checks also cover clean cached/private reader previews
+without rewriting saved manuscript revisions or original testimony.

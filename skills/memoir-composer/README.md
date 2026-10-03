@@ -6,11 +6,12 @@ A reusable skill for the CopyMe2 memoir harness: organise memories and chat hist
 
 The first output can be small. More context should improve an existing memoir, not create a new unrelated book each time.
 
-## The two primary triggers
+## Application triggers
 
 | Application event | Result |
 |---|---|
-| Five free primary Memory Sparks are complete | A focused **sample chapter** if material centres on one period, or a **sample storyline + proposed chapter outline** if it spans several periods |
+| Backend-confirmed free allowance is complete (default twenty rounds) | A focused **sample chapter** if material centres on one period, or a **sample storyline + proposed chapter outline** if it spans several periods |
+| Explicitly host-authorized private checkpoint (default every five completed rounds) | A private sample, keeping the free allowance and full-book consent gates unchanged |
 | Storyteller says they are basically finished and ready to compose | A chronological **formal memoir draft**, with chapters, photographs, evidence references and review metadata |
 
 `new_context` and `manual_revision` support later enrichment. “Basically finished” does not require every period of life to be covered. The application records consent/authorisation and the storyteller's readiness confirmation; the model must not infer permission from silence or a score.
@@ -75,7 +76,8 @@ memoir-composer/
 │   └── build-examples.mjs           Regenerate synthetic fixtures locally
 ├── tests/
 │   ├── fixtures.mjs
-│   └── composer.test.mjs
+│   ├── composer.test.mjs
+│   └── progressive_e2e.test.mjs
 └── examples/
     ├── focused_trial/
     ├── broad_trial/

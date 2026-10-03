@@ -1,43 +1,87 @@
 {
-  "skill_version": "1.0.0",
-  "validated_at": "2026-10-01",
-  "python": "3.12.11",
-  "pillow": "12.0.0",
-  "crawl4ai": "0.8.0",
-  "offline_tests": 68,
-  "passed": 68,
-  "failed": 0,
-  "skill_frontmatter": "valid",
-  "openai_yaml": "valid",
-  "markdown_fences": "balanced",
-  "tests_use": "offline tests with mocked Crawl4AI pages/network and in-memory synthetic images",
-  "crawl4ai_offline_coverage": [
-    "CSE image-card parsing",
-    "paginated CSE wrapper sessions",
-    "paginated source discovery to ten candidates",
-    "location/date filtering of related media",
-    "HTTPS normalization for observed HTTP image CDNs",
-    "verified Chengde landmark aliases retain city and memory period"
-  ],
-  "live_smoke": {
-    "date": "2026-09-30",
-    "place": "Chengde, Hebei, China / \u6cb3\u5317\u627f\u5fb7",
-    "input_period": "1980",
-    "resolved_period": "1980-01-01..1989-12-31",
-    "search_pages": 2,
-    "search_cards": 40,
-    "source_pages": 2,
-    "memory_reference_candidates": 10,
-    "shortfall": 0,
-    "downloaded_bytes": 0,
-    "rights_status": "unknown_by_design"
+  "skill_version": "1.1.0",
+  "validated_at": "2026-10-02",
+  "runtime_versions": {
+    "python": "3.12.11",
+    "crawl4ai": "0.8.0",
+    "playwright": "1.62.0",
+    "lxml": "5.3.2",
+    "Pillow": "12.0.0",
+    "pytest": "8.4.2"
   },
-  "not_tested": [
-    "Live Codex installation/activation",
-    "Live native web search relevance",
-    "Google CSE quota outside the configured smoke",
-    "End-to-end real archive downloads",
-    "Independent legal/photo authenticity verification",
-    "Production region/processor compliance"
+  "offline_tests": 88,
+  "passed": 88,
+  "failed": 0,
+  "shared_api_tests_passed": 54,
+  "photo_js_tests_passed": 26,
+  "full_repository_suite": {
+    "passed": 445,
+    "skipped": 24,
+    "failed": 1,
+    "failure": "Pre-existing migration-count assertion expects one file; existing user guest-transfer migration adds another. No migration changed."
+  },
+  "parallel_live_smoke": {
+    "place": "Chengde",
+    "input_period": null,
+    "as_of": "2026-10-02",
+    "serpapi_leads": 99,
+    "serpapi_seconds": 1.869601,
+    "cse_status": "blocked_captcha",
+    "cse_seconds": 6.295368,
+    "combined_search_seconds": 6.317591,
+    "repeat_search_seconds": 0.014133,
+    "repeat_provider_calls": 0,
+    "search_quota_usage_delta": 1,
+    "verified_reference_count": 0,
+    "credential_artifact_scan": "passed",
+    "downloaded_bytes": 0
+  },
+  "historical_validation_v1_0_0": {
+    "skill_version": "1.0.0",
+    "validated_at": "2026-10-01",
+    "python": "3.12.11",
+    "pillow": "12.0.0",
+    "crawl4ai": "0.8.0",
+    "offline_tests": 68,
+    "passed": 68,
+    "failed": 0,
+    "skill_frontmatter": "valid",
+    "openai_yaml": "valid",
+    "markdown_fences": "balanced",
+    "tests_use": "offline tests with mocked Crawl4AI pages/network and in-memory synthetic images",
+    "crawl4ai_offline_coverage": [
+      "CSE image-card parsing",
+      "paginated CSE wrapper sessions",
+      "paginated source discovery to ten candidates",
+      "location/date filtering of related media",
+      "HTTPS normalization for observed HTTP image CDNs",
+      "verified Chengde landmark aliases retain city and memory period"
+    ],
+    "live_smoke": {
+      "date": "2026-09-30",
+      "place": "Chengde, Hebei, China / \u6cb3\u5317\u627f\u5fb7",
+      "input_period": "1980",
+      "resolved_period": "1980-01-01..1989-12-31",
+      "search_pages": 2,
+      "search_cards": 40,
+      "source_pages": 2,
+      "memory_reference_candidates": 10,
+      "shortfall": 0,
+      "downloaded_bytes": 0,
+      "rights_status": "unknown_by_design"
+    },
+    "not_tested": [
+      "Live Codex installation/activation",
+      "Live native web search relevance",
+      "Google CSE quota outside the configured smoke",
+      "End-to-end real archive downloads",
+      "Independent legal/photo authenticity verification",
+      "Production region/processor compliance"
+    ]
+  },
+  "limitations": [
+    "Search leads are not capture-date, authenticity or rights proof.",
+    "Shared app helper callers tested; app routing is unchanged.",
+    "Pillow runtime 12.0.0 is below existing declared download minimum 12.3.0; no live downloads."
   ]
 }

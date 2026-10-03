@@ -27,6 +27,7 @@ from .agent_lock import AgentTurnLease, AgentTurnBusyError
 from .memoir_preview import (compose_preview, source_snapshot, snapshot_key, cached_preview,
                              normalize_conversation_language, PreviewSourceChanged)
 from .preview_jobs import PreviewJobs
+from .stage_readiness import stage_readiness
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -249,9 +250,19 @@ def build_router(
 
     @asynccontextmanager
     async def lifespan(app):
+        broker_task=None
+        broker=None
+        if os.getenv('SUPABASE_URL') and os.getenv('SUPABASE_SECRET_KEY') and os.getenv('MEMORY_SPARK_TASK_DB'):
+            from .private_draft_broker import PrivateDraftBroker
+            broker=PrivateDraftBroker()
+            broker_task=asyncio.create_task(broker.run())
         try:
             yield
         finally:
+            if broker_task:
+                broker_task.cancel()
+                await asyncio.gather(broker_task,return_exceptions=True)
+                await broker.client.aclose()
             tasks = list(running_previews.values())
             for task in tasks:
                 task.cancel()
@@ -269,6 +280,42 @@ def build_router(
     @router.get("/plans")
     def story_plans() -> dict[str, Any]:
         return {"items": list_story_plans(), "currency": "AUD"}
+
+    @router.get('/readiness')
+    async def context_readiness(project_id: str, authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            rows = await asyncio.to_thread(getattr(storage, 'all_memories', storage.memories))
+            return {'project_id': project_id, 'stages': stage_readiness(rows, project_id),
+                    'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/private-draft')
+    async def saved_private_draft(project_id: str, language: str | None = None,
+                                  authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            from .private_drafts import synchronize
+            # Every render rechecks source authorization and versions using a
+            # fresh RLS read, including changes made while the tab was closed.
+            return await asyncio.to_thread(synchronize, storage, project_id, language)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.post('/private-draft/retry')
+    async def retry_private_draft(payload: StoryPreviewCreate,authorization: str | None = Header(default=None)):
+        storage=await asyncio.to_thread(storage_for,authorization)
+        try:
+            from .private_drafts import synchronize
+            from .private_draft_jobs import PrivateDraftJobs
+            view=await asyncio.to_thread(synchronize,storage,payload.project_id,payload.language)
+            language=payload.language or normalize_conversation_language((await asyncio.to_thread(storage.profile)).get('preferred_language'))
+            await asyncio.to_thread(PrivateDraftJobs(os.environ['MEMORY_SPARK_TASK_DB']).retry,
+                                   storage.user_id,payload.project_id,language)
+            return view
+        finally:
+            await asyncio.to_thread(_close,storage)
 
     @router.get("/state")
     def story_state(authorization: str | None = Header(default=None)):
@@ -427,7 +474,8 @@ def build_router(
         if not access or access['rounds_completed'] < access['free_rounds']:
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
-        rows = await AgentTurnLease.io(getattr(storage, 'all_memories', storage.memories))
+        reader = getattr(storage, 'composition_memories', None) or getattr(storage, 'all_memories', storage.memories)
+        rows = await AgentTurnLease.io(reader)
         profile = await AgentTurnLease.io(storage.profile)
         language = normalize_conversation_language(language or profile.get('preferred_language'))
         sources = source_snapshot(rows, project_id)

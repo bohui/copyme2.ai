@@ -4,6 +4,8 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import MemoirClientShell from "../components/MemoirClientShell";
 
+export const viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
+
 export async function generateMetadata() {
   const t = await getTranslations("Platform");
   return {

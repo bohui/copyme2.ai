@@ -1,0 +1,496 @@
+"""Deterministic evaluation helpers for the five-case, 50-round Memoir run.
+
+The expected-outcome file is intentionally separate from the model-visible
+round input.  This module consumes observable application results and traces;
+it never calls a skill directly and never treats a response string as proof of
+persisted state.
+"""
+
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+from copy import deepcopy
+import json
+from pathlib import Path
+from typing import Any, Mapping
+
+
+SKILLS = (
+    "memoir-memory-context",
+    "memoir-place-journey",
+    "memoir-family-tree",
+    "memoir-author-timeline",
+    "memoir-place-groups",
+    "place-photo-research",
+    "memoir-composer",
+)
+LIFE_STAGES = (
+    "baby",
+    "toddler",
+    "childhood",
+    "adolescence",
+    "young_adulthood",
+    "midlife",
+    "later_life",
+)
+UI_SKILLS = {"memoir-place-groups", "place-photo-research"}
+
+
+def load_json(path: str | Path) -> Any:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def validate_inputs(payload: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if payload.get("schema_version") != "memoir-five-case-inputs/1":
+        errors.append("inputs schema_version is not memoir-five-case-inputs/1")
+    cases = payload.get("cases")
+    if not isinstance(cases, list) or len(cases) != 5:
+        errors.append("inputs must contain exactly five cases")
+        return errors
+    ids: set[str] = set()
+    for case in cases:
+        if not isinstance(case, Mapping):
+            errors.append("each input case must be an object")
+            continue
+        case_id = str(case.get("id") or "")
+        if not case_id or case_id in ids:
+            errors.append(f"duplicate or missing case id: {case_id!r}")
+        ids.add(case_id)
+        rounds = case.get("rounds")
+        if not isinstance(rounds, list) or len(rounds) != 50:
+            errors.append(f"{case_id}: expected exactly 50 model-visible rounds")
+        elif any(not isinstance(text, str) or not text.strip() for text in rounds):
+            errors.append(f"{case_id}: every model-visible round must be non-empty text")
+        if case.get("locale") not in {"en-AU", "zh-CN"}:
+            errors.append(f"{case_id}: unsupported locale")
+        if not isinstance(case.get("project_id"), str) or not case["project_id"]:
+            errors.append(f"{case_id}: missing isolated project_id")
+    return errors
+
+
+def validate_expected(payload: Mapping[str, Any], input_ids: set[str]) -> list[str]:
+    errors: list[str] = []
+    if payload.get("schema_version") != "memoir-five-case-expected/1":
+        errors.append("expected schema_version is not memoir-five-case-expected/1")
+    if payload.get("required_rounds") != 50:
+        errors.append("expected required_rounds must be 50")
+    if tuple(payload.get("skills") or ()) != SKILLS:
+        errors.append("expected skill list does not match the seven-skill contract")
+    if tuple(payload.get("life_stages") or ()) != LIFE_STAGES:
+        errors.append("expected life-stage list does not match the runtime contract")
+    bands = payload.get("stage_bands")
+    if not isinstance(bands, Mapping):
+        errors.append("expected stage_bands is missing")
+    else:
+        covered: set[int] = set()
+        for stage in LIFE_STAGES:
+            band = bands.get(stage)
+            if not isinstance(band, list) or len(band) != 2 or not all(isinstance(n, int) for n in band):
+                errors.append(f"invalid stage band for {stage}")
+            else:
+                covered.update(range(band[0], band[1] + 1))
+        if covered != set(range(1, 47)):
+            errors.append("stage bands must cover rounds 1 through 46 exactly")
+    cases = payload.get("case_expectations")
+    if not isinstance(cases, list) or {str(c.get("id")) for c in cases if isinstance(c, Mapping)} != input_ids:
+        errors.append("expected cases do not match input cases")
+    for case in cases or []:
+        if not isinstance(case, Mapping):
+            continue
+        stage_rounds = case.get("stage_rounds")
+        if stage_rounds is not None:
+            if not isinstance(stage_rounds, Mapping) or any(
+                not str(round_number).isdigit() or stage not in LIFE_STAGES
+                for round_number, stage in stage_rounds.items()
+            ):
+                errors.append(f"{case.get('id')}: invalid stage_rounds")
+    return errors
+
+
+def case_expectations(payload: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    return {
+        str(case["id"]): case
+        for case in payload.get("case_expectations", [])
+        if isinstance(case, Mapping) and case.get("id")
+    }
+
+
+def stage_for_round(expected: Mapping[str, Any], round_number: int) -> str | None:
+    explicit = expected.get("stage_rounds")
+    if isinstance(explicit, Mapping):
+        value = explicit.get(str(round_number))
+        return str(value) if value in LIFE_STAGES else None
+    for stage, band in (expected.get("stage_bands") or {}).items():
+        if isinstance(band, list) and len(band) == 2 and band[0] <= round_number <= band[1]:
+            return str(stage)
+    return None
+
+
+def family_enabled_for_round(case_expected: Mapping[str, Any], round_number: int) -> bool:
+    rule = case_expected.get("family_enabled") or {}
+    before = rule.get("before")
+    if isinstance(before, int) and round_number < before:
+        return False
+    return bool(rule.get("default", False))
+
+
+def expected_round(expected_payload: Mapping[str, Any], case_expected: Mapping[str, Any], round_number: int) -> dict[str, Any]:
+    places = (case_expected.get("place_rounds") or {}).get(str(round_number), [])
+    places = [str(place) for place in places] if isinstance(places, list) else []
+    family_required = round_number in set(case_expected.get("required_family_rounds") or [])
+    timeline_required = round_number in set(case_expected.get("required_timeline_rounds") or [])
+    family_enabled = family_enabled_for_round(case_expected, round_number)
+    composer_action = (case_expected.get("composer_rounds") or {}).get(str(round_number))
+    photo_action = (case_expected.get("photo_rounds") or {}).get(str(round_number))
+    negative = round_number in set(case_expected.get("negative_rounds") or [])
+    status: dict[str, str] = {
+        "memoir-memory-context": "required",
+        # Only explicit positive/negative scenarios are asserted. All other
+        # skill behavior remains available to the production orchestrator but
+        # is not used to manufacture a failure from an optional call.
+        "memoir-place-journey": "required" if places else ("must_not_call" if negative else "not_applicable"),
+        "memoir-place-groups": "required" if places else ("must_not_call" if negative else "not_applicable"),
+        "memoir-family-tree": "required" if family_required and family_enabled else ("must_not_call" if negative else "not_applicable"),
+        "memoir-author-timeline": "required" if timeline_required and family_enabled else ("must_not_call" if negative else "not_applicable"),
+        "place-photo-research": "required" if photo_action in {"current_day", "historical"} else ("must_not_call" if photo_action == "must_not_call" or negative else "not_applicable"),
+        "memoir-composer": "required" if composer_action else ("must_not_call" if negative else "not_applicable"),
+    }
+    if family_required and not family_enabled:
+        status["memoir-family-tree"] = "must_not_call" if negative else "not_applicable"
+        status["memoir-author-timeline"] = "must_not_call" if negative else "not_applicable"
+    return {
+        "round": round_number,
+        # Case-specific anchors are sparse by design. An unlisted round does
+        # not require a fresh stage tag; falling back to the global bands
+        # over-asserted optional rounds and turned valid persisted context
+        # into false failures.
+        "life_stage": stage_for_round(case_expected, round_number),
+        "places": places,
+        "family_enabled": family_enabled,
+        "photo_action": photo_action or "none",
+        "composer_action": composer_action,
+        "skill_status": status,
+        "negative": negative,
+    }
+
+
+def _trace_skills(result: Mapping[str, Any]) -> set[str]:
+    skills: set[str] = set()
+    trace = result.get("trace")
+    if isinstance(trace, list):
+        for step in trace:
+            if not isinstance(step, Mapping):
+                continue
+            skill = step.get("skill")
+            if isinstance(skill, str) and skill in SKILLS:
+                skills.add(skill)
+            if step.get("label") in SKILLS:
+                skills.add(str(step["label"]))
+    trajectory = result.get("trajectory")
+    if isinstance(trajectory, Mapping):
+        for step in trajectory.get("steps", []):
+            if not isinstance(step, Mapping):
+                continue
+            for value in (step.get("skill"), step.get("label")):
+                if isinstance(value, str) and value in SKILLS:
+                    skills.add(value)
+    update = result.get("family_context_update")
+    if isinstance(update, Mapping):
+        for skill in update.get("skills", []):
+            mapped = {"family_tree": "memoir-family-tree", "author_timeline": "memoir-author-timeline"}.get(skill)
+            if mapped:
+                skills.add(mapped)
+    change = result.get("place_journey_change")
+    if isinstance(change, Mapping) and change.get("kind") in {"created", "updated"}:
+        skills.add("memoir-place-journey")
+    return skills
+
+
+def _places_from_result(result: Mapping[str, Any]) -> set[str]:
+    values: list[Any] = []
+    values.extend(result.get("place_journeys") or [])
+    if isinstance(result.get("place_journey"), Mapping):
+        values.append(result["place_journey"])
+    # The runtime may persist the place journey before returning a compact
+    # response (for example when optional workspace enrichment reports a
+    # retryable failure). Deterministic grading must inspect that accepted
+    # application state rather than treating the missing response field as
+    # proof that the skill output was lost.
+    state = result.get("state")
+    if isinstance(state, Mapping) and isinstance(state.get("place"), Mapping):
+        values.append(state["place"])
+    places: set[str] = set()
+    for value in values:
+        if isinstance(value, Mapping) and isinstance(value.get("place"), str):
+            places.add(value["place"])
+    return places
+
+
+def _profile_stage(result: Mapping[str, Any], state: Mapping[str, Any] | None) -> str | None:
+    profile = state.get("profile") if isinstance(state, Mapping) else None
+    if isinstance(profile, Mapping):
+        focus = profile.get("story_focus")
+        if isinstance(focus, Mapping) and isinstance(focus.get("life_stage"), str):
+            return focus["life_stage"]
+    updates = result.get("profile_updates")
+    if isinstance(updates, Mapping):
+        focus = updates.get("story_focus")
+        if isinstance(focus, Mapping) and isinstance(focus.get("life_stage"), str):
+            return focus["life_stage"]
+    return None
+
+
+def _skill_grade(
+    skill: str,
+    expected_status: str,
+    observed: set[str],
+    result: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    *,
+    execution_mode: str,
+    ui_observation: Mapping[str, Any] | None = None,
+    composer_observation: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if skill in UI_SKILLS:
+        ui_observation = ui_observation or {}
+        if ui_observation.get("status") in {"blocked", "unavailable"}:
+            return {"status": "unavailable", "invocation": "unavailable", "output": "unavailable", "comment": ui_observation.get("comment")}
+        if not ui_observation.get("executed"):
+            if expected_status == "must_not_call":
+                return {"status": "mock_only" if execution_mode == "fixture" else "pass", "invocation": "pass", "output": "pass", "comment": "No UI action was required and no UI execution was recorded."}
+            return {"status": "not_run", "invocation": "not_run", "output": "not_run", "comment": "This skill is exercised by the browser/UI journey, not the worker turn."}
+        observed_call = bool(ui_observation.get("called"))
+        observed_output = bool(ui_observation.get("output_ok"))
+    elif skill == "memoir-composer":
+        composer_observation = composer_observation or {}
+        if composer_observation.get("status") in {"blocked", "unavailable"}:
+            return {"status": "unavailable", "invocation": "unavailable", "output": "unavailable", "comment": composer_observation.get("comment")}
+        observed_call = bool(composer_observation.get("invoked"))
+        observed_output = bool(composer_observation.get("output_ok"))
+    else:
+        observed_call = skill in observed
+        observed_output = observed_call
+        if skill == "memoir-memory-context":
+            actual_stage = _profile_stage(result, result.get("state"))
+            observed_output = observed_call and (expected.get("life_stage") is None or actual_stage == expected.get("life_stage"))
+        elif skill == "memoir-place-journey":
+            actual_places = _places_from_result(result)
+            observed_output = observed_call and (not expected.get("places") or set(expected["places"]).issubset(actual_places))
+        elif skill == "memoir-family-tree":
+            update = result.get("family_context_update")
+            observed_output = observed_call and isinstance(update, Mapping) and update.get("persisted") is True and "family_tree" in (update.get("skills") or [])
+        elif skill == "memoir-author-timeline":
+            update = result.get("family_context_update")
+            observed_output = observed_call and isinstance(update, Mapping) and update.get("persisted") is True and "author_timeline" in (update.get("skills") or [])
+
+    if expected_status == "required":
+        if not observed_call:
+            return {"status": "fail", "invocation": "fail", "output": "fail", "comment": f"Required {skill} invocation was not observable."}
+        if not observed_output:
+            return {"status": "fail", "invocation": "pass", "output": "fail", "comment": f"{skill} ran but its expected output/state was not observable."}
+        return {"status": "mock_only" if execution_mode == "fixture" else "pass", "invocation": "pass", "output": "pass", "comment": f"{skill} invocation and output matched the round contract."}
+    if expected_status == "must_not_call":
+        if observed_call:
+            return {"status": "fail", "invocation": "fail", "output": "fail", "comment": f"Unnecessary {skill} invocation was observable."}
+        return {"status": "mock_only" if execution_mode == "fixture" else "pass", "invocation": "pass", "output": "pass", "comment": f"No unnecessary {skill} invocation was observable."}
+    return {"status": "not_applicable", "invocation": "not_applicable", "output": "not_applicable", "comment": "The round does not require this skill."}
+
+
+def evaluate_round(
+    expected_payload: Mapping[str, Any],
+    case_expected: Mapping[str, Any],
+    round_number: int,
+    result: Mapping[str, Any],
+    *,
+    execution_mode: str,
+    ui_observations: Mapping[str, Mapping[str, Any]] | None = None,
+    composer_observation: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    expected = expected_round(expected_payload, case_expected, round_number)
+    observed = _trace_skills(result)
+    ui_observations = ui_observations or {}
+    skill_grades = {
+        skill: _skill_grade(
+            skill,
+            expected["skill_status"][skill],
+            observed,
+            result,
+            expected,
+            execution_mode=execution_mode,
+            ui_observation=ui_observations.get(skill),
+            composer_observation=composer_observation,
+        )
+        for skill in SKILLS
+    }
+    stage_actual = _profile_stage(result, result.get("state"))
+    state_checks = {
+        "life_stage": {
+            "expected": expected.get("life_stage"),
+            "actual": stage_actual,
+            "status": "not_applicable" if expected.get("life_stage") is None else ("pass" if stage_actual == expected.get("life_stage") else "fail"),
+        },
+        "visible_markers_stripped": {
+            "expected": True,
+            "actual": not any(token in str(result.get("reply") or "") for token in ("[[MEMORY_SPARK_", "[[/MEMORY_SPARK_")),
+            "status": "pass" if not any(token in str(result.get("reply") or "") for token in ("[[MEMORY_SPARK_", "[[/MEMORY_SPARK_")) else "fail",
+        },
+    }
+    if expected.get("places"):
+        actual_places = sorted(_places_from_result(result))
+        state_checks["places"] = {
+            "expected": expected["places"],
+            "actual": actual_places,
+            "status": "pass" if set(expected["places"]).issubset(set(actual_places)) else "fail",
+        }
+    statuses = [grade["status"] for grade in skill_grades.values()]
+    hard_fail = any(status == "fail" for status in statuses) or any(check["status"] == "fail" for check in state_checks.values())
+    unavailable = any(status in {"unavailable", "not_run"} for status in statuses)
+    if hard_fail:
+        overall = "fail"
+    elif execution_mode == "fixture":
+        overall = "mock_only"
+    elif unavailable:
+        overall = "unavailable"
+    else:
+        overall = "pass"
+    return {
+        "round": round_number,
+        "expected": expected,
+        "observed_skills": sorted(observed),
+        "skill_grades": skill_grades,
+        "state_checks": state_checks,
+        "overall": overall,
+    }
+
+
+def aggregate_case(
+    case_id: str,
+    round_grades: list[Mapping[str, Any]],
+    *,
+    execution_mode: str,
+    expected_round_count: int = 50,
+) -> dict[str, Any]:
+    per_skill: dict[str, dict[str, Any]] = {}
+    for skill in SKILLS:
+        grades = [grade.get("skill_grades", {}).get(skill, {}) for grade in round_grades]
+        required_grades = [
+            grade for grade in round_grades
+            if grade.get("expected", {}).get("skill_status", {}).get(skill) == "required"
+        ]
+        negative_grades = [
+            grade for grade in round_grades
+            if grade.get("expected", {}).get("skill_status", {}).get(skill) == "must_not_call"
+        ]
+        contract_grades = required_grades + negative_grades
+        required_invocation_pass = sum(
+            1 for grade in required_grades
+            if grade.get("skill_grades", {}).get(skill, {}).get("invocation") == "pass"
+        )
+        required_output_pass = sum(
+            1 for grade in required_grades
+            if grade.get("skill_grades", {}).get(skill, {}).get("output") == "pass"
+        )
+        negative_invocation_pass = sum(
+            1 for grade in negative_grades
+            if grade.get("skill_grades", {}).get(skill, {}).get("invocation") == "pass"
+        )
+        negative_output_pass = sum(
+            1 for grade in negative_grades
+            if grade.get("skill_grades", {}).get(skill, {}).get("output") == "pass"
+        )
+        per_skill[skill] = {
+            # ``required_rounds`` is intentionally only the positive-call
+            # denominator. Older reports called the union of positive and
+            # negative cases "required", which hid whether a skill was ever
+            # actually exercised. Keep the union separately for auditability.
+            "required_rounds": len(required_grades),
+            "contract_rounds": len(contract_grades),
+            "must_not_call_rounds": len(negative_grades),
+            "required_invocation_pass": required_invocation_pass,
+            "required_output_pass": required_output_pass,
+            "must_not_call_invocation_pass": negative_invocation_pass,
+            "must_not_call_output_pass": negative_output_pass,
+            "invocation_pass": sum(1 for grade in grades if grade.get("invocation") == "pass"),
+            "output_pass": sum(1 for grade in grades if grade.get("output") == "pass"),
+            "failures": sum(1 for grade in grades if grade.get("status") == "fail"),
+            "unavailable": sum(1 for grade in grades if grade.get("status") in {"unavailable", "not_run"}),
+            "mock_only": sum(1 for grade in grades if grade.get("status") == "mock_only"),
+        }
+        required = per_skill[skill]["required_rounds"]
+        contract = per_skill[skill]["contract_rounds"]
+        negative = per_skill[skill]["must_not_call_rounds"]
+        per_skill[skill]["invocation_rate"] = (per_skill[skill]["invocation_pass"] / contract) if contract else None
+        per_skill[skill]["output_rate"] = (per_skill[skill]["output_pass"] / contract) if contract else None
+        per_skill[skill]["required_invocation_rate"] = (required_invocation_pass / required) if required else None
+        per_skill[skill]["required_output_rate"] = (required_output_pass / required) if required else None
+        per_skill[skill]["must_not_call_rate"] = (negative_invocation_pass / negative) if negative else None
+    overall_counts = Counter(str(grade.get("overall")) for grade in round_grades)
+    stages = Counter(
+        str(grade.get("state_checks", {}).get("life_stage", {}).get("actual"))
+        for grade in round_grades
+        if grade.get("state_checks", {}).get("life_stage", {}).get("actual")
+    )
+    return {
+        "case_id": case_id,
+        "execution_mode": execution_mode,
+        "rounds_observed": len(round_grades),
+        "exact_50_rounds": len(round_grades) == expected_round_count,
+        "round_status_counts": dict(overall_counts),
+        "stage_coverage": {stage: stages.get(stage, 0) for stage in LIFE_STAGES},
+        "all_life_stages_observed": all(stages.get(stage, 0) > 0 for stage in LIFE_STAGES),
+        "skill_coverage": per_skill,
+        "failed_rounds": [grade["round"] for grade in round_grades if grade.get("overall") == "fail"],
+        "unavailable_rounds": [grade["round"] for grade in round_grades if grade.get("overall") == "unavailable"],
+        "mock_only_rounds": [grade["round"] for grade in round_grades if grade.get("overall") == "mock_only"],
+    }
+
+
+def merge_ui_skill_observations(
+    round_grades: list[dict[str, Any]],
+    ui_by_round: Mapping[int, Mapping[str, Mapping[str, Any]]],
+    expected_payload: Mapping[str, Any],
+    case_expected: Mapping[str, Any],
+    *,
+    execution_mode: str,
+) -> list[dict[str, Any]]:
+    """Re-grade only UI-owned skills from a separate browser receipt."""
+    merged: list[dict[str, Any]] = []
+    for grade in round_grades:
+        round_number = int(grade["round"])
+        ui = ui_by_round.get(round_number, {})
+        if not ui:
+            merged.append(grade)
+            continue
+        expected = expected_round(expected_payload, case_expected, round_number)
+        result = {"reply": "", "trace": []}
+        for skill in UI_SKILLS:
+            if skill in ui:
+                grade["skill_grades"][skill] = _skill_grade(
+                    skill,
+                    expected["skill_status"][skill],
+                    set(),
+                    result,
+                    expected,
+                    execution_mode=execution_mode,
+                    ui_observation=ui[skill],
+                )
+        if any(item.get("status") == "fail" for item in grade["skill_grades"].values()):
+            grade["overall"] = "fail"
+        merged.append(grade)
+    return merged
+
+
+__all__ = [
+    "SKILLS",
+    "LIFE_STAGES",
+    "UI_SKILLS",
+    "aggregate_case",
+    "case_expectations",
+    "evaluate_round",
+    "expected_round",
+    "load_json",
+    "merge_ui_skill_observations",
+    "validate_expected",
+    "validate_inputs",
+]

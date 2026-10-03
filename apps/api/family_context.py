@@ -18,7 +18,7 @@ AUTHOR_TIMELINE_MARKER_END = "[[/MEMORY_SPARK_AUTHOR_TIMELINE]]"
 # leak its control payload into the visible reply. New prompts never emit it.
 LEGACY_FAMILY_CONTEXT_MARKER_START = "[[MEMORY_SPARK_FAMILY_CONTEXT]]"
 LEGACY_FAMILY_CONTEXT_MARKER_END = "[[/MEMORY_SPARK_FAMILY_CONTEXT]]"
-FAMILY_CONTEXT_SCHEMA_VERSION = 1
+FAMILY_CONTEXT_SCHEMA_VERSION = 2
 
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
 _PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
@@ -40,10 +40,11 @@ _DIRECTIONS = {"directed", "undirected"}
 _PRECISIONS = {"unknown", "day", "month", "year", "range", "approximate", "age", "season"}
 _MAX_PEOPLE = 100
 _MAX_RELATIONSHIPS = 200
-_MAX_TIMELINE_ITEMS = 200
+_MAX_TIMELINE_ITEMS = 300
 _MAX_LIFE_PERIODS = 100
 _MAX_MARKER_CHARS = 20_000
-_CONTEXT_KEYS = {"people", "relationships", "timeline", "life_periods"}
+_CONTEXT_KEYS = {"people", "relationships", "timeline"}
+_LEGACY_CONTEXT_KEYS = _CONTEXT_KEYS | {"life_periods"}
 _TREE_KEYS = {"people", "relationships"}
 _TIMELINE_KEYS = {"timeline", "life_periods"}
 _MARKERS = (
@@ -60,6 +61,14 @@ def _text(value: Any, limit: int, *, required: bool = False) -> str | None:
     if not cleaned or len(cleaned) > limit:
         return None
     return cleaned
+
+
+def _person_name_key(value: Any) -> str | None:
+    """Normalize a person label for a conservative exact-name match."""
+    if not isinstance(value, str):
+        return None
+    cleaned = " ".join(value.split()).strip().casefold()
+    return cleaned or None
 
 
 def _identifier(value: Any) -> str | None:
@@ -117,6 +126,7 @@ def _normalise_person(raw: Any) -> dict[str, Any] | None:
     person: dict[str, Any] = {"id": person_id, "name": name}
     for key, limit in (
         ("family_title", 120),
+        ("introduction", 1200),
         ("birth_date_expression", 120),
         ("death_date_expression", 120),
     ):
@@ -187,10 +197,21 @@ def _normalise_date_item(
     title = _text(raw.get("title"), 200)
     if item_id is None or title is None:
         return None
-    item: dict[str, Any] = {"id": item_id, "title": title}
+    kind = raw.get("kind", "period" if period else "event")
+    if kind not in ("event", "period") or (period and kind != "period"):
+        return None
+    legacy_period = period
+    period = kind == "period"
+    if (period and "date_expression" in raw) or (not period and ({"start_expression", "end_expression"} & raw.keys())):
+        return None
+    item: dict[str, Any] = {"id": item_id, "title": title, "kind": kind}
     if not _copy_optional_identifier(item, raw, "existing_id"):
         return None
-    text_keys = ("start_expression", "end_expression") if period else ("date_expression", "place")
+    text_keys = ("start_expression", "end_expression", "place") if period else ("date_expression", "place")
+    if legacy_period:
+        # v1 validation did not include period places in the normalized marker.
+        # Retain that ingress behavior so old turn retries keep their IDs.
+        text_keys = ("start_expression", "end_expression")
     for key in text_keys:
         if not _copy_optional_text(item, raw, key, 180 if key != "place" else 160):
             return None
@@ -227,7 +248,7 @@ def validate_family_context(
     allow_external_person_refs: bool = False,
 ) -> dict[str, Any] | None:
     """Return a bounded, graph-consistent shared workspace update."""
-    if not isinstance(raw, dict) or set(raw) - _CONTEXT_KEYS:
+    if not isinstance(raw, dict) or set(raw) - _LEGACY_CONTEXT_KEYS:
         return None
     collections = {
         "people": (_MAX_PEOPLE, _normalise_person),
@@ -275,10 +296,8 @@ def validate_family_context(
         if normalised is None:
             return None
         timeline.append(normalised)
-    timeline_ids = {item["id"] for item in timeline}
-    if len(timeline_ids) != len(timeline) or timeline_ids & person_ids:
-        return None
-    life_periods: list[dict[str, Any]] = []
+    # Resumed v1 model threads may still emit the former period collection.
+    # Normalize it at ingress; all validated updates use one timeline.
     for item in raw.get("life_periods", []):
         normalised = _normalise_date_item(
             item,
@@ -288,18 +307,17 @@ def validate_family_context(
         )
         if normalised is None:
             return None
-        life_periods.append(normalised)
-    period_ids = {item["id"] for item in life_periods}
-    if len(period_ids) != len(life_periods) or period_ids & (person_ids | timeline_ids):
+        timeline.append(normalised)
+    timeline_ids = {item["id"] for item in timeline}
+    if len(timeline) > _MAX_TIMELINE_ITEMS or len(timeline_ids) != len(timeline) or timeline_ids & person_ids:
         return None
 
-    if not (person_records or relationships or timeline or life_periods):
+    if not (person_records or relationships or timeline):
         return None
     return {
         "people": person_records,
         "relationships": relationships,
         "timeline": timeline,
-        "life_periods": life_periods,
     }
 
 
@@ -481,8 +499,32 @@ def empty_family_context_document(project_id: str) -> dict[str, Any]:
         "people": [],
         "relationships": [],
         "timeline": [],
-        "life_periods": [],
     }
+
+
+_TIMELINE_DATE_PATTERN = re.compile(r"(?<!\d)([12]\d{3})(?:[-/](\d{1,2})(?:[-/](\d{1,2}))?)?(?!\d)")
+
+
+def _timeline_order(item: dict[str, Any]) -> tuple[int, int, int]:
+    expression = item.get("start_expression") if item.get("kind") == "period" else item.get("date_expression")
+    match = _TIMELINE_DATE_PATTERN.search(expression or "")
+    # These values are ordering hints only. Original date expressions remain
+    # untouched; undated entries retain their relative order at the end.
+    return (int(match[1]), int(match[2] or 7), int(match[3] or 1)) if match else (9999, 12, 31)
+
+
+def normalise_family_context_document(document: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Read v1 and v2 documents through the single canonical timeline contract."""
+    if document is None:
+        return None
+    result = copy.deepcopy(document)
+    timeline = result.get("timeline", [])
+    for item in timeline:
+        item.setdefault("kind", "event")
+    timeline.extend({**item, "kind": "period"} for item in result.pop("life_periods", []))
+    result["timeline"] = sorted(timeline, key=_timeline_order)
+    result["schema_version"] = FAMILY_CONTEXT_SCHEMA_VERSION
+    return result
 
 
 def _stable_hash(value: Any) -> str:
@@ -514,11 +556,15 @@ def merge_family_context_document(
     """
     if valid_family_project_id(project_id) is None:
         raise ValueError("Invalid Family project id")
-    if validate_family_context(update, allow_external_person_refs=True) != update:
-        raise ValueError("Family context update must be validated before merging")
+    validated_update = validate_family_context(update, allow_external_person_refs=True)
+    if validated_update is None:
+        raise ValueError("Family context update is invalid")
+    # Queued workspace jobs may contain an already validated v1 update.
+    update = validated_update
 
     base = empty_family_context_document(project_id)
     if isinstance(existing, dict):
+        existing = normalise_family_context_document(existing)
         base.update({key: copy.deepcopy(existing[key]) for key in base if key in existing})
         base["project_id"] = project_id
         base["schema_version"] = FAMILY_CONTEXT_SCHEMA_VERSION
@@ -529,15 +575,42 @@ def merge_family_context_document(
             if not isinstance(base.get(key), list):
                 base[key] = []
 
-    update_hash = _stable_hash(update)
+    # Retain v1 deterministic IDs so replaying a pre-upgrade marker cannot
+    # create a second copy of an already persisted event or period.
+    update_hash = _stable_hash({
+        **update,
+        "timeline": [{key: value for key, value in item.items() if key != "kind"}
+                     for item in update["timeline"] if item["kind"] == "event"],
+        "life_periods": [{key: value for key, value in item.items() if key != "kind"}
+                        for item in update["timeline"] if item["kind"] == "period"],
+    })
     people = base["people"]
     person_by_id = {item.get("id"): item for item in people if isinstance(item, dict) and item.get("id")}
     temporary_to_canonical: dict[str, str] = {}
-    added = {key: 0 for key in ("people", "relationships", "timeline", "life_periods")}
+    added = {key: 0 for key in ("people", "relationships", "timeline")}
     updated = {key: 0 for key in added}
+
+    # A repeated exact name is common when the storyteller refers to an
+    # accepted person without repeating the relationship title.  Reuse it only
+    # when the match is unique; ambiguous same-name people still require an
+    # explicit existing_id and are kept separate.
+    name_matches: dict[str, list[str]] = {}
+    for person in people:
+        canonical_id = person.get("id")
+        if not canonical_id:
+            continue
+        labels = [person.get("name"), *(person.get("aliases") or [])]
+        for label in labels:
+            key = _person_name_key(label)
+            if key:
+                name_matches.setdefault(key, []).append(canonical_id)
 
     for raw in update["people"]:
         requested_id = raw["existing_id"] if raw.get("existing_id") in person_by_id else raw["id"]
+        if not raw.get("existing_id"):
+            candidates = name_matches.get(_person_name_key(raw.get("name")) or "", [])
+            if len(set(candidates)) == 1:
+                requested_id = candidates[0]
         canonical_id = requested_id if requested_id in person_by_id else _stable_id("person", update_hash, raw["id"])
         temporary_to_canonical[raw["id"]] = canonical_id
         record = {key: copy.deepcopy(value) for key, value in raw.items() if key != "existing_id"}
@@ -552,6 +625,10 @@ def merge_family_context_document(
             people.append(record)
             person_by_id[canonical_id] = record
             added["people"] += 1
+            for label in (record.get("name"), *(record.get("aliases") or [])):
+                key = _person_name_key(label)
+                if key:
+                    name_matches.setdefault(key, []).append(canonical_id)
 
     relationships = base["relationships"]
     for raw in update["relationships"]:
@@ -579,10 +656,11 @@ def merge_family_context_document(
             relationships.append(record)
             added["relationships"] += 1
 
-    def merge_date_records(collection_key: str, kind: str, raw_items: list[dict[str, Any]]) -> None:
+    def merge_date_records(collection_key: str, raw_items: list[dict[str, Any]]) -> None:
         collection = base[collection_key]
         by_id = {item.get("id"): item for item in collection if isinstance(item, dict) and item.get("id")}
         for raw in raw_items:
+            kind = "period" if raw["kind"] == "period" else "timeline"
             requested_id = raw["existing_id"] if raw.get("existing_id") in by_id else raw["id"]
             canonical_id = requested_id if requested_id in by_id else _stable_id(kind, update_hash, raw["id"])
             record = {key: copy.deepcopy(value) for key, value in raw.items() if key != "existing_id"}
@@ -591,6 +669,8 @@ def merge_family_context_document(
                 record["person_ids"] = [temporary_to_canonical.get(item, item) for item in record["person_ids"]]
             if canonical_id in by_id:
                 index = next(index for index, item in enumerate(collection) if item.get("id") == canonical_id)
+                if collection[index]["kind"] != record["kind"]:
+                    raise ValueError("An existing timeline item's kind cannot change")
                 merged = {**collection[index], **record}
                 if merged != collection[index]:
                     collection[index] = merged
@@ -600,15 +680,13 @@ def merge_family_context_document(
                 by_id[canonical_id] = record
                 added[collection_key] += 1
 
-    for collection_key in ("timeline", "life_periods"):
-        for raw in update[collection_key]:
-            for person_id in raw.get("person_ids", []):
-                canonical_person_id = temporary_to_canonical.get(person_id, person_id)
-                if canonical_person_id not in person_by_id:
-                    raise ValueError("Timeline record references an unknown person")
+    for raw in update["timeline"]:
+        for person_id in raw.get("person_ids", []):
+            canonical_person_id = temporary_to_canonical.get(person_id, person_id)
+            if canonical_person_id not in person_by_id:
+                raise ValueError("Timeline record references an unknown person")
 
-    merge_date_records("timeline", "timeline", update["timeline"])
-    merge_date_records("life_periods", "period", update["life_periods"])
+    merge_date_records("timeline", update["timeline"])
 
     changed = any(added[key] or updated[key] for key in added)
     old_revision = int(base.get("revision") or 0)
@@ -618,8 +696,7 @@ def merge_family_context_document(
         "revision": old_revision + 1 if changed else old_revision,
         "people": people,
         "relationships": relationships,
-        "timeline": base["timeline"],
-        "life_periods": base["life_periods"],
+        "timeline": sorted(base["timeline"], key=_timeline_order),
     }
     if not changed and isinstance(base.get("updated_at"), str):
         document["updated_at"] = base["updated_at"]

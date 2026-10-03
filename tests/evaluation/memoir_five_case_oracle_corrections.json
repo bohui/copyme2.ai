@@ -1,0 +1,21 @@
+{
+  "schema_version": "memoir-five-case-oracle-corrections/1",
+  "dataset_version": "memoir-five-case/1",
+  "change_scope": "evaluator_oracle_only",
+  "runtime_schema_changed": false,
+  "baseline_artifacts_overwritten": false,
+  "corrections": [
+    {
+      "id": "round-30-life-stage-boundary",
+      "case_ids": [
+        "harbour-copper-notebook"
+      ],
+      "rounds": [30],
+      "previous_expected_stage": "midlife",
+      "corrected_expected_stage": "young_adulthood",
+      "reason": "The checked-in stage band assigns rounds 23–30 to young_adulthood. The existing app contract enumerates allowed stage labels but defines no numeric age cutoff, so an early-thirties response may reasonably remain young_adulthood. The prior explicit round-30 oracle contradicted its own band.",
+      "observed_runtime_value": "young_adulthood",
+      "app_improvement": "none"
+    }
+  ]
+}

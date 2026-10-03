@@ -6,7 +6,9 @@ import base64
 import binascii
 import httpx
 import json
+import logging
 import os
+import re
 import time
 import unicodedata
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -15,12 +17,16 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
+from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
 from .recall import recall_status, storage_recall_status
 from .agent_storage import UserStorage
+from .conversation_text import original_conversation_text
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
 from .turn_stream import VisibleText
 from .family_context import (
+    AUTHOR_TIMELINE_MARKER_END,
+    AUTHOR_TIMELINE_MARKER_START,
     combine_family_skill_updates,
     extract_family_skill_updates,
     family_features_enabled,
@@ -34,6 +40,7 @@ from .place_journey import (
     extract_place_journey,
     extract_place_journeys,
     normalize_persisted_place_journey,
+    place_journey_message_is_ambiguous,
     place_journey_matches_message,
     place_journey_fingerprint,
 )
@@ -49,6 +56,11 @@ from .trajectory_evaluation import (
     build_skill_manifest,
     normalise_correlation,
 )
+
+WORKSPACE_TIMEOUT = 240
+
+diagnostic_logger = logging.getLogger("memoir.runtime.diagnostics")
+configure_diagnostic_logger(diagnostic_logger)
 
 
 MEMOIR_SYSTEM_PROMPT_PATH = (
@@ -99,8 +111,13 @@ clarification when needed. The application runtime validates and strips the mark
 AUTHOR_TIMELINE_SKILL_PATH = Path(__file__).resolve().parents[2] / "skills" / "memoir-author-timeline" / "SKILL.md"
 AUTHOR_TIMELINE_SKILL_FALLBACK = """When the server says the storyteller has the paid Family legacy feature, extract only
 the author's explicitly stated timeline events and life periods. Append one bounded
-[[MEMORY_SPARK_AUTHOR_TIMELINE]] JSON marker. Preserve uncertain dates and never infer
-people or exact places. The application runtime validates and strips the marker before the reply."""
+[[MEMORY_SPARK_AUTHOR_TIMELINE]] JSON marker with a single timeline array. Each entry
+has kind "event" or "period"; events use date_expression and periods use start_expression
+and/or end_expression. Preserve uncertain dates and never infer
+people or exact places. A clear event with no known date still qualifies: use
+date_expression "unknown" and precision "unknown" rather than inventing a date
+or silently dropping it. Ask for clarification and emit no marker only when the
+event itself is ambiguous. The application runtime validates and strips the marker before the reply."""
 
 
 def _load_skill(path: Path, fallback: str) -> str:
@@ -121,8 +138,9 @@ MEMORY_CONTEXT_SKILL = _load_skill(
 PROFILE_INTAKE_INSTRUCTIONS = """Profile intake contract:
 When the storyteller explicitly shares profile or story-context information, append one
 machine marker after the visible reply using exactly this format:
-[[MEMORY_SPARK_PROFILE]]{"name":"...","preferred_language":"zh-CN","birth_year":1980,"birth_date_expression":"...","birth_place":"...","childhood_place":"...","story_focus":{"who":"...","where":"...","when":"...","what":"..."}}[[/MEMORY_SPARK_PROFILE]]
+[[MEMORY_SPARK_PROFILE]]{"name":"...","birth_year":1980,"birth_date_expression":"...","birth_place":"...","childhood_place":"...","story_focus":{"who":"...","where":"...","when":"...","what":"..."}}[[/MEMORY_SPARK_PROFILE]]
 Include only fields the storyteller stated or clearly corrected. Omit unknown fields;
+Conversation language is host-owned. Never emit preferred_language or conversation_language in this marker.
 never infer a name, date, place, person, or event. `story_focus` records the current
 memory thread, not a confirmed biography. The application runtime strips the marker and saves the
 validated fields to the private profile. Extract profile facts quietly. Do not ask a question merely to fill a missing field.
@@ -208,8 +226,11 @@ def _build_marker_context(memories: str, profile: dict | None = None, *,
           "The server checks this exact source wording. Never translate or transliterate this "
           "field to match the conversation language. For example, when the storyteller says "
           "河北承德附属医院, use place=承德, not Chengde; when they say Chengde, use "
-          "place=Chengde. The visible reply and other hierarchy labels may use the conversation "
-          "language. Keep the final hierarchy label identical to `place`."
+          "place=Chengde. Keep hierarchy[0] exactly `Earth` in every language; the remaining "
+          "hierarchy labels may use the conversation language. Keep the final hierarchy label "
+          "identical to `place`. Use only named countries, regions, cities, suburbs or towns. "
+          "For a hospital, school, street or residential compound, extract its explicitly named "
+          "containing city or suburb. A generic label such as 家属院 supplies no journey."
         + "\n\n" + MEMORY_CONTEXT_SKILL
     )
     if family_enabled:
@@ -308,7 +329,8 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                                       family_enabled: bool = False,
                                       family_context: dict | None = None,
                                       task_sources: list[MemorySource] | None = None,
-                                      language: str = "en-AU") -> str:
+                                      language: str = "en-AU",
+                                      focus: str | None = None) -> str:
     """Build private extraction instructions; persistence follows the saved reply."""
     prompt = _build_marker_context(
         memories,
@@ -323,13 +345,135 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
         "- This is a private parallel extraction pass. Do not write a conversational response.\n"
         "- Return only the machine markers required by the contracts above.\n"
         "- Emit one place journey marker for every distinct, clear place named in the current message, in mention order, before other markers so maps can appear during the reply.\n"
+        "- Do not restrict timeline extraction to dated sentences. For every clearly stated author event or life period, preserve it; when its date is not supplied, use date_expression `unknown` and precision `unknown` (for example, a clear birth statement). Never invent a date or drop the event only because its date is unknown.\n"
+        "- Evaluate each enabled domain independently before returning: profile, place journey, family tree, and author timeline. A profile or place marker never substitutes for a family-tree or author-timeline marker.\n"
+        "- When Family is enabled, emit a family-tree marker for every current-turn person introduction, family title, relationship assertion, person detail, or correction that is explicit and unambiguous; the person need not be a blood relative. Emit a separate author-timeline marker for every current-turn author event or life period, including explicit birth, childhood, age, season, move, work, care, visit, or correction statements.\n"
+        "- Use an empty `people`/`relationships` or `timeline` array only when that domain has no current-turn item. Do not omit a domain because another marker was emitted. Do not treat a source/uncertainty statement as a reason to drop an otherwise explicit person or author event; preserve the source and uncertainty in the marker.\n"
+        "- Mandatory audit before returning: if the current text says `I was born in Hobart`, the output must contain an author-timeline marker with an event whose date_expression is `unknown`; if it says `At sixteen I began helping at the shop`, the output must contain an author-timeline marker with an age/approximate event. These markers are required even when a profile marker is also present; never let birth_place or story_focus replace the timeline event. For `进入青春期后，我开始在茶馆里帮忙记账`, emit a separate timeline event with date_expression `进入青春期后` and precision `age`.\n"
+        "- Exact birth-shape example (adapt the facts, do not copy unsupported facts): `[[MEMORY_SPARK_AUTHOR_TIMELINE]]{\"timeline\":[{\"id\":\"e-birth\",\"kind\":\"event\",\"title\":\"Was born in Hobart\",\"date_expression\":\"unknown\",\"precision\":\"unknown\",\"place\":\"Hobart\"}]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]`.\n"
+        "- Other examples: `My sister Nora says ...` requires a family-tree person/introduction; `I met my partner Sam ...` requires a family-tree item and a separate timeline event.\n"
         "- If nothing is explicit, return an empty string. Never infer missing profile, place, family, or task data.\n"
         "- The application removes and validates markers before they reach the storyteller."
     )
+    if focus in {"family_tree", "author_timeline"}:
+        if focus == "family_tree":
+            prompt += (
+                "\n\nFocused family-tree recovery pass:\n"
+                "- The first extraction did not produce an accepted family-tree update. Re-read only the current storyteller message and the saved Family document.\n"
+                "- Return only one MEMORY_SPARK_FAMILY_TREE marker when the current message explicitly adds a person, person detail, family title, relationship, or correction; otherwise return an empty string.\n"
+                "- Do not let a profile, place, or timeline fact suppress an explicit family-tree item, and do not invent a relationship.\n"
+                "- Kinship titles and explicit shorthand such as `my father`, `my mother`, `my parent`, `my sister`, `my brother`, `my partner`, `my child`, `Mum`, `Mom`, `Dad`, `Gran`, or `Grandma` are explicit family-tree items even when a similar person already exists in the saved document. Preserve the title and current-turn detail in a person introduction; use an existing_id only when the saved context clearly identifies the same person. Never skip the marker just because the turn also contains an author-timeline event.\n"
+                "- For a current message such as `At about three, I followed my father to the docks`, emit a family marker for the explicit father/parent item and a separate timeline marker is handled by the other pass.\n"
+                "- For a current message such as `Mum grew mint beside the laundry`, emit a family marker for Mum with that grounded introduction; do not treat the shorthand as an unneeded duplicate of `parents`.\n"
+            )
+        else:
+            prompt += (
+                "\n\nFocused author-timeline recovery pass:\n"
+                "- The first extraction did not produce an accepted author-timeline update. Re-read only the current storyteller message.\n"
+                "- Return only one MEMORY_SPARK_AUTHOR_TIMELINE marker when the message explicitly adds or corrects an author event or life period; otherwise return an empty string.\n"
+                "- Birth, childhood, age, season, move, work, care, visit, and correction statements are eligible even without a calendar date. Use date_expression `unknown` and precision `unknown` when needed; never let a profile or place fact suppress a clear event.\n"
+            )
     if task_sources is not None:
         from .agent_tasks import collection_task_instructions
         prompt += collection_task_instructions(task_sources)
     return prompt
+
+
+def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[str, Any] | None = None) -> bool:
+    """Avoid chargeable recovery passes when the current turn has no cue.
+
+    The broad workspace pass still runs for every turn.  A focused recovery
+    pass is only useful when the storyteller's current words contain evidence
+    for that domain; running both focused passes on every family-enabled turn
+    adds latency and can create unnecessary provider work on negative rounds.
+    This is a routing hint, never a substitute for model extraction.
+    """
+    lowered = original_conversation_text(text).casefold()
+    if focus == 'family_tree':
+        if re.search(
+            r"\b(?:family|mother|father|parent|sister|brother|grandmother|grandfather|"
+            r"grandma|grandpa|mum|mom|dad|gran|nan|partner|wife|husband|child|son|"
+            r"daughter|aunt|uncle|cousin|sibling|friend|colleague|teacher|"
+            r"neighbou?r|mentor|boss)\b",
+            lowered,
+        ) or re.search(
+            r"(?:家人|家庭|母亲|妈妈|妈|父亲|爸爸|爸|父母|姐妹|妹妹|姐姐|兄弟|哥哥|弟弟|"
+            r"外婆|外公|奶奶|爷爷|伴侣|妻子|丈夫|孩子|儿子|女儿|阿姨|叔叔|舅舅|姑姑|表亲)",
+            text,
+        ):
+            return True
+        # A known person can be referred to by name without repeating their
+        # kinship title (for example, “what June remembers”).  Use only names
+        # already accepted into this project's Family document; do not infer
+        # that an arbitrary capitalized word is a relative.
+        if isinstance(family_context, Mapping):
+            for person in family_context.get('people') or []:
+                if not isinstance(person, Mapping):
+                    continue
+                values = [person.get('name')]
+                aliases = person.get('aliases')
+                values.extend(aliases if isinstance(aliases, list) else [aliases])
+                for value in values:
+                    if not isinstance(value, str) or not value.strip():
+                        continue
+                    candidate = value.strip().casefold()
+                    if any(char.isalpha() and ord(char) > 127 for char in candidate):
+                        if candidate in lowered:
+                            return True
+                    elif re.search(rf"(?<![A-Za-z]){re.escape(candidate)}(?![A-Za-z])", lowered):
+                        return True
+        return False
+    if focus == 'author_timeline':
+        if re.search(
+            r"(?:\b(?:sometimes|often)\b.{0,80}\b(?:remember|reflection|reflective|"
+            r"just to remember|memory)\b|\b(?:i|we)\s+(?:am|was)\s+unsure\s+whether\s+"
+            r"(?!i\b|we\b)|\b(?:shouldn['’]?t|should not|do not|don't|not)\b.{0,40}\b"
+            r"(?:dated event|timeline|record)\b|不一定.{0,30}(?:事件|日期|记录)|"
+            r"反思.{0,30}(?:事件|日期|记录))",
+            lowered if lowered.isascii() else f"{lowered} {text}",
+        ):
+            return False
+        return bool(re.search(
+            r"\b(?:18|19|20)\d{2}\b|\b(?:age|aged|around|approximately|approximate|"
+            r"roughly|early|mid|late|season|winter|summer|spring|autumn|childhood|"
+            r"adolescen|teenage|young adulthood|midlife|later life|when i|as a|"
+            r"in my|during my|by my|before preschool)\b",
+            lowered,
+        ) or re.search(
+            r"\b(?:i|we)\s+(?:was born|arrived|moved|left|returned|worked|began|"
+            r"started|learned|met|spent|travelled|traveled|attended|opened|cared|"
+            r"taught|visited|rented|lived|joined|wrote|played|took|helped|chose|"
+            r"kept|went|came|studied|graduated|married|followed)\b",
+            lowered,
+        ) or re.search(
+            r"(?:出生|小时候|童年|幼儿|青春期|青少年|成年|中年|晚年|年龄|岁|年份|日期|月份|"
+            r"季节|冬天|夏天|春天|秋天|大约|约|前后|搬|住在|离开|回到|工作|学习|结婚|"
+            r"照顾|旅行|开始|开办|加入|毕业|记得|跟着|发生|更正)",
+            text,
+        ))
+    return False
+
+
+def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
+    """Remove one private marker domain without disturbing other domains."""
+    if not isinstance(text, str):
+        return ""
+    visible: list[str] = []
+    cursor = 0
+    while True:
+        start = text.find(start_marker, cursor)
+        if start < 0:
+            visible.append(text[cursor:])
+            break
+        visible.append(text[cursor:start])
+        payload_start = start + len(start_marker)
+        end = text.find(end_marker, payload_start)
+        if end < 0:
+            # An incomplete control block is not visible prose and must not
+            # leak into the storyteller reply.
+            break
+        cursor = end + len(end_marker)
+    return "".join(visible)
 
 
 def build_loop_trace(*, memory_count: int, resumed: bool, saved_paths: int,
@@ -445,7 +589,8 @@ class CodexRuntime:
         self.home_root = Path(home_root or os.getenv('MEMORY_SPARK_CODEX_HOME', 'var/codex-users'))
         self.command = command or [os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), 'app-server']
         self.provider_env = provider_env or {}
-        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'deepseek-v4-flash')
+        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
+        self.composer_model = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'legal2ai-luna-low')
         self.base_url = base_url or os.getenv('MEMORY_SPARK_LLM_BASE_URL', 'http://127.0.0.1:4000/v1')
         self.api_key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
         self.timeout = timeout
@@ -465,6 +610,17 @@ class CodexRuntime:
         self._locks = {}
         self._workspace_locks = {}
         self._turn_sequences: dict[str, int] = {}
+        # The configured provider does not expose token/cost usage to this
+        # application. Keep a separate request counter for evaluation receipts
+        # so it is never mistaken for billing evidence.
+        self._observed_worker_requests = 0
+
+    def record_worker_request(self) -> None:
+        self._observed_worker_requests += 1
+
+    @property
+    def observed_worker_requests(self) -> int:
+        return self._observed_worker_requests
 
     def _lock(self, user_id):
         return self._locks.setdefault(user_id, asyncio.Lock())
@@ -514,7 +670,10 @@ class CodexRuntime:
                    evaluation: Mapping[str, Any] | None = None,
                    include_trajectory: bool = False,
                    evaluation_context: Mapping[str, Any] | None = None,
-                   first_reply_localization: bool = False):
+                   first_reply_localization: bool = False,
+                   conversation_text: str | None = None,
+                   client_turn_id: str | None = None):
+        saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         visible = VisibleText()
         turn_id = str(uuid4())
         progress = TurnProgress(on_event, turn_id, project_id, language)
@@ -528,6 +687,16 @@ class CodexRuntime:
         if project_id is not None and valid_family_project_id(project_id) is None:
             raise ValueError('Invalid Family project id')
         user_id = storage.user_id
+        is_user_round = conversation_text is not None or not text.startswith((
+            'The storyteller wants to begin exploring a memory.',
+            'The storyteller wants to continue with another memory.'))
+        if client_turn_id and project_id and isinstance(storage, UserStorage):
+            previous_turn = await asyncio.to_thread(storage.agent_turn_by_id, project_id, client_turn_id)
+            if previous_turn:
+                _, _, previous_reply = previous_turn['content'].partition('\nMemory Spark: ')
+                entitlement = await asyncio.to_thread(storage.story_entitlement)
+                return {'project_id':project_id,'reply':previous_reply,'conversation_saved':True,'cached':True,
+                        'recall_status':await asyncio.to_thread(storage_recall_status,storage,entitlement)}
         correlation = normalise_correlation(evaluation)
         trajectory = None
         if correlation or include_trajectory:
@@ -570,47 +739,55 @@ class CodexRuntime:
             profile_reader = getattr(storage, "profile", None)
             profile = await lease.io(profile_reader) if callable(profile_reader) else {}
             language_updates = None
+            from .conversation_locale import (FIELD, LOCALES, state as locale_state,
+                record as locale_record, eligible_reply, first_narrator_reply,
+                detect_reply_locale, explicit_request, explicit_profile)
             saved_language = profile.get('preferred_language')
-            if first_reply_localization:
-                # This is the explicitly requested first-reply exception. The
-                # browser has detected the supported language locally; resolve
-                # it before the visible worker turn and allow it to replace a
-                # legacy/default saved conversation language for this turn.
-                if on_event:
-                    await progress.update('language', 'Detecting the first reply language', '正在识别第一条回复的语言', skill='app-auto-localization')
-                inferred_language = guess_conversation_language(text, language)
-                language = inferred_language
-                language_updates = {'preferred_language': language}
-                profile = merge_profile_updates(profile, language_updates)
-                if on_event:
-                    await progress.update('language', 'First reply language detected', '第一条回复的语言已识别', skill='app-auto-localization', status='completed')
-            elif saved_language in ('en-AU', 'zh-CN'):
+            current_locale_state = locale_state(profile)
+            narrator = eligible_reply(saved_text) if is_user_round else None
+            requested = explicit_request(narrator) if narrator else None
+            if requested:
+                profile = explicit_profile(profile, requested)
+                language = requested
+                language_updates = {'preferred_language': language, FIELD: profile[FIELD]}
+            elif current_locale_state:
+                language = saved_language if saved_language in LOCALES else current_locale_state.get('locale') or language
+            elif narrator or prior:
+                if isinstance(storage, UserStorage):
+                    first = await lease.io(storage.first_narrator_reply)
+                else:
+                    first = first_narrator_reply(memories)
+                first = first or ({'text': narrator, 'id': client_turn_id or turn_id} if narrator else None)
+                if not first:
+                    inferred_language = None
+                    if saved_language in LOCALES:
+                        language = saved_language
+                elif saved_language in LOCALES:
+                    # Existing settings lack provenance. Preserve them rather
+                    # than guessing they were defaults or replacing a manual choice.
+                    inferred_language = detect_reply_locale(first['text'])
+                    language = saved_language
+                    source = 'legacy'
+                else:
+                    await progress.update('language', 'Resolving the first reply language', '正在确认第一条回复的语言', skill='memoir-memory-context')
+                    inferred_language = (detect_reply_locale(first['text']) if on_delta
+                        else await self._resolve_language(storage.user_id, first['text'], language))
+                    language = inferred_language or language
+                    source = 'first_reply'
+                    await progress.update('language', 'First reply language saved', '第一条回复的语言已保存', skill='memoir-memory-context', status='completed')
+                if first:
+                    current_locale_state = locale_record(language, source=source,
+                        detected=inferred_language, first_reply_id=first['id'])
+                    profile = {**profile, 'preferred_language': language, FIELD: current_locale_state}
+                    language_updates = {'preferred_language': language, FIELD: current_locale_state}
+            elif saved_language in LOCALES:
                 language = saved_language
-            else:
-                # Streaming turns must not wait for a private language model
-                # pass. Use a conservative local guess for the first reply;
-                # non-streaming callers retain the validated intake pass.
-                if not on_delta:
-                    await progress.update('language', 'Resolving the conversation language', '正在确认对话语言', skill='memoir-memory-context')
-                inferred_language = (
-                    guess_conversation_language(text, language)
-                    if on_delta
-                    else await self._resolve_language(storage.user_id, text, language)
-                )
-                if not on_delta:
-                    await progress.update('language', 'Language check completed', '语言检查已完成', skill='memoir-memory-context', status='completed')
+            if language_updates:
+                # Persist within the cross-replica conversation lease before
+                # visible generation. Optional enrichment cannot own this write.
                 await lease.check()
-                if inferred_language:
-                    language = inferred_language
-                    language_updates = {'preferred_language': language}
-                    profile = merge_profile_updates(profile, language_updates)
-                    if not on_delta:
-                        await lease.io(storage.save_profile, profile)
-                        await lease.check()
-                if trajectory:
-                    trajectory.record('application', 'memoir-memory-context.language',
-                                      output={'preferred_language': inferred_language,
-                                              'saved': bool(language_updates)})
+                await lease.io(storage.save_profile, profile)
+                await lease.check()
             progress.language = language
             await progress.update('context', f'Loaded {len(memories)} memory summaries', f'已加载 {len(memories)} 条回忆摘要', status='completed')
             if trajectory:
@@ -647,7 +824,8 @@ class CodexRuntime:
             extraction_task = None
             if on_delta and on_event:
                 async def preview_place(candidate):
-                    if place_journey_matches_message(candidate, text):
+                    if (not place_journey_message_is_ambiguous(text)
+                            and place_journey_matches_message(candidate, text)):
                         await on_event({'type': 'place_preview', 'data': {
                             'turn_id': turn_id, 'project_id': project_id,
                             'source_sequence': turn_sequence, 'place_journey': candidate,
@@ -678,6 +856,7 @@ class CodexRuntime:
                     text=text,
                     language=language,
                     conversation_rounds_completed=conversation_rounds_completed,
+                    diagnostic_request_id=turn_id,
                     **({'evaluation': correlation} if correlation else {}),
                     **({'on_delta': emit_visible} if on_delta else {}),
                     **({'on_event': progress.harness_event} if on_event else {}),
@@ -738,7 +917,7 @@ class CodexRuntime:
                         prompt,
                         **({'on_delta': emit_visible} if on_delta else {}),
                         **({'on_event': progress.harness_event} if on_event else {}),
-                        **({'responsesapi_client_metadata': correlation} if correlation else {}),
+                        responsesapi_client_metadata={**correlation, 'request_id': turn_id},
                     )
                 await lease.check()
                 # The session artifacts are transferred by the workspace pass
@@ -771,8 +950,13 @@ class CodexRuntime:
                 reply, task_requests = extract_task_requests(reply)
                 reply, parsed_place_journeys = extract_place_journeys(reply)
                 parsed_place_journeys = [candidate for candidate in parsed_place_journeys
-                                         if place_journey_matches_message(candidate, text)]
+                                         if (not place_journey_message_is_ambiguous(text)
+                                             and place_journey_matches_message(candidate, text))]
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
+                if not _workspace_focus_is_relevant(text, 'author_timeline'):
+                    reply = _remove_marker_block(
+                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
+                    )
                 reply, parsed_family_updates = extract_family_skill_updates(reply)
                 parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
             if trajectory:
@@ -785,7 +969,9 @@ class CodexRuntime:
                 })
             if on_delta:
                 reply = VisibleText().feed(reply, final=True).strip()
-            profile_updates = {**(language_updates or {}), **(parsed_profile_updates or {})} or None
+            if parsed_profile_updates:
+                parsed_profile_updates.pop('preferred_language', None)
+            profile_updates = {**(parsed_profile_updates or {}), **(language_updates or {})} or None
 
             # The conversational exchange is the first durable boundary.
             # Workspace extraction and public-reference work below may be
@@ -797,9 +983,13 @@ class CodexRuntime:
                     storage.commit_agent_turn,
                     lease.lease_token,
                     thread_id,
-                    f'Storyteller: {text}\nMemory Spark: {reply}',
+                    f'Storyteller: {saved_text}\nMemory Spark: {reply}',
                     paths,
                     source_sequence=turn_sequence,
+                    **({'project_id':project_id,'client_turn_id':client_turn_id,'user_response':is_user_round}
+                       if isinstance(storage, UserStorage) and project_id else {}),
+                    **({'life_stage':(profile_updates or {}).get('story_focus', {}).get('life_stage') or 'unplaced'}
+                       if isinstance(storage, UserStorage) and project_id else {}),
                 )
             except TypeError as error:
                 if 'source_sequence' not in str(error):
@@ -808,12 +998,12 @@ class CodexRuntime:
                     storage.commit_agent_turn,
                     lease.lease_token,
                     thread_id,
-                    f'Storyteller: {text}\nMemory Spark: {reply}',
+                    f'Storyteller: {saved_text}\nMemory Spark: {reply}',
                     paths,
                 )
             await progress.update('save', 'Conversation memory saved', '对话记忆已保存', status='completed')
             if recall_access is not None:
-                recall_access = recall_status(recall_access['rounds_completed'] + 1, entitlement)
+                recall_access = recall_status(recall_access['rounds_completed'] + int(is_user_round), entitlement)
             turn_sequence = self._stored_memory_sequence(stored) or turn_sequence
             if trajectory:
                 trajectory.record('application', 'memory.persist', output={
@@ -884,6 +1074,7 @@ class CodexRuntime:
                         'thread_id': thread_id,
                         'reply': reply,
                         'conversation_saved': True,
+                        'profile_updates': language_updates,
                         'recall_status': recall_access,
                         'trace': list(progress.steps),
                         'trace_mode': 'live',
@@ -907,7 +1098,7 @@ class CodexRuntime:
                     on_event=on_event,
                     trajectory=trajectory,
                 )
-            except Exception:
+            except Exception as workspace_failure:
                 await progress.update('workspace', 'Workspace update could not finish; the reply is saved', '工作区更新未完成；回复已保存', status='failed')
                 # The exchange is already durable. A workspace failure is
                 # optional and must not turn the saved reply into a failed
@@ -920,6 +1111,10 @@ class CodexRuntime:
                             'project_id': project_id,
                             'source_sequence': turn_sequence,
                             'retryable': True,
+                            # Keep diagnostics bounded and type-only; never
+                            # expose provider prompts, private data, or raw
+                            # exception text in the application event stream.
+                            'error_type': type(workspace_failure).__name__,
                         },
                     })
                 workspace = {
@@ -977,7 +1172,7 @@ class CodexRuntime:
                 'place_journey': place_journey,
                 'place_journey_change': place_journey_change,
                 'place_journeys': workspace.get('place_journeys', []),
-                'profile_updates': profile_updates,
+                'profile_updates': {**(profile_updates or {}), **(language_updates or {})} or None,
                 'family_context': family_context,
                 'family_context_update': family_context_update,
                 'family_features_enabled': family_enabled,
@@ -1107,6 +1302,7 @@ class CodexRuntime:
                                      place_journey, family_enabled,
                                      family_context, project_id, text, language, on_event=None, on_place=None):
         """Run marker extraction in a separate, non-conversational pass."""
+        text = original_conversation_text(text)
         marker_buffer = ''
         previewed_places = set()
         async def capture_place(delta):
@@ -1129,7 +1325,7 @@ class CodexRuntime:
                     return
                 _, candidate = extract_place_journey(marker_buffer[:end + len(PLACE_MARKER_END)])
                 marker_buffer = marker_buffer[end + len(PLACE_MARKER_END):]
-                if candidate and on_place:
+                if candidate and on_place and not place_journey_message_is_ambiguous(text):
                     key = json.dumps([candidate['place'], candidate['hierarchy'], candidate['granularity']], ensure_ascii=False)
                     if key not in previewed_places:
                         previewed_places.add(key)
@@ -1152,12 +1348,70 @@ class CodexRuntime:
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}),
                 )
+                reply = result['reply']
+                # A single broad extraction pass can correctly save profile or
+                # place context while overlooking one of the premium Family
+                # domains. Retry only the missing domain against the same
+                # current message. This is still model-driven extraction: the
+                # focused pass may return an empty string, and no marker is
+                # synthesized by the application.
+                if family_enabled:
+                    _, primary_updates = extract_family_skill_updates(reply)
+                    _, primary_skills = combine_family_skill_updates(primary_updates)
+                    present = set(primary_skills)
+                    for focus, skill_name in (
+                        ('family_tree', 'family_tree'),
+                        ('author_timeline', 'author_timeline'),
+                    ):
+                        if skill_name in present or not _workspace_focus_is_relevant(text, focus, family_context):
+                            continue
+                        try:
+                            focused = await self._worker_turn(
+                                user_id=user_id,
+                                prior=None,
+                                memories=memories,
+                                profile=profile,
+                                place_journey=place_journey,
+                                family_enabled=family_enabled,
+                                family_context=family_context,
+                                project_id=project_id,
+                                text=text,
+                                language=language,
+                                agent_role='workspace',
+                                extraction_focus=focus,
+                            )
+                            focused_reply = focused.get('reply', '')
+                            if focused_reply:
+                                reply += '\n' + focused_reply
+                                _, focused_updates = extract_family_skill_updates(focused_reply)
+                                _, focused_skills = combine_family_skill_updates(focused_updates)
+                                present.update(focused_skills)
+                        except Exception as error:
+                            if on_event:
+                                await on_event({
+                                    'type': 'workspace_retry',
+                                    'data': {
+                                        'skill': {
+                                            'family_tree': 'memoir-family-tree',
+                                            'author_timeline': 'memoir-author-timeline',
+                                        }[focus],
+                                        'status': 'failed',
+                                        'error_type': type(error).__name__,
+                                    },
+                                })
+                # A model may still emit a timeline marker for reflective or
+                # third-person uncertainty text.  Do not persist or trace a
+                # domain that the deterministic router has ruled out.
+                if not _workspace_focus_is_relevant(text, 'author_timeline', family_context):
+                    reply = _remove_marker_block(
+                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
+                    )
                 if on_place:
                     marker_buffer = ''
-                    await capture_place(result['reply'])
+                    await capture_place(reply)
                 if result.get('_artifact_task') is not None:
                     await result['_artifact_task']
-                return result['reply']
+                return reply
 
             home = await asyncio.to_thread(self._home, user_id, 'workspace')
             context = self._memory_context(memories)
@@ -1175,7 +1429,7 @@ class CodexRuntime:
                 self.command,
                 home,
                 provider_env={'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env},
-                timeout=self.timeout,
+                timeout=WORKSPACE_TIMEOUT,
             ) as connection:
                 result = await connection.request('thread/start', {
                     'cwd': str(home), 'ephemeral': True,
@@ -1272,10 +1526,13 @@ class CodexRuntime:
             _ignored_visible, task_requests = extract_task_requests(_ignored_visible)
             _ignored_visible, parsed_place_journeys = extract_place_journeys(_ignored_visible)
             parsed_place_journeys = [candidate for candidate in parsed_place_journeys
-                                     if place_journey_matches_message(candidate, text)]
+                                     if (not place_journey_message_is_ambiguous(text)
+                                         and place_journey_matches_message(candidate, text))]
             parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
             _ignored_visible, parsed_family_updates = extract_family_skill_updates(_ignored_visible)
             parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
+            if extracted_profile_updates:
+                extracted_profile_updates.pop('preferred_language', None)
             profile_updates = {**(profile_updates or {}), **(extracted_profile_updates or {})} or None
             if trajectory:
                 trajectory.record('application', 'workspace.extraction', output={
@@ -1287,6 +1544,22 @@ class CodexRuntime:
 
         if not legacy_markers:
             await progress.update('memory-context', 'Context extraction completed', '背景提取已完成', skill='memoir-memory-context', status='completed')
+        # Mira supplies the assignment for this particular response. Word
+        # aggregation is deterministic and never uses the global focus as a
+        # substitute for assignments on older responses.
+        assigned_stage = (profile_updates or {}).get('story_focus', {}).get('life_stage') or 'unplaced'
+        stage_writer = getattr(storage, 'assign_memory_stage', None)
+        if assigned_stage and callable(stage_writer):
+            from .stage_readiness import LIFE_STAGES, stage_readiness
+            if assigned_stage in (*LIFE_STAGES, 'unplaced'):
+                saved_memory = memory[0] if isinstance(memory, list) and memory else memory
+                if isinstance(saved_memory, dict) and saved_memory.get('id'):
+                    await asyncio.to_thread(stage_writer, saved_memory['id'], assigned_stage)
+                    if on_event:
+                        reader = getattr(storage, 'all_memories', storage.memories)
+                        rows = await asyncio.to_thread(reader)
+                        await on_event({'type':'workspace_update', 'data':{
+                            'project_id':project_id, 'stage_readiness':stage_readiness(rows, project_id)}})
         if parsed_place_journey:
             await progress.update('place', 'Validating the place mentioned in this turn', '正在验证本轮提到的地点', skill='memoir-place-journey', status='triggered')
         for skill in family_skills if family_enabled else []:
@@ -1375,6 +1648,17 @@ class CodexRuntime:
                         place_journey, place_journey_change = await self._persist_place_journey(
                             storage, lease, latest_place_journey, candidate, turn_sequence
                         )
+                        focus = (profile_updates or {}).get('story_focus') or {}
+                        period = focus.get('when', '')
+                        # An explicit empty period prevents a new undated/current
+                        # request from inheriting a previous historical photo search.
+                        place_journey = {**place_journey, 'period': ''}
+                        if (re.search(r'(?:18|19|20)\d{2}', period)
+                                and period in text):
+                            # Calendar context belongs only to the place named
+                            # in that memory, not every place in a multi-place turn.
+                            place_journey = {**place_journey, 'period': period
+                                if place_journey_matches_message(candidate, focus.get('where', '')) else ''}
                         place_journeys.append(place_journey)
                         latest_place_journey = place_journey
         elif current_place_journey:
@@ -1407,6 +1691,8 @@ class CodexRuntime:
                 latest_profile = profile
                 if callable(latest_profile_reader):
                     latest_profile = await lease.io(latest_profile_reader)
+                profile_updates = {k:v for k,v in profile_updates.items()
+                    if k not in {'preferred_language', 'conversation_language'}}
                 profile, accepted_profile_updates = self._merge_profile_updates_if_newer(
                     latest_profile, profile_updates, turn_sequence
                 )
@@ -1506,6 +1792,14 @@ class CodexRuntime:
                     'workspace_status': 'ready',
                 },
             })
+        if project_id and isinstance(storage, UserStorage):
+            from .private_drafts import synchronize
+            try:
+                await asyncio.to_thread(synchronize, storage, project_id, language)
+            except (OSError, ValueError, RuntimeError, httpx.HTTPError):
+                # The transactional database outbox remains authoritative.
+                # Next authenticated refresh reconciles an interrupted mirror.
+                pass
         return {
             'place_journey': place_journey,
             'place_journey_change': place_journey_change,
@@ -1597,9 +1891,22 @@ class CodexRuntime:
     async def _worker_turn(self, *, user_id, prior, memories, profile, place_journey,
                            family_enabled, family_context, project_id, text,
                            language, conversation_rounds_completed=None, on_delta=None,
-                           evaluation=None, agent_role='collector', on_event=None):
+                           evaluation=None, agent_role='collector', on_event=None,
+                           extraction_focus=None, diagnostic_request_id=None):
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
+        request_id = new_request_id(diagnostic_request_id)
+        started = time.perf_counter()
+        model = self.composer_model if agent_role == 'composer' else self.model
+        log_diagnostic(
+            diagnostic_logger,
+            'worker_request_start',
+            request_id,
+            component='memoir.api.worker_client',
+            agent_role=agent_role,
+            model=model,
+            streaming=bool(on_delta or on_event),
+        )
         payload = {
             'user_id': user_id,
             'thread_id': prior.get('codex_thread_id') if prior else None,
@@ -1610,8 +1917,9 @@ class CodexRuntime:
             'family_context': family_context or {},
             'project_id': project_id,
             'text': text,
-            'model': self.model,
+            'model': model,
             'language': language,
+            'diagnostic_request_id': request_id,
         }
         if conversation_rounds_completed is not None:
             payload['conversation_rounds_completed'] = conversation_rounds_completed
@@ -1619,19 +1927,27 @@ class CodexRuntime:
             payload['evaluation'] = normalise_correlation(evaluation)
         if agent_role != 'collector':
             payload['agent_role'] = agent_role
+        if extraction_focus in {'family_tree', 'author_timeline'}:
+            payload['extraction_focus'] = extraction_focus
         if project_id:
             payload['task_sources'] = [source.model_dump() for source in self._task_sources(memories)]
+        execution_timeout = WORKSPACE_TIMEOUT if agent_role == 'workspace' else self.timeout
+        worker_headers = {
+            'X-Codex-Worker-Secret': self.worker_secret,
+            'X-Memoir-Request-ID': request_id,
+        }
         try:
             if on_delta or on_event:
                 # Keep consuming the worker stream after provider_complete so
                 # artifact enumeration can finish after the API has committed
                 # the visible reply. The returned task owns the HTTP client.
                 provider_complete = asyncio.get_running_loop().create_future()
+                self.record_worker_request()
 
                 async def consume_worker_stream():
                     terminal = None
                     try:
-                        client_options = {'timeout': self.timeout + 15}
+                        client_options = {'timeout': execution_timeout + 15}
                         if self.worker_transport is not None:
                             client_options['transport'] = self.worker_transport
                         async with httpx.AsyncClient(**client_options) as client:
@@ -1639,7 +1955,7 @@ class CodexRuntime:
                                 'POST',
                                 f'{self.worker_url}/internal/codex/turn',
                                 headers={
-                                    'X-Codex-Worker-Secret': self.worker_secret,
+                                    **worker_headers,
                                     'Accept': 'application/x-ndjson',
                                 },
                                 json=payload,
@@ -1679,27 +1995,87 @@ class CodexRuntime:
                 result = dict(result)
                 result['_artifact_task'] = artifact_task
             else:
-                client_options = {'timeout': self.timeout + 15}
+                client_options = {'timeout': execution_timeout + 15}
                 if self.worker_transport is not None:
                     client_options['transport'] = self.worker_transport
+                self.record_worker_request()
                 async with httpx.AsyncClient(**client_options) as client:
                     response = await client.post(
                         f'{self.worker_url}/internal/codex/turn',
-                        headers={'X-Codex-Worker-Secret': self.worker_secret},
+                        headers=worker_headers,
                         json=payload,
                     )
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
-            if error.response.status_code == 409:
+            status_code = error.response.status_code
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class=failure_class(error, status_code=status_code),
+                http_status=status_code,
+                elapsed_ms=elapsed_ms(started),
+            )
+            if status_code == 409:
                 raise AgentTurnBusyError('Codex worker is busy for this user') from None
-            raise RuntimeError(f'Codex worker rejected the turn: HTTP {error.response.status_code}') from None
-        except httpx.RequestError as error:
-            raise RuntimeError(f'Codex worker unavailable: {error}') from None
+            raise RuntimeError(f'Codex worker rejected the turn: HTTP {status_code}') from None
+        except httpx.RequestError:
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class='request_error',
+                elapsed_ms=elapsed_ms(started),
+            )
+            raise RuntimeError('Codex worker unavailable') from None
+        except BaseException as error:
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class=failure_class(error),
+                elapsed_ms=elapsed_ms(started),
+            )
+            raise
         if not isinstance(result, dict) or not isinstance(result.get('thread_id'), str) or not isinstance(result.get('reply'), str):
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class='invalid_response',
+                elapsed_ms=elapsed_ms(started),
+            )
             raise RuntimeError('Codex worker returned an invalid turn result')
         result.setdefault('artifacts', [])
         result['_workspace_capable'] = True
+        log_diagnostic(
+            diagnostic_logger,
+            'worker_request_terminal',
+            request_id,
+            component='memoir.api.worker_client',
+            agent_role=agent_role,
+            model=model,
+            status='completed',
+            terminal_event='worker.response',
+            elapsed_ms=elapsed_ms(started),
+        )
         return result
 
     @staticmethod

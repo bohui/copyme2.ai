@@ -12,6 +12,7 @@ def main():
         browser = p.chromium.launch()
         page = browser.new_page()
         messages = json.loads((ROOT / 'apps/web/messages/en-AU.json').read_text())['AuthReminder']
+        chinese_messages = json.loads((ROOT / 'apps/web/messages/zh-CN.json').read_text())['AuthReminder']
 
         def serve(route):
             path = route.request.url.split('http://reminder.test')[-1]
@@ -20,7 +21,7 @@ def main():
             elif path == '/public/styles.css':
                 route.fulfill(content_type='text/css', body=(ROOT / 'apps/web/public/styles.css').read_text())
             elif path == '/client/i18n.js':
-                route.fulfill(content_type='text/javascript', body=f'const copy = {json.dumps(messages)}; export const translate = key => copy[key.split(".").at(-1)];')
+                route.fulfill(content_type='text/javascript', body=f'const copies = {json.dumps({"en-AU": messages, "zh-CN": chinese_messages})}; export const translate = key => copies[window.__locale || "en-AU"][key.split(".").at(-1)];')
             else:
                 route.fulfill(content_type='text/javascript', body=(ROOT / 'apps/web' / path.lstrip('/')).read_text())
 
@@ -44,6 +45,10 @@ def main():
         page.clock.run_for(1000)
         expect(page.get_by_role('dialog')).to_be_visible()
         expect(page.locator('[data-auth-reminder]')).to_contain_text('lose access')
+        page.evaluate("window.__locale = 'zh-CN'; reminder.mount()")
+        expect(page.locator('[data-auth-reminder]')).to_contain_text('我们已经聊了 10 分钟')
+        expect(page.get_by_role('button', name='登录以保留聊天记录')).to_be_visible()
+        page.evaluate("window.__locale = 'en-AU'; reminder.mount()")
         page.get_by_label('Email address').fill('guest@example.com')
         page.get_by_role('button', name='Continue with email').click()
         expect(page.get_by_role('status')).to_contain_text('Check your email')
@@ -169,6 +174,7 @@ def main():
         page.get_by_role('button', name='Not now').click()
         # Exercise the real menu replacement and event bindings while leaving
         # the active conversation/composer DOM intact.
+        page.evaluate("account.user = {id: 'owner', is_anonymous: false}; document.querySelectorAll('dialog').forEach(dialog => dialog.close())")
         source = (ROOT / 'apps/web/client/memoir/client.js').read_text()
         functions = '\n'.join(re.search(r'function ' + name + r'\(.*?\n\}', source, re.S).group(0)
                               for name in ['profileDetails', 'profileMenu', 'closeProfileMenu',

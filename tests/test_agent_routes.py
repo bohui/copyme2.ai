@@ -1,10 +1,32 @@
 import json
+import pytest
 
 from fastapi.testclient import TestClient
 
 from apps.api import agent_routes
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
+
+
+@pytest.mark.parametrize('accept', ['application/json', 'application/x-ndjson'])
+def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, accept):
+    from unittest.mock import Mock
+    storage = Mock()
+    captured = {}
+
+    class Runtime:
+        async def turn(self, storage, text, **options):
+            captured.update(text=text, **options)
+            return {'reply': 'Tell me more.'}
+
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda authorization: storage)
+    monkeypatch.setattr(agent_routes, 'runtime', Runtime())
+    response = TestClient(create_app(MemoryStore())).post('/v1/agent/turn',
+        json={'text': 'The agent prompt', 'conversation_text': 'My original words'},
+        headers={'Authorization': 'Bearer test-token', 'Accept': accept})
+    assert response.status_code == 200
+    assert captured['text'] == 'The agent prompt'
+    assert captured['conversation_text'] == 'My original words'
 
 
 def test_agent_config_exposes_public_connection_settings(monkeypatch):
@@ -23,6 +45,8 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
         'supabase_publishable_key': 'public-key',
         'google_maps_browser_api_key': None,
         'show_thinking_steps': False,
+        'free_recall_rounds':20,
+        'private_draft_cadence':5,
     }
 
 

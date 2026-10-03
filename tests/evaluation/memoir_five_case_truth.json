@@ -1,0 +1,108 @@
+{
+  "schema_version": "memoir-five-case-truth/1",
+  "dataset_version": "memoir-five-case/1",
+  "privacy": "fictional-only",
+  "cases": [
+    {
+      "id": "harbour-copper-notebook",
+      "subject": "A fictional Hobart craft worker who keeps a copper notebook and an uncertainly dated harbour photograph.",
+      "places": {
+        "Hobart": ["Earth", "Australia", "Tasmania", "Hobart"],
+        "Launceston": ["Earth", "Australia", "Tasmania", "Launceston"],
+        "Kingston": ["Earth", "Australia", "Tasmania", "Kingston"]
+      },
+      "family_people": [
+        {"id": "nora", "name": "Nora", "family_title": "sister"},
+        {"id": "sam", "name": "Sam", "family_title": "partner"},
+        {"id": "eli", "name": "Eli", "family_title": "friend"}
+      ],
+      "timeline_truth": [
+        {"id": "launceston-apprenticeship", "expression": "around 1982", "precision": "approximate"},
+        {"id": "hobart-studio", "expression": "around 1996", "precision": "approximate"}
+      ],
+      "photo_truth": {"asset": "harbour photograph", "date": "unknown", "rights": "private/uncleared", "public_evidence": false}
+    },
+    {
+      "id": "chengdu-tea-ledger",
+      "subject": "A fictional Chengdu tea worker whose family memories move through Dali and a short stay in Chongqing.",
+      "places": {
+        "成都": ["Earth", "中国", "四川省", "成都"],
+        "大理": ["Earth", "中国", "云南省", "大理"],
+        "重庆": ["Earth", "中国", "重庆", "重庆"]
+      },
+      "family_people": [
+        {"id": "grandmother-yun", "name": "外婆", "family_title": "grandmother"},
+        {"id": "brother", "name": "哥哥", "family_title": "brother"},
+        {"id": "zhou-ning", "name": "周宁", "family_title": "partner"},
+        {"id": "lin-lan", "name": "林岚", "family_title": "friend"}
+      ],
+      "timeline_truth": [
+        {"id": "chengdu-exam", "expression": "一九八八年前后", "precision": "approximate"},
+        {"id": "dali-move", "expression": "大约一九九三年", "precision": "approximate"},
+        {"id": "studio-change", "expression": "二〇〇二年前后", "precision": "approximate"}
+      ],
+      "photo_truth": {"asset": "tea-house family photograph", "date": "unknown", "rights": "private/uncleared", "public_evidence": false}
+    },
+    {
+      "id": "perth-workshop-compass",
+      "subject": "A fictional Perth craft teacher whose workshop life includes Fremantle and a short Adelaide contract.",
+      "places": {
+        "Perth": ["Earth", "Australia", "Western Australia", "Perth"],
+        "Fremantle": ["Earth", "Australia", "Western Australia", "Fremantle"],
+        "Adelaide": ["Earth", "Australia", "South Australia", "Adelaide"]
+      },
+      "family_people": [
+        {"id": "father", "name": "Dad", "family_title": "father"},
+        {"id": "june", "name": "June", "family_title": "aunt"},
+        {"id": "alex", "name": "Alex", "family_title": "partner"},
+        {"id": "reuben", "name": "Reuben", "family_title": "friend"}
+      ],
+      "timeline_truth": [
+        {"id": "fremantle-apprenticeship", "expression": "around 1991", "precision": "approximate"},
+        {"id": "perth-studio", "expression": "around 2003", "precision": "approximate"}
+      ],
+      "photo_truth": {"asset": "workshop compass photograph", "date": "unknown", "rights": "private/uncleared", "public_evidence": false}
+    },
+    {
+      "id": "kunming-garden-lanterns",
+      "subject": "A fictional Kunming gardener whose childhood courtyard connects to Dali and a short stay in Guiyang.",
+      "places": {
+        "昆明": ["Earth", "中国", "云南省", "昆明"],
+        "大理": ["Earth", "中国", "云南省", "大理"],
+        "贵阳": ["Earth", "中国", "贵州省", "贵阳"]
+      },
+      "family_people": [
+        {"id": "father", "name": "父亲", "family_title": "father"},
+        {"id": "sister", "name": "姐姐", "family_title": "sister"},
+        {"id": "mother", "name": "母亲", "family_title": "mother"},
+        {"id": "lin-zhou", "name": "林舟", "family_title": "partner"},
+        {"id": "a-qing", "name": "阿青", "family_title": "friend"}
+      ],
+      "timeline_truth": [
+        {"id": "kunming-exam", "expression": "大约在一九九〇年前后", "precision": "approximate"},
+        {"id": "dali-move", "expression": "大约一九九五年", "precision": "approximate"},
+        {"id": "community-course", "expression": "二〇〇四年前后", "precision": "approximate"}
+      ],
+      "photo_truth": {"asset": "garden family photograph", "date": "unknown", "rights": "private/uncleared", "public_evidence": false}
+    },
+    {
+      "id": "sydney-platform-letters",
+      "subject": "A fictional Sydney editor whose family letters connect Sydney, Wollongong and a short Canberra contract.",
+      "places": {
+        "Sydney": ["Earth", "Australia", "New South Wales", "Sydney"],
+        "Wollongong": ["Earth", "Australia", "New South Wales", "Wollongong"],
+        "Canberra": ["Earth", "Australia", "Australian Capital Territory", "Canberra"]
+      },
+      "family_people": [
+        {"id": "mira", "name": "Mira", "family_title": "cousin"},
+        {"id": "noor", "name": "Noor", "family_title": "partner"},
+        {"id": "ben", "name": "Ben", "family_title": "friend"}
+      ],
+      "timeline_truth": [
+        {"id": "wollongong-move", "expression": "around 1993", "precision": "approximate"},
+        {"id": "sydney-office", "expression": "around 2006", "precision": "approximate"}
+      ],
+      "photo_truth": {"asset": "train-platform photograph", "date": "unknown", "rights": "private/uncleared", "public_evidence": false}
+    }
+  ]
+}

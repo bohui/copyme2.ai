@@ -1,15 +1,57 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from apps.api.codex_runtime import build_system_prompt
 from apps.api.place_journey import (
     extract_place_journey,
     extract_place_journeys,
     normalize_persisted_place_journey,
+    place_journey_message_is_ambiguous,
     place_journey_matches_message,
     place_journey_fingerprint,
     validate_place_journey,
 )
+
+
+def test_chinese_place_markers_normalize_earth_and_preserve_both_named_cities():
+    message = '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+    markers = ''.join('[[MEMORY_SPARK_PLACE_JOURNEY]]' + json.dumps({
+        'place': place, 'hierarchy': ['地球', country, place], 'granularity': 'city',
+    }, ensure_ascii=False) + '[[/MEMORY_SPARK_PLACE_JOURNEY]]'
+        for place, country in [('悉尼', '澳大利亚'), ('承德市', '中国')])
+    _, journeys = extract_place_journeys(markers)
+    assert [journey['place'] for journey in journeys] == ['悉尼', '承德市']
+    assert all(journey['hierarchy'][0] == 'Earth' for journey in journeys)
+    assert all(place_journey_matches_message(journey, message) for journey in journeys)
+
+
+@pytest.mark.parametrize('place,granularity', [
+    ('家属院', 'landmark'), ('家属院', 'suburb'), ('市区', 'city'),
+    ('学校', 'suburb'), ('the old river town', 'suburb'),
+    ('河北省承德市附属医院', 'city'), ('承德师范学校', 'suburb'),
+    ('Chatswood station', 'suburb'), ('Royal North Shore Hospital', 'city'),
+    ('12 George Street', 'suburb'),
+])
+def test_rejects_generic_and_more_detailed_than_suburb_places(place, granularity):
+    assert validate_place_journey({
+        'place': place, 'hierarchy': ['Earth', place], 'granularity': granularity,
+    }) is None
+
+
+@pytest.mark.parametrize('place', ['大石庙镇', '双桥区', 'Chatswood', 'Townsville', 'College Park', 'Road Town'])
+def test_accepts_named_towns_and_suburbs(place):
+    assert validate_place_journey({
+        'place': place, 'hierarchy': ['Earth', place], 'granularity': 'suburb',
+    }) is not None
+
+
+@pytest.mark.parametrize('detail', ['家属院', '承德师范学校', 'Chatswood station'])
+def test_rejects_detailed_or_generic_hierarchy_even_with_a_city_label(detail):
+    assert validate_place_journey({
+        'place': '承德市', 'hierarchy': ['Earth', '中国', '承德市', detail], 'granularity': 'city',
+    }) is None
 
 
 def test_extracts_all_places_and_removes_invalid_duplicate_and_incomplete_markers():
@@ -58,14 +100,14 @@ def test_extracts_and_removes_valid_place_journey_marker():
 
 def test_allows_a_hierarchy_only_journey_for_an_unresolved_place():
     journey = validate_place_journey({
-        "place": "The old river town",
+        "place": "Wauchope",
         "hierarchy": ["Earth", "Australia", "New South Wales"],
         "granularity": "region",
     })
 
     assert journey == {
         "schema_version": 1,
-        "place": "The old river town",
+        "place": "Wauchope",
         "hierarchy": ["Earth", "Australia", "New South Wales"],
         "granularity": "region",
         "duration_ms": 5200,
@@ -93,7 +135,7 @@ def test_normalizes_a_hierarchy_only_persisted_record():
         "schema_version": 1,
         "status": "active",
         "revision": 3,
-        "place": "The old river town",
+        "place": "Wauchope",
         "hierarchy": ["Earth", "Australia", "New South Wales"],
         "granularity": "region",
         "latitude": None,
@@ -108,7 +150,7 @@ def test_normalizes_a_hierarchy_only_persisted_record():
         "schema_version": 1,
         "status": "active",
         "revision": 3,
-        "place": "The old river town",
+        "place": "Wauchope",
         "hierarchy": ["Earth", "Australia", "New South Wales"],
         "granularity": "region",
         "latitude": None,
@@ -138,6 +180,14 @@ def test_place_journey_marker_must_match_the_current_storyteller_message():
     assert not place_journey_matches_message(journey, "Tell me about that day.")
     assert not place_journey_matches_message(journey, "I remember living in Victoria.")
     assert place_journey_matches_message(journey, "I remember a summer in Geelong.")
+
+
+@pytest.mark.parametrize('message', [
+    'I am unsure which old town I mean when I say the place beyond Launceston; ask instead of mapping it.',
+    '我不确定说的是哪一个地方，请先问我，不要定位。',
+])
+def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(message):
+    assert place_journey_message_is_ambiguous(message)
 
 
 def test_prompt_includes_the_project_skill_contract():

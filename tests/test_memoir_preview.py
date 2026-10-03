@@ -43,6 +43,104 @@ def test_composer_commentary_is_not_accepted_as_a_candidate():
         memoir_preview.json_reply('Here is the result: {"ready":true}')
 
 
+def test_index_versions_are_bound_to_the_immutable_source_registry():
+    request = {'sources': [{'id': 's1', 'version': 'immutable-hash'}],
+               'periods': [], 'events': [{'id': 'e1', 'summary': 'Original fact',
+                    'source_refs': [{'source_id': 's1', 'version': 'mistyped-hash? no'}]}]}
+    bound = memoir_preview.bind_index_sources(request)
+    assert bound['events'][0]['source_refs'] == [{'source_id': 's1', 'version': 'immutable-hash'}]
+    assert bound['events'][0]['summary'] == 'Original fact'
+    assert request['events'][0]['source_refs'][0]['version'] == 'mistyped-hash? no'
+
+
+@pytest.mark.parametrize('sources', [[], [{'id': 's1', 'version': 'v1'}, {'id': 's1', 'version': 'v2'}]])
+def test_index_cannot_bind_unknown_or_ambiguous_source_references(sources):
+    request = {'sources': sources, 'periods': [], 'events': [
+        {'source_refs': [{'source_id': 's1', 'version': 'invented'}]}]}
+    with pytest.raises(ValueError, match='source reference'):
+        memoir_preview.bind_index_sources(request)
+
+
+def test_composition_retry_preserves_rejected_candidate_and_exact_validation(monkeypatch):
+    request = {'sources': [], 'periods': [], 'events': []}
+    checkpoint = {'request': request}
+    rejected = {'text': 'candidate requiring correction'}
+    validation = {'ok': False, 'errors': [{'code': 'UNKNOWN_EVENT', 'at': 'event-ledger'}]}
+    saved = []
+    calls = []
+    async def operation(kind, *args):
+        return {'ready': True} if kind == 'plan' else validation
+    async def progress(phase):
+        saved.append(copy.deepcopy(checkpoint))
+    async def call(*args):
+        calls.append(copy.deepcopy(args[-1]))
+        if len(calls) == 1:
+            return rejected
+        raise TimeoutError('interrupted correction')
+    monkeypatch.setattr(memoir_preview, 'skill_operation', operation)
+    monkeypatch.setattr(memoir_preview, 'composer_call', call)
+    for _ in range(2):
+        with pytest.raises(TimeoutError):
+            asyncio.run(memoir_preview.compose_candidate(request, None, None, 'p', 'zh-CN',
+                        checkpoint=checkpoint, progress=progress))
+    assert saved[-1]['repair'] == {'candidate': rejected, 'validation': validation, 'review': None}
+    assert calls[-1]['candidate'] == rejected
+    assert calls[-1]['validation'] == validation
+
+
+@pytest.mark.parametrize('phase', ['index', 'draft', 'review'])
+def test_composer_wire_schemas_support_chatgpt_strict_output(phase):
+    # ChatGPT strict structured output rejects optional object properties,
+    # including properties of referenced definitions used by later phases.
+    def check(value):
+        if isinstance(value, dict):
+            if 'const' in value:
+                assert 'type' in value
+            if value.get('type') == 'object':
+                assert set(value.get('required', [])) == set(value.get('properties', {}))
+                assert value.get('additionalProperties') is False
+            for child in value.values():
+                check(child)
+        elif isinstance(value, list):
+            for child in value:
+                check(child)
+
+    check(memoir_preview.composer_output_schema(phase))
+
+
+@pytest.mark.parametrize('phase', ['index', 'draft'])
+def test_composer_transport_accepts_null_offsets_without_changing_domain_refs(phase):
+    import httpx
+    from types import SimpleNamespace
+    from apps.api.codex_runtime import CodexRuntime
+    from jsonschema import Draft202012Validator
+
+    original = json.loads((memoir_preview.SKILL / 'examples/focused_trial' /
+                           ('request.json' if phase == 'index' else 'draft.json')).read_text())
+    expected = {key: original[key] for key in ('periods', 'events')} if phase == 'index' else original
+    wire_reply = copy.deepcopy(expected)
+
+    def add_null_offsets(value):
+        if isinstance(value, dict):
+            if 'source_id' in value and 'version' in value:
+                value.setdefault('char_start', None)
+                value.setdefault('char_end', None)
+            for child in value.values():
+                add_null_offsets(child)
+        elif isinstance(value, list):
+            for child in value:
+                add_null_offsets(child)
+
+    add_null_offsets(wire_reply)
+    Draft202012Validator(memoir_preview.composer_output_schema(phase)).validate(wire_reply)
+    runtime = CodexRuntime(worker_url='http://worker.test', worker_secret='test-only',
+                           worker_transport=httpx.MockTransport(lambda request:
+                               httpx.Response(200, json={'reply': json.dumps(wire_reply)})))
+    result = asyncio.run(memoir_preview.composer_call(runtime, SimpleNamespace(user_id='test-user'),
+                                                   'project', 'zh-CN', phase, {}))
+    assert result == expected  # Preserve real quote offsets and other nullable fields.
+
+
 def fixture_storage(name='focused_trial', anonymous=False):
     original = json.loads((memoir_preview.SKILL / f'examples/{name}/request.json').read_text())
     storage = RecallStorage(completed=20, anonymous=anonymous)
@@ -62,6 +160,8 @@ def model_fixture(monkeypatch, name='focused_trial', *, review_ready=True):
         calls.append(phase)
         request = packet if phase == 'index' else packet['request']
         versions = {source['id']: source['version'] for source in request['sources']}
+        if phase == 'index':
+            versions.update({source['id']: source['version'] for source in request['context'].get('original_source_manifest', [])})
 
         def rewrite(value):
             if isinstance(value, dict):
@@ -93,6 +193,28 @@ def model_fixture(monkeypatch, name='focused_trial', *, review_ready=True):
 
     monkeypatch.setattr(memoir_preview, 'composer_call', call)
     return calls
+
+
+def test_later_preview_reuses_saved_index_and_only_reads_edited_period(monkeypatch):
+    storage,_=fixture_storage('broad_trial')
+    calls=model_fixture(monkeypatch,'broad_trial')
+    with TestClient(create_app(MemoryStore(),story_storage_factory=lambda authorization:storage)) as client:
+        assert prepare(client,{'project_id':'project-preview','language':'en-AU'})['status']=='ready'
+        original_call=memoir_preview.composer_call
+        packets=[]
+        async def record(*args):
+            if args[-2]=='index':
+                packets.append(copy.deepcopy(args[-1]))
+            return await original_call(*args)
+        monkeypatch.setattr(memoir_preview,'composer_call',record)
+        edited=next(r for r in storage._memories if r['id']=='s_child')
+        edited['content']=edited['content'].replace('Storyteller: ','Storyteller: I recall this clearly. ',1)
+        edited['life_stage']='childhood'
+        assert prepare(client,{'project_id':'project-preview','language':'en-AU'})['status']=='ready'
+        assert [s['id'] for s in packets[0]['sources']]==['s_child']
+        assert packets[0]['context']['changed_source_ids']==['s_child']
+        assert {e['id'] for e in packets[0]['context']['previous_index']['events']}=={'e_work','e_sydney'}
+        assert calls==['index','draft','review','index','draft','review']
 
 
 @pytest.mark.parametrize('name,kind', [('focused_trial', 'sample_chapter'), ('broad_trial', 'sample_storyline')])
@@ -253,7 +375,8 @@ def test_review_retry_reuses_validated_index_and_draft(monkeypatch):
     assert storage.completed == 20
 
 
-def test_composer_transport_has_separate_bounded_timeout(monkeypatch):
+@pytest.mark.parametrize('phase', ['index', 'draft', 'review'])
+def test_composer_transport_has_separate_bounded_timeout(monkeypatch, phase):
     import httpx
     from apps.api.codex_runtime import CodexRuntime
     observed = []
@@ -263,9 +386,9 @@ def test_composer_transport_has_separate_bounded_timeout(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker.test', worker_secret='test-only', timeout=1,
                            worker_transport=httpx.MockTransport(reply))
     storage, _ = fixture_storage()
-    result = asyncio.run(memoir_preview.composer_call(runtime, storage, 'project', 'zh-CN', 'index', {}))
+    result = asyncio.run(memoir_preview.composer_call(runtime, storage, 'project', 'zh-CN', phase, {}))
     assert result == {'periods': [], 'events': []}
-    assert observed[0].extensions['timeout']['read'] == memoir_preview.COMPOSER_TIMEOUT + 15
+    assert observed[0].extensions['timeout']['read'] == (600 if phase == 'draft' else 240) + 15
     assert len(memoir_preview.composer_instructions('index')) < 2000
 
 
@@ -329,3 +452,64 @@ def test_source_change_during_review_refuses_late_preview(monkeypatch):
     assert result['status'] == 'error'
     assert result['job']['error'] == 'PREVIEW_SOURCE_CHANGED'
     assert not any('memoir-preview:project-preview' in row.get('source_paths', []) for row in storage._memories)
+
+
+def test_large_index_uses_bounded_packets_and_resumes_saved_batches(monkeypatch):
+    import copy
+    sources = [{'id': f's{i}', 'version': '1', 'text': f'Original {i}', 'life_stage': 'childhood'} for i in range(18)]
+    request = {'sources': sources, 'periods': [], 'events': [], 'context': {}}
+    packets = []
+    saved = []
+    checkpoint = {}
+    async def progress(phase):
+        saved.append(copy.deepcopy(checkpoint))
+    async def call(runtime, storage, project, language, phase, packet):
+        packets.append(copy.deepcopy(packet))
+        if len(packets) == 2:
+            raise TimeoutError('interrupted batch')
+        return {'periods': [], 'events': [
+            {'id': 'e' + s['id'], 'period_id': None, 'summary': s['text'],
+             'source_refs': [{'source_id': s['id'], 'version': s['version']}]}
+            for s in packet['sources']]}
+    monkeypatch.setattr(memoir_preview, 'composer_call', call)
+    with pytest.raises(TimeoutError):
+        asyncio.run(memoir_preview.index_sources(request, None, None, 'p', 'zh-CN', checkpoint, progress))
+    assert len(checkpoint['index_progress']['source_ids']) == 4
+    assert checkpoint['index_batch_size'] == 2
+    async def successful(runtime, storage, project, language, phase, packet):
+        packets.append(copy.deepcopy(packet))
+        return {'periods': [], 'events': [
+            {'id': 'e' + s['id'], 'period_id': None, 'summary': s['text'],
+             'source_refs': [{'source_id': s['id'], 'version': s['version']}]}
+            for s in packet['sources']]}
+    monkeypatch.setattr(memoir_preview, 'composer_call', successful)
+    result = asyncio.run(memoir_preview.index_sources(request, None, None, 'p', 'zh-CN', checkpoint, progress))
+    assert len(result['events']) == 18
+    assert all(len(p['sources']) <= 4 for p in packets)
+    assert all(len(p['sources']) <= 4 for p in packets[2:])
+    assert {r['source_id'] for e in result['events'] for r in e['source_refs']} == {s['id'] for s in sources}
+    assert {e['id'] for e in packets[-1]['context']['previous_index']['events']} == {f'es{i}' for i in range(16)}
+    assert 'index_progress' not in checkpoint
+
+
+@pytest.mark.parametrize('kind', ['sample_storyline', 'sample_chapter'])
+def test_reader_preview_suppresses_only_leading_title_headings(kind):
+    chapter = {'blocks': [
+        {'type': 'heading', 'text': ' 从承德到悉尼 '},
+        {'type': 'paragraph', 'text': '正文原样保留。'},
+        {'type': 'heading', 'text': '晚年的记忆'},
+        {'type': 'paragraph', 'text': '从承德到悉尼'},
+        {'type': 'heading', 'text': '从承德到悉尼'},
+    ]}
+    bundle = {'preview': {'kind': kind, 'title': '从承德到悉尼', 'text': 'old rendered text'},
+              'draft': {'storyline': chapter}, 'manuscript': {'chapters': [chapter]}}
+    original = copy.deepcopy(bundle)
+    assert memoir_preview.reader_preview(bundle)['text'] == '正文原样保留。\n\n晚年的记忆\n\n从承德到悉尼\n\n从承德到悉尼'
+    assert bundle == original
+
+
+def test_cached_sample_reprojects_title_without_recomposing():
+    bundle = {'snapshot_key': 'k', 'preview': {'kind': 'sample_storyline', 'title': 'Sample', 'text': 'Sample\n\nBody'},
+              'draft': {'storyline': {'blocks': [{'type': 'heading', 'text': 'Sample'}, {'type': 'paragraph', 'text': 'Body'}]}}}
+    rows = [{'kind': 'memoir', 'source_paths': ['memoir-preview:p'], 'content': json.dumps(bundle)}]
+    assert memoir_preview.cached_preview(rows, 'k')['text'] == 'Body'

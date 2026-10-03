@@ -8,6 +8,7 @@ from apps.api.store import MemoryStore
 def no_live_browser_search(monkeypatch):
     # Catalogue unit tests never launch real browsers or query external sites.
     monkeypatch.setattr('apps.api.place_photo_browser.crawl_place_photos', lambda *args, **kwargs: [])
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
 
 
 def test_project_retains_places_with_their_stages_and_picture_references():
@@ -32,6 +33,7 @@ def photo_page(pageid, *, date="1985", title=None):
             "descriptionurl": f"https://commons.wikimedia.org/wiki/File:{pageid}.jpg",
             "sha1": str(pageid),
             "extmetadata": {"LicenseShortName": {"value": "CC BY-SA 4.0"},
+                "GPSLatitude": {"value": "40.98"}, "GPSLongitude": {"value": "117.94"},
                 "Artist": {"value": "Photographer"}, "DateTimeOriginal": {"value": date}}}],
     }
 
@@ -50,7 +52,7 @@ def test_place_photo_search_returns_ten_attributed_photos(monkeypatch):
     headers = {"X-Account-Id": "photo-owner"}
     project = client.post('/v1/projects', headers=headers, json={"mode": "self", "language": "en-AU"}).json()
     result = client.get(f"/v1/projects/{project['id']}/place-photos", headers=headers,
-                        params={"place": "Chengde", "period": "1980s"}).json()
+                        params={"place": "Chengde", "period": "1980s", "latitude": 40.98, "longitude": 117.94}).json()
     assert result['status'] == 'READY'
     assert result['shortfall'] == 0
     assert len(result['items']) == 10
@@ -61,19 +63,23 @@ def test_place_photo_search_excludes_wrong_decade_undated_and_banknotes(monkeypa
     from apps.api.place_photos import search_place_photos
     mock_catalogues(monkeypatch, [photo_page(1), photo_page(2, date="2018-02-12"),
         photo_page(3, date=""), photo_page(4, title="Chengde banknote.jpg"),
-        photo_page(5, date="1979–1983"), photo_page(6, date="circa 1985")])
+        photo_page(5, date="1969–1983"), photo_page(6, date="circa 1985")])
     assert [p['asset_id'] for p in search_place_photos("Chengde", "1980s")] == ['commons-1']
     assert search_place_photos("Chengde", "unknown childhood period") == []
 
 
-def test_bare_year_search_covers_the_following_ten_calendar_years(monkeypatch):
+def test_bare_year_search_covers_ten_calendar_years_either_side(monkeypatch):
     from apps.api.place_photos import _date_matches, _period_bounds, _search_queries
-    assert _period_bounds("1980") == (1980, 1989)
+    assert _period_bounds("1980") == (1980, 1980)
     assert _period_bounds("1980年") == (1980, 1980)
     assert _date_matches("1980-01-01", "1980")
     assert _date_matches("1989-12-31", "1980")
-    assert not _date_matches("1990-01-01", "1980")
-    assert "1989" in _search_queries("Chengde", "1980")[0]
+    assert _date_matches("1970-01-01", "1980")
+    assert _date_matches("1990-12-31", "1980")
+    assert not _date_matches("1969-12-31", "1980")
+    assert not _date_matches("1991-01-01", "1980")
+    assert "1970" in _search_queries("Chengde", "1980")[0]
+    assert "1990" in _search_queries("Chengde", "1980")[0]
 
 
 def test_place_photo_search_expands_queries_and_deduplicates(monkeypatch):
@@ -129,7 +135,7 @@ def test_api_reports_shortfall_instead_of_ready(monkeypatch):
     headers = {"X-Account-Id": "photo-owner"}
     project = client.post('/v1/projects', headers=headers, json={"mode": "self", "language": "en-AU"}).json()
     result = client.get(f"/v1/projects/{project['id']}/place-photos", headers=headers,
-                        params={"place": "Chengde", "period": "1980s"}).json()
+                        params={"place": "Chengde", "period": "1980s", "latitude": 40.98, "longitude": 117.94}).json()
     assert result['status'] == 'PARTIAL'
     assert result['target_count'] == 10 and result['shortfall'] == 9
 
@@ -161,8 +167,9 @@ def test_flickr_search_uses_capture_dates_bilingual_queries_and_pagination(monke
             data = {'user': {}}
         else:
             calls.append(params)
-            assert params['min_taken_date'] == '1980-01-01 00:00:00'
-            assert params['max_taken_date'] == '1989-12-31 23:59:59'
+            assert params['min_taken_date'] == '1970-01-01 00:00:00'
+            assert params['max_taken_date'] == '1999-12-31 23:59:59'
+            assert 'geo' in params['extras']
             assert params['license'] == '4'
             assert 'min_upload_date' not in params
             photos = []
@@ -189,11 +196,11 @@ def test_flickr_rejects_wrong_year_unknown_date_and_unlicensed_photos(monkeypatc
         if params['method'] == 'flickr.photos.licenses.getInfo':
             data = {'licenses': {'license': [{'id': '4', 'name': 'Attribution', 'url': 'https://creativecommons.org/licenses/by/2.0/'}]}}
         else:
-            assert params['max_taken_date'] == '1980-12-31 23:59:59'
+            assert params['max_taken_date'] == '1990-12-31 23:59:59'
             base = {'id': '1', 'owner': '123@N01', 'title': 'Chengde street', 'datetaken': '1980-10-01',
                     'license': '4', 'url_z': 'https://live.staticflickr.com/1/1.jpg'}
             data = {'photos': {'pages': 1, 'photo': [
-                {**base, 'datetaken': '1983-10-01'}, {**base, 'datetakenunknown': '1'},
+                {**base, 'datetaken': '1991-10-01'}, {**base, 'datetakenunknown': '1'},
                 {**base, 'license': '0'}, {**base, 'title': 'Chengdu street'},
                 {**base, 'url_z': 'https://untrusted.example/photo.jpg'}, base]}}
         return httpx.Response(200, json={'stat': 'ok', **data}, request=httpx.Request('GET', url))
@@ -227,7 +234,7 @@ def test_flickr_album_expansion_keeps_generic_titles_but_checks_each_date(monkey
             base = {'title': 'Willow trees', 'datetaken': '1983-10-01', 'license': '4',
                     'url_z': 'https://live.staticflickr.com/1/1.jpg'}
             data = {'photoset': {'pages': 1, 'photo': [{'id': '1', **base},
-                {**base, 'id': '2', 'datetaken': '1990-01-01'}]}}
+                {**base, 'id': '2', 'datetaken': '2000-01-01'}]}}
         else:
             data = {'photos': {'pages': 1, 'photo': []}}
         return httpx.Response(200, json={'stat': 'ok', **data}, request=httpx.Request('GET', url))
@@ -246,7 +253,8 @@ def google_result(index, *, place='Chengde', date='1983', title=None,
         'snippet': f'{place} historical street photograph, captured {date}.',
         'displayLink': 'archive.example',
         'image': {'contextLink': f'https://archive.example/photos/{index}'},
-        'pagemap': {'metatags': [{'dateCreated': date, 'license': license_url, 'author': 'Archive photographer'}]},
+        'pagemap': {'metatags': [{'dateCreated': date, 'license': license_url, 'author': 'Archive photographer'}],
+                    'imageobject': [{'latitude': 40.98, 'longitude': 117.94}]},
     }
     return result
 
@@ -274,10 +282,10 @@ def test_google_cse_filters_location_and_created_range_across_pages(monkeypatch)
         if params['start'] == 1:
             items = [google_result(1)]
             items.extend([
-                google_result(2, date='1979'),
+                google_result(2, date='1969'),
                 google_result(3, place='Chengdu'),
                 google_result(4, license_url='https://creativecommons.org/licenses/by-nc/2.0/'),
-                google_result(5, date='1990'),
+                google_result(5, date='2000'),
                 google_result(6, title='Banknote', date='1983'),
             ])
             return httpx.Response(200, json={
@@ -330,7 +338,7 @@ def test_google_cse_pagination_makes_place_endpoint_ready(monkeypatch):
     headers = {'X-Account-Id': 'google-photo-owner'}
     project = client.post('/v1/projects', headers=headers, json={'mode': 'self', 'language': 'en-AU'}).json()
     result = client.get(f"/v1/projects/{project['id']}/place-photos", headers=headers,
-                        params={'place': 'Chengde', 'period': '1980s'}).json()
+                        params={'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}).json()
     assert result['status'] == 'READY'
     assert result['target_count'] == 10 and result['shortfall'] == 0
     assert len(result['items']) == 10

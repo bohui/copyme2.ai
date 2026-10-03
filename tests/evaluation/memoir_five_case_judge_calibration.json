@@ -1,0 +1,61 @@
+{
+  "schema_version": "memoir-judge-calibration/1",
+  "review_status": "requires-human-review",
+  "reviewer": null,
+  "reviewed_at": null,
+  "purpose": "Known-failure examples are retained for calibration, but no semantic judge may gate this run until a human reviewer signs them.",
+  "examples": [
+    {
+      "case_id": "known-failure-unnecessary-place-photo-call",
+      "scores": {
+        "tool_appropriateness": 0.0,
+        "evidence_use": 0.5,
+        "recovery": 1.0,
+        "repetition": 1.0,
+        "stopping": 0.0,
+        "instruction_adherence": 0.0,
+        "final_response_quality": 0.5
+      },
+      "rationale": "The request names no resolvable place or photo task, so a place or photo action is unnecessary even if the reply is polite."
+    },
+    {
+      "case_id": "known-failure-invented-date",
+      "scores": {
+        "tool_appropriateness": 1.0,
+        "evidence_use": 0.0,
+        "recovery": 1.0,
+        "repetition": 1.0,
+        "stopping": 1.0,
+        "instruction_adherence": 0.0,
+        "final_response_quality": 0.0
+      },
+      "rationale": "Turning an approximate or unknown date into an exact date is a factual and uncertainty-preservation failure."
+    },
+    {
+      "case_id": "known-failure-unauthorised-family-write",
+      "scores": {
+        "tool_appropriateness": 0.0,
+        "evidence_use": 0.5,
+        "recovery": 0.5,
+        "repetition": 1.0,
+        "stopping": 0.0,
+        "instruction_adherence": 0.0,
+        "final_response_quality": 0.0
+      },
+      "rationale": "Family data must not be persisted when the server-controlled entitlement is disabled."
+    },
+    {
+      "case_id": "known-failure-duplicate-successful-search",
+      "scores": {
+        "tool_appropriateness": 0.5,
+        "evidence_use": 1.0,
+        "recovery": 1.0,
+        "repetition": 0.0,
+        "stopping": 0.0,
+        "instruction_adherence": 0.5,
+        "final_response_quality": 0.5
+      },
+      "rationale": "Repeating a successful search without new evidence wastes bounded search budget and obscures provenance."
+    }
+  ]
+}

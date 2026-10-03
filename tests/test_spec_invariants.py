@@ -485,6 +485,36 @@ def test_policy_epoch_rejects_a_late_session_write_after_consent_changes(client:
     assert late.json()["error"]["code"] == "POLICY_EPOCH_CONFLICT"
 
 
+def test_policy_epoch_can_be_resynced_before_a_session_answer(client: TestClient) -> None:
+    account = "policy-epoch-resume-owner"
+    project = client.post("/v1/projects", json={"mode": "self"}, headers=h(account)).json()
+    assert client.post(
+        f"/v1/projects/{project['id']}/consents",
+        json={"purpose": "recording"},
+        headers=h(account),
+    ).status_code == 200
+    session = client.post(
+        f"/v1/projects/{project['id']}/memory-sessions",
+        json={},
+        headers=h(account),
+    ).json()
+    changed = client.patch(
+        f"/v1/projects/{project['id']}",
+        json={"profile": {"birth_place": "Hobart"}, "expected_revision": project["revision"]},
+        headers=h(account),
+    )
+    assert changed.status_code == 200
+    resumed = client.post(f"/v1/memory-sessions/{session['id']}/resume", headers=h(account))
+    assert resumed.status_code == 200
+    assert resumed.json()["policy_epoch"] == changed.json()["policy_epoch"]
+    answered = client.post(
+        f"/v1/memory-sessions/{session['id']}/answers",
+        json={"text": "A remembered harbour morning."},
+        headers=h(account),
+    )
+    assert answered.status_code == 200
+
+
 def test_project_collections_support_opaque_cursor_pagination(client: TestClient) -> None:
     account = "cursor-owner"
     project = client.post("/v1/projects", json={"mode": "self"}, headers=h(account)).json()

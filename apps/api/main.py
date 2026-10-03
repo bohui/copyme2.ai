@@ -128,6 +128,7 @@ class MemoryPatch(LooseModel):
 
 class PersonCreate(LooseModel):
     name: str
+    introduction: str | None = Field(default=None, max_length=1200)
     chinese_name: str | None = None
     aliases: list[str] = Field(default_factory=list)
     family_title: str | None = None
@@ -140,6 +141,7 @@ class PersonCreate(LooseModel):
 
 class PersonPatch(LooseModel):
     name: str | None = None
+    introduction: str | None = Field(default=None, max_length=1200)
     include_in_print: bool | None = None
     visibility: str | None = None
     expected_revision: int = 1
@@ -485,6 +487,10 @@ def _entitlement_response(project: dict[str, Any]) -> dict[str, Any]:
 def _project_response(project: dict[str, Any]) -> dict[str, Any]:
     entitlements = _entitlement_response(project)
     approved_chapters = [chapter for chapter in project.get("chapters", {}).values() if chapter.get("status") == "APPROVED"]
+    try:
+        composition_stage = int(project.get("composition_stage", 3 if approved_chapters else 0))
+    except (TypeError, ValueError):
+        composition_stage = 3 if approved_chapters else 0
     return {
         "id": project["id"],
         "revision": project.get("revision", 1),
@@ -502,6 +508,7 @@ def _project_response(project: dict[str, Any]) -> dict[str, Any]:
         "completed_sessions": _completed_session_count(project),
         "free_chapter_available": entitlements["free_chapter_available"],
         "preview": deepcopy(project.get("preview")),
+        "composition_stage": max(0, composition_stage),
         "workspace_unlocked": bool(approved_chapters),
         "first_chapter_free": bool(approved_chapters and approved_chapters[0].get("chapter_number", 1) == 1),
         "deletion_state": project.get("deletion_state", "ACTIVE"),
@@ -1223,7 +1230,7 @@ def create_app(
                 "profile": {"name": payload.storyteller_name, "preferred_language": payload.language, "birth_year": payload.birth_year, "birth_date_expression": payload.birth_date_expression, "birth_place": payload.birth_place, "childhood_place": payload.childhood_place, "story_focus": {"who": None, "where": None, "when": None, "what": None}, "dialect_preference": None},
                 "members": members, "consent": {}, "preferences": {"muted_topics": [], "excluded_topics": [], "default_visibility": "private", "sensitive_processing": False},
                 "trial_units_total": trial_units_total, "trial_units_consumed": 0, "trial_units_reserved": 0, "free_chapter_session_count": 0, "paid_units_total": 0, "paid_units_revoked": 0, "paid_units_consumed": 0, "paid_units_reserved": 0, "grants": [],
-                "sessions": {}, "session_ids": [], "memories": {}, "assets": {}, "people": {}, "relationships": [], "timeline": [], "chapters": {}, "chapter_ids": [], "outline_versions": [], "editions": {}, "edition_ids": [], "orders": [], "print_orders": [], "exports": {}, "payment_invitations": {}, "preview_jobs": {}, "idempotency": {}, "events": [], "event_cursor": 0, "deletion_state": "ACTIVE", "deleted_at": None,
+                "sessions": {}, "session_ids": [], "memories": {}, "assets": {}, "people": {}, "relationships": [], "timeline": [], "chapters": {}, "chapter_ids": [], "outline_versions": [], "editions": {}, "edition_ids": [], "orders": [], "print_orders": [], "exports": {}, "payment_invitations": {}, "preview_jobs": {}, "idempotency": {}, "events": [], "event_cursor": 0, "composition_stage": 0, "deletion_state": "ACTIVE", "deleted_at": None,
             }
             memory.projects[project_id] = project
         memory.audit("project.created", actor, project_id, mode=payload.mode, home_region=payload.region)
@@ -1534,6 +1541,14 @@ def create_app(
                 session["previous_status"] = None
                 session["policy_epoch"] = project.get("policy_epoch", 1)
                 memory.emit(project, "memory_session.resumed", session_id=session_id)
+            elif session.get("policy_epoch") != project.get("policy_epoch", 1):
+                # Consent/project setup can finish after the browser creates a
+                # QUESTION_READY session.  An explicit resume is the user's
+                # acknowledgement to continue under the current policy; it
+                # synchronizes the session without weakening the stale-write
+                # guard on answer/complete/cue mutations.
+                session["policy_epoch"] = project.get("policy_epoch", 1)
+                memory.emit(project, "memory_session.policy_resynced", session_id=session_id)
         return _session_response(memory, session)
 
     @app.post("/v1/memory-sessions/{session_id}/skip")
@@ -2236,18 +2251,34 @@ def create_app(
         return resolve_place_groups(places)
 
     from .place_photo_pages import PhotoPages
-    photo_pages = PhotoPages()
+    from .place_photo_repository import configured_repository
+    photo_pages = PhotoPages(repository=configured_repository() if store is None else None)
 
     @app.get("/v1/projects/{project_id}/place-photos")
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
                      cursor: str | None = Query(default=None, max_length=160),
+                     refresh: bool = Query(default=False),
+                     latitude: float | None = Query(default=None, ge=-90, le=90),
+                     longitude: float | None = Query(default=None, ge=-180, le=180),
                      x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         _project(memory, project_id, _account_id(x_account_id))
+        if (latitude is None) != (longitude is None):
+            raise HTTPException(status_code=422, detail='Both photo search coordinates are required')
+        if latitude is None:
+            from .place_geocoding import GoogleMapsUnavailable, search_place
+            try:
+                center = await asyncio.to_thread(search_place, place)
+            except (GoogleMapsUnavailable, httpx.HTTPError, ValueError, TypeError):
+                center = None
+            if not center:
+                return {'items': [], 'count': 0, 'status': 'NO_MATCH', 'searching': False, 'next_cursor': None}
+            latitude, longitude = center['latitude'], center['longitude']
         try:
             from .place_photo_transport import photo_response
             return await photo_response(photo_pages, project_id, place, period, cursor,
-                                        stream='application/x-ndjson' in request.headers.get('accept', ''))
+                                        stream='application/x-ndjson' in request.headers.get('accept', ''), refresh=refresh,
+                                        latitude=latitude, longitude=longitude)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}
 
@@ -2307,7 +2338,7 @@ def create_app(
         project = _project(memory, person["project_id"], _account_id(x_account_id))
         if payload.expected_revision != person["revision"]:
             raise HTTPException(status_code=409, detail="Person revision has changed")
-        for key in ("name", "include_in_print", "visibility"):
+        for key in ("name", "introduction", "include_in_print", "visibility"):
             value = getattr(payload, key)
             if value is not None:
                 person[key] = value

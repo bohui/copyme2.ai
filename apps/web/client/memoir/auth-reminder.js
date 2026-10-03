@@ -17,24 +17,36 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
   try { conflictProvider = sessionStorage.getItem('memoir-link-provider') || 'google'; } catch { /* use Google */ }
   if (!['google', 'facebook'].includes(conflictProvider)) conflictProvider = 'google';
 
-  function open({ signIn = false } = {}) {
-    if (!getAuth()?.user?.is_anonymous || document.querySelector('[data-auth-reminder-dialog]')) return;
-    const dialog = document.createElement('dialog');
-    dialog.className = 'profile-settings';
-    dialog.dataset.authReminderDialog = '';
-    dialog.setAttribute('aria-labelledby', 'auth-reminder-title');
-    // All translated copy is assigned as text, never interpolated into HTML.
-    dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div><div data-conflict hidden><p data-choice-copy></p><div class="story-auth-actions"><button class="button button-primary" type="button" data-existing></button><button class="button button-secondary" type="button" data-new></button></div></div></fieldset><p role="status" aria-live="polite"></p></form>`;
+  function refreshCopy(targetDialog = document.querySelector('[data-auth-reminder-dialog]')) {
+    const reminder = document.querySelector('[data-auth-reminder]');
+    reminder?.querySelector('[data-auth-reminder-message]')?.replaceChildren(document.createTextNode(t('message')));
+    const reminderButton = reminder?.querySelector('[data-auth-reminder-trigger]');
+    if (reminderButton) reminderButton.textContent = t('title');
+
+    const dialog = targetDialog;
+    if (!dialog) return;
     dialog.querySelector('h2').textContent = t('title');
     dialog.querySelector('[data-close]').setAttribute('aria-label', t('later'));
-    dialog.querySelector('[data-intro]').textContent = t(signIn ? 'loginMessage' : 'message');
-    if (callbackError) dialog.querySelector('[role=status]').textContent = errorMessage(callbackError);
+    dialog.querySelector('[data-intro]').textContent = t(dialog.dataset.authSignIn === 'true' ? 'loginMessage' : 'message');
     dialog.querySelector('[data-email-label]').textContent = t('email');
     dialog.querySelector('[data-email]').textContent = t('continueEmail');
     for (const button of dialog.querySelectorAll('[data-provider]')) button.textContent = t(button.dataset.provider);
     dialog.querySelector('[data-choice-copy]').textContent = t('choiceMessage');
     dialog.querySelector('[data-existing]').textContent = t('mergeExisting');
     dialog.querySelector('[data-new]').textContent = t('chooseNew');
+  }
+
+  function open({ signIn = false } = {}) {
+    if (!getAuth()?.user?.is_anonymous || document.querySelector('[data-auth-reminder-dialog]')) return;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'profile-settings';
+    dialog.dataset.authReminderDialog = '';
+    dialog.dataset.authSignIn = String(signIn);
+    dialog.setAttribute('aria-labelledby', 'auth-reminder-title');
+    // All translated copy is assigned as text, never interpolated into HTML.
+    dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div><div data-conflict hidden><p data-choice-copy></p><div class="story-auth-actions"><button class="button button-primary" type="button" data-existing></button><button class="button button-secondary" type="button" data-new></button></div></div></fieldset><p role="status" aria-live="polite"></p></form>`;
+    refreshCopy(dialog);
+    if (callbackError) dialog.querySelector('[role=status]').textContent = errorMessage(callbackError);
     function showChoices() {
       const fieldset = dialog.querySelector('fieldset');
       for (const child of fieldset.children) {
@@ -96,6 +108,7 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
       document.querySelectorAll('[data-auth-reminder-dialog]').forEach(dialog => { dialog.close(); dialog.remove(); });
       return;
     }
+    refreshCopy();
     const chat = document.querySelector('#chat-scroll');
     if (!due || !chat || document.querySelector('[data-auth-reminder]')) return;
     const reminder = document.createElement('aside');
@@ -103,8 +116,10 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
     reminder.className = 'auth-history-reminder';
     reminder.setAttribute('aria-live', 'polite');
     const message = document.createElement('p');
+    message.dataset.authReminderMessage = '';
     message.textContent = t('message');
     const button = document.createElement('button');
+    button.dataset.authReminderTrigger = '';
     button.className = 'button button-secondary button-small';
     button.textContent = t('title');
     button.onclick = open;

@@ -43,8 +43,27 @@ class RecallStorage(FakeSupabaseUserStorage):
 
     def commit_agent_turn(self, token, thread_id, text, source_paths, **kwargs):
         assert self.held
+        self.saved_turn = text
         self.completed += 1
         return [{'id': f'reply-{self.completed}', 'content': text}]
+
+
+@pytest.mark.parametrize('explicit_original', [True, False])
+def test_original_conversation_text_is_saved_separately_from_agent_instructions(monkeypatch, explicit_original):
+    storage = RecallStorage()
+    runtime = CodexRuntime(worker_url='http://unused')
+    prompt = "The storyteller said: My garden\nAcknowledge the storyteller naturally, then ask one gentle open-ended follow-up question."
+    received = []
+
+    async def worker(**kwargs):
+        received.append(kwargs['text'])
+        return {'thread_id': 'thread', 'reply': 'What grew there?', 'artifacts': []}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker)
+    options = {'conversation_text': 'My garden'} if explicit_original else {}
+    asyncio.run(runtime.turn(storage, prompt, **options))
+    assert received == [prompt]
+    assert storage.saved_turn == 'Storyteller: My garden\nMemory Spark: What grew there?'
 
 
 @pytest.mark.parametrize('limit', [1, 3, 20])
@@ -140,3 +159,23 @@ def test_default_and_invalid_configuration(monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS', '0')
     with pytest.raises(ValueError, match='positive integer'):
         free_recall_rounds()
+
+
+@pytest.mark.parametrize('value',[1,7,20,31])
+def test_configured_allowance_boundaries_are_independent_of_draft_cadence(monkeypatch,value):
+    from apps.api.recall import private_draft_cadence,recall_status
+    monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS',str(value))
+    monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE','3')
+    assert free_recall_rounds()==value and private_draft_cadence()==3
+    assert recall_status(value-1,None)['payment_required'] is False
+    assert recall_status(value,None)['payment_required'] is True
+    assert recall_status(value,{'status':'paid'})['payment_required'] is False
+
+
+@pytest.mark.parametrize('name',['MEMORY_SPARK_FREE_RECALL_ROUNDS','MEMORY_SPARK_PRIVATE_DRAFT_CADENCE'])
+@pytest.mark.parametrize('value',['-1','zero','2.5','1000001'])
+def test_invalid_allowance_or_cadence_rejected(monkeypatch,name,value):
+    from apps.api.recall import private_draft_cadence
+    monkeypatch.setenv(name,value)
+    with pytest.raises(ValueError,match='positive integer'):
+        (free_recall_rounds if name.endswith('RECALL_ROUNDS') else private_draft_cadence)()

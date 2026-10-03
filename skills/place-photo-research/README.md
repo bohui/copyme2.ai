@@ -1,12 +1,12 @@
 # Place Photo Research — a directly usable Codex skill
 
-Version 1.0.0 · 30 September 2026
+Version 1.1.0 · 2 October 2026
 
 **No period mentioned → present-day photos.** A specified historical period is preserved. The skill uses Codex's native web search for discovery, its available reading tools for source inspection, and the bundled Python helper for date normalization, evidence checks, permitted local downloads and reports.
 
 It does not require the memoir app, a custom tool host, database, MCP server or an additional Serper/SerpApi account for the native Codex workflow. The app's optional Google Programmable Search Engine image provider uses a server-side `GOOGLE_CSE_ID` and `GOOGLE_CSE_API_KEY`; neither belongs in browser configuration. The engine ID identifies the Programmable Search Engine, while the API key identifies the Google Cloud project that owns it, so the Programmable Search control panel has no project selector. An API-key restriction does not itself grant that project access to the Custom Search JSON API. The skill still requires your usual Codex access, Python 3.10+, and permitted network access. Pillow is needed for downloading/validating image files.
 
-When native search does not return enough historical leads, the optional Crawl4AI route can render a user-supplied Google Programmable Search page, paginate its visible image cards and crawl their public source pages. Install `requirements-crawl4ai.txt` only when using that route; it adds a headless browser runtime and is not required for the normal skill.
+The `discover` command runs configured SerpAPI and Google CSE page searches concurrently, caches public search metadata for 24 hours, and merges provider/source provenance. Configure `SERPAPI_KEY` in the project environment or `.env`; keep it out of command arguments. See SKILL.md for the full command and failure/cache rules. When native search does not return enough leads, the optional Crawl4AI route can render a user-supplied Google Programmable Search page, paginate its visible image cards and crawl their public source pages. Install `requirements-crawl4ai.txt` only when using that route; it adds a headless browser runtime and is not required for the normal skill.
 
 ## Install into a project
 
@@ -152,7 +152,7 @@ Run them:
   -s .agents/skills/place-photo-research/tests -v
 ```
 
-The current local validation also ran a real Crawl4AI smoke for `Chengde, Hebei, China` with input year `1980`: two CSE image pages returned 40 cards, two source pages yielded ten 1980–1989 memory-reference candidates, and no image bytes were downloaded. This verifies the configured CSE route, not the legal status or future availability of those sources.
+Historical validation on version 1.0.0 also ran a real Crawl4AI smoke for `Chengde, Hebei, China` with input year `1980`: two CSE image pages returned 40 cards, two source pages yielded ten 1980–1989 memory-reference candidates, and no image bytes were downloaded. This older smoke predates the stricter image-specific date checks in version 1.1.0 and does not validate the revised capture-date logic, legal status or future availability of those sources.
 
 **Not verified:** live installation or activation in your Codex account; native search relevance; Google CSE quota outside the configured smoke; end-to-end real archive downloads; every website's access terms; independent authenticity of photo metadata; legal title/licensing; China/Australia production deployment. See `VALIDATION.json` for the precise local test result.
 

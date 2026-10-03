@@ -3,9 +3,20 @@ import os
 
 
 def free_recall_rounds() -> int:
-    value = int(os.getenv('MEMORY_SPARK_FREE_RECALL_ROUNDS', '20'))
-    if value < 1:
-        raise ValueError('MEMORY_SPARK_FREE_RECALL_ROUNDS must be a positive integer')
+    return _positive_config('MEMORY_SPARK_FREE_RECALL_ROUNDS', 20)
+
+
+def private_draft_cadence() -> int:
+    return _positive_config('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE', 5)
+
+
+def _positive_config(name, default):
+    try:
+        value = int(os.getenv(name, str(default)))
+        if not 1 <= value <= 1000000:
+            raise ValueError
+    except ValueError:
+        raise ValueError(f'{name} must be a positive integer from 1 through 1000000') from None
     return value
 
 

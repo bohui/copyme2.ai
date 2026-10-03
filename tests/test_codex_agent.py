@@ -58,12 +58,173 @@ def test_collector_prompt_reviews_breadth_after_twenty_focused_turns():
     assert 'do not force a topic change' in checkpoint.lower()
 
 
+def test_workspace_extraction_retries_only_missing_family_domains_without_synthesizing(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        focus = kwargs.get('extraction_focus')
+        calls.append(focus)
+        if focus is None:
+            return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+        if focus == 'family_tree':
+            return {
+                'reply': (
+                    '[[MEMORY_SPARK_FAMILY_TREE]]'
+                    '{"people":[{"id":"p-nora","name":"Nora","family_title":"sister"}],"relationships":[]}'
+                    '[[/MEMORY_SPARK_FAMILY_TREE]]'
+                )
+            }
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-1","kind":"event","title":"Was born in Hobart",'
+                '"date_expression":"unknown","precision":"unknown","place":"Hobart"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I was born in Hobart. My sister Nora remembers it.', language='en-AU',
+    ))
+
+    assert calls == [None, 'family_tree', 'author_timeline']
+    assert 'MEMORY_SPARK_FAMILY_TREE' in reply
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+def test_workspace_extraction_does_not_invent_missing_domain_markers(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {'reply': ''}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='Please keep the uncertainty clear and ask me one question.', language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_FAMILY_TREE' not in reply
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
+
+
+def test_workspace_extraction_skips_unrelated_focused_recovery_passes(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        calls.append(kwargs.get('extraction_focus'))
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='Please keep the uncertainty clear and ask me one question.', language='en-AU',
+    ))
+
+    assert calls == [None]
+
+
+@pytest.mark.parametrize('text', [
+    '晚年我有时只记得泡茶时的声音，这些反思不一定应该成为有日期的事件。',
+    'I am unsure whether Ben left the neighbourhood before or after my final school year.',
+])
+def test_workspace_extraction_does_not_recover_timeline_for_reflection_or_other_person(text, monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        calls.append(kwargs.get('extraction_focus'))
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='en-AU',
+    ))
+
+    assert calls == [None]
+
+
+def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-reflection","title":"Reflection",'
+                '"date_expression":"later life"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='晚年我有时只记得泡茶时的声音，这些反思不一定应该成为有日期的事件。',
+        language='zh-CN',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
+
+
+def test_workspace_extraction_recovers_known_person_without_repeated_kinship_title(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        calls.append(kwargs.get('extraction_focus'))
+        if kwargs.get('extraction_focus') == 'family_tree':
+            return {'reply': '[[MEMORY_SPARK_FAMILY_TREE]]{"people":[{"id":"june","name":"June","family_title":"aunt"}],"relationships":[]}[[/MEMORY_SPARK_FAMILY_TREE]]'}
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+
+    asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True,
+        family_context={'people': [{'name': 'June', 'family_title': 'aunt'}]},
+        project_id=None,
+        text='Please preserve the difference between what June remembers and what I directly remember.',
+        language='en-AU',
+    ))
+
+    assert calls == [None, 'family_tree']
+
+
 def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
     from apps.api.codex_runtime import MEMOIR_SYSTEM_PROMPT
     workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)
     assert MEMOIR_SYSTEM_PROMPT not in workspace
     for marker in ('PROFILE', 'PLACE_JOURNEY', 'FAMILY_TREE', 'AUTHOR_TIMELINE'):
         assert f'[[MEMORY_SPARK_{marker}]]' in workspace
+
+
+def test_workspace_prompt_has_independent_domain_audit_and_focused_recovery():
+    workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)
+    focused = build_workspace_extraction_prompt(
+        '(none)', family_enabled=True, focus='author_timeline'
+    )
+
+    assert 'A profile or place marker never substitutes' in workspace
+    assert 'never let birth_place or story_focus replace the timeline event' in workspace
+    assert 'Focused author-timeline recovery pass' in focused
+    family_focused = build_workspace_extraction_prompt(
+        '(none)', family_enabled=True, focus='family_tree'
+    )
+    assert 'Kinship titles and explicit shorthand such as `my father`' in family_focused
+    assert 'At about three, I followed my father to the docks' in family_focused
+    assert 'Mum grew mint beside the laundry' in family_focused
 
 
 def test_loop_trace_is_localized_for_simplified_chinese():
@@ -335,7 +496,8 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     path = result['source_paths'][0]
     assert path.startswith('sessions/turns/') and path.endswith('/thread-new.json')
     assert storage.saved_session == "thread-new"
-    assert storage.profile_data == {
+    assert storage.profile_data["conversation_language"]["initialized"] is True
+    assert {k:v for k,v in storage.profile_data.items() if k != "conversation_language"} == {
         "preferred_language": "en-AU",
         "name": "Mina",
         "avatar_style": "female",
@@ -359,6 +521,7 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     }
     assert result["place_journey"] == {
         **storage.saved_place_journey,
+        "period": "",
         "status": "active",
         "revision": 1,
         "updated_at": "2026-09-26T00:00:00Z",
@@ -371,12 +534,17 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     assert "MEMORY_SPARK_PLACE_JOURNEY" not in result["reply"]
     assert storage.files[path] == b"session state"
     assert client.request["url"] == "http://codex-worker:8766/internal/codex/turn"
-    assert client.request["headers"] == {"X-Codex-Worker-Secret": "worker-secret", "Accept": "application/x-ndjson"}
-    assert client.request["json"] == {
+    assert client.request["headers"]["X-Codex-Worker-Secret"] == "worker-secret"
+    assert client.request["headers"]["Accept"] == "application/x-ndjson"
+    assert client.request["headers"]["X-Memoir-Request-ID"] == client.request["json"]["diagnostic_request_id"]
+    request_payload = dict(client.request["json"])
+    diagnostic_request_id = request_payload.pop("diagnostic_request_id")
+    assert diagnostic_request_id
+    assert request_payload == {
         "user_id": storage.user_id,
         "thread_id": "thread-old",
         "memories": ["A private memory"],
-        "profile": {"preferred_language": "en-AU"},
+        "profile": {"preferred_language": "en-AU", "conversation_language": storage.profile_data["conversation_language"]},
         "place_journey": {},
         "family_context": {},
         "family_enabled": False,

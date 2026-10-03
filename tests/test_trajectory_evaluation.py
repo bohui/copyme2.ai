@@ -10,8 +10,10 @@ from apps.api.trajectory_evaluation import (
     EVALUATION_RUBRIC_VERSION,
     LangfusePublisher,
     MemoirEvaluationRunner,
+    OpenAICompatibleJudge,
     TrajectoryRecorder,
     build_judge_input,
+    build_judge_prompt,
     comparison_matrix,
     evaluate_trajectory,
     load_judge_calibration,
@@ -174,6 +176,44 @@ def test_judge_input_contains_ordered_steps_and_terminal_state():
     assert "final_response_quality" in judge_input["rubric"]
 
 
+def test_openai_compatible_judge_uses_template_and_records_safe_usage(monkeypatch):
+    async def run():
+        def handle(request):
+            payload = json.loads(request.content)
+            assert "custom evaluator instructions" in payload["messages"][1]["content"]
+            assert payload["max_tokens"] == 1200
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [{"message": {"content": json.dumps({
+                        "status": "scored",
+                        "scores": {category: 1 for category in (
+                            "tool_appropriateness", "evidence_use", "recovery", "repetition",
+                            "stopping", "instruction_adherence", "final_response_quality",
+                        )},
+                        "comments": {},
+                        "evidence": ["step-0001"],
+                    })}}],
+                    "usage": {"prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20},
+                },
+            )
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        monkeypatch.setattr("apps.api.trajectory_evaluation.httpx.AsyncClient", lambda **kwargs: client)
+        judge = OpenAICompatibleJudge(
+            base_url="http://judge",
+            model="configured-model",
+            instructions="custom evaluator instructions",
+        )
+        result = await judge({"ordered_steps": [{"step_id": "step-0001"}]})
+        assert result["status"] == "scored"
+        assert judge.calls == 1
+        assert judge.last_call["usage"]["total_tokens"] == 20
+        await client.aclose()
+
+    asyncio.run(run())
+
+
 def test_judge_calibration_requires_explicit_human_review():
     example = {
         "case_id": "place-cue-grounded",
@@ -208,6 +248,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "case_id": "case-1",
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
+                "request_id": "diag-test-1",
             }
             connection.events.append({
                 "method": "item/completed",
@@ -231,6 +272,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "case_id": "case-1",
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
+                "request_id": "diag-test-1",
             },
         ) == "done"
 
@@ -385,7 +427,10 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
             return []
 
         def profile(self):
-            return {'preferred_language': 'en-AU'}
+            return getattr(self, 'saved_profile', {'preferred_language': 'en-AU'})
+
+        def save_profile(self, profile):
+            self.saved_profile = dict(profile)
 
         def place_journey(self):
             return None

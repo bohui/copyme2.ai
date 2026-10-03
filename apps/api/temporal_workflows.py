@@ -37,3 +37,12 @@ class MemoirTaskWorkflow:
                                      maximum_interval=timedelta(seconds=15),
                                      maximum_attempts=10),
         )
+
+
+@workflow.defn(name='PrivateMemoirDraft')
+class PrivateMemoirDraftWorkflow:
+    @workflow.run
+    async def run(self, job_id: str) -> dict[str, object]:
+        return await workflow.execute_activity('memoir.private_draft', job_id,
+            start_to_close_timeout=timedelta(minutes=30),
+            retry_policy=RetryPolicy(maximum_attempts=3))

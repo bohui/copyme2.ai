@@ -150,7 +150,13 @@ export function preparePlan(r) {
   if(!r.snapshot.retrieval_complete) return block('retrieval_incomplete','Finish retrieving the authorised snapshot before selecting coverage.');
   if(!r.trigger.confirmed) return block('awaiting_event_confirmation','Only a confirmed application event may start this skill.');
   let kind;
-  if(r.trigger.type==='free_rounds_completed') {
+  if(r.trigger.type==='private_draft_checkpoint') {
+    if(r.trigger.private_draft_authorized!==true || !Number.isInteger(r.trigger.private_draft_cadence) ||
+       !Number.isInteger(r.trigger.private_rounds_completed) || r.trigger.private_rounds_completed<r.trigger.private_draft_cadence)
+      return block('private_draft_not_authorized','The host must authorize a completed private draft checkpoint.');
+    if(r.target.audience!=='storyteller'||r.target.medium!=='web'||r.trigger.composition_authorized||r.prior_state.kind==='formal_memoir')
+      return block('invalid_private_draft_scope','Private checkpoints cannot authorize a full or published manuscript.');
+  } else if(r.trigger.type==='free_rounds_completed') {
     if(r.trigger.free_rounds_completed<r.trigger.free_round_limit) return block('trial_not_finished','Primary free sessions are not complete.');
     if(r.prior_state.kind==='formal_memoir') return block('invalid_transition','Do not downgrade an existing formal memoir to a free preview.');
   } else if(r.trigger.type==='storytelling_complete') {
@@ -391,6 +397,11 @@ function blockHtml(b) {
   if(b.type==='context'||b.type==='editorial_note') return `<aside><strong>${b.type==='context'?'Historical context':'Editorial note'}</strong><p>${esc(b.text)}</p></aside>`;
   return `<p>${esc(b.text).replace(/\n/g,'<br>')}</p>`;
 }
+function bodyBlocks(chapter) {
+  let first=0;
+  while(chapter.blocks[first]?.type==='heading' && chapter.blocks[first].text.trim()===chapter.title.trim()) first++;
+  return chapter.blocks.slice(first);
+}
 export function renderArtifacts(r,d) {
   const report=validateDraft(r,d);
   if(!report.ok) throw new Error('Draft validation failed; refusing to render a ready-to-review artifact');
@@ -399,8 +410,10 @@ export function renderArtifacts(r,d) {
   const mdParts=[`# ${md(d.title)}`,'_AI-assisted draft for review. Not an approved publication._'];
   const htmlParts=[`<h1>${esc(d.title)}</h1>`,`<p class="notice">AI-assisted draft for review. Not an approved publication.</p>`];
   for(const c of bodies) {
-    mdParts.push(`## ${md(c.title)}`,...(c.subtitle?[md(c.subtitle)]:[]),...c.blocks.map(blockMarkdown));
-    htmlParts.push(`<section id="${esc(c.id)}"><h2>${esc(c.title)}</h2>${c.subtitle?'<p class="period">'+esc(c.subtitle)+'</p>':''}${c.blocks.map(blockHtml).join('\n')}</section>`);
+    const showTitle=d.kind==='formal_memoir' || c.title.trim()!==d.title.trim();
+    const blocks=bodyBlocks(c);
+    mdParts.push(...(showTitle?[`## ${md(c.title)}`]:[]),...(c.subtitle?[md(c.subtitle)]:[]),...blocks.map(blockMarkdown));
+    htmlParts.push(`<section id="${esc(c.id)}">${showTitle?'<h2>'+esc(c.title)+'</h2>':''}${c.subtitle?'<p class="period">'+esc(c.subtitle)+'</p>':''}${blocks.map(blockHtml).join('\n')}</section>`);
   }
   if(d.kind==='sample_storyline') {
     mdParts.push('## Proposed chapters',...d.outline.map(o=>`${o.order+1}. ${md(o.title)}${o.status==='needs_context'?' — topic only, more context needed':''}`));

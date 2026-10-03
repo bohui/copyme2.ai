@@ -195,6 +195,8 @@ class TaskQueue:
         tables = ['tasks', 'workspace_jobs']
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='preview_jobs'").fetchone():
             tables.append('preview_jobs')
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_draft_jobs'").fetchone():
+            tables.append('private_draft_jobs')
         return tables
 
     def has_pending_user_work(self, user_id):

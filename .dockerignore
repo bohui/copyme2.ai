@@ -12,6 +12,8 @@ var
 *.db-shm
 *.db-wal
 node_modules
+**/node_modules
+**/.next
 .playwright
 .playwright-cli
 output

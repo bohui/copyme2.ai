@@ -122,7 +122,9 @@ def test_paid_family_turn_returns_validated_context_and_strips_the_marker(monkey
 
     assert result["reply"] == "Who was with you?"
     assert result["family_context"]["timeline"][0]["precision"] == "approximate"
-    assert result["family_context"]["schema_version"] == 1
+    assert result["family_context"]["schema_version"] == 2
+    assert result["family_context"]["timeline"][0]["kind"] == "event"
+    assert "life_periods" not in result["family_context"]
     assert result["family_context_update"]["persisted"] is True
     assert result["family_context_update"]["changed"] is True
     assert result["family_context_update"]["skills"] == ["family_tree", "author_timeline"]

@@ -60,6 +60,23 @@ def test_relationship_graph_keeps_uncertainty_and_rejects_ancestry_cycles(client
     assert merge.json()["status"] == "PENDING_REVIEW"
 
 
+def test_person_introduction_can_be_saved_and_revised(client: TestClient) -> None:
+    project = make_project(client)
+    headers = {"X-Account-Id": "storyteller-1"}
+    response = client.post(f"/v1/projects/{project['id']}/people", headers=headers,
+                           json={"name": "Mei", "introduction": "She grew roses."})
+    assert response.status_code == 201
+    person = response.json()
+    response = client.patch(f"/v1/people/{person['id']}", headers=headers,
+                            json={"introduction": "She taught me to tend the garden.", "expected_revision": 1})
+    assert response.status_code == 200
+    assert response.json()["introduction"] == "She taught me to tend the garden."
+    saved = client.get(f"/v1/projects/{project['id']}/people", headers=headers).json()["items"][0]
+    assert saved["introduction"] == response.json()["introduction"]
+    assert client.patch(f"/v1/people/{person['id']}", headers=headers,
+                        json={"introduction": "x" * 1201, "expected_revision": 2}).status_code == 422
+
+
 def test_disabling_the_approved_regional_writer_pauses_processing_without_fallback(client: TestClient) -> None:
     project = make_project(client)
     session = client.post(f"/v1/projects/{project['id']}/memory-sessions", json={}, headers={"X-Account-Id": "storyteller-1"}).json()

@@ -7,8 +7,10 @@ import fcntl
 import hashlib
 import hmac
 import json
+import logging
 import os
 import threading
+import time
 import httpx
 from pathlib import Path
 from typing import Any, Literal
@@ -24,6 +26,7 @@ from .codex_agent import CodexConnection, provider_config
 from .codex_artifacts import iter_artifacts
 from .codex_runtime import (
     LANGUAGE_INTAKE_SCHEMA,
+    WORKSPACE_TIMEOUT,
     build_conversation_system_prompt,
     build_language_intake_prompt,
     build_system_prompt,
@@ -31,11 +34,16 @@ from .codex_runtime import (
     normalize_conversation_language,
 )
 from .codex_worker_files import migrate_home, write_config
+from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
 from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, normalise_correlation
 from .agent_lock import AgentTurnBusyError
 from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
-from .memoir_preview import COMPOSER_TIMEOUT, composer_instructions, composer_output_schema
+from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
+
+
+diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
+configure_diagnostic_logger(diagnostic_logger)
 
 
 class ComposerProviderUnavailable(RuntimeError):
@@ -56,11 +64,15 @@ class WorkerTurnInput(BaseModel):
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
     agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer'] = 'collector'
+    extraction_focus: Literal['family_tree', 'author_timeline'] | None = None
     composer_phase: Literal['index', 'draft', 'review'] = 'draft'
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
     # Present only for local/CI evaluation. Normal product turns do not carry
     # evaluation IDs and therefore do not return trajectory evidence.
     evaluation: dict[str, str] = Field(default_factory=dict, max_length=12)
+    # Internal-only correlation for bounded service diagnostics. It is never
+    # included in the storyteller prompt or reply.
+    diagnostic_request_id: str | None = Field(default=None, min_length=1, max_length=96)
 
 
     @model_validator(mode='after')
@@ -73,7 +85,7 @@ class WorkerTurnInput(BaseModel):
 class CodexWorker:
     """Run Codex outside the API container and under a user-specific UID."""
 
-    def __init__(self, *, home_root=None, legacy_root=None, command=None, base_url=None, model=None, timeout=120):
+    def __init__(self, *, home_root=None, legacy_root=None, command=None, base_url=None, model=None, timeout=None):
         self.home_root = Path(home_root or os.getenv(
             "MEMORY_SPARK_CODEX_HOME", "var/codex-worker-users"
         ))
@@ -88,11 +100,20 @@ class CodexWorker:
         self.base_url = base_url or os.getenv(
             "MEMORY_SPARK_LLM_BASE_URL", "http://127.0.0.1:4000/v1"
         )
-        self.model = model or os.getenv("MEMORY_SPARK_LLM_MODEL", "deepseek-v4-flash")
+        self.model = model or os.getenv("MEMORY_SPARK_LLM_MODEL", "gpt-5.6-luna-pooled")
         self.api_key = os.getenv("MEMORY_SPARK_LLM_API_KEY", "")
         # Bound the whole execution, not each protocol request separately.
-        # This remains below the API's 300-second lease even if the API dies.
-        self.timeout = min(timeout, 240)
+        # Collector/workspace budgets stay below their conversation leases;
+        # composer phases use the separate private-draft budget below.
+        configured_timeout = timeout
+        if configured_timeout is None:
+            try:
+                configured_timeout = float(os.getenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", "120"))
+            except ValueError:
+                configured_timeout = 120
+        # Keep explicit sub-second values available to unit tests; deployed
+        # values are bounded above and the normal default remains 120s.
+        self.timeout = min(max(float(configured_timeout), 0.001), 240)
         self._locks: dict[str, object] = {}
         self._identity_lock = threading.Lock()
         self._identity_file = self.home_root / ".user-ids.json"
@@ -105,8 +126,38 @@ class CodexWorker:
         key = user_id if agent_role == 'collector' else f'{user_id}:{agent_role}'
         return self._locks.setdefault(key, asyncio.Lock())
 
+    def _execution_timeout(self, agent_role: str, composer_phase: str = 'index'):
+        if agent_role == 'composer':
+            return composer_timeout(composer_phase)
+        if agent_role == 'workspace':
+            return WORKSPACE_TIMEOUT
+        return self.timeout
+
+    @staticmethod
+    def _refresh_collector_thread(payload: WorkerTurnInput) -> bool:
+        """Start a fresh persisted thread before a long history dominates latency.
+
+        The application still supplies the bounded saved-memory context, so this
+        is a context compaction boundary rather than a loss of the memoir. A
+        worker process must not spend the whole collector budget replaying every
+        prior protocol turn at the final review checkpoint.
+        """
+        return (
+            payload.agent_role == 'collector'
+            and payload.thread_id is not None
+            and payload.conversation_rounds_completed is not None
+            and payload.conversation_rounds_completed >= 40
+        )
+
     def _uid_for(self, user_id: str) -> int:
         """Allocate a stable, non-system UID for the user's Codex process."""
+        # The explicit local/macOS evaluation mode does not have Linux's
+        # privileged chown/setpriv boundary. Use the current account so the
+        # isolated worker can exercise the real app-server path without
+        # pretending to provide production tenant isolation. Production keeps
+        # the default path below and never sets this flag.
+        if os.getenv("MEMORY_SPARK_DISABLE_PRIVDROP") == "1":
+            return os.getuid()
         with self._identity_lock, (self.home_root / '.identity.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:
@@ -139,10 +190,22 @@ class CodexWorker:
         if agent_role == 'collector' and not home.exists() and not home.is_symlink() and self.legacy_root is not None:
             migrate_home(self.legacy_root / user_id, home, uid)
         home.mkdir(parents=True, exist_ok=True, mode=0o700)
-        write_config(home, self.home_root, uid, provider_config(self.base_url, self.model))
+        write_config(
+            home,
+            self.home_root,
+            uid,
+            provider_config(self.base_url, self.model),
+            apply_owner=os.getenv("MEMORY_SPARK_DISABLE_PRIVDROP") != "1",
+        )
         return home
 
     def _run_command(self, uid: int):
+        # macOS development/CI hosts do not provide Linux's setpriv. The
+        # isolated evaluation worker runs under its own process and workspace
+        # boundary, so it can opt out explicitly without weakening the
+        # production default or changing normal worker deployments.
+        if os.getenv("MEMORY_SPARK_DISABLE_PRIVDROP") == "1":
+            return list(self.command)
         return [
             self.privdrop,
             f"--reuid={uid}",
@@ -154,26 +217,67 @@ class CodexWorker:
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
         user_id = str(payload.user_id)
-        async with self._lock(user_id, payload.agent_role):
-            if payload.agent_role == 'composer':
-                await self._ensure_composer_provider()
-            # Shared-volume lock also covers API disconnect/lease expiry and
-            # multiple worker processes. Collector and workspace passes have
-            # separate homes and therefore separate locks.
-            lock_key = user_id if payload.agent_role == 'collector' else f'{user_id}-{payload.agent_role}'
-            lock_name = hashlib.sha256(lock_key.encode()).hexdigest()[:32]
-            with (self.home_root / f'.turn-{lock_name}.lock').open('a') as lock:
-                try:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError:
-                    raise AgentTurnBusyError('Codex worker is busy for this user') from None
-                async with asyncio.timeout(COMPOSER_TIMEOUT if payload.agent_role == 'composer' else self.timeout):
-                    options = {}
-                    if on_delta:
-                        options['on_delta'] = on_delta
-                    if on_event:
-                        options['on_event'] = on_event
-                    return await self._turn(payload, **options)
+        request_id = new_request_id(payload.diagnostic_request_id)
+        if payload.diagnostic_request_id != request_id:
+            payload = payload.model_copy(update={'diagnostic_request_id': request_id})
+        started = time.perf_counter()
+        model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
+                                  if payload.agent_role == 'composer' else self.model)
+        log_diagnostic(
+            diagnostic_logger,
+            'worker_turn_start',
+            request_id,
+            component='memoir.codex_worker',
+            agent_role=payload.agent_role,
+            model=model,
+            streaming=bool(on_delta or on_event),
+        )
+        try:
+            async with self._lock(user_id, payload.agent_role):
+                if payload.agent_role == 'composer':
+                    await self._ensure_composer_provider()
+                # Shared-volume lock also covers API disconnect/lease expiry and
+                # multiple worker processes. Collector and workspace passes have
+                # separate homes and therefore separate locks.
+                lock_key = user_id if payload.agent_role == 'collector' else f'{user_id}-{payload.agent_role}'
+                lock_name = hashlib.sha256(lock_key.encode()).hexdigest()[:32]
+                with (self.home_root / f'.turn-{lock_name}.lock').open('a') as lock:
+                    try:
+                        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        raise AgentTurnBusyError('Codex worker is busy for this user') from None
+                    async with asyncio.timeout(self._execution_timeout(payload.agent_role, payload.composer_phase)):
+                        options = {}
+                        if on_delta:
+                            options['on_delta'] = on_delta
+                        if on_event:
+                            options['on_event'] = on_event
+                        result = await self._turn(payload, **options)
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_turn_terminal',
+                request_id,
+                component='memoir.codex_worker',
+                agent_role=payload.agent_role,
+                model=model,
+                status='completed',
+                terminal_event='worker.turn',
+                elapsed_ms=elapsed_ms(started),
+            )
+            return result
+        except BaseException as error:
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_turn_failed',
+                request_id,
+                component='memoir.codex_worker',
+                agent_role=payload.agent_role,
+                model=model,
+                status='failed',
+                failure_class=failure_class(error),
+                elapsed_ms=elapsed_ms(started),
+            )
+            raise
 
     async def _ensure_composer_provider(self):
         # Codex internally retries connection failures. Reject an unreachable
@@ -191,20 +295,31 @@ class CodexWorker:
         user_id = str(payload.user_id)
         uid = self._uid_for(user_id)
         home = self._home(user_id, uid, payload.agent_role)
+        model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
+                                  if payload.agent_role == 'composer' else self.model)
         correlation = normalise_correlation(payload.evaluation)
+        request_id = new_request_id(payload.diagnostic_request_id)
+        started = time.perf_counter()
+        log_diagnostic(
+            diagnostic_logger,
+            'appserver_turn_start',
+            request_id,
+            component='memoir.codex_worker.appserver_client',
+            agent_role=payload.agent_role,
+            model=model,
+        )
         trajectory = None
         if correlation:
             trajectory = TrajectoryRecorder(
                 correlation,
                 skill_manifest=build_skill_manifest(Path(__file__).resolve().parents[2] / 'skills'),
             )
-            trajectory.set_context(agent_role=payload.agent_role, language=payload.language, model=payload.model or self.model)
+            trajectory.set_context(agent_role=payload.agent_role, language=payload.language, model=model)
             trajectory.record('application', 'worker.turn.received', input={
                 'thread_id': payload.thread_id,
                 'project_id': payload.project_id,
                 'text': payload.text,
             })
-        model = payload.model or self.model
         language = normalize_conversation_language(payload.language)
         context = "\n".join(str(memory)[:2000] for memory in payload.memories) or "(none)"
         if payload.agent_role == 'collector':
@@ -225,6 +340,7 @@ class CodexWorker:
                 family_context=payload.family_context,
                 task_sources=payload.task_sources,
                 language=language,
+                focus=payload.extraction_focus,
             )
         else:
             instructions = build_system_prompt(
@@ -250,10 +366,10 @@ class CodexWorker:
                 self._run_command(uid),
                 home,
                 provider_env=environment,
-                timeout=COMPOSER_TIMEOUT if payload.agent_role == 'composer' else self.timeout,
+                timeout=self._execution_timeout(payload.agent_role, payload.composer_phase),
                 trajectory=trajectory,
             ) as connection:
-                if payload.thread_id and payload.agent_role == 'collector':
+                if payload.thread_id and payload.agent_role == 'collector' and not self._refresh_collector_thread(payload):
                     result = await connection.request("thread/resume", {
                         "threadId": payload.thread_id,
                         "cwd": str(home),
@@ -281,7 +397,9 @@ class CodexWorker:
                        {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
-                    **({'responsesapi_client_metadata': correlation} if correlation else {}),
+                    **({'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}
+                       if payload.agent_role == 'composer' else {}),
+                    responsesapi_client_metadata={**correlation, 'request_id': request_id},
                 )
             if trajectory:
                 trajectory.record('application', 'worker.turn.completed', output={'thread_id': thread_id, 'reply': reply})
@@ -292,7 +410,29 @@ class CodexWorker:
                     'type': 'provider_complete',
                     'data': {'thread_id': thread_id, 'reply': reply},
                 })
+            log_diagnostic(
+                diagnostic_logger,
+                'appserver_turn_terminal',
+                request_id,
+                component='memoir.codex_worker.appserver_client',
+                agent_role=payload.agent_role,
+                model=model,
+                status='completed',
+                terminal_event='turn.completed',
+                elapsed_ms=elapsed_ms(started),
+            )
         except BaseException as error:
+            log_diagnostic(
+                diagnostic_logger,
+                'appserver_turn_failed',
+                request_id,
+                component='memoir.codex_worker.appserver_client',
+                agent_role=payload.agent_role,
+                model=model,
+                status='failed',
+                failure_class=failure_class(error),
+                elapsed_ms=elapsed_ms(started),
+            )
             if trajectory:
                 trajectory.finish(None, status='failed', stop_reason='turn.failed', error=str(error))
             raise
@@ -343,8 +483,12 @@ def health():
 
 @app.post("/internal/codex/turn")
 async def turn(payload: WorkerTurnInput, request: Request,
-               x_codex_worker_secret: str | None = Header(default=None)):
+               x_codex_worker_secret: str | None = Header(default=None),
+               x_memoir_request_id: str | None = Header(default=None)):
     _require_worker_secret(x_codex_worker_secret)
+    request_id = new_request_id(x_memoir_request_id or payload.diagnostic_request_id)
+    if payload.diagnostic_request_id != request_id:
+        payload = payload.model_copy(update={'diagnostic_request_id': request_id})
     if 'application/x-ndjson' in request.headers.get('accept', ''):
         return StreamingResponse(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
                                                                         on_event=emit.event)),

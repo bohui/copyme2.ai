@@ -17,8 +17,15 @@ window.f3 = {
       target.innerHTML = '<div class="family-chart-library-content">Family chart renderer</div>';
     }
     return {
+      setSingleParentEmptyCard: function () { return this; },
+      setShowSiblingsOfMain: function () { return this; },
+      updateMainId: function () { return this; },
       setCardHtml: function () { return this; },
       setCardDisplay: function () { return this; },
+      setCardInnerHtmlCreator: function () { return this; },
+      setOnCardClick: function () { return this; },
+      setCardXSpacing: function () { return this; },
+      setCardYSpacing: function () { return this; },
       updateTree: function () { return this; },
     };
   },
@@ -135,7 +142,7 @@ def main() -> None:
             expect(family.locator("[data-renderer-status='fallback']")).to_be_visible()
         else:
             expect(family.locator("[data-library-mounted='family-chart']")).to_be_visible()
-        expect(family.locator(".people-list strong", has_text="Mei")).to_be_visible()
+        expect(family.locator(".family-person-card strong", has_text="Mei")).to_be_visible()
         navigator = page.locator(".life-stage-navigator")
         expect(navigator).to_be_visible()
         expect(navigator.locator("h2, h3, p, .life-stage-badge, .life-stage-detail")).to_have_count(0)

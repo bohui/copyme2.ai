@@ -6,6 +6,7 @@ import pytest
 
 from apps.api.agent_lock import AgentTurnLease
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.conversation_locale import record
 
 
 class Storage:
@@ -31,7 +32,9 @@ class Storage:
         return []
 
     def profile(self):
-        return {'preferred_language': 'en-AU'}
+        # These tests lose a lease during a resumed visible turn, after locale
+        # initialization has already completed.
+        return {'preferred_language': 'en-AU', 'conversation_language': record('en-AU', source='explicit')}
 
     def put_agent_turn_file(self, *args):
         self.events.append('upload')

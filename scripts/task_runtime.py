@@ -10,9 +10,21 @@ from temporalio.worker import Worker
 
 from apps.api.memoir_tasks import execute_task
 from apps.api.task_queue import configured_queue
-from apps.api.temporal_workflows import MemoirTaskWorkflow
+from apps.api.temporal_workflows import MemoirTaskWorkflow, PrivateMemoirDraftWorkflow
+from apps.api.private_draft_jobs import PrivateDraftJobs
 
 log = logging.getLogger(__name__)
+
+
+@activity.defn(name='memoir.private_draft')
+async def execute_private_draft(job_id: str) -> dict:
+    from apps.api.private_drafts import execute
+    result = await execute(job_id)
+    if result['status'] in {'deferred','retry'}:
+        raise ApplicationError('Private draft is waiting for its project lease',type='DraftBusy')
+    if result['status']=='failed':
+        raise ApplicationError('Private draft needs an explicit retry',type='DraftFailed',non_retryable=True)
+    return result
 
 
 @activity.defn(name='memoir.execute_task')
@@ -50,9 +62,18 @@ async def run_task_worker(address, namespace, task_queue, interval):
         except (RuntimeError, OSError):
             log.warning('Waiting for Temporal connection')
             await asyncio.sleep(interval)
-    async with Worker(client, task_queue=task_queue, workflows=[MemoirTaskWorkflow],
-                      activities=[execute_memoir_task], max_concurrent_activities=4):
+    drafts=PrivateDraftJobs(queue.path)
+    async with Worker(client, task_queue=task_queue, workflows=[MemoirTaskWorkflow,PrivateMemoirDraftWorkflow],
+                      activities=[execute_memoir_task,execute_private_draft], max_concurrent_activities=4):
         while True:
+            for draft_id in await asyncio.to_thread(drafts.pending_ids):
+                try:
+                    await client.start_workflow(PrivateMemoirDraftWorkflow.run,draft_id,id=f'memoir-private-draft:{draft_id}',
+                        task_queue=task_queue,id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY)
+                except WorkflowAlreadyStartedError:
+                    pass
+                except Exception:
+                    log.warning('Private draft dispatch deferred')
             for task_id in await asyncio.to_thread(queue.pending_ids):
                 try:
                     await client.start_workflow(

@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any, Callable, Iterable, Mapping, Sequence
 from uuid import uuid4
 
@@ -217,6 +218,8 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "model": "model",
         "provider": "provider",
         "variant": "variant",
+        "request_id": "request_id",
+        "diagnostic_request_id": "request_id",
     }
     result: dict[str, str] = {}
     for source_key, target_key in aliases.items():
@@ -960,10 +963,15 @@ def build_judge_input(
     }
 
 
-def build_judge_prompt(judge_input: Mapping[str, Any], *, calibration_examples: Iterable[Mapping[str, Any]] = ()) -> str:
+def build_judge_prompt(
+    judge_input: Mapping[str, Any],
+    *,
+    calibration_examples: Iterable[Mapping[str, Any]] = (),
+    instructions: str | None = None,
+) -> str:
     """Create the full-run, calibrated input for an external semantic judge."""
     payload = {
-        "instructions": "Score each rubric category from 0 to 1. Return JSON only with {scores:{category:number}, comments:{category:string}}. Cite ordered step IDs or final-state fields when explaining a score. Do not infer private reasoning.",
+        "instructions": instructions or "Score each rubric category from 0 to 1. Return JSON only with {scores:{category:number}, comments:{category:string}}. Cite ordered step IDs or final-state fields when explaining a score. Do not infer private reasoning.",
         "calibration_examples": redact_payload(list(calibration_examples)),
         "input": redact_payload(judge_input),
     }
@@ -1010,30 +1018,71 @@ class OpenAICompatibleJudge:
 
     name = "openai-compatible"
 
-    def __init__(self, *, base_url: str, model: str, api_key: str = "", calibration_examples: Iterable[Mapping[str, Any]] = (), timeout: float = 60.0) -> None:
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+        calibration_examples: Iterable[Mapping[str, Any]] = (),
+        timeout: float = 60.0,
+        instructions: str | None = None,
+        max_tokens: int = 1200,
+        reasoning_effort: str | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.calibration_examples = list(calibration_examples)
         self.timeout = timeout
+        self.instructions = instructions
+        self.max_tokens = max(128, min(int(max_tokens), 4096))
+        self.reasoning_effort = reasoning_effort
+        self.calls = 0
+        self.last_call: dict[str, Any] = {}
 
     async def __call__(self, judge_input: Mapping[str, Any]) -> dict[str, Any]:
+        started = time.monotonic()
+        self.calls += 1
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         body = {
             "model": self.model,
             "temperature": 0,
+            "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": "You are a calibrated evaluator for an observable memoir-agent trajectory."},
-                {"role": "user", "content": build_judge_prompt(judge_input, calibration_examples=self.calibration_examples)},
+                {"role": "user", "content": build_judge_prompt(
+                    judge_input,
+                    calibration_examples=self.calibration_examples,
+                    instructions=self.instructions,
+                )},
             ],
         }
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=body)
-            response.raise_for_status()
-            payload = response.json()
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=body)
+                response.raise_for_status()
+                payload = response.json()
+        except Exception as error:
+            self.last_call = {
+                "status": "error",
+                "error_type": type(error).__name__,
+                "http_status": getattr(getattr(error, "response", None), "status_code", None),
+                "elapsed_ms": round((time.monotonic() - started) * 1000, 1),
+            }
+            raise
+        usage = payload.get("usage") if isinstance(payload, Mapping) and isinstance(payload.get("usage"), Mapping) else None
+        self.last_call = {
+            "status": "response",
+            "http_status": response.status_code,
+            "elapsed_ms": round((time.monotonic() - started) * 1000, 1),
+            "usage": redact_payload(usage) if usage is not None else None,
+        }
         content = payload["choices"][0]["message"]["content"]
         parsed = json.loads(content) if isinstance(content, str) else content
         if not isinstance(parsed, Mapping):

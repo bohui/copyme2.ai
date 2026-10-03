@@ -25,10 +25,10 @@ In a filesystem-only Codex run, the harness can mount a read-only authorised sna
 
 The full machine contract is `schemas/request.schema.json`; six complete synthetic packets are in `examples/`. Important fields:
 
-- `trigger`: backend-confirmed event. Free previews require completion of the backend's configured `free_round_limit` (currently 20 saved context-collection turns). A new formal memoir requires a non-null host confirmation reference and composition authorisation.
+- `trigger`: backend-confirmed event. An early `private_draft_checkpoint` requires an explicit host authorization, truthful project completed-round count and configured cadence. It permits only private storyteller/web samples and must never forge the account free-allowance counter. Free previews require completion of the backend's configured `free_round_limit` (currently 20 saved context-collection turns). A new formal memoir requires a non-null host confirmation reference and composition authorisation.
 - `target`: edition locale, intended audience and medium. UI locale is distinct and may be supplied in `context` only for the final conversational summary.
 - `snapshot`: immutable snapshot ID, policy epoch, expected manuscript revision, source-retrieval completeness, glossary version and preference version.
-- `sources`: immutable text records with stable IDs/versions, author role, kind, current eligibility and derived lineage. This may include revocation/supersession tombstones needed to invalidate old dependencies.
+- `sources`: immutable text records with stable IDs/versions, author role, kind, current eligibility and derived lineage. Host-captured responses also carry `life_stage` (one of the seven stages or `unplaced`) and `source_order` (capture order, never an event date). The host sorts responses by stage and then capture order, and supplies `context.stage_source_ids` for direct group lookup. This may include revocation/supersession tombstones needed to invalidate old dependencies.
 - `periods` / `events`: a normalised, source-linked index produced by this agent or an upstream memory skill. Treat it as candidates until checked against sources. Dates belong to life events, not upload timestamps. `order` is the source-grounded period order, not an age inferred by the validator.
 - `policy.preview_preference`: `auto` by default; an authorised user/editor can request a supported focused chapter or partial storyline. It is not an override for consent, evidence or the chapter limit.
 - `assets`: stable ID/version and content hash, registered resolver reference, origin and explicit medium capabilities. The host has already evaluated appropriate copyright, consent and audience restrictions.
@@ -39,6 +39,15 @@ The full machine contract is `schemas/request.schema.json`; six complete synthet
 `allowed`, `status`, author roles and authorisation flags are assertions by the authenticated host, not capabilities that the LLM can grant to itself. Local validation cannot prove a JSON packet came from a trusted host. Production admission must sign or otherwise authenticate the envelope and filter its sources before the agent sees them.
 
 Each source key is `source_id@version`. Keep at most one active version of the same source ID in a request; older versions may be present as superseded records. A correction is a new immutable source version. Missing original lineage, cross-project references, revoked sources and assistant-only testimony are rejected for memoir use.
+
+For incremental indexing, supply only new/changed responses, surviving original
+evidence for invalidated events/periods, and a small conversation overlap. Supply
+the validated saved index in `context.previous_index`, earlier IDs needing repair
+in `context.invalidated_index`, and a compact original-source manifest. Retain all
+authorized originals for drafting and evidence review. A stage reassignment changes
+the source version and invalidates dependent entries just like a text correction;
+deleting a response leaves other source versions stable. Legacy packets may omit
+the stage fields and remain valid; the host puts unclassified history in `unplaced`.
 
 Text evidence spans use zero-based, half-open **Unicode code-point offsets** over the exact stored source text. Do not mutate source normalisation after version creation. Direct quotations are matched against those exact spans. Word-count normalisation is separate and does not rewrite source text.
 

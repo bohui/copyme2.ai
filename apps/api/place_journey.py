@@ -12,7 +12,18 @@ MARKER_END = "[[/MEMORY_SPARK_PLACE_JOURNEY]]"
 MAX_MARKER_CHARS = 4_000
 MAX_PLACE_CHARS = 120
 MAX_HIERARCHY_ITEMS = 6
-GRANULARITIES = frozenset({"country", "region", "city", "suburb", "landmark"})
+GRANULARITIES = frozenset({"country", "region", "city", "suburb"})
+GENERIC_PLACES = frozenset({
+    "家属院", "市区", "城区", "老家", "故乡", "家乡", "村里", "镇上", "河边", "山里",
+    "学校", "医院", "车站", "小区", "附近", "这里", "那里",
+    "home", "hometown", "my hometown", "city", "the city", "town", "suburb", "village",
+    "the old river town", "school compound", "residential compound", "family compound",
+})
+DETAILED_PLACE = re.compile(
+    r"(?:医院|学校|大学|学院|中学|小学|车站|火车站|家属院|小区|大厦|大楼|街|路|巷)(?:\d+号)?$"
+    r"|\b(?:hospital|school|university|college|station|street|road|lane|avenue|building|compound)\b(?:\s+\d+)?$",
+    re.IGNORECASE,
+)
 SCHEMA_VERSION = 1
 PERSISTED_FIELDS = (
     "place",
@@ -83,12 +94,16 @@ def validate_place_journey(raw: Any) -> dict[str, Any] | None:
     place = _text(raw.get("place"), MAX_PLACE_CHARS)
     hierarchy = raw.get("hierarchy")
     granularity = raw.get("granularity")
-    if not place or not isinstance(hierarchy, list) or not hierarchy:
+    if (not place or _normalize_for_match(place) in GENERIC_PLACES
+            or DETAILED_PLACE.search(place) or not isinstance(hierarchy, list) or not hierarchy):
         return None
     if len(hierarchy) > MAX_HIERARCHY_ITEMS or not isinstance(granularity, str):
         return None
     labels = [_text(item, MAX_PLACE_CHARS) for item in hierarchy]
-    if any(not item for item in labels) or labels[0].casefold() != "earth":
+    if any(not item for item in labels) or labels[0].casefold() not in {"earth", "地球"}:
+        return None
+    if any(_normalize_for_match(label) in GENERIC_PLACES or DETAILED_PLACE.search(label)
+           for label in labels[1:]):
         return None
     labels[0] = "Earth"
     granularity = granularity.strip().casefold()
@@ -166,6 +181,19 @@ def place_journey_matches_message(journey: Any, message: str) -> bool:
     # wording, e.g. "the old river town" vs "old river town".
     words = normalized_label.split()
     return len(words) > 1 and " ".join(words[1:]) in normalized_message
+
+
+def place_journey_message_is_ambiguous(message: str) -> bool:
+    """Reject mapping when the storyteller explicitly withholds place identity."""
+    if not isinstance(message, str) or not message.strip():
+        return False
+    normalized = _normalize_for_match(message)
+    return bool(re.search(
+        r"(?:\b(?:unsure|uncertain|ambiguous|not sure|don't know|do not know|"
+        r"cannot identify|can't identify|which .* mean|ask instead of mapping)\b|"
+        r"不确定|不肯定|不清楚|无法确定|不知道|请先问|不要映射|不要定位)",
+        normalized,
+    ))
 
 
 def _text(value: Any, limit: int) -> str | None:

@@ -25,7 +25,8 @@
             "free_rounds_completed",
             "storytelling_complete",
             "new_context",
-            "manual_revision"
+            "manual_revision",
+            "private_draft_checkpoint"
           ]
         },
         "confirmed": {
@@ -47,6 +48,17 @@
         },
         "composition_authorized": {
           "type": "boolean"
+        },
+        "private_draft_authorized": {
+          "type": "boolean"
+        },
+        "private_rounds_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "private_draft_cadence": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
@@ -458,6 +470,23 @@
             "$ref": "#/$defs/ref"
           },
           "minItems": 0
+        },
+        "life_stage": {
+          "type": "string",
+          "enum": [
+            "baby",
+            "toddler",
+            "childhood",
+            "adolescence",
+            "young_adulthood",
+            "midlife",
+            "later_life",
+            "unplaced"
+          ]
+        },
+        "source_order": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [

@@ -315,7 +315,7 @@ def run_case(browser, base_url: str, locale: str) -> None:
             elif round_number == 2:
                 page.locator("[data-workspace-tab='family']").click()
                 family = page.locator("#workspace-detail")
-                expect(family.locator(".people-list strong", has_text="Mei")).to_be_visible()
+                expect(family.locator(".family-person-card strong", has_text="Mei")).to_be_visible()
                 expect(family.locator("[data-renderer-status='fallback']")).to_be_visible(timeout=10000)
             elif round_number == 3:
                 page.locator("[data-workspace-tab='timeline']").click()
