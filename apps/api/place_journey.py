@@ -188,12 +188,20 @@ def place_journey_message_is_ambiguous(message: str) -> bool:
     if not isinstance(message, str) or not message.strip():
         return False
     normalized = _normalize_for_match(message)
-    return bool(re.search(
-        r"(?:\b(?:unsure|uncertain|ambiguous|not sure|don't know|do not know|"
-        r"cannot identify|can't identify|which .* mean|ask instead of mapping)\b|"
-        r"不确定|不肯定|不清楚|无法确定|不知道|请先问|不要映射|不要定位)",
-        normalized,
-    ))
+    uncertainty = r"(?:unsure|uncertain|ambiguous|not sure|don't know|do not know|cannot identify|can't identify)"
+    location = r"(?:place|town|city|location|where|map(?:ping)?|which\s+(?:place|town|city|location)|which\s+one)"
+    english = (
+        re.search(rf"\b{uncertainty}\b.{{0,60}}\b{location}\b", normalized)
+        or re.search(rf"\b{location}\b.{{0,60}}\b{uncertainty}\b", normalized)
+        or re.search(r"\b(?:ask instead of mapping|ask me before mapping)\b", normalized)
+    )
+    chinese = re.search(
+        r"(?:不确定|不肯定|不清楚|无法确定|不知道).{0,60}(?:地方|地点|城市|镇|哪里|定位|映射|映射到)"
+        r"|(?:地方|地点|城市|镇|哪里|定位|映射|映射到).{0,60}(?:不确定|不肯定|不清楚|无法确定|不知道)"
+        r"|请先问.{0,30}(?:不要映射|不要定位)",
+        message,
+    )
+    return bool(english or chinese)
 
 
 def _text(value: Any, limit: int) -> str | None:

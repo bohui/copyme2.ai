@@ -190,6 +190,14 @@ def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(mes
     assert place_journey_message_is_ambiguous(message)
 
 
+@pytest.mark.parametrize('message', [
+    'I moved to Hobart in 1980, but I am not sure which month.',
+    'I retired in Hobart, although I cannot remember the exact year.',
+])
+def test_date_uncertainty_does_not_block_a_grounded_place(message):
+    assert not place_journey_message_is_ambiguous(message)
+
+
 def test_prompt_includes_the_project_skill_contract():
     prompt = build_system_prompt("(none)")
 

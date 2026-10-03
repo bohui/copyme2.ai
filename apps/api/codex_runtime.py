@@ -454,6 +454,28 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
     return False
 
 
+def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
+    """Reject only a marker the storyteller explicitly says is not an event.
+
+    Routing heuristics decide whether a focused recovery pass is worth asking
+    for. They must not decide whether a grounded marker can be persisted. The
+    narrow exception here is an explicit source instruction that a reflection
+    should not become a dated event, timeline entry, or record.
+    """
+    lowered = original_conversation_text(text).casefold()
+    return bool(
+        re.search(
+            r"\b(?:shouldn['’]?t|should not|do not|don't|not)\b.{0,40}\b"
+            r"(?:dated event|timeline|record)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:反思|回忆).{0,40}(?:不一定|不要|不应|不应该).{0,40}(?:事件|日期|记录)",
+            text,
+        )
+    )
+
+
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
     """Remove one private marker domain without disturbing other domains."""
     if not isinstance(text, str):
@@ -953,7 +975,7 @@ class CodexRuntime:
                                          if (not place_journey_message_is_ambiguous(text)
                                              and place_journey_matches_message(candidate, text))]
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
-                if not _workspace_focus_is_relevant(text, 'author_timeline'):
+                if _author_timeline_marker_is_explicitly_disclaimed(text):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )
@@ -1399,10 +1421,7 @@ class CodexRuntime:
                                         'error_type': type(error).__name__,
                                     },
                                 })
-                # A model may still emit a timeline marker for reflective or
-                # third-person uncertainty text.  Do not persist or trace a
-                # domain that the deterministic router has ruled out.
-                if not _workspace_focus_is_relevant(text, 'author_timeline', family_context):
+                if _author_timeline_marker_is_explicitly_disclaimed(text):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )

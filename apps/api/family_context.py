@@ -591,9 +591,11 @@ def merge_family_context_document(
     updated = {key: 0 for key in added}
 
     # A repeated exact name is common when the storyteller refers to an
-    # accepted person without repeating the relationship title.  Reuse it only
-    # when the match is unique; ambiguous same-name people still require an
-    # explicit existing_id and are kept separate.
+    # accepted person without repeating the relationship title. Reuse it only
+    # when the match is unique and the current marker contains one person with
+    # that name. Never use a person introduced earlier in this same marker as a
+    # name match: two distinct people named John Smith must retain their input
+    # identities until an explicit existing_id identifies one of them.
     name_matches: dict[str, list[str]] = {}
     for person in people:
         canonical_id = person.get("id")
@@ -605,11 +607,18 @@ def merge_family_context_document(
             if key:
                 name_matches.setdefault(key, []).append(canonical_id)
 
+    update_name_counts: dict[str, int] = {}
+    for raw in update["people"]:
+        key = _person_name_key(raw.get("name"))
+        if key:
+            update_name_counts[key] = update_name_counts.get(key, 0) + 1
+
     for raw in update["people"]:
         requested_id = raw["existing_id"] if raw.get("existing_id") in person_by_id else raw["id"]
         if not raw.get("existing_id"):
-            candidates = name_matches.get(_person_name_key(raw.get("name")) or "", [])
-            if len(set(candidates)) == 1:
+            name_key = _person_name_key(raw.get("name")) or ""
+            candidates = name_matches.get(name_key, [])
+            if update_name_counts.get(name_key) == 1 and len(set(candidates)) == 1:
                 requested_id = candidates[0]
         canonical_id = requested_id if requested_id in person_by_id else _stable_id("person", update_hash, raw["id"])
         temporary_to_canonical[raw["id"]] = canonical_id
@@ -625,10 +634,6 @@ def merge_family_context_document(
             people.append(record)
             person_by_id[canonical_id] = record
             added["people"] += 1
-            for label in (record.get("name"), *(record.get("aliases") or [])):
-                key = _person_name_key(label)
-                if key:
-                    name_matches.setdefault(key, []).append(canonical_id)
 
     relationships = base["relationships"]
     for raw in update["relationships"]:

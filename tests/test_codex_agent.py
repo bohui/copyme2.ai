@@ -113,6 +113,34 @@ def test_workspace_extraction_does_not_invent_missing_domain_markers(monkeypatch
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 
+@pytest.mark.parametrize('text', [
+    'I bought my first house.',
+    'I retired after years at the workshop.',
+    'I often remember the day I moved to Hobart in 1980.',
+])
+def test_grounded_timeline_marker_survives_when_recovery_router_has_no_focus_cue(text, monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"event","kind":"event","title":"Grounded event",'
+                '"date_expression":"unknown","precision":"unknown"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
 def test_workspace_extraction_skips_unrelated_focused_recovery_passes(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
     calls = []

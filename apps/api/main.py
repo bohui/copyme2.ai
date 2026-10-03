@@ -2251,34 +2251,18 @@ def create_app(
         return resolve_place_groups(places)
 
     from .place_photo_pages import PhotoPages
-    from .place_photo_repository import configured_repository
-    photo_pages = PhotoPages(repository=configured_repository() if store is None else None)
+    photo_pages = PhotoPages()
 
     @app.get("/v1/projects/{project_id}/place-photos")
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
                      cursor: str | None = Query(default=None, max_length=160),
-                     refresh: bool = Query(default=False),
-                     latitude: float | None = Query(default=None, ge=-90, le=90),
-                     longitude: float | None = Query(default=None, ge=-180, le=180),
                      x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         _project(memory, project_id, _account_id(x_account_id))
-        if (latitude is None) != (longitude is None):
-            raise HTTPException(status_code=422, detail='Both photo search coordinates are required')
-        if latitude is None:
-            from .place_geocoding import GoogleMapsUnavailable, search_place
-            try:
-                center = await asyncio.to_thread(search_place, place)
-            except (GoogleMapsUnavailable, httpx.HTTPError, ValueError, TypeError):
-                center = None
-            if not center:
-                return {'items': [], 'count': 0, 'status': 'NO_MATCH', 'searching': False, 'next_cursor': None}
-            latitude, longitude = center['latitude'], center['longitude']
         try:
             from .place_photo_transport import photo_response
             return await photo_response(photo_pages, project_id, place, period, cursor,
-                                        stream='application/x-ndjson' in request.headers.get('accept', ''), refresh=refresh,
-                                        latitude=latitude, longitude=longitude)
+                                        stream='application/x-ndjson' in request.headers.get('accept', ''))
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}
 

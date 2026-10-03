@@ -267,6 +267,25 @@ def test_repeated_unique_person_name_is_idempotent_without_existing_id():
     assert merged["people"][0]["id"] == document["people"][0]["id"]
 
 
+def test_same_name_people_in_one_marker_keep_distinct_ids_and_relationships():
+    update = validate_family_tree_context({
+        "people": [
+            {"id": "father", "name": "John Smith", "family_title": "father"},
+            {"id": "son", "name": "John Smith", "family_title": "son"},
+        ],
+        "relationships": [{
+            "from_person_id": "father", "to_person_id": "son", "relationship_type": "parent",
+        }],
+    })
+
+    document, summary = merge_family_context_document(None, update, "project-family")
+
+    assert summary["added"]["people"] == 2
+    assert len(document["people"]) == 2
+    assert document["people"][0]["id"] != document["people"][1]["id"]
+    assert document["relationships"][0]["from_person_id"] != document["relationships"][0]["to_person_id"]
+
+
 def test_unified_timeline_persists_both_kinds_in_calendar_order_without_inventing_dates():
     update = validate_author_timeline_context({"timeline": [
         {"id": "return", "kind": "event", "title": "Returned", "date_expression": "2018年"},

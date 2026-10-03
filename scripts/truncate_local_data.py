@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Reset all application-owned local development data.
+"""Reset user/application data while preserving shared public photo research.
 
 Supabase Storage objects are removed through the Storage API rather than by
 deleting rows from ``storage.objects``. The latter leaves the physical blobs
 orphaned in the backing object store. Authentication users are deleted from
 ``auth.users`` after the application tables are cleared; Supabase's cascading
 foreign keys remove their identities, sessions, and other account records.
+The keyword-to-photo cache is independent public research, not user data.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ APP_TABLES = (
     "public.memory_spark_outbox",
     "public.memory_spark_state",
 )
+PRESERVED_TABLES = ("public.place_photo_searches",)
 STORAGE_PAGE_SIZE = 1000
 STORAGE_REMOVE_BATCH_SIZE = 1000
 
@@ -162,10 +164,62 @@ class StorageClient:
         return len(objects)
 
 
+def reset_scope_guard() -> str:
+    roots = ", ".join(repr(table) for table in APP_TABLES if table not in PRESERVED_TABLES)
+    preserved = ", ".join(repr(table) for table in PRESERVED_TABLES)
+    return f"""
+do $scope$
+declare protected_table regclass;
+begin
+  for protected_table in select to_regclass(name)
+    from unnest(array[{preserved}]::text[]) as names(name)
+    where to_regclass(name) is not null
+  loop
+    -- Fence concurrent schema changes while checking/clearing user tables.
+    execute format('lock table %s in share mode', protected_table);
+  end loop;
+  if exists (
+    with recursive edges(parent, child) as (
+      select confrelid, conrelid from pg_catalog.pg_constraint where contype = 'f'
+      union select inhparent, inhrelid from pg_catalog.pg_inherits
+    ), affected(oid) as (
+      select to_regclass(name)::oid
+        from unnest(array[{roots}, 'auth.users']::text[]) as names(name)
+        where to_regclass(name) is not null
+      union select edges.child from edges join affected on edges.parent = affected.oid
+    )
+    select 1 from affected
+      where oid in (select to_regclass(name)::oid
+        from unnest(array[{preserved}]::text[]) as names(name))
+  ) then
+    raise exception 'Refusing reset: shared photo cache depends on reset tables; remove that dependency before resetting user data';
+  end if;
+end
+$scope$;
+"""
+
+
+def run_database_sql(database_url: str, sql: str) -> None:
+    try:
+        subprocess.run(
+            ["psql", "-X", database_url, "-v", "ON_ERROR_STOP=1", "-c", sql],
+            check=True,
+        )
+    except FileNotFoundError as error:
+        raise RuntimeError("Missing psql. Install the PostgreSQL client first.") from error
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(f"psql failed with exit status {error.returncode}") from error
+
+
+def check_reset_scope(database_url: str) -> None:
+    run_database_sql(database_url, f"begin;\n{reset_scope_guard()}\ncommit;")
+
+
 def truncate_database(database_url: str) -> None:
-    table_array = ", ".join(repr(table) for table in APP_TABLES)
+    table_array = ", ".join(repr(table) for table in APP_TABLES if table not in PRESERVED_TABLES)
     sql = f"""
 begin;
+{reset_scope_guard()}
 do $$
 declare
   truncate_list text;
@@ -185,15 +239,7 @@ $$;
 delete from auth.users;
 commit;
 """
-    try:
-        subprocess.run(
-            ["psql", "-X", database_url, "-v", "ON_ERROR_STOP=1", "-c", sql],
-            check=True,
-        )
-    except FileNotFoundError as error:
-        raise RuntimeError("Missing psql. Install the PostgreSQL client first.") from error
-    except subprocess.CalledProcessError as error:
-        raise RuntimeError(f"psql failed with exit status {error.returncode}") from error
+    run_database_sql(database_url, sql)
 
 
 def clear_local_data_path(
@@ -273,6 +319,9 @@ def reset_data() -> None:
         raise RuntimeError(
             "Set SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY before running make db-truncate."
         )
+    # Check before any Storage/filesystem deletion, then fence/check again in
+    # the SQL transaction. A future FK must not silently pull cache into CASCADE.
+    check_reset_scope(database_url)
     storage = StorageClient(supabase_url, storage_key)
     buckets = storage.list_buckets()
     print(f"Clearing {len(buckets)} Supabase Storage bucket(s)...")
@@ -288,21 +337,29 @@ def reset_data() -> None:
 
     print("Truncating application tables and deleting all Supabase Auth users...")
     truncate_database(database_url)
-    print("All application database, storage, and user data reset complete.")
+    print("Application, storage, and user data reset complete; shared photo search cache preserved.")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check-scope", action="store_true",
+        help="check that the shared photo cache cannot be affected; delete no data",
+    )
     parser.add_argument(
         "--yes",
         action="store_true",
         help="confirm that application, storage, authentication, and local user data should be permanently deleted",
     )
     args = parser.parse_args()
-    if not args.yes:
+    if not args.yes and not args.check_scope:
         parser.error("pass --yes when invoking this destructive command")
     try:
-        reset_data()
+        if args.check_scope:
+            check_reset_scope(required_env("SUPABASE_DB_URL"))
+            print("Reset scope checked: shared photo search cache is protected.")
+        else:
+            reset_data()
     except RuntimeError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
