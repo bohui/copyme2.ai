@@ -418,6 +418,16 @@ The full implementation covers consent, invitations, resumable uploads, cue reac
 
 ### Historical photo search
 
+Set `MEMORY_SPARK_PHOTO_WEB_SEARCH=1` to add Responses-native LLM discovery
+alongside the existing catalogues. It reuses the server-only gateway URL, model
+and key and requires completed search receipts with source URLs; a plain model
+answer cannot supply photo evidence. The API and private photo worker use the
+same source inspection and capture-date checks as the
+[place-photo-research helper](skills/place-photo-research/references/llm-web-search.md).
+The option is disabled by default and requires a gateway/model with actual
+`web_search` support. Discovered photos remain public memory references with
+unresolved reuse rights.
+
 The app's photo endpoint searches catalogues independently of local research
 runs. When `GOOGLE_CSE_API_KEY` is blank, it automatically browses the configured
 `GOOGLE_CSE_ID` or `GOOGLE_CSE_URL` with Crawl4AI, follows the visible image-result

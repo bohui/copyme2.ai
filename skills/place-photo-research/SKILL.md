@@ -1,6 +1,6 @@
 ---
 name: place-photo-research
-description: Find real photographs of a place, from a requested historical period or the present day when no period is mentioned. Use for memoir reference-photo research, old city/street photographs, archive/albums searches, and evidence-backed local image collection. Uses parallel SerpAPI and user-supplied Google CSE page discovery, Codex web search and bundled Python helpers. Do not use for image generation, personal-photo identification, unrestricted crawling or satellite time-series analysis.
+description: Find real photographs of a place, from a requested historical period or the present day when no period is mentioned. Use for memoir reference-photo research, old city/street photographs, archive/albums searches, and evidence-backed local image collection. Uses configured LLM web search, parallel SerpAPI and user-supplied Google CSE discovery, Codex web search and bundled Python helpers. Do not use for image generation, personal-photo identification, unrestricted crawling or satellite time-series analysis.
 ---
 
 # Place Photo Research
@@ -14,6 +14,8 @@ This skill runs **directly in Codex**. Use the real web-search/page-reading tool
 The native Codex search path does not require a separate search API key, paid search-provider account, MCP server, database, Temporal service or app backend. The memoir app can optionally use a server-side Google Programmable Search Engine integration when `GOOGLE_CSE_ID` and `GOOGLE_CSE_API_KEY` are configured; keep that key out of browser configuration. `GOOGLE_CSE_ID` identifies the search engine, while the API key identifies the Google Cloud project that owns the key; the Programmable Search control panel therefore has no project selector. An API-key restriction does not itself grant the project access to the Custom Search JSON API. The user's Codex access is still required. Native web search, shell internet permissions and image-viewing capabilities are separate; one does not guarantee the others.
 
 Read `references/record-format.md` before writing records. Read `references/source-strategy.md` when planning the search or encountering uncertain metadata/rights. Use the bundled script instead of writing a second downloader.
+
+When `MEMORY_SPARK_PHOTO_WEB_SEARCH=1`, read `references/llm-web-search.md` and run the helper's `discover --run "$RUN_DIR"` route for provider-native Responses search. It works independently of this session's native tools and requires completed search receipts plus source URLs before inspecting originals. Keep failures distinct from empty matches and continue with available native search or catalogues. Discovery metadata remains a public reference, with unresolved reuse rights.
 
 Find this skill's actual absolute directory from the skill path in context. Do not assume it is under the current working directory. Set `SKILL_DIR` to that directory. Use `PHOTO_RESEARCH_PYTHON` when supplied, otherwise a Python 3.10+ interpreter. Pillow is required for downloads. Do not silently install globally or alter Codex security configuration.
 
