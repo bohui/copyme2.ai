@@ -446,6 +446,41 @@ def aggregate_case(
     }
 
 
+def build_langfuse_round_scores(grade: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Project a round grade into bounded, explainable Langfuse scores.
+
+    ``unavailable`` and ``not_run`` are intentionally omitted from numeric
+    scores.  The round metadata and local trace retain those statuses; a zero
+    score would falsely turn an infrastructure gap into a product failure.
+    """
+    scores: list[dict[str, Any]] = []
+
+    def add(name: str, status: Any, comment: Any = "") -> None:
+        status_text = str(status or "")
+        if status_text in {"unavailable", "not_run", "not_applicable"}:
+            return
+        if status_text not in {"pass", "mock_only", "fail"}:
+            return
+        scores.append({
+            "name": name,
+            "value": 0.0 if status_text == "fail" else 1.0,
+            "comment": f"status={status_text}; {str(comment or '')}"[:1000],
+        })
+
+    skill_grades = grade.get("skill_grades") if isinstance(grade.get("skill_grades"), Mapping) else {}
+    for skill, skill_grade in skill_grades.items():
+        if not isinstance(skill_grade, Mapping):
+            continue
+        add(f"skill.{skill}.invocation", skill_grade.get("invocation"), skill_grade.get("comment"))
+        add(f"skill.{skill}.output", skill_grade.get("output"), skill_grade.get("comment"))
+    state_checks = grade.get("state_checks") if isinstance(grade.get("state_checks"), Mapping) else {}
+    for check_name, check in state_checks.items():
+        if isinstance(check, Mapping):
+            add(f"state.{check_name}", check.get("status"), check.get("comment"))
+    add("round.overall", grade.get("overall"), "Round-level deterministic contract.")
+    return scores
+
+
 def merge_ui_skill_observations(
     round_grades: list[dict[str, Any]],
     ui_by_round: Mapping[int, Mapping[str, Mapping[str, Any]]],
@@ -486,6 +521,7 @@ __all__ = [
     "LIFE_STAGES",
     "UI_SKILLS",
     "aggregate_case",
+    "build_langfuse_round_scores",
     "case_expectations",
     "evaluate_round",
     "expected_round",

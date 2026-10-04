@@ -144,6 +144,7 @@ class CodexConnection:
                     'application_revision', 'skill_hash', 'generation_name',
                     'evaluator_version', 'rubric_version', 'judge_rubric_version',
                     'model', 'provider', 'variant',
+                    'round_id',
                     'request_id',
                 }
             }

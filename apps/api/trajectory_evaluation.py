@@ -55,6 +55,14 @@ _IDENTIFIER_KEY = re.compile(
     re.IGNORECASE,
 )
 _TOOL_KEY = re.compile(r"(?:^|_)(?:tool|function)(?:_name)?$", re.IGNORECASE)
+_OBSERVATION_LINK_FIELDS = (
+    "observation_id",
+    "parent_observation_id",
+    "trace_id",
+    "span_id",
+    "parent_span_id",
+    "root_observation_id",
+)
 
 JUDGE_RUBRIC: dict[str, str] = {
     "tool_appropriateness": "Choose only tools that advance the task and use the narrowest valid tool for the evidence available.",
@@ -220,6 +228,8 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "variant": "variant",
         "request_id": "request_id",
         "diagnostic_request_id": "request_id",
+        "round_id": "round_id",
+        "evaluation_round_id": "round_id",
     }
     result: dict[str, str] = {}
     for source_key, target_key in aliases.items():
@@ -309,6 +319,41 @@ def _protocol_summary(message: Mapping[str, Any]) -> dict[str, Any]:
     if "error" in message:
         summary["error"] = redact_payload(message.get("error"))
     return summary
+
+
+def _protocol_action_metadata(message: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract observable tool fields from Codex item protocol events."""
+    candidates: list[Mapping[str, Any]] = []
+    for container_key in ("params", "result"):
+        container = message.get(container_key)
+        if not isinstance(container, Mapping):
+            continue
+        candidates.append(container)
+        for item_key in ("item", "toolCall", "tool_call", "call"):
+            item = container.get(item_key)
+            if isinstance(item, Mapping):
+                candidates.insert(0, item)
+    tool_name = None
+    arguments = None
+    for candidate in candidates:
+        for key in ("tool_name", "tool", "name", "function_name", "function", "mcpToolName"):
+            value = candidate.get(key)
+            if isinstance(value, str) and value.strip():
+                tool_name = value.strip()
+                break
+        for key in ("tool_arguments", "arguments", "args", "parameters", "input"):
+            value = candidate.get(key)
+            if isinstance(value, Mapping):
+                arguments = value
+                break
+        if tool_name or arguments is not None:
+            break
+    metadata: dict[str, Any] = {}
+    if tool_name:
+        metadata["tool_name"] = tool_name
+    if arguments is not None:
+        metadata["tool_arguments"] = arguments
+    return metadata
 
 
 def protocol_request_evidence(method: str, params: Mapping[str, Any]) -> dict[str, Any]:
@@ -416,6 +461,12 @@ class TrajectoryRecorder:
         error: Any = None,
         metadata: Mapping[str, Any] | None = None,
         source: str | None = None,
+        observation_id: str | None = None,
+        parent_observation_id: str | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
+        parent_span_id: str | None = None,
+        root_observation_id: str | None = None,
     ) -> dict[str, Any]:
         if len(self.steps) >= self.max_steps:
             self.dropped_steps += 1
@@ -454,29 +505,112 @@ class TrajectoryRecorder:
         step["normalized_action"] = normalized
         if normalized.get("tool_name"):
             step["tool_name"] = normalized["tool_name"]
+        for key, value in {
+            "observation_id": observation_id,
+            "parent_observation_id": parent_observation_id,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "parent_span_id": parent_span_id,
+            "root_observation_id": root_observation_id,
+        }.items():
+            if value is not None and not isinstance(value, (Mapping, list, tuple, set)):
+                step[key] = str(value)[:256]
         self.steps.append(step)
         return step
 
     def record_protocol(self, message: Mapping[str, Any], *, phase: str = "codex") -> dict[str, Any]:
         method = message.get("method")
         action = str(method or ("protocol.error" if "error" in message else "protocol.response"))
-        return self.record(phase, action, output=_protocol_summary(message))
+        return self.record(
+            phase,
+            action,
+            output=_protocol_summary(message),
+            metadata=_protocol_action_metadata(message) or None,
+        )
 
     def append_external(self, steps: Iterable[Mapping[str, Any]], *, source: str) -> None:
         """Append worker steps while preserving their evidence and local order."""
         for external in steps:
             if not isinstance(external, Mapping):
                 continue
-            self.record(
+            external_input = external.get("input")
+            if isinstance(external_input, Mapping):
+                external_input = dict(external_input)
+            else:
+                external_input = {}
+            # Worker adapters have used both the normalized input shape and
+            # top-level tool fields.  Preserve both without allowing a
+            # top-level field to overwrite an explicit input value.
+            for key in ("tool_name", "tool", "name", "function_name", "function"):
+                if key in external and key not in external_input:
+                    external_input[key] = external.get(key)
+            for key in ("tool_arguments", "arguments", "args", "parameters"):
+                if key in external and key not in external_input:
+                    external_input[key] = external.get(key)
+            step = self.record(
                 str(external.get("phase") or "worker"),
                 str(external.get("action") or "worker.event"),
                 context=external.get("context"),
-                input=external.get("input"),
+                input=external_input or (external.get("input") if external.get("input") is not None else None),
                 output=external.get("output"),
                 error=external.get("error"),
                 metadata=external.get("metadata"),
                 source=source,
             )
+            if not step.get("accepted", True):
+                continue
+            if external.get("step_id") is not None:
+                step["external_step_id"] = str(external["step_id"])[:256]
+            if external.get("sequence") is not None:
+                try:
+                    step["external_sequence"] = int(external["sequence"])
+                except (TypeError, ValueError):
+                    pass
+
+            # Keep the small, non-content identifiers needed to navigate a
+            # worker trace.  They are deliberately allow-listed rather than
+            # copying arbitrary worker metadata into the application record.
+            linkage_sources = [external]
+            for key in ("observation", "span", "trace"):
+                nested = external.get(key)
+                if isinstance(nested, Mapping):
+                    nested_source = dict(nested)
+                    # SDK objects commonly expose their identifier as `id`.
+                    # Interpret that shorthand only in its typed nested
+                    # container; a worker event's own `id` is not telemetry
+                    # linkage and must not be promoted accidentally.
+                    if nested.get("id") is not None:
+                        if key == "observation":
+                            nested_source.setdefault("observation_id", nested["id"])
+                        elif key == "span":
+                            nested_source.setdefault("span_id", nested["id"])
+                        elif key == "trace":
+                            nested_source.setdefault("trace_id", nested["id"])
+                    linkage_sources.append(nested_source)
+            metadata = external.get("metadata")
+            if isinstance(metadata, Mapping):
+                linkage_sources.append(metadata)
+            aliases = {
+                "observation_id": ("observation_id", "observationId"),
+                "parent_observation_id": ("parent_observation_id", "parentObservationId", "parent_id", "parentId"),
+                "trace_id": ("trace_id", "traceId"),
+                "span_id": ("span_id", "spanId"),
+                "parent_span_id": ("parent_span_id", "parentSpanId"),
+                "root_observation_id": ("root_observation_id", "rootObservationId"),
+            }
+            for target, keys in aliases.items():
+                value = next(
+                    (candidate[key] for candidate in linkage_sources for key in keys
+                     if candidate.get(key) is not None),
+                    None,
+                )
+                if value is not None and not isinstance(value, (Mapping, list, tuple, set)):
+                    step[target] = str(value)[:256]
+            normalized = external.get("normalized_action")
+            if isinstance(normalized, Mapping):
+                step["normalized_action"] = redact_payload(normalized)
+                if normalized.get("tool_name") and not step.get("tool_name"):
+                    step["tool_name"] = str(normalized["tool_name"])[:256]
 
     def finish(
         self,
@@ -916,6 +1050,32 @@ def evaluate_trajectory(
             if valid else "Enabled skills do not match the case or checked-in manifest.",
         )
 
+    if expected.get("require_observation_linkage"):
+        missing = [
+            str(step.get("step_id") or "step")
+            for step in action_steps
+            if not str(step.get("observation_id") or "").strip()
+        ]
+        add(
+            "observation_linkage",
+            0 if missing else 1,
+            "Missing worker observation identifier(s): " + ", ".join(missing)
+            if missing else "Every observed step has a worker observation identifier.",
+        )
+
+    if expected.get("require_parent_observation_linkage"):
+        missing = [
+            str(step.get("step_id") or "step")
+            for step in action_steps
+            if not str(step.get("parent_observation_id") or "").strip()
+        ]
+        add(
+            "parent_observation_linkage",
+            0 if missing else 1,
+            "Missing parent observation identifier(s): " + ", ".join(missing)
+            if missing else "Every observed step has a parent observation identifier.",
+        )
+
     # Stable category scores make comparison matrices useful even when a case
     # has optional gates. Every category is deterministic and explainable.
     execution_names = {"step_budget", "allowed_tools", "tool_argument_schema", "retry_budget", "repetition_control", "recovery"}
@@ -982,17 +1142,57 @@ async def run_judges(
     judges: Iterable[Callable[[Mapping[str, Any]], Any]],
     judge_input: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    """Run pluggable semantic judges and normalize their score shape."""
+    """Run pluggable semantic judges and normalize their score shape.
+
+    This compatibility wrapper returns only scores.  The evaluation runner
+    uses :func:`run_judges_report` so provider errors remain explicit evidence
+    instead of becoming deterministic acceptance failures.
+    """
+    report = await run_judges_report(judges, judge_input)
+    return report["scores"]
+
+
+async def run_judges_report(
+    judges: Iterable[Callable[[Mapping[str, Any]], Any]],
+    judge_input: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Run semantic judges while separating advisory evidence from gates."""
     scores: list[dict[str, Any]] = []
+    receipts: list[dict[str, Any]] = []
     for judge in judges:
-        result = judge(judge_input)
-        if inspect.isawaitable(result):
-            result = await result
-        if not isinstance(result, Mapping):
-            raise TypeError("judge must return a mapping")
-        judge_name = str(result.get("judge") or getattr(judge, "name", None) or "llm_judge")
+        configured_name = str(getattr(judge, "name", None) or "llm_judge")
+        try:
+            result = judge(judge_input)
+            if inspect.isawaitable(result):
+                result = await result
+            if not isinstance(result, Mapping):
+                raise TypeError("judge must return a mapping")
+        except Exception as error:
+            last_call = getattr(judge, "last_call", None)
+            receipt = {
+                "judge": configured_name,
+                "status": "unavailable",
+                "error_type": type(error).__name__,
+            }
+            if isinstance(last_call, Mapping):
+                receipt["call"] = redact_payload(last_call)
+            receipts.append(receipt)
+            continue
+
+        judge_name = str(result.get("judge") or configured_name)
+        explicit_status = str(result.get("status") or "scored").strip().lower()
+        if explicit_status in {"unavailable", "error", "blocked"}:
+            receipt = {
+                "judge": judge_name,
+                "status": "unavailable" if explicit_status != "blocked" else "blocked",
+            }
+            if result.get("reason"):
+                receipt["reason"] = str(result["reason"])[:256]
+            receipts.append(receipt)
+            continue
         raw_scores = result.get("scores") if isinstance(result.get("scores"), Mapping) else result
         comments = result.get("comments") if isinstance(result.get("comments"), Mapping) else {}
+        observed_categories: list[str] = []
         for category in JUDGE_RUBRIC:
             if category not in raw_scores:
                 continue
@@ -1000,12 +1200,40 @@ async def run_judges(
                 value = float(raw_scores[category])
             except (TypeError, ValueError):
                 value = 0.0
-            scores.append(_score(
+            score = _score(
                 f"judge.{judge_name}.{category}",
                 value,
                 str(comments.get(category) or result.get("comment") or ""),
-            ))
-    return scores
+            )
+            score["source"] = "llm_judge"
+            score["acceptance_role"] = "advisory"
+            scores.append(score)
+            observed_categories.append(category)
+        receipt = {
+            "judge": judge_name,
+            "status": "scored" if observed_categories else "unavailable",
+            "categories": observed_categories,
+        }
+        last_call = getattr(judge, "last_call", None)
+        if isinstance(last_call, Mapping):
+            receipt["call"] = redact_payload(last_call)
+        receipts.append(receipt)
+
+    statuses = {str(receipt.get("status")) for receipt in receipts}
+    if not receipts:
+        status = "not_configured"
+    elif "scored" in statuses:
+        status = "scored"
+    elif "blocked" in statuses:
+        status = "blocked"
+    else:
+        status = "unavailable"
+    return {
+        "status": status,
+        "acceptance_role": "advisory",
+        "judges": receipts,
+        "scores": scores,
+    }
 
 
 class OpenAICompatibleJudge:
@@ -1093,6 +1321,21 @@ class OpenAICompatibleJudge:
 HttpJsonJudge = OpenAICompatibleJudge
 
 
+@contextmanager
+def _observation_scope(observation: Any):
+    """Use either SDK-style context managers or older observation objects."""
+    if hasattr(observation, "__enter__") and hasattr(observation, "__exit__"):
+        with observation as active:
+            yield active
+        return
+    try:
+        yield observation
+    finally:
+        end = getattr(observation, "end", None)
+        if callable(end):
+            end()
+
+
 class LangfusePublisher:
     """Small adapter around the optional Langfuse Python SDK v4."""
 
@@ -1151,12 +1394,13 @@ class LangfusePublisher:
         create_trace_id = getattr(self.client, "create_trace_id", None)
         run_id = normalise_correlation(correlation).get("run_id")
         case_id = normalise_correlation(correlation).get("case_id")
+        round_id = normalise_correlation(correlation).get("round_id")
         if callable(create_trace_id) and run_id:
             kwargs["trace_context"] = {
-                "trace_id": create_trace_id(seed=f"{run_id}:{case_id or ''}"),
+                "trace_id": create_trace_id(seed=f"{run_id}:{case_id or ''}:{round_id or ''}"),
             }
         observation = self.client.start_as_current_observation(**kwargs)
-        with observation as active:
+        with _observation_scope(observation) as active:
             yield _LangfuseCase(self.client, active, correlation)
 
 
@@ -1165,6 +1409,8 @@ class _LangfuseCase:
         self.client = client
         self.observation = observation
         self.correlation = normalise_correlation(correlation)
+        self.step_observations: dict[str, str] = {}
+        self.publish_errors: list[dict[str, str]] = []
 
     @property
     def trace_id(self) -> str | None:
@@ -1176,20 +1422,114 @@ class _LangfuseCase:
         value = getattr(self.observation, "id", None)
         return str(value) if value else None
 
-    def publish(self, trajectory: Mapping[str, Any], scores: Iterable[Mapping[str, Any]]) -> None:
-        digest = _sha256(trajectory)
+    def _start_step_observation(self, step: Mapping[str, Any]) -> str | None:
+        step_id = str(step.get("step_id") or "")
+        if not step_id:
+            return None
+        external_observation_id = str(step.get("observation_id") or "").strip()
+        if external_observation_id:
+            # A worker-supplied Langfuse ID is authoritative.  Do not create
+            # a duplicate child and make step scores point to the wrong span.
+            self.step_observations[step_id] = external_observation_id[:256]
+            return external_observation_id[:256]
+
+        starter = getattr(self.client, "start_observation", None)
+        if not callable(starter):
+            return None
+        action = str(step.get("action") or "worker.step")[:256]
+        linkage = {
+            key: str(step[key])[:256]
+            for key in _OBSERVATION_LINK_FIELDS
+            if step.get(key) is not None
+        }
         metadata = {
+            "trajectory_step_id": step_id,
+            "trajectory_sequence": step.get("sequence"),
+            "trajectory_source": step.get("source"),
+            **{f"worker_{key}": value for key, value in linkage.items()},
+        }
+        observation_input = minimize_for_langfuse({
+            "pre_action_context": step.get("pre_action_context"),
+            "input": step.get("input"),
+            "normalized_action": step.get("normalized_action"),
+        })
+        observation_output = minimize_for_langfuse({
+            "output": step.get("output"),
+            "error": step.get("error"),
+        })
+        kwargs: dict[str, Any] = {
+            "as_type": "span",
+            "name": action,
+            "input": observation_input,
+            "output": observation_output,
+            "metadata": metadata,
+        }
+        parent_id = str(step.get("parent_observation_id") or self.observation_id or "").strip()
+        trace_id = str(step.get("trace_id") or self.trace_id or "").strip()
+        if parent_id and trace_id:
+            kwargs["trace_context"] = {
+                "trace_id": trace_id,
+                "parent_span_id": parent_id,
+            }
+        observation = None
+        try:
+            observation = starter(**kwargs)
+        except TypeError:
+            # SDK versions before explicit trace-context support can still
+            # create a child under the active root observation.
+            kwargs.pop("trace_context", None)
+            try:
+                observation = starter(**kwargs)
+            except Exception as error:  # pragma: no cover - SDK dependent
+                self.publish_errors.append({"step_id": step_id, "error_type": type(error).__name__})
+                return None
+        except Exception as error:  # pragma: no cover - SDK/network dependent
+            self.publish_errors.append({"step_id": step_id, "error_type": type(error).__name__})
+            return None
+        if observation is None:
+            return None
+        with _observation_scope(observation) as active:
+            child_id = getattr(active, "id", None)
+            if child_id:
+                child_id = str(child_id)[:256]
+                self.step_observations[step_id] = child_id
+                return child_id
+        return None
+
+    def publish(
+        self,
+        trajectory: Mapping[str, Any],
+        scores: Iterable[Mapping[str, Any]],
+        *,
+        extra_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        digest = _sha256(trajectory)
+        root_metadata = {
             f"evaluation_{key}": value
             for key, value in self.correlation.items()
         }
-        metadata["trajectory_sha256"] = digest
-        metadata["trajectory_schema_version"] = str(trajectory.get("schema_version") or TRAJECTORY_SCHEMA_VERSION)
-        metadata["privacy_policy_version"] = PRIVACY_POLICY_VERSION
-        metadata["local_evidence"] = "available-in-runner-result"
+        root_metadata["trajectory_sha256"] = digest
+        root_metadata["trajectory_schema_version"] = str(trajectory.get("schema_version") or TRAJECTORY_SCHEMA_VERSION)
+        root_metadata["privacy_policy_version"] = PRIVACY_POLICY_VERSION
+        root_metadata["local_evidence"] = "available-in-runner-result"
+        if isinstance(extra_metadata, Mapping):
+            root_metadata.update({
+                f"evaluation_{str(key)}": redact_payload(value)
+                for key, value in extra_metadata.items()
+                if str(key) not in {
+                    "trajectory_sha256",
+                    "trajectory_schema_version",
+                    "privacy_policy_version",
+                    "local_evidence",
+                }
+            })
         self.observation.update(
             output=minimize_for_langfuse(trajectory),
-            metadata=metadata,
+            metadata=root_metadata,
         )
+        for step in trajectory.get("steps", []) if isinstance(trajectory.get("steps"), list) else []:
+            if isinstance(step, Mapping):
+                self._start_step_observation(step)
         trace_id = self.trace_id
         if not trace_id:
             return
@@ -1206,7 +1546,7 @@ class _LangfuseCase:
                 "name": name,
                 "value": float(score.get("value", 0)),
                 "trace_id": trace_id,
-                "observation_id": self.observation_id,
+                "observation_id": self.step_observations.get(step_id) or self.observation_id,
                 "data_type": "NUMERIC",
                 "comment": str(score.get("comment") or ""),
             }
@@ -1277,19 +1617,39 @@ class MemoirEvaluationRunner:
             expected = dict(case)
             if isinstance(case.get("expected"), Mapping):
                 expected.update(case["expected"])
-            scores = self.evaluator(trajectory, expected=expected)
+            deterministic_scores = self.evaluator(trajectory, expected=expected)
+            scores = list(deterministic_scores)
+            judge_evidence = {
+                "status": "not_configured",
+                "acceptance_role": "advisory",
+                "judges": [],
+                "scores": [],
+            }
             if self.judges:
                 judge_input = build_judge_input(
                     task=case.get("input", case),
                     trajectory=trajectory,
                     available_tools=self.available_tools if self.available_tools is not None else case.get("available_tools", []),
                 )
-                scores.extend(await run_judges(self.judges, judge_input))
+                judge_evidence = await run_judges_report(self.judges, judge_input)
+                scores.extend(judge_evidence["scores"])
             if sink is not None:
                 sink.publish(trajectory, scores)
-            failures = [
+
+            deterministic_failures = [
                 {key: score.get(key) for key in ("name", "value", "comment", "step_id") if key in score}
-                for score in scores if float(score.get("value", 1)) < 1
+                for score in deterministic_scores if float(score.get("value", 1)) < 1
+            ]
+            judge_failures = [
+                {key: score.get(key) for key in ("name", "value", "comment", "step_id") if key in score}
+                for score in judge_evidence["scores"] if float(score.get("value", 1)) < 1
+            ]
+            deterministic_status = "fail" if deterministic_failures else "pass"
+            acceptance_status = deterministic_status if deterministic_status == "fail" else (
+                "pass" if judge_evidence["status"] == "scored" else "unavailable"
+            )
+            failures = [
+                *deterministic_failures,
             ]
             result = {
                 "case_id": case_id,
@@ -1298,12 +1658,26 @@ class MemoirEvaluationRunner:
                 "result": redact_payload(result),
                 "trajectory_sha256": _sha256(trajectory),
                 "failure_evidence": failures,
+                "acceptance": {
+                    "status": acceptance_status,
+                    "deterministic_status": deterministic_status,
+                    "judge_status": judge_evidence["status"],
+                    "judge_role": "advisory",
+                },
+                "judge_evidence": {
+                    **judge_evidence,
+                    "advisory_failures": judge_failures,
+                },
             }
             if sink is not None:
                 result["langfuse"] = {
                     "trace_id": sink.trace_id,
                     "observation_id": sink.observation_id,
                 }
+                if sink.step_observations:
+                    result["langfuse"]["step_observations"] = dict(sink.step_observations)
+                if sink.publish_errors:
+                    result["langfuse"]["publish_errors"] = list(sink.publish_errors)
             return result
 
     async def run(

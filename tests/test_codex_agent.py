@@ -14,6 +14,7 @@ from apps.api.codex_runtime import (
     build_system_prompt,
     build_workspace_extraction_prompt,
 )
+from apps.api.trajectory_evaluation import TrajectoryRecorder
 
 
 def test_loop_trace_exposes_actions_without_private_model_reasoning():
@@ -94,6 +95,74 @@ def test_workspace_extraction_retries_only_missing_family_domains_without_synthe
     assert calls == [None, 'family_tree', 'author_timeline']
     assert 'MEMORY_SPARK_FAMILY_TREE' in reply
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    outer = TrajectoryRecorder({'run_id': 'run-1', 'case_id': 'case-1'})
+    calls = []
+
+    async def worker_turn(**kwargs):
+        focus = kwargs.get('extraction_focus')
+        calls.append(focus)
+        worker = TrajectoryRecorder({'run_id': 'run-1', 'case_id': 'case-1'})
+        worker_step = worker.record(
+            'codex',
+            'tool.call',
+            input={'name': 'memory.search', 'arguments': {'query': focus or 'broad'}},
+            metadata={'parent_observation_id': 'worker-root'},
+        )
+        worker_step['observation_id'] = f'worker-observation-{focus or "broad"}'
+        worker_step['parent_observation_id'] = 'worker-root'
+        worker.finish('')
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]', 'trajectory': worker.payload()}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I was born in Hobart. My sister Nora remembers it.', language='en-AU',
+        trajectory=outer,
+    ))
+
+    actions = [step['action'] for step in outer.payload()['steps']]
+    assert calls == [None, 'family_tree', 'author_timeline']
+    assert actions == [
+        'tool.call',
+        'workspace.worker.completed',
+        'workspace.family_recovery.requested',
+        'tool.call',
+        'workspace.worker.completed',
+        'workspace.family_recovery.requested',
+        'tool.call',
+        'workspace.worker.completed',
+    ]
+    assert [step['observation_id'] for step in outer.payload()['steps'] if step.get('observation_id')] == [
+        'worker-observation-broad',
+        'worker-observation-family_tree',
+        'worker-observation-author_timeline',
+    ]
+
+
+def test_workspace_extraction_records_focused_recovery_failure(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    outer = TrajectoryRecorder({'run_id': 'run-1', 'case_id': 'case-1'})
+
+    async def worker_turn(**kwargs):
+        if kwargs.get('extraction_focus') == 'family_tree':
+            raise RuntimeError('synthetic recovery failure')
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I was born in Hobart. My sister Nora remembers it.', language='en-AU',
+        trajectory=outer,
+    ))
+
+    failure = next(step for step in outer.payload()['steps'] if step['action'] == 'workspace.family_recovery.failed')
+    assert failure['output'] == {'error_type': 'RuntimeError', 'skill': 'memoir-family-tree'}
 
 
 def test_workspace_extraction_does_not_invent_missing_domain_markers(monkeypatch):

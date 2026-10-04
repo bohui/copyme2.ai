@@ -1,6 +1,7 @@
 import json
 import inspect
 from pathlib import Path
+import asyncio
 
 from scripts.memoir_five_case_evaluator import (
     SKILLS,
@@ -10,8 +11,11 @@ from scripts.memoir_five_case_evaluator import (
     load_json,
     validate_expected,
     validate_inputs,
+    build_langfuse_round_scores,
 )
 from scripts.run_memoir_five_case_evaluation import FixtureWorker, _fixture_places, _has_timeline_cue
+from scripts.run_memoir_five_case_evaluation import make_arg_parser, run_case
+from apps.api.trajectory_evaluation import LangfusePublisher
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,3 +116,95 @@ def test_fixture_contract_heuristics_read_only_current_visible_text():
     assert _fixture_places("A public historical photo of Hobart around 1978 is only background.") == []
     assert _has_timeline_cue("Around 1982 I moved to Launceston; the date is approximate.")
     assert not _has_timeline_cue("Please keep the private photo undated and do not call it historical evidence.")
+
+
+def test_langfuse_round_scores_keep_skill_invocation_and_output_grades_separate():
+    grade = {
+        "overall": "fail",
+        "skill_grades": {
+            "memoir-family-tree": {
+                "status": "fail",
+                "invocation": "pass",
+                "output": "fail",
+                "comment": "The persisted family revision was stale.",
+            },
+            "memoir-composer": {
+                "status": "unavailable",
+                "invocation": "unavailable",
+                "output": "unavailable",
+                "comment": "Provider timeout.",
+            },
+        },
+        "state_checks": {
+            "life_stage": {"status": "pass"},
+        },
+    }
+
+    scores = build_langfuse_round_scores(grade)
+    values = {score["name"]: score["value"] for score in scores}
+    assert values["skill.memoir-family-tree.invocation"] == 1
+    assert values["skill.memoir-family-tree.output"] == 0
+    assert values["state.life_stage"] == 1
+    assert "skill.memoir-composer.invocation" not in values
+    assert "round.overall" in values
+
+
+class _FiveCaseObservation:
+    trace_id = "five-case-trace"
+    id = "five-case-observation"
+
+    def __init__(self):
+        self.updated = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def update(self, **kwargs):
+        self.updated.append(kwargs)
+
+
+class _FiveCaseLangfuseDouble:
+    def __init__(self):
+        self.observation = _FiveCaseObservation()
+        self.scores = []
+        self.flushed = False
+
+    def start_as_current_observation(self, **kwargs):
+        self.start_kwargs = kwargs
+        return self.observation
+
+    def create_score(self, **kwargs):
+        self.scores.append(kwargs)
+
+    def flush(self):
+        self.flushed = True
+
+
+def test_five_case_round_runner_publishes_minimized_trajectory_receipt(tmp_path):
+    case = INPUTS["cases"][0]
+    case_expected = next(item for item in EXPECTED["case_expectations"] if item["id"] == case["id"])
+    args = make_arg_parser().parse_args([
+        "--mode", "pilot",
+        "--run-id", "test-five-case-publish",
+        "--output-root", str(tmp_path),
+    ])
+    client = _FiveCaseLangfuseDouble()
+    summary = asyncio.run(run_case(
+        case,
+        EXPECTED,
+        case_expected,
+        args=args,
+        run_dir=tmp_path,
+        execution_mode="fixture",
+        max_rounds=1,
+        langfuse_publisher=LangfusePublisher(client),
+    ))
+
+    assert summary["langfuse"]["published_rounds"] == 1
+    round_trace = json.loads((tmp_path / "cases" / case["id"] / "rounds" / "round-001.json").read_text())
+    assert round_trace["langfuse"]["status"] == "published"
+    assert client.observation.updated[0]["metadata"]["evaluation_round_status"] == "mock_only"
+    assert client.flushed

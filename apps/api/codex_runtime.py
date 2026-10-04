@@ -886,6 +886,7 @@ class CodexRuntime:
                     place_journey=current_place_journey, family_enabled=family_enabled,
                     family_context=existing_family_context, project_id=project_id,
                     text=text, language=language, on_place=preview_place,
+                    trajectory=trajectory,
                 ))
                 async def settle_extraction():
                     if not extraction_task.done():
@@ -1151,6 +1152,11 @@ class CodexRuntime:
                 )
             except Exception as workspace_failure:
                 await progress.update('workspace', 'Workspace update could not finish; the reply is saved', '工作区更新未完成；回复已保存', status='failed')
+                if trajectory:
+                    trajectory.record('application', 'workspace.failed', output={
+                        'error_type': type(workspace_failure).__name__,
+                        'retryable': True,
+                    })
                 # The exchange is already durable. A workspace failure is
                 # optional and must not turn the saved reply into a failed
                 # conversation.
@@ -1351,7 +1357,8 @@ class CodexRuntime:
 
     async def _workspace_extraction(self, *, user_id, memories, profile,
                                      place_journey, family_enabled,
-                                     family_context, project_id, text, language, on_event=None, on_place=None):
+                                     family_context, project_id, text, language,
+                                     on_event=None, on_place=None, trajectory=None):
         """Run marker extraction in a separate, non-conversational pass."""
         text = original_conversation_text(text)
         marker_buffer = ''
@@ -1396,9 +1403,21 @@ class CodexRuntime:
                     text=text,
                     language=language,
                     agent_role='workspace',
+                    **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}),
                 )
+                if trajectory:
+                    trajectory.append_external(
+                        result.get('trajectory', {}).get('steps', [])
+                        if isinstance(result.get('trajectory'), dict) else [],
+                        source='codex-worker',
+                    )
+                    trajectory.record('application', 'workspace.worker.completed', output={
+                        'agent_role': 'workspace',
+                        'extraction_focus': None,
+                        'has_trajectory': bool(result.get('trajectory')),
+                    })
                 reply = result['reply']
                 # A single broad extraction pass can correctly save profile or
                 # place context while overlooking one of the premium Family
@@ -1416,6 +1435,14 @@ class CodexRuntime:
                     ):
                         if skill_name in present or not _workspace_focus_is_relevant(text, focus, family_context):
                             continue
+                        if trajectory:
+                            trajectory.record('application', 'workspace.family_recovery.requested', output={
+                                'focus': focus,
+                                'skill': {
+                                    'family_tree': 'memoir-family-tree',
+                                    'author_timeline': 'memoir-author-timeline',
+                                }[focus],
+                            })
                         try:
                             focused = await self._worker_turn(
                                 user_id=user_id,
@@ -1429,8 +1456,20 @@ class CodexRuntime:
                                 text=text,
                                 language=language,
                                 agent_role='workspace',
+                                **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
                                 extraction_focus=focus,
                             )
+                            if trajectory:
+                                trajectory.append_external(
+                                    focused.get('trajectory', {}).get('steps', [])
+                                    if isinstance(focused.get('trajectory'), dict) else [],
+                                    source='codex-worker',
+                                )
+                                trajectory.record('application', 'workspace.worker.completed', output={
+                                    'agent_role': 'workspace',
+                                    'extraction_focus': focus,
+                                    'has_trajectory': bool(focused.get('trajectory')),
+                                })
                             focused_reply = focused.get('reply', '')
                             if focused_reply:
                                 reply += '\n' + focused_reply
@@ -1438,6 +1477,14 @@ class CodexRuntime:
                                 _, focused_skills = combine_family_skill_updates(focused_updates)
                                 present.update(focused_skills)
                         except Exception as error:
+                            if trajectory:
+                                trajectory.record('application', 'workspace.family_recovery.failed', output={
+                                    'error_type': type(error).__name__,
+                                    'skill': {
+                                        'family_tree': 'memoir-family-tree',
+                                        'author_timeline': 'memoir-author-timeline',
+                                    }[focus],
+                                })
                             if on_event:
                                 await on_event({
                                     'type': 'workspace_retry',
@@ -1568,6 +1615,7 @@ class CodexRuntime:
                 project_id=project_id,
                 text=text,
                 language=language,
+                trajectory=trajectory,
                 **({'on_event': progress.harness_event} if on_event else {}),
             )
             _ignored_visible, extracted_profile_updates = extract_profile_updates(enrichment_reply)

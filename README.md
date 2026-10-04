@@ -324,6 +324,20 @@ included in the correlation metadata. The publisher also exposes Langfuse SDK v4
 synchronous dataset callbacks; the local runner is the async adapter for the
 real worker turn boundary.
 
+The five-case runner can publish the same minimized evidence per round after a
+successful Langfuse preflight:
+
+```bash
+python3 scripts/run_memoir_five_case_evaluation.py \
+  --mode live --publish --run-id <isolated-run-id>
+```
+
+Each published round carries the complete ordered trajectory on its root
+observation, creates child observations when the SDK supports them, preserves
+worker-supplied observation ancestry and tool arguments, and sends deterministic
+skill invocation/output/state scores. Unavailable judge or telemetry evidence
+is recorded separately; it is never reported as a live pass.
+
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 
 ### Place journeys in the integrated Codex worker
