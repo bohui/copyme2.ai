@@ -108,3 +108,40 @@ def test_event_association_keeps_independent_capture_dates(search_world, tmp_pat
     scene = photo['scene_date'] if surface == 'skill' else photo['scene_date_range']
     assert scene['start'] == expected_year + '-01-01'
     assert scene['end'] == expected_year + '-12-31'
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('caption', [
+    'Chengde street taken 1920 and later uploaded',
+    'Chengde street; probably taken 1983 and later digitized',
+    'Chengde street taken 1983-01-01, scanned',
+    'Chengde street photographed 1920, later published',
+    'Chengde street; capture date unknown and later uploaded',
+    'Chengde street shot 1983-01-01, digitized',
+])
+def test_later_undated_events_cannot_erase_explicit_capture_claims(search_world, tmp_path, capsys, surface, caption):
+    helper, world = search_world
+    set_image_metadata(world, {'dateCreated': '1983-10-01', 'caption': caption})
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('caption', [
+    'Chengde street taken 1983-10-01 and later uploaded',
+    'Chengde street photographed 1983-10-01, later published',
+    'Chengde street shot 1983-10-01, scanned',
+])
+def test_later_undated_events_preserve_valid_explicit_capture_claims(search_world, tmp_path, capsys, surface, caption):
+    helper, world = search_world
+    set_image_metadata(world, {'caption': caption})
+    photo, = discover_image_metadata(helper, tmp_path, capsys, surface)
+    scene = photo['scene_date'] if surface == 'skill' else photo['scene_date_range']
+    assert scene['start'] == scene['end'] == '1983-10-01'
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('caption', ['Chengde street taken 1983, ca.', 'Chengde street taken 1983, c.'])
+def test_postposed_circa_stays_uncertain(search_world, tmp_path, capsys, surface, caption):
+    helper, world = search_world
+    set_image_metadata(world, {'caption': caption})
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []

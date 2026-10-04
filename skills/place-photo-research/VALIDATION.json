@@ -42,14 +42,14 @@
   ],
   "issue7_offline_validation": {
     "issue": "https://github.com/bohui/copyme2.ai/issues/7",
-    "public_interface_cases_passed": 211,
+    "public_interface_cases_passed": 233,
     "public_interface_cases_failed": 0,
     "public_interface_cases_skipped": 0,
     "command": "python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py",
     "mocks": "External HTTP and DNS only; real CLI/app, parsing, validation and provider orchestration",
-    "helper_sha256": "09e25c21cc9f1301a59e8c64cc929d2bcbf93adf47cfa5271987721c24d0feed",
+    "helper_sha256": "db1f1512ebf904086ec09a983af4952ef77372627ffd592cd2c311164307db79",
     "full_snapshot_receipts": "See the Issue #7 implementation PR for the exact clean commit and complete suite outcomes",
     "live_search": "Not run; disabled by default; historical live_smoke below is not a new receipt",
-    "independent_review_regressions": 104
+    "independent_review_regressions": 126
   }
 }

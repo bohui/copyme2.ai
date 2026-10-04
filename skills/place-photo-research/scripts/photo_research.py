@@ -846,7 +846,7 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
 
 _LLM_UNCERTAIN_DATE = re.compile(
     r"\b(?:probably|possibly|perhaps|maybe|likely|about|estimated|estimate|approximately|approx|circa|"
-    r"before|after|uncertain|unknown|undated|unrecorded|around)\b|\b(?:ca|c)\.\s*\d|"
+    r"before|after|uncertain|unknown|undated|unrecorded|around)\b|\b(?:ca|c)\.|"
     r"\b(?:not|never)\s+(?:known|recorded|dated|established|verified)\b|"
     r"\b(?:no|missing)\s+(?:capture\s+)?date\b|[?？]|约|可能|不详|未知", re.I)
 _LLM_DATE_EVENT = re.compile(
@@ -874,10 +874,15 @@ def _llm_capture_clauses(value: str) -> list[str]:
                 continue
             if capture:
                 following_end = events[index + 1].start() if index + 1 < len(events) else len(clause)
+                preceding = clause[start:match.start()]
+                explicit_capture = any(event.lastgroup == "capture"
+                                       for event in _LLM_DATE_EVENT.finditer(preceding))
                 # '1983 (digitized)' cannot become a capture assertion; in
                 # '1983, digitized 2025', each date has an independent role.
-                if _crawl4ai_years(clause[match.end():following_end]):
-                    captures.append(clause[start:match.start()])
+                # An explicit 'taken ...' claim already has a capture role:
+                # a later undated upload/scan cannot erase it or its qualifiers.
+                if explicit_capture or _crawl4ai_years(clause[match.end():following_end]):
+                    captures.append(preceding)
                 start = match.start()
             else:
                 previous = clause[start:match.start()]

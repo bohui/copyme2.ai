@@ -77,3 +77,9 @@ Event association also recognizes non-capture labels after a date, such as
 scene's capture year. When publication text transitions back to capture text,
 all intervening qualifiers are retained for uncertainty checks; a second,
 partial qualifier whitelist is not used.
+
+An explicitly identified capture claim remains independent of later events.
+For example, `taken 1920 and later uploaded` still asserts capture in 1920 even
+though no upload date is supplied. A later undated event cannot erase a capture
+conflict or uncertainty. Circa qualifiers remain uncertain before or after the
+date expression.
