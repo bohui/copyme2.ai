@@ -56,6 +56,25 @@ def redirect_destination(url, location, method):
         reject(url, method, 'ambiguous_redirect_location')
         return None
     try:
+        parts = urlsplit(location)
+        if parts.scheme:
+            # Special-scheme leniency (http:/host, http:///host, http:host)
+            # differs from urllib. Only a full authority form is supported.
+            valid = (parts.scheme in {'http', 'https'} and
+                     location.lower().startswith(parts.scheme + '://') and bool(parts.netloc))
+        elif location.startswith('//'):
+            # Exactly two authority slashes; three or more are ambiguous.
+            valid = not location.startswith('///') and bool(parts.netloc)
+        else:
+            # Relative path/query/fragment references cannot carry a scheme
+            # in their first path segment.
+            valid = bool(location) and not parts.netloc and ':' not in parts.path.split('/', 1)[0]
+        if parts.netloc:
+            valid = valid and bool(parts.hostname) and parts.username is None and parts.password is None
+            parts.port  # Reject malformed or out-of-range authorities.
+        if not valid:
+            reject(url, method, 'ambiguous_redirect_location')
+            return None
         return urljoin(url, location)
     except ValueError:
         reject(url, method, 'invalid_redirect_location')

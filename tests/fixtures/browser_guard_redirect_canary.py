@@ -30,7 +30,8 @@ def main():
     parser.add_argument('--case', choices=['get', 'post', 'get-chain', 'allowed-get',
                         'allowed-post', 'allowed-navigation', 'stream', 'popup',
                         'backslash-get', 'backslash-post', 'popup-static', 'iframe',
-                        'iframe-static', 'iframe-fetch'], required=True)
+                        'iframe-static', 'iframe-fetch', 'triple-get', 'triple-post',
+                        'http-triple-get', 'http-triple-post'], required=True)
     parser.add_argument('--guard-path', type=Path, help='Optional owned source snapshot for a red check')
     args = parser.parse_args()
     sink_requests = []
@@ -64,6 +65,10 @@ def main():
                         # Send the exact raw form: TWO backslash characters,
                         # then host:port/path. Never normalize it in the test.
                         location = chr(92) * 2 + sink_origin.removeprefix('http://') + '/sink'
+                    elif args.case.startswith('http-triple-'):
+                        location = 'http:///' + sink_origin.removeprefix('http://') + '/sink'
+                    elif args.case.startswith('triple-'):
+                        location = '///' + sink_origin.removeprefix('http://') + '/sink'
                     self.send_header('Location', location)
                 elif self.path in {'/allowed', '/chain'}:
                     self.send_response(307 if self.command == 'POST' else 302)
@@ -206,7 +211,7 @@ def main():
                 expected = {'origin': sink_origin, 'path': '/sink', 'method': method}
                 if args.case in {'popup', 'iframe', 'iframe-fetch'}:
                     expected['reason'] = 'unsupported_target_redirect'
-                elif args.case.startswith('backslash-'):
+                elif args.case.startswith(('backslash-', 'triple-', 'http-triple-')):
                     expected = {'origin': source_origin, 'path': '/redirect', 'method': method,
                                 'reason': 'ambiguous_redirect_location'}
                 assert guard['blocked'] == [expected]
