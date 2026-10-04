@@ -183,3 +183,25 @@ def test_month_named_places_do_not_become_unsupported_date_syntax(search_world, 
         assert json.loads(capsys.readouterr().out)['qualifying'] == expected
     else:
         assert len(photos.search_place_photos('March', '1980s')) == expected
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('caption', ['Chengde street taken January, 1983', 'Chengde street taken Jan-1983'])
+def test_named_month_punctuation_cannot_discard_capture_precision(search_world, tmp_path, capsys, surface, caption):
+    helper, world = search_world
+    set_image_metadata(world, {'dateCreated': '1983-10-01', 'caption': caption})
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+def test_punctuated_month_named_place_is_not_a_date_expression(search_world, tmp_path, capsys, surface):
+    from apps.api import place_photos as photos
+    helper, world = search_world
+    set_image_metadata(world, {'name': 'March, Cambridgeshire street 1983', 'dateCreated': '1983-10-01'})
+    if surface == 'skill':
+        assert helper.main(['init', '--place', 'March', '--out', str(tmp_path), '--as-of', '2026-10-04', '--period', '1980s']) == 0
+        capsys.readouterr()
+        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+        assert json.loads(capsys.readouterr().out)['qualifying'] == 1
+    else:
+        assert len(photos.search_place_photos('March', '1980s')) == 1

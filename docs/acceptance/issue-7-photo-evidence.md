@@ -66,6 +66,14 @@ additional positive March-town tests exposed the same problem in named-month
 syntax detection, which is now date-adjacent too. All 245 public cases pass,
 including the negative `taken March 1983` unsupported-date counterexamples.
 
+The fifth review isolated a punctuation-separator regression in the named-month
+guard (`January, 1983` and `Jan-1983`). The repair is limited to that guard's
+separator expression. Four date assertions failed before the change while two
+punctuated March-place controls passed; all six pass afterward. All 38 original
+independent-review probes from the five review rounds also pass when replayed
+unchanged. The public suite now contains 251 cases. No unrelated recognizer
+changes are included in this correction.
+
 ## Complete Issue #4 acceptance matrix
 
 PASS means verified offline behavior plus source inspection, not live-provider
@@ -94,7 +102,7 @@ certification. Test names below refer to `tests/test_llm_place_photos.py` or
 | 18 | Unresolved rights remain unresolved | PASS: skill/app unknown rights and disabled download/print/publish assertions; unchanged download gates |
 | 19 | Documented standalone helper | PASS: `references/llm-web-search.md`; public `init`/`discover` exercised |
 | 20 | Shared app capability | PASS: same parser through `search_place_photos`; capture conflicts/consistent metadata/month precision exercised |
-| 21 | Public-interface behavior tests | PASS: 245 expanded cases; real adapter, source parsing, candidate validation/reporting/provider orchestration |
+| 21 | Public-interface behavior tests | PASS: 251 expanded cases; real adapter, source parsing, candidate validation/reporting/provider orchestration |
 | 22 | Linked issue/PR and observed results | PASS only with exact clean-snapshot receipts in the implementation PR; commands below make that verification reproducible |
 
 ## Reproduce and interpret verification

@@ -68,6 +68,6 @@ test_rights_block_no_network (test_photo_research.WorkflowTests.test_rights_bloc
 test_sha_dedup (test_photo_research.WorkflowTests.test_sha_dedup) ... ok
 
 ----------------------------------------------------------------------
-Ran 68 tests in 0.070s
+Ran 68 tests in 0.067s
 
 OK

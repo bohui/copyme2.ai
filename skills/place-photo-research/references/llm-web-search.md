@@ -88,3 +88,8 @@ Date syntax guards apply to date-adjacent tokens. Dotted place abbreviations
 such as `Washington, D.C.`, photographer initials, and names such as `March town`
 are not themselves uncertain dates. Actual circa-date expressions and
 unsupported named-month date expressions remain excluded.
+
+Recognizable punctuation-separated named-month dates, including `January, 1983`
+and `Jan-1983`, retain their unsupported precise-date classification rather than
+falling back to a year. Punctuation followed by a place word, as in `March,
+Cambridgeshire`, is not a month/date expression.

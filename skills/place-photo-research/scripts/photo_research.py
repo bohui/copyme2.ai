@@ -919,7 +919,7 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
         named_month = (r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
                        r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)")
         if (re.search(r"(?<!\d)\d{1,2}[-/]\d{1,2}[-/]\d{4}(?!\d)", value)
-                or re.search(rf"\b{named_month}\.?(?:\s+|(?=\d))\d|\d\s+{named_month}\b", value, re.I)):
+                or re.search(rf"\b{named_month}(?![A-Za-z])[\W_]*\d|\d[\W_]+{named_month}\b", value, re.I)):
             return None
         year_range = re.search(r"(?<!\d)((?:18|19|20)\d{2})\s*[-–—]\s*((?:18|19|20)\d{2})(?!\d)", value)
         if year_range:
