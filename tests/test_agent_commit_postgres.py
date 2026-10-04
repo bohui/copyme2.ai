@@ -44,7 +44,9 @@ class ContainerSql:
         try:
             # Each old one-shot psql invocation had a new session. Reset roles,
             # settings, temporary objects and psql's error presentation too.
-            process.stdin.write('\\set VERBOSITY default\ndiscard all;\n' + query + '\n\\echo ' + marker + '\n')
+            # Closing a one-shot connection rolled back an unfinished
+            # transaction. Release its locks before returning this call too.
+            process.stdin.write('\\set VERBOSITY default\ndiscard all;\n' + query + '\nrollback;\n\\echo ' + marker + '\n')
             process.stdin.flush()
             for line in process.stdout:
                 if line.strip() == marker:
@@ -182,6 +184,8 @@ def test_commit_checks_authenticated_lease_and_writes_both_rows(sql):
 def test_sql_transport_resets_roles_and_stops_at_the_first_error(sql):
     assert sql(as_user('select current_user;')).stdout.splitlines()[-1] == 'authenticated'
     assert sql('select current_user;').stdout.splitlines()[-1] == 'postgres'
+    sql('begin; create temporary table transport_uncommitted(value integer);')
+    assert sql("select to_regclass('transport_uncommitted');").stdout.strip() == ''
     failed = sql("select 1 / 0; select 'must not execute';", check=False)
     assert failed.returncode != 0 and 'division by zero' in failed.stderr
     assert 'must not execute' not in failed.stdout
