@@ -915,6 +915,11 @@ def _timeline_veto_scope(sentence: str) -> str | None:
         return None
     item_specific = bool(
         re.search(r"\b(?:this|that|the)\s+(?:event|item|entry|memory|reflection)\b", lowered)
+        or re.search(
+            r"\b(?:this|that|the)\s+(?!events?\b|records?\b|timeline\b)"
+            r"[a-z][a-z'’-]*\b",
+            lowered,
+        )
         or re.search(r"(?:这件事|这个事件|这个条目|这段回忆|这条记录)", sentence)
     )
     return "item" if item_specific else "all"
@@ -970,15 +975,70 @@ def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
 def _timeline_item_source_span_indices(
     item: Mapping[str, Any], source: str,
 ) -> list[int]:
-    """Associate a normalized timeline item with visible source clauses."""
-    anchors = _timeline_item_source_anchors(item)
-    if not anchors:
-        return []
+    """Associate an item with the best matching visible source clause.
+
+    Dates and places are supporting evidence, not identity. Event-title
+    tokens carry the highest weight so two events sharing a year or noun do
+    not both become the target of one ``this event`` veto.
+    """
+    generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
+    title = str(item.get("title") or "").strip().casefold()
+    identity: list[str] = []
+    if title and title not in generic:
+        identity.append(title)
+        identity.extend(
+            token.casefold() for token in re.findall(r"\b[a-z]{4,}\b", title)
+            if token.casefold() not in generic
+        )
+        identity.extend(
+            token for token in re.findall(r"[\u3400-\u9fff]{2,}", title)
+            if token not in generic
+        )
+    dates: list[str] = []
+    for key in ("date_expression", "start_expression", "end_expression"):
+        value = str(item.get(key) or "").strip().casefold()
+        if value and value not in generic:
+            dates.append(value)
+            dates.extend(
+                token.casefold() for token in re.findall(
+                    r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b\d{1,2}\b", value
+                )
+            )
+    place = str(item.get("place") or "").strip().casefold()
+    place_tokens = [place] if place else []
+    if place:
+        place_tokens.extend(re.findall(r"\b[a-z]{4,}\b", place))
+
+    def contains(sentence: str, anchor: str) -> bool:
+        if not anchor:
+            return False
+        if re.search(r"[a-z]", anchor):
+            return re.search(rf"(?<![a-z]){re.escape(anchor)}(?![a-z])", sentence) is not None
+        return anchor in sentence
+
     spans = _timeline_source_spans(source)
-    return [
-        index for index, (sentence, _start, _end) in enumerate(spans)
-        if any(anchor in sentence.casefold() for anchor in anchors)
-    ]
+    scored: list[tuple[int, int, int, bool]] = []
+    for index, (sentence, _start, _end) in enumerate(spans):
+        lowered = sentence.casefold()
+        phrase_score = 6 if title and title not in generic and contains(lowered, title) else 0
+        identity_hits = sum(1 for anchor in identity[1:] if contains(lowered, anchor))
+        place_hits = sum(1 for anchor in place_tokens if contains(lowered, anchor))
+        date_hits = sum(1 for anchor in dates if contains(lowered, anchor))
+        score = phrase_score + (identity_hits * 4) + (place_hits * 2) + date_hits
+        if score:
+            scored.append((score, identity_hits, index, _sentence_has_author_event_evidence(sentence)))
+    if not scored:
+        return []
+    author_scored = [row for row in scored if row[3]]
+    if author_scored:
+        scored = author_scored
+    best_score = max(score for score, _identity_hits, _index, _author_owned in scored)
+    best = [row for row in scored if row[0] == best_score]
+    # If only shared supporting evidence (for example one year) ties, the
+    # source association is ambiguous; do not destructively veto either item.
+    if len(best) > 1 and not any(identity_hits for _score, identity_hits, _index, _author_owned in best):
+        return []
+    return [index for _score, _identity_hits, index, _author_owned in best]
 
 
 def _timeline_item_is_explicitly_vetoed(

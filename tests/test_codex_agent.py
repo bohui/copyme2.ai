@@ -575,6 +575,28 @@ def test_item_veto_association_uses_source_span_not_single_item_count():
     ) is False
 
 
+@pytest.mark.parametrize(
+    ('source', 'vetoed', 'allowed'),
+    [
+        (
+            'I moved in 1980; I married in 1980; please do not add this event to my timeline.',
+            {'title': 'Married', 'date_expression': '1980'},
+            {'title': 'Moved', 'date_expression': '1980'},
+        ),
+        (
+            'I bought a house in 1980; I sold the house in 1990; please do not add the sale to my timeline.',
+            {'title': 'Sold house', 'date_expression': '1990'},
+            {'title': 'Bought house', 'date_expression': '1980'},
+        ),
+    ],
+)
+def test_item_veto_association_does_not_use_shared_year_or_noun_as_identity(
+    source, vetoed, allowed,
+):
+    assert _timeline_item_is_explicitly_vetoed(vetoed, source, 2) is True
+    assert _timeline_item_is_explicitly_vetoed(allowed, source, 2) is False
+
+
 def test_workspace_extraction_honours_single_event_veto(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 

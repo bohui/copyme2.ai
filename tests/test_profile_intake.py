@@ -105,6 +105,30 @@ def test_later_chinese_correction_overrides_an_earlier_midlife_statement():
 
 
 @pytest.mark.parametrize("text", [
+    "我三十岁以后才开始工作。不，记错了，是小时候。",
+    "I was 35 when I changed careers.",
+    "I was 40 when I began caring for my mother.",
+    "我35岁时开始工作。",
+    "我三十五岁时开始工作。",
+])
+def test_story_stage_guard_handles_age_orthography_and_later_correction(text):
+    updates = apply_explicit_story_stage(
+        text, {"story_focus": {"life_stage": "midlife"}}
+    )
+    if "记错了" in text:
+        assert updates is None
+    else:
+        assert updates == {"story_focus": {"life_stage": "midlife"}}
+
+
+def test_unrelated_relative_age_does_not_erase_validated_author_stage():
+    text = "我出生于1980年。妈妈三十岁以后开始工作。我在2020年开始照顾孩子。"
+    assert apply_explicit_story_stage(
+        text, {"story_focus": {"life_stage": "midlife"}}
+    ) == {"story_focus": {"life_stage": "midlife"}}
+
+
+@pytest.mark.parametrize("text", [
     "我姐姐三十岁以后开始工作，那时我五岁。",
     "我哥哥三十岁以后开始工作，那时我五岁。",
     "妈妈三十岁以后开始工作，那时我五岁。",
