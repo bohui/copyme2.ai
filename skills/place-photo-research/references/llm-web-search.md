@@ -83,3 +83,8 @@ For example, `taken 1920 and later uploaded` still asserts capture in 1920 even
 though no upload date is supplied. A later undated event cannot erase a capture
 conflict or uncertainty. Circa qualifiers remain uncertain before or after the
 date expression.
+
+Date syntax guards apply to date-adjacent tokens. Dotted place abbreviations
+such as `Washington, D.C.`, photographer initials, and names such as `March town`
+are not themselves uncertain dates. Actual circa-date expressions and
+unsupported named-month date expressions remain excluded.

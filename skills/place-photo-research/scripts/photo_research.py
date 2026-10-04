@@ -846,7 +846,9 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
 
 _LLM_UNCERTAIN_DATE = re.compile(
     r"\b(?:probably|possibly|perhaps|maybe|likely|about|estimated|estimate|approximately|approx|circa|"
-    r"before|after|uncertain|unknown|undated|unrecorded|around)\b|\b(?:ca|c)\.|"
+    r"before|after|uncertain|unknown|undated|unrecorded|around)\b|"
+    r"(?<![\w.])(?:ca|c)\.\s*(?=\d{4}\b)|"
+    r"(?<!\d)\d{4}(?:[-/]\d{1,2}){0,2}\s*,?\s*(?:ca|c)\.(?!\w)|"
     r"\b(?:not|never)\s+(?:known|recorded|dated|established|verified)\b|"
     r"\b(?:no|missing)\s+(?:capture\s+)?date\b|[?？]|约|可能|不详|未知", re.I)
 _LLM_DATE_EVENT = re.compile(
@@ -914,10 +916,10 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
         if len(days) > 1 or len(months) > 1:
             return None
         # Unsupported numeric/named-month dates are not ordinary year captions.
-        if re.search(r"(?<!\d)\d{1,2}[-/]\d{1,2}[-/]\d{4}(?!\d)|"
-                     r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
-                     r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b",
-                     value, re.I):
+        named_month = (r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+                       r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)")
+        if (re.search(r"(?<!\d)\d{1,2}[-/]\d{1,2}[-/]\d{4}(?!\d)", value)
+                or re.search(rf"\b{named_month}\.?(?:\s+|(?=\d))\d|\d\s+{named_month}\b", value, re.I)):
             return None
         year_range = re.search(r"(?<!\d)((?:18|19|20)\d{2})\s*[-–—]\s*((?:18|19|20)\d{2})(?!\d)", value)
         if year_range:

@@ -145,3 +145,41 @@ def test_postposed_circa_stays_uncertain(search_world, tmp_path, capsys, surface
     helper, world = search_world
     set_image_metadata(world, {'caption': caption})
     assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('place,name,caption,expected', [
+    ('Washington, D.C.', 'Washington, D.C. street 1983', '', 1),
+    ('Washington, D.C.', 'Washington, D.C. street 1983', 'taken c. 1983', 0),
+    ('Chengde', 'Chengde street 1983, photographed by J.C.', '', 1),
+    ('Chengde', 'Chengde C. district street 1983', '', 1),
+])
+def test_place_abbreviations_and_initials_are_not_circa_dates(search_world, tmp_path, capsys, surface, place, name, caption, expected):
+    from apps.api import place_photos as photos
+    helper, world = search_world
+    set_image_metadata(world, {'name': name, 'caption': caption, 'dateCreated': '1983-10-01'})
+    if surface == 'skill':
+        assert helper.main(['init', '--place', place, '--out', str(tmp_path), '--as-of', '2026-10-04', '--period', '1980s']) == 0
+        capsys.readouterr()
+        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+        assert json.loads(capsys.readouterr().out)['qualifying'] == expected
+    else:
+        assert len(photos.search_place_photos(place, '1980s')) == expected
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('name,caption,expected', [
+    ('March town street 1983', '', 1),
+    ('March town street', 'taken March 1983', 0),
+])
+def test_month_named_places_do_not_become_unsupported_date_syntax(search_world, tmp_path, capsys, surface, name, caption, expected):
+    from apps.api import place_photos as photos
+    helper, world = search_world
+    set_image_metadata(world, {'name': name, 'caption': caption, 'dateCreated': '1983-10-01'})
+    if surface == 'skill':
+        assert helper.main(['init', '--place', 'March', '--out', str(tmp_path), '--as-of', '2026-10-04', '--period', '1980s']) == 0
+        capsys.readouterr()
+        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+        assert json.loads(capsys.readouterr().out)['qualifying'] == expected
+    else:
+        assert len(photos.search_place_photos('March', '1980s')) == expected

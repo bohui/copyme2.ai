@@ -58,6 +58,14 @@ later non-capture event has a date. All 229 public cases then passed. Four
 additional postposed-circa tests failed before making uncertainty placement
 independent, bringing the public suite to 233 passes.
 
+The fourth review caught a valid-place regression: a bare `c.` uncertainty
+match confused `Washington, D.C.` with circa. The guard now requires a
+date-adjacent abbreviation and excludes dotted initials. Six positive place/
+initial tests failed before the fix; real circa negatives remain green. Two
+additional positive March-town tests exposed the same problem in named-month
+syntax detection, which is now date-adjacent too. All 245 public cases pass,
+including the negative `taken March 1983` unsupported-date counterexamples.
+
 ## Complete Issue #4 acceptance matrix
 
 PASS means verified offline behavior plus source inspection, not live-provider
@@ -86,7 +94,7 @@ certification. Test names below refer to `tests/test_llm_place_photos.py` or
 | 18 | Unresolved rights remain unresolved | PASS: skill/app unknown rights and disabled download/print/publish assertions; unchanged download gates |
 | 19 | Documented standalone helper | PASS: `references/llm-web-search.md`; public `init`/`discover` exercised |
 | 20 | Shared app capability | PASS: same parser through `search_place_photos`; capture conflicts/consistent metadata/month precision exercised |
-| 21 | Public-interface behavior tests | PASS: 233 expanded cases; real adapter, source parsing, candidate validation/reporting/provider orchestration |
+| 21 | Public-interface behavior tests | PASS: 245 expanded cases; real adapter, source parsing, candidate validation/reporting/provider orchestration |
 | 22 | Linked issue/PR and observed results | PASS only with exact clean-snapshot receipts in the implementation PR; commands below make that verification reproducible |
 
 ## Reproduce and interpret verification
