@@ -21,6 +21,7 @@ PROFILE_FIELDS = {
 }
 LIFE_STAGES = {"baby", "toddler", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
 STORY_FOCUS_FIELDS = {"who": 500, "where": 300, "when": 160, "what": 1000}
+EXPLICIT_MIDLIFE_CUE = re.compile(r"三十岁(?:以后|之后)")
 
 
 def _text(value: Any, limit: int) -> str | None:
@@ -85,6 +86,23 @@ def merge_profile_updates(profile: Any, updates: Any) -> dict[str, Any]:
         else:
             current[key] = value
     return current
+
+
+def apply_explicit_story_stage(text: str, updates: Any) -> dict[str, Any] | None:
+    """Apply an unambiguous stage cue without inventing other profile facts.
+
+    The model may use the allowed stage vocabulary but still misclassify the
+    explicit Chinese ``三十岁以后/三十岁之后`` cue as young adulthood. This
+    narrow guard protects persisted application state while leaving all other
+    profile fields and uncertain wording model-owned.
+    """
+    validated = validate_profile_updates(updates) or {}
+    if not isinstance(text, str) or not EXPLICIT_MIDLIFE_CUE.search(text):
+        return validated or None
+    focus = dict(validated.get("story_focus") or {})
+    focus["life_stage"] = "midlife"
+    validated["story_focus"] = focus
+    return validated
 
 
 def profile_marker_present(text: str) -> bool:

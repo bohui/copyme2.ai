@@ -1027,7 +1027,7 @@ async def run_case(
     round_grades: list[dict[str, Any]] = []
     ui_by_round: dict[int, dict[str, Any]] = {}
     failures: list[dict[str, Any]] = []
-    langfuse_published = 0
+    langfuse_submitted = 0
     langfuse_unavailable = 0
     langfuse_disabled = False
     provider_usage = {"reported": False, "input_tokens": None, "output_tokens": None, "total_tokens": None, "cost": None, "provider_calls": None, "private_worker_requests": 0, "note": "The configured provider did not expose token or cost usage; private_worker_requests counts requests sent to the configured private worker boundary only."}
@@ -1209,12 +1209,16 @@ async def run_case(
                         },
                     )
                     langfuse_observation = {
-                        "status": "published",
+                        # The SDK flush is asynchronous and does not provide a
+                        # durable server readback.  Record submission only;
+                        # never present this as a verified Langfuse write.
+                        "status": "submitted",
+                        "durable_readback": "not_verified",
                         "trace_id": sink.trace_id,
                         "observation_id": sink.observation_id,
                         "step_observations": dict(sink.step_observations),
                     }
-                langfuse_published += 1
+                langfuse_submitted += 1
             except Exception as publish_error:
                 # A failed telemetry publish must not turn a completed Memoir
                 # turn into a product failure, but it is recorded once and
@@ -1280,7 +1284,8 @@ async def run_case(
     summary["langfuse"] = {
         "requested": bool(getattr(args, "publish_langfuse", False)),
         "configured": langfuse_publisher is not None,
-        "published_rounds": langfuse_published,
+        "submitted_rounds": langfuse_submitted,
+        "durable_readback": "not_verified" if langfuse_submitted else "not_available",
         "unavailable_rounds": langfuse_unavailable,
         "disabled_after_error": langfuse_disabled,
     }
@@ -1467,8 +1472,13 @@ async def main_async(args: argparse.Namespace) -> int:
     langfuse_receipt: dict[str, Any] = {"status": "not_requested"}
     if args.publish_langfuse:
         try:
-            langfuse_publisher = LangfusePublisher()
-            langfuse_receipt = {"status": "configured", "sdk": "langfuse-python-v4"}
+            langfuse_publisher = LangfusePublisher(env=env_file)
+            langfuse_receipt = {
+                "status": "configured",
+                "sdk": "langfuse-python-v4",
+                "auth_check": getattr(langfuse_publisher, "auth_check_status", "not_supported"),
+                "durable_readback": "not_verified",
+            }
         except Exception as error:
             langfuse_receipt = {
                 "status": "unavailable",
@@ -1616,6 +1626,7 @@ async def main_async(args: argparse.Namespace) -> int:
         "langfuse": {
             "requested": bool(args.publish_langfuse),
             "status": langfuse_receipt.get("status"),
+            "durable_readback": langfuse_receipt.get("durable_readback", "not_verified"),
         },
         "photo_searches": {
             "planned": 10,
@@ -1650,7 +1661,7 @@ async def main_async(args: argparse.Namespace) -> int:
     report_lines = ["# Memoir five-case evaluation", "", f"Status: **{aggregate['status']}**", f"Mode: `{args.mode}`", f"Run: `{args.run_id}`", "", "| Case | Rounds | Stage coverage | Round statuses |", "|---|---:|---|---|"]
     for item in summaries:
         report_lines.append(f"| {item['case_id']} | {item['rounds_observed']} | {'yes' if item['all_life_stages_observed'] else 'no'} | {json.dumps(item['round_status_counts'], ensure_ascii=False, sort_keys=True)} |")
-    report_lines += ["", "Live-provider status is recorded in `preflight.json`; fixture/model status is not live evidence unless `mode` is `live`.", f"External photo-search calls executed: {aggregate['photo_searches']['executed']} of 10 planned.", "Judge status: unavailable (no configured judge endpoint).", f"Langfuse publish status: {langfuse_receipt.get('status')}.", ""]
+    report_lines += ["", "Live-provider status is recorded in `preflight.json`; fixture/model status is not live evidence unless `mode` is `live`.", f"External photo-search calls executed: {aggregate['photo_searches']['executed']} of 10 planned.", "Judge status: unavailable (no configured judge endpoint).", f"Langfuse submission status: {langfuse_receipt.get('status')}; durable readback: {langfuse_receipt.get('durable_readback', 'not_verified')}.", ""]
     (run_dir / "report.md").write_text("\n".join(report_lines), encoding="utf-8")
     print(json.dumps(aggregate, ensure_ascii=False, indent=2))
     return 0

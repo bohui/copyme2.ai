@@ -403,6 +403,16 @@ class _LangfuseDouble:
         self.flushed = True
 
 
+class _UnauthenticatedLangfuseDouble:
+    def auth_check(self):
+        return False
+
+
+def test_langfuse_publisher_fails_closed_when_auth_check_fails():
+    with pytest.raises(RuntimeError, match="authentication check failed"):
+        LangfusePublisher(_UnauthenticatedLangfuseDouble())
+
+
 class _TreeObservation:
     def __init__(self, observation_id, trace_id="trace-tree"):
         self.id = observation_id

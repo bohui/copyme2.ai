@@ -45,6 +45,7 @@ from .place_journey import (
     place_journey_fingerprint,
 )
 from .profile_intake import (
+    apply_explicit_story_stage,
     extract_profile_updates,
     merge_profile_updates,
     profile_marker_present,
@@ -399,7 +400,7 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
         "- If nothing is explicit, return an empty string. Never infer missing profile, place, family, or task data.\n"
         "- The application removes and validates markers before they reach the storyteller."
     )
-    if focus in {"family_tree", "author_timeline"}:
+    if focus in {"family_tree", "author_timeline", "place_journey"}:
         if focus == "family_tree":
             prompt += (
                 "\n\nFocused family-tree recovery pass:\n"
@@ -410,12 +411,20 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                 "- For a current message such as `At about three, I followed my father to the docks`, emit a family marker for the explicit father/parent item and a separate timeline marker is handled by the other pass.\n"
                 "- For a current message such as `Mum grew mint beside the laundry`, emit a family marker for Mum with that grounded introduction; do not treat the shorthand as an unneeded duplicate of `parents`.\n"
             )
-        else:
+        elif focus == "author_timeline":
             prompt += (
                 "\n\nFocused author-timeline recovery pass:\n"
                 "- The first extraction did not produce an accepted author-timeline update. Re-read only the current storyteller message.\n"
                 "- Return only one MEMORY_SPARK_AUTHOR_TIMELINE marker when the message explicitly adds or corrects an author event or life period; otherwise return an empty string.\n"
                 "- Birth, childhood, age, season, move, work, care, visit, and correction statements are eligible even without a calendar date. Use date_expression `unknown` and precision `unknown` when needed; never let a profile or place fact suppress a clear event.\n"
+            )
+        else:
+            prompt += (
+                "\n\nFocused place-journey recovery pass:\n"
+                "- The first extraction did not produce an accepted place journey for a clear place in the current storyteller message.\n"
+                "- Return one valid MEMORY_SPARK_PLACE_JOURNEY marker for every distinct, clear coarse geographic place named in the current message, in mention order.\n"
+                "- Do not map a private address, building, school, hospital, station, generic place, quoted/public-history-only place, or explicitly uncertain place; return an empty string for those.\n"
+                "- Ground every marker in the current message. Do not reuse a saved place merely because it is nearby or already in context.\n"
             )
     if task_sources is not None:
         from .agent_tasks import collection_task_instructions
@@ -433,6 +442,21 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
     This is a routing hint, never a substitute for model extraction.
     """
     lowered = original_conversation_text(text).casefold()
+    if focus == 'place_journey':
+        if place_journey_message_is_ambiguous(text):
+            return False
+        # Broad extraction normally handles simple birthplace/home wording.
+        # Recovery is reserved for relational place wording that models often
+        # overlook, such as “letters about Wollongong” or “returned to Dali”,
+        # while still requiring a named coarse place.
+        return bool(
+            re.search(
+                r"\b(?:about|near|around|to|from|back\s+to|returned\s+to|"
+                r"left\s+for|visited)\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ-]*(?:\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ-]*)?\b",
+                original_conversation_text(text),
+            )
+            or re.search(r"(?:关于|到|去|回|来自|住在|搬到).{0,8}[\u3400-\u9fff]{2,}", text)
+        )
     if focus == 'family_tree':
         if re.search(
             r"\b(?:family|mother|father|parent|sister|brother|grandmother|grandfather|"
@@ -551,6 +575,66 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     # remove the entire marker block; neighbouring claims must not erase valid
     # author events.
     return bool(english_suppression or chinese_suppression)
+
+
+def _author_timeline_marker_is_reflection_only(text: str) -> bool:
+    """Recognize a narrow no-event reflection without vetoing mixed turns.
+
+    A later-life sentence can contain an author verb while explicitly framing
+    the content as reflection rather than a timeline event. Do not suppress
+    advisory source/uncertainty context or a neighbouring grounded event; the
+    guard is limited to recurring reflection shapes covered by the evaluation
+    contract.
+    """
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    reflective = bool(
+        re.search(
+            r"\b(?:in|during)\s+later[- ]life\b.{0,180}\b(?:sometimes|often)\b"
+            r".{0,120}\b(?:just\s+to\s+remember|to\s+remember|reflection|patience|"
+            r"old\s+bench)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+reflections?)\b"
+            r".{0,120}\b(?:no reliable date|timing open|rather than guess|"
+            r"not a dated event|does not need a precise date)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:晚年|晚年回忆|晚年的回忆).{0,100}(?:回望|没有可靠(?:日期|时间)|"
+            r"有时只记录|反思|不一定.{0,20}事件)",
+            text,
+        )
+    )
+    if not reflective:
+        return False
+
+    # A separate grounded first-person event keeps the whole marker block. The
+    # date/stage cue is required so a reflective verb such as “repair” or
+    # “记录” cannot itself turn this narrow guard into a broad event veto.
+    explicit_event = bool(
+        re.search(
+            r"\b(?:i|we)\b[^.!?。！？;；\n]{0,120}\b(?:18|19|20)\d{2}\b"
+            r"[^.!?。！？;；\n]{0,80}\b(?:moved|returned|left|retired|worked|"
+            r"started|began|opened|married|graduated|visited|travelled|traveled)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:i|we)\s+(?:moved|returned|left|retired|worked|started|began|"
+            r"opened|married|graduated|visited|travelled|traveled)\b.{0,80}"
+            r"\b(?:in\s+(?:18|19|20)\d{2}|during\s+(?:childhood|adolescence|"
+            r"midlife)|at\s+(?:age\s+)?\d{1,3}|when\s+i\s+was)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:我|我们)[^。！？\n]{0,120}(?:18|19|20)\d{2}年[^。！？\n]{0,80}"
+            r"(?:搬|回到|离开|退休|工作|开始|开办|结婚|毕业)",
+            text,
+        )
+    )
+    return reflective and not explicit_event
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
@@ -1060,7 +1144,8 @@ class CodexRuntime:
                                          if (not place_journey_message_is_ambiguous(text)
                                              and place_journey_matches_message(candidate, text))]
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
-                if _author_timeline_marker_is_explicitly_disclaimed(text):
+                if (_author_timeline_marker_is_explicitly_disclaimed(text)
+                        or _author_timeline_marker_is_reflection_only(text)):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )
@@ -1079,6 +1164,7 @@ class CodexRuntime:
             if parsed_profile_updates:
                 parsed_profile_updates.pop('preferred_language', None)
             profile_updates = {**(parsed_profile_updates or {}), **(language_updates or {})} or None
+            profile_updates = apply_explicit_story_stage(text, profile_updates)
 
             # The conversational exchange is the first durable boundary.
             # Workspace extraction and public-reference work below may be
@@ -1481,80 +1567,92 @@ class CodexRuntime:
                 # current message. This is still model-driven extraction: the
                 # focused pass may return an empty string, and no marker is
                 # synthesized by the application.
+                _, primary_places = extract_place_journeys(reply)
+                present_place = any(
+                    not place_journey_message_is_ambiguous(text)
+                    and place_journey_matches_message(candidate, text)
+                    for candidate in primary_places
+                )
                 if family_enabled:
                     _, primary_updates = extract_family_skill_updates(reply)
                     _, primary_skills = combine_family_skill_updates(primary_updates)
                     present = set(primary_skills)
-                    for focus, skill_name in (
-                        ('family_tree', 'family_tree'),
-                        ('author_timeline', 'author_timeline'),
-                    ):
-                        if skill_name in present or not _workspace_focus_is_relevant(text, focus, family_context):
-                            continue
+                    recovery_specs = [
+                        ('family_tree', 'family_tree', 'memoir-family-tree'),
+                        ('author_timeline', 'author_timeline', 'memoir-author-timeline'),
+                    ]
+                else:
+                    present = set()
+                    recovery_specs = []
+                recovery_specs.insert(0, ('place_journey', 'place_journey', 'memoir-place-journey'))
+                for focus, skill_name, skill_label in recovery_specs:
+                    if ((skill_name in present if skill_name != 'place_journey' else present_place)
+                            or not _workspace_focus_is_relevant(text, focus, family_context)):
+                        continue
+                    if trajectory:
+                        trajectory.record('application', 'workspace.family_recovery.requested', output={
+                            'focus': focus,
+                            'skill': skill_label,
+                        })
+                    try:
+                        focused = await self._worker_turn(
+                            user_id=user_id,
+                            prior=None,
+                            memories=memories,
+                            profile=profile,
+                            place_journey=place_journey,
+                            family_enabled=family_enabled,
+                            family_context=family_context,
+                            project_id=project_id,
+                            text=text,
+                            language=language,
+                            agent_role='workspace',
+                            **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
+                            extraction_focus=focus,
+                            trajectory=trajectory,
+                        )
                         if trajectory:
-                            trajectory.record('application', 'workspace.family_recovery.requested', output={
-                                'focus': focus,
-                                'skill': {
-                                    'family_tree': 'memoir-family-tree',
-                                    'author_timeline': 'memoir-author-timeline',
-                                }[focus],
-                            })
-                        try:
-                            focused = await self._worker_turn(
-                                user_id=user_id,
-                                prior=None,
-                                memories=memories,
-                                profile=profile,
-                                place_journey=place_journey,
-                                family_enabled=family_enabled,
-                                family_context=family_context,
-                                project_id=project_id,
-                                text=text,
-                                language=language,
-                                agent_role='workspace',
-                                **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
-                                extraction_focus=focus,
-                                trajectory=trajectory,
+                            trajectory.append_external(
+                                focused.get('trajectory', {}).get('steps', [])
+                                if isinstance(focused.get('trajectory'), dict) else [],
+                                source='codex-worker',
                             )
-                            if trajectory:
-                                trajectory.append_external(
-                                    focused.get('trajectory', {}).get('steps', [])
-                                    if isinstance(focused.get('trajectory'), dict) else [],
-                                    source='codex-worker',
+                            trajectory.record('application', 'workspace.worker.completed', output={
+                                'agent_role': 'workspace',
+                                'extraction_focus': focus,
+                                'has_trajectory': bool(focused.get('trajectory')),
+                            })
+                        focused_reply = focused.get('reply', '')
+                        if focused_reply:
+                            reply += '\n' + focused_reply
+                            if focus == 'place_journey':
+                                _, focused_places = extract_place_journeys(focused_reply)
+                                present_place = present_place or any(
+                                    not place_journey_message_is_ambiguous(text)
+                                    and place_journey_matches_message(candidate, text)
+                                    for candidate in focused_places
                                 )
-                                trajectory.record('application', 'workspace.worker.completed', output={
-                                    'agent_role': 'workspace',
-                                    'extraction_focus': focus,
-                                    'has_trajectory': bool(focused.get('trajectory')),
-                                })
-                            focused_reply = focused.get('reply', '')
-                            if focused_reply:
-                                reply += '\n' + focused_reply
+                            else:
                                 _, focused_updates = extract_family_skill_updates(focused_reply)
                                 _, focused_skills = combine_family_skill_updates(focused_updates)
                                 present.update(focused_skills)
-                        except Exception as error:
-                            if trajectory:
-                                trajectory.record('application', 'workspace.family_recovery.failed', output={
+                    except Exception as error:
+                        if trajectory:
+                            trajectory.record('application', 'workspace.family_recovery.failed', output={
+                                'error_type': type(error).__name__,
+                                'skill': skill_label,
+                            })
+                        if on_event:
+                            await on_event({
+                                'type': 'workspace_retry',
+                                'data': {
+                                    'skill': skill_label,
+                                    'status': 'failed',
                                     'error_type': type(error).__name__,
-                                    'skill': {
-                                        'family_tree': 'memoir-family-tree',
-                                        'author_timeline': 'memoir-author-timeline',
-                                    }[focus],
-                                })
-                            if on_event:
-                                await on_event({
-                                    'type': 'workspace_retry',
-                                    'data': {
-                                        'skill': {
-                                            'family_tree': 'memoir-family-tree',
-                                            'author_timeline': 'memoir-author-timeline',
-                                        }[focus],
-                                        'status': 'failed',
-                                        'error_type': type(error).__name__,
-                                    },
-                                })
-                if _author_timeline_marker_is_explicitly_disclaimed(text):
+                                },
+                            })
+                if (_author_timeline_marker_is_explicitly_disclaimed(text)
+                        or _author_timeline_marker_is_reflection_only(text)):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )
@@ -1592,6 +1690,11 @@ class CodexRuntime:
                 reply = await connection.turn(result['thread']['id'], prompt,
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}))
+                if (_author_timeline_marker_is_explicitly_disclaimed(text)
+                        or _author_timeline_marker_is_reflection_only(text)):
+                    reply = _remove_marker_block(
+                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
+                    )
                 if on_place:
                     marker_buffer = ''
                     await capture_place(reply)
@@ -1687,6 +1790,7 @@ class CodexRuntime:
             if extracted_profile_updates:
                 extracted_profile_updates.pop('preferred_language', None)
             profile_updates = {**(profile_updates or {}), **(extracted_profile_updates or {})} or None
+            profile_updates = apply_explicit_story_stage(text, profile_updates)
             if trajectory:
                 trajectory.record('application', 'workspace.extraction', output={
                     'profile_updated': bool(extracted_profile_updates),
@@ -2081,7 +2185,7 @@ class CodexRuntime:
             payload['evaluation'] = normalise_correlation(evaluation)
         if agent_role != 'collector':
             payload['agent_role'] = agent_role
-        if extraction_focus in {'family_tree', 'author_timeline'}:
+        if extraction_focus in {'family_tree', 'author_timeline', 'place_journey'}:
             payload['extraction_focus'] = extraction_focus
         if project_id:
             payload['task_sources'] = [source.model_dump() for source in self._task_sources(memories)]

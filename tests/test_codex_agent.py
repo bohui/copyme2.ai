@@ -282,8 +282,6 @@ def test_workspace_extraction_drops_model_timeline_marker_for_explicit_negative_
 
 @pytest.mark.parametrize('text', [
     'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
-    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
-    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
     'I am unsure whether Ben left the neighbourhood before or after my final school year.',
 ])
 def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(monkeypatch, text):
@@ -309,6 +307,34 @@ def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(m
     ))
 
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+@pytest.mark.parametrize('text', [
+    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
+    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
+])
+def test_workspace_extraction_suppresses_timeline_marker_for_pure_reflection(monkeypatch, text):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-reflection","title":"Reflection",'
+                '"date_expression":"later life"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='zh-CN',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 
 @pytest.mark.parametrize('text', [
@@ -375,6 +401,8 @@ def test_workspace_recovery_routes_chinese_social_person_cues(monkeypatch):
     async def worker_turn(**kwargs):
         focus = kwargs.get('extraction_focus')
         calls.append(focus)
+        if focus == 'place_journey':
+            return {'reply': '[[MEMORY_SPARK_PLACE_JOURNEY]]{"place":"大理","hierarchy":{"city":"大理"},"granularity":"city","date_expression":"后来","confidence":"explicit"}[[/MEMORY_SPARK_PLACE_JOURNEY]]'}
         if focus == 'family_tree':
             return {'reply': '[[MEMORY_SPARK_FAMILY_TREE]]{"people":[{"id":"friend","name":"山里的朋友","family_title":"朋友"}],"relationships":[]}[[/MEMORY_SPARK_FAMILY_TREE]]'}
         return {'reply': '[[MEMORY_SPARK_AUTHOR_TIMELINE]]{"timeline":[{"id":"later","kind":"event","title":"Teaching tea identification","date_expression":"后来","precision":"unknown"}]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'}
@@ -386,7 +414,8 @@ def test_workspace_recovery_routes_chinese_social_person_cues(monkeypatch):
         text='后来我在成都教年轻人辨茶，也常回大理看山里的朋友。', language='zh-CN',
     ))
 
-    assert calls == [None, 'family_tree']
+    assert calls == [None, 'place_journey', 'family_tree']
+    assert 'MEMORY_SPARK_PLACE_JOURNEY' in reply
     assert 'MEMORY_SPARK_FAMILY_TREE' in reply
 
 
@@ -432,6 +461,11 @@ def test_workspace_prompt_has_independent_domain_audit_and_focused_recovery():
     assert 'Kinship titles and explicit shorthand such as `my father`' in family_focused
     assert 'At about three, I followed my father to the docks' in family_focused
     assert 'Mum grew mint beside the laundry' in family_focused
+    place_focused = build_workspace_extraction_prompt(
+        '(none)', family_enabled=True, focus='place_journey'
+    )
+    assert 'Focused place-journey recovery pass' in place_focused
+    assert 'Do not reuse a saved place' in place_focused
 
 
 def test_memory_context_prompt_disambiguates_chinese_midlife_cue():

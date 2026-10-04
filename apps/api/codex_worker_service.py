@@ -72,7 +72,7 @@ class WorkerTurnInput(BaseModel):
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
     agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer'] = 'collector'
-    extraction_focus: Literal['family_tree', 'author_timeline'] | None = None
+    extraction_focus: Literal['family_tree', 'author_timeline', 'place_journey'] | None = None
     composer_phase: Literal['index', 'draft', 'review'] = 'draft'
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
     # Present only for local/CI evaluation. Normal product turns do not carry
