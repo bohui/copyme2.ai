@@ -6,6 +6,7 @@ from pathlib import Path
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect, sync_playwright
+from fixtures.browser_memory_events import school_events
 
 
 PLACE_JOURNEY = {
@@ -13,6 +14,7 @@ PLACE_JOURNEY = {
     "status": "active",
     "revision": 1,
     "place": "Hobart",
+    "period": "1960s",
     "hierarchy": ["Earth", "Australia", "Tasmania", "Hobart"],
     "granularity": "city",
     "latitude": None,
@@ -68,6 +70,7 @@ PUBLIC_CUE = {
     "label": "公共历史线索",
     "allowed_actions": {"embed": True},
     "source_url": "https://example.com/hobart-reference",
+    "date_expression": "1964", "latitude": -42.8821, "longitude": 147.3272,
 }
 
 CASES = {
@@ -97,7 +100,7 @@ CASES = {
     "zh-CN": {
         "landing_heading": "用自己的话，讲述自己的人生",
         "language_label": "语言",
-        "opening": "你好，我是 Mira。很高兴认识你。",
+        "opening": "你好，我是 Mira，很高兴认识你。",
         "reply": lambda round_number: (
             f"第 {round_number} 轮：谢谢你继续讲述这段回忆。我们会保留你说出的原始细节，"
             "并慢慢沿着这条线索继续。这一段较长的回复用于验证助手文字会在浏览器中逐步出现。"
@@ -266,13 +269,38 @@ def run_case(browser, base_url: str, locale: str) -> None:
                     "family_context_update": family_update(["author_timeline"], 2, {"timeline": 1}),
                 }
             )
+        if response.get('family_context'):
+            response['family_context'] = {**response['family_context'], 'project_id': payload['project_id']}
+            response['family_context_update']['project_id'] = payload['project_id']
         route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
-    page.route("**/place-photos?**", lambda route: route.fulfill(json={"items": []}))
+    page.route("**/place-photos?**", lambda route: route.fulfill(json={"items": [PUBLIC_CUE]}))
+    page.route('**/place-map', lambda route: route.fulfill(json={'status':'READY',
+        'target':{'place':'Hobart','latitude':-42.8821,'longitude':147.3272}}))
     page.route("**/api/v1/memoir/story/state", family_state)
     page.route("**/api/v1/memoir/agent/family-context*", family_context)
     page.route("**/api/v1/memoir/memory-sessions/*/answers", memory_answer)
     page.route("**/api/v1/memoir/agent/turn", codex_turn)
+    page.route("**/api/v1/memoir/story/events?**", lambda route:
+               school_events(route, present=len(agent_requests) >= 3,
+                             completed_rounds=len(agent_requests)))
+    page.add_init_script('''const fixtureFetch = window.fetch.bind(window);
+      window.fetch = async (url, options) => {
+        const response = await fixtureFetch(url, options);
+        if (!String(url).endsWith('/agent/turn')) return response;
+        const body = await response.json();
+        const encoder = new TextEncoder();
+        return new Response(new ReadableStream({start(controller) {
+          const emit = event => controller.enqueue(encoder.encode(JSON.stringify(event) + '\\n'));
+          emit({type:'text_delta', text:body.reply});
+          window.finishFixtureReply = () => {
+            emit({type:'workspace_update', data:body});
+            emit({type:'conversation_saved', data:{...body, conversation_saved:true}});
+            emit({type:'result', data:{...body, conversation_saved:true}});
+            controller.close();
+          };
+        }}), {headers:{'Content-Type':'application/x-ndjson'}});
+      };''')
     # The journey intentionally verifies renderer fallbacks; library adapters
     # have their own browser contract tests.
     page.route("**/unpkg.com/**", lambda route: route.abort())
@@ -302,6 +330,7 @@ def run_case(browser, base_url: str, locale: str) -> None:
                 f"第 {round_number} 轮" if locale == "zh-CN" else f"Round {round_number}",
                 timeout=10000,
             )
+            page.evaluate('window.finishFixtureReply()')
             expect(page.locator(".assistant-message .message-text").last).to_contain_text(
                 f"第 {round_number} 轮" if locale == "zh-CN" else f"Round {round_number}",
                 timeout=15000,
@@ -321,7 +350,7 @@ def run_case(browser, base_url: str, locale: str) -> None:
                 page.locator("[data-workspace-tab='timeline']").click()
                 timeline = page.locator("#workspace-detail")
                 expect(timeline.locator(".timeline-list strong", has_text="Started school")).to_be_visible()
-                expect(timeline.get_by_text(case["timeline_label"], exact=True)).to_be_visible()
+                expect(timeline.locator('.timeline-row small')).to_contain_text(case["timeline_label"])
                 expect(timeline.locator("[data-renderer-status='fallback']")).to_be_visible(timeout=10000)
             elif round_number == 4:
                 pictures = page.locator(".workspace-media-gallery")
@@ -331,7 +360,9 @@ def run_case(browser, base_url: str, locale: str) -> None:
         expect(page.locator(".user-message")).to_have_count(10)
         expect(page.locator(".assistant-message")).to_have_count(11)
         assert len(agent_requests) == 10, f"Expected ten agent turns, got {len(agent_requests)}"
-        assert len(answer_requests) == 10, f"Expected ten memory answers, got {len(answer_requests)}"
+        assert not answer_requests, "Accepted narrator turns must not be duplicated through legacy memory answers"
+        assert all(request.get('source_kind') == 'narrator_chat' for request in agent_requests)
+        assert [request['conversation_text'] for request in agent_requests] == case['user_messages']
         assert all(request.get("language") == locale for request in agent_requests)
         assert agent_requests[0].get("first_reply_localization") is True
         assert all(not request.get("first_reply_localization") for request in agent_requests[1:])

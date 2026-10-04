@@ -1,6 +1,7 @@
 """Browser contract check with synthetic collection responses; no LLM or private memories."""
 import argparse
 import json
+from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -9,6 +10,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base-url', default='http://127.0.0.1:3010')
     args = parser.parse_args()
+    output = Path(__file__).resolve().parents[1] / 'output/playwright'
+    output.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         for locale in ['en-AU', 'zh-CN']:
@@ -16,6 +19,10 @@ def main():
             page = context.new_page()
             page.add_init_script(f"localStorage.setItem('copyme2_ui_locale', '{locale}')")
             page.route('**/agent/config', lambda route: route.fulfill(json={'auth_mode': 'test'}))
+            profile = {'preferred_language': locale,
+                       'conversation_language': {'locale': locale, 'source': 'explicit', 'revision': 1}}
+            page.route('**/agent/profile', lambda route: route.fulfill(json=profile))
+            page.route('**/user/profile', lambda route: route.fulfill(json=profile))
             writes = []
             def collection(route):
                 if route.request.method == 'PUT':
@@ -63,7 +70,7 @@ def main():
                 dialog.locator('[data-download]').click()
             with open(download.value.path()) as artifact:
                 assert json.load(artifact)['sections'][0]['memory_ids'] == ['school']
-            page.screenshot(path=f'/tmp/memoir-collection-{locale}.png', full_page=True)
+            page.screenshot(path=str(output / f'collection-{locale}.png'), full_page=True)
             dialog.locator('[data-close]').click()
             expect(dialog).to_have_count(0)
             print(f'PASS {locale}: explicit confirmation, seven periods, source selection, queued result, download')

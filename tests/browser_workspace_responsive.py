@@ -1,11 +1,15 @@
 """Lock down workspace reveal after a previously collapsed workspace."""
 
+import argparse
 import json
 
 from playwright.sync_api import expect, sync_playwright
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--base-url', default='http://127.0.0.1:3010')
+    args = parser.parse_args()
     places = [
         ("Hobart", -42.8826, 147.3257),
         ("Melbourne", -37.8136, 144.9631),
@@ -40,7 +44,7 @@ def main() -> None:
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
         page.route("**/api/v1/memoir/agent/turn", agent_turn)
-        page.goto("http://127.0.0.1:3010/memoir", wait_until="networkidle")
+        page.goto(args.base_url + '/memoir', wait_until="networkidle")
         page.get_by_role("button", name="Begin my story").click()
 
         textbox = page.get_by_role("textbox", name="Your message")

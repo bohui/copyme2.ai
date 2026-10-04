@@ -16,6 +16,7 @@ def main() -> None:
         "status": "active",
         "revision": 1,
         "place": "Chengde",
+        "period": "1980s",
         "hierarchy": ["Earth", "China", "Hebei", "Chengde"],
         "granularity": "city",
         "latitude": 40.9515,
@@ -31,6 +32,7 @@ def main() -> None:
         "source_url": "https://commons.wikimedia.org/wiki/File:Chengde_landscape.jpg",
         "attribution": "Public archive",
         "license": "Public domain",
+        "date_expression": "1983", "latitude": 40.9515, "longitude": 117.9634,
         "allowed_actions": {"embed": True},
     } for index in range(1, 11)]
     metadata_only_pictures = [{
@@ -40,6 +42,7 @@ def main() -> None:
         "source_url": "https://commons.wikimedia.org/wiki/File:Chengde_landscape.jpg",
         "attribution": "Public archive",
         "license": "Public domain",
+        "date_expression": "1983", "latitude": 40.9515, "longitude": 117.9634,
         "allowed_actions": {"embed": True},
     } for index in range(1, 11)]
 

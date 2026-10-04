@@ -13,6 +13,7 @@ import argparse
 import json
 
 from playwright.sync_api import expect, sync_playwright
+from fixtures.browser_memory_events import school_events
 
 from browser_ten_round_e2e import (
     AUTHOR_TIMELINE_CONTEXT,
@@ -137,13 +138,19 @@ def run_case(browser, base_url: str) -> None:
                     "family_context_update": family_update(["author_timeline"], 2, {"timeline": 1}),
                 }
             )
+        if response.get('family_context'):
+            response['family_context'] = {**response['family_context'], 'project_id': payload['project_id']}
+            response['family_context_update']['project_id'] = payload['project_id']
         route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
-    page.route("**/place-photos?**", lambda route: route.fulfill(json={"items": []}))
+    page.route("**/place-photos?**", lambda route: route.fulfill(json={"items": [PUBLIC_CUE]}))
     page.route("**/api/v1/memoir/story/state", story_state)
     page.route("**/api/v1/memoir/agent/family-context*", family_context)
     page.route("**/api/v1/memoir/memory-sessions/*/answers", memory_answer)
     page.route("**/api/v1/memoir/agent/turn", agent_turn)
+    page.route("**/api/v1/memoir/story/events?**", lambda route:
+               school_events(route, present=len(agent_requests) >= 3,
+                             completed_rounds=len(agent_requests)))
     page.route("**/unpkg.com/**", lambda route: route.abort())
 
     try:
@@ -192,7 +199,11 @@ def run_case(browser, base_url: str) -> None:
         assert sum(item.get("role") == "user" for item in history) == 30
         assert sum(item.get("role") == "assistant" for item in history) == 31
         assert len(agent_requests) == 30, f"Expected 30 agent requests, got {len(agent_requests)}"
-        assert len(answer_requests) == 30, f"Expected 30 memory-answer requests, got {len(answer_requests)}"
+        assert not answer_requests, "Accepted narrator turns must not be duplicated through legacy memory answers"
+        assert all(request.get('source_kind') == 'narrator_chat' for request in agent_requests)
+        assert [request['conversation_text'] for request in agent_requests] == [
+            item['text'] for item in history if item.get('role') == 'user'
+        ]
         assert agent_requests[0]["first_reply_localization"] is True
         assert all(not request.get("first_reply_localization") for request in agent_requests[1:])
         assert not page_errors, "Browser page errors: " + "; ".join(page_errors)

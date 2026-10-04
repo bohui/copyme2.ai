@@ -16,6 +16,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect, sync_playwright
 
 from browser_ten_round_e2e import goto_ready
+from fixtures.browser_memory_events import school_events
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -157,7 +158,10 @@ def run_case(browser, base_url: str, locale: str) -> None:
     journey = place_for(profile)
     cue = public_cue(profile)
     chapters = composer_chapters(profile)
-    photo_year = next((year for year in range(1900, 2101) if str(year) in profile["date_detail"]), 2025)
+    photo_year = next((year for year in range(1900, 2101) if str(year) in profile["date_detail"]), 1994)
+    journey['period'] = '1990s' if locale == 'zh-CN' else profile['date_detail']
+    cue['scene_date_range'] = {'start': str(photo_year), 'end': str(photo_year)}
+    latitude, longitude = {'西安': (34.3416, 108.9398), 'Sydney': (-33.8688, 151.2093)}[profile['place']]
     agent_requests: list[dict] = []
     answer_requests: list[dict] = []
     place_group_requests: list[dict] = []
@@ -225,6 +229,8 @@ def run_case(browser, base_url: str, locale: str) -> None:
             return fulfill(route, {"project_id": "progressive-browser-project", "family_features_enabled": True, "family_context": None, "family_context_update": None})
         if path == "/story/readiness" and request.method == "GET":
             return fulfill(route, {"project_id": "progressive-browser-project", "stages": {}})
+        if path == '/story/events' and request.method == 'GET':
+            return school_events(route, present=len(agent_requests) >= 3, completed_rounds=len(agent_requests))
         if path == "/story/private-draft" and request.method == "GET":
             return fulfill(route, {"status": "none", "preview": None, "updating": False})
         if path == "/user/conversations" and request.method == "GET":
@@ -252,17 +258,9 @@ def run_case(browser, base_url: str, locale: str) -> None:
         if path.startswith("/projects/") and path.endswith("/place-map") and request.method == "POST":
             payload = request.post_data_json or {}
             place_map_requests.append(payload)
-            if profile["locale"] == "zh-CN":
-                latitude, longitude = 31.2989, 120.5853
-            else:
-                latitude, longitude = -42.8821, 147.3272
             return fulfill(route, {"target": {**payload, "latitude": latitude, "longitude": longitude}})
         if path.startswith("/projects/") and path.endswith("/place-photos") and request.method == "GET":
             photo_requests.append({"url": request.url})
-            if profile["locale"] == "zh-CN":
-                latitude, longitude = 31.2989, 120.5853
-            else:
-                latitude, longitude = -42.8821, 147.3272
             return fulfill(route, {"items": [{**cue, "date_expression": str(photo_year), "date_basis": "historical", "latitude": latitude, "longitude": longitude}], "status": "OK", "searching": False, "next_cursor": None})
         return route.fallback()
 
@@ -332,6 +330,9 @@ def run_case(browser, base_url: str, locale: str) -> None:
                     "composer_delivery": {"stage": 3, "status": "review", "chapters": chapters},
                 }
             )
+        if response.get('family_context'):
+            response['family_context'] = {**response['family_context'], 'project_id': payload['project_id']}
+            response['family_context_update']['project_id'] = payload['project_id']
         return fulfill(route, response)
 
     page.route("**/api/v1/memoir/**", api)
@@ -368,21 +369,22 @@ def run_case(browser, base_url: str, locale: str) -> None:
             elif number == 4:
                 expect(page.locator(".workspace-media-gallery").get_by_text(cue["title"])).to_be_visible()
             elif number == 31:
-                expect(page.locator("[data-workspace-tab='delivery']")).to_be_visible()
+                expect(page.locator("[data-workspace-tab='memoir']")).to_be_visible()
                 expect(page.locator(".workspace-media-overview")).to_have_count(0)
-                expect(page.get_by_role("heading", name=workspace_copy["delivery"])).to_be_visible()
-                page.locator("[data-workspace-tab='chapters']").click()
-                expect(page.locator(".chapter-card")).to_have_count(4)
-                expect(page.locator(".chapter-body")).to_have_count(4)
-                expect(page.locator(".chapter-body-block")).to_have_count(4)
+                page.locator("[data-workspace-tab='memoir']").click()
+                expect(page.locator(".chapter-card")).to_have_count(1)
+                expect(page.locator(".chapter-body")).to_have_count(1)
+                expect(page.locator(".chapter-body-block")).to_have_count(1)
                 for chapter in chapters:
-                    expect(page.locator(".chapter-card").nth(chapter["chapter_number"] - 1)).to_contain_text(chapter["blocks"][1]["text"])
+                    page.locator('.chapter-page-numbers button').nth(chapter['chapter_number'] - 1).click()
+                    expect(page.locator(".chapter-card")).to_contain_text(chapter["blocks"][1]["text"])
                 expect(page.locator(".workspace-media-gallery")).to_have_count(0)
 
         expect(page.locator(".user-message")).to_have_count(31)
         expect(page.locator(".assistant-message")).to_have_count(32)
         assert len(agent_requests) == 31, (locale, len(agent_requests))
-        assert len(answer_requests) == 31, (locale, len(answer_requests))
+        assert not answer_requests, "Accepted narrator turns must not be duplicated through legacy memory answers"
+        assert all(request.get('source_kind') == 'narrator_chat' for request in agent_requests)
         assert place_group_requests, f"{locale}: place-group skill did not make a request"
         assert place_map_requests, f"{locale}: place-map resolution did not make a request"
         assert photo_requests, f"{locale}: photo research request did not make a request"
@@ -396,6 +398,9 @@ def run_case(browser, base_url: str, locale: str) -> None:
         assert len(history) == 63, (locale, len(history))
         assert sum(item.get("role") == "user" for item in history) == 31
         assert sum(item.get("role") == "assistant" for item in history) == 32
+        assert [request['conversation_text'] for request in agent_requests] == [
+            item['text'] for item in history if item.get('role') == 'user'
+        ]
         assert not page_errors, f"{locale}: browser page errors: {'; '.join(page_errors)}"
         assert "MEMORY_SPARK_" not in page.locator("body").inner_text()
         output = ROOT / "output" / "playwright" / f"memoir-progressive-{locale}.png"

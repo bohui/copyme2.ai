@@ -1,6 +1,8 @@
 """Exercise the real composer and audio lifecycle with deterministic media/API doubles."""
 import json
+import re
 from pathlib import Path
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     source = (ROOT / 'apps/web/client/memoir/client.js').read_text()
+    imports = re.findall(r'import \{([^}]+)\} from "([^"]+)";', source)
     source = '\n'.join(line for line in source.splitlines() if not line.startswith('import '))
     source = source[:source.rindex('installUiLocaleBridge();')]
     catalog = json.loads((ROOT / 'apps/web/messages/en-AU.json').read_text())
@@ -16,15 +19,30 @@ def main():
         page = browser.new_page(viewport={'width': 1100, 'height': 800})
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
-        page.route('http://voice.test/**', lambda route: route.fulfill(body='<html><body><div id="app"></div></body></html>', content_type='text/html'))
+        def serve(route):
+            path = urlsplit(route.request.url).path
+            if path == '/':
+                return route.fulfill(body='<html><body><div id="app"></div></body></html>', content_type='text/html')
+            file = ROOT / 'apps/web' / path.lstrip('/')
+            route.fulfill(body=file.read_text(), content_type='application/json' if file.suffix == '.json' else 'text/javascript')
+        page.route('http://voice.test/**', serve)
         page.goto('http://voice.test')
         page.wait_for_load_state('networkidle')
         page.add_style_tag(path=str(ROOT / 'apps/web/public/styles.css'))
         page.evaluate('catalog => window.catalog = catalog', catalog)
+        page.evaluate('''async imports => {
+          for (const [names, relative] of imports) {
+            const url = new URL(relative, 'http://voice.test/client/memoir/client.js').href;
+            const module = await import(url);
+            for (const name of names.split(',').map(name => name.trim())) window[name] = module[name];
+          }
+        }''', imports)
+        page.evaluate('messages => {window.englishMessages = messages[0]; window.chineseMessages = messages[1];}',
+            [catalog, json.loads((ROOT / 'apps/web/messages/zh-CN.json').read_text())])
         page.add_script_tag(content='''
 const translate = key => key.split('.').reduce((value, part) => value?.[part], window.catalog) || key;
 const currentUiLocale = () => 'en-AU';
-const translateWith = key => translate(key);
+const translateWith = (key, values = {}) => Object.entries(values).reduce((text, [name, value]) => text.replaceAll('{' + name + '}', String(value)), translate(key));
 const MEMOIR_ROUTES = {home: '/memoir'};
 ''' + source + '''
 Object.defineProperty(window, 'speechSynthesis', {value: {cancel() {}}});
@@ -83,6 +101,7 @@ playGeneratedAudio = async () => { playbacks++; };
         state.project = {id: 'test'};
 render();
 ''')
+        assert not errors, errors
         draft = page.get_by_role('textbox', name='Your message')
         initial_height = draft.bounding_box()['height']
         assert initial_height <= 60

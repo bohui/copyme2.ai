@@ -305,7 +305,7 @@ def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_pa
         expect(status).to_contain_text(copy['privateDraftUpdating'])
         expect(page.locator('#chat-input')).to_be_enabled()
         if width==390:
-            page.screenshot(path='/tmp/issue6-before-mobile-tabs.png')
+            page.screenshot(path=str(tmp_path / 'issue6-before-mobile-tabs.png'))
         page.locator('[data-workspace-tab="timeline"]').click()
         page.locator(f'[data-edit-memory-event="{event["id"]}"]').click()
         if correction!='date_only':

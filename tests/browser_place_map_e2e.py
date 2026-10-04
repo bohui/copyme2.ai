@@ -184,7 +184,7 @@ def main():
             });
             window.__mapViewer.scene.requestRender();
         })""")
-        page.get_by_role("button", name="Childhood", exact=True).click()
+        page.get_by_role("button", name=re.compile(r'^Childhood:')).click()
         assert page.evaluate("window.__previousMapViewer === window.__mapViewer"), "Rerender recreated the camera"
         assert page.evaluate("Cesium.Cartesian3.equals(window.__previousCamera, window.__mapViewer.camera.position)"), "Rerender moved the camera"
         page.screenshot(path=str(output / "map-workspace-final.png"), full_page=True)

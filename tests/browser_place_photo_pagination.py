@@ -19,6 +19,7 @@ def main():
         return {'asset_id': f'photo-{index}', 'kind': 'image', 'title': f'Chengde street {index}',
                 'image_url': f'/static/timeline_avatar_child_female.png?photo={index}',
                 'source_url': f'https://{host}/photos/{index}', 'date_expression': '1983',
+                'latitude': 40.9515, 'longitude': 117.9634,
                 'allowed_actions': {'embed': True}}
 
     def photos(route):
@@ -40,7 +41,7 @@ def main():
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
-        page = browser.new_page(viewport={'width': 1440, 'height': 960}, locale='en-AU')
+        page = browser.new_page(viewport={'width': 1440, 'height': 700}, locale='en-AU')
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.route('**/agent/config', lambda route: route.fulfill(json={'auth_mode': 'test'}))
         page.route('**/place-photos?**', photos)
@@ -62,9 +63,13 @@ def main():
         expect(gallery.locator('figure')).to_have_count(10)
         page.wait_for_timeout(300)
         assert len(requests) == 2, requests  # No automatic failure/retry loop.
+        retry.scroll_into_view_if_needed()
+        before_append = gallery.evaluate('(node) => node.scrollTop')
+        assert before_append > 0, 'Fixture must scroll before append preservation is exercised'
         retry.click()
         expect(gallery.locator('figure')).to_have_count(20, timeout=15000)
-        assert gallery.evaluate('(node) => node.scrollTop') > 100, 'Appending reset the scroll position'
+        after_append = gallery.evaluate('(node) => node.scrollTop')
+        assert abs(after_append - before_append) < 2, f'Appending changed scroll from {before_append} to {after_append}'
         gallery.evaluate('(node) => { node.scrollTop = node.scrollHeight; }')
         expect(gallery.locator('figure')).to_have_count(23, timeout=15000)
         expect(page.locator('[data-photo-more]')).to_have_count(0)

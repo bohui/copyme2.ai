@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    output = ROOT / 'output/playwright'
+    output.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
@@ -101,7 +103,7 @@ def main():
         })''')
         page.get_by_role('button', name='Choose a different account').click()
         expect(page.get_by_role('status')).to_contain_text('choose a different account')
-        page.screenshot(path='/tmp/memoir-auth-choice.png')
+        page.screenshot(path=str(output / 'auth-choice.png'))
         # Supabase implicit callbacks can carry errors in the fragment too.
         page.get_by_role('button', name='Not now').click()
         page.evaluate('''async () => {

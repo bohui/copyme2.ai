@@ -13,7 +13,7 @@ def main() -> None:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
-        page.goto(args.base_url, wait_until="domcontentloaded")
+        page.goto(args.base_url + '/memoir', wait_until="domcontentloaded")
         page.wait_for_timeout(1000)
         expect(page.get_by_text("Start with a conversation.")).to_be_visible()
         page.get_by_role("button", name="Begin my story").click()
