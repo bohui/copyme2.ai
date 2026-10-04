@@ -70,7 +70,7 @@ class MemoirSkillLane:
                     maximum_interval=timedelta(seconds=30), maximum_attempts=3))
             if result['status'] == 'retry_required':
                 return {'status': 'retry_required'}
-            if result['status'] in {'saved', 'finished'} and not result.get('pending') and not self.notified:
+            if result['status'] in {'saved', 'proposed', 'finished'} and not result.get('pending') and not self.notified:
                 return {'status': 'finished'}
             try:
                 await workflow.wait_condition(lambda: self.notified, timeout=timedelta(seconds=5))

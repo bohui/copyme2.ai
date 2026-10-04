@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import logging
+import sqlite3
 
 import httpx
 
@@ -30,6 +31,10 @@ class MemoirLaneBroker:
         receipts = await self.rpc('pending_memoir_receipts', p_limit=50)
         lanes = []
         for receipt in receipts:
+            scope = await self.rpc('read_memoir_receipt_scope', p_receipt_id=receipt)
+            if scope and scope['change_kind'] in {'revocation', 'delete'}:
+                from .legacy_memoir import prune_saved_cache
+                await asyncio.to_thread(prune_saved_cache, scope['user_id'], scope['project_id'])
             queued = await self.rpc('queue_memoir_receipt', p_receipt_id=receipt, p_cadence=private_draft_cadence())
             if queued:
                 lanes.extend(v for k, v in queued.items() if k.endswith('_lane_id') and v)
@@ -40,7 +45,7 @@ class MemoirLaneBroker:
         while True:
             try:
                 await self.drain_once()
-            except (ValueError, RuntimeError, httpx.HTTPError):
+            except (ValueError, RuntimeError, sqlite3.Error, httpx.HTTPError):
                 logging.getLogger(__name__).warning('Memoir outbox delivery deferred')
             await asyncio.sleep(interval)
 
@@ -56,7 +61,9 @@ class MemoryEventWorker:
         run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '300'))
         job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
         if not job:
-            return {'status': 'deferred'}
+            state = await self.broker.rpc('read_memoir_lane_state', p_lane_id=lane_id)
+            return {'status': 'retry_required' if state and state['state']=='retry_required'
+                    else 'finished' if not state or state['state']=='finished' else 'deferred'}
         async def heartbeat():
             while True:
                 await asyncio.sleep(20)

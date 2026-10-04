@@ -12,6 +12,21 @@ entitlement backed by `STRIPE_PRICE_FAMILY`. The entitlement decision is the
 authority; never infer access from profile data, request fields, or browser
 state.
 
+Dispatch only for an explicit relationship mention, details about an established
+relative, or a relevant correction. Ordinary narration leaves the tree unchanged.
+This skill does not extract author life events: the independent shared MemoryEvent
+lane handles every authorised narrator input without granting premium display.
+
+Kinship titles and explicit shorthand such as `my father`, `my mother`, `Mum`,
+`Dad`, `my sister` and `my partner` are explicit relationship cues. Preserve
+their grounded current-turn detail; use an existing canonical ID only when the
+saved context clearly identifies the person. A shared spelling is insufficient.
+
+Examples of relationship-driven updates: “At about three, I followed my father to the docks”
+introduces an explicit father item; “Mum grew mint beside the laundry”
+can enrich an established mother's introduction. Use only the storyteller's actual
+details, never copy these example facts into a project.
+
 ## Workflow
 
 1. Read the storyteller's current message and use only the smallest private
@@ -58,9 +73,11 @@ record. Never match people only by similar names, titles, ages, or surnames.
 
 Do not put Markdown, raw chat text, payment identifiers, exact private
 addresses, inferred facts, or extra top-level keys inside the marker. The
-The application runtime validates and strips it before returning the reply. If the same turn
-also contains an explicit author-timeline item, emit one separate
-`MEMORY_SPARK_AUTHOR_TIMELINE` marker for that domain.
+application runtime validates and strips it before returning the reply. In the
+canonical runtime, event extraction is queued separately through the shared
+MemoryEvent service; this family-tree pass never authors timeline events. The
+legacy standalone adapter may accept a separate `MEMORY_SPARK_AUTHOR_TIMELINE`
+marker, but that format is outside this relationship-driven pass.
 
 ## Persisted workspace contract
 

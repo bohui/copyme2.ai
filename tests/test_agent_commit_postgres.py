@@ -26,7 +26,7 @@ def database():
         if container_backend:
             pg_container_name = 'memoir-issue6-pg-' + uuid4().hex[:12]
             subprocess.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
-                '--cpus', '1', '--memory', '512M', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
+                '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
                 'postgres:18.3', 'postgres', '-c', 'listen_addresses='], check=True, capture_output=True)
             try:
                 until = time.monotonic() + 30

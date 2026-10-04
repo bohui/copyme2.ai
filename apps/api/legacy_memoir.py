@@ -14,16 +14,58 @@ from .canonical_composer import fingerprint, section_event_ids
 from .memoir_preview import skill_operation
 
 
-def import_saved_cache(storage, project, locale):
+def prune_saved_cache(owner, project):
+    """Remove restricted derived bytes before acknowledging a revocation receipt."""
     path = os.getenv('MEMORY_SPARK_TASK_DB')
     if not path or not Path(path).is_file():
-        return False
-    with sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True) as db:
-        db.row_factory = sqlite3.Row
-        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_draft_projects'").fetchone():
-            return False
-        row = db.execute('SELECT * FROM private_draft_projects WHERE user_id=? AND project_id=? AND locale=? AND stale=0 AND draft IS NOT NULL',
-                         (storage.user_id, project, locale)).fetchone()
+        return
+    with sqlite3.connect(Path(path).resolve().as_uri() + '?mode=rw', uri=True) as db:
+        db.execute('PRAGMA secure_delete=ON')
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'private_draft_projects' in tables:
+            db.execute("UPDATE private_draft_projects SET stale=1,draft=NULL,proposal=NULL,payload='{}',source_epoch=source_epoch+1 WHERE user_id=? AND project_id=?",
+                       (owner, project))
+        if 'private_draft_jobs' in tables:
+            db.execute("UPDATE private_draft_jobs SET status='STALE',payload='{}',checkpoint='{}',lease_token=NULL,lease_until=NULL WHERE user_id=? AND project_id=?",
+                       (owner, project))
+        if 'preview_jobs' in tables:
+            db.execute("UPDATE preview_jobs SET status='STALE',payload='{}',checkpoint='{}',lease_token=NULL,lease_until=NULL WHERE user_id=? AND project_id=?",
+                       (owner, project))
+
+
+def saved_cache_record(storage, project, locale):
+    path = os.getenv('MEMORY_SPARK_TASK_DB')
+    if path and Path(path).is_file():
+        with sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True) as db:
+            db.row_factory = sqlite3.Row
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_draft_projects'").fetchone():
+                row = db.execute('SELECT * FROM private_draft_projects WHERE user_id=? AND project_id=? AND locale=? AND stale=0 AND draft IS NOT NULL',
+                                 (storage.user_id, project, locale)).fetchone()
+                if row:
+                    return dict(row)
+    # The existing twenty-round sample was stored in authorised user_memory,
+    # whereas private checkpoints used the execution cache. Preserve either.
+    candidates=[]
+    for memory in storage.composition_memories():
+        if memory.get('kind')!='memoir' or f'memoir-preview:{project}' not in memory.get('source_paths',[]):
+            continue
+        try:
+            bundle=json.loads(memory['content'])
+            request=bundle['request']
+            if request['project_id']!=project or request['target']['locale']!=locale:
+                continue
+            trigger=request['trigger']
+            candidates.append((memory.get('created_at') or '',{'draft':memory['content'],
+                'revision':request['snapshot']['expected_manuscript_revision']+1,
+                'completed_milestone':max(trigger.get('free_rounds_completed',0),trigger.get('private_rounds_completed',0)),
+                'human_locked':any(c.get('approved') or c.get('human_locked') for c in request['prior_state']['chapters'])}))
+        except (KeyError,TypeError,ValueError):
+            continue
+    return max(candidates,key=lambda item:item[0])[1] if candidates else None
+
+
+def import_saved_cache(storage, project, locale):
+    row=saved_cache_record(storage,project,locale)
     if not row or len(row['draft']) > 500000 or row['revision'] < 1:
         return False
     bundle = json.loads(row['draft'])

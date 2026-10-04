@@ -334,6 +334,8 @@ def incremental_model_request(request):
     compact_periods = [period for period in request.get('periods', [])
                        if period.get('id') in dirty_period_ids or references(period) & source_ids]
     changed_ids = set(source_ids)
+    if context.get('canonical_event_index'):
+        changed_ids = set(context.get('affected_source_ids', []))
     dirty_chapters = []
     carry_forward_chapters = []
     for prior in request.get('prior_state', {}).get('chapters', []):
@@ -364,7 +366,8 @@ def incremental_model_request(request):
         selected_source_ids=[source.get('id') for source in compact['sources']],
         canonical_event_count=len(request.get('events', [])),
         canonical_period_count=len(request.get('periods', [])),
-        dirty_event_ids=[event.get('id') for event in compact_events if event.get('id')],
+        dirty_event_ids=(context.get('dirty_event_ids', []) if context.get('canonical_event_index')
+                         else [event.get('id') for event in compact_events if event.get('id')]),
         carry_forward_event_ids=[event.get('id') for event in request.get('events', [])
                                  if event.get('id') not in compact_event_ids],
         dirty_chapter_ids=dirty_chapters,

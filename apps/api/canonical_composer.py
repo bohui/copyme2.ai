@@ -37,15 +37,44 @@ def restore_unchanged_sections(request, draft):
     preserved = request.get('context', {}).get('preserved_sections', [])
     for chapter in draft.get('chapters', []):
         prior = [s for s in preserved if s['chapter_id'] == chapter['id']]
-        by_id = {s['block']['id']: s['block'] for s in prior}
-        chapter['blocks'] = [copy.deepcopy(by_id.get(block['id'], block)) for block in chapter['blocks']]
+        blocks = [s for s in prior if 'block' in s]
+        by_id = {s['block']['id']: s['block'] for s in blocks}
+        preserved_events = {event_id for section in blocks for event_id in section['event_ids']}
+        chapter['blocks'] = [copy.deepcopy(by_id.get(block['id'], block)) for block in chapter['blocks']
+            if block['id'] in by_id or not set(section_event_ids(block, chapter, request)).issubset(preserved_events)]
         seen = {b['id'] for b in chapter['blocks']}
-        chapter['blocks'].extend(copy.deepcopy(s['block']) for s in prior if s['block']['id'] not in seen)
+        chapter['blocks'].extend(copy.deepcopy(s['block']) for s in blocks if s['block']['id'] not in seen)
+        chapter['source_refs'] = list({fingerprint(ref): ref for ref in chapter['source_refs']}.values())
+        heading = next((s for s in prior if 'heading' in s), None)
+        if heading:
+            chapter.update(copy.deepcopy(heading['heading']))
+            for entry in draft.get('outline', []):
+                if entry['chapter_id'] == chapter['id']:
+                    entry['title'] = heading['heading']['title']
+            if draft.get('kind') == 'sample_chapter':
+                draft['title'] = heading['heading']['title']
+                draft['title_source_refs'] = copy.deepcopy(heading['source_refs'])
     return draft
 
 
 def composer_request(job):
     previous = job.get('previous')
+    if previous and 'manuscript' not in previous:
+        # Restricted bundles are purged. Only independently authorised sections
+        # survive as reuse data; none of their former surrounding text is copied.
+        chapters = []
+        for chapter_id in dict.fromkeys(s['chapter_id'] for s in previous['sections']):
+            sections = [s for s in previous['sections'] if s['chapter_id'] == chapter_id]
+            blocks = [copy.deepcopy(s['block']) for s in sections if 'block' in s]
+            if not blocks:
+                continue
+            heading = next((s['heading'] for s in sections if 'heading' in s), {'title':'Memories','subtitle':''})
+            ids = list(dict.fromkeys(id for s in sections for id in s['event_ids']))
+            chapters.append({'id':chapter_id,'base_revision':job['base_revision'],**heading,
+                'period_ids':list(dict.fromkeys('stage_'+e['life_stage'] for e in job['events'] if e['id'] in ids)),
+                'event_ids':ids,'source_refs':[r for s in sections if 'block' in s for r in s['source_refs']],
+                'blocks':blocks,'change_type':'enrich','update_reason':'Surviving original evidence.'})
+        previous = {**previous,'manuscript':{'kind':previous['kind'],'chapters':chapters},'draft':{'input_fingerprint':''}}
     sources = [{key: source[key] for key in ('id', 'project_id', 'kind', 'author_role', 'text', 'status')}
                | {'version': str(source['version']), 'allowed': True, 'derived_from': [],
                   'source_order': source['sequence']} for source in job['sources']]
@@ -97,6 +126,10 @@ def composer_request(job):
     old = {e['id']: e['revision'] for e in previous_revisions}
     dirty = [e['id'] for e in job['event_manifest'] if old.get(e['id']) != e['revision']]
     dirty += [e['id'] for e in previous_revisions if e['id'] not in {n['id'] for n in job['event_manifest']}]
+    affected_sources = list(dict.fromkeys(ref['source_id'] for event in events if event['id'] in dirty for ref in event['source_refs']))
+    if not affected_sources and events:
+        # A pure withdrawal can leave only safe unchanged sections to assemble.
+        affected_sources = list(dict.fromkeys(ref['source_id'] for ref in events[0]['source_refs']))
     return {'schema_version': '1.0', 'request_id': key, 'event_id': key, 'project_id': job['project_id'],
         'target': {'locale': job['locale'], 'audience': 'storyteller', 'medium': 'web'},
         'policy': {'max_chapter_words': 7000, 'soft_chapter_words': 6000, 'focus_threshold': .65,
@@ -110,7 +143,9 @@ def composer_request(job):
                      'retrieval_complete': True, 'glossary_version': '1', 'preferences_version': job['locale']},
         'sources': sources, 'events': events, 'periods': periods, 'assets': [],
         'prior_state': prior, 'authorised_retirements': [],
-        'context': {'canonical_event_index': True, 'dirty_event_ids': dirty, 'style': 'plain, warm, faithful'}}
+        'context': {'canonical_event_index': True, 'dirty_event_ids': dirty, 'style': 'plain, warm, faithful',
+                    'incremental_model_context': 'compact', 'affected_source_ids': affected_sources,
+                    'overlap_source_ids': [s['id'] for s in sources[-2:]]}}
 
 
 async def compose_shared_snapshot(job, worker):
@@ -118,7 +153,7 @@ async def compose_shared_snapshot(job, worker):
     config = fingerprint({'locale': job['locale'], 'skill': 'shared-composer-1',
         'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
         'policy': request['policy']})
-    if job.get('previous') and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config:
+    if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config:
         bundle = copy.deepcopy(job['previous'])
         bundle['unchanged'] = True
         return bundle
@@ -126,7 +161,7 @@ async def compose_shared_snapshot(job, worker):
     current_events = {e['id']: e['revision'] for e in job['event_manifest']}
     current_sources = {(s['id'], str(s['version'])) for s in job['sources']}
     request['context']['preserved_sections'] = [copy.deepcopy(section) for section in (job.get('previous') or {}).get('sections', [])
-        if job['previous'].get('content_config') == config and 'block' in section
+        if job['previous'].get('content_config') == config
         and all(current_events.get(id) == old_events.get(id) for id in section['event_ids'])
         and all((ref['source_id'], str(ref['version'])) in current_sources for ref in section['source_refs'])]
     runtime = SimpleNamespace(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
@@ -140,7 +175,7 @@ async def compose_shared_snapshot(job, worker):
     limit = min(max(int(os.getenv('MEMORY_SPARK_MEMOIR_PREPARATION_CONCURRENCY', '3')), 1), 4)
     semaphore = asyncio.Semaphore(limit)
     async def prepare(event):
-        key = fingerprint({'event': event, 'config': config, 'base': job['base_revision']})
+        key = fingerprint({'event': event, 'config': config, 'policy_epoch': job['policy_epoch'], 'base': job['base_revision']})
         saved = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=key)
         if saved:
             return saved

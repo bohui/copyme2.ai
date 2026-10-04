@@ -24,12 +24,31 @@ grant select on public.user_memoir_lane to authenticated;
 drop policy if exists memoir_lane_owner on public.user_memoir_lane;
 create policy memoir_lane_owner on public.user_memoir_lane for select to authenticated using(user_id=auth.uid());
 
+create or replace function public.memoir_lane_progress(p_lane public.user_memoir_lane) returns jsonb
+language sql stable set search_path='' as $$
+  select pg_catalog.jsonb_build_object('state',case
+    when p_lane.token is not null and p_lane.lease_until>clock_timestamp() and p_lane.run_deadline>clock_timestamp() then 'running'
+    when p_lane.attempts>=3 then 'retry_required'
+    when p_lane.pending or p_lane.token is not null then 'pending' else 'finished' end,
+    'pending',coalesce((p_lane.pending or p_lane.token is not null) and p_lane.attempts<3,false),
+    'successful_source',coalesce(p_lane.successful_source,0),'successful_event',coalesce(p_lane.successful_event,0),
+    'covered_round',coalesce(p_lane.successful_round,0),'target_milestone',coalesce(p_lane.target_milestone,0),'error',p_lane.error)
+$$;
+revoke all on function public.memoir_lane_progress(public.user_memoir_lane) from public,anon,authenticated;
+
+create or replace function public.read_memoir_lane_state(p_lane_id uuid) returns jsonb
+language sql security definer set search_path='' as $$
+  select public.memoir_lane_progress(l) from public.user_memoir_lane l where id=p_lane_id
+$$;
+revoke all on function public.read_memoir_lane_state(uuid) from public,anon,authenticated;
+grant execute on function public.read_memoir_lane_state(uuid) to service_role;
+
 create table if not exists public.user_memoir_manuscript (
   user_id uuid not null, project_id text not null, locale text not null,
   revision bigint not null default 0, covered_round bigint not null default 0,
   source_sequence bigint not null default 0, event_sequence bigint not null default 0,
   completed_milestone bigint not null default 0, bundle jsonb, proposal jsonb,
-  human_locked boolean not null default false, eligible boolean not null default true,
+  human_locked boolean not null default false, eligible boolean not null default true, reuse jsonb,
   primary key(user_id,project_id,locale),
   foreign key(user_id,project_id) references public.user_memoir_project on delete cascade
 );
@@ -51,6 +70,32 @@ create policy memoir_section_owner on public.user_memoir_section_revision for se
   exists(select 1 from public.user_memoir_manuscript m where m.user_id=user_memoir_section_revision.user_id
     and m.project_id=user_memoir_section_revision.project_id and m.locale=user_memoir_section_revision.locale and m.eligible));
 
+create table if not exists public.user_memoir_milestone (
+  user_id uuid not null, project_id text not null, locale text not null,
+  milestone bigint not null check(milestone>0), state text not null default 'pending' check(state in ('pending','completed','proposed')),
+  covered_round bigint, manuscript_revision bigint,
+  primary key(user_id,project_id,locale,milestone),
+  foreign key(user_id,project_id) references public.user_memoir_project on delete cascade
+);
+alter table public.user_memoir_milestone enable row level security;
+revoke all on public.user_memoir_milestone from public,anon,authenticated;
+grant select on public.user_memoir_milestone to authenticated;
+drop policy if exists memoir_milestone_owner on public.user_memoir_milestone;
+create policy memoir_milestone_owner on public.user_memoir_milestone for select to authenticated using(user_id=auth.uid());
+
+create or replace function public.safe_memoir_reuse(p_bundle jsonb,p_event_ids text[],p_source_id uuid default null) returns jsonb
+language sql immutable set search_path='' as $$
+  with safe_sections as (select value s from pg_catalog.jsonb_array_elements(coalesce(p_bundle->'sections','[]'))
+    where not exists(select 1 from pg_catalog.jsonb_array_elements_text(value->'event_ids') id where id=any(p_event_ids))
+      and not exists(select 1 from pg_catalog.jsonb_array_elements(value->'source_refs') ref where ref->>'source_id'=p_source_id::text))
+  select pg_catalog.jsonb_build_object('content_config',p_bundle->'content_config',
+    'kind',coalesce(p_bundle->'manuscript'->>'kind',p_bundle->>'kind','sample_chapter'),
+    'sections',coalesce((select pg_catalog.jsonb_agg(s) from safe_sections),'[]'),
+    'event_manifest',coalesce((select pg_catalog.jsonb_agg(e) from pg_catalog.jsonb_array_elements(coalesce(p_bundle->'event_manifest','[]')) e
+      where e->>'id' in(select pg_catalog.jsonb_array_elements_text(s->'event_ids') from safe_sections)),'[]'))
+$$;
+revoke all on function public.safe_memoir_reuse(jsonb,text[],uuid) from public,anon,authenticated;
+
 create or replace function public.pending_memoir_receipts(p_limit integer default 50) returns jsonb
 language sql security definer set search_path='' as $$
   select coalesce(pg_catalog.jsonb_agg(id),'[]'::jsonb) from
@@ -58,6 +103,14 @@ language sql security definer set search_path='' as $$
 $$;
 revoke all on function public.pending_memoir_receipts(integer) from public,anon,authenticated;
 grant execute on function public.pending_memoir_receipts(integer) to service_role;
+
+create or replace function public.read_memoir_receipt_scope(p_receipt_id uuid) returns jsonb
+language sql security definer set search_path='' as $$
+  select pg_catalog.jsonb_build_object('user_id',user_id,'project_id',project_id,'change_kind',change_kind)
+    from public.user_private_draft_outbox where id=p_receipt_id and not delivered
+$$;
+revoke all on function public.read_memoir_receipt_scope(uuid) from public,anon,authenticated;
+grant execute on function public.read_memoir_receipt_scope(uuid) to service_role;
 
 create or replace function public.pending_memoir_lanes(p_limit integer default 50) returns jsonb
 language sql security definer set search_path='' as $$
@@ -93,11 +146,16 @@ begin
   select coalesce(profile->>'preferred_language','en-AU') into output_locale from public.user_profile where user_id=receipt.user_id;
   output_locale:=case when output_locale='zh-CN' then 'zh-CN' else 'en-AU' end;
   if milestone>0 then
+    insert into public.user_memoir_milestone(user_id,project_id,locale,milestone)
+      select receipt.user_id,receipt.project_id,output_locale,checkpoint
+        from pg_catalog.generate_series(p_cadence::bigint,milestone,p_cadence::bigint) checkpoint
+      on conflict do nothing;
     insert into public.user_memoir_lane(user_id,project_id,skill,pending,target_source,target_event,target_milestone,locale)
       values(receipt.user_id,receipt.project_id,'composer',true,project.source_sequence,project.event_sequence,milestone,output_locale)
       on conflict(user_id,project_id,skill) do update set
         pending=public.user_memoir_lane.pending or excluded.locale<>public.user_memoir_lane.locale or excluded.target_milestone>public.user_memoir_lane.target_milestone or
-          (receipt.change_kind in ('correction','revocation','edit','delete') and excluded.target_event>public.user_memoir_lane.successful_event),
+          (receipt.change_kind in ('correction','revocation','edit','delete') and
+            (excluded.target_event>public.user_memoir_lane.successful_event or excluded.target_source>public.user_memoir_lane.successful_source)),
         attempts=case when excluded.target_milestone>public.user_memoir_lane.target_milestone or excluded.target_event>public.user_memoir_lane.target_event then 0 else public.user_memoir_lane.attempts end,
         error=case when excluded.target_milestone>public.user_memoir_lane.target_milestone or excluded.target_event>public.user_memoir_lane.target_event then null else public.user_memoir_lane.error end,
         target_source=excluded.target_source,target_event=excluded.target_event,target_milestone=excluded.target_milestone,locale=excluded.locale
@@ -164,7 +222,7 @@ begin
     'event_sequence',project.event_sequence,'policy_epoch',project.policy_epoch,'sources',sources,
     'context_sources',coalesce((select pg_catalog.jsonb_agg(public.narrator_source_record(s) order by sequence)
       from public.user_narrator_source s where user_id=lane.user_id and project_id=lane.project_id and status='active'),'[]'::jsonb),
-    'previous', (select bundle from public.user_memoir_manuscript where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),
+    'previous', (select coalesce(bundle,reuse) from public.user_memoir_manuscript where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),
     'base_revision',coalesce((select revision from public.user_memoir_manuscript where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),0),
     'human_locked',coalesce((select human_locked from public.user_memoir_manuscript where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),false),
     'events',coalesce((select pg_catalog.jsonb_agg(public.memory_event_record(e) order by change_sequence,id)
@@ -182,7 +240,9 @@ begin
   perform 1 from public.user_memoir_project where user_id=lane.user_id and project_id=lane.project_id for update;
   select * into lane from public.user_memoir_lane where id=p_lane_id for update;
   if lane.skill<>'timeline' or lane.token is distinct from p_token or lane.token is null or
-     lane.lease_until<=clock_timestamp() or lane.run_deadline<=clock_timestamp() then
+     lane.lease_until<=clock_timestamp() or lane.run_deadline<=clock_timestamp() or
+     lane.active_policy is distinct from (select policy_epoch from public.user_memoir_project
+       where user_id=lane.user_id and project_id=lane.project_id) then
     return pg_catalog.jsonb_build_object('status','stale');
   end if;
   perform pg_catalog.set_config('request.jwt.claim.sub',lane.user_id::text,true);
@@ -237,8 +297,9 @@ create or replace function public.retry_user_memoir_lane(p_project_id text,p_ski
 language plpgsql security definer set search_path='' as $$
 begin
   if auth.uid() is null then raise exception 'authenticated user required' using errcode='42501'; end if;
-  update public.user_memoir_lane set attempts=0,error=null,available_at=clock_timestamp(),pending=true
-    where user_id=auth.uid() and project_id=p_project_id and skill=p_skill and token is null;
+  update public.user_memoir_lane set attempts=0,error=null,available_at=clock_timestamp(),pending=true,token=null,lease_until=null,run_deadline=null
+    where user_id=auth.uid() and project_id=p_project_id and skill=p_skill and
+      (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp());
   return pg_catalog.jsonb_build_object('queued',found);
 end $$;
 revoke all on function public.retry_user_memoir_lane(text,text) from public,anon;
@@ -254,7 +315,11 @@ begin
   perform 1 from public.user_memoir_project where user_id=lane.user_id and project_id=lane.project_id for update;
   select * into lane from public.user_memoir_lane where id=p_lane_id for update;
   if lane.skill<>'composer' or lane.token is null or lane.token is distinct from p_token or
-    lane.lease_until<=clock_timestamp() or lane.run_deadline<=clock_timestamp() then return pg_catalog.jsonb_build_object('status','stale'); end if;
+    lane.lease_until<=clock_timestamp() or lane.run_deadline<=clock_timestamp() or
+    lane.active_policy is distinct from (select policy_epoch from public.user_memoir_project
+      where user_id=lane.user_id and project_id=lane.project_id) then
+    return pg_catalog.jsonb_build_object('status','stale');
+  end if;
   if (p_bundle->'validation'->>'ok')::boolean is distinct from true or
      (p_bundle->'review'->>'ready_for_user_review')::boolean is distinct from true or
      (p_bundle->'review'->>'publication_approved')::boolean is distinct from false or
@@ -272,6 +337,18 @@ begin
       where s.id is null or s.status<>'active' or s.version is distinct from (ref->>'version')::bigint) then
     return pg_catalog.jsonb_build_object('status','stale');
   end if;
+  for section in select value from pg_catalog.jsonb_array_elements(p_bundle->'sections') loop
+    if pg_catalog.jsonb_typeof(section->'source_refs') is distinct from 'array' or exists(
+      select 1 from pg_catalog.jsonb_array_elements(section->'source_refs') ref
+      left join public.user_narrator_source s on s.user_id=lane.user_id and s.project_id=lane.project_id and s.id::text=ref->>'source_id'
+      where s.id is null or s.status<>'active' or s.version::text is distinct from ref->>'version' or
+        not exists(select 1 from pg_catalog.jsonb_array_elements(lane.active_manifest) m
+          where m->>'id'=ref->>'source_id' and m->>'version'=ref->>'version') or
+        ref->>'char_start' is null or ref->>'char_end' is null or (ref->>'char_start')::integer<0 or
+        (ref->>'char_end')::integer<=(ref->>'char_start')::integer or (ref->>'char_end')::integer>length(s.text)) then
+      raise exception 'section references an unavailable source' using errcode='42501';
+    end if;
+  end loop;
   insert into public.user_memoir_manuscript(user_id,project_id,locale) values(lane.user_id,lane.project_id,lane.active_locale) on conflict do nothing;
   select * into manuscript from public.user_memoir_manuscript where user_id=lane.user_id and project_id=lane.project_id and locale=lane.active_locale for update;
   if manuscript.revision is distinct from p_expected_revision or p_expected_revision is distinct from lane.active_manuscript_revision then
@@ -315,10 +392,18 @@ begin
       sections:=sections || pg_catalog.jsonb_build_array(section);
     end loop;
     p_bundle:=pg_catalog.jsonb_set(p_bundle,'{sections}',sections);
-    update public.user_memoir_manuscript set revision=revision+1,bundle=p_bundle,proposal=null,eligible=true,
+    update public.user_memoir_manuscript set revision=revision+1,bundle=p_bundle,reuse=null,proposal=null,eligible=true,
       covered_round=lane.active_round,source_sequence=lane.active_through,event_sequence=lane.active_event,completed_milestone=lane.active_milestone
       where user_id=lane.user_id and project_id=lane.project_id and locale=lane.active_locale;
   end if;
+  if lane.run_deadline<=clock_timestamp() or lane.lease_until<=clock_timestamp() then
+    raise exception 'memoir run expired before commit' using errcode='40001';
+  end if;
+  update public.user_memoir_milestone set state=case when manuscript.human_locked then 'proposed' else 'completed' end,
+    covered_round=lane.active_round,manuscript_revision=manuscript.revision+
+      case when manuscript.human_locked or coalesce((p_bundle->>'unchanged')::boolean,false) then 0 else 1 end
+    where user_id=lane.user_id and project_id=lane.project_id and locale=lane.active_locale and
+      milestone<=lane.active_milestone and state='pending';
   update public.user_memoir_lane set token=null,lease_until=null,run_deadline=null,active_manifest='[]',active_events='[]',
     successful_source=active_through,successful_event=active_event,successful_round=active_round,attempts=0,error=null
     where id=p_lane_id;
@@ -329,17 +414,26 @@ grant execute on function public.finish_memoir_composer(uuid,uuid,bigint,jsonb) 
 
 create or replace function public.read_user_memoir_draft(p_project_id text,p_locale text default 'en-AU') returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare saved public.user_memoir_manuscript%rowtype; lane public.user_memoir_lane%rowtype;
+declare saved public.user_memoir_manuscript%rowtype; lane public.user_memoir_lane%rowtype; timeline public.user_memoir_lane%rowtype;
 begin
   if auth.uid() is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   select * into saved from public.user_memoir_manuscript where user_id=auth.uid() and project_id=p_project_id and locale=p_locale;
   select * into lane from public.user_memoir_lane where user_id=auth.uid() and project_id=p_project_id and skill='composer';
+  select * into timeline from public.user_memoir_lane where user_id=auth.uid() and project_id=p_project_id and skill='timeline';
   return pg_catalog.jsonb_build_object('status',case when saved.bundle is not null and saved.eligible then 'ready' when not saved.eligible then 'stale' else 'collecting' end,
     'preview',case when saved.eligible then saved.bundle->'preview' else null end,
     'covered_round',coalesce(saved.covered_round,0),'milestone',coalesce(saved.completed_milestone,0),'revision',coalesce(saved.revision,0),
+    'milestones',coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('milestone',milestone,'state',state,
+      'covered_round',covered_round,'manuscript_revision',manuscript_revision) order by milestone)
+      from public.user_memoir_milestone where user_id=auth.uid() and project_id=p_project_id and locale=p_locale),'[]'),
     'sections',case when saved.eligible then coalesce(saved.bundle->'sections','[]'::jsonb) else '[]'::jsonb end,
-    'updating',coalesce(lane.pending or lane.token is not null,false),
-    'error',lane.error,'proposal_pending',saved.proposal is not null);
+    'updating',(public.memoir_lane_progress(lane)->>'state') in ('running','pending') or
+      ((public.memoir_lane_progress(timeline)->>'state') in ('running','pending') and exists(select 1 from public.user_narrator_source
+        where user_id=auth.uid() and project_id=p_project_id and status='active' and processing_status<>'succeeded')),
+    'progress',pg_catalog.jsonb_build_object('composition',public.memoir_lane_progress(lane),
+      'extraction',public.memoir_lane_progress(timeline) || pg_catalog.jsonb_build_object('extracted_through',coalesce((select extraction_cursor from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id),0),
+        'pending_inputs',(select count(*) from public.user_narrator_source where user_id=auth.uid() and project_id=p_project_id and status='active' and processing_status<>'succeeded'))),
+    'error',coalesce(lane.error,timeline.error),'proposal_pending',saved.proposal is not null);
 end $$;
 revoke all on function public.read_user_memoir_draft(text,text) from public,anon;
 grant execute on function public.read_user_memoir_draft(text,text) to authenticated;
@@ -418,7 +512,7 @@ create or replace function public.change_user_narrator_source(p_project_id text,
   p_expected_version bigint,p_action text,p_text text default null) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare owner_id uuid:=auth.uid(); saved public.user_narrator_source%rowtype; affected text[]; affected_event_id text;
-  next_sequence bigint; next_change bigint;
+  next_sequence bigint; next_change bigint; previous_sync text;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if p_action not in ('edit','withdraw') or (p_action='edit' and length(pg_catalog.btrim(coalesce(p_text,''))) not between 1 and 100000) then
@@ -438,23 +532,48 @@ begin
     where user_id=owner_id and project_id=p_project_id and source_id=p_source_id;
   -- Eligibility changes in the same transaction as the source change.
   update public.user_memoir_manuscript m set eligible=false,proposal=null,
+    reuse=case when p_action='withdraw' then public.safe_memoir_reuse(coalesce(m.bundle,m.reuse),affected,p_source_id) else reuse end,
     bundle=case when p_action='withdraw' then null else bundle end
-    where user_id=owner_id and project_id=p_project_id and exists
-      (select 1 from pg_catalog.jsonb_array_elements(coalesce(m.bundle->'source_manifest','[]')) r where r->>'id'=p_source_id::text);
+    where user_id=owner_id and project_id=p_project_id and
+      ((p_action='withdraw' and exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.bundle->'source_manifest','[]')) r where r->>'id'=p_source_id::text)) or
+       exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.bundle->'sections','[]')) section,
+         pg_catalog.jsonb_array_elements(section->'source_refs') r where r->>'source_id'=p_source_id::text));
   if p_action='withdraw' then
     delete from public.user_memoir_section_revision r where user_id=owner_id and project_id=p_project_id and exists
       (select 1 from pg_catalog.jsonb_array_elements(r.data->'source_refs') ref where ref->>'source_id'=p_source_id::text);
     -- Existing deletion policy removes restricted original and derived bytes.
     update public.user_narrator_source_version set text='[withdrawn]' where user_id=owner_id and project_id=p_project_id and source_id=p_source_id;
     delete from public.user_memory_event_revision where user_id=owner_id and project_id=p_project_id and event_id=any(affected);
+    -- Retired views can contain the original in their saved request as well as
+    -- generated prose. Scope their removal to this owner's affected project.
+    update public.user_memory set content='[Evidence withdrawn; rebuild from surviving originals.]'
+      where user_id=owner_id and kind='memoir' and
+        (project_id=p_project_id or ('memoir-preview:' || p_project_id)=any(source_paths));
+    update public.user_family_context f set document=pg_catalog.jsonb_set(f.document,'{timeline}',
+      coalesce((select pg_catalog.jsonb_agg(item) from pg_catalog.jsonb_array_elements(coalesce(f.document->'timeline','[]')) item
+        where not (item->>'id'=any(coalesce(affected,array[]::text[])) or
+          exists(select 1 from public.user_memory_event_alias a where a.user_id=owner_id and a.project_id=p_project_id
+            and a.event_id=any(affected) and a.legacy_id=item->>'id') or
+          exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(item->'source_refs','[]')) ref
+            where ref->>'source_id'=p_source_id::text or ref->>'source_id' in
+              (select legacy_id from public.user_narrator_source_alias where user_id=owner_id and project_id=p_project_id and source_id=p_source_id)))),'[]')),
+      revision=f.revision+1 where f.user_id=owner_id and f.project_id=p_project_id;
   end if;
   delete from public.user_memory_event_source where user_id=owner_id and project_id=p_project_id and source_id=p_source_id;
   foreach affected_event_id in array coalesce(affected,array[]::text[]) loop
     update public.user_memoir_project set event_sequence=event_sequence+1 where user_id=owner_id and project_id=p_project_id returning event_sequence into next_change;
     update public.user_memory_event e set revision=revision+1,change_sequence=next_change,
-      status=case when exists(select 1 from public.user_memory_event_source s where s.user_id=owner_id and s.project_id=p_project_id and s.event_id=e.id) then 'unresolved' else 'withdrawn' end,
-      life_stage='unplaced', data=pg_catalog.jsonb_build_object('title','Evidence changed; awaiting extraction','temporal',pg_catalog.jsonb_build_object('expression','unknown','precision','unknown'),
-        'visibility',coalesce(data->>'visibility','private'),'include_in_print',coalesce((data->>'include_in_print')::boolean,false))
+      status=case when p_action='edit' or exists(select 1 from public.user_memory_event_source s where s.user_id=owner_id and s.project_id=p_project_id and s.event_id=e.id) then 'unresolved' else 'withdrawn' end,
+      life_stage=case when data->'user_overrides' ? 'life_stage' and data->'user_overrides'->'life_stage'->>'source_id' is distinct from p_source_id::text then life_stage else 'unplaced' end,
+      data=pg_catalog.jsonb_build_object('title','Evidence changed; awaiting extraction','temporal',
+        case when data->'user_overrides' ? 'temporal' and data->'user_overrides'->'temporal'->>'source_id' is distinct from p_source_id::text
+          then data->'temporal' else pg_catalog.jsonb_build_object('expression','unknown','precision','unknown') end,
+        'stage_evidence',case when data->'user_overrides' ? 'life_stage' and data->'user_overrides'->'life_stage'->>'source_id' is distinct from p_source_id::text
+          then coalesce(data->'stage_evidence','[]') else '[]'::jsonb end,
+        'user_overrides',coalesce((select pg_catalog.jsonb_object_agg(key,value) from pg_catalog.jsonb_each(coalesce(data->'user_overrides','{}'))
+          where value->>'source_id' is distinct from p_source_id::text),'{}'),
+        'visibility',coalesce(data->>'visibility','private'),'include_in_print',coalesce((data->>'include_in_print')::boolean,false),
+        'reconciliation_source_ids',case when p_action='edit' then pg_catalog.jsonb_build_array(p_source_id) else '[]'::jsonb end)
       where user_id=owner_id and project_id=p_project_id and id=affected_event_id;
   end loop;
   -- Surviving testimony needs reconciliation too: a withdrawal is not a
@@ -472,6 +591,15 @@ begin
     where user_id=owner_id and project_id=p_project_id and id=p_source_id returning * into saved;
   insert into public.user_narrator_source_version(user_id,project_id,source_id,version,text,language)
     values(owner_id,p_project_id,p_source_id,saved.version,saved.text,saved.language);
+  -- Conversation memory is a disposable context view. Withdrawn originals and
+  -- assistant-derived repetitions cannot remain available through that view.
+  previous_sync:=pg_catalog.current_setting('memoir.sync_source',true);
+  perform pg_catalog.set_config('memoir.sync_source','true',true);
+  update public.user_memory set content='Storyteller: ' || saved.text || E'\nMemory Spark: [source changed]'
+    where user_id=owner_id and project_id=p_project_id and kind='agent' and
+      (client_turn_id=saved.client_turn_id or id::text in(select legacy_id from public.user_narrator_source_alias
+        where user_id=owner_id and project_id=p_project_id and source_id=p_source_id));
+  perform pg_catalog.set_config('memoir.sync_source',coalesce(previous_sync,''),true);
   update public.user_memoir_project set extraction_cursor=coalesce((select min(sequence)-1 from public.user_narrator_source
       where user_id=owner_id and project_id=p_project_id and status='active' and processing_status<>'succeeded'),source_sequence)
     where user_id=owner_id and project_id=p_project_id;
@@ -481,6 +609,48 @@ begin
 end $$;
 revoke all on function public.change_user_narrator_source(text,uuid,bigint,text,text) from public,anon;
 grant execute on function public.change_user_narrator_source(text,uuid,bigint,text,text) to authenticated;
+
+create or replace function public.unlink_user_memory_event_source(p_project_id text,p_event_id text,p_expected_revision bigint,
+  p_source_id uuid,p_statement text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare owner_id uuid:=auth.uid(); saved public.user_memory_event%rowtype; next_change bigint;
+begin
+  if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
+  if length(pg_catalog.btrim(coalesce(p_statement,''))) not between 1 and 2000 then raise exception 'source removal requires a statement' using errcode='22023'; end if;
+  perform 1 from public.user_memoir_project where user_id=owner_id and project_id=p_project_id for update;
+  select * into saved from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=p_event_id for update;
+  if not found then raise exception 'event unavailable' using errcode='42501'; end if;
+  if saved.revision is distinct from p_expected_revision then raise exception 'event revision conflict; reload the event' using errcode='40001'; end if;
+  if not exists(select 1 from public.user_memory_event_source where user_id=owner_id and project_id=p_project_id and event_id=p_event_id and source_id=p_source_id) then
+    raise exception 'source link unavailable' using errcode='42501'; end if;
+  insert into public.user_memory_event_source_exclusion values(owner_id,p_project_id,p_event_id,p_source_id,owner_id,p_statement,p_expected_revision) on conflict do nothing;
+  delete from public.user_memory_event_source where user_id=owner_id and project_id=p_project_id and event_id=p_event_id and source_id=p_source_id;
+  update public.user_memoir_manuscript m set eligible=false,reuse=public.safe_memoir_reuse(coalesce(m.bundle,m.reuse),array[p_event_id]),bundle=null,proposal=null where user_id=owner_id and project_id=p_project_id and
+    exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.bundle->'event_manifest','[]')) e where e->>'id'=p_event_id);
+  delete from public.user_memoir_checkpoint c using public.user_memoir_lane l where c.lane_id=l.id and l.user_id=owner_id and l.project_id=p_project_id and
+    exists(select 1 from pg_catalog.jsonb_array_elements(c.event_manifest) e where e->>'id'=p_event_id);
+  update public.user_memoir_project set event_sequence=event_sequence+1,policy_epoch=policy_epoch+1 where user_id=owner_id and project_id=p_project_id returning event_sequence into next_change;
+  update public.user_memory_event e set revision=revision+1,change_sequence=next_change,
+    life_stage=case when saved.data->'user_overrides' ? 'life_stage' and saved.data->'user_overrides'->'life_stage'->>'source_id' is distinct from p_source_id::text then saved.life_stage else 'unplaced' end,
+    status=case when exists(select 1 from public.user_memory_event_source where user_id=owner_id and project_id=p_project_id and event_id=p_event_id) then 'unresolved' else 'withdrawn' end,
+    data=pg_catalog.jsonb_build_object('title','Evidence changed; awaiting extraction','temporal',
+      case when saved.data->'user_overrides' ? 'temporal' and saved.data->'user_overrides'->'temporal'->>'source_id' is distinct from p_source_id::text
+        then saved.data->'temporal' else pg_catalog.jsonb_build_object('expression','unknown','precision','unknown') end,
+      'stage_evidence',case when saved.data->'user_overrides' ? 'life_stage' and saved.data->'user_overrides'->'life_stage'->>'source_id' is distinct from p_source_id::text
+        then coalesce(saved.data->'stage_evidence','[]') else '[]'::jsonb end,
+      'user_overrides',coalesce((select pg_catalog.jsonb_object_agg(key,value) from pg_catalog.jsonb_each(coalesce(saved.data->'user_overrides','{}'))
+        where value->>'source_id' is distinct from p_source_id::text),'{}'),
+      'visibility',saved.data->'visibility','include_in_print',saved.data->'include_in_print')
+    where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
+  update public.user_narrator_source set processing_status='pending' where user_id=owner_id and project_id=p_project_id and status='active' and id in
+    (select source_id from public.user_memory_event_source where user_id=owner_id and project_id=p_project_id and event_id=p_event_id);
+  update public.user_memoir_project set extraction_cursor=coalesce((select min(sequence)-1 from public.user_narrator_source where user_id=owner_id and project_id=p_project_id and status='active' and processing_status<>'succeeded'),source_sequence)
+    where user_id=owner_id and project_id=p_project_id;
+  insert into public.user_private_draft_outbox(user_id,project_id,change_kind) values(owner_id,p_project_id,'edit');
+  return public.memory_event_record(saved);
+end $$;
+revoke all on function public.unlink_user_memory_event_source(text,text,bigint,uuid,text) from public,anon;
+grant execute on function public.unlink_user_memory_event_source(text,text,bigint,uuid,text) to authenticated;
 
 create table if not exists public.user_memoir_checkpoint (
   lane_id uuid not null references public.user_memoir_lane(id) on delete cascade,
@@ -558,7 +728,7 @@ create or replace function public.import_legacy_memory_events(p_project_id text,
 language plpgsql security definer set search_path='' as $$
 declare owner_id uuid:=auth.uid(); item jsonb; old_ref jsonb; ref jsonb; refs jsonb; original public.user_narrator_source%rowtype;
   event_id text; next_change bigint; timing jsonb; expression text; precision text; years text[]; stage text; person_ids jsonb; missing_person_ids jsonb;
-  result jsonb:='{}';
+  result jsonb:='{}'; candidates jsonb;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if p_namespace not in ('timeline','composer') or pg_catalog.jsonb_typeof(p_items) is distinct from 'array' or pg_catalog.jsonb_array_length(p_items)>1000 then
@@ -574,8 +744,10 @@ begin
       insert into public.user_memory_event_alias values(owner_id,p_project_id,p_namespace,item->>'id',event_id);
       result:=result || pg_catalog.jsonb_build_object(item->>'id',event_id); continue;
     end if;
-    event_id:=item->>'id';
-    if exists(select 1 from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=event_id) then event_id:=pg_catalog.gen_random_uuid()::text; end if;
+    event_id:=item->>'id'; candidates:='[]';
+    if exists(select 1 from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=event_id) then
+      candidates:=pg_catalog.jsonb_build_array(event_id); event_id:=pg_catalog.gen_random_uuid()::text;
+    end if;
     refs:='[]';
     for old_ref in select value from pg_catalog.jsonb_array_elements(coalesce(item->'source_refs','[]')) loop
       select s.* into original from public.user_narrator_source s join public.user_narrator_source_alias a
@@ -611,11 +783,11 @@ begin
     insert into public.user_memory_event(user_id,project_id,id,revision,kind,life_stage,status,data,change_sequence)
       values(owner_id,p_project_id,event_id,greatest(coalesce((item->>'revision')::bigint,1),1),
         case when item->>'kind'='period' then 'period' else 'event' end,stage,
-        case when refs='[]' then 'unresolved' else 'active' end,
+        case when refs='[]' or candidates<>'[]' then 'unresolved' else 'active' end,
         pg_catalog.jsonb_build_object('title',coalesce(item->>'title',item->>'summary'),'temporal',timing,
           'visibility',coalesce(item->>'visibility','private'),'include_in_print',coalesce((item->>'include_in_print')::boolean,false),
-          'person_ids',person_ids,'unresolved_person_ids',missing_person_ids,'uncertainty',item->'uncertainty',
-          'provenance_status',case when refs='[]' then 'legacy_evidence_unavailable' else 'legacy_original_recovered' end),next_change);
+          'person_ids',person_ids,'unresolved_person_ids',missing_person_ids,'uncertainty',item->'uncertainty','candidate_ids',candidates,
+          'provenance_status',case when candidates<>'[]' then 'legacy_identity_unresolved' when refs='[]' then 'legacy_evidence_unavailable' else 'legacy_original_recovered' end),next_change);
     insert into public.user_memory_event_alias values(owner_id,p_project_id,p_namespace,item->>'id',event_id);
     for ref in select value from pg_catalog.jsonb_array_elements(refs) loop
       insert into public.user_memory_event_source values(owner_id,p_project_id,event_id,(ref->>'source_id')::uuid,(ref->>'version')::bigint,pg_catalog.md5(ref::text),ref) on conflict do nothing;
@@ -723,6 +895,10 @@ begin
   p_bundle:=pg_catalog.jsonb_set(p_bundle,'{sections}',sections);
   insert into public.user_memoir_manuscript(user_id,project_id,locale,revision,covered_round,completed_milestone,bundle,human_locked)
     values(owner_id,p_project_id,p_locale,p_revision,p_covered_round,p_covered_round,p_bundle,p_human_locked);
+  insert into public.user_memoir_milestone(user_id,project_id,locale,milestone,state,covered_round,manuscript_revision)
+    values(owner_id,p_project_id,p_locale,p_covered_round,'completed',p_covered_round,p_revision)
+    on conflict(user_id,project_id,locale,milestone) do update set
+      state='completed',covered_round=excluded.covered_round,manuscript_revision=excluded.manuscript_revision;
   return pg_catalog.jsonb_build_object('imported',true);
 end $$;
 revoke all on function public.import_user_legacy_memoir(text,text,bigint,bigint,boolean,jsonb) from public,anon;
@@ -751,8 +927,8 @@ begin
   if found then
     snapshot:=pg_catalog.jsonb_build_object('project',pg_catalog.to_jsonb(project));
     foreach table_name in array array['user_narrator_source','user_narrator_source_version','user_memory_event','user_memory_event_source',
-      'user_memory_event_revision','user_memory_event_change','user_memory_event_alias','user_narrator_source_alias',
-      'user_memoir_manuscript','user_memoir_section_revision','user_memoir_lane'] loop
+      'user_memory_event_source_exclusion','user_memory_event_revision','user_memory_event_change','user_memory_event_alias','user_narrator_source_alias',
+      'user_memoir_manuscript','user_memoir_section_revision','user_memoir_milestone','user_memoir_lane'] loop
       execute pg_catalog.format('select coalesce(jsonb_agg(to_jsonb(t)),''[]''::jsonb) from public.%I t where user_id=$1 and project_id=$2',table_name)
         into rows using auth.uid(),p_project_id;
       snapshot:=snapshot || pg_catalog.jsonb_build_object(table_name,rows);
@@ -791,8 +967,8 @@ begin
     raise exception 'project transfer conflict; retain both authorised projects' using errcode='40001'; end if;
   insert into public.user_memoir_project select (pg_catalog.jsonb_populate_record(null::public.user_memoir_project,snapshot->'project' || pg_catalog.jsonb_build_object('user_id',owner_id))).*;
   foreach table_name in array array['user_narrator_source','user_narrator_source_version','user_memory_event','user_memory_event_source',
-    'user_memory_event_revision','user_memory_event_change','user_memory_event_alias','user_narrator_source_alias',
-    'user_memoir_manuscript','user_memoir_section_revision','user_memoir_lane'] loop
+    'user_memory_event_source_exclusion','user_memory_event_revision','user_memory_event_change','user_memory_event_alias','user_narrator_source_alias',
+    'user_memoir_manuscript','user_memoir_section_revision','user_memoir_milestone','user_memoir_lane'] loop
     for original in select value from pg_catalog.jsonb_array_elements(snapshot->table_name) loop
       if original->>'user_id' is distinct from result->>'guest_user_id' or original->>'project_id' is distinct from attachment.project_id then
         raise exception 'invalid transfer scope' using errcode='42501'; end if;
@@ -811,5 +987,36 @@ begin
 end $$;
 revoke all on function public.attach_guest_conversation(text,boolean) from public,anon;
 grant execute on function public.attach_guest_conversation(text,boolean) to authenticated;
+
+create or replace function public.synchronize_narrator_memory_change() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare source public.user_narrator_source%rowtype; original_text text; previous_owner text;
+begin
+  if pg_catalog.current_setting('memoir.sync_source',true)='true' or old.kind<>'agent' or old.project_id is null then return null; end if;
+  if TG_OP='UPDATE' and old.content is not distinct from new.content then return null; end if;
+  select * into source from public.user_narrator_source where user_id=old.user_id and project_id=old.project_id and
+    (client_turn_id=coalesce(old.client_turn_id,old.id) or id in(select source_id from public.user_narrator_source_alias
+      where user_id=old.user_id and project_id=old.project_id and legacy_id=old.id::text));
+  if not found or source.status<>'active' then return null; end if;
+  previous_owner:=pg_catalog.current_setting('request.jwt.claim.sub',true);
+  perform pg_catalog.set_config('request.jwt.claim.sub',old.user_id::text,true);
+  if TG_OP='DELETE' or new.content not like 'Storyteller: %' or
+     (TG_OP='UPDATE' and new.project_id is distinct from old.project_id) then
+    perform public.change_user_narrator_source(old.project_id,source.id,source.version,'withdraw');
+  else
+    original_text:=pg_catalog.regexp_replace(pg_catalog.substr(new.content,14),E'\\nMemory Spark:[\\s\\S]*$','');
+    if pg_catalog.btrim(original_text)='' then
+      perform public.change_user_narrator_source(old.project_id,source.id,source.version,'withdraw');
+    elsif original_text is distinct from source.text then
+      perform public.change_user_narrator_source(old.project_id,source.id,source.version,'edit',original_text);
+    end if;
+  end if;
+  perform pg_catalog.set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+  return null;
+end $$;
+revoke all on function public.synchronize_narrator_memory_change() from public,anon,authenticated;
+drop trigger if exists synchronize_narrator_memory_change on public.user_memory;
+create trigger synchronize_narrator_memory_change after update or delete on public.user_memory
+  for each row execute function public.synchronize_narrator_memory_change();
 
 commit;

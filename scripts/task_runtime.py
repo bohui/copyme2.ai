@@ -23,8 +23,8 @@ async def execute_memoir_lane(lane_id: str) -> dict:
     broker = MemoirLaneBroker()
     try:
         result = await MemoryEventWorker(broker).execute_lane(lane_id)
-        pending = lane_id in await broker.rpc('pending_memoir_lanes', p_limit=100)
-        return {'status': result['status'], 'pending': pending}
+        state = await broker.rpc('read_memoir_lane_state', p_lane_id=lane_id)
+        return {'status': result['status'], 'pending': bool(state and state['pending'])}
     finally:
         await broker.client.aclose()
 

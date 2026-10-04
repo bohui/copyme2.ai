@@ -317,6 +317,7 @@ def build_router(
         storage=await asyncio.to_thread(storage_for,authorization)
         try:
             if isinstance(storage, UserStorage):
+                await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'timeline')
                 await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'composer')
                 return await asyncio.to_thread(storage.saved_memoir_draft, payload.project_id, payload.language)
             from .private_drafts import synchronize
@@ -576,11 +577,34 @@ def build_router(
         state = 'error' if job['status'] == 'FAILED' else 'pending'
         return {'status': state, 'preview': None, 'job': job, 'retry_after': 3}
 
+    async def shared_preview_response(storage, project_id, language=None, *, retry=False):
+        access = await AgentTurnLease.io(storage_recall_status, storage, None)
+        if not access or access['rounds_completed'] < access['free_rounds']:
+            raise HTTPException(409, 'Complete the free recall experience before composing the sample',
+                                headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
+        profile = await AgentTurnLease.io(storage.profile)
+        locale = normalize_conversation_language(language or profile.get('preferred_language'))
+        saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
+        if saved['preview']:
+            return {**saved, 'status': 'ready', 'cached': True}
+        if retry:
+            await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'timeline')
+            await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'composer')
+            saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
+        failed = bool(saved['error'] and not saved['updating'])
+        return {**saved, 'status': 'error' if failed else 'pending', 'preview': None,
+            'job': {'id': f'shared.{locale}.{project_id}', 'project_id': project_id, 'language': locale,
+                    'status': 'FAILED' if failed else 'RUNNING', 'phase': 'drafting', 'error': saved['error']},
+            'retry_after': 3}
+
     @router.post('/preview')
     async def preview(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         transferred = False
         try:
+            if isinstance(storage, UserStorage):
+                result = await shared_preview_response(storage, payload.project_id, payload.language, retry=True)
+                return JSONResponse(status_code=202 if result['status']=='pending' else 200, content=result)
             rows, sources, key, language = await preview_snapshot(storage, payload.project_id, payload.language)
             existing = cached_preview(rows, key)
             if existing:
@@ -607,10 +631,19 @@ def build_router(
         storage = await asyncio.to_thread(storage_for, authorization)
         transferred = False
         try:
+            if isinstance(storage, UserStorage) and job_id.startswith('shared.'):
+                parts = job_id.split('.', 2)
+                if len(parts)!=3 or parts[1] not in {'en-AU','zh-CN'}:
+                    raise HTTPException(404, 'Preview job not found')
+                return await shared_preview_response(storage, parts[2], parts[1])
             queue = await AgentTurnLease.io(PreviewJobs)
             job = await AgentTurnLease.io(queue.get, storage.user_id, job_id)
             if not job:
                 raise HTTPException(404, 'Preview job not found')
+            if isinstance(storage, UserStorage):
+                # Old execution jobs remain references to canonical state after
+                # cutover; polling must not resume their duplicate event index.
+                return await shared_preview_response(storage, job['project_id'], job['language'])
             if job['status'] == 'SUCCEEDED':
                 rows, _, key, _ = await preview_snapshot(storage, job['project_id'], job['language'])
                 saved = cached_preview(rows, key) if key == job['snapshot_key'] else None

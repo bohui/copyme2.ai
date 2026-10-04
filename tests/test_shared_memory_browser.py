@@ -16,7 +16,8 @@ from test_shared_memory_events_postgres import (
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
 
 
-def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_path, monkeypatch):
+@pytest.mark.parametrize('width',[1440,390])
+def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_path, monkeypatch,width):
     sources, lanes = five_rounds(sql)
     assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
     rpc(sql, 'retry_user_memoir_lane', "'project','composer'")
@@ -49,7 +50,7 @@ def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_pa
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         base = os.environ['MEMOIR_BROWSER_URL']
-        context = browser.new_context(viewport={'width':1440,'height':1000},reduced_motion='reduce')
+        context = browser.new_context(viewport={'width':width,'height':1000},reduced_motion='reduce')
         context.add_cookies([{'name':'copyme2_ui_locale','value':'en-AU','url':base},{'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         user={'id':OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':'en-AU'}}
         script=f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'synthetic-author',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
@@ -63,6 +64,8 @@ def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_pa
         expect(status).to_contain_text(copy['privateDraftSaved'].replace('{round}','5'),timeout=30000)
         expect(status).to_contain_text(copy['privateDraftUpdating'])
         expect(page.locator('#chat-input')).to_be_enabled()
+        if width==390:
+            page.screenshot(path='/tmp/issue6-before-mobile-tabs.png')
         page.locator('[data-workspace-tab="timeline"]').click()
         page.locator(f'[data-edit-memory-event="{event["id"]}"]').click()
         page.locator('#event-life-stage').select_option('adolescence')
@@ -71,6 +74,11 @@ def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_pa
         page.locator('#event-year-start').fill('1966')
         page.locator('#event-year-end').fill('1966')
         page.locator('#event-correction-statement').fill('I was an adolescent in 1966.')
+        box=page.locator('#memory-event-edit-form').bounding_box()
+        assert box['x']>=0 and box['x']+box['width']<=width
+        destination=ROOT/f'output/preview-debug/issue6-event-edit-form-{width}.png'
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        page.locator('#workspace-detail').screenshot(path=str(destination))
         page.locator('#memory-event-edit-form button[type="submit"]').click()
         expect(page.locator('.timeline-list')).to_contain_text('1966')
         page.reload()

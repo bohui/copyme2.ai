@@ -1,57 +1,182 @@
 # Issue 6 acceptance and verification
 
-Source: https://github.com/bohui/copyme2.ai/issues/6, read in full with all comments on 2026-10-04 (updated 2026-10-04T01:07:30Z; no comments). All 56 user stories and the Implementation/Testing Decisions remain requirements. This matrix records planned behavioral coverage, not passing results.
+Source: [Issue 6](https://github.com/bohui/copyme2.ai/issues/6), authored by `bohui`, labelled `ready-for-agent`. Full body and all comments were read before implementation and rechecked on 2026-10-04; `updated_at=2026-10-04T01:07:30Z`, zero comments. All 56 stories and all Implementation/Testing Decisions remain requirements.
+
+This is local implementation evidence against a pinned dependency, not final integrated acceptance. Independent cloud review, review-clear PR3/current-main integration, overlapping regressions and required CI checks remain gates. Nothing was merged, migrated against production, deployed, or restarted in the shared public stack.
 
 ## Dependency and isolation
 
-This branch is stacked on PR 3's reviewed committed head `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198`. It requires its completed-round ledger, transactional draft outbox, receipt-scoped broker snapshot, and stage-aware commit RPC. PR 3 must land or be reviewed as a dependency; a changed base requires rebase and renewed review. No PR 3 merge is part of this task.
+- Task branch: `codex/issue6-shared-events`; checkout: `/tmp/memoir-issue6`.
+- Exact inherited dependency: PR3 commit `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198`.
+- Exact task-only diff range: `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198..HEAD`. Cloud reviewers must use this range to distinguish Issue6 work from inherited PR3 work.
+- The stacked PR targets `memoir-five-case-evaluation`. That branch's observed integrated head `d67f39085d0fc85f0f6713f66fa9f7bfc3c4a274` is still pending correction/review and is not incorporated here. Parent explicitly authorised publishing the pinned stacked draft.
+- Main was observed at `8e61b19b0a223578450684500263e3c7e7a1c010` after PR5's photo changes. Current-main/PR3 integration is a separate, required step before final acceptance.
+- The dirty primary checkout and other agents' branches, ports, customer databases and services were excluded. Schema changes are only additive migrations `202610040001_shared_memory_events.sql` and `202610040002_memoir_skill_lanes.sql`; inherited migrations were not rewritten.
 
-Checkout: `/tmp/memoir-issue6`, branch `codex/issue6-shared-events`. The dirty primary checkout and PR 5 are excluded. New migrations will be additive, following parent coordination; initial schema and PR 3 migrations will not be rewritten. No production/customer database, shared container services, public deployment, new credentials, or payment is involved.
+## TDD and agreed seams
 
-## Agreed seams and TDD
+Actual [/TDD skill](/Users/bohuihan/.agents/skills/tdd/SKILL.md) and its tests/mocking references were applied. The issue agrees authenticated story workflow, shared application RPC/migration, and a small browser workspace seam. Observable regression slices were run red, implemented, then rerun green; existing behavior checks may start green. Fixture/setup errors are not reported as implementation red evidence.
 
-The issue itself agrees three seams, satisfying `/Users/bohuihan/.agents/skills/tdd/SKILL.md`'s seam agreement rule:
+Controlled responses are only at the external model/provider boundary. Authentication/entitlement metadata and the Supabase REST transport are synthetic boundaries backed by real PostgreSQL roles, transactions and application RPCs. Workers, application validation, dispatch, revision fencing, JS validation, rendering and durable outcomes run normally. No live model semantic evaluation, live OAuth, payments, production migrations or rollout is claimed.
 
-1. Authenticated story workflow: accept narrator input, deliver or fail its reply, drive the existing background worker, read/edit canonical events, read saved private draft.
-2. Shared application service/RPC and migration boundary on real disposable PostgreSQL: transactions, RLS, expected revisions, outbox, links, migration replay, transfer.
-3. Browser workspace: event tag editing, reload, coverage/updating/retry display, premium visibility.
+The existing disposable PostgreSQL harness has an opt-in `MEMOIR_TEST_POSTGRES_BACKEND=apple-container` backend. Each invocation creates a random `memoir-issue6-pg-*` PostgreSQL 18.3 container with one CPU, 1 GiB memory, no host ports, mounts or inherited credentials, PostgreSQL TCP disabled, and removes only that container in teardown. This avoids the host's exhausted SysV shared-memory resource without changing shared services or kernel limits. Temporal tests launch task-only loopback dev servers with fresh SQLite databases, no UI, SDK 1.34.0, CLI 1.9.1/server 1.32.0; workflow history is checked for private story bytes.
 
-External model responses and clocks may be controlled. Internal application validation, dispatch, storage, dependencies, and rendering are exercised together. Controlled provider outcomes are labelled; skipped/unavailable checks are never passes. Each vertical slice adds a failing observable test, implements only that behavior, then reruns it. Mapping precedes implementation, while executable tests are added one slice at a time.
+## Exact 56-story matrix
 
-## Story-to-scenario map
+Each row names a scenario selector below. Passing scenarios establish controlled application behavior; final review/integration gates above still apply.
 
-| Stories | Observable scenario | Seam |
+| Story | Required storyteller/operator outcome | Scenario |
 | --- | --- | --- |
-| 1, 2 | Accepted narration creates durable processing work; an acknowledgement yields no events but completes processing. | Story + PostgreSQL |
-| 3, 8, 9, 11 | One reply creates separate canonical events in supported stages/years; undated/unplaced facts remain saved. | Story |
-| 4, 5, 43 | Several replies enrich the same canonical event; a late detail updates its older dependent section and timeline uses the same ID. | Story |
-| 6, 7 | Similar wording/year/place alone never merges distinct events; ambiguous candidate matches remain unresolved. | Story |
-| 10, 12, 13 | Explicit/approximate/age/range/unknown placement keeps expressions and basis; a long interval remains one period. | Story + PostgreSQL |
-| 14, 15, 16, 17, 28, 44 | Authorised stage/year correction preserves ID, increments revision, dirties both groups, and survives delayed extraction; stale edits conflict. | Story + PostgreSQL + browser |
-| 18, 19 | Competing accounts retain attribution and exact original source versions/spans; generated prose never becomes testimony. | Story |
-| 20 | Closing/reloading returns canonical events and persisted drafts from authorised records. | PostgreSQL + browser |
-| 21, 47 | Delayed bounded partition preparation leaves conversation usable and respects concurrency limit. | Story worker |
-| 22, 23, 24, 25, 37 | Before/at five and ten rounds and nondefault cadence; retries/failed replies/edits/greetings/jobs do not count; allowance twenty remains independent; no purchase/formal-book side effects. | Story + PostgreSQL |
-| 26, 34 | Overlap with unchanged evidence preserves exact section bytes/revisions; coherent assembly and word ceiling remain enforced. | Story composer |
-| 27, 48 | Source edits/link removals/deletion/revocation immediately invalidate dependencies; surviving evidence rebuilds; incompatible late output is rejected. | Story + PostgreSQL |
-| 29 | Required extraction gap keeps milestone pending, including out-of-order completion; snapshot/coverage labels reflect settled inputs. | Story worker |
-| 30, 31, 32 | Eligible saved draft is immediately available during update; coverage, progress and safe retry state are visible; failed review never becomes ready. | Story + browser |
-| 33 | Human-edited/approved/locked text is retained and affected changes become a proposal tied to its base revision. | Story composer |
-| 35, 36 | Chinese, English, and transcribed voice share the event contract; source language is retained independently of output locale. | Story |
-| 38, 39, 40 | Explicit relationship and relevant established-relative correction update tree; unrelated narration leaves it unchanged. | Story |
-| 41 | Event/source/project references and unauthorised edits are rejected; non-Family internal indexing grants no premium display/tree access. | Story + PostgreSQL + browser |
-| 42 | Capability-authorised guest transfer preserves event/source/cursor/manuscript identity; replay adds no rounds/intents/milestones. | PostgreSQL + story |
-| 45 | Accepted-source/outbox atomicity survives disconnect/restart/replay without repeat testimony; cursors only advance on committed success. | PostgreSQL + worker |
-| 46 | Failed preparation/render/review retry reuses successful fingerprinted tasks and preserves manuscript revision fencing. | Story worker |
-| 49 | Replayable migration preserves legacy IDs/aliases, provenance, privacy/print flags, original sources/person links and manuscript references; ambiguous matches remain unresolved. | PostgreSQL migration |
-| 50 | Assertions use agreed public seams and durable outcomes, with provider-only response control. | All |
-| 51, 52 | While one lane run is held, milestones ten/fifteen/twenty and intervening inputs coalesce; exactly one catch-up uses latest claim-time target in each lane. | Existing worker + PostgreSQL |
-| 53 | Failed six-through-ten attempt after saved five remains pending; next run through twenty includes six-through-twenty without duplicated committed work. | Worker |
-| 54 | Durable narrator acceptance survives failed assistant delivery; retry reuses source/input identity while completed-round allowance is unchanged. | Story + PostgreSQL |
-| 55, 56 | Controlled deadline/lease expiry fences a stalled/crashed worker; replacement becomes eligible without a new user turn; late completion cannot overwrite it. | Worker + PostgreSQL + Temporal |
+| 1 | every accepted message processed for life events in the background, so that my timeline grows without a separate recording step. | S01 |
+| 2 | conversational acknowledgements to produce no invented events, so that my timeline contains memories I actually described. | S02 |
+| 3 | several events from one reply saved separately, so that different stages and years are represented accurately. | S03 |
+| 4 | several replies about one event linked together, so that extra details enrich the same story. | S03 |
+| 5 | new details to reach an event first discussed much earlier, so that I can revisit memories naturally. | S04 |
+| 6 | distinct events with similar descriptions kept separate, so that recurring experiences are not merged accidentally. | S05 |
+| 7 | uncertain event matches left unresolved, so that the assistant does not attach my words to the wrong memory. | S05 |
+| 8 | events assigned to supported life stages, so that I can navigate my story by period of life. | S03 |
+| 9 | each event assigned its supported year or date range, so that capture dates do not become story dates. | S03 |
+| 10 | approximate expressions such as around 1970 preserved, so that my memoir reflects my uncertainty. | S03 |
+| 11 | an undated memory retained, so that missing timing does not discard an otherwise clear event. | S05 |
+| 12 | a year estimate linked to its evidence, so that I can understand and correct its basis. | S06 |
+| 13 | long life periods retained as single records with ranges, so that my work or residence history is not fragmented into invented yearly events. | S05 |
+| 14 | to correct a previously saved event's life stage, so that its placement matches my recollection. | S07 |
+| 15 | to correct a previously saved event's year, so that both the timeline and writing reflect the correction. | S08 |
+| 16 | my explicit tag corrections retained during later extraction, so that the assistant does not silently undo them. | S07 |
+| 17 | an event's identity retained when its tags change, so that its source and chapter links remain intact. | S07 |
+| 18 | conflicting accounts to retain their attribution, so that the system does not silently choose a factual winner. | S09 |
+| 19 | access to the original evidence behind an event, so that I can review what supports the timeline and prose. | S03 |
+| 20 | event records to survive closing the browser and returning later, so that my work is recoverable across sessions. | S10 |
+| 21 | conversation to continue while extraction and writing run, so that background work does not interrupt storytelling. | S11 |
+| 22 | the first supported private draft after five completed rounds, so that I can see progress early. | S12 |
+| 23 | later five-round checkpoints to update relevant writing, so that the draft grows as I provide more memories. | S04 |
+| 24 | failed replies and technical retries excluded from the round count, so that milestones reflect actual conversation. | S13 |
+| 25 | editing an earlier message to update affected writing without counting as a new round, so that correcting a memory does not change my allowance. | S14 |
+| 26 | unchanged passages preserved exactly, so that new memories do not unexpectedly rewrite earlier writing. | S04 |
+| 27 | deleted or withdrawn sources removed from eligible derived content, so that earlier drafts do not continue exposing that material. | S15 |
+| 28 | an event moved between stage/year groups to update both affected groups, so that it is neither duplicated nor left behind. | S08 |
+| 29 | a checkpoint to include extraction through its stated round, so that its coverage label is accurate. | S16 |
+| 30 | the latest validated draft available while a newer version runs, so that I can review saved progress immediately. | S17 |
+| 31 | to see the round covered by my saved draft, so that I understand how current it is. | S18 |
+| 32 | recoverable failures to show a clear retry state, so that quiet background processing does not conceal a stalled update. | S19 |
+| 33 | human-edited or approved writing protected, so that automatic enrichment becomes a reviewable proposal. | S20 |
+| 34 | chapters grouped around meaningful narrative transitions, so that event indexing does not turn my memoir into disconnected fragments. | S19 |
+| 35 | source language and memoir output language kept distinct, so that indexing does not alter my original testimony. | S06 |
+| 36 | Chinese and English memories processed through the same event contract, so that language choice does not change persistence behavior. | S13 |
+| 37 | background draft checkpoints kept separate from payment and formal-book readiness, so that routine updates do not initiate a purchase or publication. | S21 |
+| 38 | As a Family legacy storyteller, I want explicit relationship mentions to trigger family-tree updates, so that my tree grows when relevant information appears. | S22 |
+| 39 | As a Family legacy storyteller, I want relevant corrections to an established relative processed, so that the saved tree remains accurate without repeating the relationship introduction. | S22 |
+| 40 | ordinary messages without relationship information to leave the family tree unchanged, so that unrelated conversation does not cause unnecessary tree work. | S22 |
+| 41 | my events isolated from other users and projects, so that private memories cannot cross ownership boundaries. | S23 |
+| 42 | As a returning guest storyteller, I want an authorised account transfer to preserve event identities and source links, so that signing in does not duplicate my story or milestones. | S24 |
+| 43 | As an editor, I want timeline and composer to use the same canonical event IDs, so that a correction has one target throughout the project. | S25 |
+| 44 | As an editor, I want stale writes rejected with a recoverable conflict, so that concurrent extraction or editing cannot overwrite newer decisions. | S26 |
+| 45 | background intents to survive disconnects and restarts, so that saved narrator messages are eventually processed without asking the storyteller to repeat them. | S27 |
+| 46 | retries to reuse completed work, so that a failed render or review does not repeat every successful partition task. | S28 |
+| 47 | partition preparation to run with bounded concurrency, so that independent work can finish faster without unlimited provider requests. | S11 |
+| 48 | obsolete output rejected after a relevant correction or revocation, so that a late job cannot restore outdated or inaccessible content. | S29 |
+| 49 | existing event and manuscript references preserved during migration, so that the shared index can replace duplicate indexes without losing prior work. | S30 |
+| 50 | acceptance tests driven through the story workflow, so that refactoring internal storage does not require rewriting tests for every helper function. | S12 |
+| 51 | later milestones to wait while an earlier background run is active, so that competing jobs cannot overwrite my event structure or draft. | S31 |
+| 52 | the next background run to include all accumulated inputs, so that a slow run can catch up across ten or fifteen conversation rounds. | S31 |
+| 53 | inputs from a failed background attempt kept pending, so that an unsuccessful run does not silently lose part of my story. | S32 |
+| 54 | my durably accepted message retained as evidence even when an assistant reply fails, so that a delivery error does not discard the memory I supplied. | S33 |
+| 55 | a stalled background run to reach a configured timeout, so that queued work can recover without waiting forever. | S34 |
+| 56 | output from a timed-out worker rejected after a replacement run starts, so that a late response cannot overwrite newer saved state. | S35 |
 
-## Required verification record
+## Reproducible scenario selectors
 
-Record exact commands/results and environment identity for each completed slice. Real PostgreSQL migration/transaction checks and real Temporal/outbox/recovery/browser integration are required where feasible. Provider simulation is not live semantic verification. Remaining environment limits must remain explicit blockers, not silently skipped acceptance criteria.
+Each selector is an actual collected test. Invoke it with `python -m pytest <file>::<selector>`; parameterised cases run together. P is the PostgreSQL/story file, T actual Temporal/worker integration, B the browser workspace file.
 
-Baseline on isolated pinned PR 3: `python3 -m pytest -q tests/test_private_rounds_postgres.py` under reviewed isolated execution: **7 passed**, real disposable PostgreSQL, 2026-10-04. Approved execution resolves the sandbox shared-memory restriction without modifying shared services.
+| Scenario | File/seam | Exact test selector |
+| --- | --- | --- |
+| S01 | [P](../tests/test_shared_memory_events_postgres.py) | `test_existing_worker_boundary_commits_canonical_events_and_successful_empty_processing` |
+| S02 | [P](../tests/test_shared_memory_events_postgres.py) | `test_empty_extraction_advances_only_its_committed_input` |
+| S03 | [P](../tests/test_shared_memory_events_postgres.py) | `test_one_reply_has_distinct_events_and_later_reply_enriches_the_same_identity` |
+| S04 | [P](../tests/test_shared_memory_events_postgres.py) | `test_new_evidence_for_an_old_event_changes_its_passage_and_preserves_unrelated_bytes` |
+| S05 | [P](../tests/test_shared_memory_events_postgres.py) | `test_similar_events_ambiguous_matches_and_long_periods_share_originals_without_merging` |
+| S06 | [P](../tests/test_shared_memory_events_postgres.py) | `test_supported_age_estimates_retain_original_language_expression_and_birth_basis` |
+| S07 | [P](../tests/test_shared_memory_events_postgres.py) | `test_explicit_tag_correction_preserves_identity_and_fences_later_model_estimate` |
+| S08 | [P](../tests/test_shared_memory_events_postgres.py) | `test_tag_correction_invalidates_old_and_new_groups_without_changing_rounds` |
+| S09 | [P](../tests/test_shared_memory_events_postgres.py) | `test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author_correction` |
+| S10 | [B](../tests/test_shared_memory_browser.py) | `test_saved_coverage_and_timeline_tag_edit_survive_browser_reload` |
+| S11 | [P](../tests/test_shared_memory_events_postgres.py) | `test_authenticated_chat_completes_while_independent_partition_preparations_are_held` |
+| S12 | [P](../tests/test_shared_memory_events_postgres.py) | `test_existing_composer_worker_uses_shared_event_ids_and_originals_without_reextracting` |
+| S13 | [P](../tests/test_shared_memory_events_postgres.py) | `test_authenticated_voice_turn_retains_original_chinese_and_failed_reply_does_not_count` |
+| S14 | [P](../tests/test_shared_memory_events_postgres.py) | `test_existing_conversation_memory_edit_and_delete_update_canonical_evidence` |
+| S15 | [P](../tests/test_shared_memory_events_postgres.py) | `test_source_changes_immediately_hide_dependent_drafts_and_reject_late_output` |
+| S16 | [P](../tests/test_shared_memory_events_postgres.py) | `test_composer_checkpoint_waits_for_extraction_and_coalesces_at_claim_time` |
+| S17 | [P](../tests/test_shared_memory_events_postgres.py) | `test_latest_validated_draft_is_available_with_coverage_while_update_is_running` |
+| S18 | [P](../tests/test_shared_memory_events_postgres.py) | `test_terminal_composer_failure_exposes_a_retry_instead_of_perpetual_updating` |
+| S19 | [P](../tests/test_shared_memory_events_postgres.py) | `test_an_unreviewed_or_oversized_canonical_candidate_never_becomes_a_ready_saved_draft` |
+| S20 | [P](../tests/test_shared_memory_events_postgres.py) | `test_protected_draft_keeps_its_bytes_and_saves_enrichment_as_a_revision_bound_proposal` |
+| S21 | [P](../tests/test_shared_memory_events_postgres.py) | `test_authenticated_saved_draft_returns_shared_coverage_and_keeps_premium_display_gated` |
+| S22 | [P](../tests/test_shared_memory_events_postgres.py) | `test_story_workspace_only_dispatches_relationship_tree_and_never_duplicate_timeline` |
+| S23 | [P](../tests/test_shared_memory_events_postgres.py) | `test_event_person_and_chronology_references_cannot_cross_project_scope` |
+| S24 | [P](../tests/test_shared_memory_events_postgres.py) | `test_capability_transfer_preserves_canonical_ids_draft_dependencies_and_retry_state` |
+| S25 | [P](../tests/test_shared_memory_events_postgres.py) | `test_incremental_composition_retrieves_old_dirty_evidence_with_small_continuity_context` |
+| S26 | [P](../tests/test_shared_memory_events_postgres.py) | `test_unchanged_heading_is_restored_before_review_and_rendering` |
+| S27 | [P](../tests/test_shared_memory_events_postgres.py) | `test_an_acceptance_outbox_failure_rolls_back_original_evidence_and_replay_remains_unique` |
+| S28 | [P](../tests/test_shared_memory_events_postgres.py) | `test_bounded_partition_preparation_reuses_successes_after_provider_failure` |
+| S29 | [P](../tests/test_shared_memory_events_postgres.py) | `test_withdrawal_prunes_only_the_owners_legacy_execution_cache_before_outbox_acknowledgement` |
+| S30 | [P](../tests/test_shared_memory_events_postgres.py) | `test_saved_legacy_composer_cache_is_imported_with_stable_event_and_section_references` |
+| S31 | [T](../tests/test_memoir_lanes_temporal.py) | `test_real_worker_and_temporal_coalesce_busy_lane_to_latest_available_inputs` |
+| S32 | [T](../tests/test_memoir_lanes_temporal.py) | `test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn` |
+| S33 | [P](../tests/test_shared_memory_events_postgres.py) | `test_story_workflow_retains_original_testimony_when_provider_delivery_fails` |
+| S34 | [T](../tests/test_memoir_lanes_temporal.py) | `test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry` |
+| S35 | [P](../tests/test_shared_memory_events_postgres.py) | `test_failed_and_timed_out_timeline_ranges_remain_pending_and_late_worker_is_fenced` |
+
+Additional passing cases cover old/new grouping invalidation, stale revision conflicts, narrator birth versus a relative's birth, successful empty/out-of-order extraction, link-removal tombstones and surviving overrides, source history/context sanitisation, immutable unrelated passage and heading reuse, ambiguous legacy aliases, current policy fencing, scope-safe cache pruning, separate milestone history versus actual coverage, and the existing twenty-round sample route consuming the shared draft. Both Temporal skill-lane parameterisations cover held arrivals at ten/fifteen/twenty plus round 21, exactly one catch-up, and failed six-through-ten recovery through twenty.
+
+The existing [composer contract suite](../skills/memoir-composer/tests/composer.test.mjs) and [progressive fixture suite](../skills/memoir-composer/tests/progressive_e2e.test.mjs) additionally cover chronological assembly, exact 7000/7001 word boundaries, Chinese segmentation, original-versus-derived evidence, source/asset rights, protected chapter proposals, runtime counter validation and absence of automatic publication. The small browser suite covers desktop/mobile tag editing and reload, bilingual stage display, saved coverage/updating and premium-family display/fallback.
+
+## Verification record
+
+Run date: 2026-10-04, macOS 26.3.1 arm64, Python 3.12.11, pytest 8.4.2, FastAPI 0.142.2, httpx 0.28.1, psycopg 3.3.5, Playwright 1.62.0, Temporal SDK 1.34.0, Next 16.3.6. Installed Node 20.19.4 exercised the initial integration runs; Node 22.22.0 is used for the final supported-runtime checks. The task's web dependencies were reused read-only via an untracked symlink; neither dependency files nor the symlink are included in commits.
+
+| Check | Current result | Evidence |
+| --- | --- | --- |
+| Canonical PostgreSQL/story acceptance | 68 passed in 191.66s under Node 22.22.0; no skipped cases. | `tests/test_shared_memory_events_postgres.py` |
+| Actual Temporal/outbox/private-worker recovery | 6 passed in 87.71s under Node 22.22.0; no skipped cases. | `tests/test_memoir_lanes_temporal.py` |
+| Relevant API/storage/family/preview/private-draft/runtime regressions | 182 passed in 23.50s under Node 22.22.0. | Files in command below |
+| Browser workspace/stage/family | 8 passed in 41.51s after mobile navigation fix. | Three browser files below |
+| Composer contracts and progressive fixtures, Node 22.22.0 | 62 passed, zero skipped/cancelled/todo. | `node --test tests/*.test.mjs` |
+| Python compile | Passed. | `python -m compileall -q apps/api scripts tests/fixtures/issue6_controlled_app_server.py` |
+| Next production build, Node 22.22.0 | Passed with final tag-edit/mobile CSS. | `next build --webpack` |
+| Independent cloud review and current-main/PR3 integration | Pending; final acceptance blocked. | Parent handoff |
+
+Canonical and Temporal commands, from the isolated checkout:
+```sh
+PATH=/opt/homebrew/bin:$PATH MEMOIR_TEST_POSTGRES_BACKEND=apple-container \
+  .venv/bin/python -m pytest -q tests/test_shared_memory_events_postgres.py --tb=short
+PATH=/opt/homebrew/bin:$PATH MEMOIR_TEST_POSTGRES_BACKEND=apple-container \
+  .venv/bin/python -m pytest -q tests/test_memoir_lanes_temporal.py --tb=short
+```
+
+Relevant regression command:
+```sh
+MEMOIR_TEST_POSTGRES_BACKEND=apple-container .venv/bin/python -m pytest -q \
+  tests/test_agent_routes.py tests/test_agent_storage.py tests/test_codex_agent.py \
+  tests/test_codex_worker.py tests/test_family_agent.py tests/test_family_context.py \
+  tests/test_memoir_preview.py tests/test_private_drafts.py tests/test_private_draft_broker.py \
+  tests/test_preview_jobs.py tests/test_temporal_dispatch.py tests/test_task_runtime.py \
+  tests/test_workspace_latency.py tests/test_response_stage_index.py tests/test_private_rounds_postgres.py
+```
+
+Browser command while the isolated frontend is listening at `127.0.0.1:48166`:
+```sh
+MEMOIR_BROWSER_URL=http://127.0.0.1:48166 MEMOIR_TEST_POSTGRES_BACKEND=apple-container \
+  .venv/bin/python -m pytest -q tests/test_shared_memory_browser.py \
+  tests/test_stage_readiness_browser.py tests/test_family_tree_browser.py --tb=short
+```
+
+Frontend start/build use the source checkout, `NEXT_TELEMETRY_DISABLED=1`, an unused upstream `http://127.0.0.1:49999`, Node 22.22.0 and `--webpack`. The API bridge in browser tests calls the actual authenticated story router and PostgreSQL RPCs; synthetic external auth/project metadata is labelled in the fixture. Screenshots were inspected in `output/preview-debug/issue6-event-edit-form-1440.png` and `issue6-event-edit-form-390.png`. No request is sent to the public application.
+
+Failed aggregate attempts are not counted as passes: the first lost a disposable 512 MiB database, later fixture failures exposed missing spans and outbox state leaking between test cases, a frontend start failed its sandbox loopback bind, and a mobile click exposed shrinking navigation. Only the corrected fresh runs above provide evidence. No skipped/unavailable check substitutes for passing coverage.
+
+## Remaining gates and handoff
+
+1. Independent cloud review of the exact pushed task head using the pinned task-only diff range.
+2. Owner fixes and fresh cloud delta review for any findings.
+3. Deliberate integration of review-clear PR3/current main, preserving concurrent photo and timeline/private-round changes, then rerun overlapping integration checks and CI.
+4. Any merge that has production consequences still needs its applicable approval. This branch must not be self-approved, merged or deployed to bypass those gates.

@@ -62,6 +62,19 @@ create table if not exists public.user_memory_event_source (
   foreign key(user_id,project_id,event_id) references public.user_memory_event on delete cascade,
   foreign key(user_id,project_id,source_id,source_version) references public.user_narrator_source_version on delete cascade
 );
+create table if not exists public.user_memory_event_source_exclusion (
+  user_id uuid not null, project_id text not null, event_id text not null, source_id uuid not null,
+  actor uuid not null, statement text not null, expected_revision bigint not null,
+  primary key(user_id,project_id,event_id,source_id),
+  foreign key(user_id,project_id,event_id) references public.user_memory_event on delete cascade,
+  foreign key(user_id,project_id,source_id) references public.user_narrator_source on delete cascade
+);
+alter table public.user_memory_event_source_exclusion enable row level security;
+revoke all on public.user_memory_event_source_exclusion from public,anon,authenticated;
+grant select on public.user_memory_event_source_exclusion to authenticated;
+drop policy if exists memory_event_exclusion_owner on public.user_memory_event_source_exclusion;
+create policy memory_event_exclusion_owner on public.user_memory_event_source_exclusion for select to authenticated using(user_id=auth.uid());
+
 create table if not exists public.user_memory_event_revision (
   user_id uuid not null, project_id text not null, event_id text not null, revision bigint not null,
   record jsonb not null, actor text not null, origin text not null,
@@ -237,8 +250,13 @@ begin
         age_number:=public.memory_age_number(basis->>'quote');
         if age_number is not null then
           for birth_basis in select value from pg_catalog.jsonb_array_elements(p_temporal->'basis') loop
-            if birth_basis->>'quote' ~* '(born|birth|出生)' then
-              birth_match:=pg_catalog.regexp_match(birth_basis->>'quote','([0-9]{4})');
+            if birth_basis->>'quote' ~* '(born|birth|出生|生于)' then
+              -- First-person birth provenance is required. A relative's birth
+              -- year, submission timestamp or stage is not the narrator's age.
+              birth_match:=coalesce(
+                pg_catalog.regexp_match(birth_basis->>'quote','(?i)(?:\mi\M\s+(?:was\s+)?born\s+(?:in\s+)?|\mmy\s+(?:birth year|year of birth)\s+(?:was|is)?\s*)([0-9]{4})'),
+                pg_catalog.regexp_match(birth_basis->>'quote','我(?:是|于|在)?([0-9]{4})年?(?:出生|生于)'),
+                pg_catalog.regexp_match(birth_basis->>'quote','我(?:是)?(?:出生|生于)(?:于|在)?([0-9]{4})'));
               if birth_match is not null and birth_match[1]::integer+age_number=target_year then supported:=true; end if;
             end if;
           end loop;
@@ -339,8 +357,19 @@ begin
     if event_stage not in ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
       raise exception 'invalid life stage' using errcode='22023';
     end if;
-    event_data:=coalesce(current_event.data,'{"temporal":{"expression":"unknown","precision":"unknown"},"visibility":"private","include_in_print":false}'::jsonb) ||
+    event_data:=(coalesce(current_event.data,'{"temporal":{"expression":"unknown","precision":"unknown"},"visibility":"private","include_in_print":false}'::jsonb)-'reconciliation_source_ids') ||
       (proposal - array['id','existing_id','expected_revision','source_refs','kind','life_stage']);
+    if proposal ? 'temporal' and not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal') and
+       (coalesce((current_event.data->>'timing_conflict')::boolean,false) or
+        (current_event.data->'temporal'->>'year_start' is not null and proposal->'temporal'->>'year_start' is not null and
+         (current_event.data->'temporal'->>'year_start' is distinct from proposal->'temporal'->>'year_start' or
+          current_event.data->'temporal'->>'year_end' is distinct from proposal->'temporal'->>'year_end'))) then
+      event_data:=event_data || pg_catalog.jsonb_build_object('timing_conflict',true,
+        'temporal_accounts',coalesce(current_event.data->'temporal_accounts',pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('temporal',current_event.data->'temporal'))) ||
+          pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('temporal',proposal->'temporal')),
+        'temporal',pg_catalog.jsonb_build_object('expression','unknown','precision','unknown',
+          'basis',coalesce(current_event.data->'temporal'->'basis','[]') || coalesce(proposal->'temporal'->'basis','[]')));
+    end if;
     if current_event.data->'user_overrides' ? 'life_stage' then event_stage:=current_event.life_stage; end if;
     if current_event.data->'user_overrides' ? 'temporal' then
       event_data:=pg_catalog.jsonb_set(event_data,'{temporal}',current_event.data->'temporal');
@@ -364,6 +393,9 @@ begin
       raise exception 'life stage requires evidence' using errcode='22023';
     end if;
     for ref in select value from pg_catalog.jsonb_array_elements(proposal->'source_refs') loop
+      if exists(select 1 from public.user_memory_event_source_exclusion x where x.user_id=owner_id and x.project_id=p_project_id
+        and x.event_id=current_event.id and x.source_id::text=ref->>'source_id') then
+        raise exception 'removed source link requires an explicit author decision' using errcode='42501'; end if;
       perform public.validate_memory_evidence(owner_id,p_project_id,ref);
       select * into evidence from public.user_narrator_source where user_id=owner_id and project_id=p_project_id and id=(ref->>'source_id')::uuid;
       if not found then raise exception 'event source unavailable' using errcode='42501'; end if;
@@ -456,13 +488,18 @@ begin
     values(owner_id,p_project_id,p_event_id,(correction_source->>'id')::uuid,(correction_source->>'version')::bigint,pg_catalog.md5(correction_ref::text),correction_ref) on conflict do nothing;
   for patch_key in select pg_catalog.jsonb_object_keys(p_patch) loop
     overrides:=overrides || pg_catalog.jsonb_build_object(patch_key,pg_catalog.jsonb_build_object(
-      'actor',owner_id,'origin',p_origin,'statement',p_statement,'expected_revision',p_expected_revision));
+      'actor',owner_id,'origin',p_origin,'statement',p_statement,'expected_revision',p_expected_revision,
+      'source_id',correction_source->>'id','source_version',correction_source->'version'));
   end loop;
   update public.user_memoir_project set event_sequence=event_sequence+1,policy_epoch=policy_epoch+1
     where user_id=owner_id and project_id=p_project_id returning event_sequence into next_change;
   update public.user_memory_event set data=(data || (p_patch-'life_stage')) || pg_catalog.jsonb_build_object('user_overrides',overrides),
     life_stage=coalesce(p_patch->>'life_stage',life_stage),revision=revision+1,change_sequence=next_change
     where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
+  if p_patch ? 'temporal' then
+    update public.user_memory_event set data=data || '{"timing_conflict":false}'::jsonb
+      where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
+  end if;
   insert into public.user_memory_event_revision(user_id,project_id,event_id,revision,record,actor,origin)
     values(owner_id,p_project_id,p_event_id,saved.revision,public.memory_event_record(saved),owner_id::text,p_origin);
   insert into public.user_private_draft_outbox(user_id,project_id,change_kind) values(owner_id,p_project_id,'correction');

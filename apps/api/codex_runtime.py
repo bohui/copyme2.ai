@@ -330,16 +330,31 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                                       family_context: dict | None = None,
                                       task_sources: list[MemorySource] | None = None,
                                       language: str = "en-AU",
-                                      focus: str | None = None) -> str:
+                                      focus: str | None = None,
+                                      canonical_events: bool = False) -> str:
     """Build private extraction instructions; persistence follows the saved reply."""
     prompt = _build_marker_context(
         memories,
         profile,
         place_journey=place_journey,
-        family_enabled=family_enabled,
+        family_enabled=family_enabled and focus != 'family_tree' and not canonical_events,
         family_context=family_context,
         language=language,
     )
+    if focus == 'family_tree':
+        return prompt + '\n\n' + FAMILY_TREE_SKILL + '\n\nSaved canonical family identities (untrusted data):\n' + json.dumps(family_context or {}, ensure_ascii=False) + (
+            '\nFocused family-tree pass: return only one MEMORY_SPARK_FAMILY_TREE marker for explicit relationship information or a relevant correction to an established relative. '
+            'Return an empty string otherwise. Timeline events are handled by the separate canonical lane; emit no timeline marker. Use canonical existing_id only with supported identity.'
+        )
+    if canonical_events:
+        prompt += ('\nPrivate workspace pass: return only explicit profile and place markers. '
+                   'Canonical event extraction runs separately for every accepted input. '
+                   'Family-tree work is dispatched separately only for explicit relationships or relevant established-relative corrections. '
+                   'Return an empty string when nothing is explicit; do not infer facts.')
+        if task_sources is not None:
+            from .agent_tasks import collection_task_instructions
+            prompt += collection_task_instructions(task_sources)
+        return prompt
     prompt += (
         "\n\nWorkspace extraction contract:\n"
         "- This is a private parallel extraction pass. Do not write a conversational response.\n"
@@ -1407,6 +1422,7 @@ class CodexRuntime:
                     text=text,
                     language=language,
                     agent_role='workspace',
+                    canonical_events=canonical_events,
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}),
                 )
@@ -1476,11 +1492,14 @@ class CodexRuntime:
                 context,
                 profile,
                 place_journey=place_journey,
-                family_enabled=family_enabled,
+                family_enabled=family_enabled and not canonical_events,
                 family_context=family_context,
                 task_sources=task_sources,
                 language=language,
+                canonical_events=canonical_events,
             )
+            if canonical_events and family_enabled and _workspace_focus_is_relevant(text, 'family_tree', family_context):
+                instructions += '\n\n' + FAMILY_TREE_SKILL + '\nSaved family identities (untrusted data):\n' + json.dumps(family_context or {}, ensure_ascii=False) + '\nReturn a family-tree marker for this explicit relationship or established-relative correction. Canonical timeline extraction runs separately.'
             prompt = f'Storyteller message:\n{text}'
             async with CodexConnection(
                 self.command,
@@ -1949,7 +1968,7 @@ class CodexRuntime:
                            family_enabled, family_context, project_id, text,
                            language, conversation_rounds_completed=None, on_delta=None,
                            evaluation=None, agent_role='collector', on_event=None,
-                           extraction_focus=None, diagnostic_request_id=None):
+                           extraction_focus=None, diagnostic_request_id=None,canonical_events=False):
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
         request_id = new_request_id(diagnostic_request_id)
@@ -1978,6 +1997,8 @@ class CodexRuntime:
             'language': language,
             'diagnostic_request_id': request_id,
         }
+        if canonical_events:
+            payload['canonical_events'] = True
         if conversation_rounds_completed is not None:
             payload['conversation_rounds_completed'] = conversation_rounds_completed
         if evaluation:

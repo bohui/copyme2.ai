@@ -173,7 +173,6 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
             options = {
                 'project_id': payload.project_id,
                 'language': payload.language,
-                'source_kind': payload.source_kind,
                 'on_delta': emit,
                 'on_event': emit.event,
                 'user_response': False,
@@ -224,6 +223,8 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
                 'on_delta': emit,
                 'on_event': emit.event,
             }
+            if payload.source_kind != 'narrator_chat':
+                options['source_kind'] = payload.source_kind
             if payload.first_reply_localization:
                 options['first_reply_localization'] = True
             if payload.conversation_text is not None:
@@ -238,8 +239,9 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
             media_type='application/x-ndjson', headers=STREAM_HEADERS,
         )
     try:
-        options = {'project_id': payload.project_id, 'language': payload.language,
-                   'source_kind': payload.source_kind}
+        options = {'project_id': payload.project_id, 'language': payload.language}
+        if payload.source_kind != 'narrator_chat':
+            options['source_kind'] = payload.source_kind
         if payload.first_reply_localization:
             options['first_reply_localization'] = True
         if payload.conversation_text is not None:

@@ -86,14 +86,22 @@ Retain the originals. A shorter summary must not delete source evidence or becom
 
 ## 4. Build the chronological main storyline first
 
-Reuse the host's saved event index and response groups in `context.stage_source_ids`.
-Responses carry `life_stage` and are ordered by stage, then `source_order` (capture
-order within the stage). Index new, changed and affected original responses plus
-the supplied overlap; carry forward unchanged event assignments. The first run
-indexes the initial packet once. Stage tags guide retrieval, while remembered
-dates and before/after relations establish event chronology. Keep `unplaced`
-responses unresolved until evidence supports their timing. Deduplicate real-life
-events and preserve date ranges, unknown dates and competing accounts.
+Consume the host's shared PostgreSQL MemoryEvent index and exact original sources.
+Timeline and prose use the same stable event IDs and independent event/source
+revisions. Do not extract, merge or retag events in composer. Record discrepancies
+as review flags for the shared event service. Stage/year/event groups are retrieval
+and preparation units, not mandatory chapter boundaries. Preserve intervals,
+unknown placement, original date expressions and competing attribution.
+
+The host serialises one composer lane, waits for extraction through the selected
+round, and freezes source/event/policy manifests and output locale. Later milestones
+coalesce; catch-up may cover turns beyond its triggering milestone. Prepare only
+dirty groups with bounded parallelism inside that run. Reuse fingerprinted successful
+preparations on retry. Preserve unchanged blocks, headings and transitions exactly,
+with immutable revisions and declared event/source dependencies. Model rewrites
+cannot replace unchanged stored text. Affected human-edited, approved or locked
+text receives an exact-base proposal. Failed/timed-out work never advances successful
+cursors; revisions, access policy, ownership tokens and deadlines fence late output.
 
 1. Order supported events by their remembered dates or source-supported before/after relations.
 2. Group coherent stretches around meaningful transitions: a home, school or learning period, new responsibility, place change, relationship, occupation, migration or later-life interest—only when actually supported.

@@ -58,6 +58,7 @@ class WorkerTurnInput(BaseModel):
     profile: dict[str, Any] = Field(default_factory=dict)
     place_journey: dict[str, Any] = Field(default_factory=dict)
     family_enabled: bool = False
+    canonical_events: bool = False
     family_context: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
     text: str = Field(min_length=1, max_length=500000)
@@ -352,6 +353,7 @@ class CodexWorker:
                 task_sources=payload.task_sources,
                 language=language,
                 focus=payload.extraction_focus,
+                canonical_events=payload.canonical_events,
             )
         else:
             instructions = build_system_prompt(

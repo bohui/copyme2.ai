@@ -398,6 +398,13 @@ h3 { line-height: 1.1; }
 .reference-row strong, .person-row strong, .timeline-row strong { font-size: 11px; }
 .reference-row small, .person-row small, .timeline-row small { color: var(--muted); font-size: 10px; margin-top: 3px; line-height: 1.35; }
 .people-list, .timeline-list { display: grid; }
+.memory-event-edit-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 680px; margin-top: 12px; }
+.memory-event-edit-form label { display: grid; gap: 6px; min-width: 0; font-size: 13px; line-height: 1.4; }
+.memory-event-edit-form label:first-child, .memory-event-edit-form label:has(textarea) { grid-column: 1 / -1; }
+.memory-event-edit-form input, .memory-event-edit-form select, .memory-event-edit-form textarea { width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); font: inherit; font-size: 16px; }
+.memory-event-edit-form textarea { min-height: 84px; resize: vertical; }
+.memory-event-edit-form button { justify-self: start; min-height: 44px; }
+@media (max-width: 600px) { .memory-event-edit-form { grid-template-columns: minmax(0, 1fr); } }
 .family-chart-adapter, .vis-timeline-adapter { padding: 12px; border: 1px solid rgba(49,95,85,.12); border-radius: 13px; background: linear-gradient(145deg, rgba(241,246,239,.8), rgba(255,255,255,.78)); }
 .family-chart-adapter > .eyebrow, .vis-timeline-adapter > .eyebrow { margin-bottom: 4px; color: var(--green); }
 .family-chart-library, .vis-timeline-library { width: 100%; height: 280px; margin: 10px 0 14px; overflow: hidden; border-radius: 10px; }
@@ -1052,6 +1059,8 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
     border-bottom: 1px solid var(--line); overscroll-behavior-y: contain;
   }
   .story-shell:has(#chat-scroll) .workspace-detail.is-collapsed { flex: 0 0 auto; max-height: none; }
+  .story-shell:has(#chat-scroll) .workspace-detail > .workspace-detail-top,
+  .story-shell:has(#chat-scroll) .workspace-detail > .workspace-detail-tabs { flex: 0 0 auto; }
   .story-shell:has(#chat-scroll) .workspace-detail:has(.family-workspace) { flex-basis: 70%; max-height: 70%; overflow: hidden; }
   .story-shell:has(#chat-scroll) .workspace-detail > .family-workspace { flex: 1 1 0; height: 0; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
   .story-shell:has(#chat-scroll) .workspace-detail.is-collapsed .workspace-detail-top { padding: 5px 12px; justify-content: flex-end; }

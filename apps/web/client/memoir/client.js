@@ -79,6 +79,7 @@ const state = {
   attachmentProgress: "",
   audioUploadId: null,
   audioTranscript: "",
+  audioTranscriptKind: "narrator_chat",
   audioPlayer: null,
   voiceMode: false,
   voiceModeStatus: "off",
@@ -1454,7 +1455,16 @@ async function refreshFamilyContext() {
       if (snapshot.processing?.pending_inputs) memoryEventTimer = setTimeout(refreshFamilyContext, 15000);
     }
     return body?.family_context || null;
-  } catch {
+  } catch (failure) {
+    if (failure.status === 403 && state.project?.id === projectId && state.supabase?.user?.id === ownerId) {
+      state.familyFeaturesEnabled = false;
+      state.timeline = [];
+      state.familyContext = null;
+      state.people = [];
+      state.relationships = [];
+      state.memoryEventEdit = null;
+      render();
+    }
     return null;
   }
 }
@@ -3830,6 +3840,7 @@ function bindViewActions() {
   $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.chatHistoryCollapsed = false; state.workspaceTab = "memoir"; cancelDictation(); render(); });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
   $("#chat-input")?.addEventListener("input", (event) => {
+    if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
     state.audioTranscript = event.target.value;
     resizeChatInput(event.target);
   });
@@ -3953,7 +3964,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const input = $("#chat-input");
   const text = voiceTurn ? state.audioTranscript.trim() : (input?.value.trim() || state.audioTranscript.trim() || "");
-  const sourceKind = voiceTurn || (!(input?.value.trim()) && Boolean(state.audioTranscript.trim())) ? "narrator_transcript" : "narrator_chat";
+  const sourceKind = voiceTurn ? "narrator_transcript" : state.audioTranscriptKind;
   const uploadId = state.audioUploadId;
   const attachments = voiceTurn ? [] : [...state.attachments];
   if (attachments.length && !state.attachmentRights) return toast(translate("Memoir.story.attachmentRightsRequired"));
@@ -4382,6 +4393,7 @@ async function startVoiceModeTurn() {
         }
         state.audioUploadId = saved.uploadId;
         state.audioTranscript = saved.text;
+        state.audioTranscriptKind = "narrator_transcript";
         await sendChatMessage({ voiceTurn: true });
       } catch (error) {
         if (state.voiceMode) {
@@ -4490,6 +4502,7 @@ async function transcribeDictation(id) {
     if (state.dictationId !== id) return;
     if (state.dictationId !== id) return;
     state.audioTranscript = [state.audioTranscript.trim(), saved.text].filter(Boolean).join(" ");
+    state.audioTranscriptKind = "narrator_transcript";
     shouldSend = state.dictationSend && Boolean(saved.text);
   } catch (error) { if (state.dictationId === id) toast(error.message); }
   finally {
