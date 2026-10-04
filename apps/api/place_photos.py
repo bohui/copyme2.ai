@@ -585,6 +585,8 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
     elif not skip_google_browser and (_configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID')):
         providers.insert(0, ('google', _google_browser))
     providers.insert(0, ('flickr', _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser))
+    if _configured_env('MEMORY_SPARK_PHOTO_WEB_SEARCH').lower() in {'1', 'true', 'yes'}:
+        providers.insert(0, ('llm_web_search', _llm_web_search))
     def run(provider):
         # The combined browser query already discovers the containing decade.
         scope = (_decade_fallback(period) or period) if provider is _google_browser else period
@@ -666,6 +668,51 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
 def _google_browser(place: str, period: str, *, on_items=None) -> list[dict]:
     from .place_photo_browser import crawl_place_photos
     return crawl_place_photos('google', place, period, limit=DISCOVERY_LIMIT, timeout=45, on_items=on_items)
+
+
+def _llm_web_search(place: str, period: str) -> list[dict]:
+    from .place_photo_browser import _research
+    helper = _research()
+    clock = datetime.now(ZoneInfo('Australia/Sydney')).date()
+    # The app accepts explicit year expressions in addition to standalone
+    # skill periods. Preserve its resolved window rather than reinterpreting it.
+    bounds = _period_bounds(period)
+    temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01', 'end': f'{bounds[1]}-12-31'}
+                if bounds else helper.normalize_period(None, clock))
+    try:
+        discovery = helper.llm_search(place, temporal)
+        items, source_failed = [], False
+        for origin in discovery['sources'][:12]:
+            try:
+                images = helper.llm_source_photos(origin['source_url'], place, temporal)
+            except (helper.ResearchError, OSError, ValueError):
+                source_failed = True
+                continue
+            for image in images:
+                scene = image['scene_date']
+                expression = scene['start']
+                if scene['precision'] == 'year':
+                    expression = scene['start'][:4]
+                elif scene['precision'] in {'decade', 'range'}:
+                    expression = scene['start'][:4] + '-' + scene['end'][:4]
+                items.append({
+                    'asset_id': 'llm-' + hashlib.sha256(image['image_url'].encode()).hexdigest()[:24],
+                    'kind': 'image', 'title': image['title'], 'location': place,
+                    'location_evidence': image['source_excerpt'],
+                    'image_url': image['image_url'], 'original_url': image['image_url'],
+                    'source_url': image['source_page_url'],
+                    'date_expression': expression, 'scene_date_range': scene,
+                    'date_basis': 'Source capture metadata', 'attribution': urlparse(image['source_page_url']).hostname,
+                    'license': 'Unknown', 'memory_reference_only': True,
+                    'providers': ['llm_web_search'], 'discovery_origins': [origin],
+                    'allowed_actions': {'embed': True, 'memory_reference': True, 'download': False,
+                                        'print': False, 'publish': False},
+                })
+        if not items and source_failed:
+            raise PhotoResearchUnavailable('llm_web_search', 'source_unavailable')
+        return _deduplicate(items)
+    except helper.ResearchError as error:
+        raise PhotoResearchUnavailable('llm_web_search', str(error) if str(error).startswith('llm_') else 'source_unavailable') from None
 
 
 def _flickr_browser(place: str, period: str, *, on_items=None) -> list[dict]:

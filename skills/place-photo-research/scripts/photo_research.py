@@ -30,6 +30,8 @@ import time
 from datetime import date, datetime, timezone
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
+from urllib import request as http_request
+from urllib.error import HTTPError, URLError
 import warnings
 from zoneinfo import ZoneInfo
 
@@ -756,6 +758,259 @@ def _crawl4ai_evidence_id(source_url: str, image_url: str, kind: str) -> str:
     return "c4a-" + hashlib.sha256(f"{source_url}\n{image_url}\n{kind}".encode()).hexdigest()[:24]
 
 
+def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
+    """Require observable native search execution before accepting public leads."""
+    _crawl4ai_load_dotenv()
+    if _configured_env("MEMORY_SPARK_PHOTO_WEB_SEARCH").lower() not in {"1", "true", "yes"}:
+        fail("llm_search_disabled")
+    base = _configured_env("MEMORY_SPARK_LLM_BASE_URL").rstrip("/")
+    model = _configured_env("MEMORY_SPARK_LLM_MODEL")
+    key = _configured_env("MEMORY_SPARK_LLM_API_KEY")
+    if not base or not model or not key:
+        fail("llm_search_not_configured")
+    endpoint = urlsplit(base)
+    if (endpoint.scheme not in {"http", "https"} or not endpoint.hostname
+            or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
+        fail("llm_search_invalid_endpoint")
+    window = (f'{temporal["start"]} through {temporal["end"]}'
+              if temporal.get("start") else "historical photographs; capture period unspecified")
+    prompt = ("Search for original public photograph pages and archive albums for the place "
+              + json.dumps(place, ensure_ascii=False) + ". Requested scene capture period: " + window
+              + ". Cite original source pages. Webpage publication and upload dates are not capture dates.")
+    body = {"model": model, "input": prompt, "tools": [{"type": "web_search"}],
+            "tool_choice": "required", "include": ["web_search_call.action.sources"],
+            "max_tool_calls": 1, "max_output_tokens": 1024, "store": False}
+    req = http_request.Request(base + "/responses", data=json.dumps(body).encode(),
+                               headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    try:
+        with http_request.urlopen(req, timeout=timeout) as response:
+            raw = response.read(MAX_PAGE_BYTES + 1)
+        if len(raw) > MAX_PAGE_BYTES:
+            fail("llm_search_response_limit")
+        data = json.loads(raw)
+    except HTTPError as error:
+        fail(f"llm_search_http_{error.code}")
+    except (TimeoutError, socket.timeout):
+        fail("llm_search_timeout")
+    except (URLError, OSError):
+        fail("llm_search_network_error")
+    except ValueError:
+        fail("llm_search_invalid_response")
+    if not isinstance(data, dict) or not isinstance(data.get("output"), list):
+        fail("llm_search_invalid_response")
+    def valid_receipt(value):
+        return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,200}", value) and key not in value
+    if not valid_receipt(data.get("id")):
+        fail("llm_search_invalid_response")
+    calls = [item for item in data["output"] if isinstance(item, dict)
+             and item.get("type") == "web_search_call" and item.get("status") == "completed"
+             and valid_receipt(item.get("id"))]
+    if not calls:
+        fail("llm_search_no_search_evidence")
+    annotations = []
+    for item in data["output"]:
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        for content in item.get("content", []) if isinstance(item.get("content"), list) else []:
+            if isinstance(content, dict) and isinstance(content.get("annotations"), list):
+                annotations.extend(row for row in content["annotations"] if isinstance(row, dict)
+                                   and row.get("type") == "url_citation")
+    sources = []
+    for call in calls:
+        action = call.get("action")
+        returned = action.get("sources", []) if isinstance(action, dict) else []
+        returned = returned if isinstance(returned, list) else []
+        for source in returned + (annotations if call is calls[0] else []):
+            if not isinstance(source, dict):
+                continue
+            url = source.get("url")
+            try:
+                parsed, _, _ = valid_url(url)
+                if any(re.search(r"key|token|secret|signature|password|credential", name, re.I)
+                       for name in parse_qs(parsed.query)) or key in url:
+                    continue
+                public_addresses(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+            except (ResearchError, ValueError, TypeError):
+                continue
+            if any(row["source_url"] == url for row in sources):
+                continue
+            sources.append({"provider": "llm_web_search", "source_url": url,
+                            "response_id": str(data.get("id", ""))[:200],
+                            "tool_call_id": str(call["id"])[:200], "observed_at": utcnow()})
+    if not sources:
+        fail("llm_search_no_source_evidence")
+    return {"provider": "llm_web_search", "status": "success", "sources": sources[:24]}
+
+
+def _llm_capture_date(value: str, temporal: dict) -> dict | None:
+    if re.search(r"upload|publish|scan|circa|before|after|约|上传|发表", value, re.I):
+        return None
+    days = re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", value)
+    years = list(dict.fromkeys(_crawl4ai_years(value)))
+    try:
+        if len(days) == 1:
+            start = end = date.fromisoformat(days[0]).isoformat()
+            precision = "day"
+        elif len(years) == 2 and re.search(rf"{years[0]}\s*[-–—]\s*{years[1]}", value):
+            start, end, precision = f"{years[0]}-01-01", f"{years[1]}-12-31", "range"
+        elif len(years) == 1:
+            year = years[0]
+            decade = bool(re.search(rf"{year}(?:s|年代)", value, re.I))
+            start, end = f"{year}-01-01", f"{year + 9 if decade else year}-12-31"
+            precision = "decade" if decade else "year"
+        else:
+            return None
+    except ValueError:
+        return None
+    if not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]:
+        return None
+    return {"start": start, "end": end, "precision": precision,
+            "basis": "source_caption", "conflicting": False}
+
+
+def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: float = 30) -> list[dict]:
+    """Inspect public source metadata; the model's prose is never photo evidence."""
+    _, host, port = valid_url(source_url)
+    public_addresses(host, port)
+    status, final, headers, body = Fetcher().fetch(source_url, MAX_PAGE_BYTES, {host}, deadline_seconds=timeout)
+    if status != 200 or headers.get("content-type", "").split(";", 1)[0] not in {"text/html", "application/xhtml+xml"}:
+        fail("llm_source_unavailable")
+    parser = PageParser(final)
+    parser.feed(body.decode("utf-8", errors="replace"))
+    page = parser.output()
+    records = []
+    for node in page["json_ld"]:
+        nodes = node if isinstance(node, list) else [node]
+        for item in nodes:
+            if isinstance(item, dict):
+                records.extend(item.get("@graph", [item]))
+    for item in page["image_candidates"]:
+        caption = " ".join((item["alt"], item["figure_text"]))
+        records.extend({"@type": "Photograph", "caption": caption, "dateCreated": caption,
+                        "contentUrl": url, "caption_record": True} for url in item["candidate_urls"][:1])
+    images = []
+    for item in records:
+        if not isinstance(item, dict):
+            continue
+        kinds = item.get("@type")
+        kinds = kinds if isinstance(kinds, list) else [kinds]
+        if not any(kind in ("Photograph", "ImageObject") for kind in kinds):
+            continue
+        caption = _text(item.get("name") or item.get("caption") or item.get("description"))
+        taken = _text(item.get("dateTaken") or item.get("dateCreated"))
+        image = _crawl4ai_image_url(item.get("contentUrl"))
+        if not image or NON_PHOTO.search(caption) or not _crawl4ai_location_matches(caption, place):
+            continue
+        if any(re.search(r"key|token|secret|signature|password|credential", name, re.I)
+               for name in parse_qs(urlsplit(image).query)):
+            continue
+        scene = _llm_capture_date(taken, temporal)
+        if not scene:
+            continue
+        if not item.get("caption_record"):
+            if any(not int(scene["start"][:4]) <= year <= int(scene["end"][:4])
+                   for year in _crawl4ai_years(caption)):
+                continue
+            scene["basis"] = "provider_date_taken"
+        _, image_host, image_port = valid_url(image)
+        public_addresses(image_host, image_port)
+        images.append({"image_url": image, "title": caption, "source_page_url": final,
+                       "scene_date": scene,
+                       "source_excerpt": caption + "; capture date: " + taken})
+    return images
+
+
+def llm_discover(run: Path, *, source_limit: int = 24, provider_timeout: float = 30, cache_ttl: int = 86400) -> dict:
+    if not 1 <= source_limit <= 24 or not 1 <= provider_timeout <= 120 or not 0 <= cache_ttl <= 86400:
+        fail("llm_search_invalid_limits")
+    run = run.resolve()
+    request, candidates, evidence = load_records(run)
+    def qualifying_count():
+        verified = set()
+        for candidate in candidates:
+            reasons = evaluate(candidate, request, evidence)["reason_codes"]
+            if not any(reason.startswith(("DATE_", "PLACE_", "AUTHENTICITY_", "NO_DIRECT_IMAGE")) for reason in reasons):
+                verified.add(candidate.get("image_url"))
+        return len(verified)
+    _crawl4ai_load_dotenv()
+    if _configured_env("MEMORY_SPARK_PHOTO_WEB_SEARCH").lower() not in {"1", "true", "yes"}:
+        fail("llm_search_disabled")
+    cache_key = hashlib.sha256(json.dumps({"schema": 1, "place": request["place"], "temporal": request["temporal"],
+        "endpoint": _configured_env("MEMORY_SPARK_LLM_BASE_URL"), "model": _configured_env("MEMORY_SPARK_LLM_MODEL")},
+        sort_keys=True).encode()).hexdigest()
+    cache_path = checked_path(run, "search-cache/" + cache_key + ".json")
+    retrieval = None
+    if cache_path.is_file():
+        try:
+            cached = read_json(cache_path)
+            if 0 <= time.time() - cached["saved_at"] < cache_ttl:
+                retrieval = cached["discovery"]
+        except (ValueError, KeyError, TypeError, OSError):
+            pass
+    cache = "hit" if retrieval is not None else "miss"
+    if retrieval is None:
+        log_event(run, "search", "LLM public place-photo web search", [])
+        retrieval = llm_search(request["place"], request["temporal"], timeout=provider_timeout)
+        write_json(cache_path, {"saved_at": time.time(), "discovery": retrieval})
+    write_json(checked_path(run, "discovery.json"), {**retrieval, "cache": cache})
+    source_failures, budget_exhausted = [], False
+    for origin in retrieval["sources"][:source_limit]:
+        if qualifying_count() >= request["count"] or len(candidates) >= 100:
+            break
+        source = origin["source_url"]
+        try:
+            log_event(run, "page", "LLM search source inspection", [source])
+        except ResearchError:
+            budget_exhausted = True
+            break
+        try:
+            images = llm_source_photos(source, request["place"], request["temporal"], timeout=provider_timeout)
+        except (ResearchError, OSError, ValueError, http.client.HTTPException):
+            log_event(run, "note", "LLM source unavailable", [source])
+            source_failures.append({"source_url": source, "reason": "source_unavailable"})
+            continue
+        for image in images:
+            if qualifying_count() >= request["count"] or len(candidates) >= 100:
+                break
+            if any(candidate.get("image_url") == image["image_url"] for candidate in candidates):
+                continue
+            identifier = "llm-" + hashlib.sha256(image["image_url"].encode()).hexdigest()[:24]
+            ids = []
+            for kind, excerpt in (("place", image["source_excerpt"]), ("scene_date", image["source_excerpt"]),
+                                  ("access_terms", "Public source inspected with robots-aware access checks.")):
+                eid = identifier + "-" + kind
+                evidence[eid] = {"id": eid, "kind": kind, "url": image["source_page_url"],
+                                 "locator": "Image-specific source metadata", "excerpt": excerpt,
+                                 "observed_at": utcnow()}
+                ids.append(eid)
+            candidates.append({"id": identifier, "title": image["title"],
+                "source_page_url": image["source_page_url"], "image_url": image["image_url"],
+                "authenticity": "source_described_photograph", "memory_reference_only": True,
+                "providers": ["llm_web_search"], "discovery_origins": [origin],
+                "place": {"label": request["place"], "match": "exact", "evidence_ids": [ids[0]]},
+                "scene_date": {**image["scene_date"], "evidence_ids": [ids[1]]},
+                "rights": {"license_id": "unknown", "scope": "unknown", "download_permitted": None,
+                           "commercial_use_permitted": None, "evidence_ids": []},
+                "acquisition": {"access_permitted": True, "allowed_hosts": sorted({host for host in
+                    (urlsplit(image["image_url"]).hostname, urlsplit(image["source_page_url"]).hostname)}),
+                    "evidence_ids": [ids[2]]},
+                "allowed_actions": {"embed": True, "memory_reference": True, "download": False,
+                                    "print": False, "publish": False}})
+    write_json(run / "candidates.json", candidates)
+    write_text(run / "evidence.jsonl", "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in evidence.values()))
+    build_manifest(run)
+    qualifying = qualifying_count()
+    summary = {"qualifying": qualifying, "target": request["count"],
+               "shortfall": max(0, request["count"] - qualifying), "cache": cache,
+               "budget_exhausted": budget_exhausted,
+               "source_failures": source_failures,
+               "status": "unavailable" if not qualifying and source_failures else "success"}
+    write_json(checked_path(run, "discovery-summary.json"), summary)
+    if summary["status"] == "unavailable":
+        fail("llm_sources_unavailable")
+    return summary
+
+
 def crawl4ai_discover(run: Path, search_url: str | None = None, *, max_search_pages: int = CRAWL4AI_MAX_SEARCH_PAGES,
                       source_limit: int = CRAWL4AI_MAX_SOURCE_PAGES) -> dict:
     """Populate metadata-only memory-reference candidates through Crawl4AI."""
@@ -1140,6 +1395,11 @@ def main(argv=None) -> int:
     crawl.add_argument("--search-url", help="Google Programmable Search page URL; defaults to GOOGLE_CSE_URL or GOOGLE_CSE_ID")
     crawl.add_argument("--max-search-pages", type=int, default=CRAWL4AI_MAX_SEARCH_PAGES)
     crawl.add_argument("--source-limit", type=int, default=CRAWL4AI_MAX_SOURCE_PAGES)
+    discover = sub.add_parser("discover", help="Discover source-backed place photos through configured LLM web search")
+    discover.add_argument("--run", required=True)
+    discover.add_argument("--source-limit", type=int, default=24)
+    discover.add_argument("--provider-timeout", type=float, default=30)
+    discover.add_argument("--cache-ttl", type=int, default=86400)
     for name in ("audit", "download", "report"):
         p = sub.add_parser(name)
         p.add_argument("--run", required=True)
@@ -1188,6 +1448,10 @@ def main(argv=None) -> int:
             rel = "pages/" + hashlib.sha256(args.url.encode()).hexdigest()[:16] + ".json"
             write_json(checked_path(run, rel), record)
             print(json.dumps({"saved": str(checked_path(run, rel)), "images": len(record["image_candidates"]), "title": record["title"]}, ensure_ascii=False))
+        elif args.command == "discover":
+            summary = llm_discover(Path(args.run), source_limit=args.source_limit,
+                                   provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
+            print(json.dumps(summary, ensure_ascii=False))
         elif args.command == "crawl4ai":
             summary = crawl4ai_discover(Path(args.run).resolve(), args.search_url,
                                          max_search_pages=args.max_search_pages, source_limit=args.source_limit)
