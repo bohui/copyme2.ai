@@ -20,7 +20,7 @@ test('map preview renders during text streaming without a profile write or photo
     streamAgentTurn: async (_text, onDelta, onEvent) => {
       await onDelta('I remember ');
       await onEvent({type: 'place_preview', data: {project_id: 'p', source_sequence: 1810000000001000000,
-        place_journey: {place: 'Sydney', hierarchy: ['Earth', 'Australia', 'Sydney']}}});
+        place_journey: {place: 'Sydney', granularity: 'city', hierarchy: ['Earth', 'Australia', 'Sydney']}}});
       assert.equal(context.state.placeJourney.place, 'Sydney');
       assert.equal(context.state.chat.at(-1).streaming, true);
       assert.equal(context.state.selectedPlace, 'Sydney');
@@ -33,6 +33,7 @@ test('map preview renders during text streaming without a profile write or photo
       return {reply: 'I remember Sydney.', conversation_saved: true};
     },
   });
+  context.refreshPrivateDraft = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   await context.agentTurn('Sydney');
   assert.ok(renders >= 2);
@@ -52,6 +53,7 @@ test('a failed conversational save restores the previous place preview', async (
       throw new Error('save failed');
     },
   });
+  context.refreshPrivateDraft = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   await context.agentTurn('Sydney');
   assert.equal(context.state.placeJourney, previous);
@@ -70,6 +72,7 @@ test('buffered response is not paced by one animation frame per delta', async ()
       return {reply: 'a'.repeat(500), conversation_saved: true};
     },
   });
+  context.refreshPrivateDraft = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('Hi');
   assert.equal(result.streamedMessage.text.length, 500);
@@ -83,6 +86,7 @@ test('a complete server response is shown without replaying a simulated stream',
     nextAssistantMessageId: () => 'm', render: () => {},
     streamAgentTurn: async () => ({reply: 'A complete response', conversation_saved: true}),
   });
+  context.refreshPrivateDraft = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('Hi');
   assert.equal(result.streamedMessage?.text, 'A complete response');
@@ -96,8 +100,8 @@ test('place activation and later progress do not wait for photo discovery', asyn
   let finishPhotos;
   const photos = new Promise(resolve => { finishPhotos = resolve; });
   let currentProfile = {memory_places: [
-    {place: 'Chengde', hierarchy: ['Earth', 'China', 'Chengde']},
-    {place: 'Sydney', hierarchy: ['Earth', 'Australia', 'Sydney']},
+    {place: 'Chengde', granularity: 'city', hierarchy: ['Earth', 'China', 'Chengde']},
+    {place: 'Sydney', granularity: 'city', hierarchy: ['Earth', 'Australia', 'Sydney']},
   ]};
   let photoCalls = 0;
   const context = vm.createContext({
@@ -114,11 +118,12 @@ test('place activation and later progress do not wait for photo discovery', asyn
       return {reply: 'Hello', conversation_saved: true};
     },
   });
+  context.refreshPrivateDraft = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('I remember Chengde');
   let delivered = false;
   const delivery = event({type: 'workspace_update', data: {
-    place_journey: {place: 'Chengde', hierarchy: ['Earth', 'China', 'Chengde']},
+    place_journey: {place: 'Chengde', granularity: 'city', hierarchy: ['Earth', 'China', 'Chengde']},
     place_journey_change: {changed: true},
   }}).then(() => { delivered = true; });
   await new Promise(resolve => setImmediate(resolve));
@@ -139,8 +144,8 @@ test('place activation and later progress do not wait for photo discovery', asyn
 
 test('reload restores the latest mentioned place while preserving chronological history', async () => {
   const places = [
-    {place: 'Chengde', hierarchy: ['Earth', 'China', 'Chengde'], life_stage: 'childhood', revision: 3},
-    {place: 'Sydney', hierarchy: ['Earth', 'Australia', 'Sydney'], life_stage: 'young_adulthood', revision: 2},
+    {place: 'Chengde', granularity: 'city', hierarchy: ['Earth', 'China', 'Chengde'], life_stage: 'childhood', revision: 3},
+    {place: 'Sydney', granularity: 'city', hierarchy: ['Earth', 'Australia', 'Sydney'], life_stage: 'young_adulthood', revision: 2},
   ];
   const context = vm.createContext({
     state: {project: {id: 'p'}}, profile: () => ({memory_places: places}), mergePlaces,
@@ -217,9 +222,10 @@ test('photo workspace exposes discovery even before any eligible result', () => 
     workspacePlaceGroups: () => [{city: entry, members: [entry]}], groupChoices: () => [entry],
     renderablePictureItems: items => items, workspacePictureItems: () => [], pictureWall: () => '',
     placeHistoryKey: item => item.place, photoSearchPeriod: () => '',
+    photoRequestKey: () => JSON.stringify(['p', 'Chengde', '', null, null]),
   });
   vm.runInContext(extract('workspaceMediaOverview'), context);
   assert.match(context.workspaceMediaOverview(), /workspace-media-gallery/);
-  context.state.photoRequests.set(JSON.stringify(['p', 'Chengde', '']), {loading: true});
+  context.state.photoRequests.set(JSON.stringify(['p', 'Chengde', '', null, null]), {loading: true});
   assert.match(context.workspaceMediaOverview(), /role="status"/);
 });

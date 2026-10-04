@@ -172,7 +172,7 @@ def run_case(browser, base_url: str) -> None:
                 expect(page.locator(".workspace-media-overview").get_by_role("heading", name="Hobart")).to_be_visible()
             elif round_number == 2:
                 page.locator("[data-workspace-tab='family']").click()
-                expect(page.locator("#workspace-detail .people-list strong", has_text="Mei")).to_be_visible()
+                expect(page.locator("#workspace-detail .family-person-card strong", has_text="Mei")).to_be_visible()
             elif round_number == 3:
                 page.locator("[data-workspace-tab='timeline']").click()
                 expect(page.locator("#workspace-detail .timeline-list strong", has_text="Started school")).to_be_visible()

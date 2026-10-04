@@ -73,7 +73,10 @@ def test_next_turn_can_generate_while_workspace_phase_is_pending(monkeypatch):
             return []
 
         def profile(self):
-            return {'preferred_language': 'en-AU'}
+            return getattr(self, 'saved_profile', {'preferred_language': 'en-AU'})
+
+        def save_profile(self, profile):
+            self.saved_profile = dict(profile)
 
         def place_journey(self):
             return None
@@ -158,7 +161,10 @@ def test_next_turn_can_generate_while_workspace_lease_free_write_is_pending(monk
             return []
 
         def profile(self):
-            return {'preferred_language': 'en-AU'}
+            return getattr(self, 'saved_profile', {'preferred_language': 'en-AU'})
+
+        def save_profile(self, profile):
+            self.saved_profile = dict(profile)
 
         def place_journey(self):
             return None

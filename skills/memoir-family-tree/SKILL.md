@@ -16,7 +16,7 @@ state.
 
 1. Read the storyteller's current message and use only the smallest private
    context needed to resolve an already-established person.
-2. Extract only people, aliases, family titles, and relationship assertions the
+2. Extract only people, aliases, family titles, introductions, and relationship assertions the
    storyteller explicitly stated or clearly corrected.
 3. Preserve uncertainty and distinguish parent, child, spouse, sibling,
    adoptive, step, guardian, and other assertions.
@@ -40,7 +40,12 @@ correlation keys for this marker, not database IDs.
 
 People require `id` and `name`. They may include `aliases`, `family_title`,
 `birth_date_expression`, `death_date_expression`, `living_status`,
-`visibility`, and `include_in_print`.
+`visibility`, `include_in_print`, and `introduction`.
+
+When the storyteller shares details about a person, save a short `introduction`
+(at most 1,200 characters) using only those details and established private
+context. Preserve uncertainty, avoid inferred traits, and omit the field when
+there is no grounded introduction. Update it with `existing_id` as details emerge.
 
 Relationships require `from_person_id`, `to_person_id`, and
 `relationship_type`. Supported types include `parent`, `child`, `spouse`,
@@ -63,7 +68,7 @@ The application runtime merges this update into the shared, versioned `family_co
 document for the authenticated user and Memoir project. It returns the
 persisted document plus `family_context_update`; the envelope includes
 `skills: ["family_tree"]` when this skill changed the document. The browser
-renders the persisted document directly and uses the semantic list fallback
+renders the persisted document directly and uses accessible person cards
 when a visualization adapter is unavailable.
 
 The database boundary is user-scoped by RLS, checks the expected revision, and

@@ -3,6 +3,26 @@ import assert from 'node:assert/strict';
 import {preparePlan,validateDraft,countWords,chapterText,chapterFingerprint,snapshotFingerprint,renderArtifacts,counter,inspectEvidence} from '../scripts/lib.mjs';
 import {focusedFixture,broadFixture,formalFixture,progressiveFixture,chineseFixture,ref,block,sync} from './fixtures.mjs';
 const has=(r,code)=>r.errors.some(e=>e.code===code);
+test('stage-tagged sources remain compatible with grounded plans and reject invalid stages',()=>{
+ const r=focusedFixture().request;
+ r.sources[0].life_stage='childhood';r.sources[0].source_order=1780000000000000;
+ r.sources[1].life_stage='unplaced';r.sources[1].source_order=1780000000000001;
+ const p=preparePlan(r);assert.equal(p.ready,true);
+ r.sources[0].life_stage='midlife';assert.notEqual(preparePlan(r).input_fingerprint,p.input_fingerprint);
+ r.sources[0].life_stage='invented';assert.equal(preparePlan(r).status,'invalid_request');
+});
+test('host-authorized private checkpoint at five preserves twenty-round quota and cannot authorize full prose',()=>{
+ const p=focusedFixture();p.request.trigger={...p.request.trigger,type:'private_draft_checkpoint',free_round_limit:20,
+   private_draft_authorized:true,private_rounds_completed:5,private_draft_cadence:5};
+ assert.equal(preparePlan(p.request).ready,true);
+ assert.equal(preparePlan(p.request).kind,'sample_chapter');
+ p.request.trigger.private_draft_authorized=false;
+ assert.equal(preparePlan(p.request).status,'private_draft_not_authorized');
+ p.request.trigger.private_draft_authorized=true;p.request.trigger.composition_authorized=true;
+ assert.equal(preparePlan(p.request).status,'invalid_private_draft_scope');
+ p.request.trigger.composition_authorized=false;p.request.trigger.type='free_rounds_completed';
+ assert.equal(preparePlan(p.request).status,'trial_not_finished');
+});
 const exactLength=(n)=>{const p=focusedFixture(),c=p.draft.chapters[0];c.title='Chapter';c.subtitle='';c.blocks=[block('length_block',Array(n-1).fill('memory').join(' '),[ref('s_home')])];p.draft.outline[0].title=c.title;return p;};
 for(const [name,fn] of Object.entries({focused:focusedFixture,broad:broadFixture,formal:formalFixture,progressive:()=>progressiveFixture(false),protected:()=>progressiveFixture(true),Chinese:chineseFixture}))
  test(`synthetic ${name} fixture validates`,()=>{const p=fn();const v=validateDraft(p.request,p.draft);assert.equal(v.ok,true,JSON.stringify(v.errors));});
@@ -57,3 +77,26 @@ test('an invalid draft is never rendered as ready',()=>{const p=exactLength(7001
 test('chapter fingerprints are independent of incidental update explanations',()=>{const p=focusedFixture();const c=p.draft.chapters[0],a=chapterFingerprint(c);c.update_reason='Replayed run';assert.equal(a,chapterFingerprint(c));});
 test('an explicit overview preference can cover two supported periods',()=>{const p=broadFixture();p.request.events.pop();p.request.periods.pop();p.request.policy.preview_preference='sample_storyline';assert.equal(preparePlan(p.request).kind,'sample_storyline');});
 test('overview preference does not manufacture extra life periods',()=>{const p=focusedFixture();p.request.policy.preview_preference='sample_storyline';assert.equal(preparePlan(p.request).status,'preview_preference_unsupported');});
+
+test('sample exports display a shared manuscript/body/heading title once',()=>{
+ for(const fixture of [broadFixture,focusedFixture]) {
+  const p=fixture();const chapter=p.draft.kind==='sample_storyline'?p.draft.storyline:p.draft.chapters[0];
+  p.draft.title=chapter.title;
+  chapter.blocks.unshift(block('title_heading',chapter.title,chapter.source_refs,'heading'));
+  const before=structuredClone(p.draft);
+  const artifacts=renderArtifacts(p.request,p.draft);
+  assert.equal(artifacts['memoir.md'].split('\n').filter(line=>/^#{1,3} /.test(line)&&line.endsWith(chapter.title)).length,1);
+  assert.equal((artifacts['memoir.html'].match(/<h[123]>[^]*?<\/h[123]>/g)||[]).filter(line=>line.includes(chapter.title)).length,1);
+  assert.deepEqual(p.draft,before);
+ }
+});
+test('exports retain different section titles and later headings',()=>{
+ const p=broadFixture();const chapter=p.draft.storyline;
+ chapter.blocks.unshift(block('title_heading',chapter.title,chapter.source_refs,'heading'));
+ chapter.blocks.push(block('later_heading','Later memories',chapter.source_refs,'heading'));
+ const artifacts=renderArtifacts(p.request,p.draft);
+ assert.ok(artifacts['memoir.md'].includes(`# ${p.draft.title}`));
+ assert.ok(artifacts['memoir.md'].includes(`## ${chapter.title}`));
+ assert.ok(!artifacts['memoir.md'].includes(`### ${chapter.title}`));
+ assert.ok(artifacts['memoir.md'].includes('### Later memories'));
+});

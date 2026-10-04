@@ -23,7 +23,7 @@ The result contains `schema_version: 1`, `skills: ["memoir-place-groups"]`, `sta
 }
 ```
 
-A resolved `pin` retains its source display name and own coordinates, with `accuracy: approximate | public-map`. `index` refers to this request's input order, with the newest mention first. Do not use it as a durable identity. A partial provider match can establish administrative membership but cannot create a precise child pin. Provider failure ends further provider lookups in that request; explicit hierarchy grouping remains available. Lookup count is bounded and successful public queries share the existing geocoding cache.
+A resolved `pin` retains its source display name and own coordinates, with `accuracy: approximate | public-map`. `index` refers to this request's input order, with the newest mention first. Do not use it as a durable identity. A partial provider match can establish administrative membership but cannot create a precise child pin. Provider failure ends further provider lookups in that request; explicit hierarchy grouping remains available. A city mention missing its region joins a full country/region/city path only when that path is unique among the supplied records. Conflicting regions remain separate. Lookup count is bounded and successful public queries share the existing geocoding cache.
 
 The browser keeps enrichment in a project-scoped transient cache, checks that public fields still match, and rejects superseded responses. It does not change the profile. Source place keys still own photo requests, time periods, and life stages. A pin click selects the corresponding source place's photos. A city choice selects a member of that city group, including when the city was discovered by the provider and has no separate saved source entry.
 

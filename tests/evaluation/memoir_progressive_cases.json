@@ -1,0 +1,256 @@
+{
+  "schema_version": "memoir-progressive/1",
+  "rounds_per_profile": 31,
+  "required_skills": [
+    "app-auto-localization",
+    "memoir-memory-context",
+    "memoir-place-journey",
+    "memoir-place-groups",
+    "place-photo-research",
+    "memoir-family-tree",
+    "memoir-author-timeline",
+    "memoir-composer"
+  ],
+  "profiles": [
+    {
+      "id": "cn-suzhou-blue-door",
+      "locale": "zh-CN",
+      "country": "China",
+      "place": "苏州",
+      "hierarchy": ["Earth", "China", "江苏省", "苏州"],
+      "life_arc": [
+        "我在苏州的小巷里长大，家门是蓝色的",
+        "我离开家去工作，也第一次学着为自己的选择负责",
+        "我在城市变化和家庭责任之间找到了自己的节奏",
+        "现在回头看，我最想留下的是那些普通日子里的温度"
+      ],
+      "family_detail": "我想起了哥哥在厨房门口等我",
+      "date_detail": "大约在二十世纪六十年代初",
+      "photo_detail": "我有一张蓝色家门的照片，但不确定拍摄年份",
+      "round_cues": {
+        "1": "这是我最早能清楚说出的地方记忆。",
+        "9": "后来我常去苏州平江路附近，那里和童年的巷子不一样。",
+        "16": "这段经历里，哥哥一直是重要的陪伴者。",
+        "21": "我记得那次变化大约发生在二十世纪八十年代。",
+        "26": "如果展示照片，请把它当作我的家庭物件，而不是历史证据。",
+        "31": "我愿意把这些回忆整理成按时间展开的章节。"
+      }
+    },
+    {
+      "id": "cn-chengdu-teahouse",
+      "locale": "zh-CN",
+      "country": "China",
+      "place": "成都",
+      "hierarchy": ["Earth", "China", "四川省", "成都"],
+      "life_arc": [
+        "我在成都一条有茶馆香气的街上长大",
+        "我第一次离开熟悉的街区时，带着家人给我的叮嘱",
+        "我一边照顾家人，一边把自己的手艺做得更好",
+        "如今我更珍惜那些围坐在一起、慢慢说话的时刻"
+      ],
+      "family_detail": "我记得外婆教我辨认茶叶的味道",
+      "date_detail": "大约在二十世纪七十年代中期",
+      "photo_detail": "我保留着茶馆门口的一张旧照片",
+      "round_cues": {
+        "1": "成都的那条街是我记忆里最早的坐标。",
+        "10": "成年后我也在重庆短住过一段时间，后来又回到成都。",
+        "16": "外婆的声音和她泡茶的动作一直留在我的记忆里。",
+        "21": "那次搬家大约发生在二十世纪九十年代。",
+        "26": "照片只是帮助我想起细节，不能替我证明发生过什么。",
+        "31": "我想保留每一章里的气味、声音和家人。"
+      }
+    },
+    {
+      "id": "cn-harbin-railway",
+      "locale": "zh-CN",
+      "country": "China",
+      "place": "哈尔滨",
+      "hierarchy": ["Earth", "China", "黑龙江省", "哈尔滨"],
+      "life_arc": [
+        "我在哈尔滨的冬天里长大，记得窗上的冰花",
+        "我沿着铁路去到新的城市，开始一段独立生活",
+        "工作和照料家人让我学会在忙乱中保持耐心",
+        "晚年我常把一生想成几段彼此相连的旅程"
+      ],
+      "family_detail": "父亲会在我出门前替我检查围巾",
+      "date_detail": "大约在二十世纪五十年代末",
+      "photo_detail": "一张雪地车站的照片让我想起出发那天",
+      "round_cues": {
+        "1": "哈尔滨是我愿意先讲起的童年地点。",
+        "8": "我后来在长春住过几年，仍然习惯北方的冬天。",
+        "16": "父亲的照料让我在离家后仍然感到有依靠。",
+        "21": "我记得第一次远行是在一个很冷的冬季。",
+        "26": "车站照片的来源和日期都需要保持不确定。",
+        "31": "请把这些远行和归来的片段安排成清楚的章节。"
+      }
+    },
+    {
+      "id": "cn-kunming-garden",
+      "locale": "zh-CN",
+      "country": "China",
+      "place": "昆明",
+      "hierarchy": ["Earth", "China", "云南省", "昆明"],
+      "life_arc": [
+        "我在昆明一座有花园的院子里度过童年",
+        "我离开昆明求学，第一次独自安排自己的生活",
+        "我在不同城市之间往返，也慢慢建立了自己的家庭",
+        "回到这些记忆时，我最先想到的是阳光和植物"
+      ],
+      "family_detail": "姐姐会陪我在院子里给花浇水",
+      "date_detail": "大约在二十世纪八十年代初",
+      "photo_detail": "院子里的花和旧水壶出现在一张家庭照片里",
+      "round_cues": {
+        "1": "昆明的院子是我记忆里最稳定的地方。",
+        "11": "求学期间我在大理住过一段时间，后来回到了昆明。",
+        "16": "姐姐的陪伴让我记住了很多院子里的细节。",
+        "21": "我对那次离开的年份只有大概的印象。",
+        "26": "家庭照片可以作为照片槽位，但不要补写看不见的内容。",
+        "31": "我希望章节保留这些关于光线和植物的感受。"
+      }
+    },
+    {
+      "id": "cn-xian-courtyard",
+      "locale": "zh-CN",
+      "country": "China",
+      "place": "西安",
+      "hierarchy": ["Earth", "China", "陕西省", "西安"],
+      "life_arc": [
+        "我在西安的院落里长大，邻里之间彼此认识",
+        "我在第一次工作中认识了许多来自不同地方的人",
+        "我经历过一次搬迁，也重新理解了什么是家",
+        "我愿意把这些小事留给后来的人慢慢读"
+      ],
+      "family_detail": "母亲总会在院门口等我回家",
+      "date_detail": "大约在二十世纪九十年代初",
+      "photo_detail": "院门和石榴树曾出现在一张相册里",
+      "round_cues": {
+        "1": "西安的院门是这段故事的第一处地点线索。",
+        "10": "工作后我在宝鸡住过一段时间，再回到西安。",
+        "16": "母亲在院门口等我的画面很清楚。",
+        "21": "搬迁的具体年份我只记得大概范围。",
+        "26": "相册中的照片需要保留来源和日期说明。",
+        "31": "我准备好按时间顺序看一遍这份初稿。"
+      }
+    },
+    {
+      "id": "au-hobart-harbour",
+      "locale": "en-AU",
+      "country": "Australia",
+      "place": "Hobart",
+      "hierarchy": ["Earth", "Australia", "Tasmania", "Hobart"],
+      "life_arc": [
+        "I grew up near Hobart harbour, where the weather changed quickly",
+        "I left home for my first work and learned to make a place for myself",
+        "I built a family life while the city and the waterfront changed around us",
+        "I now notice how much meaning sits inside ordinary Tasmanian routines"
+      ],
+      "family_detail": "My sister taught me to read the harbour weather",
+      "date_detail": "around the late 1960s",
+      "photo_detail": "I have a harbour photograph whose exact date I do not know",
+      "round_cues": {
+        "1": "Hobart is the first place I want to put on the page.",
+        "9": "I later spent time in Launceston before returning south.",
+        "16": "My sister is part of the story, not just a name in the background.",
+        "21": "That change happened around the late 1980s, though I would not call it exact.",
+        "26": "The harbour photograph can be a marked photo slot, not invented evidence.",
+        "31": "I am ready to see these memories arranged as a chronological memoir."
+      }
+    },
+    {
+      "id": "au-darwin-wet-season",
+      "locale": "en-AU",
+      "country": "Australia",
+      "place": "Darwin",
+      "hierarchy": ["Earth", "Australia", "Northern Territory", "Darwin"],
+      "life_arc": [
+        "I remember growing up in Darwin with the wet season close at hand",
+        "I moved for work and learned how to start again in unfamiliar places",
+        "I kept family routines going through several moves and long distances",
+        "I want the later chapters to keep the heat, rain and humour of those years"
+      ],
+      "family_detail": "My uncle showed me how to prepare for the first storm",
+      "date_detail": "around 1978",
+      "photo_detail": "A family photo shows the veranda, but not the date",
+      "round_cues": {
+        "1": "Darwin is the place where the story should begin.",
+        "10": "I lived in Alice Springs for a time before coming back north.",
+        "16": "My uncle's advice shaped how I remember those wet seasons.",
+        "21": "The move was around 1992, with only an approximate date.",
+        "26": "The veranda photo should be labelled as a family reference.",
+        "31": "The complete arc now has enough grounded material for chapters."
+      }
+    },
+    {
+      "id": "au-melbourne-bakery",
+      "locale": "en-AU",
+      "country": "Australia",
+      "place": "Melbourne",
+      "hierarchy": ["Earth", "Australia", "Victoria", "Melbourne"],
+      "life_arc": [
+        "I grew up in Melbourne with the smell of bread from a nearby bakery",
+        "My first job taught me how much a neighbourhood depends on small routines",
+        "I changed careers while keeping old friendships and family promises",
+        "I still measure the years by kitchens, conversations and shared work"
+      ],
+      "family_detail": "My grandmother saved the bakery window for our weekend walks",
+      "date_detail": "around 1983",
+      "photo_detail": "I have a bakery-window photo from an uncertain year",
+      "round_cues": {
+        "1": "Melbourne is the first setting I can describe with confidence.",
+        "9": "I later lived in Geelong, then returned to Melbourne.",
+        "16": "My grandmother's weekend walks belong in the family thread.",
+        "21": "The career change was around 2001, but the year is approximate.",
+        "26": "The bakery photo is a personal asset with a clear uncertainty note.",
+        "31": "Please keep the chapters grounded in the details I actually supplied."
+      }
+    },
+    {
+      "id": "au-perth-workshop",
+      "locale": "en-AU",
+      "country": "Australia",
+      "place": "Perth",
+      "hierarchy": ["Earth", "Australia", "Western Australia", "Perth"],
+      "life_arc": [
+        "I spent my childhood in Perth learning the patience of making things by hand",
+        "I took an apprenticeship and began to see work as a form of care",
+        "I travelled for contracts while keeping a steady home base for my family",
+        "I now want to pass on the practical lessons behind those decisions"
+      ],
+      "family_detail": "My father let me use the workshop bench on Saturday mornings",
+      "date_detail": "around the early 1970s",
+      "photo_detail": "A workshop photo captures the bench but not the whole room",
+      "round_cues": {
+        "1": "Perth is the home base I want readers to understand first.",
+        "10": "I worked briefly in Fremantle and returned to the same workshop.",
+        "16": "My father taught me through the things he let me try.",
+        "21": "The contract period was somewhere around 1998 to 2000.",
+        "26": "The workshop image can be included only as an authorised photo slot.",
+        "31": "The evidence now supports a four-part life arc without forcing extra stages."
+      }
+    },
+    {
+      "id": "au-sydney-migration",
+      "locale": "en-AU",
+      "country": "Australia",
+      "place": "Sydney",
+      "hierarchy": ["Earth", "Australia", "New South Wales", "Sydney"],
+      "life_arc": [
+        "I arrived in Sydney carrying a small bag and a very mixed set of expectations",
+        "I learned the city through rented rooms, new work and long train rides",
+        "I made a home while staying connected to the people I had left behind",
+        "I now see migration as a series of ordinary choices rather than one dramatic moment"
+      ],
+      "family_detail": "My cousin helped me find the first room where I felt settled",
+      "date_detail": "around 1995",
+      "photo_detail": "A train-platform photo reminds me of the first months in Sydney",
+      "round_cues": {
+        "1": "Sydney is the place that changed the direction of my life.",
+        "9": "I spent time in Wollongong before settling into Sydney routines.",
+        "16": "My cousin's practical help is part of the migration story.",
+        "21": "I arrived around 1995, though I do not want a more exact date invented.",
+        "26": "The platform photo is a prompt for memory, with rights and date kept explicit.",
+        "31": "I am ready for a review-only memoir with stable, readable chapters."
+      }
+    }
+  ]
+}

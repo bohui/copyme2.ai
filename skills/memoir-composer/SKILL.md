@@ -34,6 +34,10 @@ Inspect the actual distribution of distinct supported memories:
 
 Generate value before the application displays its package offer. No sales pitch in memoir prose. The skill must not decide when a person is emotionally vulnerable or change the trial length.
 
+### Private `private_draft_checkpoint` → early private prose
+
+The host may explicitly authorize an early private draft after its configured cadence (default five completed narrator/assistant rounds). Require `private_draft_authorized`, the truthful `private_rounds_completed` and `private_draft_cadence`. Keep `free_rounds_completed` and `free_round_limit` truthful; five completed rounds do not exhaust a twenty-round allowance. This gate supports only storyteller-facing web samples, never formal composition, publication or payment. Later private updates use `new_context` with the saved prior manuscript and original evidence.
+
 ### B. `storytelling_complete` → formal composition
 
 Run full composition when the storyteller has said they are ready to turn the material into a memoir, or an authorised helper has made the application's supported request. The backend must confirm composition authorisation and consent.
@@ -82,7 +86,14 @@ Retain the originals. A shorter summary must not delete source evidence or becom
 
 ## 4. Build the chronological main storyline first
 
-Create one event index using deduplicated real-life events, not chat dates or repeated mentions. Preserve relative timing, date ranges, unknown dates and competing accounts.
+Reuse the host's saved event index and response groups in `context.stage_source_ids`.
+Responses carry `life_stage` and are ordered by stage, then `source_order` (capture
+order within the stage). Index new, changed and affected original responses plus
+the supplied overlap; carry forward unchanged event assignments. The first run
+indexes the initial packet once. Stage tags guide retrieval, while remembered
+dates and before/after relations establish event chronology. Keep `unplaced`
+responses unresolved until evidence supports their timing. Deduplicate real-life
+events and preserve date ranges, unknown dates and competing accounts.
 
 1. Order supported events by their remembered dates or source-supported before/after relations.
 2. Group coherent stretches around meaningful transitions: a home, school or learning period, new responsibility, place change, relationship, occupation, migration or later-life interest—only when actually supported.

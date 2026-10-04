@@ -43,8 +43,27 @@ class RecallStorage(FakeSupabaseUserStorage):
 
     def commit_agent_turn(self, token, thread_id, text, source_paths, **kwargs):
         assert self.held
-        self.completed += 1
+        self.saved_turn = text
+        self.completed += int(kwargs.get('user_response', True))
         return [{'id': f'reply-{self.completed}', 'content': text}]
+
+
+@pytest.mark.parametrize('explicit_original', [True, False])
+def test_original_conversation_text_is_saved_separately_from_agent_instructions(monkeypatch, explicit_original):
+    storage = RecallStorage()
+    runtime = CodexRuntime(worker_url='http://unused')
+    prompt = "The storyteller said: My garden\nAcknowledge the storyteller naturally, then ask one gentle open-ended follow-up question."
+    received = []
+
+    async def worker(**kwargs):
+        received.append(kwargs['text'])
+        return {'thread_id': 'thread', 'reply': 'What grew there?', 'artifacts': []}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker)
+    options = {'conversation_text': 'My garden'} if explicit_original else {}
+    asyncio.run(runtime.turn(storage, prompt, **options))
+    assert received == [prompt]
+    assert storage.saved_turn == 'Storyteller: My garden\nMemory Spark: What grew there?'
 
 
 @pytest.mark.parametrize('limit', [1, 3, 20])
@@ -76,6 +95,99 @@ def test_final_free_reply_is_saved_then_next_turn_is_blocked(monkeypatch, limit)
     assert len(calls) == 1
     assert storage.completed == limit
     assert not storage.held
+
+
+def test_ordinary_turns_cannot_use_legacy_opening_text_to_avoid_the_free_gate(monkeypatch):
+    from apps.api.agent_storage import UserStorage
+
+    class QuotaStorage(UserStorage):
+        def __init__(self):
+            self.user_id = '11111111-1111-4111-8111-111111111111'
+            self.completed = 0
+            self.saved = {}
+            self.commits = []
+            self.profile_data = {'preferred_language': 'en-AU'}
+            self.held = False
+
+        def acquire_agent_turn_lease(self, *args):
+            if self.held:
+                return False
+            self.held = True
+            return True
+
+        def renew_agent_turn_lease(self, *args):
+            return self.held
+
+        def release_agent_turn_lease(self, *args):
+            self.held = False
+            return True
+
+        def recall_rounds_completed(self):
+            return self.completed
+
+        def story_entitlement(self):
+            return None
+
+        def agent_session(self):
+            return None
+
+        def memories(self):
+            return []
+
+        def profile(self):
+            return dict(self.profile_data)
+
+        def save_profile(self, profile):
+            self.profile_data = dict(profile)
+
+        def first_narrator_reply(self):
+            return None
+
+        def place_journey(self):
+            return None
+
+        def agent_turn_by_id(self, project_id, client_turn_id):
+            return self.saved.get((project_id, client_turn_id))
+
+        def commit_agent_turn(self, token, thread_id, text, source_paths, **kwargs):
+            self.commits.append(kwargs)
+            self.completed += int(kwargs.get('user_response', True))
+            row = {'id': f'turn-{len(self.commits)}', 'content': text}
+            if kwargs.get('project_id') and kwargs.get('client_turn_id'):
+                self.saved[(kwargs['project_id'], kwargs['client_turn_id'])] = row
+            return [row]
+
+    storage = QuotaStorage()
+    runtime = CodexRuntime(worker_url='http://unused')
+
+    async def worker(**kwargs):
+        return {'thread_id': 'thread', 'reply': 'A grounded reply.', 'artifacts': []}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker)
+    opening_prefix = 'The storyteller wants to begin exploring a memory. '
+    first = asyncio.run(runtime.turn(
+        storage, opening_prefix + 'and here is extra storyteller content',
+        project_id='project', client_turn_id='00000000-0000-4000-8000-000000000001',
+    ))
+    omitted_context = asyncio.run(runtime.turn(
+        storage, 'I moved to Hobart in 1980.', project_id='project',
+        client_turn_id='00000000-0000-4000-8000-000000000002',
+    ))
+    greeting = asyncio.run(runtime.turn(
+        storage, opening_prefix + 'Invite me to speak.', project_id='project',
+        client_turn_id='00000000-0000-4000-8000-000000000003', user_response=False,
+    ))
+    repeated = asyncio.run(runtime.turn(
+        storage, 'Changed client text must not replay the old idempotency key.',
+        project_id='project', client_turn_id='00000000-0000-4000-8000-000000000002',
+    ))
+
+    assert first['recall_status']['rounds_completed'] == 1
+    assert omitted_context['recall_status']['rounds_completed'] == 2
+    assert greeting['recall_status']['rounds_completed'] == 2
+    assert repeated['cached'] is True
+    assert storage.completed == 2
+    assert [commit['user_response'] for commit in storage.commits] == [True, True, False]
 
 
 def test_failed_reply_does_not_consume_allowance_and_paid_users_can_continue(monkeypatch):
@@ -140,3 +252,23 @@ def test_default_and_invalid_configuration(monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS', '0')
     with pytest.raises(ValueError, match='positive integer'):
         free_recall_rounds()
+
+
+@pytest.mark.parametrize('value',[1,7,20,31])
+def test_configured_allowance_boundaries_are_independent_of_draft_cadence(monkeypatch,value):
+    from apps.api.recall import private_draft_cadence,recall_status
+    monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS',str(value))
+    monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE','3')
+    assert free_recall_rounds()==value and private_draft_cadence()==3
+    assert recall_status(value-1,None)['payment_required'] is False
+    assert recall_status(value,None)['payment_required'] is True
+    assert recall_status(value,{'status':'paid'})['payment_required'] is False
+
+
+@pytest.mark.parametrize('name',['MEMORY_SPARK_FREE_RECALL_ROUNDS','MEMORY_SPARK_PRIVATE_DRAFT_CADENCE'])
+@pytest.mark.parametrize('value',['-1','zero','2.5','1000001'])
+def test_invalid_allowance_or_cadence_rejected(monkeypatch,name,value):
+    from apps.api.recall import private_draft_cadence
+    monkeypatch.setenv(name,value)
+    with pytest.raises(ValueError,match='positive integer'):
+        (free_recall_rounds if name.endswith('RECALL_ROUNDS') else private_draft_cadence)()

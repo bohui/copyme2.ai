@@ -129,9 +129,14 @@ the accessible and dependency-failure fallback.
 - Store one `user_family_context` document per authenticated Supabase user and
   Memoir project. The document is versioned and directly renderable with
   `schema_version`, `project_id`, `revision`, `updated_at`, `people`,
-  `relationships`, `timeline`, and `life_periods`. People, relationships,
-  timeline items, and life periods use canonical ids; the latter three retain
-  uncertainty, visibility, and print-inclusion fields from the marker.
+  `relationships`, and one `timeline` collection. Schema version 2 identifies
+  timeline entries with `kind: "event"` or `kind: "period"`; events retain
+  `date_expression`, and periods retain `start_expression`/`end_expression`.
+  The backend orders entries by stated calendar dates and preserves undated
+  expressions without inventing exact dates. Version-1 `life_periods` are
+  migrated into this collection, preserving canonical ids, people links,
+  uncertainty, visibility, and print-inclusion fields. Resumed version-1
+  markers remain accepted at the backend boundary.
 - Return a `family_context_update` envelope alongside the document. It carries
   `schema_version`, `project_id`, `changed`, `persisted`, `revision`, a `skills`
   array containing `family_tree` and/or `author_timeline`, and per-collection

@@ -9,19 +9,21 @@ from pathlib import Path
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
 
-def write_config(home: Path, trusted_root: Path, uid: int, content: str):
+def write_config(home: Path, trusted_root: Path, uid: int, content: str, *, apply_owner: bool = True):
     """Replace, never open or chmod, a user-controlled config pathname."""
     home_fd = os.open(home, DIRECTORY_FLAGS)
     temporary = None
     try:
         os.fchmod(home_fd, 0o700)
-        os.fchown(home_fd, uid, uid)
+        if apply_owner:
+            os.fchown(home_fd, uid, uid)
         fd, temporary = tempfile.mkstemp(prefix='.config-', dir=trusted_root)
         with os.fdopen(fd, 'w', encoding='utf-8') as output:
             output.write(content)
             output.flush()
             os.fchmod(output.fileno(), 0o600)
-            os.fchown(output.fileno(), uid, uid)
+            if apply_owner:
+                os.fchown(output.fileno(), uid, uid)
         os.replace(temporary, 'config.toml', dst_dir_fd=home_fd)
         temporary = None
     finally:

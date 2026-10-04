@@ -37,3 +37,17 @@ def test_busy_activity_is_retryable_without_duplicate_execution(monkeypatch, tmp
     assert error.value.type == 'TaskBusy'
     assert not error.value.non_retryable
     assert queue.get('owner', entry['id'])['attempts'] == 1
+
+
+@pytest.mark.parametrize('status,error_type,terminal',[
+    ('failed','DraftFailed',True),('retry','DraftBusy',False),('deferred','DraftBusy',False),
+])
+def test_private_activity_failure_remains_restartable_and_busy_is_retryable(monkeypatch,status,error_type,terminal):
+    from unittest.mock import AsyncMock
+    from apps.api import private_drafts
+    execute=AsyncMock(return_value={'status':status})
+    monkeypatch.setattr(private_drafts,'execute',execute)
+    with pytest.raises(ApplicationError) as error:
+        asyncio.run(task_runtime.execute_private_draft('opaque-job'))
+    assert error.value.type==error_type and error.value.non_retryable is terminal
+    execute.assert_awaited_once_with('opaque-job')

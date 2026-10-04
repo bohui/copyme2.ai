@@ -9,6 +9,8 @@ from uuid import UUID
 
 import httpx
 
+from .family_context import normalise_family_context_document
+
 
 class UserStorage:
     def __init__(self, url, public_key, access_token, *, client=None):
@@ -69,6 +71,28 @@ class UserStorage:
     def _put(self, path, content, content_type, *, overwrite):
         return self.request('POST', '/storage/v1/object/memory-spark/' + quote(path, safe='/'),
                             content=content, headers={'Content-Type': content_type, 'x-upsert': str(overwrite).lower()})
+
+    def _owned_attachment_path(self, path):
+        if not isinstance(path, str):
+            raise ValueError('An attachment owned by the current user is required')
+        parsed = PurePosixPath(path)
+        if (path != parsed.as_posix() or '\\' in path
+                or any(part in {'.', '..'} for part in parsed.parts)
+                or len(parsed.parts) < 3 or parsed.parts[:2] != (self.user_id, 'attachment')):
+            raise ValueError('An attachment owned by the current user is required')
+        return path
+
+    def signed_attachment_url(self, path):
+        path = self._owned_attachment_path(path)
+        signed = self.request('POST', '/storage/v1/object/sign/memory-spark/' + quote(path, safe='/'),
+                              json={'expiresIn': 3600}).json()['signedURL']
+        if not signed.startswith('/object/sign/'):
+            raise ValueError('Invalid signed attachment URL')
+        return self.url + '/storage/v1' + signed
+
+    def delete_attachment(self, path):
+        return self.request('DELETE', '/storage/v1/object/memory-spark',
+                            json={'prefixes': [self._owned_attachment_path(path)]})
 
     def save_profile(self, profile, *, source_sequences=None):
         if source_sequences is None and isinstance(profile, dict):
@@ -142,15 +166,18 @@ class UserStorage:
         if not rows:
             return None
         document = rows[0].get('document')
-        return document if isinstance(document, dict) else None
+        return normalise_family_context_document(document) if isinstance(document, dict) else None
 
     def upsert_family_context(self, project_id, document, expected_revision=0):
         """Atomically persist a Family document and return its update envelope."""
-        return self.request('POST', '/rest/v1/rpc/upsert_user_family_context', json={
+        result = self.request('POST', '/rest/v1/rpc/upsert_user_family_context', json={
             'p_project_id': project_id,
-            'p_document': document,
+            'p_document': normalise_family_context_document(document),
             'p_expected_revision': expected_revision,
         }).json()
+        if isinstance(result.get('document'), dict):
+            result['document'] = normalise_family_context_document(result['document'])
+        return result
 
     def save_memory(self, text, *, kind='memoir', source_paths=None):
         return self.request('POST', '/rest/v1/user_memory', headers={'Prefer': 'return=representation'},
@@ -161,12 +188,24 @@ class UserStorage:
         return self.request('GET', '/rest/v1/user_memory',
                             params={'order': 'created_at.desc', 'limit': '100'}).json()
 
-    def all_memories(self):
+    def first_narrator_reply(self):
+        from .conversation_locale import first_narrator_reply
+        for offset in range(0, 1200, 200):
+            rows = self.request('GET', '/rest/v1/user_memory', params={
+                'user_id': f'eq.{self.user_id}', 'kind': 'eq.agent',
+                'order': 'created_at.asc,id.asc', 'limit': '200', 'offset': str(offset),
+            }).json()
+            first = first_narrator_reply(rows)
+            if first or len(rows) < 200:
+                return first
+        raise ValueError('First-reply history exceeds the supported retrieval bound')
+
+    def all_memories(self, *, order='created_at.asc,id.asc'):
         """Read a bounded complete collection, never silently truncate a book."""
         rows = []
         for offset in range(0, 1200, 200):
             page = self.request('GET', '/rest/v1/user_memory', params={
-                'order': 'created_at.asc,id.asc', 'limit': '200', 'offset': str(offset),
+                'order': order, 'limit': '200', 'offset': str(offset),
             }).json()
             rows.extend(page)
             if len(rows) > 1000:
@@ -174,6 +213,9 @@ class UserStorage:
             if len(page) < 200:
                 return rows
         raise ValueError('Collection exceeds the current memory limit')
+
+    def composition_memories(self):
+        return self.all_memories(order='life_stage_order.asc,created_at.asc,id.asc')
 
     def agent_session(self):
         rows = self.request('GET', '/rest/v1/user_agent_session',
@@ -206,7 +248,8 @@ class UserStorage:
                   'application/octet-stream', overwrite=False)
         return path
 
-    def commit_agent_turn(self, lease_token, thread_id, text, source_paths, *, source_sequence=None):
+    def commit_agent_turn(self, lease_token, thread_id, text, source_paths, *, source_sequence=None,
+                          project_id=None, client_turn_id=None, user_response=True, life_stage=None):
         payload = {
             'p_lease_token': lease_token,
             'p_thread_id': thread_id,
@@ -215,7 +258,27 @@ class UserStorage:
         }
         if source_sequence is not None:
             payload['p_source_sequence'] = source_sequence
+        if project_id is not None:
+            payload.update(p_project_id=project_id, p_client_turn_id=client_turn_id, p_user_response=user_response)
+            payload['p_life_stage'] = life_stage or 'unplaced'
         return self.request('POST', '/rest/v1/rpc/commit_user_agent_turn', json=payload).json()
+
+    def agent_turn_by_id(self, project_id, client_turn_id):
+        rows = self.request('GET', '/rest/v1/user_memory', params={
+            'project_id':f'eq.{project_id}', 'client_turn_id':f'eq.{UUID(client_turn_id)}',
+            'user_id':f'eq.{self.user_id}', 'limit':'1'}).json()
+        return rows[0] if rows else None
+
+    def private_draft_rounds(self, project_id):
+        return self.request('GET', '/rest/v1/user_completed_round', params={
+            'project_id':f'eq.{project_id}', 'user_id':f'eq.{self.user_id}',
+            'order':'ordinal.asc', 'limit':'1001'}).json()
+
+    def private_draft_event(self,project_id):
+        rows=self.request('GET','/rest/v1/user_private_draft_outbox',params={
+            'select':'id','user_id':f'eq.{self.user_id}','project_id':f'eq.{project_id}',
+            'order':'created_at.desc,id.desc','limit':'1'}).json()
+        return rows[0]['id'] if rows else None
 
     def update_agent_memory_source_paths(self, memory_id, source_paths):
         try:
@@ -229,3 +292,11 @@ class UserStorage:
             headers={'Prefer': 'return=representation'},
             json={'source_paths': list(source_paths or [])},
         ).json()
+
+    def assign_memory_stage(self, memory_id, life_stage):
+        from .stage_readiness import LIFE_STAGES
+        if life_stage not in (*LIFE_STAGES, 'unplaced'):
+            raise ValueError('Invalid life stage')
+        return self.request('PATCH', '/rest/v1/user_memory',
+            params={'id': f'eq.{UUID(memory_id)}', 'user_id': f'eq.{self.user_id}', 'kind': 'eq.agent'},
+            json={'life_stage': life_stage}, headers={'Prefer': 'return=representation'}).json()

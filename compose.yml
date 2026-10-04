@@ -28,6 +28,8 @@ services:
       MEMORY_SPARK_ENTITLEMENT_MODEL: ${MEMORY_SPARK_ENTITLEMENT_MODEL:-chapter}
       MEMORY_SPARK_SHOW_THINKING_STEPS: ${MEMORY_SPARK_SHOW_THINKING_STEPS:-0}
       MEMORY_SPARK_FREE_RECALL_ROUNDS: ${MEMORY_SPARK_FREE_RECALL_ROUNDS:-20}
+      MEMORY_SPARK_PRIVATE_DRAFT_CADENCE: ${MEMORY_SPARK_PRIVATE_DRAFT_CADENCE:-5}
+      MEMORY_SPARK_PRIVATE_DRAFTS_ENABLED: ${MEMORY_SPARK_PRIVATE_DRAFTS_ENABLED:-true}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
       SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
@@ -44,8 +46,11 @@ services:
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-}
       # Mocker does not publish cross-project DNS aliases; 192.168.68.1 is
       # the gateway for the external llm-provider network and forwards port 4000.
-      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
-      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.66.1:4000/v1}
+      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-gpt-5.6-luna-pooled}
+      MEMORY_SPARK_LLM_REASONING_EFFORT: ${MEMORY_SPARK_LLM_REASONING_EFFORT:-max}
+      MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-legal2ai-luna-low}
+      MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT: ${MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT:-low}
       MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
@@ -66,6 +71,9 @@ services:
       - ./apps/web/public:/app/apps/web/public:ro
       - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
+      - ./skills/memoir-place-journey:/app/skills/memoir-place-journey:ro
+      - ./skills/memoir-author-timeline:/app/skills/memoir-author-timeline:ro
+      - ./skills/memoir-family-tree:/app/skills/memoir-family-tree:ro
       - ./skills/memoir-composer:/app/skills/memoir-composer:ro
       - ./skills/place-photo-research:/app/skills/place-photo-research:ro
       - ./var/memory-spark:/var/lib/memory-spark
@@ -97,6 +105,8 @@ services:
     init: true
     mem_limit: 2g
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
       FLICKR_API_KEY: ${FLICKR_API_KEY:-}
       GOOGLE_CSE_ID: ${GOOGLE_CSE_ID:-b2de41f6592f74c3e}
       GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
@@ -129,13 +139,19 @@ services:
       MEMORY_SPARK_LEGACY_CODEX_HOME: /var/lib/memory-spark/legacy-codex-users
       MEMORY_SPARK_TASK_STORE_URL: http://api:8000
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
-      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.68.1:4000/v1}
-      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-deepseek-v4-flash}
+      MEMORY_SPARK_LLM_BASE_URL: ${MEMORY_SPARK_LLM_BASE_URL:-http://192.168.66.1:4000/v1}
+      MEMORY_SPARK_LLM_MODEL: ${MEMORY_SPARK_LLM_MODEL:-gpt-5.6-luna-pooled}
+      MEMORY_SPARK_LLM_REASONING_EFFORT: ${MEMORY_SPARK_LLM_REASONING_EFFORT:-max}
+      MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-legal2ai-luna-low}
+      MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT: ${MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT:-low}
       MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
       PYTHONUNBUFFERED: "1"
     volumes:
       - codex-worker-home:/var/lib/memory-spark/codex-users
       - ./apps/api:/app/apps/api:ro
+      - ./skills/memoir-place-journey:/app/skills/memoir-place-journey:ro
+      - ./skills/memoir-author-timeline:/app/skills/memoir-author-timeline:ro
+      - ./skills/memoir-family-tree:/app/skills/memoir-family-tree:ro
       - ./skills/memoir-composer:/app/skills/memoir-composer:ro
       # Read only for one-time import; stop the old API before upgrading.
       - ./var/memory-spark/codex-users:/var/lib/memory-spark/legacy-codex-users:ro
@@ -174,6 +190,9 @@ services:
       MEMORY_SPARK_REGION: ${MEMORY_SPARK_REGION:-au}
       MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
       MEMORY_SPARK_WORKER_ID: ${MEMORY_SPARK_WORKER_ID:-memory-spark-worker}
+      MEMORY_SPARK_TASK_STORE_URL: http://api:8000
+      MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
+      MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_TASK_DB: /var/lib/memoir-tasks/tasks.sqlite
       MEMORY_SPARK_TEMPORAL_ADDRESS: temporal:7233
       MEMORY_SPARK_TEMPORAL_NAMESPACE: default
@@ -182,6 +201,7 @@ services:
     volumes:
       - ./apps/api:/app/apps/api:ro
       - ./scripts:/app/scripts:ro
+      - ./skills/memoir-composer:/app/skills/memoir-composer:ro
       - ./var/memory-spark:/var/lib/memory-spark
       - memoir-tasks:/var/lib/memoir-tasks
     depends_on:

@@ -111,13 +111,13 @@ def main() -> None:
         page.goto(args.base_url, wait_until="networkidle")
         page.get_by_role("button", name="Begin my story").click()
         expect(page.get_by_role("main", name="Mira conversation")).to_be_visible()
-        expect(page.locator(".people-list strong", has_text="Persisted relative")).to_be_visible()
+        expect(page.locator(".family-person-card strong", has_text="Persisted relative")).to_be_visible()
 
         page.get_by_role("textbox", name="Your message").fill("My mother Mei helped me start school around 1964 in Hobart.")
         page.get_by_role("button", name="Send message").click()
 
         expect(page.get_by_role("complementary", name="Family tree workspace")).to_be_visible()
-        expect(page.locator(".people-list strong", has_text="Mei")).to_be_visible()
+        expect(page.locator(".family-person-card strong", has_text="Mei")).to_be_visible()
         expect(page.get_by_role("complementary", name="Family tree workspace").get_by_text("mother · parent")).to_be_visible()
         expect(page.get_by_role("button", name="Timeline")).to_be_visible()
 

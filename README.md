@@ -9,11 +9,12 @@ saved reply; failed replies do not consume it. Once exhausted, the interview
 shows package selection and resumes only after a verified paid entitlement.
 Customer-facing copy does not show the free-round allowance.
 
-The development database schema is consolidated into one Supabase migration.
-Run `make migrate` to apply it through Supabase's tracked migration history.
+The development database starts with a consolidated schema baseline and uses
+incremental migrations for later changes. Run `make migrate` to apply pending
+changes through Supabase's tracked migration history.
 For a disposable development database after changing the schema baseline, use
 `supabase db reset --db-url "$SUPABASE_DB_URL" --yes`; this recreates the
-schema and applies the consolidated migration.
+schema and applies the baseline and subsequent migrations.
 
 ## Product URLs
 
@@ -172,6 +173,16 @@ is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
 
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
 
+Memoir interviews default to the ChatGPT subscription pool through LiteLLM's
+`gpt-5.6-luna-pooled` route, backed by `codex-lb`, with
+`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Preview and private memoir composition
+use `legal2ai-luna-low` with low reasoning by default, so drafting does not
+inherit the interview's slower max setting. Set
+`MEMORY_SPARK_LLM_BASE_URL` to the provider network's current gateway on port
+4000; the LiteLLM gateway and `codex-lb` must both be running. Keep the Memoir
+consumer key in `MEMORY_SPARK_LLM_API_KEY` authorized for both model routes; the
+`codex-lb` key stays in the provider stack.
+
 ### Public hostname through Cloudflare Tunnel
 
 The local Apple Container stack can serve [https://copyme2.ai](https://copyme2.ai)
@@ -252,7 +263,8 @@ aliases are populated. `make container-up` handles this. `container-health` also
 checks the worker's Temporal connection. This is a persistent **local development**
 setup, not a production Temporal deployment.
 
-To permanently reset all local application data, run:
+To permanently reset local user/application data while retaining the shared
+keyword-to-photo search cache, run:
 
 ```bash
 make db-truncate RESET_CONFIRM=1
@@ -265,7 +277,15 @@ API, clears local object and per-user Codex files, truncates the application
 tables, and deletes every Supabase Auth user. It requires `SUPABASE_DB_URL`,
 `SUPABASE_URL`, and the server-only `SUPABASE_SECRET_KEY` (or
 `SUPABASE_SERVICE_ROLE_KEY`). Schemas, migration history, and Storage bucket
-definitions are preserved. Use
+definitions are preserved. `public.place_photo_searches` is preserved, including
+its search keys, public photo results and update times. A preflight rejects
+foreign-key/partition dependencies that would pull this table into `CASCADE` or
+Auth deletion, before stopping services or clearing Storage/files. Per-run
+SerpAPI/CSE metadata under `search-cache/` in photo-research run directories also
+remains outside the user-file reset paths. This command leaves the web/API stopped;
+service recovery is a separate action. `supabase db reset` recreates schemas and
+does not offer this cache-preservation guarantee; use it only for an intentional
+full schema reset. Use
 `ENV_FILE=path/to/.env` to load a different file.
 
 High-level Codex activity is hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary while private model reasoning remains hidden.
@@ -304,13 +324,27 @@ included in the correlation metadata. The publisher also exposes Langfuse SDK v4
 synchronous dataset callbacks; the local runner is the async adapter for the
 real worker turn boundary.
 
+The five-case runner can publish the same minimized evidence per round after a
+successful Langfuse preflight:
+
+```bash
+python3 scripts/run_memoir_five_case_evaluation.py \
+  --mode live --publish --run-id <isolated-run-id>
+```
+
+Each published round carries the complete ordered trajectory on its root
+observation, creates child observations when the SDK supports them, preserves
+worker-supplied observation ancestry and tool arguments, and sends deterministic
+skill invocation/output/state scores. Unavailable judge or telemetry evidence
+is recorded separately; it is never reported as a live pass.
+
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 
 ### Place journeys in the integrated Codex worker
 
-The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with Google Geocoding and Google 2D roadmap imagery when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. Google keys are split by trust boundary: `GOOGLE_MAPS_GEOCODING_API_KEY` stays server-side and `GOOGLE_MAPS_BROWSER_API_KEY` is restricted to the web origin and Map Tiles API. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The skill is baked into the API and private Codex worker images and is refreshed with `make install_skill`.
+The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with Google Geocoding and Google 2D roadmap imagery when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. Google keys are split by trust boundary: `GOOGLE_MAPS_GEOCODING_API_KEY` stays server-side and `GOOGLE_MAPS_BROWSER_API_KEY` is restricted to the web origin and Map Tiles API. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The finest supported location is a named suburb or town. Hospitals, schools, streets, compounds, and generic labels stay in the story; an explicitly named containing city or suburb becomes the journey location. The parser normalises `地球` to the canonical `Earth` root and accepts every grounded place in a message. Local Compose mounts the place skill into both the API and private Codex worker so restarting those services loads the current contract; built images retain a copy for deployment. Photo searches use a calendar period only for the place it describes and report `place-photo-research` progress in Thinking steps.
 
-The background [`memoir-place-groups` skill](skills/memoir-place-groups/SKILL.md) checks every new place preview, confirmed update, and restored history against existing city groups. `POST /v1/projects/{project_id}/place-groups` uses public hierarchy and cached geocoder administrative metadata without another model call. A city's schools, towns, and other public locations share one detailed map with independent pins; another city creates another choice. Original location records, stages, and photographs stay distinct. Partial matches and missing child coordinates remain visibly pending, rather than receiving the parent's centre coordinates. The newest mention is checked first, and stale responses cannot overwrite a correction or another project's workspace. Grouping and photo requests run independently of the conversation stream.
+The background [`memoir-place-groups` skill](skills/memoir-place-groups/SKILL.md) checks every new place preview, confirmed update, and restored history against existing city groups. `POST /v1/projects/{project_id}/place-groups` uses public hierarchy and cached geocoder administrative metadata without another model call. A city's named suburbs, towns, and administrative districts share one map with independent pins; another city creates another choice. Original location records, stages, and photographs stay distinct. Partial matches and missing child coordinates remain visibly pending, rather than receiving the parent's centre coordinates. The newest mention is checked first, and stale responses cannot overwrite a correction or another project's workspace. Grouping and photo requests run independently of the conversation stream.
 
 In Google Cloud, enable billing plus the [Geocoding API](https://developers.google.com/maps/documentation/geocoding) and [Map Tiles API](https://developers.google.com/maps/documentation/tile). Create a server-restricted key for geocoding and a separate HTTP-referrer-restricted browser key for Map Tiles, then place them in the two environment variables above. Google 2D Tiles must be paired with Google geocoding; the app does that through the server place-map endpoint rather than a model tool call.
 
@@ -366,9 +400,19 @@ does not call the model or Supabase, and it is not a live-model integration test
 python3 -m pytest -q
 make browser-test
 make browser-localization-test
+make memoir-progressive-test
 python3 scripts/run_acceptance_evidence.py
 python3 scripts/audit_spec_routes.py
 ```
+
+`make memoir-progressive-test` runs the deterministic composer validator and
+renderer against ten distinct sample lives (five in China and five in
+Australia, 31 rounds each), then drives 31-round `zh-CN` and `en-AU` browser
+conversations. The browser assertion covers place grouping, photo references,
+family/timeline cues, and the stage-3 delivery transition where structured
+chapter tabs replace the earlier location/photo overview. See
+[`docs/memoir-progressive-e2e.md`](docs/memoir-progressive-e2e.md) for the
+coverage boundary and evidence produced.
 
 The full implementation covers consent, invitations, resumable uploads, cue reactions, evidence-linked memories, version conflicts, preview builds, checkout and verified webhooks, chapters, editions, audio links, print proofs, deletion tombstones, audit metadata, regional provider switches, Supabase persistence, and the Codex memory integration. Production merchant, regional processor, media-rights, supplier, legal, and reliability gates remain configuration and operations decisions outside this credential-free local implementation.
 
@@ -396,8 +440,38 @@ searches. Set `MEMORY_SPARK_PHOTO_WORKER_SECRET` to a random server-only secret
 outside local development. Google CSE combines verified aliases (currently
 Chengde/承德) and years with uppercase `OR` in one query. For a narrow historical
 range wholly inside one decade, its browser query includes that decade's Chinese
-and English labels alongside the requested years, for example
-`("承德" OR "Chengde") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")`.
+and English labels alongside years within ten years of the requested period.
+
+Photo galleries enforce a 20 km radius around the selected coordinates and a
+ten-year tolerance on either side of the selected year or range. Capture dates
+and source coordinates must support the match; missing metadata, upload dates
+and page revision dates cannot qualify a photo. The same checks apply to saved
+photos, grouped-place fallbacks and every streamed page. Wikimedia originals,
+thumbnails and file redirects share one identity; content fingerprints also
+merge resized or rehosted copies and closely matching scenes.
+
+Public photo research is persisted globally in Supabase `place_photo_searches`,
+keyed by search-policy version, normalized location and period. Any project requesting that key reuses
+the full saved result set, including after a worker restart. Progressive batches
+are saved independently of the browser; cursors remain bound to the project and
+selected coordinates. Radius filtering happens before pagination. Only the
+trusted photo worker writes the cache with its server-side Supabase credential;
+no memoir text, user ID, project ID, cookies or credentials enter its rows.
+Apply migration `202610020003_place_photo_searches.sql` and configure
+`SUPABASE_URL`/`SUPABASE_SECRET_KEY` on the photo worker. Saved historical results
+do not expire with the in-memory 15-minute cursor cache. Current references are
+checked against the recent capture window when restored. Completed empty searches
+are reusable; provider failures remain retryable. An explicit request with
+`refresh=true` starts fresh research. Page refresh and history hydration reuse
+saved photos rather than invoking fresh discovery. Older search-policy results
+are refreshed once so their previous filters cannot bypass the new limits.
+
+Google cards are discovery leads. The source parser inspects image-specific
+captions, structured capture metadata and MediaWiki file-description dates; a
+missing date in the page title no longer discards dated images on that page.
+Page publication dates, upload dates and Google preview thumbnails remain
+insufficient photo evidence. Current Google queries include recent-year terms.
+
 Source capture dates must fit the containing decade; a generic `80s` search hit
 cannot establish the century. Google browser is skipped in the subsequent
 decade fallback, including after a blocked search, because it already covered
@@ -415,8 +489,8 @@ deduplicated across providers by
 asset ID, canonical original/thumbnail URLs and content hashes when available.
 The gallery appends ten-photo pages when its bottom comes into view, with a
 manual load/retry button. A bounded discovery pool (at most 150 matches) is
-cached by public place/period for 15 minutes, making repeated searches across
-projects fast. Cursors remain project-bound. The client requests NDJSON and
+kept in memory for 15 minutes and persisted globally by public place/period,
+making repeated searches across projects fast. Cursors remain project-bound. The client requests NDJSON and
 displays verified batches immediately, keeping a loading indicator while the
 remaining sources are checked. Streamed results retain stable arrival order;
 ordinary JSON clients still receive completed pages. An expired cursor starts a new snapshot and
