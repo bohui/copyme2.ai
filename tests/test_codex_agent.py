@@ -284,7 +284,7 @@ def test_workspace_extraction_drops_model_timeline_marker_for_explicit_negative_
     'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
     'I am unsure whether Ben left the neighbourhood before or after my final school year.',
 ])
-def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(monkeypatch, text):
+def test_workspace_extraction_suppresses_timeline_marker_for_advisory_without_author_event(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 
     async def worker_turn(**kwargs):
@@ -306,7 +306,7 @@ def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(m
         language='zh-CN',
     ))
 
-    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 
 @pytest.mark.parametrize('text', [
@@ -334,6 +334,37 @@ def test_workspace_extraction_suppresses_timeline_marker_for_pure_reflection(mon
         text=text, language='zh-CN',
     ))
 
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
+
+
+def test_workspace_extraction_suppresses_disclaimed_third_party_family_story(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        calls.append(kwargs.get('extraction_focus'))
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_FAMILY_TREE]]'
+                '{"people":[{"id":"friend","name":"阿青","family_title":"friend"}],"relationships":[]}'
+                '[[/MEMORY_SPARK_FAMILY_TREE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"third-party","title":"阿青后来去了贵阳",'
+                '"date_expression":"unknown"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='我不想把阿青的生活写成我的事实，她的经历应该保留在故事之外。',
+        language='zh-CN',
+    ))
+
+    assert calls == [None]
+    assert 'MEMORY_SPARK_FAMILY_TREE' not in reply
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 

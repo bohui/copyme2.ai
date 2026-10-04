@@ -27,6 +27,8 @@ from .turn_stream import VisibleText
 from .family_context import (
     AUTHOR_TIMELINE_MARKER_END,
     AUTHOR_TIMELINE_MARKER_START,
+    FAMILY_TREE_MARKER_END,
+    FAMILY_TREE_MARKER_START,
     combine_family_skill_updates,
     extract_family_skill_updates,
     family_features_enabled,
@@ -458,6 +460,8 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
             or re.search(r"(?:关于|到|去|回|来自|住在|搬到).{0,8}[\u3400-\u9fff]{2,}", text)
         )
     if focus == 'family_tree':
+        if _family_tree_marker_is_explicitly_disclaimed(text):
+            return False
         if re.search(
             r"\b(?:family|mother|father|parent|sister|brother|grandmother|grandfather|"
             r"grandma|grandpa|mum|mom|dad|gran|nan|partner|wife|husband|child|son|"
@@ -496,6 +500,8 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
                         return True
         return False
     if focus == 'author_timeline':
+        if _author_timeline_marker_is_advisory_without_author_event(text):
+            return False
         if re.search(
             r"(?:\b(?:sometimes|often)\b.{0,80}\b(?:remember|reflection|reflective|"
             r"just to remember|memory)\b|\b(?:i|we)\s+(?:am|was)\s+unsure\s+whether\s+"
@@ -622,7 +628,7 @@ def _author_timeline_marker_is_reflection_only(text: str) -> bool:
             lowered,
         )
         or re.search(
-            r"\b(?:i|we)\s+(?:moved|returned|left|retired|worked|started|began|"
+            r"\b(?:i|we)\s+(?:(?:had|have)\s+)?(?:moved|returned|left|retired|worked|started|began|"
             r"opened|married|graduated|visited|travelled|traveled)\b.{0,80}"
             r"\b(?:in\s+(?:18|19|20)\d{2}|during\s+(?:childhood|adolescence|"
             r"midlife)|at\s+(?:age\s+)?\d{1,3}|when\s+i\s+was)\b",
@@ -635,6 +641,87 @@ def _author_timeline_marker_is_reflection_only(text: str) -> bool:
         )
     )
     return reflective and not explicit_event
+
+
+def _author_timeline_marker_has_grounded_author_event(text: str) -> bool:
+    """Return whether a mixed advisory turn contains an author event."""
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    return bool(
+        re.search(
+            r"\b(?:i|we)\b[^.!?。！？;；\n]{0,120}\b(?:18|19|20)\d{2}\b"
+            r"[^.!?。！？;；\n]{0,80}\b(?:moved|returned|left|retired|worked|"
+            r"started|began|opened|married|graduated|visited|travelled|traveled)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:i|we)\s+(?:(?:had|have)\s+)?(?:moved|returned|left|retired|worked|started|began|"
+            r"opened|married|graduated|visited|travelled|traveled|grew up|"
+            r"arrived|lived|learned|followed)\b.{0,100}"
+            r"\b(?:in\s+(?:18|19|20)\d{2}|during\s+(?:childhood|adolescence|"
+            r"midlife|toddlerhood)|at\s+(?:age\s+)?\d{1,3}|when\s+i\s+was|"
+            r"as\s+a\s+(?:child|toddler|teenager))\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:我|我们)[^。！？\n]{0,120}(?:18|19|20)\d{2}年[^。！？\n]{0,80}"
+            r"(?:搬|回到|离开|退休|工作|开始|开办|结婚|毕业)",
+            text,
+        )
+    )
+
+
+def _author_timeline_marker_is_advisory_without_author_event(text: str) -> bool:
+    """Reject source/third-party uncertainty when no author event is present."""
+    if not isinstance(text, str) or _author_timeline_marker_has_grounded_author_event(text):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    source_boundary = bool(re.search(
+        r"\b(?:please\s+)?(?:preserve|keep|maintain|separate|distinguish)\b"
+        r".{0,100}\b(?:difference|distinction|boundary)\b.{0,140}\b"
+        r"(?:what\s+[a-z][a-z'’-]*\s+remembers?|what\s+[a-z][a-z'’-]*['’]s\s+"
+        r"memory|what\s+i\s+directly\s+remember|my\s+testimony|public\s+history)\b",
+        lowered,
+    ))
+    third_party_uncertainty = bool(re.search(
+        r"\b(?:i(?:'m|’m| am)|we(?:'re|’re| are))\s+(?:unsure|uncertain|"
+        r"not\s+sure|do\s+not\s+know|don't\s+know)\b.{0,100}\b(?:whether|if)\b"
+        r".{0,80}\b(?!i\b|we\b)[a-z][a-z'’-]*\s+(?:left|moved|returned|"
+        r"retired|worked|started|began|graduated|married|visited|lived)\b",
+        lowered,
+    ))
+    chinese_source_boundary = bool(re.search(
+        r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+        r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
+        text,
+    ))
+    return source_boundary or third_party_uncertainty or chinese_source_boundary
+
+
+def _family_tree_marker_is_explicitly_disclaimed(text: str) -> bool:
+    """Reject family extraction when another person's story is out of scope."""
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    return bool(
+        re.search(
+            r"\b(?:i|we)\b.{0,30}\b(?:do not|don't|would not|wouldn't|must not)\b"
+            r".{0,50}\b(?:write|treat|present|turn|make|include)\b.{0,80}\b"
+            r"(?:her|his|their)\s+(?:life|experience|story)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:her|his|their)\s+(?:life|experience|story)\b.{0,60}\b"
+            r"(?:outside|out of|separate from|not my)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+            r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
+            text,
+        )
+    )
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
@@ -1144,8 +1231,13 @@ class CodexRuntime:
                                          if (not place_journey_message_is_ambiguous(text)
                                              and place_journey_matches_message(candidate, text))]
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
                 if (_author_timeline_marker_is_explicitly_disclaimed(text)
-                        or _author_timeline_marker_is_reflection_only(text)):
+                        or _author_timeline_marker_is_reflection_only(text)
+                        or _author_timeline_marker_is_advisory_without_author_event(text)):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )
@@ -1651,8 +1743,13 @@ class CodexRuntime:
                                     'error_type': type(error).__name__,
                                 },
                             })
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
                 if (_author_timeline_marker_is_explicitly_disclaimed(text)
-                        or _author_timeline_marker_is_reflection_only(text)):
+                        or _author_timeline_marker_is_reflection_only(text)
+                        or _author_timeline_marker_is_advisory_without_author_event(text)):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )
@@ -1690,8 +1787,13 @@ class CodexRuntime:
                 reply = await connection.turn(result['thread']['id'], prompt,
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}))
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
                 if (_author_timeline_marker_is_explicitly_disclaimed(text)
-                        or _author_timeline_marker_is_reflection_only(text)):
+                        or _author_timeline_marker_is_reflection_only(text)
+                        or _author_timeline_marker_is_advisory_without_author_event(text)):
                     reply = _remove_marker_block(
                         reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
                     )
