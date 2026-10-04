@@ -790,6 +790,8 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
         data = json.loads(raw)
     except HTTPError as error:
         fail(f"llm_search_http_{error.code}")
+    except http.client.HTTPException:
+        fail("llm_search_network_error")
     except (TimeoutError, socket.timeout):
         fail("llm_search_timeout")
     except (URLError, OSError):
@@ -843,16 +845,24 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
 
 
 def _llm_capture_date(value: str, temporal: dict) -> dict | None:
+    value = _text(value)
     if re.search(r"upload|publish|scan|circa|before|after|约|上传|发表", value, re.I):
         return None
-    days = re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", value)
+    days = list(dict.fromkeys(re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", value)))
     years = list(dict.fromkeys(_crawl4ai_years(value)))
     try:
-        if len(days) == 1:
-            start = end = date.fromisoformat(days[0]).isoformat()
+        year_range = re.search(r"(?<!\d)((?:18|19|20)\d{2})\s*[-–—]\s*((?:18|19|20)\d{2})(?!\d)", value)
+        if year_range:
+            range_years = [int(year_range.group(1)), int(year_range.group(2))]
+            if len(years) != 2 or set(years) != set(range_years):
+                return None
+            start, end, precision = f"{range_years[0]}-01-01", f"{range_years[1]}-12-31", "range"
+        elif len(days) == 1:
+            captured = date.fromisoformat(days[0])
+            if any(year != captured.year for year in years):
+                return None
+            start = end = captured.isoformat()
             precision = "day"
-        elif len(years) == 2 and re.search(rf"{years[0]}\s*[-–—]\s*{years[1]}", value):
-            start, end, precision = f"{years[0]}-01-01", f"{years[1]}-12-31", "range"
         elif len(years) == 1:
             year = years[0]
             decade = bool(re.search(rf"{year}(?:s|年代)", value, re.I))
@@ -862,6 +872,11 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
             return None
     except ValueError:
         return None
+    if start > end:
+        return None
+    if temporal.get("mode") == "historical_unspecified":
+        return {"start": start, "end": end, "precision": precision,
+                "basis": "source_caption", "conflicting": False}
     if not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]:
         return None
     return {"start": start, "end": end, "precision": precision,

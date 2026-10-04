@@ -1,6 +1,7 @@
 """Search public photo catalogues using only coarse place and period queries."""
 import hashlib
 import html
+import http.client
 import os
 import re
 from datetime import datetime
@@ -19,6 +20,7 @@ GOOGLE_CSE_PAGE_SIZE = 10
 GOOGLE_CSE_MAX_PAGES = 10
 HEADERS = {'User-Agent': 'MemorySpark/1.0 (memoir place reference images)'}
 NON_PHOTO = re.compile(r'\b(banknotes?|coins?|currency|stamps?|maps?|paintings?|illustrations?|drawings?|engravings?)\b|纸币|鈔票|钞票|邮票|绘画|地圖|地图', re.I)
+HISTORICAL_PERIODS = {'old', 'historical', 'unspecified-historical', '老照片', '过去', '以前'}
 
 
 class PhotoResearchUnavailable(ValueError):
@@ -31,6 +33,8 @@ class PhotoResearchUnavailable(ValueError):
 def photo_failure_reason(error):
     if isinstance(error, httpx.HTTPStatusError):
         return f'http_{error.response.status_code}'
+    if isinstance(error, http.client.HTTPException):
+        return 'network_error'
     if isinstance(error, (TimeoutError, httpx.TimeoutException)):
         return 'timeout'
     if isinstance(error, httpx.HTTPError):
@@ -67,6 +71,10 @@ def _period_bounds(period: str, *, expand_bare_year: bool = True) -> tuple[int, 
     return min(years), max(years)
 
 
+def _is_historical_period(period: str) -> bool:
+    return (period or '').strip().casefold() in HISTORICAL_PERIODS
+
+
 def _date_matches(date: str, period: str) -> bool:
     bounds = _period_bounds(period)
     years = _years(date)
@@ -92,7 +100,16 @@ def _date_matches(date: str, period: str) -> bool:
             return False
         return current['start'] <= start <= end <= current['end']
     if not bounds:
-        return False
+        if not _is_historical_period(period):
+            return False
+        from .place_photo_browser import _research
+        current = _research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
+        scene = _period_bounds(date, expand_bare_year=False)
+        if not scene:
+            return False
+        exact = re.fullmatch(r'(\d{4}-\d{2}-\d{2})(?:[T ].*)?', date.strip())
+        end = exact[1] if exact else f'{scene[1]:04d}-12-31'
+        return end < current['start']
     # A source caption containing only "1985" is an observed year, not a
     # request to expand another ten-year window.
     scene = _period_bounds(date, expand_bare_year=False)
@@ -574,7 +591,7 @@ def _mix_sources(items: list[dict]) -> list[dict]:
 
 def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None,
                    skip_google_browser: bool = False) -> list[dict]:
-    if period.strip() and not _period_bounds(period):
+    if period.strip() and not _period_bounds(period) and not _is_historical_period(period):
         return []
     items, errors = [], []
     # Independent catalogues overlap their network waits; one failure must not
@@ -610,7 +627,7 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
         for name, future in futures:
             try:
                 items.extend(future.result())
-            except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
+            except (http.client.HTTPException, httpx.HTTPError, ValueError, KeyError, TypeError) as error:
                 errors.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
                               else [{'provider': name, 'reason': photo_failure_reason(error)}])
     exact = [item for item in items if _date_matches(item.get('date_expression', ''), period)]
@@ -678,14 +695,14 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
     # skill periods. Preserve its resolved window rather than reinterpreting it.
     bounds = _period_bounds(period)
     temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01', 'end': f'{bounds[1]}-12-31'}
-                if bounds else helper.normalize_period(None, clock))
+                if bounds else helper.normalize_period(period if _is_historical_period(period) else None, clock))
     try:
         discovery = helper.llm_search(place, temporal)
         items, source_failed = [], False
         for origin in discovery['sources'][:12]:
             try:
                 images = helper.llm_source_photos(origin['source_url'], place, temporal)
-            except (helper.ResearchError, OSError, ValueError):
+            except (helper.ResearchError, OSError, ValueError, http.client.HTTPException):
                 source_failed = True
                 continue
             for image in images:
@@ -711,6 +728,8 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
         if not items and source_failed:
             raise PhotoResearchUnavailable('llm_web_search', 'source_unavailable')
         return _deduplicate(items)
+    except http.client.HTTPException:
+        raise PhotoResearchUnavailable('llm_web_search', 'source_unavailable') from None
     except helper.ResearchError as error:
         raise PhotoResearchUnavailable('llm_web_search', str(error) if str(error).startswith('llm_') else 'source_unavailable') from None
 

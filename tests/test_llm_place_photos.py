@@ -1,5 +1,6 @@
 """Photo discovery acceptance tests; only external HTTP and DNS are faked."""
 import io
+import http.client as http_client
 import json
 import socket
 from urllib import request as http
@@ -211,9 +212,37 @@ def test_omitted_period_finds_recent_photos_without_inheriting_history(search_wo
     assert '1983' not in world['calls'][0]['input']
 
 
-def test_app_keeps_catalogue_results_when_gateway_rejects_search(search_world, monkeypatch):
+@pytest.mark.parametrize('gateway_error', [
+    HTTPError('https://gateway.example/v1/responses', 400, 'fixture-private-key', None, None),
+    http_client.BadStatusLine('fixture-private-key'),
+], ids=['http_status', 'protocol'])
+def test_app_keeps_catalogue_results_when_gateway_rejects_search(search_world, monkeypatch, gateway_error):
     _, world = search_world
-    world['response'] = HTTPError('https://gateway.example/v1/responses', 400, 'fixture-private-key', None, None)
+    world['response'] = gateway_error
+    record = {'id': 'https://www.loc.gov/item/fixture/', 'title': 'Chengde street photograph',
+              'date': '1983', 'image_url': ['https://tile.loc.gov/fixture.jpg'],
+              'item': {'medium': ['photograph'], 'rights': ['No known restrictions on publication']}}
+    def catalogues(url, **kwargs):
+        data = {'results': [record]} if 'loc.gov' in url else {'stat': 'ok', 'photos': {'photo': []}}
+        return httpx.Response(200, json=data, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', catalogues)
+    found, = photos.search_place_photos('Chengde', '1980s')
+    assert found['asset_id'] == 'loc-fixture'
+
+
+def test_app_accepts_a_dated_candidate_for_unspecified_historical_period(search_world):
+    _, world = search_world
+    world['pages']['https://archive.example/photo'] = (
+        '<figure><img src="https://images.example/street.jpg">'
+        '<figcaption>Chengde street 1983</figcaption></figure>')
+    found, = photos.search_place_photos('Chengde', 'historical')
+    assert found['date_expression'] == '1983'
+    assert found['scene_date_range']['precision'] == 'year'
+
+
+def test_app_keeps_catalogue_results_when_source_protocol_fails(search_world, monkeypatch):
+    _, world = search_world
+    world['pages']['https://archive.example/photo'] = http_client.IncompleteRead(b'partial')
     record = {'id': 'https://www.loc.gov/item/fixture/', 'title': 'Chengde street photograph',
               'date': '1983', 'image_url': ['https://tile.loc.gov/fixture.jpg'],
               'item': {'medium': ['photograph'], 'rights': ['No known restrictions on publication']}}
@@ -294,13 +323,32 @@ def test_skill_keeps_verified_photos_when_page_budget_is_exhausted(search_world,
     assert len(helper.read_json(tmp_path / 'candidates.json')) == 1
 
 
-def test_skill_excludes_conflicting_caption_and_capture_dates(search_world, tmp_path, capsys):
+@pytest.mark.parametrize('source_kind', ['json', 'figure'])
+def test_skill_excludes_conflicting_caption_and_capture_dates(search_world, tmp_path, capsys, source_kind):
     helper, world = search_world
-    world['pages']['https://archive.example/photo'] = world['pages']['https://archive.example/photo'].replace(
-        'Chengde street', 'Chengde street 1920')
+    if source_kind == 'json':
+        world['pages']['https://archive.example/photo'] = world['pages']['https://archive.example/photo'].replace(
+            'Chengde street', 'Chengde street 1920; date: 1983-10-01')
+    else:
+        world['pages']['https://archive.example/photo'] = (
+            '<figure><img src="https://images.example/street.jpg">'
+            '<figcaption>Chengde street 1920; date: 1983-10-01</figcaption></figure>')
     start_run(helper, tmp_path, capsys)
     assert helper.main(['discover', '--run', str(tmp_path)]) == 0
     assert json.loads(capsys.readouterr().out)['qualifying'] == 0
+
+
+def test_skill_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, tmp_path, capsys):
+    helper, world = search_world
+    world['pages']['https://archive.example/photo'] = (
+        '<figure><img src="https://images.example/street.jpg">'
+        '<figcaption>Chengde street 1983</figcaption></figure>')
+    start_run(helper, tmp_path, capsys, period='historical')
+    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    candidate, = helper.read_json(tmp_path / 'candidates.json')
+    assert summary['qualifying'] == 1
+    assert candidate['scene_date']['start'] == '1983-01-01'
 
 
 def test_skill_reads_photo_metadata_with_multiple_schema_types(search_world, tmp_path, capsys):
