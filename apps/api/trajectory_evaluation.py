@@ -1459,6 +1459,18 @@ class LangfusePublisher:
             client = get_client()
         self.client = client
 
+    def flush(self) -> None:
+        """Flush after case root scopes have been closed.
+
+        Case publication flushes while its root observation is still active so
+        per-case callers get prompt delivery. Short-lived runners also need a
+        final flush after the case context exits, otherwise the root span's
+        end/update can remain queued when the process terminates.
+        """
+        flush = getattr(self.client, "flush", None)
+        if callable(flush):
+            flush()
+
     def run_experiment(
         self,
         *,

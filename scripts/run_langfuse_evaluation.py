@@ -101,6 +101,8 @@ async def _main(args: argparse.Namespace) -> Any:
     )
     variants = [{"variant": variant} for variant in args.variant] if args.variant else None
     results = await runner.run(cases, run_id=args.run_id, variants=variants, max_concurrency=args.concurrency)
+    if publisher is not None:
+        publisher.flush()
     args.failure_dir.mkdir(parents=True, exist_ok=True)
     for result in results:
         failures = result.get("failure_evidence") or []

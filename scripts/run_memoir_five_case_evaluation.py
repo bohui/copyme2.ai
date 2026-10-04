@@ -1601,6 +1601,8 @@ async def main_async(args: argparse.Namespace) -> int:
     except ValueError as error:
         print(str(error), file=sys.stderr)
         return 2
+    if langfuse_publisher is not None:
+        langfuse_publisher.flush()
     write_json(run_dir / "summary.json", {"status": "completed", "mode": args.mode, "cases": summaries})
     aggregate = {
         "status": "mock_only" if args.mode == "fixture" else "completed",

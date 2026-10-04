@@ -505,6 +505,15 @@ def test_langfuse_scores_use_worker_trace_pair_and_round_identity():
     assert client.scores[0]["score_id"] != client.scores[1]["score_id"]
 
 
+def test_langfuse_publisher_supports_final_flush_after_case_scope():
+    client = _LangfuseDouble()
+    client.flushed = False
+
+    LangfusePublisher(client).flush()
+
+    assert client.flushed
+
+
 def test_protocol_item_lifecycle_pair_counts_one_successful_tool_call():
     recorder = TrajectoryRecorder()
     for method in ("item/started", "item/completed"):
