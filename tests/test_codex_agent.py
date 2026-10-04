@@ -378,6 +378,12 @@ def test_workspace_extraction_suppresses_disclaimed_third_party_family_story(mon
     'I retired in 2012, but in later life I sometimes repair a small object just to remember the patience of the old bench.',
     'In later life I sometimes repair a small object just to remember the patience of the old bench. I gave birth to my daughter in 1990.',
     'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I was born in 1980.',
+    'In 1990 I gave birth to my daughter.',
+    'In 1980 I was born in Hobart.',
+    'I bought my first house in 1990.',
+    'I joined the navy in 1980.',
+    '我在1980年出生。',
+    '1980年我出生。',
 ])
 def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
@@ -401,6 +407,34 @@ def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn
     ))
 
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+def test_workspace_extraction_filters_only_the_ungrounded_reflection_entry(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":['
+                '{"id":"e-reflection","title":"Reflection","date_expression":"later life"},'
+                '{"id":"e-birth","title":"Gave birth to daughter","date_expression":"1990","precision":"year"}'
+                ']}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='In later life I sometimes repair an old bench just to remember patience. In 1990 I gave birth to my daughter.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'e-birth' in reply
+    assert 'e-reflection' not in reply
 
 
 def test_workspace_extraction_recovers_known_person_without_repeated_kinship_title(monkeypatch):

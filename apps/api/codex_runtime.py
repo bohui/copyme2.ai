@@ -34,6 +34,7 @@ from .family_context import (
     family_features_enabled,
     merge_family_context_document,
     valid_family_project_id,
+    validate_author_timeline_context,
 )
 from .place_journey import (
     MARKER_START as PLACE_MARKER_START,
@@ -500,35 +501,13 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
                         return True
         return False
     if focus == 'author_timeline':
-        if _author_timeline_marker_is_advisory_without_author_event(text):
+        # This is only a recovery hint. Reflection/source-boundary cues may
+        # share a turn with a real author event, so never use a broad negative
+        # regex as a domain-wide veto here.
+        if (_author_timeline_marker_is_advisory_without_author_event(text)
+                or _author_timeline_marker_is_reflection_only(text)):
             return False
-        if re.search(
-            r"(?:\b(?:sometimes|often)\b.{0,80}\b(?:remember|reflection|reflective|"
-            r"just to remember|memory)\b|\b(?:i|we)\s+(?:am|was)\s+unsure\s+whether\s+"
-            r"(?!i\b|we\b)|\b(?:shouldn['’]?t|should not|do not|don't|not)\b.{0,40}\b"
-            r"(?:dated event|timeline|record)\b|不一定.{0,30}(?:事件|日期|记录)|"
-            r"反思.{0,30}(?:事件|日期|记录))",
-            lowered if lowered.isascii() else f"{lowered} {text}",
-        ):
-            return False
-        return bool(re.search(
-            r"\b(?:18|19|20)\d{2}\b|\b(?:age|aged|around|approximately|approximate|"
-            r"roughly|early|mid|late|season|winter|summer|spring|autumn|childhood|"
-            r"adolescen|teenage|young adulthood|midlife|later life|when i|as a|"
-            r"in my|during my|by my|before preschool)\b",
-            lowered,
-        ) or re.search(
-            r"\b(?:i|we)\s+(?:was born|arrived|moved|left|returned|worked|began|"
-            r"started|learned|met|spent|travelled|traveled|attended|opened|cared|"
-            r"taught|visited|rented|lived|joined|wrote|played|took|helped|chose|"
-            r"kept|went|came|studied|graduated|married|followed)\b",
-            lowered,
-        ) or re.search(
-            r"(?:出生|小时候|童年|幼儿|青春期|青少年|成年|中年|晚年|年龄|岁|年份|日期|月份|"
-            r"季节|冬天|夏天|春天|秋天|大约|约|前后|搬|住在|离开|回到|工作|学习|结婚|"
-            r"照顾|旅行|开始|开办|加入|毕业|记得|跟着|发生|更正)",
-            text,
-        ))
+        return _author_timeline_has_source_evidence(text)
     return False
 
 
@@ -583,15 +562,88 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     return bool(english_suppression or chinese_suppression)
 
 
-def _author_timeline_marker_is_reflection_only(text: str) -> bool:
-    """Recognize a narrow no-event reflection without vetoing mixed turns.
+def _timeline_source_sentences(text: str) -> list[str]:
+    source = original_conversation_text(text) if isinstance(text, str) else ""
+    return [part.strip() for part in re.split(r"[.!?。！？；;\n]+", source) if part.strip()]
 
-    A later-life sentence can contain an author verb while explicitly framing
-    the content as reflection rather than a timeline event. Do not suppress
-    advisory source/uncertainty context or a neighbouring grounded event; the
-    guard is limited to recurring reflection shapes covered by the evaluation
-    contract.
+
+def _sentence_has_author_event_evidence(sentence: str) -> bool:
+    """Recognize an asserted first-person claim without an event verb list.
+
+    The model owns the event vocabulary. The host only establishes the
+    source/subject contract: a first-person assertion must not be an
+    uncertainty report or a pure reflection. Explicit dates/ages make the
+    evidence stronger, but a clear undated claim such as "I bought my first
+    house" remains eligible.
     """
+    if not isinstance(sentence, str):
+        return False
+    lowered = sentence.casefold()
+    has_first_person = bool(
+        re.search(r"\b(?:i|we)\b", lowered)
+        or re.search(r"(?:我|我们)(?!的|们)", sentence)
+    )
+    if not has_first_person:
+        return False
+    if re.search(
+        r"\b(?:i|we)\s+(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
+        r"\b(?:i|we)\s+(?:do\s+not|don't|did\s+not|didn't)\s+know\b"
+        r".{0,80}\b(?:whether|if)\b",
+        lowered,
+    ):
+        return False
+    strong_date = bool(
+        re.search(
+            r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b(?:age|aged)\s+\d{1,3}\b|"
+            r"\bat\s+(?:age\s+)?\d{1,3}\b|\bwhen\s+i\s+was\b|"
+            r"\b(?:during|in|as\s+a)\s+(?:childhood|adolescence|"
+            r"toddlerhood|teenage|young\s+adulthood|midlife)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:18|19|20)\d{2}年|\d{1,3}岁|(?:童年|幼儿|青春期|青少年)",
+            sentence,
+        )
+    )
+    meta_only = bool(re.search(
+        r"(?:许可|同意|授权|隐私|相册|照片|发表许可|不想把|不要把).{0,80}"
+        r"(?:许可|同意|授权|隐私|相册|照片|事实|故事)|"
+        r"\b(?:permission|consent|approval|privacy|photo|album)\b",
+        sentence,
+        re.IGNORECASE,
+    ))
+    if meta_only and not strong_date:
+        return False
+    if re.search(
+        r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+        r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}"
+        r"(?:保留在故事之外|不应写入我的故事)",
+        sentence,
+    ):
+        return False
+    pure_reflection = bool(
+        re.search(
+            r"\b(?:sometimes|often)\b.{0,100}\b(?:remember|recall|reflection|"
+            r"reflective|just\s+to\s+remember|memory)\b|"
+            r"\b(?:i|we)\s+(?:directly\s+)?(?:remember|recall|reflect)\b",
+            lowered,
+        )
+        or re.search(r"(?:有时|常常|回望|回忆|反思|只记录).{0,80}(?:记得|声音|颜色|耐心|旧)", sentence)
+    )
+    # A dated/aged claim can be mixed with a memory verb, for example
+    # "I often remember the day I moved in 1980"; that remains source
+    # evidence.
+    if pure_reflection and not strong_date:
+        return False
+    return True
+
+
+def _author_timeline_has_source_evidence(text: str) -> bool:
+    return any(_sentence_has_author_event_evidence(sentence) for sentence in _timeline_source_sentences(text))
+
+
+def _author_timeline_marker_is_reflection_only(text: str) -> bool:
+    """Recognize a pure reflection while preserving mixed author claims."""
     if not isinstance(text, str):
         return False
     lowered = original_conversation_text(text).casefold()
@@ -611,54 +663,18 @@ def _author_timeline_marker_is_reflection_only(text: str) -> bool:
         or re.search(
             r"(?:晚年|晚年回忆|晚年的回忆).{0,100}(?:回望|没有可靠(?:日期|时间)|"
             r"有时只记录|反思|不一定.{0,20}事件)",
-            text,
+            original_conversation_text(text),
         )
     )
-    if not reflective:
-        return False
-
-    # A separate grounded first-person event keeps the whole marker block.
-    # Keep this test shared with source/third-party advisory suppression so a
-    # new event verb cannot accidentally create a domain-wide veto.
-    return reflective and not _author_timeline_marker_has_grounded_author_event(text)
-
-
-def _author_timeline_marker_has_grounded_author_event(text: str) -> bool:
-    """Return whether a mixed advisory turn contains an author event."""
-    if not isinstance(text, str):
-        return False
-    lowered = original_conversation_text(text).casefold()
-    return bool(
-        re.search(
-            r"\b(?:i|we)\b[^.!?。！？;；\n]{0,120}\b(?:18|19|20)\d{2}\b"
-            r"[^.!?。！？;；\n]{0,80}\b(?:moved|returned|left|retired|worked|"
-            r"started|began|opened|married|graduated|visited|travelled|traveled)\b",
-            lowered,
-        )
-        or re.search(
-            r"\b(?:i|we)\s+(?:(?:had|have)\s+)?(?:was\s+born|were\s+born|"
-            r"gave\s+birth|had\s+(?:a\s+)?child|became\s+a\s+parent|"
-            r"moved|returned|left|retired|worked|started|began|opened|married|"
-            r"graduated|visited|travelled|traveled|grew\s+up|arrived|lived|"
-            r"learned|followed)\b.{0,100}"
-            r"\b(?:in\s+(?:18|19|20)\d{2}|during\s+(?:childhood|adolescence|"
-            r"midlife|toddlerhood)|at\s+(?:age\s+)?\d{1,3}|when\s+i\s+was|"
-            r"as\s+a\s+(?:child|toddler|teenager))\b",
-            lowered,
-        )
-        or re.search(
-            r"(?:我|我们)[^。！？\n]{0,120}(?:18|19|20)\d{2}年[^。！？\n]{0,80}"
-            r"(?:搬|回到|离开|退休|工作|开始|开办|结婚|毕业)",
-            text,
-        )
-    )
+    return reflective and not _author_timeline_has_source_evidence(text)
 
 
 def _author_timeline_marker_is_advisory_without_author_event(text: str) -> bool:
-    """Reject source/third-party uncertainty when no author event is present."""
-    if not isinstance(text, str) or _author_timeline_marker_has_grounded_author_event(text):
+    """Identify source/third-party advisory text for routing only."""
+    if not isinstance(text, str) or _author_timeline_has_source_evidence(text):
         return False
-    lowered = original_conversation_text(text).casefold()
+    source = original_conversation_text(text)
+    lowered = source.casefold()
     source_boundary = bool(re.search(
         r"\b(?:please\s+)?(?:preserve|keep|maintain|separate|distinguish)\b"
         r".{0,100}\b(?:difference|distinction|boundary)\b.{0,140}\b"
@@ -668,17 +684,126 @@ def _author_timeline_marker_is_advisory_without_author_event(text: str) -> bool:
     ))
     third_party_uncertainty = bool(re.search(
         r"\b(?:i(?:'m|’m| am)|we(?:'re|’re| are))\s+(?:unsure|uncertain|"
-        r"not\s+sure|do\s+not\s+know|don't\s+know)\b.{0,100}\b(?:whether|if)\b"
-        r".{0,80}\b(?!i\b|we\b)[a-z][a-z'’-]*\s+(?:left|moved|returned|"
-        r"retired|worked|started|began|graduated|married|visited|lived)\b",
+        r"not\s+sure|do\s+not\s+know|don't\s+know)\b.{0,100}\b(?:whether|if)\b",
         lowered,
     ))
     chinese_source_boundary = bool(re.search(
         r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
         r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
-        text,
+        source,
     ))
     return source_boundary or third_party_uncertainty or chinese_source_boundary
+
+
+_TIMELINE_GENERIC_TITLE = re.compile(
+    r"^(?:a\s+)?(?:reflection|memory|later\s+life|recollection|回忆|反思|回望)$",
+    re.IGNORECASE,
+)
+
+
+def _timeline_item_has_reflection_only_source(item: Mapping[str, Any], source: str) -> bool:
+    title = str(item.get("title") or "").strip()
+    if _TIMELINE_GENERIC_TITLE.fullmatch(title):
+        return True
+    item_text = " ".join(str(item.get(key) or "") for key in (
+        "title", "date_expression", "start_expression", "end_expression"
+    )).casefold()
+    if not re.search(r"\b(?:reflection|recollect|remember|memory)\b|回忆|反思|回望", item_text):
+        return False
+    candidates = [
+        sentence for sentence in _timeline_source_sentences(source)
+        if any(anchor and anchor.casefold() in sentence.casefold() for anchor in (
+            str(item.get("place") or ""), str(item.get("date_expression") or ""),
+            str(item.get("start_expression") or ""), str(item.get("end_expression") or ""),
+        ))
+    ]
+    return bool(candidates) and all(not _sentence_has_author_event_evidence(sentence) for sentence in candidates)
+
+
+def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
+    values = [str(item.get(key) or "") for key in (
+        "title", "date_expression", "start_expression", "end_expression", "place"
+    )]
+    anchors: list[str] = []
+    generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
+    for value in values:
+        lowered = value.casefold().strip()
+        if lowered and lowered not in generic:
+            anchors.append(lowered)
+        anchors.extend(token.casefold() for token in re.findall(
+            r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|[a-z]{4,}", value
+        ))
+        anchors.extend(token for token in re.findall(r"[\u3400-\u9fff]{2,}", value) if token not in generic)
+    return list(dict.fromkeys(anchor for anchor in anchors if anchor))
+
+
+def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item_count: int) -> bool:
+    if _timeline_item_has_reflection_only_source(item, source):
+        return False
+    anchors = _timeline_item_source_anchors(item)
+    sentences = _timeline_source_sentences(source)
+    candidates = [
+        sentence for sentence in sentences
+        if any(anchor in sentence.casefold() for anchor in anchors)
+    ]
+    if candidates:
+        return any(_sentence_has_author_event_evidence(sentence) for sentence in candidates)
+    # A single explicit author claim may have a generic model title. Keep it
+    # when there is no contradictory source anchor; multi-item markers require
+    # per-item evidence so an unrelated reflection cannot ride along.
+    return item_count == 1 and _author_timeline_has_source_evidence(source)
+
+
+def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
+    """Filter timeline entries against current source, never whole turns."""
+    if not isinstance(reply, str) or AUTHOR_TIMELINE_MARKER_START not in reply:
+        return reply
+    source = original_conversation_text(text) if isinstance(text, str) else ""
+    output: list[str] = []
+    cursor = 0
+    while True:
+        start = reply.find(AUTHOR_TIMELINE_MARKER_START, cursor)
+        if start < 0:
+            output.append(reply[cursor:])
+            break
+        output.append(reply[cursor:start])
+        payload_start = start + len(AUTHOR_TIMELINE_MARKER_START)
+        end = reply.find(AUTHOR_TIMELINE_MARKER_END, payload_start)
+        if end < 0:
+            break
+        raw_text = reply[payload_start:end].strip()
+        try:
+            raw = json.loads(raw_text)
+        except (TypeError, ValueError):
+            raw = None
+        context = validate_author_timeline_context(raw)
+        keep_block = True
+        replacement = raw_text
+        timeline = context.get("timeline", []) if isinstance(context, dict) else []
+        if context and timeline:
+            kept = [
+                item for item in timeline
+                if _timeline_item_is_source_grounded(item, source, len(timeline))
+            ]
+            if not _author_timeline_has_source_evidence(source):
+                # A non-empty author-timeline marker must have at least one
+                # source-grounded first-person claim. This drops accidental
+                # model markers on permission/meta turns without relying on a
+                # finite event-verb allowlist.
+                keep_block = False
+            elif kept:
+                if len(kept) != len(timeline):
+                    replacement = json.dumps(
+                        {"timeline": kept}, ensure_ascii=False, separators=(",", ":")
+                    )
+            else:
+                keep_block = False
+        if keep_block:
+            output.append(
+                AUTHOR_TIMELINE_MARKER_START + replacement + AUTHOR_TIMELINE_MARKER_END
+            )
+        cursor = end + len(AUTHOR_TIMELINE_MARKER_END)
+    return "".join(output)
 
 
 def _family_tree_marker_is_explicitly_disclaimed(text: str) -> bool:
@@ -1217,12 +1342,7 @@ class CodexRuntime:
                     reply = _remove_marker_block(
                         reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
                     )
-                if (_author_timeline_marker_is_explicitly_disclaimed(text)
-                        or _author_timeline_marker_is_reflection_only(text)
-                        or _author_timeline_marker_is_advisory_without_author_event(text)):
-                    reply = _remove_marker_block(
-                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
-                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 reply, parsed_family_updates = extract_family_skill_updates(reply)
                 parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
             if trajectory:
@@ -1729,12 +1849,7 @@ class CodexRuntime:
                     reply = _remove_marker_block(
                         reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
                     )
-                if (_author_timeline_marker_is_explicitly_disclaimed(text)
-                        or _author_timeline_marker_is_reflection_only(text)
-                        or _author_timeline_marker_is_advisory_without_author_event(text)):
-                    reply = _remove_marker_block(
-                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
-                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
                     await capture_place(reply)
@@ -1773,12 +1888,7 @@ class CodexRuntime:
                     reply = _remove_marker_block(
                         reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
                     )
-                if (_author_timeline_marker_is_explicitly_disclaimed(text)
-                        or _author_timeline_marker_is_reflection_only(text)
-                        or _author_timeline_marker_is_advisory_without_author_event(text)):
-                    reply = _remove_marker_block(
-                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
-                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
                     await capture_place(reply)

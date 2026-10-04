@@ -22,16 +22,63 @@ PROFILE_FIELDS = {
 LIFE_STAGES = {"baby", "toddler", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
 STORY_FOCUS_FIELDS = {"who": 500, "where": 300, "when": 160, "what": 1000}
 EXPLICIT_MIDLIFE_CUE = re.compile(r"三十岁(?:以后|之后)")
-EXPLICIT_AUTHOR_MIDLIFE_CUE = re.compile(
-    r"(?:^|[。！？.!?；;\n])\s*(?:我[^。！？.!?；;\n]{0,12})?三十岁(?:以后|之后)"
-)
 EXPLICIT_MIDLIFE_NEGATION = re.compile(
     r"(?:不是|并非|不在|并不是)[^。！？.!?；;\n]{0,12}三十岁(?:以后|之后)"
 )
-THIRD_PARTY_MIDLIFE_CUE = re.compile(
-    r"(?:妈妈|母亲|父亲|爸爸|爷爷|奶奶|外婆|外公|她|他|家人|阿姨|叔叔)"
-    r"[^。！？.!?；;\n]{0,12}三十岁(?:以后|之后)"
-)
+
+
+def _midlife_cue_is_author_scoped(text: str) -> bool:
+    """Require an explicit storyteller subject for the age normalization.
+
+    ``三十岁以后，我...`` and ``我三十岁以后...`` establish the
+    storyteller's period.  A relative's age, a reported/quoted clause, or a
+    bare age phrase does not.  The clause boundary deliberately stops only at
+    sentence punctuation, so ``我姐姐三十岁以后...`` cannot become an
+    implicit first-person claim merely because a comma follows the cue.
+    """
+    if not isinstance(text, str):
+        return False
+    for match in EXPLICIT_MIDLIFE_CUE.finditer(text):
+        sentence_start = max(
+            text.rfind(mark, 0, match.start())
+            for mark in ("。", "！", "？", ".", "!", "?", "；", ";", "\n")
+        ) + 1
+        sentence_end_candidates = [
+            text.find(mark, match.end())
+            for mark in ("。", "！", "？", ".", "!", "?", "；", ";", "\n")
+        ]
+        sentence_end_candidates = [index for index in sentence_end_candidates if index >= 0]
+        sentence_end = min(sentence_end_candidates) if sentence_end_candidates else len(text)
+        sentence = text[sentence_start:sentence_end]
+        relative_start = match.start() - sentence_start
+        before = sentence[:relative_start].strip(" \t，,：:")
+        after = sentence[match.end() - sentence_start:].lstrip(" \t，,：:")
+
+        # A direct first-person subject before the cue is authoritative.  Do
+        # not accept ``我姐姐``/``我哥哥``: the possessive ``我`` is not the
+        # subject whose age is being asserted.
+        if re.fullmatch(r"(?:我|我们)(?:在|到|于|到了|到达)?", before):
+            return True
+        # Chinese naturally places the period first: ``三十岁以后，我...``.
+        # Require the following subject rather than treating a bare cue as
+        # evidence about the author.
+        if before in {"", "在", "到", "到了", "于"} and re.match(r"(?:我|我们)(?!的|们)", after):
+            return True
+    return False
+
+
+def _drop_model_midlife_if_not_author_scoped(updates: dict[str, Any]) -> dict[str, Any]:
+    """Keep non-stage profile fields while discarding a literal cue override."""
+    focus = updates.get("story_focus")
+    if not isinstance(focus, dict) or focus.get("life_stage") != "midlife":
+        return updates
+    focus = dict(focus)
+    focus.pop("life_stage", None)
+    if focus:
+        updates["story_focus"] = focus
+    else:
+        updates.pop("story_focus", None)
+    return updates
 
 
 def _text(value: Any, limit: int) -> str | None:
@@ -107,14 +154,10 @@ def apply_explicit_story_stage(text: str, updates: Any) -> dict[str, Any] | None
     profile fields and uncertain wording model-owned.
     """
     validated = validate_profile_updates(updates) or {}
-    if (
-        not isinstance(text, str)
-        or not EXPLICIT_MIDLIFE_CUE.search(text)
-        or EXPLICIT_MIDLIFE_NEGATION.search(text)
-        or THIRD_PARTY_MIDLIFE_CUE.search(text)
-        or not EXPLICIT_AUTHOR_MIDLIFE_CUE.search(text)
-    ):
+    if not isinstance(text, str) or not EXPLICIT_MIDLIFE_CUE.search(text):
         return validated or None
+    if EXPLICIT_MIDLIFE_NEGATION.search(text) or not _midlife_cue_is_author_scoped(text):
+        return _drop_model_midlife_if_not_author_scoped(validated) or None
     focus = dict(validated.get("story_focus") or {})
     focus["life_stage"] = "midlife"
     validated["story_focus"] = focus

@@ -1,3 +1,5 @@
+import pytest
+
 from apps.api.profile_intake import (
     apply_explicit_story_stage,
     extract_profile_updates,
@@ -81,6 +83,34 @@ def test_explicit_story_stage_guard_respects_author_correction_and_subject_scope
         "妈妈三十岁以后开始工作，那时我五岁。",
         {"story_focus": {"life_stage": "childhood", "when": "我五岁"}},
     ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
+@pytest.mark.parametrize("text", [
+    "我姐姐三十岁以后开始工作，那时我五岁。",
+    "我哥哥三十岁以后开始工作，那时我五岁。",
+    "妈妈三十岁以后开始工作，那时我五岁。",
+    "不是三十岁以后，是小时候，我在院子里玩耍。",
+])
+def test_explicit_story_stage_guard_drops_only_an_ambiguous_midlife_override(text):
+    updates = {"story_focus": {"life_stage": "midlife", "when": "我五岁"}}
+
+    # A model-supplied midlife value is not evidence when the cue belongs to a
+    # relative or is explicitly negated. Removing just that value lets the
+    # previously validated stage survive the normal profile merge.
+    assert apply_explicit_story_stage(text, updates) == {
+        "story_focus": {"when": "我五岁"}
+    }
+    assert merge_profile_updates(
+        {"story_focus": {"life_stage": "childhood"}},
+        apply_explicit_story_stage(text, updates),
+    ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
+def test_explicit_story_stage_guard_accepts_first_person_age_subject():
+    assert apply_explicit_story_stage(
+        "我三十岁以后开始照顾孩子。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "midlife"}}
 
 
 def test_language_updates_are_validated_and_preserve_other_profile_fields():
