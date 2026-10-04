@@ -546,104 +546,11 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
         r"|(?:反思|回忆).{0,40}(?:不一定|不要|不应|不应该).{0,40}(?:事件|日期|记录)",
         text,
     )
-    # A source-boundary request can mention a life stage without asserting an
-    # author event.  Do not let the model turn "what June remembers" or
-    # "what I directly remember from toddlerhood" into a timeline entry.  An
-    # independent first-person event in the same message remains eligible.
-    source_boundary = bool(
-        re.search(
-            r"(?:difference between what .* remembers and what I .* remember|"
-            r"preserve the difference|directly remember from)",
-            lowered,
-        )
-        or re.search(
-            r"(?:家庭叙述|家庭材料|家人的回忆来源|没有直接记忆|不能确认|"
-            r"不是我的亲历|不替代我的亲历|不是.*证据)",
-            text,
-        )
-    )
-    # Suppression is claim-scoped.  A dated first-person claim in a separate
-    # sentence must survive even when a neighbouring claim is reflective or
-    # uncertain.  Use the explicit date/person shape rather than an open-ended
-    # verb allowlist so tense and Chinese wording do not change the decision.
-    independent_dated_author_claim = False
-    for claim in re.split(r"(?<=[.!?。！？；;\n])\s*", text):
-        claim = claim.strip()
-        if not claim:
-            continue
-        claim_lower = original_conversation_text(claim).casefold()
-        if not re.search(r"\b(?:i|we)\b|(?:我|我们)", claim_lower):
-            continue
-        if not re.search(
-            r"\b(?:18|19|20)\d{2}\b|\d{4}年|"
-            r"\b(?:age|aged)\s+\d{1,3}\b|\b\d{1,3}\s*(?:years?\s+old|岁)\b",
-            claim_lower,
-        ):
-            continue
-        if re.search(
-            r"\b(?:i|we)\s+(?:am|was)\s+(?:unsure|uncertain|not\s+certain|not\s+sure)\s+"
-            r"whether\s+(?!i\b|we\b)[a-z][a-z'-]*\s+"
-            r"(?:moved|left|went|returned|graduated|married)\b",
-            claim_lower,
-        ):
-            continue
-        if re.search(
-            r"\b(?:in|during)\s+later[- ]life\b.{0,160}\b(?:sometimes|often|"
-            r"just\s+to\s+remember|to\s+remember|reflection|patience|feeling|notice)\b"
-            r"|\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+"
-            r"reflections?)\b.{0,120}\b(?:no reliable date|timing open|"
-            r"rather than|guess|not a dated event)\b",
-            claim_lower,
-        ) or re.search(
-            r"(?:晚年|晚年回忆|晚年的回忆).{0,80}(?:反思|有时只记得|没有.*年份|"
-            r"有时只记录|回望|没有可靠(?:日期|时间)|不一定.*事件|保留.*空白|时间.*开放)",
-            claim,
-        ):
-            continue
-        if re.search(
-            r"(?:difference between what .* remembers and what I .* remember|"
-            r"preserve the difference|directly remember from)",
-            claim_lower,
-        ) or re.search(
-            r"(?:家庭叙述|家庭材料|家人的回忆来源|没有直接记忆|不能确认|"
-            r"不是我的亲历|不替代我的亲历|不是.*证据)",
-            claim,
-        ):
-            continue
-        independent_dated_author_claim = True
-        break
-    reflective_life_stage = bool(
-        re.search(
-            r"\b(?:in|during)\s+later[- ]life\b.{0,160}\b(?:sometimes|often|"
-            r"just\s+to\s+remember|to\s+remember|reflection|patience|feeling|"
-            r"notice)\b",
-            lowered,
-        )
-        or re.search(
-            r"\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+"
-            r"reflections?)\b.{0,120}\b(?:no reliable date|timing open|"
-            r"rather than|guess|not a dated event)\b",
-            lowered,
-        )
-        or re.search(
-            r"(?:晚年|晚年回忆|晚年的回忆).{0,80}(?:反思|有时只记得|没有.*年份|"
-            r"有时只记录|回望|没有可靠(?:日期|时间)|不一定.*事件|保留.*空白|时间.*开放)",
-            text,
-        )
-    )
-    third_party_uncertainty = bool(re.search(
-        r"\b(?:i|we)\s+(?:am|was)\s+(?:unsure|uncertain|not\s+certain|not\s+sure)\s+"
-        r"whether\s+(?!i\b|we\b)[a-z][a-z'-]*\s+"
-        r"(?:moved|left|went|returned|graduated|married)\b",
-        lowered,
-    ))
-    other_claim_is_non_event = bool(
-        reflective_life_stage or third_party_uncertainty or source_boundary
-    )
-    return bool(
-        english_suppression or chinese_suppression or
-        (other_claim_is_non_event and not independent_dated_author_claim)
-    )
+    # Reflection, uncertainty, and source-boundary cues are advisory routing
+    # signals. Only an explicit instruction about recording the timeline may
+    # remove the entire marker block; neighbouring claims must not erase valid
+    # author events.
+    return bool(english_suppression or chinese_suppression)
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:

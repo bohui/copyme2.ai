@@ -254,12 +254,8 @@ def test_workspace_extraction_does_not_recover_timeline_for_reflection_or_other_
 @pytest.mark.parametrize('text', [
     '晚年我有时只记得泡茶时的声音，这些反思不一定应该成为有日期的事件。',
     'Please do not put this reflection on my timeline.',
-    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
-    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
-    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
-    'I am unsure whether Ben left the neighbourhood before or after my final school year.',
 ])
-def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monkeypatch, text):
+def test_workspace_extraction_drops_model_timeline_marker_for_explicit_negative_text(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 
     async def worker_turn(**kwargs):
@@ -285,11 +281,44 @@ def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monk
 
 
 @pytest.mark.parametrize('text', [
+    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
+    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
+    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
+    'I am unsure whether Ben left the neighbourhood before or after my final school year.',
+])
+def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(monkeypatch, text):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-reflection","title":"Reflection",'
+                '"date_expression":"later life"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text,
+        language='zh-CN',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+@pytest.mark.parametrize('text', [
     'I am unsure whether Ben left the neighbourhood before or after my final school year. I moved to Hobart in 1985.',
     'In later life I sometimes repair a small object just to remember the patience of the old bench. I moved to Hobart in 1985.',
     'I am unsure whether Ben left the neighbourhood before or after my final school year. I had moved to Hobart in 1985.',
     'In later life I sometimes repair a small object just to remember the patience of the old bench. I retired in 2012.',
     '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。我在2012年退休。',
+    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I moved to Hobart during childhood.',
+    'I retired in 2012, but in later life I sometimes repair a small object just to remember the patience of the old bench.',
 ])
 def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
