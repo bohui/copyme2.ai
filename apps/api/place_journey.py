@@ -202,14 +202,16 @@ def place_journey_message_is_ambiguous(message: str) -> bool:
         r"which\s+(?:place|town|city|location))\b"
     )
     english_location_subject_uncertainty = re.compile(
-        r"\b(?:the\s+)?(?:place|town|city|location)\b.{0,80}\b"
+        r"\b(?:the\s+)?(?:place|town|city|location)\b"
+        r"(?:(?:\s+(?!and\b|or\b|but\b|while\b|whereas\b|"
+        r"year\b|month\b|age\b|date\b|time\b)\w+)){0,10}\s+"
         r"(?:is|was|remains|seems)\s+(?:uncertain|unclear|ambiguous|unknown)\b"
     )
     # Split before normalization: _normalize_for_match intentionally removes
     # punctuation, but punctuation and conjunctions are the boundaries that
     # keep a named place from contaminating an uncertainty about a date.
     raw_clauses = re.split(
-        r"[;,.!?，；。！？]+|\b(?:but|although|though|however|yet)\b|"
+        r"[;,.!?，；。！？]+|\b(?:and|or|but|although|though|however|yet|while|whereas)\b|"
         r"(?:但是|但|不过|然而|可是)",
         message,
         flags=re.IGNORECASE,

@@ -196,6 +196,9 @@ def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(mes
     'I moved to the city of Hobart in 1980, but I am not sure which month.',
     'I am not sure which month.\nI moved to the city of Hobart in 1980.',
     'I moved to the city of Hobart in 1980; the month is uncertain.',
+    'The city was Hobart and the year is uncertain.',
+    'The city was Hobart and my age was unknown.',
+    'The city was Hobart, and the time is unclear.',
     'I retired in Hobart, although I cannot remember the exact year.',
 ])
 def test_date_uncertainty_does_not_block_a_grounded_place(message):
