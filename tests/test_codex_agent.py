@@ -254,6 +254,10 @@ def test_workspace_extraction_does_not_recover_timeline_for_reflection_or_other_
 @pytest.mark.parametrize('text', [
     '晚年我有时只记得泡茶时的声音，这些反思不一定应该成为有日期的事件。',
     'Please do not put this reflection on my timeline.',
+    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
+    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
+    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
+    'I am unsure whether Ben left the neighbourhood before or after my final school year.',
 ])
 def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
@@ -304,6 +308,47 @@ def test_workspace_extraction_recovers_known_person_without_repeated_kinship_tit
     assert calls == [None, 'family_tree']
 
 
+def test_workspace_recovery_routes_chinese_social_person_cues(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        focus = kwargs.get('extraction_focus')
+        calls.append(focus)
+        if focus == 'family_tree':
+            return {'reply': '[[MEMORY_SPARK_FAMILY_TREE]]{"people":[{"id":"friend","name":"山里的朋友","family_title":"朋友"}],"relationships":[]}[[/MEMORY_SPARK_FAMILY_TREE]]'}
+        return {'reply': '[[MEMORY_SPARK_AUTHOR_TIMELINE]]{"timeline":[{"id":"later","kind":"event","title":"Teaching tea identification","date_expression":"后来","precision":"unknown"}]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='后来我在成都教年轻人辨茶，也常回大理看山里的朋友。', language='zh-CN',
+    ))
+
+    assert calls == [None, 'family_tree']
+    assert 'MEMORY_SPARK_FAMILY_TREE' in reply
+
+
+def test_workspace_recovery_routes_chinese_family_photo_permission_cue(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        focus = kwargs.get('extraction_focus')
+        calls.append(focus)
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='旧相册里有家人的脸，我没有取得每个人的发表许可。', language='zh-CN',
+    ))
+
+    assert calls == [None, 'family_tree']
+
+
 def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
     from apps.api.codex_runtime import MEMOIR_SYSTEM_PROMPT
     workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)
@@ -327,6 +372,14 @@ def test_workspace_prompt_has_independent_domain_audit_and_focused_recovery():
     assert 'Kinship titles and explicit shorthand such as `my father`' in family_focused
     assert 'At about three, I followed my father to the docks' in family_focused
     assert 'Mum grew mint beside the laundry' in family_focused
+
+
+def test_memory_context_prompt_disambiguates_chinese_midlife_cue():
+    workspace = build_workspace_extraction_prompt('(none)', language='zh-CN')
+
+    assert '三十岁以后' in workspace
+    assert '`midlife`' in workspace
+    assert '`young_adulthood`' in workspace
 
 
 def test_loop_trace_is_localized_for_simplified_chinese():

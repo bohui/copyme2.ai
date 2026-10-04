@@ -1567,7 +1567,7 @@ def main(argv=None) -> int:
             if args.provider == "llm" or (args.provider == "auto" and flag in {"1", "true", "yes"}):
                 summary = llm_discover(Path(args.run), source_limit=args.source_limit,
                                        provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
-            elif args.provider == "parallel" or (args.provider == "auto" and flag == ""):
+            else:
                 # Import lazily: app callers load this helper by file path.
                 scripts = str(Path(__file__).resolve().parent)
                 if scripts not in sys.path:
@@ -1577,12 +1577,6 @@ def main(argv=None) -> int:
                 summary = parallel_discover(Path(args.run).resolve(), args.search_url,
                     max_search_pages=args.max_search_pages, source_limit=args.source_limit,
                     provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
-            else:
-                # An explicit false flag keeps the LLM route opt-in contract:
-                # report llm_search_disabled rather than silently spending a
-                # SerpAPI/CSE request.
-                summary = llm_discover(Path(args.run), source_limit=args.source_limit,
-                                       provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
             print(json.dumps(summary, ensure_ascii=False, indent=2))
         elif args.command == "crawl4ai":
             summary = crawl4ai_discover(Path(args.run).resolve(), args.search_url,

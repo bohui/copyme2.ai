@@ -442,7 +442,11 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
             lowered,
         ) or re.search(
             r"(?:家人|家庭|母亲|妈妈|妈|父亲|爸爸|爸|父母|姐妹|妹妹|姐姐|兄弟|哥哥|弟弟|"
-            r"外婆|外公|奶奶|爷爷|伴侣|妻子|丈夫|孩子|儿子|女儿|阿姨|叔叔|舅舅|姑姑|表亲)",
+            r"外婆|外公|奶奶|爷爷|伴侣|妻子|丈夫|孩子|儿子|女儿|阿姨|叔叔|舅舅|姑姑|表亲|"
+            r"朋友|同事|同学|老师|邻居|导师|老板)",
+            text,
+        ) or re.search(
+            r"(?:家人.{0,12}(?:脸|照片|相册|发表许可)|(?:旧|老)?相册.{0,12}家人)",
             text,
         ):
             return True
@@ -542,7 +546,66 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
         r"|(?:反思|回忆).{0,40}(?:不一定|不要|不应|不应该).{0,40}(?:事件|日期|记录)",
         text,
     )
-    return bool(english_suppression or chinese_suppression)
+    # A source-boundary request can mention a life stage without asserting an
+    # author event.  Do not let the model turn "what June remembers" or
+    # "what I directly remember from toddlerhood" into a timeline entry.  An
+    # independent first-person event in the same message remains eligible.
+    source_boundary = bool(
+        re.search(
+            r"(?:difference between what .* remembers and what I .* remember|"
+            r"preserve the difference|directly remember from)",
+            lowered,
+        )
+        or re.search(
+            r"(?:家庭叙述|家庭材料|家人的回忆来源|没有直接记忆|不能确认|"
+            r"不是我的亲历|不替代我的亲历|不是.*证据)",
+            text,
+        )
+    )
+    independent_author_event = bool(
+        re.search(
+            r"\b(?:i|we)\b(?:\s+\w+){0,8}\s+\b(?:was born|born|arrived|lived|"
+            r"moved|returned|left|spent|started|began|opened|attended|learned|"
+            r"worked|cared|travelled|traveled|met|married|raised|joined|"
+            r"graduated|studied|wrote|took|rented|chose|chosen|kept|followed|"
+            r"argued|visited|taught|ran)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:我|我们)[^。！？\n]{0,80}(?:出生|住在|住过|住几天|居住|租房|搬|"
+            r"回到|离开|度过|开始|开办|参加|学习|工作|照顾|旅行|结婚|抚养|"
+            r"加入|毕业|写|经营|记得|争论|租|带回|教|改成|跟着|搬家|发生)",
+            text,
+        )
+    )
+    reflective_life_stage = bool(
+        re.search(
+            r"\b(?:in|during)\s+later[- ]life\b.{0,160}\b(?:sometimes|often|"
+            r"just\s+to\s+remember|to\s+remember|reflection|patience|feeling|"
+            r"notice)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+"
+            r"reflections?)\b.{0,120}\b(?:no reliable date|timing open|"
+            r"rather than|guess|not a dated event)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:晚年|晚年回忆|晚年的回忆).{0,80}(?:反思|有时只记得|没有.*年份|"
+            r"有时只记录|回望|没有可靠(?:日期|时间)|不一定.*事件|保留.*空白|时间.*开放)",
+            text,
+        )
+    )
+    third_party_uncertainty = bool(re.search(
+        r"\b(?:i|we)\s+(?:am|was)\s+(?:unsure|uncertain|not\s+certain|not\s+sure)\s+"
+        r"whether\s+(?!i\b|we\b)[a-z][a-z'-]*\s+"
+        r"(?:moved|left|went|returned|graduated|married)\b",
+        lowered,
+    ))
+    return bool(english_suppression or chinese_suppression or reflective_life_stage or
+                third_party_uncertainty or
+                (source_boundary and not independent_author_event))
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
