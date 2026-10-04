@@ -412,14 +412,40 @@ end $$;
 revoke all on function public.finish_memoir_composer(uuid,uuid,bigint,jsonb) from public,anon,authenticated;
 grant execute on function public.finish_memoir_composer(uuid,uuid,bigint,jsonb) to service_role;
 
-create or replace function public.read_user_memoir_draft(p_project_id text,p_locale text default 'en-AU') returns jsonb
+create or replace function public.read_user_memoir_draft(p_project_id text,p_locale text default 'en-AU',p_cadence integer default 5) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare saved public.user_memoir_manuscript%rowtype; lane public.user_memoir_lane%rowtype; timeline public.user_memoir_lane%rowtype;
+  project public.user_memoir_project%rowtype; milestone_due bigint; receipt_pending boolean; composition jsonb; extraction jsonb;
 begin
   if auth.uid() is null then raise exception 'authenticated user required' using errcode='42501'; end if;
+  if p_cadence is null or p_cadence not between 1 and 1000000 then raise exception 'invalid cadence' using errcode='22023'; end if;
   select * into saved from public.user_memoir_manuscript where user_id=auth.uid() and project_id=p_project_id and locale=p_locale;
   select * into lane from public.user_memoir_lane where user_id=auth.uid() and project_id=p_project_id and skill='composer';
   select * into timeline from public.user_memoir_lane where user_id=auth.uid() and project_id=p_project_id and skill='timeline';
+  select * into project from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id;
+  select (coalesce(max(ordinal),0)/p_cadence)*p_cadence into milestone_due
+    from public.user_completed_round where user_id=auth.uid() and project_id=p_project_id;
+  -- Durable receipts precede lane delivery. Ignore old receipts whose work is
+  -- already represented by the lane target, successful cursors or terminal state.
+  receipt_pending:=milestone_due>coalesce(lane.target_milestone,0) and exists(select 1
+    from public.user_private_draft_outbox where user_id=auth.uid() and project_id=p_project_id and not delivered);
+  receipt_pending:=receipt_pending or (milestone_due>0 and
+    (coalesce(lane.attempts,0)<3 or project.event_sequence>coalesce(lane.target_event,0)) and
+    (project.event_sequence>coalesce(lane.successful_event,0) or project.source_sequence>coalesce(lane.successful_source,0)) and
+    exists(select 1 from public.user_private_draft_outbox where user_id=auth.uid() and project_id=p_project_id and not delivered
+      and change_kind in ('correction','revocation','edit','delete')));
+  composition:=public.memoir_lane_progress(lane);
+  if receipt_pending then
+    composition:=composition || pg_catalog.jsonb_build_object('state',case when composition->>'state'='running' then 'running' else 'pending' end,
+      'pending',true,'target_milestone',milestone_due);
+  end if;
+  extraction:=public.memoir_lane_progress(timeline);
+  if (coalesce(timeline.attempts,0)<3 or project.source_sequence>coalesce(timeline.target_source,0)) and exists(select 1 from public.user_narrator_source
+      where user_id=auth.uid() and project_id=p_project_id and status='active' and processing_status<>'succeeded')
+      and exists(select 1 from public.user_private_draft_outbox
+        where user_id=auth.uid() and project_id=p_project_id and not delivered) then
+    extraction:=extraction || pg_catalog.jsonb_build_object('state',case when extraction->>'state'='running' then 'running' else 'pending' end,'pending',true);
+  end if;
   return pg_catalog.jsonb_build_object('status',case when saved.bundle is not null and saved.eligible then 'ready' when not saved.eligible then 'stale' else 'collecting' end,
     'preview',case when saved.eligible then saved.bundle->'preview' else null end,
     'covered_round',coalesce(saved.covered_round,0),'milestone',coalesce(saved.completed_milestone,0),'revision',coalesce(saved.revision,0),
@@ -427,16 +453,18 @@ begin
       'covered_round',covered_round,'manuscript_revision',manuscript_revision) order by milestone)
       from public.user_memoir_milestone where user_id=auth.uid() and project_id=p_project_id and locale=p_locale),'[]'),
     'sections',case when saved.eligible then coalesce(saved.bundle->'sections','[]'::jsonb) else '[]'::jsonb end,
-    'updating',(public.memoir_lane_progress(lane)->>'state') in ('running','pending') or
-      ((public.memoir_lane_progress(timeline)->>'state') in ('running','pending') and exists(select 1 from public.user_narrator_source
+    'updating',composition->>'state'='running' or
+      (composition->>'state'='pending' and not (extraction->>'state'='retry_required' and exists(select 1 from public.user_narrator_source
+        where user_id=auth.uid() and project_id=p_project_id and status='active' and processing_status<>'succeeded'))) or
+      ((extraction->>'state') in ('running','pending') and exists(select 1 from public.user_narrator_source
         where user_id=auth.uid() and project_id=p_project_id and status='active' and processing_status<>'succeeded')),
-    'progress',pg_catalog.jsonb_build_object('composition',public.memoir_lane_progress(lane),
-      'extraction',public.memoir_lane_progress(timeline) || pg_catalog.jsonb_build_object('extracted_through',coalesce((select extraction_cursor from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id),0),
+    'progress',pg_catalog.jsonb_build_object('composition',composition,
+      'extraction',extraction || pg_catalog.jsonb_build_object('extracted_through',coalesce((select extraction_cursor from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id),0),
         'pending_inputs',(select count(*) from public.user_narrator_source where user_id=auth.uid() and project_id=p_project_id and status='active' and processing_status<>'succeeded'))),
     'error',coalesce(lane.error,timeline.error),'proposal_pending',saved.proposal is not null);
 end $$;
-revoke all on function public.read_user_memoir_draft(text,text) from public,anon;
-grant execute on function public.read_user_memoir_draft(text,text) to authenticated;
+revoke all on function public.read_user_memoir_draft(text,text,integer) from public,anon;
+grant execute on function public.read_user_memoir_draft(text,text,integer) to authenticated;
 
 create or replace function public.protect_user_memoir_draft(p_project_id text,p_locale text,p_expected_revision bigint,p_locked boolean) returns jsonb
 language plpgsql security definer set search_path='' as $$

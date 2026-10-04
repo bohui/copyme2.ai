@@ -281,15 +281,16 @@ class UserStorage:
                             json={'p_project_id': project_id}).json()
 
     def saved_memoir_draft(self, project_id, language=None):
+        from .recall import private_draft_cadence
         locale = language or self.profile().get('preferred_language') or 'en-AU'
         view = self.request('POST', '/rest/v1/rpc/read_user_memoir_draft', json={
-            'p_project_id': project_id, 'p_locale': locale,
+            'p_project_id': project_id, 'p_locale': locale, 'p_cadence': private_draft_cadence(),
         }).json()
         if view['revision'] == 0:
             from .legacy_memoir import import_saved_cache
             if import_saved_cache(self, project_id, locale):
                 return self.request('POST', '/rest/v1/rpc/read_user_memoir_draft', json={
-                    'p_project_id': project_id, 'p_locale': locale,
+                    'p_project_id': project_id, 'p_locale': locale, 'p_cadence': private_draft_cadence(),
                 }).json()
         return view
 

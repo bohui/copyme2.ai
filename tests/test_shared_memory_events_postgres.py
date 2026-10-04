@@ -1137,6 +1137,7 @@ def test_protected_draft_keeps_its_bytes_and_saves_enrichment_as_a_revision_boun
     after = rpc(sql, 'read_user_memoir_draft', "'project'")
     assert after['preview'] == before['preview'] and after['sections'] == before['sections']
     assert after['covered_round'] == 5 and after['revision'] == 1 and after['proposal_pending']
+    assert after['updating'] is False
     proposal = rpc(sql, 'read_user_memoir_proposal', "'project', 'en-AU'")
     assert proposal['base_revision'] == 1 and 'blue bag' in proposal['preview']['text']
     stale = rpc(sql, 'protect_user_memoir_draft', "'project', 'en-AU', 0, false", check=False)
@@ -1349,6 +1350,104 @@ def test_removing_an_original_link_preserves_an_explicit_correction_from_survivi
     assert removed['user_overrides']==corrected['user_overrides']
     assert removed['life_stage']=='adolescence' and removed['temporal']==corrected['temporal']
     assert all(ref['source_id']!=source['id'] for ref in removed['source_refs'])
+
+
+def test_completed_checkpoint_is_updating_before_its_receipt_is_delivered(sql):
+    from test_agent_commit_postgres import OLD
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    sources = add_rounds(sql, 1, 1, 'I started school around 1964.')
+    sources += add_rounds(sql, 2, 5)
+    extract(sql, sources, [{'kind':'event','title':'Started school','source_refs':[
+        {'source_id':sources[0]['id'],'version':1,'quote':sources[0]['text']}]}])
+    with story_client(sql) as client:
+        response = client.get('/v1/story/private-draft?project_id=project',
+                              headers={'Authorization':'Bearer synthetic-author'})
+    assert response.status_code == 200
+    draft = response.json()
+    assert draft['status'] == 'collecting' and draft['covered_round'] == 0
+    assert draft['updating'] is True
+    assert draft['progress']['composition']['state'] == 'pending'
+
+
+def test_accepted_original_is_updating_before_timeline_receipt_delivery(sql):
+    rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}','I started school around 1964.'")
+    with story_client(sql) as client:
+        response = client.get('/v1/story/private-draft?project_id=project',
+                              headers={'Authorization':'Bearer synthetic-author'})
+    assert response.status_code == 200
+    draft = response.json()
+    assert draft['status'] == 'collecting' and draft['covered_round'] == 0
+    assert draft['updating'] is True
+    assert draft['progress']['extraction']['state'] == 'pending'
+    assert draft['progress']['extraction']['pending_inputs'] == 1
+    assert draft['progress']['composition']['state'] == 'finished'
+
+
+def test_event_correction_is_updating_before_its_receipt_is_delivered(sql, tmp_path, monkeypatch):
+    sources, lanes = five_rounds(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+    event = rpc(sql, 'read_user_memory_events', "'project'")['events'][0]
+    rpc(sql, 'correct_user_memory_event', f"'project','{event['id']}',1,'{{\"life_stage\":\"childhood\"}}'::jsonb,'I was a child then.'")
+    with story_client(sql) as client:
+        response = client.get('/v1/story/private-draft?project_id=project',
+                              headers={'Authorization':'Bearer synthetic-author'})
+    assert response.status_code == 200
+    draft = response.json()
+    assert draft['status'] == 'stale' and draft['preview'] is None
+    assert draft['updating'] is True
+    assert draft['progress']['composition']['state'] == 'pending'
+
+
+@pytest.mark.parametrize('cadence,updating,target', [(3, True, 3), (7, False, 0)])
+def test_undelivered_checkpoint_uses_configured_cadence_without_changing_recall_allowance(sql, monkeypatch, cadence, updating, target):
+    from test_agent_commit_postgres import OLD
+    monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE', str(cadence))
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    sources = add_rounds(sql, 1, 5)
+    extract(sql, sources, [])
+    with story_client(sql) as client:
+        draft = client.get('/v1/story/private-draft?project_id=project',
+                           headers={'Authorization':'Bearer synthetic-author'}).json()
+        access = client.get('/v1/story/state', headers={'Authorization':'Bearer synthetic-author'}).json()['recall_status']
+    assert draft['updating'] is updating
+    assert draft['progress']['composition']['target_milestone'] == target
+    view = rpc(sql, 'read_user_memory_events', "'project'")
+    assert view['completed_rounds'] == 5
+    assert access['rounds_completed'] == 5 and access['free_rounds'] == 20
+
+
+def test_old_receipts_do_not_keep_a_saved_checkpoint_or_other_scopes_updating(sql, tmp_path, monkeypatch):
+    sources, lanes = five_rounds(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+    assert service_rpc(sql, 'pending_memoir_receipts', '100')
+    with story_client(sql) as client:
+        saved = client.get('/v1/story/private-draft?project_id=project',
+                           headers={'Authorization':'Bearer synthetic-author'}).json()
+        other_project = client.get('/v1/story/private-draft?project_id=other-project',
+                                   headers={'Authorization':'Bearer synthetic-author'}).json()
+    assert saved['status'] == 'ready' and saved['covered_round'] == 5 and saved['updating'] is False
+    assert other_project['updating'] is False and other_project['preview'] is None
+    other_owner = rpc(sql, 'read_user_memoir_draft', "'project'", owner=OTHER)
+    assert other_owner['updating'] is False and other_owner['preview'] is None
+
+
+def test_terminal_extraction_failure_stops_draft_polling_until_the_author_retries(sql):
+    from test_agent_commit_postgres import OLD
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    add_rounds(sql, 1, 5, 'I started school around 1964.')
+    lanes = deliver_latest(sql)
+    job = service_rpc(sql, 'claim_memoir_lane', f"'{lanes['timeline_lane_id']}',300")
+    assert service_rpc(sql, 'fail_memoir_lane', f"'{job['lane_id']}','{job['token']}','MEMOIR_PROVIDER_UNAVAILABLE',false")['status'] == 'retry_required'
+    with story_client(sql) as client:
+        saved = client.get('/v1/story/private-draft?project_id=project',
+                           headers={'Authorization':'Bearer synthetic-author'}).json()
+        assert saved['updating'] is False and saved['error'] == 'MEMOIR_PROVIDER_UNAVAILABLE'
+        assert saved['progress']['extraction']['state'] == 'retry_required'
+        assert saved['progress']['composition']['state'] == 'pending'
+        retried = client.post('/v1/story/private-draft/retry', headers={'Authorization':'Bearer synthetic-author'},
+                              json={'project_id':'project'}).json()
+    assert retried['updating'] and retried['progress']['extraction']['state'] == 'pending'
+    assert rpc(sql, 'read_user_memory_events', "'project'")['completed_rounds'] == 5
 
 
 def test_terminal_composer_failure_exposes_a_retry_instead_of_perpetual_updating(sql):

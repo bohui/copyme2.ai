@@ -14,9 +14,126 @@ from playwright.sync_api import expect, sync_playwright
 from test_shared_memory_events_postgres import (
     database, attachment_database, private_database, event_database, sql,
     rpc, five_rounds, run_controlled_composer, story_client, ROOT, OWNER,
+    as_user, add_rounds, extract, service_rpc,
 )
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
+
+
+@pytest.mark.parametrize('checkpoint', [5, 10])
+@pytest.mark.parametrize('recovery', ['complete', 'retry', 'extraction-retry'])
+def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tmp_path, monkeypatch, checkpoint, recovery):
+    """Shipped client and real story/RPC/worker; only external metadata/model and the clock are controlled."""
+    from concurrent.futures import ThreadPoolExecutor
+    from test_agent_commit_postgres import OLD
+    if checkpoint == 5:
+        sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+        sources = add_rounds(sql, 1, 1, 'I started school around 1964.') + add_rounds(sql, 2, 5)
+        if recovery != 'extraction-retry':
+            extract(sql, sources, [{'kind':'event','title':'Started school','source_refs':[
+                {'source_id':sources[0]['id'],'version':1,'quote':sources[0]['text']}]}])
+    else:
+        sources, lanes = five_rounds(sql)
+        assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+        new_sources = add_rounds(sql, 6, 10)
+        if recovery != 'extraction-retry':
+            extract(sql, new_sources, [])
+    reads = []
+    profile = {'preferred_language':'en-AU'}
+    project = {'id':'project','revision':1,'profile':profile,'mode':'self','workspace_unlocked':False}
+    copy = json.loads((ROOT/'apps/web/messages/en-AU.json').read_text())['Memoir']['workspace']
+    with story_client(sql) as client, sync_playwright() as pw:
+        def api(route):
+            path = route.request.url.split('/api/v1/memoir')[-1]
+            endpoint = path.split('?')[0]
+            if endpoint.startswith('/story/private-draft'):
+                response = client.request(route.request.method, '/v1'+path,
+                    headers={'Authorization':'Bearer synthetic-author','Content-Type':'application/json'},
+                    content=route.request.post_data or None)
+                assert response.status_code == 200, response.text
+                if route.request.method == 'GET':
+                    reads.append(response.json())
+                return route.fulfill(status=response.status_code,content_type='application/json',body=response.text)
+            data = {}
+            if endpoint == '/agent/config': data = {'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase'}
+            elif endpoint in ('/agent/profile','/user/profile'): data = profile
+            elif endpoint == '/projects/project': data = project
+            elif endpoint == '/projects/project/journey': data = {'active_session':None}
+            elif endpoint == '/story/state': data = {'family_features_enabled':False,'payment_features':[],
+                'recall_status':{'rounds_completed':checkpoint,'free_rounds':20,'payment_required':False,'paid':False}}
+            elif endpoint == '/agent/family-context': data = {'family_features_enabled':False,'family_context':None}
+            elif endpoint == '/agent/place-journey': data = {'place_journey':None}
+            elif endpoint == '/user/conversations' or endpoint.startswith('/projects/project/'): data = {'items':[]}
+            route.fulfill(content_type='application/json',body=json.dumps(data))
+        browser = pw.chromium.launch()
+        base = os.environ['MEMOIR_BROWSER_URL']
+        context = browser.new_context(reduced_motion='reduce')
+        context.add_cookies([{'name':'copyme2_ui_locale','value':'en-AU','url':base},
+                            {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
+        user = {'id':OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':'en-AU'}}
+        script = f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'synthetic-author',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
+        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',lambda route:route.fulfill(content_type='text/javascript',body=script))
+        context.route('**/api/v1/memoir/**',api)
+        context.add_init_script("localStorage.setItem('memory-spark-project','project');sessionStorage.setItem('memory-spark-chat-history:project','[{\"role\":\"user\",\"text\":\"A saved synthetic memory.\"}]');")
+        page = context.new_page()
+        page.clock.install()
+        page.goto(base+'/memoir/interview/project')
+        expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
+        status = page.locator('.private-draft-status')
+        expect(status).to_contain_text(copy['privateDraftUpdating'])
+        page.clock.pause_at(page.evaluate('Date.now()/1000')+1)
+        if checkpoint == 10:
+            expect(status).to_contain_text(copy['privateDraftSaved'].replace('{round}','5'))
+            status.locator('summary').click()
+            expect(status).to_contain_text('I started school around 1964.')
+        initial_coverage = 0 if checkpoint == 5 else 5
+        assert reads[-1]['covered_round'] == initial_coverage and reads[-1]['updating']
+        queued = [service_rpc(sql, 'queue_memoir_receipt', f"'{receipt}',5")
+                  for receipt in service_rpc(sql, 'pending_memoir_receipts', '100')]
+        composer = next(row['composer_lane_id'] for row in queued if row['composer_lane_id'])
+        with page.expect_response(lambda response: '/story/private-draft?' in response.url):
+            page.clock.run_for(15001)
+        expect(status).to_contain_text(copy['privateDraftUpdating'])
+        assert reads[-1]['covered_round'] == initial_coverage and reads[-1]['updating']
+        if recovery != 'complete':
+            failed_lane = queued[0]['timeline_lane_id'] if recovery == 'extraction-retry' else composer
+            job = service_rpc(sql, 'claim_memoir_lane', f"'{failed_lane}',300")
+            assert service_rpc(sql, 'fail_memoir_lane', f"'{failed_lane}','{job['token']}','MEMOIR_PROVIDER_UNAVAILABLE',false")['status'] == 'retry_required'
+            with page.expect_response(lambda response: '/story/private-draft?' in response.url):
+                page.clock.run_for(15001)
+            expect(status).to_contain_text(copy['privateDraftBlocked'])
+            expect(status.locator('[data-action="retry-private-draft"]')).to_be_visible()
+            assert reads[-1]['updating'] is False and reads[-1]['error'] == 'MEMOIR_PROVIDER_UNAVAILABLE'
+            if checkpoint == 10:
+                status.locator('summary').click()
+                expect(status).to_contain_text('I started school around 1964.')
+            read_count = len(reads)
+            page.clock.run_for(45001)
+            page.wait_for_timeout(100)
+            assert len(reads) == read_count
+            status.locator('[data-action="retry-private-draft"]').click()
+            expect(status).to_contain_text(copy['privateDraftUpdating'])
+            assert reads[-1]['covered_round'] == initial_coverage and reads[-1]['updating']
+        # Playwright owns this thread's event loop; the real asynchronous worker
+        # runs on its own thread while the page's clock is paused.
+        with ThreadPoolExecutor(max_workers=1) as workers:
+            if recovery == 'extraction-retry':
+                events = [{'kind':'event','title':'Started school','source_refs':[
+                    {'source_id':sources[0]['id'],'version':1,'quote':sources[0]['text']}]}] if checkpoint == 5 else []
+                assert workers.submit(run_controlled_composer, sql, tmp_path, monkeypatch, failed_lane,
+                    control_options={'mode':'extraction','reply':{'events':events}}).result()['status'] == 'saved'
+            assert workers.submit(run_controlled_composer, sql, tmp_path, monkeypatch, composer).result()['status'] == 'saved'
+        with page.expect_response(lambda response: '/story/private-draft?' in response.url):
+            page.clock.run_for(15001)
+        expect(status).to_contain_text(copy['privateDraftSaved'].replace('{round}',str(checkpoint)))
+        expect(status).not_to_contain_text(copy['privateDraftUpdating'])
+        assert reads[-1]['covered_round'] == checkpoint and reads[-1]['updating'] is False
+        read_count = len(reads)
+        page.clock.run_for(45001)
+        page.wait_for_timeout(100)
+        assert len(reads) == read_count
+        assert rpc(sql, 'read_user_memory_events', "'project'")['completed_rounds'] == checkpoint
+        browser.close()
 
 
 @pytest.mark.parametrize('input_kind', ['typed', 'dictated'])

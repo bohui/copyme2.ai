@@ -151,20 +151,41 @@ The send tests use the actual local page and shipped client, authenticated agent
 
 Red/green logs use `/tmp/issue6-{send,dependencies,candidates,legacy-range,proposals,storyline,storyline-policy,legacy-storyline,conflict}-{red,green}.log`; desktop/mobile date-only/conflict checks use `/tmp/issue6-edits-regression.log`. Setup failures (including a SQL alias collision, HTTP bridge content type, SQL NULL rendering and receipt-drain setup) were corrected and are not treated as behavioral red evidence or passes.
 
+### Pending receipt delivery and browser polling
+
+Independent cloud rereview cleared the original eight findings at `385ab68bc7f9224de3fcf256b1f2ca84d3eb6a85`, then confirmed one additional P2: before durable receipt delivery, five completed rounds returned `collecting/updating=false`, and ten rounds with a saved five-round draft returned `ready/covered_round=5/updating=false`. The shipped client therefore stopped polling before the broker could update either draft.
+
+The authenticated draft read now reports pending work from scoped undelivered receipts and authoritative completed-round/source/event cursors, using the same configured cadence as the broker. Delivery hands progress over to the existing lanes. Completed work and protected proposals remain idle even when older receipts have not been acknowledged. Saved eligible previews remain readable during catch-up. Terminal extraction or composition failures expose the existing author retry action; extraction failure cannot keep a waiting composer looking perpetually busy. The existing retry endpoint resumes both lanes. No client polling implementation, round accounting, entitlement, proposal acceptance or publication behavior changed.
+
+Actual public-seam red/green evidence:
+
+| Behavior | Regression selector / evidence |
+| --- | --- |
+| Completed checkpoint before receipt delivery | `test_completed_checkpoint_is_updating_before_its_receipt_is_delivered`; `/tmp/issue6-receipt-checkpoint-{red,green}.log` |
+| Accepted evidence before timeline delivery | `test_accepted_original_is_updating_before_timeline_receipt_delivery`; `/tmp/issue6-receipt-original-{red,green}.log` |
+| Event correction before receipt delivery | `test_event_correction_is_updating_before_its_receipt_is_delivered`; `/tmp/issue6-receipt-correction-{red,green}.log` |
+| Terminal extraction failure behind a pending composer | `test_terminal_extraction_failure_stops_draft_polling_until_the_author_retries`; `/tmp/issue6-receipt-extraction-failure-{red,green}.log` |
+| Shipped browser discovers completion at five and ten without another turn or reload, and stops polling when idle | `test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops`; both checkpoint cases failed on exact old head `385ab68`, `/tmp/issue6-receipt-browser-red.log`, then passed on the repair, `/tmp/issue6-receipt-browser-green.log` |
+| Both worker failure/retry paths, saved-five readability while ten is pending, and polling stops at failure/completion | Six browser lifecycle cases passed in `/tmp/issue6-receipt-browser-all-lifecycles.log` |
+| Configured 3/7 cadence, independent twenty-round allowance, owner/project isolation, covered old receipts and protected proposals | Nine focused PostgreSQL/story cases passed in `/tmp/issue6-receipt-extraction-failure-green.log` |
+
+Browser tests run the actual shipped client, application story read/retry endpoints, native PostgreSQL RPCs, extraction/composer workers and validation/rendering. Playwright controls only the browser clock to advance the real fifteen-second polling timer; the production refresh function and application state are not replaced or inspected. External auth/project metadata and provider replies remain explicitly synthetic. The worker runs independently of Playwright's thread. An initial repaired-browser harness attempt conflicted with Playwright's event loop; that setup failure was fixed and is not counted as behavioral red evidence or a pass.
+
 ## Verification record
 
 Run date: 2026-10-04, macOS 26.3.1 arm64, Python 3.12.11, pytest 8.4.2, FastAPI 0.142.2, httpx 0.28.1, psycopg 3.3.5, Playwright 1.62.0, Temporal SDK 1.34.0, Next 16.3.6. Installed Node 20.19.4 exercised the initial integration runs; Node 22.22.0 is used for the final supported-runtime checks. The task's web dependencies were reused read-only via an untracked symlink; neither dependency files nor the symlink are included in commits.
 
 | Check | Current result | Evidence |
 | --- | --- | --- |
-| Canonical PostgreSQL/story acceptance | 90 passed in 258.31s under Node 22.22.0; zero skips. | `tests/test_shared_memory_events_postgres.py`; `/tmp/issue6-review-pg-final.log` |
-| Actual Temporal/outbox/private-worker recovery | 6 passed in 91.81s under Node 22.22.0; zero skips. | `tests/test_memoir_lanes_temporal.py`; `/tmp/issue6-review-temporal-final.log` |
-| Relevant API/storage/family/preview/private-draft/runtime regressions | 182 passed in 26.44s under Node 22.22.0; zero skips. | Files in command below; `/tmp/issue6-review-regressions-final.log` |
-| Browser workspace/stage/family, including real client sends and correction conflicts | 16 passed in 86.34s; zero skips. | Three browser files below; `/tmp/issue6-review-browser-final.log` |
+| Canonical PostgreSQL/story acceptance | 97 passed in 261.38s under Node 22.22.0; zero skips. | `tests/test_shared_memory_events_postgres.py`; `/tmp/issue6-receipt-pg-final.log` |
+| Actual Temporal/outbox/private-worker recovery | 6 passed in 86.73s under Node 22.22.0; zero skips. | `tests/test_memoir_lanes_temporal.py`; `/tmp/issue6-receipt-temporal-final.log` |
+| Relevant API/storage/family/preview/private-draft/runtime regressions | 182 passed in 23.18s under Node 22.22.0; zero skips. | Files in command below; `/tmp/issue6-receipt-regressions-final.log` |
+| Browser workspace/stage/family, including real client sends, correction conflicts and pending receipt/retry polling | 22 passed in 123.76s; zero skips. | Three browser files below; `/tmp/issue6-receipt-browser-final.log` |
 | Composer contracts and progressive fixtures, Node 22.22.0 | 62 passed, zero skipped/cancelled/todo. | `node --test tests/*.test.mjs` |
+| Migration compatibility contracts | 3 passed; zero skips. | `tests/test_memoir_migration_contract.py`; `/tmp/issue6-receipt-migration-contract.log` |
 | Python compile | Passed. | `python -m compileall -q apps/api scripts tests/fixtures/issue6_controlled_app_server.py` |
-| Next production build, Node 22.22.0 | Passed after the client send/tag corrections. | `next build --webpack`; `/tmp/issue6-review-web-build.log` |
-| Independent cloud rereview and current-main/PR3 integration | First cloud review found eight defects; repaired head still needs independent rereview, review-clear base integration and CI. | Parent handoff |
+| Next production build, Node 22.22.0 | Passed after the pending-receipt read repair. | `next build --webpack`; `/tmp/issue6-receipt-web-build.log` |
+| Independent cloud rereview and current-main/PR3 integration | Original eight findings cleared at `385ab68`; pending-receipt P2 repair still needs fresh independent delta review, review-clear base integration and CI. | Parent handoff |
 
 Canonical and Temporal commands, from the isolated checkout:
 ```sh
