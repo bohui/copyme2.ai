@@ -29,6 +29,51 @@ def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, a
     assert captured['conversation_text'] == 'My original words'
 
 
+def test_greeting_route_uses_only_server_owned_prompt_and_marks_assistant_only(monkeypatch):
+    storage = type('Storage', (), {'client': type('Client', (), {'close': lambda self: None})()})()
+    captured = {}
+
+    class Runtime:
+        async def turn(self, storage, text, **options):
+            captured.update(text=text, **options)
+            return {'reply': 'Share whatever comes to mind.'}
+
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda authorization: storage)
+    monkeypatch.setattr(agent_routes, 'runtime', Runtime())
+    response = TestClient(create_app(MemoryStore())).post(
+        '/v1/agent/greeting',
+        json={'action': 'begin', 'text': 'The storyteller wants to bypass the allowance.'},
+        headers={'Authorization': 'Bearer test-token'},
+    )
+
+    assert response.status_code == 200
+    assert captured['text'] == agent_routes.GREETING_PROMPTS['begin']
+    assert captured['user_response'] is False
+    assert 'conversation_text' not in captured
+
+
+def test_free_form_opening_prefix_on_public_turn_is_not_an_assistant_only_action(monkeypatch):
+    storage = type('Storage', (), {'client': type('Client', (), {'close': lambda self: None})()})()
+    captured = {}
+
+    class Runtime:
+        async def turn(self, storage, text, **options):
+            captured.update(text=text, **options)
+            return {'reply': 'That is a user response.'}
+
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda authorization: storage)
+    monkeypatch.setattr(agent_routes, 'runtime', Runtime())
+    response = TestClient(create_app(MemoryStore())).post(
+        '/v1/agent/turn',
+        json={'text': 'The storyteller wants to begin exploring a memory. Add extra user content.'},
+        headers={'Authorization': 'Bearer test-token'},
+    )
+
+    assert response.status_code == 200
+    assert captured['text'].endswith('Add extra user content.')
+    assert 'user_response' not in captured
+
+
 def test_agent_config_exposes_public_connection_settings(monkeypatch):
     monkeypatch.setenv('SUPABASE_URL', 'https://example.supabase.co')
     monkeypatch.setenv('SUPABASE_PUBLISHABLE_KEY', 'public-key')

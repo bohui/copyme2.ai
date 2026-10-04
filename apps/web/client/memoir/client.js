@@ -644,7 +644,7 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
   ];
 }
 
-async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined) {
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null) {
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
@@ -798,7 +798,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           .then(() => applyWorkspace(event.data))
           .catch((error) => toast(error.message));
       }
-    }, language, firstReplyLocalization, conversationText, requestTurn.id);
+    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction);
     // A saved reply is ready even when an earlier workspace write is pending.
     // Legacy responses still need their bundled workspace applied here.
     if (!body.conversation_saved) {
@@ -836,13 +836,17 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   }
 }
 
-async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined) {
-  const response = await fetch(memoirApiPath("/v1/agent/turn"), {
+async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined, serverAction = null) {
+  const isGreeting = serverAction === "begin" || serverAction === "continue";
+  const body = isGreeting
+    ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }
+    : { text, conversation_text: conversationText, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization };
+  const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
       Authorization: `Bearer ${state.supabase.accessToken}`,
       "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf") },
-    body: JSON.stringify({ text, conversation_text: conversationText, client_turn_id:clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }),
+    body: JSON.stringify(body),
   });
   if (response.status === 401) {
     state.supabase.accessToken = null;
@@ -3848,7 +3852,7 @@ async function beginMemoryConversation(renderNow = true) {
   if (state.recallStatus?.payment_required) return;
   await ensureMemorySession();
   const fallback = conversationMessage("fallback");
-  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
+  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "begin");
   await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   try {
   const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLanguage(), requested_media: ["image"] }) });
@@ -3869,7 +3873,7 @@ async function startMemory() {
     render();
     await ensureMemorySession();
     const fallback = conversationMessage("fallback");
-    const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"]);
+    const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "continue");
     await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   } catch (error) { toast(error.message); }
   state.loading = false;

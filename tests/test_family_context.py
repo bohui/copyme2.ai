@@ -256,7 +256,9 @@ def test_repeated_unique_person_name_is_idempotent_without_existing_id():
     document, first_summary = merge_family_context_document(None, first, "project-family")
 
     repeated = validate_family_tree_context({
-        "people": [{"id": "friend-again", "name": "阿青"}]
+        # Replaying the same marker id/content remains idempotent. A different
+        # id with only the same name is intentionally a new person.
+        "people": [{"id": "friend", "name": "阿青", "family_title": "childhood friend"}]
     })
     merged, repeated_summary = merge_family_context_document(document, repeated, "project-family")
 
@@ -265,6 +267,23 @@ def test_repeated_unique_person_name_is_idempotent_without_existing_id():
     assert repeated_summary["added"]["people"] == 0
     assert len(merged["people"]) == 1
     assert merged["people"][0]["id"] == document["people"][0]["id"]
+
+
+def test_same_name_people_across_turns_keep_distinct_ids_without_explicit_identity():
+    father_update = validate_family_context({
+        "people": [{"id": "father", "name": "John Smith", "family_title": "father"}]
+    })
+    document, _ = merge_family_context_document(None, father_update, "project-family")
+
+    son_update = validate_family_context({
+        "people": [{"id": "son", "name": "John Smith", "family_title": "son"}]
+    })
+    merged, summary = merge_family_context_document(document, son_update, "project-family")
+
+    assert summary["added"]["people"] == 1
+    assert len(merged["people"]) == 2
+    assert {person["family_title"] for person in merged["people"]} == {"father", "son"}
+    assert len({person["id"] for person in merged["people"]}) == 2
 
 
 def test_same_name_people_in_one_marker_keep_distinct_ids_and_relationships():

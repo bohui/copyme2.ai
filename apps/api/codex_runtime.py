@@ -463,17 +463,42 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     should not become a dated event, timeline entry, or record.
     """
     lowered = original_conversation_text(text).casefold()
-    return bool(
+
+    # Do not treat a bare negation as an instruction to discard a marker:
+    # ``I moved in 1980, not 1981; please correct my timeline`` contains the
+    # word "not", but it is explicitly asking for a correction to be kept.
+    # Suppression therefore requires a recording verb/object or an explicit
+    # statement that the item is outside the timeline.
+    english_suppression = (
         re.search(
-            r"\b(?:shouldn['’]?t|should not|do not|don't|not)\b.{0,40}\b"
-            r"(?:dated event|timeline|record)\b",
+            r"\b(?:please\s+)?(?:do not|don't|should not|shouldn't|never)\s+"
+            r"(?:record|include|add|put|place|make|keep|treat|turn)\b.{0,80}\b"
+            r"(?:dated event|timeline|event|record)\b",
             lowered,
         )
         or re.search(
-            r"(?:反思|回忆).{0,40}(?:不一定|不要|不应|不应该).{0,40}(?:事件|日期|记录)",
-            text,
+            r"\b(?:leave|keep|omit|exclude)\b.{0,40}\b(?:out of|off|from)\b.{0,30}\b"
+            r"(?:my\s+)?(?:timeline|record|events?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:is|be|belongs?)\s+(?:not|never)\s+(?:on|in|part of)\s+"
+            r"(?:my\s+)?(?:timeline|record|events?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:isn't|is not|wasn't|was not)\s+(?:a\s+)?dated\s+event\b",
+            lowered,
         )
     )
+    chinese_suppression = re.search(
+        r"(?:请)?(?:不要|别|不应|不应该)\s*(?:记录|加入|放进|列入|写入|算作|当作|成为)"
+        r".{0,50}(?:时间线|事件|日期|记录)"
+        r"|(?:不属于|不是).{0,20}(?:时间线|事件|记录)"
+        r"|(?:反思|回忆).{0,40}(?:不一定|不要|不应|不应该).{0,40}(?:事件|日期|记录)",
+        text,
+    )
+    return bool(english_suppression or chinese_suppression)
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
@@ -694,7 +719,8 @@ class CodexRuntime:
                    evaluation_context: Mapping[str, Any] | None = None,
                    first_reply_localization: bool = False,
                    conversation_text: str | None = None,
-                   client_turn_id: str | None = None):
+                   client_turn_id: str | None = None,
+                   user_response: bool = True):
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         visible = VisibleText()
         turn_id = str(uuid4())
@@ -709,9 +735,11 @@ class CodexRuntime:
         if project_id is not None and valid_family_project_id(project_id) is None:
             raise ValueError('Invalid Family project id')
         user_id = storage.user_id
-        is_user_round = conversation_text is not None or not text.startswith((
-            'The storyteller wants to begin exploring a memory.',
-            'The storyteller wants to continue with another memory.'))
+        # Public /turn requests are user responses even when the optional
+        # conversation_text field is absent. Assistant-only turns must enter
+        # through the server-owned bounded greeting route, which passes this
+        # internal flag explicitly; free-form client text never selects it.
+        is_user_round = bool(user_response)
         if client_turn_id and project_id and isinstance(storage, UserStorage):
             previous_turn = await asyncio.to_thread(storage.agent_turn_by_id, project_id, client_turn_id)
             if previous_turn:
@@ -738,6 +766,7 @@ class CodexRuntime:
                 'text': text,
                 'project_id': project_id,
                 'language': language,
+                'user_response': bool(user_response),
             })
         async with AsyncExitStack() as preparation_scope, AsyncExitStack() as turn_scope:
             await turn_scope.enter_async_context(self._lock(user_id))

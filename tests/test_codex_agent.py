@@ -117,6 +117,7 @@ def test_workspace_extraction_does_not_invent_missing_domain_markers(monkeypatch
     'I bought my first house.',
     'I retired after years at the workshop.',
     'I often remember the day I moved to Hobart in 1980.',
+    'I moved in 1980, not 1981; please correct my timeline.',
 ])
 def test_grounded_timeline_marker_survives_when_recovery_router_has_no_focus_cue(text, monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
@@ -181,7 +182,11 @@ def test_workspace_extraction_does_not_recover_timeline_for_reflection_or_other_
     assert calls == [None]
 
 
-def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monkeypatch):
+@pytest.mark.parametrize('text', [
+    '晚年我有时只记得泡茶时的声音，这些反思不一定应该成为有日期的事件。',
+    'Please do not put this reflection on my timeline.',
+])
+def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 
     async def worker_turn(**kwargs):
@@ -199,7 +204,7 @@ def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monk
     reply = asyncio.run(runtime._workspace_extraction(
         user_id='synthetic-user', memories=[], profile={}, place_journey=None,
         family_enabled=True, family_context=None, project_id=None,
-        text='晚年我有时只记得泡茶时的声音，这些反思不一定应该成为有日期的事件。',
+        text=text,
         language='zh-CN',
     ))
 

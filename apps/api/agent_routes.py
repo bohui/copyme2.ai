@@ -37,6 +37,28 @@ class TurnInput(BaseModel):
     first_reply_localization: bool = False
 
 
+class GreetingInput(BaseModel):
+    """A bounded assistant-only action; no caller-supplied prompt is accepted."""
+
+    action: Literal['begin', 'continue']
+    client_turn_id: UUID | None = None
+    project_id: str | None = Field(default=None, min_length=1, max_length=128)
+    language: Literal['en-AU', 'zh-CN'] | None = None
+    first_reply_localization: bool = False
+
+
+GREETING_PROMPTS = {
+    'begin': (
+        'The storyteller wants to begin exploring a memory. Invite them to share '
+        'whatever comes to mind, without using a fixed onboarding question.'
+    ),
+    'continue': (
+        'The storyteller wants to continue with another memory. Ask one open-ended '
+        'question based on the conversation, without restarting onboarding.'
+    ),
+}
+
+
 class ProfileSettingsInput(BaseModel):
     preferred_language: Literal['en-AU', 'zh-CN'] | None = None
     name: str | None = Field(default=None, max_length=120)
@@ -127,6 +149,61 @@ async def place_journey(authorization: str | None = Header(default=None)):
         return {'place_journey': normalize_persisted_place_journey(record)}
     except (httpx.HTTPStatusError, httpx.RequestError) as error:
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
+    finally:
+        await asyncio.to_thread(storage.client.close)
+
+
+@router.post('/greeting')
+async def greeting(payload: GreetingInput, authorization: str | None = Header(default=None),
+                   accept: str = Header(default='application/json')):
+    """Run one of the server-owned assistant-only onboarding actions.
+
+    This route deliberately has no free-form ``text`` field. The runtime's
+    ``user_response=False`` seam is reachable here only after the action has
+    been reduced to one of the two product-owned prompts above; ordinary
+    ``/turn`` requests always remain billable user responses.
+    """
+    if payload.project_id is not None and valid_family_project_id(payload.project_id) is None:
+        raise HTTPException(422, 'Invalid Family project id')
+    storage = await asyncio.to_thread(authenticated_storage, authorization)
+    prompt = GREETING_PROMPTS[payload.action]
+    if 'application/x-ndjson' in accept:
+        async def run_stream(emit):
+            options = {
+                'project_id': payload.project_id,
+                'language': payload.language,
+                'on_delta': emit,
+                'on_event': emit.event,
+                'user_response': False,
+            }
+            if payload.first_reply_localization:
+                options['first_reply_localization'] = True
+            if payload.client_turn_id:
+                options['client_turn_id'] = str(payload.client_turn_id)
+            return await runtime.turn(storage, prompt, **options)
+
+        return StreamingResponse(
+            turn_events(run_stream,
+                        cleanup=lambda: asyncio.to_thread(storage.client.close)),
+            media_type='application/x-ndjson', headers=STREAM_HEADERS,
+        )
+    try:
+        options = {
+            'project_id': payload.project_id,
+            'language': payload.language,
+            'user_response': False,
+        }
+        if payload.first_reply_localization:
+            options['first_reply_localization'] = True
+        if payload.client_turn_id:
+            options['client_turn_id'] = str(payload.client_turn_id)
+        return await runtime.turn(storage, prompt, **options)
+    except (httpx.HTTPStatusError, httpx.RequestError) as error:
+        raise HTTPException(502, f'Supabase persistence failed: {error}') from None
+    except AgentTurnBusyError as error:
+        raise HTTPException(409, str(error), headers={'X-Error-Code': 'AGENT_TURN_IN_PROGRESS'}) from None
+    except RuntimeError as error:
+        raise HTTPException(502, f'Codex agent failed: {error}') from None
     finally:
         await asyncio.to_thread(storage.client.close)
 

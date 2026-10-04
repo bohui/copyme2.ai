@@ -188,19 +188,34 @@ def place_journey_message_is_ambiguous(message: str) -> bool:
     if not isinstance(message, str) or not message.strip():
         return False
     normalized = _normalize_for_match(message)
-    uncertainty = r"(?:unsure|uncertain|ambiguous|not sure|don't know|do not know|cannot identify|can't identify)"
-    location = r"(?:place|town|city|location|where|map(?:ping)?|which\s+(?:place|town|city|location)|which\s+one)"
-    english = (
-        re.search(rf"\b{uncertainty}\b.{{0,60}}\b{location}\b", normalized)
-        or re.search(rf"\b{location}\b.{{0,60}}\b{uncertainty}\b", normalized)
-        or re.search(r"\b(?:ask instead of mapping|ask me before mapping)\b", normalized)
+    # Ground uncertainty in the clause that contains its object. A location
+    # word in the preceding clause must not veto a separately uncertain date:
+    # "I moved to Hobart in 1980, but I am not sure which month" is still a
+    # clear place mention. Conversely, "which old town" remains a location
+    # object and must block mapping.
+    english_uncertainty = re.compile(
+        r"\b(?:unsure|uncertain|ambiguous|not sure|don't know|do not know|"
+        r"cannot identify|can't identify)\b"
     )
-    chinese = re.search(
-        r"(?:不确定|不肯定|不清楚|无法确定|不知道).{0,60}(?:地方|地点|城市|镇|哪里|定位|映射|映射到)"
-        r"|(?:地方|地点|城市|镇|哪里|定位|映射|映射到).{0,60}(?:不确定|不肯定|不清楚|无法确定|不知道)"
-        r"|请先问.{0,30}(?:不要映射|不要定位)",
-        message,
+    english_location_object = re.compile(
+        r"\b(?:place|town|city|location|where|map(?:ping)?|which\s+one|"
+        r"which\s+(?:place|town|city|location))\b"
     )
+    english_clauses = re.split(r"[;,.!?]+|\b(?:but|although|though|however|yet)\b", normalized)
+    english = any(
+        (match := english_uncertainty.search(clause))
+        and english_location_object.search(clause[match.end():])
+        for clause in english_clauses
+    ) or bool(re.search(r"\b(?:ask instead of mapping|ask me before mapping)\b", normalized))
+
+    chinese_uncertainty = re.compile(r"(?:不确定|不肯定|不清楚|无法确定|不知道)")
+    chinese_location_object = re.compile(r"(?:地方|地点|城市|镇|哪里|定位|映射|映射到)")
+    chinese_clauses = re.split(r"[，；。！？]+|(?:但是|但|不过|然而|可是)", message)
+    chinese = any(
+        (match := chinese_uncertainty.search(clause))
+        and chinese_location_object.search(clause[match.end():])
+        for clause in chinese_clauses
+    ) or bool(re.search(r"请先问.{0,30}(?:不要映射|不要定位)", message))
     return bool(english or chinese)
 
 

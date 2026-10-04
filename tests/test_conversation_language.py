@@ -235,7 +235,8 @@ def test_greeting_does_not_consume_first_reply_and_explicit_request_overrides_on
         languages.append(kwargs['language'])
         return {'thread_id':'fixture','reply':'Synthetic reply','artifacts':[]}
     monkeypatch.setattr(runtime,'_worker_turn',worker)
-    asyncio.run(runtime.turn(storage,'The storyteller wants to begin exploring a memory. Invite them.',on_delta=lambda _:None))
+    asyncio.run(runtime.turn(storage,'The storyteller wants to begin exploring a memory. Invite them.',
+                             user_response=False, on_delta=lambda _:None))
     assert 'conversation_language' not in storage.data
     asyncio.run(runtime.turn(storage,'我记得小时候的花园。',on_delta=lambda _:None))
     asyncio.run(runtime.turn(storage,'Please reply in English.',on_delta=lambda _:None))
