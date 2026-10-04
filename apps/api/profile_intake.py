@@ -41,6 +41,7 @@ CHINESE_NON_AUTHOR_SUBJECT = re.compile(
     r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
 )
 CHINESE_MIDLIFE_AGE = r"(?:3\d|4\d|5\d|三十[一二三四五六七八九]?|四十[一二三四五六七八九]?|五十[一二三四五六七八九]?)岁"
+CHINESE_EARLIER_AGE = r"(?:[一二三四五六七八九两]岁|十[一二三四五六七八九]?岁|二十[一二三四五六七八九]?岁|(?<!\d)\d{1,2}岁)"
 
 
 def _author_stage_evidence(text: str) -> str | None:
@@ -138,7 +139,7 @@ def _later_stage_correction_rejects_prior_midlife(text: str) -> bool:
         tail = text[correction.start():]
         if re.search(
             r"(?:小时候|幼儿时期|童年|少年时期|青春期|"
-            rf"(?:[一二三四五六七八九十两〇零○]+|\d{{1,2}})岁)",
+            rf"{CHINESE_EARLIER_AGE})",
             tail,
         ):
             return True

@@ -102,6 +102,10 @@ def test_later_chinese_correction_overrides_an_earlier_midlife_statement():
     assert apply_explicit_story_stage(
         text, {"story_focus": {"life_stage": "midlife"}}
     ) is None
+    assert apply_explicit_story_stage(
+        "我三十岁以后才开始工作。更正：我三十岁以后才开始照顾孩子。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "midlife"}}
 
 
 @pytest.mark.parametrize("text", [
