@@ -260,8 +260,10 @@ portable resources.
 
 ## Acceptance gates preserved
 
-Independent cloud review of the final pushed branch comes before another live
-provider/source-claim pilot or the five separate 50-round datasets. Cloud must
+The parent reported independent cloud source review clear on exact code head
+`90e28bc3f00506f225fcd4e5f46fa34986d0d154`; subsequent commits contain only
+documentation/evidence. Remaining readiness and acceptance gates come before
+another live provider/source-claim pilot or the five separate 50-round datasets. Cloud must
 also resolve complete-suite reliability, confirm native role portability and
 the post-repair browser batch, and confirm the previously unconfirmed
 image-lifecycle attempt. Guard scope limits must remain explicit until verified.

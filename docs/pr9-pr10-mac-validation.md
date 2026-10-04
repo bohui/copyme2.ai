@@ -242,6 +242,14 @@ parent reported missing native PostgreSQL and Chromium socket EPERM in its
 current cloud runtime. Full cloud E2E awaits a saved coding environment with
 supported dependencies; no bypass was attempted.
 
+The parent subsequently reported an independent cloud source review clearing
+exact code head `90e28bc3f00506f225fcd4e5f46fa34986d0d154`: 20 parser checks,
+4,854 variant comparisons with zero allowlist escapes, and 224 callback/fallback
+checks passed. These are parent-reported cloud source checks, not additional
+native Mac cases or a complete cloud E2E run. The controlled-harness, real
+OOPIF/worker/session-detach coverage limits remain. Later commits change only
+documentation/evidence.
+
 ## Reproduction
 
 Use a fresh isolated checkout/environment, no production credentials, and
@@ -272,8 +280,9 @@ receipts, JUnit XML, screenshots, red/green logs and the safe process audit.
 
 ## Remaining gate
 
-The parent must obtain an independent cloud review of the published final head
-before another live provider/source-claim pilot or the full five-by-fifty run.
+Independent cloud source review cleared the final code head above. The parent
+coordinates readiness and remaining acceptance gates before another live
+provider/source-claim pilot or the full five-by-fifty run.
 The native full-suite resource/runtime instability also needs resolution before
 claiming a reliable complete native pass.
 Cloud should also confirm the image-lifecycle scenario whose final Mac receipt

@@ -1158,7 +1158,6 @@
     "isolated_worktree_retained": true
   },
   "remaining_gates": [
-    "Independent cloud rereview of final published head",
     "Reliable complete native and post-repair browser run in supported cloud coding environment",
     "Previously unconfirmed image-lifecycle receipt",
     "Real OOPIF and worker/service-worker coverage before any complete egress assertion",
@@ -1249,5 +1248,22 @@
         "mode": "offline parsers only, no network"
       }
     }
+  },
+  "independent_cloud_source_review": {
+    "reviewed_code_head": "90e28bc3f00506f225fcd4e5f46fa34986d0d154",
+    "status": "clear",
+    "source": "Parent-reported independent cloud review; underlying review receipts remain with parent",
+    "parser_checks_passed": 20,
+    "variant_comparisons_passed": 4854,
+    "variant_allowlist_escapes": 0,
+    "callback_fallback_checks_passed": 224,
+    "native_mac_cases": false,
+    "complete_cloud_e2e": false,
+    "retained_limits": [
+      "Controlled harness rather than complete network isolation",
+      "Real OOPIF coverage unverified",
+      "Worker/service-worker response coverage unverified",
+      "Session-detach paths unverified"
+    ]
   }
 }
