@@ -844,18 +844,70 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     return {"provider": "llm_web_search", "status": "success", "sources": sources[:24]}
 
 
+_LLM_UNCERTAIN_DATE = re.compile(
+    r"\b(?:probably|possibly|perhaps|maybe|likely|about|estimated|estimate|approximately|approx|circa|"
+    r"before|after|uncertain|unknown|undated|unrecorded|around)\b|\b(?:ca|c)\.\s*\d|"
+    r"\b(?:not|never)\s+(?:known|recorded|dated|established|verified)\b|"
+    r"\b(?:no|missing)\s+(?:capture\s+)?date\b|[?？]|约|可能|不详|未知", re.I)
+_LLM_DATE_EVENT = re.compile(
+    r"(?P<noncapture>\b(?:publish(?:ed|ing)?|publication|upload(?:ed|ing)?|scan(?:ned|ning)?|"
+    r"digitiz(?:ed|ation|ing)|digitis(?:ed|ation|ing))\b|上传|发表|出版|扫描|数字化)"
+    r"|(?P<capture>\b(?:taken|captured|capture|photographed|shot|scene\s+date|date\s+taken)\b|拍摄|摄于|拍于)", re.I)
+
+
+def _llm_capture_clauses(value: str) -> list[str]:
+    """Keep capture clauses while excluding explicitly different date events.
+
+    Event scope lasts until a separator or a different event. Qualifiers remain
+    with their capture assertion, including qualifiers preceding 'taken'. The
+    unchanged original field is retained separately in source provenance.
+    """
+    captures = []
+    for clause in re.split(r"[;；\n]", value):
+        capture, start = True, 0
+        for match in _LLM_DATE_EVENT.finditer(clause):
+            next_capture = match.lastgroup == "capture"
+            if next_capture == capture:
+                continue
+            if capture:
+                captures.append(clause[start:match.start()])
+            start, capture = match.start(), next_capture
+            if capture:
+                # In 'published 2025, probably taken 1983', the uncertainty
+                # belongs to the new capture assertion, not the publication.
+                qualifier = re.search(r"\b(probably|possibly|perhaps|maybe|likely|about|approximately|circa)\s*$",
+                                      clause[:start], re.I)
+                if qualifier:
+                    start = qualifier.start()
+        if capture:
+            captures.append(clause[start:])
+    return captures
+
+
 def _llm_capture_date(value: str, temporal: dict) -> dict | None:
     value = _text(value)
-    if re.search(r"upload|publish|scan|circa|before|after|约|上传|发表", value, re.I):
+    if _LLM_UNCERTAIN_DATE.search(value):
         return None
-    days = list(dict.fromkeys(re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", value)))
-    months = list(dict.fromkeys(re.findall(r"(?<!\d)\d{4}-\d{2}(?!\d)", value)))
     years = list(dict.fromkeys(_crawl4ai_years(value)))
-    if len(days) > 1 or len(months) > 1:
-        # Multiple exact dates need an explicit interval interpretation. Do not
-        # silently widen them to a year and mark the evidence conflict-free.
-        return None
     try:
+        for token in re.findall(r"(?<!\d)\d{4}[-/][\w/-]+", value):
+            if not (re.fullmatch(r"\d{4}[-/]\d{1,2}(?:[-/]\d{1,2})?(?:T\d{2})?", token)
+                    or re.fullmatch(r"(?:18|19|20)\d{2}-(?:18|19|20)\d{2}", token)):
+                return None
+        # Normalize explicit numeric precision, including non-zero-padded
+        # source dates. Never degrade an unparsed precise date to a year.
+        days = list(dict.fromkeys(date(*map(int, parts)).isoformat() for parts in
+            re.findall(r"(?<!\d)(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?!\d)", value)))
+        months = list(dict.fromkeys(date(int(y), int(m), 1).isoformat()[:7] for y, m in
+            re.findall(r"(?<!\d)(\d{4})[-/](\d{1,2})(?!\d)", value)))
+        if len(days) > 1 or len(months) > 1:
+            return None
+        # Unsupported numeric/named-month dates are not ordinary year captions.
+        if re.search(r"(?<!\d)\d{1,2}[-/]\d{1,2}[-/]\d{4}(?!\d)|"
+                     r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+                     r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b",
+                     value, re.I):
+            return None
         year_range = re.search(r"(?<!\d)((?:18|19|20)\d{2})\s*[-–—]\s*((?:18|19|20)\d{2})(?!\d)", value)
         if year_range:
             range_years = [int(year_range.group(1)), int(year_range.group(2))]
@@ -886,37 +938,37 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
         return None
     if start > end:
         return None
-    if temporal.get("mode") == "historical_unspecified":
-        return {"start": start, "end": end, "precision": precision,
-                "basis": "source_caption", "conflicting": False}
-    if not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]:
+    if temporal.get("mode") != "historical_unspecified" and (
+            not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]):
         return None
     return {"start": start, "end": end, "precision": precision,
             "basis": "source_caption", "conflicting": False}
 
 
-def _llm_reconcile_capture_dates(fields: dict[str, str], temporal: dict) -> dict | None:
-    """Reconcile independent image assertions before applying the request window.
-
-    Broad years/ranges may contain a more precise assertion. Disjoint assertions
-    never become a broader, supposedly verified year. Keep each field's origin
-    so a display-name fallback cannot discard contradictory capture evidence.
-    """
+def _llm_reconcile_capture_dates(field_records: list[dict[str, str]], temporal: dict) -> dict | None:
+    """Reconcile every field/record for an image before applying the window."""
     assertions = []
-    for field, value in fields.items():
-        if field in {"datePublished", "uploadDate"}:
-            continue
-        if field not in {"dateTaken", "dateCreated"} and re.match(
-                r"\s*(?:published|uploaded|scanned|上传|发表)\b", value, re.I) and not re.search(
-                r"taken|captur|photographed|拍摄", value, re.I):
-            # Explicit publication-only text is provenance, not a scene date.
-            continue
-        if field not in {"dateTaken", "dateCreated"} and not _crawl4ai_years(value):
-            continue
-        parsed = _llm_capture_date(value, {"mode": "historical_unspecified"})
-        if not parsed:
-            return None
-        assertions.append({"field": field, "value": value, **parsed})
+    for record, fields in enumerate(field_records):
+        for field, value in fields.items():
+            if field in {"datePublished", "uploadDate"}:
+                continue
+            explicit_date = field in {"dateTaken", "dateCreated"}
+            field_assertions = []
+            for clause in _llm_capture_clauses(value):
+                has_year = bool(_crawl4ai_years(clause))
+                has_date_context = bool(re.search(r"\b(?:date|taken|capture|captured|undated)\b|拍摄|摄于|拍于", clause, re.I))
+                if _LLM_UNCERTAIN_DATE.search(clause) and (has_year or has_date_context or explicit_date):
+                    return None
+                if not has_year:
+                    continue
+                parsed = _llm_capture_date(clause, {"mode": "historical_unspecified"})
+                if not parsed:
+                    return None
+                field_assertions.append({"record": record, "field": field, "value": value,
+                                         "clause": clause.strip(), **parsed})
+            if explicit_date and not field_assertions:
+                return None
+            assertions.extend(field_assertions)
     if not assertions:
         return None
     start = max(assertion["start"] for assertion in assertions)
@@ -947,12 +999,16 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         nodes = node if isinstance(node, list) else [node]
         for item in nodes:
             if isinstance(item, dict):
-                records.extend(item.get("@graph", [item]))
+                graph = item.get("@graph", [item])
+                if isinstance(graph, dict):
+                    graph = [graph]
+                if isinstance(graph, list):
+                    records.extend(graph)
     for item in page["image_candidates"]:
         caption = " ".join((item["alt"], item["figure_text"]))
         records.extend({"@type": "Photograph", "caption": caption, "dateCreated": caption,
                         "contentUrl": url, "caption_record": True} for url in item["candidate_urls"][:1])
-    images = []
+    grouped = {}
     for item in records:
         if not isinstance(item, dict):
             continue
@@ -963,23 +1019,33 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         fields = {key: _text(item.get(key)) for key in
                   ("name", "caption", "description", "dateTaken", "dateCreated", "datePublished", "uploadDate")
                   if _text(item.get(key))}
-        caption = " ".join(fields[key] for key in ("name", "caption", "description") if key in fields)
         image = _crawl4ai_image_url(item.get("contentUrl"))
-        if not image or NON_PHOTO.search(caption) or not _crawl4ai_location_matches(caption, place):
+        if image:
+            grouped.setdefault(image, []).append((fields, item.get("caption_record", False)))
+    images = []
+    for image, entries in grouped.items():
+        caption = " ".join(fields[key] for fields, _ in entries
+                           for key in ("name", "caption", "description") if key in fields)
+        if NON_PHOTO.search(caption) or not _crawl4ai_location_matches(caption, place):
             continue
         if any(re.search(r"key|token|secret|signature|password|credential", name, re.I)
                for name in parse_qs(urlsplit(image).query)):
             continue
-        scene = _llm_reconcile_capture_dates(fields, temporal)
+        scene = _llm_reconcile_capture_dates([fields for fields, _ in entries], temporal)
         if not scene:
             continue
-        if not item.get("caption_record") and fields.keys() & {"dateTaken", "dateCreated"}:
+        if any(not is_caption and fields.keys() & {"dateTaken", "dateCreated"}
+               for fields, is_caption in entries):
             scene["basis"] = "provider_date_taken"
         _, image_host, image_port = valid_url(image)
         public_addresses(image_host, image_port)
+        excerpt = "; ".join(f"{key}: {value}" for fields, _ in entries for key, value in fields.items())
+        if len(excerpt) > 4000:
+            # Do not truncate away a conflicting assertion or poison sibling
+            # results with an evidence record exceeding the persisted schema.
+            continue
         images.append({"image_url": image, "title": caption, "source_page_url": final,
-                       "scene_date": scene,
-                       "source_excerpt": "; ".join(f"{key}: {value}" for key, value in fields.items())})
+                       "scene_date": scene, "source_excerpt": excerpt})
     return images
 
 

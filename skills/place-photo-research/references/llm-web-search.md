@@ -62,3 +62,12 @@ assertions retain their field, value and precision in the scene-date record.
 Explicit `datePublished`/`uploadDate` fields and publication-only description
 text remain provenance, never replacement capture evidence. Missing, uncertain,
 invalid or unresolved contradictory capture assertions do not qualify.
+
+Capture and publication/upload/scanning/digitization assertions are classified
+clause by clause, so a later publication date cannot erase a valid earlier
+capture date. Capture uncertainty (including unknown dates, approximate language
+and question marks) rejects the image even when another field supplies a date.
+Non-zero-padded numeric dates retain day/month precision; unsupported precise
+formats are excluded rather than silently reduced to a year. All image records
+for the same URL on a source page are reconciled before deduplication, and
+malformed graph metadata does not prevent inspecting healthy sibling sources.
