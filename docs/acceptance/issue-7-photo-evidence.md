@@ -41,6 +41,15 @@ Unsupported named-month or ambiguous numeric formats remain unverified.
 Records for the same source image are reconciled together before deduplication.
 Malformed graph values cannot erase healthy sibling-source results.
 
+A second review exposed qualifier loss during event transitions and postposed
+non-capture labels. The generalized regression set produced 30 failures / 16
+passes before the fix, then all 211 public cases passed. Event transitions now
+retain all intervening text after the last non-capture date, with no secondary
+uncertainty-word whitelist. A non-capture label without its own following date
+claims the preceding date conservatively, covering forms such as `1983 (upload
+date)`. Independent capture and publication dates remain covered by positive
+counterexamples.
+
 ## Complete Issue #4 acceptance matrix
 
 PASS means verified offline behavior plus source inspection, not live-provider
@@ -69,7 +78,7 @@ certification. Test names below refer to `tests/test_llm_place_photos.py` or
 | 18 | Unresolved rights remain unresolved | PASS: skill/app unknown rights and disabled download/print/publish assertions; unchanged download gates |
 | 19 | Documented standalone helper | PASS: `references/llm-web-search.md`; public `init`/`discover` exercised |
 | 20 | Shared app capability | PASS: same parser through `search_place_photos`; capture conflicts/consistent metadata/month precision exercised |
-| 21 | Public-interface behavior tests | PASS: 165 expanded cases; real adapter, source parsing, candidate validation/reporting/provider orchestration |
+| 21 | Public-interface behavior tests | PASS: 211 expanded cases; real adapter, source parsing, candidate validation/reporting/provider orchestration |
 | 22 | Linked issue/PR and observed results | PASS only with exact clean-snapshot receipts in the implementation PR; commands below make that verification reproducible |
 
 ## Reproduce and interpret verification

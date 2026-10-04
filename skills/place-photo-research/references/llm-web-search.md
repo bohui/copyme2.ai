@@ -71,3 +71,9 @@ Non-zero-padded numeric dates retain day/month precision; unsupported precise
 formats are excluded rather than silently reduced to a year. All image records
 for the same URL on a source page are reconciled before deduplication, and
 malformed graph metadata does not prevent inspecting healthy sibling sources.
+
+Event association also recognizes non-capture labels after a date, such as
+`1983 (digitized)` or `1983 (upload date)`. Such a date cannot establish the
+scene's capture year. When publication text transitions back to capture text,
+all intervening qualifiers are retained for uncertainty checks; a second,
+partial qualifier whitelist is not used.

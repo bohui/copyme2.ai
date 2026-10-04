@@ -71,3 +71,40 @@ def test_unknown_capture_aliases_cannot_be_overridden_by_metadata(search_world, 
     helper, world = search_world
     set_image_metadata(world, {'dateCreated': '1983-10-01', 'caption': caption})
     assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('qualifier', [
+    'estimated', 'around', 'before', 'after', 'uncertain', 'unknown',
+    'unrecorded', 'circa', 'approx', 'approximately', 'likely', 'maybe',
+])
+def test_all_uncertainty_is_preserved_at_capture_transitions(search_world, tmp_path, capsys, surface, qualifier):
+    helper, world = search_world
+    set_image_metadata(world, {'caption': f'Chengde street; published 2025, {qualifier} taken 1983'})
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('label', ['digitized', 'upload date', 'publication date', 'scanned', 'digitization'])
+def test_postposed_non_capture_labels_cannot_date_the_scene(search_world, tmp_path, capsys, surface, label):
+    helper, world = search_world
+    set_image_metadata(world, {'caption': f'Chengde street; 1983 ({label})'})
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('caption,expected_year', [
+    ('Chengde street 1983, published 2025', '1983'),
+    ('Chengde street 1983 (digitized 2025)', '1983'),
+    ('Chengde street 1983 (digitized); taken 1984', '1984'),
+    ('Chengde street; 2025 (publication date), taken 1983', '1983'),
+    ('Chengde street taken 1983; digitized', '1983'),
+    ('Chengde street; published 2025, taken 1983', '1983'),
+])
+def test_event_association_keeps_independent_capture_dates(search_world, tmp_path, capsys, surface, caption, expected_year):
+    helper, world = search_world
+    set_image_metadata(world, {'caption': caption})
+    photo, = discover_image_metadata(helper, tmp_path, capsys, surface)
+    scene = photo['scene_date'] if surface == 'skill' else photo['scene_date_range']
+    assert scene['start'] == expected_year + '-01-01'
+    assert scene['end'] == expected_year + '-12-31'

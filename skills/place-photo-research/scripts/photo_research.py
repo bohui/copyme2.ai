@@ -856,29 +856,35 @@ _LLM_DATE_EVENT = re.compile(
 
 
 def _llm_capture_clauses(value: str) -> list[str]:
-    """Keep capture clauses while excluding explicitly different date events.
+    """Associate dates with event clauses without discarding capture qualifiers.
 
-    Event scope lasts until a separator or a different event. Qualifiers remain
-    with their capture assertion, including qualifiers preceding 'taken'. The
-    unchanged original field is retained separately in source provenance.
+    Non-capture labels may precede or follow their date. A trailing label with
+    no date of its own makes the preceding date non-capture/ambiguous, rather
+    than certifying it as a scene date. On a transition back to capture, retain
+    *all* text after the last non-capture date, not a whitelist of qualifiers.
+    The unchanged original field is retained separately as provenance.
     """
     captures = []
     for clause in re.split(r"[;；\n]", value):
         capture, start = True, 0
-        for match in _LLM_DATE_EVENT.finditer(clause):
+        events = list(_LLM_DATE_EVENT.finditer(clause))
+        for index, match in enumerate(events):
             next_capture = match.lastgroup == "capture"
             if next_capture == capture:
                 continue
             if capture:
-                captures.append(clause[start:match.start()])
-            start, capture = match.start(), next_capture
-            if capture:
-                # In 'published 2025, probably taken 1983', the uncertainty
-                # belongs to the new capture assertion, not the publication.
-                qualifier = re.search(r"\b(probably|possibly|perhaps|maybe|likely|about|approximately|circa)\s*$",
-                                      clause[:start], re.I)
-                if qualifier:
-                    start = qualifier.start()
+                following_end = events[index + 1].start() if index + 1 < len(events) else len(clause)
+                # '1983 (digitized)' cannot become a capture assertion; in
+                # '1983, digitized 2025', each date has an independent role.
+                if _crawl4ai_years(clause[match.end():following_end]):
+                    captures.append(clause[start:match.start()])
+                start = match.start()
+            else:
+                previous = clause[start:match.start()]
+                dates = list(re.finditer(r"(?<!\d)(?:18|19|20)\d{2}(?:[-/]\d{1,2}){0,2}(?!\d)", previous))
+                if dates:
+                    start += dates[-1].end()
+            capture = next_capture
         if capture:
             captures.append(clause[start:])
     return captures
