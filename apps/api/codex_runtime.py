@@ -562,9 +562,144 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     return bool(english_suppression or chinese_suppression)
 
 
-def _timeline_source_sentences(text: str) -> list[str]:
+_ENGLISH_POSSESSIVE_PERSON_HEADS = frozenset({
+    "aunt", "brother", "boss", "child", "colleague", "cousin", "daughter",
+    "dad", "father", "friend", "grandfather", "grandmother", "grandma",
+    "grandpa", "gran", "husband", "mentor", "mother", "mum", "mom", "nan",
+    "neighbour", "neighbor", "partner", "sibling", "sister", "son", "teacher",
+    "uncle", "wife",
+})
+_CHINESE_POSSESSIVE_PERSON_HEADS = re.compile(
+    r"^(?:的)?(?:父亲|爸爸|爸|母亲|妈妈|妈|父母|姐姐|妹妹|哥哥|弟弟|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
+_CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN = re.compile(
+    r"^(?:的)?(?:姐姐|妹妹|哥哥|弟弟|父亲|爸爸|爸|母亲|妈妈|妈|父母|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
+
+
+def _chinese_author_subject_present(sentence: str, *, require_first_subject: bool = False) -> bool:
+    """Return whether a clause contains a direct, non-relative ``我`` subject."""
+    if not isinstance(sentence, str):
+        return False
+    if require_first_subject:
+        leading = sentence.lstrip(" \t，,：:")
+        match = re.match(r"我们|我", leading)
+        if not match:
+            return False
+        suffix = leading[match.end():]
+        return not (
+            suffix.startswith("的")
+            or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix)
+        )
+    for match in re.finditer(r"我们|我", sentence):
+        suffix = sentence[match.end():]
+        if suffix.startswith("的") or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix):
+            continue
+        return True
+    return False
+
+
+def _chinese_positive_author_subject(sentence: str) -> bool:
+    """Exclude epistemic/permission clauses while keeping mixed claims."""
+    if not isinstance(sentence, str):
+        return False
+    for match in re.finditer(r"我们|我", sentence):
+        suffix = sentence[match.end():]
+        if suffix.startswith("的") or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix):
+            continue
+        if re.match(r"(?:不确定|不清楚|不知道|无法|不能|没法|不想|不愿|不需要)", suffix):
+            continue
+        return True
+    return False
+
+
+def _english_possessive_subject_is_author_owned(sentence: str) -> bool:
+    """Classify ``My ...`` by its possessed subject, not by ``my`` alone.
+
+    ``My first job`` and ``My first house`` are author-owned biographical
+    subjects. ``My aunt June`` and ``My father's stories`` are subjects owned
+    by, or attributed to, another person. The distinction is structural and
+    does not depend on enumerating event verbs.
+    """
+    lowered = sentence.strip().casefold()
+    match = re.match(r"^(?:my|our)\s+(.+)$", lowered)
+    if not match:
+        return False
+    subject = re.split(r"[.!?,;:]|\s+(?:and|but|who|that|which)\s+", match.group(1), maxsplit=1)[0]
+    tokens = re.findall(r"[a-z]+(?:['’]s)?", subject)
+    if not tokens:
+        return False
+    if tokens[0].endswith(("'s", "’s")) or tokens[0][:-2] in _ENGLISH_POSSESSIVE_PERSON_HEADS:
+        return False
+    # Allow a small determiner/adjective prefix (``my dear aunt``) while
+    # still rejecting a relational head before an arbitrary proper name.
+    for token in tokens[:3]:
+        if token.endswith(("'s", "’s")) or token.rstrip("'’s") in _ENGLISH_POSSESSIVE_PERSON_HEADS:
+            return False
+    return True
+
+
+def _author_biographical_fragment(sentence: str) -> bool:
+    """Accept clear autobiographical fragments whose subject is implicit."""
+    if not isinstance(sentence, str):
+        return False
+    stripped = sentence.strip()
+    lowered = stripped.casefold()
+    return bool(
+        re.match(r"^(?:born|raised)\s+(?:in|at|near)\b", lowered)
+        or re.match(r"^(?:出生|生于|生在)(?:于|在)?", stripped)
+    )
+
+
+def _timeline_source_spans(text: str) -> list[tuple[str, int, int]]:
+    """Split visible user text into source clauses while retaining offsets.
+
+    Offsets make a marker entry's association explicit: a veto targets the
+    nearest preceding author-owned source clause, while a later independent
+    claim remains eligible. The split also keeps mixed uncertainty and a
+    positive author claim from sharing one all-or-nothing sentence decision.
+    """
     source = original_conversation_text(text) if isinstance(text, str) else ""
-    return [part.strip() for part in re.split(r"[.!?。！？；;\n]+", source) if part.strip()]
+    separator = re.compile(
+        r"[.!?。！？；;\n]+"
+        r"|,(?=\s*(?:but|although|though|however|yet|and|then)\b)"
+        r"|，(?=(?:但|但是|不过|然而|然后|同时|而且|可是|那时))"
+        r"|\bplease\s+(?=(?:do not|don't|should not|shouldn't|never)\s+"
+        r"(?:record|include|add|put|place|make|keep|treat|turn)\b)"
+        r"|(?=\b(?:do not|don't|should not|shouldn't|never)\s+"
+        r"(?:record|include|add|put|place|make|keep|treat|turn)\b)"
+        r"|，"
+        r"|请(?=(?:不要|别|不应|不应该)\s*"
+        r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+        r"(?:记录|加入|放进|列入|写入|算作|当作|成为))"
+        r"|(?=(?:不要|别|不应|不应该)\s*"
+        r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+        r"(?:记录|加入|放进|列入|写入|算作|当作|成为))",
+        re.IGNORECASE,
+    )
+    spans: list[tuple[str, int, int]] = []
+    start = 0
+    for match in separator.finditer(source):
+        raw = source[start:match.start()]
+        left = len(raw) - len(raw.lstrip())
+        right = len(raw.rstrip())
+        if right > left:
+            spans.append((raw[left:right], start + left, start + right))
+        start = match.end()
+    raw = source[start:]
+    left = len(raw) - len(raw.lstrip())
+    right = len(raw.rstrip())
+    if right > left:
+        spans.append((raw[left:right], start + left, start + right))
+    return spans
+
+
+def _timeline_source_sentences(text: str) -> list[str]:
+    return [sentence for sentence, _start, _end in _timeline_source_spans(text)]
 
 
 def _author_possessive_subject(sentence: str) -> bool:
@@ -580,12 +715,12 @@ def _author_possessive_subject(sentence: str) -> bool:
         return False
     lowered = sentence.strip().casefold()
     if re.match(r"^(?:my|our)\s+", lowered):
-        subject = re.split(r"[.!?,;:]", lowered, maxsplit=1)[0]
-        if re.search(r"\b(?:my|our)\s+[^\s]+['’]s\b", subject):
-            return False
-        return True
-    if re.match(r"^我的", sentence.strip()):
-        return True
+        return _english_possessive_subject_is_author_owned(sentence)
+    stripped = sentence.strip()
+    if stripped.startswith("我的"):
+        return _CHINESE_POSSESSIVE_PERSON_HEADS.match(stripped[2:]) is None
+    if stripped.startswith("我们的"):
+        return _CHINESE_POSSESSIVE_PERSON_HEADS.match(stripped[3:]) is None
     return False
 
 
@@ -601,22 +736,40 @@ def _sentence_has_author_event_evidence(sentence: str) -> bool:
     if not isinstance(sentence, str):
         return False
     lowered = sentence.casefold()
-    has_first_person = bool(
-        re.search(r"\b(?:i|we)\b", lowered)
-        or re.search(
-            r"(?:^|[，,；;、])\s*[^，,；;、]{0,12}?(?:我|我们)"
-            r"(?!的|们)",
-            sentence,
-        )
-    )
+    english_assertion = False
+    for match in re.finditer(r"\b(?:i|we)\b", lowered):
+        suffix = lowered[match.end():].lstrip()
+        if re.match(
+            r"(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
+            r"(?:cannot|can't|can\s+not|do\s+not|don't|did\s+not|didn't)\s+"
+            r"(?:know|tell|give|provide|confirm|remember|want|need)\b",
+            suffix,
+        ):
+            continue
+        english_assertion = True
+        break
+    chinese_assertion = _chinese_author_subject_present(sentence)
+    has_first_person = english_assertion or chinese_assertion
     possessive_subject = _author_possessive_subject(sentence)
-    if not has_first_person and not possessive_subject:
+    if not has_first_person and not possessive_subject and not _author_biographical_fragment(sentence):
         return False
-    if re.search(
+    uncertainty_only = bool(re.search(
         r"\b(?:i|we)\s+(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
-        r"\b(?:i|we)\s+(?:do\s+not|don't|did\s+not|didn't)\s+know\b"
-        r".{0,80}\b(?:whether|if)\b",
+        r"\b(?:i|we)\s+(?:cannot|can't|can\s+not|do\s+not|don't|did\s+not|didn't)\s+"
+        r"(?:know|tell|give|provide|confirm|remember|want|need)\b",
         lowered,
+    ))
+    chinese_uncertainty_only = bool(re.search(
+        r"(?:我|我们)\s*(?:不确定|不清楚|不知道|无法|不能|没法|不想|不愿|不需要)",
+        sentence,
+    ))
+    if uncertainty_only and not (
+        possessive_subject or _author_biographical_fragment(sentence) or english_assertion
+    ):
+        return False
+    if chinese_uncertainty_only and not (
+        possessive_subject or _author_biographical_fragment(sentence)
+        or _chinese_positive_author_subject(sentence)
     ):
         return False
     strong_date = bool(
@@ -633,8 +786,8 @@ def _sentence_has_author_event_evidence(sentence: str) -> bool:
         )
     )
     meta_only = bool(re.search(
-        r"(?:许可|同意|授权|隐私|相册|照片|发表许可|不想把|不要把).{0,80}"
-        r"(?:许可|同意|授权|隐私|相册|照片|事实|故事)|"
+        r"(?:许可|同意|授权|隐私|相册|照片|发表许可|不想把|不要把)"
+        r"(?:.{0,80}(?:许可|同意|授权|隐私|相册|照片|事实|故事))?|"
         r"\b(?:permission|consent|approval|privacy|photo|album)\b",
         sentence,
         re.IGNORECASE,
@@ -751,7 +904,9 @@ def _timeline_veto_scope(sentence: str) -> str | None:
     )
     chinese = bool(
         re.search(
-            r"(?:请)?(?:不要|别|不应|不应该)\s*(?:记录|加入|放进|列入|写入|算作|当作|成为)"
+            r"(?:请)?(?:不要|别|不应|不应该)\s*"
+            r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+            r"(?:记录|加入|放进|列入|写入|算作|当作|成为)"
             r".{0,60}(?:时间线|事件|日期|记录)",
             sentence,
         )
@@ -800,14 +955,35 @@ def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
         lowered = value.casefold().strip()
         if lowered and lowered not in generic:
             anchors.append(lowered)
-        anchors.extend(token.casefold() for token in re.findall(
-            r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|[a-z]{4,}", value
-        ))
-        anchors.extend(token for token in re.findall(r"[\u3400-\u9fff]{2,}", value) if token not in generic)
+        anchors.extend(
+            token.casefold() for token in re.findall(
+                r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b[a-z]{4,}\b", value
+            ) if token.casefold() not in generic
+        )
+        anchors.extend(
+            token for token in re.findall(r"[\u3400-\u9fff]{2,}", value)
+            if token not in generic
+        )
     return list(dict.fromkeys(anchor for anchor in anchors if anchor))
 
 
-def _timeline_item_is_explicitly_vetoed(item: Mapping[str, Any], source: str, item_count: int) -> bool:
+def _timeline_item_source_span_indices(
+    item: Mapping[str, Any], source: str,
+) -> list[int]:
+    """Associate a normalized timeline item with visible source clauses."""
+    anchors = _timeline_item_source_anchors(item)
+    if not anchors:
+        return []
+    spans = _timeline_source_spans(source)
+    return [
+        index for index, (sentence, _start, _end) in enumerate(spans)
+        if any(anchor in sentence.casefold() for anchor in anchors)
+    ]
+
+
+def _timeline_item_is_explicitly_vetoed(
+    item: Mapping[str, Any], source: str, item_count: int | None = None,
+) -> bool:
     """Apply a storyteller's explicit timeline veto before marker grading.
 
     ``this event`` refers to the nearest preceding source-grounded claim, so
@@ -815,7 +991,8 @@ def _timeline_item_is_explicitly_vetoed(item: Mapping[str, Any], source: str, it
     events to my timeline`` veto removes every candidate.  This operates on
     source/entry alignment and never decides whether an event verb is valid.
     """
-    sentences = _timeline_source_sentences(source)
+    spans = _timeline_source_spans(source)
+    sentences = [sentence for sentence, _start, _end in spans]
     vetoes = [
         (index, _timeline_veto_scope(sentence))
         for index, sentence in enumerate(sentences)
@@ -825,15 +1002,31 @@ def _timeline_item_is_explicitly_vetoed(item: Mapping[str, Any], source: str, it
         return False
     if any(scope == "all" for _index, scope in vetoes):
         return True
-    anchors = _timeline_item_source_anchors(item)
+    item_indices = set(_timeline_item_source_span_indices(item, source))
+    author_indices = {
+        index for index, sentence in enumerate(sentences)
+        if _sentence_has_author_event_evidence(sentence)
+    }
     for index, _scope in vetoes:
-        if item_count == 1:
+        preceding = [candidate for candidate in author_indices if candidate < index]
+        if not preceding:
+            continue
+        target = max(preceding)
+        # A concrete item is vetoed only when its source association is the
+        # nearest preceding author claim. An item associated with a later
+        # claim must survive the earlier item-specific veto.
+        if target in item_indices:
             return True
-        preceding = sentences[:index]
-        for candidate in reversed(preceding):
-            if any(anchor in candidate.casefold() for anchor in anchors):
-                return True
-        if any(anchor in sentences[index].casefold() for anchor in anchors):
+        if item_indices:
+            continue
+
+        # A model can emit a generic title (for example ``Grounded event``)
+        # and provide no lexical anchor. In that case only suppress an
+        # unambiguous single-source event. If another author claim follows the
+        # veto, preserve the generic item rather than deleting the later
+        # allowed event merely because the marker has one entry.
+        later_author_claim = any(candidate > index for candidate in author_indices)
+        if not later_author_claim and (item_count in (None, 1)):
             return True
     return False
 
@@ -841,14 +1034,13 @@ def _timeline_item_is_explicitly_vetoed(item: Mapping[str, Any], source: str, it
 def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item_count: int) -> bool:
     if _timeline_item_has_reflection_only_source(item, source):
         return False
-    anchors = _timeline_item_source_anchors(item)
-    sentences = _timeline_source_sentences(source)
-    candidates = [
-        sentence for sentence in sentences
-        if any(anchor in sentence.casefold() for anchor in anchors)
-    ]
-    if candidates:
-        return any(_sentence_has_author_event_evidence(sentence) for sentence in candidates)
+    spans = _timeline_source_spans(source)
+    item_indices = _timeline_item_source_span_indices(item, source)
+    if item_indices:
+        return any(
+            _sentence_has_author_event_evidence(spans[index][0])
+            for index in item_indices
+        )
     # A single explicit author claim may have a generic model title. Keep it
     # when there is no contradictory source anchor; multi-item markers require
     # per-item evidence so an unrelated reflection cannot ride along.

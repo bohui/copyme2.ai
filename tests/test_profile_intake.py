@@ -85,6 +85,25 @@ def test_explicit_story_stage_guard_respects_author_correction_and_subject_scope
     ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
 
 
+def test_explicit_story_stage_guard_does_not_promote_relative_age_before_author_age():
+    text = "三十岁以后，我姐姐开始工作，那时我五岁。"
+    updates = apply_explicit_story_stage(
+        text,
+        {"story_focus": {"life_stage": "midlife", "when": "我五岁"}},
+    )
+    assert updates == {"story_focus": {"when": "我五岁"}}
+    assert merge_profile_updates(
+        {"story_focus": {"life_stage": "childhood"}}, updates
+    ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
+def test_later_chinese_correction_overrides_an_earlier_midlife_statement():
+    text = "三十岁以后，我开始工作。更正：其实是我姐姐三十岁以后开始工作。"
+    assert apply_explicit_story_stage(
+        text, {"story_focus": {"life_stage": "midlife"}}
+    ) is None
+
+
 @pytest.mark.parametrize("text", [
     "我姐姐三十岁以后开始工作，那时我五岁。",
     "我哥哥三十岁以后开始工作，那时我五岁。",

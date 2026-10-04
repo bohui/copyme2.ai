@@ -10,6 +10,7 @@ from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import (
     CodexRuntime,
     _sentence_has_author_event_evidence,
+    _timeline_item_is_explicitly_vetoed,
     build_conversation_system_prompt,
     build_loop_trace,
     build_system_prompt,
@@ -478,6 +479,32 @@ def test_source_contract_keeps_possessive_and_memory_complement_events(text, mon
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
 
 
+@pytest.mark.parametrize('text', [
+    'My aunt June moved to Hobart in 1980.',
+    "My father's stories place the move in Hobart in 1980.",
+    '我的姐姐在三十岁以后开始工作。',
+])
+def test_source_contract_rejects_other_person_possessive_subjects(text):
+    assert _sentence_has_author_event_evidence(text) is False
+
+
+@pytest.mark.parametrize('text', [
+    'Born in Hobart, with the year left uncertain.',
+    '出生在成都，年份仍然不确定。',
+])
+def test_source_contract_accepts_grounded_birth_fragments(text):
+    assert _sentence_has_author_event_evidence(text) is True
+
+
+def test_source_contract_splits_mixed_uncertainty_from_author_event():
+    assert _sentence_has_author_event_evidence(
+        'I am unsure whether Ben left before my final school year'
+    ) is False
+    assert _sentence_has_author_event_evidence(
+        'I moved to Hobart in 1985'
+    ) is True
+
+
 def test_workspace_extraction_honours_item_veto_without_dropping_other_event(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 
@@ -506,6 +533,46 @@ def test_workspace_extraction_honours_item_veto_without_dropping_other_event(mon
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
     assert 'e-move' not in reply
     assert 'e-house' in reply
+
+
+def test_workspace_extraction_keeps_only_later_event_when_vetoed_event_is_omitted(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-house","kind":"event",'
+                '"title":"Bought first house","date_expression":"1990",'
+                '"precision":"year"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I moved to Hobart in 1980. Please do not add this event to my timeline. '
+             'I bought my first house in 1990.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'e-house' in reply
+
+
+def test_item_veto_association_uses_source_span_not_single_item_count():
+    source = (
+        'I moved to Hobart in 1980. Please do not add this event to my timeline. '
+        'I bought my first house in 1990.'
+    )
+    assert _timeline_item_is_explicitly_vetoed(
+        {'title': 'Moved to Hobart', 'date_expression': '1980'}, source, 1
+    ) is True
+    assert _timeline_item_is_explicitly_vetoed(
+        {'title': 'Bought first house', 'date_expression': '1990'}, source, 1
+    ) is False
 
 
 def test_workspace_extraction_honours_single_event_veto(monkeypatch):

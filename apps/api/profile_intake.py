@@ -29,6 +29,16 @@ EXPLICIT_CORRECTION = re.compile(
     r"(?:更正|纠正|修正|改正|correction|correct(?:ed|ion)?|revise|revised|update)\b",
     re.IGNORECASE,
 )
+CHINESE_STAGE_BOUNDARY = re.compile(
+    r"(?:三十岁(?:以后|之后)|四十岁(?:以后|之后)|五十岁(?:以后|之后)|"
+    r"中年|童年|小时候|幼儿时期|童年时|少年时期|青春期|"
+    r"(?:\d{1,2}|[一二三四五六七八九十百两〇零○]+)岁)"
+)
+CHINESE_NON_AUTHOR_SUBJECT = re.compile(
+    r"^(?:的)?(?:姐姐|妹妹|哥哥|弟弟|父亲|爸爸|爸|母亲|妈妈|妈|父母|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
 
 
 def _author_stage_evidence(text: str) -> str | None:
@@ -43,7 +53,7 @@ def _author_stage_evidence(text: str) -> str | None:
     if not isinstance(text, str):
         return None
     source = text.casefold()
-    if _midlife_cue_is_author_scoped(text) and not EXPLICIT_MIDLIFE_NEGATION.search(text):
+    if _midlife_cue_is_author_scoped(text):
         return "midlife"
     author_midlife = bool(
         re.search(
@@ -55,8 +65,7 @@ def _author_stage_evidence(text: str) -> str | None:
             r"\b(?:i|we)\b[^.!?;\n]{0,50}\b(?:aged|age)\s+(?:3\d|4\d|5\d)\b",
             source,
         )
-        or re.search(r"(?:我|我们)(?:在|到|到了)?\s*(?:三十|四十|五十)[多余]?岁", text)
-        or re.search(r"(?:中年|中年时|中年以后|中年之后)", text)
+        or _chinese_author_midlife_evidence(text)
         or re.search(r"\b(?:in|during)\s+(?:later\s+)?midlife\b", source)
     )
     if author_midlife:
@@ -71,10 +80,59 @@ def _author_stage_evidence(text: str) -> str | None:
             r"\b(?:when\s+i\s+was|as\s+a)\s+(?:baby|toddler|child|teenager|teen)\b",
             source,
         )
-        or re.search(r"(?:我|我们)[^。！？.!?；;\n]{0,20}(?:[0-2]?\d)岁", text)
-        or re.search(r"(?:小时候|幼儿时期|童年时|少年时期|青春期)", text)
+        or _chinese_author_earlier_evidence(text)
     )
     return "non_midlife" if author_earlier else None
+
+
+def _chinese_clauses(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[，,。！？.!?；;\n]+", text) if part.strip()]
+
+
+def _chinese_direct_author_subject(clause: str, *, require_first_subject: bool = False) -> bool:
+    """Recognize ``我`` as the storyteller, not ``我姐姐`` or ``我的母亲``."""
+    if not isinstance(clause, str):
+        return False
+    if require_first_subject:
+        leading = clause.lstrip(" \t，,：:")
+        match = re.match(r"我们|我", leading)
+        if not match:
+            return False
+        suffix = leading[match.end():]
+        return not (
+            suffix.startswith("的")
+            or CHINESE_NON_AUTHOR_SUBJECT.match(suffix)
+        )
+    for match in re.finditer(r"我们|我", clause):
+        suffix = clause[match.end():]
+        if suffix.startswith("的") or CHINESE_NON_AUTHOR_SUBJECT.match(suffix):
+            continue
+        return True
+    return False
+
+
+def _chinese_author_midlife_evidence(text: str) -> bool:
+    return any(
+        CHINESE_STAGE_BOUNDARY.search(clause)
+        and re.search(r"(?:三十岁|四十岁|五十岁|中年)", clause)
+        and _chinese_direct_author_subject(clause)
+        for clause in _chinese_clauses(text)
+    )
+
+
+def _chinese_author_earlier_evidence(text: str) -> bool:
+    sentences = [
+        part.strip() for part in re.split(r"[。！？.!?；;\n]+", text) if part.strip()
+    ]
+    return any(
+        re.search(
+            r"(?:童年|小时候|幼儿时期|童年时|少年时期|青春期|"
+            r"(?:[0-2]?\d|[一二三四五六七八九十百两〇零○]+)岁)",
+            sentence,
+        )
+        and _chinese_direct_author_subject(sentence)
+        for sentence in sentences
+    )
 
 
 def _midlife_cue_is_author_scoped(text: str) -> bool:
@@ -88,6 +146,7 @@ def _midlife_cue_is_author_scoped(text: str) -> bool:
     """
     if not isinstance(text, str):
         return False
+    candidates: list[tuple[bool, bool]] = []
     for match in EXPLICIT_MIDLIFE_CUE.finditer(text):
         sentence_start = max(
             text.rfind(mark, 0, match.start())
@@ -112,14 +171,25 @@ def _midlife_cue_is_author_scoped(text: str) -> bool:
         # A direct first-person subject before the cue is authoritative.  Do
         # not accept ``我姐姐``/``我哥哥``: the possessive ``我`` is not the
         # subject whose age is being asserted.
-        if re.fullmatch(r"(?:我|我们)(?:在|到|于|到了|到达)?", before):
-            return True
+        scoped = bool(re.fullmatch(
+            r"(?:我|我们)(?:自己|本人)?(?:在|到|于|到了|到达)?", before
+        ))
         # Chinese naturally places the period first: ``三十岁以后，我...``.
         # Require the following subject rather than treating a bare cue as
         # evidence about the author.
-        if before in {"", "在", "到", "到了", "于"} and re.match(r"(?:我|我们)(?!的|们)", after):
-            return True
-    return False
+        if before in {"", "在", "到", "到了", "于"}:
+            scoped = scoped or _chinese_direct_author_subject(
+                after.lstrip(" \t，,：:"), require_first_subject=True
+            )
+        corrected = EXPLICIT_CORRECTION.search(sentence) is not None
+        negated = EXPLICIT_MIDLIFE_NEGATION.search(sentence) is not None
+        candidates.append((corrected, scoped and not negated))
+
+    # A later correction is authoritative over a stale earlier stage cue.
+    corrected_candidates = [scoped for corrected, scoped in candidates if corrected]
+    if corrected_candidates:
+        return corrected_candidates[-1]
+    return any(scoped for _corrected, scoped in candidates)
 
 
 def _drop_model_midlife_if_not_author_scoped(updates: dict[str, Any]) -> dict[str, Any]:
@@ -222,6 +292,7 @@ def apply_explicit_story_stage(text: str, updates: Any) -> dict[str, Any] | None
             and focus.get("life_stage") == "midlife"
             and (
                 _author_stage_evidence(text) == "non_midlife"
+                or (CHINESE_STAGE_BOUNDARY.search(text) and _author_stage_evidence(text) != "midlife")
                 or (EXPLICIT_CORRECTION.search(text) and _author_stage_evidence(text) != "midlife")
             )
         ):
