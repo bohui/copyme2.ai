@@ -185,6 +185,8 @@ def test_place_journey_marker_must_match_the_current_storyteller_message():
 @pytest.mark.parametrize('message', [
     'I am unsure which old town I mean when I say the place beyond Launceston; ask instead of mapping it.',
     '我不确定说的是哪一个地方，请先问我，不要定位。',
+    'The city I mean by Springfield is uncertain.',
+    'I am not sure which city.\nI moved there in 1983.',
 ])
 def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(message):
     assert place_journey_message_is_ambiguous(message)
@@ -192,6 +194,8 @@ def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(mes
 
 @pytest.mark.parametrize('message', [
     'I moved to the city of Hobart in 1980, but I am not sure which month.',
+    'I am not sure which month.\nI moved to the city of Hobart in 1980.',
+    'I moved to the city of Hobart in 1980; the month is uncertain.',
     'I retired in Hobart, although I cannot remember the exact year.',
 ])
 def test_date_uncertainty_does_not_block_a_grounded_place(message):
