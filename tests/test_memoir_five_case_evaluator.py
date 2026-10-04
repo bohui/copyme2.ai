@@ -13,9 +13,9 @@ from scripts.memoir_five_case_evaluator import (
     validate_inputs,
     build_langfuse_round_scores,
 )
-from scripts.run_memoir_five_case_evaluation import FixtureWorker, _fixture_places, _has_timeline_cue
+from scripts.run_memoir_five_case_evaluation import FixtureWorker, _fixture_places, _has_timeline_cue, langfuse_deterministic_status
 from scripts.run_memoir_five_case_evaluation import make_arg_parser, run_case
-from apps.api.trajectory_evaluation import LangfusePublisher
+from apps.api.trajectory_evaluation import LangfusePublisher, TrajectoryRecorder
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,6 +147,113 @@ def test_langfuse_round_scores_keep_skill_invocation_and_output_grades_separate(
     assert values["state.life_stage"] == 1
     assert "skill.memoir-composer.invocation" not in values
     assert "round.overall" in values
+
+
+def test_unavailable_round_omits_missing_evidence_scores_and_status_is_consistent():
+    grade = {
+        "overall": "unavailable",
+        "skill_grades": {
+            "memoir-memory-context": {
+                "status": "fail",
+                "invocation": "fail",
+                "output": "fail",
+                "comment": "No worker response was captured.",
+            },
+            "memoir-composer": {
+                "status": "not_run",
+                "invocation": "not_run",
+                "output": "not_run",
+            },
+        },
+        "state_checks": {
+            "life_stage": {"status": "fail"},
+            "visible_markers_stripped": {"status": "fail"},
+        },
+    }
+
+    assert build_langfuse_round_scores(grade) == []
+    assert langfuse_deterministic_status(grade) == "unavailable"
+
+
+def test_five_case_runner_preserves_partial_trajectory_on_live_worker_failure(tmp_path):
+    case = INPUTS["cases"][0]
+    case_expected = next(item for item in EXPECTED["case_expectations"] if item["id"] == case["id"])
+    args = make_arg_parser().parse_args([
+        "--mode", "live",
+        "--run-id", "partial-worker-failure",
+        "--output-root", str(tmp_path),
+    ])
+
+    class RaisingRuntime:
+        observed_worker_requests = 1
+        model = "synthetic-worker"
+
+        async def turn(self, _storage, _text, **kwargs):
+            assert isinstance(kwargs["trajectory"], TrajectoryRecorder)
+            recorder = TrajectoryRecorder(kwargs["evaluation"])
+            recorder.record("codex", "worker.tool", output={"partial": True})
+            recorder.finish(None, status="failed", stop_reason="worker.failed")
+            error = RuntimeError("synthetic worker failure")
+            error.trajectory = recorder.payload()
+            raise error
+
+    summary = asyncio.run(run_case(
+        case,
+        EXPECTED,
+        case_expected,
+        args=args,
+        run_dir=tmp_path,
+        execution_mode="live",
+        runtime=RaisingRuntime(),
+        max_rounds=1,
+    ))
+
+    round_trace = json.loads((tmp_path / "cases" / case["id"] / "rounds" / "round-001.json").read_text())
+    assert round_trace["response"]["trajectory"]["steps"][0]["action"] == "worker.tool"
+    assert summary["unavailable_rounds"] == [1]
+
+
+def test_five_case_runner_preserves_recorder_on_runner_timeout(tmp_path, monkeypatch):
+    case = INPUTS["cases"][0]
+    case_expected = next(item for item in EXPECTED["case_expectations"] if item["id"] == case["id"])
+    args = make_arg_parser().parse_args([
+        "--mode", "live",
+        "--run-id", "partial-runner-timeout",
+        "--output-root", str(tmp_path),
+    ])
+
+    class SlowRuntime:
+        model = "synthetic-worker"
+        observed_worker_requests = 1
+
+        async def turn(self, _storage, _text, **kwargs):
+            kwargs["trajectory"].record("codex", "worker.partial", output={"captured": True})
+            await asyncio.sleep(60)
+
+    async def cancel_as_timeout(awaitable, timeout=None):
+        task = asyncio.ensure_future(awaitable)
+        await asyncio.sleep(0.01)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        raise TimeoutError()
+
+    monkeypatch.setattr("scripts.run_memoir_five_case_evaluation.asyncio.wait_for", cancel_as_timeout)
+    summary = asyncio.run(run_case(
+        case,
+        EXPECTED,
+        case_expected,
+        args=args,
+        run_dir=tmp_path,
+        execution_mode="live",
+        runtime=SlowRuntime(),
+        max_rounds=1,
+    ))
+
+    round_trace = json.loads((tmp_path / "cases" / case["id"] / "rounds" / "round-001.json").read_text())
+    trajectory = round_trace["response"]["trajectory"]
+    assert trajectory["steps"][0]["action"] == "worker.partial"
+    assert trajectory["final"]["status"] == "failed"
+    assert summary["unavailable_rounds"] == [1]
 
 
 class _FiveCaseObservation:

@@ -50,6 +50,7 @@ from apps.api.trajectory_evaluation import (
     EVALUATION_RUBRIC_VERSION,
     JUDGE_RUBRIC_VERSION,
     LangfusePublisher,
+    TrajectoryRecorder,
     build_application_revision,
     build_skill_manifest,
     load_judge_calibration,
@@ -65,6 +66,7 @@ from scripts.memoir_five_case_evaluator import (
     evaluate_round,
     build_langfuse_round_scores,
     load_json,
+    mark_round_unavailable,
     merge_ui_skill_observations,
     validate_expected,
     validate_inputs,
@@ -77,7 +79,7 @@ EXPECTED_PATH = ROOT / "tests/evaluation/memoir_five_case_expected.json"
 TRUTH_PATH = ROOT / "tests/evaluation/memoir_five_case_truth.json"
 CALIBRATION_PATH = ROOT / "tests/evaluation/memoir_five_case_judge_calibration.json"
 JUDGE_PROMPT_PATH = ROOT / "tests/evaluation/memoir_five_case_judge_prompt.md"
-RUNNER_VERSION = "memoir-five-case-runner/3"
+RUNNER_VERSION = "memoir-five-case-runner/4"
 EXECUTION_MODES = {"fixture", "live", "pilot"}
 DEFAULT_PROVIDER = "http://127.0.0.1:4000/v1"
 DEFAULT_MODEL = "gpt-5.6-luna-pooled"
@@ -102,6 +104,12 @@ def write_json(path: Path, payload: Any) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def langfuse_deterministic_status(grade: Mapping[str, Any]) -> str:
+    """Keep root telemetry status aligned with the local deterministic grade."""
+    status = str(grade.get("overall") or "unavailable")
+    return status if status in {"pass", "fail", "unavailable", "mock_only"} else "unavailable"
 
 
 def parse_env_file(path: Path) -> dict[str, str]:
@@ -1048,7 +1056,13 @@ async def run_case(
                         composer_observation=prior.get("composer") if isinstance(prior.get("composer"), Mapping) else None,
                     )
                     if prior.get("error") is not None:
-                        regraded["overall"] = "unavailable" if execution_mode == "live" else "fail"
+                        if execution_mode == "live":
+                            regraded = mark_round_unavailable(
+                                regraded,
+                                reason=str((prior.get("error") or {}).get("type") or "prior_error"),
+                            )
+                        else:
+                            regraded["overall"] = "fail"
                         regraded["error"] = prior["error"]
                     updated = dict(prior)
                     history = list(updated.get("grade_history") or [])
@@ -1113,9 +1127,14 @@ async def run_case(
             "evaluator_version": RUNNER_VERSION,
             "model": runtime.model,
             "provider": args.provider_url,
+            "round_id": f"{round_number:03d}",
         })
         started = time.monotonic()
         worker_requests_before = int(getattr(runtime, "observed_worker_requests", 0))
+        turn_trajectory = TrajectoryRecorder(
+            correlation,
+            skill_manifest=build_skill_manifest(ROOT / "skills"),
+        )
         result: dict[str, Any]
         error: dict[str, Any] | None = None
         prior_place_count = len(storage.place_history())
@@ -1130,9 +1149,23 @@ async def run_case(
                 evaluation=correlation,
                 include_trajectory=True,
                 evaluation_context={"enabled_skills": list(SKILLS), "available_tools": ["memoir-place-groups", "place-photo-research"]},
+                trajectory=turn_trajectory,
             ), timeout=args.timeout + 30)
         except Exception as exc:
-            result = {"reply": None, "trace": [], "trajectory": {"steps": []}}
+            partial_trajectory = getattr(exc, "trajectory", None)
+            if not isinstance(partial_trajectory, Mapping):
+                turn_trajectory.finish(
+                    None,
+                    status="failed",
+                    stop_reason="runner.failed",
+                    error={"error_type": type(exc).__name__},
+                )
+                partial_trajectory = turn_trajectory.payload()
+            result = {
+                "reply": None,
+                "trace": [],
+                "trajectory": partial_trajectory,
+            }
             error = {"type": type(exc).__name__, "message": str(exc)[:240]}
         if error is None and result.get("recall_status", {}).get("payment_required"):
             error = {"type": "payment_required", "message": "isolated evaluation entitlement unexpectedly blocked a round"}
@@ -1148,7 +1181,10 @@ async def run_case(
         grade = evaluate_round(expected_payload, case_expected, round_number, result, execution_mode=execution_mode,
                                ui_observations=ui_by_round[round_number], composer_observation=composer_observation)
         if error is not None:
-            grade["overall"] = "unavailable" if execution_mode == "live" else "fail"
+            if execution_mode == "live":
+                grade = mark_round_unavailable(grade, reason=error["type"])
+            else:
+                grade["overall"] = "fail"
             grade["error"] = error
             failures.append({"round": round_number, "kind": error["type"], "message": error["message"]})
         if grade.get("overall") == "fail":
@@ -1168,7 +1204,7 @@ async def run_case(
                         build_langfuse_round_scores(grade),
                         extra_metadata={
                             "round_status": grade.get("overall"),
-                            "deterministic_status": "fail" if grade.get("overall") == "fail" else "pass",
+                            "deterministic_status": langfuse_deterministic_status(grade),
                             "execution_mode": execution_mode,
                         },
                     )

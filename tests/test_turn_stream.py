@@ -1,9 +1,12 @@
 import asyncio
 import json
 
+import pytest
+
 from apps.api.turn_stream import VisibleText, turn_events
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.trajectory_evaluation import TrajectoryRecorder
 import httpx
 
 
@@ -116,6 +119,71 @@ def test_failure_after_partial_text_is_not_a_success():
         events = [json.loads(line) async for line in turn_events(turn)]
         assert [e['type'] for e in events] == ['started', 'text_delta', 'error']
         assert 'private credential' not in str(events)
+    asyncio.run(run())
+
+
+def test_failure_stream_preserves_a_redacted_partial_trajectory_receipt():
+    async def run():
+        async def turn(emit):
+            error = RuntimeError('worker failure')
+            error.trajectory = {
+                'schema_version': 'memoir-trajectory/1',
+                'steps': [{'step_id': 'step-0001', 'action': 'worker.step'}],
+                'final': {'status': 'failed', 'response': ''},
+            }
+            raise error
+
+        events = [json.loads(line) async for line in turn_events(turn)]
+        assert events[-1]['type'] == 'error'
+        assert events[-1]['trajectory']['steps'][0]['step_id'] == 'step-0001'
+        assert 'worker failure' not in str(events)
+
+    asyncio.run(run())
+
+
+def test_worker_stream_failure_preserves_outer_trace_lineage():
+    async def run():
+        partial = {
+            'schema_version': 'memoir-trajectory/1',
+            'steps': [{
+                'step_id': 'worker-step-1',
+                'sequence': 1,
+                'phase': 'codex.turn',
+                'action': 'tool.call',
+                'tool_name': 'memory.search',
+                'observation_id': 'worker-observation-1',
+                'trace_id': 'worker-trace-1',
+            }],
+            'final': {'status': 'failed', 'response': None},
+        }
+
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield (json.dumps({'type': 'error', 'trajectory': partial}) + '\n').encode()
+
+        def handle(request):
+            return httpx.Response(200, stream=Body())
+
+        outer = TrajectoryRecorder({'run_id': 'run-1', 'case_id': 'case-1'})
+        runtime = CodexRuntime(
+            worker_url='http://worker',
+            worker_secret='secret',
+            worker_transport=httpx.MockTransport(handle),
+        )
+        with pytest.raises(RuntimeError) as caught:
+            await runtime._worker_turn(
+                user_id='test', prior=None, memories=[], profile={}, place_journey={},
+                family_enabled=False, family_context={}, project_id=None, text='Hi',
+                language='en-AU', on_event=lambda _event: asyncio.sleep(0),
+                trajectory=outer,
+            )
+
+        assert caught.value.trajectory['steps'][0]['observation_id'] == 'worker-observation-1'
+        worker_step = next(step for step in outer.steps if step.get('source') == 'codex-worker-failure')
+        assert worker_step['observation_id'] == 'worker-observation-1'
+        assert worker_step['trace_id'] == 'worker-trace-1'
+        assert outer.final['status'] == 'failed'
+
     asyncio.run(run())
 
 

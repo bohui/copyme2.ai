@@ -50,6 +50,14 @@ class ComposerProviderUnavailable(RuntimeError):
     """The configured provider is offline; no model work has been attempted."""
 
 
+class WorkerTurnError(RuntimeError):
+    """A failed worker turn carrying recorder-redacted evidence."""
+
+    def __init__(self, message: str, trajectory: dict[str, Any]):
+        super().__init__(message)
+        self.trajectory = trajectory
+
+
 class WorkerTurnInput(BaseModel):
     user_id: UUID
     thread_id: str | None = Field(default=None, min_length=1, max_length=256)
@@ -408,7 +416,11 @@ class CodexWorker:
             if on_event:
                 await on_event({
                     'type': 'provider_complete',
-                    'data': {'thread_id': thread_id, 'reply': reply},
+                    'data': {
+                        'thread_id': thread_id,
+                        'reply': reply,
+                        'trajectory': trajectory.payload() if trajectory else None,
+                    },
                 })
             log_diagnostic(
                 diagnostic_logger,
@@ -434,7 +446,16 @@ class CodexWorker:
                 elapsed_ms=elapsed_ms(started),
             )
             if trajectory:
-                trajectory.finish(None, status='failed', stop_reason='turn.failed', error=str(error))
+                # Keep the failure receipt useful without copying provider
+                # exception text into the trajectory or stream.
+                trajectory.finish(
+                    None,
+                    status='failed',
+                    stop_reason='turn.failed',
+                    error={'error_type': type(error).__name__},
+                )
+                if isinstance(error, Exception):
+                    raise WorkerTurnError('Codex worker turn failed', trajectory.payload()) from error
             raise
 
         artifacts = [

@@ -313,12 +313,41 @@ def _protocol_summary(message: Mapping[str, Any]) -> dict[str, Any]:
         if key in message:
             summary[key] = message[key]
     if "params" in message:
-        summary["params"] = redact_payload(message.get("params"))
+        summary["params"] = redact_payload(_filter_protocol_private_items(message.get("params")))
     if "result" in message:
-        summary["result"] = redact_payload(message.get("result"))
+        summary["result"] = redact_payload(_filter_protocol_private_items(message.get("result")))
     if "error" in message:
         summary["error"] = redact_payload(message.get("error"))
     return summary
+
+
+_PRIVATE_PROTOCOL_ITEM_TYPES = {
+    "analysis",
+    "chain-of-thought",
+    "chainofthought",
+    "reasoning",
+    "reasoning_summary",
+}
+
+
+def _filter_protocol_private_items(value: Any) -> Any:
+    """Remove private reasoning payloads before local or provider export."""
+    if isinstance(value, Mapping):
+        item_type = str(value.get("type") or "").strip().casefold().replace("_", "-")
+        if item_type in {item.replace("_", "-") for item in _PRIVATE_PROTOCOL_ITEM_TYPES}:
+            filtered: dict[str, Any] = {
+                key: value[key]
+                for key in ("id", "type", "status", "phase")
+                if key in value and isinstance(value[key], (str, int, float, bool))
+            }
+            for key in ("summary", "content", "text"):
+                if key in value:
+                    filtered[key] = {"redacted": "private-reasoning"}
+            return filtered
+        return {str(key): _filter_protocol_private_items(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_filter_protocol_private_items(item) for item in value]
+    return value
 
 
 def _protocol_action_metadata(message: Mapping[str, Any]) -> dict[str, Any]:
@@ -353,6 +382,16 @@ def _protocol_action_metadata(message: Mapping[str, Any]) -> dict[str, Any]:
         metadata["tool_name"] = tool_name
     if arguments is not None:
         metadata["tool_arguments"] = arguments
+    params = message.get("params")
+    item = params.get("item") if isinstance(params, Mapping) else None
+    if isinstance(item, Mapping) and item.get("id") is not None:
+        metadata["protocol_item_id"] = str(item["id"])[:256]
+        method = str(message.get("method") or "")
+        if method in {"item/started", "item/completed"}:
+            metadata["protocol_lifecycle"] = method.rsplit("/", 1)[-1]
+        failed = item.get("status") in {"failed", "declined"} or item.get("exitCode") not in (None, 0)
+        if failed:
+            metadata["protocol_failed"] = True
     return metadata
 
 
@@ -521,12 +560,17 @@ class TrajectoryRecorder:
     def record_protocol(self, message: Mapping[str, Any], *, phase: str = "codex") -> dict[str, Any]:
         method = message.get("method")
         action = str(method or ("protocol.error" if "error" in message else "protocol.response"))
-        return self.record(
+        metadata = _protocol_action_metadata(message)
+        step = self.record(
             phase,
             action,
             output=_protocol_summary(message),
-            metadata=_protocol_action_metadata(message) or None,
+            metadata=metadata or None,
         )
+        for key in ("protocol_item_id", "protocol_lifecycle", "protocol_failed"):
+            if key in metadata:
+                step[key] = metadata[key]
+        return step
 
     def append_external(self, steps: Iterable[Mapping[str, Any]], *, source: str) -> None:
         """Append worker steps while preserving their evidence and local order."""
@@ -611,6 +655,13 @@ class TrajectoryRecorder:
                 step["normalized_action"] = redact_payload(normalized)
                 if normalized.get("tool_name") and not step.get("tool_name"):
                     step["tool_name"] = str(normalized["tool_name"])[:256]
+            external_metadata = external.get("metadata")
+            for key in ("protocol_item_id", "protocol_lifecycle", "protocol_failed"):
+                value = external.get(key)
+                if value is None and isinstance(external_metadata, Mapping):
+                    value = external_metadata.get(key)
+                if value is not None and not isinstance(value, (Mapping, list, tuple, set)):
+                    step[key] = value if isinstance(value, bool) else str(value)[:256]
 
     def finish(
         self,
@@ -905,11 +956,24 @@ def evaluate_trajectory(
         retry_limit = int(expected["max_retries"])
         add("retry_budget", 1 if retry_count <= retry_limit else 0, f"Observed {retry_count} retry/error step(s); budget is {retry_limit}.")
     successful_calls: dict[tuple[str, str], int] = {}
+    completed_protocol_calls: set[tuple[str, str, str]] = set()
     for step in action_steps:
         tool = _step_tool_name(step)
         if not tool or step.get("error"):
             continue
+        protocol_item_id = str(step.get("protocol_item_id") or "").strip()
+        if protocol_item_id:
+            # Codex emits item/started and item/completed for one logical
+            # operation. Preserve both events, but count only one successful
+            # completion for repetition control.
+            if step.get("protocol_lifecycle") != "completed" or step.get("protocol_failed"):
+                continue
         key = (tool, _sha256(_step_arguments(step)))
+        if protocol_item_id:
+            protocol_key = (protocol_item_id, key[0], key[1])
+            if protocol_key in completed_protocol_calls:
+                continue
+            completed_protocol_calls.add(protocol_key)
         successful_calls[key] = successful_calls.get(key, 0) + 1
     repeat_limit = int(expected.get("max_repeated_success", 1))
     repeated = max(successful_calls.values(), default=1) > repeat_limit
@@ -1410,6 +1474,7 @@ class _LangfuseCase:
         self.observation = observation
         self.correlation = normalise_correlation(correlation)
         self.step_observations: dict[str, str] = {}
+        self.step_traces: dict[str, str] = {}
         self.publish_errors: list[dict[str, str]] = []
 
     @property
@@ -1431,6 +1496,9 @@ class _LangfuseCase:
             # A worker-supplied Langfuse ID is authoritative.  Do not create
             # a duplicate child and make step scores point to the wrong span.
             self.step_observations[step_id] = external_observation_id[:256]
+            step_trace_id = str(step.get("trace_id") or self.trace_id or "").strip()
+            if step_trace_id:
+                self.step_traces[step_id] = step_trace_id[:256]
             return external_observation_id[:256]
 
         starter = getattr(self.client, "start_observation", None)
@@ -1493,6 +1561,9 @@ class _LangfuseCase:
             if child_id:
                 child_id = str(child_id)[:256]
                 self.step_observations[step_id] = child_id
+                child_trace_id = str(step.get("trace_id") or self.trace_id or "").strip()
+                if child_trace_id:
+                    self.step_traces[step_id] = child_trace_id[:256]
                 return child_id
         return None
 
@@ -1540,13 +1611,20 @@ class _LangfuseCase:
             evaluator_version = self.correlation.get("evaluator_version", "trajectory-rubric/1")
             case_id = self.correlation.get("case_id", "case")
             variant = self.correlation.get("variant", "default")
-            score_id = hashlib.sha256(f"{run_id}:{case_id}:{variant}:{evaluator_version}:{step_id}:{name}".encode()).hexdigest()
+            round_id = self.correlation.get("round_id", "")
+            score_id = hashlib.sha256(f"{run_id}:{case_id}:{round_id}:{variant}:{evaluator_version}:{step_id}:{name}".encode()).hexdigest()
+            score_trace_id = str(score.get("trace_id") or self.step_traces.get(step_id) or trace_id)
+            score_observation_id = str(
+                score.get("observation_id")
+                or self.step_observations.get(step_id)
+                or self.observation_id
+            )
             kwargs = {
                 "score_id": score_id,
                 "name": name,
                 "value": float(score.get("value", 0)),
-                "trace_id": trace_id,
-                "observation_id": self.step_observations.get(step_id) or self.observation_id,
+                "trace_id": score_trace_id,
+                "observation_id": score_observation_id,
                 "data_type": "NUMERIC",
                 "comment": str(score.get("comment") or ""),
             }

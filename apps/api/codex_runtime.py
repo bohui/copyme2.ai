@@ -63,6 +63,15 @@ diagnostic_logger = logging.getLogger("memoir.runtime.diagnostics")
 configure_diagnostic_logger(diagnostic_logger)
 
 
+class _WorkerStreamError(RuntimeError):
+    """A streamed worker failure carrying its recorder-redacted receipt."""
+
+    def __init__(self, message: str, trajectory: Mapping[str, Any] | None = None):
+        super().__init__(message)
+        if isinstance(trajectory, Mapping):
+            self.trajectory = dict(trajectory)
+
+
 MEMOIR_SYSTEM_PROMPT_PATH = (
     Path(__file__).resolve().parents[2]
     / "Mira_Memoir_Journalist_System_Prompt_v1.0.md"
@@ -720,7 +729,8 @@ class CodexRuntime:
                    first_reply_localization: bool = False,
                    conversation_text: str | None = None,
                    client_turn_id: str | None = None,
-                   user_response: bool = True):
+                   user_response: bool = True,
+                   trajectory: TrajectoryRecorder | None = None):
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         visible = VisibleText()
         turn_id = str(uuid4())
@@ -748,8 +758,7 @@ class CodexRuntime:
                 return {'project_id':project_id,'reply':previous_reply,'conversation_saved':True,'cached':True,
                         'recall_status':await asyncio.to_thread(storage_recall_status,storage,entitlement)}
         correlation = normalise_correlation(evaluation)
-        trajectory = None
-        if correlation or include_trajectory:
+        if trajectory is None and (correlation or include_trajectory):
             trajectory = TrajectoryRecorder(
                 correlation,
                 skill_manifest=build_skill_manifest(Path(__file__).resolve().parents[2] / 'skills'),
@@ -907,6 +916,7 @@ class CodexRuntime:
                     project_id=project_id,
                     text=text,
                     language=language,
+                    trajectory=trajectory,
                     conversation_rounds_completed=conversation_rounds_completed,
                     diagnostic_request_id=turn_id,
                     **({'evaluation': correlation} if correlation else {}),
@@ -1406,6 +1416,7 @@ class CodexRuntime:
                     **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}),
+                    trajectory=trajectory,
                 )
                 if trajectory:
                     trajectory.append_external(
@@ -1458,6 +1469,7 @@ class CodexRuntime:
                                 agent_role='workspace',
                                 **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
                                 extraction_focus=focus,
+                                trajectory=trajectory,
                             )
                             if trajectory:
                                 trajectory.append_external(
@@ -1988,7 +2000,8 @@ class CodexRuntime:
                            family_enabled, family_context, project_id, text,
                            language, conversation_rounds_completed=None, on_delta=None,
                            evaluation=None, agent_role='collector', on_event=None,
-                           extraction_focus=None, diagnostic_request_id=None):
+                           extraction_focus=None, diagnostic_request_id=None,
+                           trajectory: TrajectoryRecorder | None = None):
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
         request_id = new_request_id(diagnostic_request_id)
@@ -2032,6 +2045,34 @@ class CodexRuntime:
             'X-Codex-Worker-Secret': self.worker_secret,
             'X-Memoir-Request-ID': request_id,
         }
+        result: Any = None
+
+        def preserve_failure_trajectory(error: BaseException) -> None:
+            """Attach worker evidence to the exception and outer turn receipt."""
+            partial = getattr(error, 'trajectory', None)
+            if not isinstance(partial, Mapping) and isinstance(result, Mapping):
+                candidate = result.get('trajectory')
+                if isinstance(candidate, Mapping):
+                    partial = candidate
+            if trajectory is not None:
+                if isinstance(partial, Mapping):
+                    steps = partial.get('steps')
+                    if isinstance(steps, list):
+                        trajectory.append_external(steps, source='codex-worker-failure')
+                trajectory.record('application', 'codex.worker.failed', output={
+                    'error_type': type(error).__name__,
+                    'has_partial_trajectory': isinstance(partial, Mapping),
+                })
+                trajectory.finish(
+                    None,
+                    status='failed',
+                    stop_reason='worker.failed',
+                    error={'error_type': type(error).__name__},
+                )
+                partial = trajectory.payload()
+            if isinstance(partial, Mapping) and isinstance(error, Exception):
+                error.trajectory = dict(partial)
+
         try:
             if on_delta or on_event:
                 # Keep consuming the worker stream after provider_complete so
@@ -2072,7 +2113,11 @@ class CodexRuntime:
                                     elif event['type'] == 'result':
                                         terminal = event['data']
                                     elif event['type'] == 'error':
-                                        raise RuntimeError('Codex worker turn failed')
+                                        partial = event.get('trajectory')
+                                        raise _WorkerStreamError(
+                                            'Codex worker turn failed',
+                                            partial if isinstance(partial, Mapping) else None,
+                                        )
                         if not provider_complete.done():
                             provider_complete.set_result(terminal or {})
                         return (terminal or {}).get('artifacts', [])
@@ -2104,6 +2149,7 @@ class CodexRuntime:
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
+            preserve_failure_trajectory(error)
             status_code = error.response.status_code
             log_diagnostic(
                 diagnostic_logger,
@@ -2118,9 +2164,16 @@ class CodexRuntime:
                 elapsed_ms=elapsed_ms(started),
             )
             if status_code == 409:
-                raise AgentTurnBusyError('Codex worker is busy for this user') from None
-            raise RuntimeError(f'Codex worker rejected the turn: HTTP {status_code}') from None
-        except httpx.RequestError:
+                busy = AgentTurnBusyError('Codex worker is busy for this user')
+                if isinstance(getattr(error, 'trajectory', None), Mapping):
+                    busy.trajectory = dict(error.trajectory)
+                raise busy from None
+            rejected = RuntimeError(f'Codex worker rejected the turn: HTTP {status_code}')
+            if isinstance(getattr(error, 'trajectory', None), Mapping):
+                rejected.trajectory = dict(error.trajectory)
+            raise rejected from None
+        except httpx.RequestError as error:
+            preserve_failure_trajectory(error)
             log_diagnostic(
                 diagnostic_logger,
                 'worker_request_failed',
@@ -2132,8 +2185,12 @@ class CodexRuntime:
                 failure_class='request_error',
                 elapsed_ms=elapsed_ms(started),
             )
-            raise RuntimeError('Codex worker unavailable') from None
+            unavailable = RuntimeError('Codex worker unavailable')
+            if isinstance(getattr(error, 'trajectory', None), Mapping):
+                unavailable.trajectory = dict(error.trajectory)
+            raise unavailable from None
         except BaseException as error:
+            preserve_failure_trajectory(error)
             log_diagnostic(
                 diagnostic_logger,
                 'worker_request_failed',

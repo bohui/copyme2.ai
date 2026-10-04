@@ -475,6 +475,80 @@ def test_langfuse_publisher_creates_step_observations_and_targets_step_scores():
     assert client.flushed
 
 
+def test_langfuse_scores_use_worker_trace_pair_and_round_identity():
+    client = _LangfuseDouble()
+    publisher = LangfusePublisher(client)
+    trajectory = {
+        "schema_version": "memoir-trajectory/1",
+        "steps": [{
+            "step_id": "step-0001",
+            "sequence": 1,
+            "phase": "codex",
+            "action": "tool.call",
+            "observation_id": "worker-observation-1",
+            "trace_id": "worker-trace-1",
+            "output": {"ok": True},
+        }],
+        "final": {"status": "completed", "response": "done"},
+    }
+
+    for round_id in ("001", "002"):
+        with publisher.case(
+            name=f"round-{round_id}",
+            task={"case_id": "case-1", "round": round_id},
+            correlation={"run_id": "run-1", "case_id": "case-1", "round_id": round_id},
+        ) as sink:
+            sink.publish(trajectory, [{"name": "step_quality", "value": 1, "step_id": "step-0001"}])
+
+    assert [score["trace_id"] for score in client.scores] == ["worker-trace-1", "worker-trace-1"]
+    assert [score["observation_id"] for score in client.scores] == ["worker-observation-1", "worker-observation-1"]
+    assert client.scores[0]["score_id"] != client.scores[1]["score_id"]
+
+
+def test_protocol_item_lifecycle_pair_counts_one_successful_tool_call():
+    recorder = TrajectoryRecorder()
+    for method in ("item/started", "item/completed"):
+        recorder.record_protocol({
+            "method": method,
+            "params": {
+                "item": {
+                    "id": "item-1",
+                    "type": "mcpToolCall",
+                    "tool": "memory.search",
+                    "arguments": {"query": "Hobart"},
+                },
+            },
+        }, phase="codex.turn")
+    recorder.finish("done")
+
+    scores = evaluate_trajectory(recorder.payload(), expected={"max_repeated_success": 1})
+    assert next(score for score in scores if score["name"] == "repetition_control")["value"] == 1
+
+
+def test_reasoning_protocol_items_are_filtered_before_trajectory_export():
+    recorder = TrajectoryRecorder()
+    recorder.record_protocol({
+        "method": "item/completed",
+        "params": {
+            "item": {
+                "id": "reasoning-1",
+                "type": "reasoning",
+                "summary": "private chain of thought",
+                "content": [{"text": "private hidden reasoning"}],
+            },
+        },
+    }, phase="codex.turn")
+
+    payload = recorder.payload()
+    encoded = json.dumps(payload)
+    assert "private chain of thought" not in encoded
+    assert "private hidden reasoning" not in encoded
+    assert "private chain of thought" not in json.dumps(minimize_for_langfuse(payload))
+    item = payload["steps"][0]["output"]["params"]["item"]
+    assert item["type"] == "reasoning"
+    assert item["summary"] == {"redacted": "private-reasoning"}
+
+
 def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
     client = _LangfuseDouble()
 
