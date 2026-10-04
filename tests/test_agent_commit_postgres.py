@@ -182,14 +182,15 @@ def test_commit_checks_authenticated_lease_and_writes_both_rows(sql):
 
 
 def test_sql_transport_resets_roles_and_stops_at_the_first_error(sql):
+    baseline_user = sql('select current_user;').stdout.splitlines()[-1]
     assert sql(as_user('select current_user;')).stdout.splitlines()[-1] == 'authenticated'
-    assert sql('select current_user;').stdout.splitlines()[-1] == 'postgres'
+    assert sql('select current_user;').stdout.splitlines()[-1] == baseline_user
     sql('begin; create temporary table transport_uncommitted(value integer);')
     assert sql("select to_regclass('transport_uncommitted');").stdout.strip() == ''
     failed = sql("select 1 / 0; select 'must not execute';", check=False)
     assert failed.returncode != 0 and 'division by zero' in failed.stderr
     assert 'must not execute' not in failed.stdout
-    assert sql('select current_user;').stdout.splitlines()[-1] == 'postgres'
+    assert sql('select current_user;').stdout.splitlines()[-1] == baseline_user
 
 
 def test_expired_or_replaced_lease_cannot_commit(sql):
