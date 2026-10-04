@@ -849,8 +849,9 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
     if re.search(r"upload|publish|scan|circa|before|after|约|上传|发表", value, re.I):
         return None
     days = list(dict.fromkeys(re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", value)))
+    months = list(dict.fromkeys(re.findall(r"(?<!\d)\d{4}-\d{2}(?!\d)", value)))
     years = list(dict.fromkeys(_crawl4ai_years(value)))
-    if len(days) > 1:
+    if len(days) > 1 or len(months) > 1:
         # Multiple exact dates need an explicit interval interpretation. Do not
         # silently widen them to a year and mark the evidence conflict-free.
         return None
@@ -867,6 +868,13 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
                 return None
             start = end = captured.isoformat()
             precision = "day"
+        elif len(months) == 1:
+            captured = date.fromisoformat(months[0] + "-01")
+            if any(year != captured.year for year in years):
+                return None
+            start = captured.isoformat()
+            end = captured.replace(day=calendar.monthrange(captured.year, captured.month)[1]).isoformat()
+            precision = "month"
         elif len(years) == 1:
             year = years[0]
             decade = bool(re.search(rf"{year}(?:s|年代)", value, re.I))
@@ -885,6 +893,43 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
         return None
     return {"start": start, "end": end, "precision": precision,
             "basis": "source_caption", "conflicting": False}
+
+
+def _llm_reconcile_capture_dates(fields: dict[str, str], temporal: dict) -> dict | None:
+    """Reconcile independent image assertions before applying the request window.
+
+    Broad years/ranges may contain a more precise assertion. Disjoint assertions
+    never become a broader, supposedly verified year. Keep each field's origin
+    so a display-name fallback cannot discard contradictory capture evidence.
+    """
+    assertions = []
+    for field, value in fields.items():
+        if field in {"datePublished", "uploadDate"}:
+            continue
+        if field not in {"dateTaken", "dateCreated"} and re.match(
+                r"\s*(?:published|uploaded|scanned|上传|发表)\b", value, re.I) and not re.search(
+                r"taken|captur|photographed|拍摄", value, re.I):
+            # Explicit publication-only text is provenance, not a scene date.
+            continue
+        if field not in {"dateTaken", "dateCreated"} and not _crawl4ai_years(value):
+            continue
+        parsed = _llm_capture_date(value, {"mode": "historical_unspecified"})
+        if not parsed:
+            return None
+        assertions.append({"field": field, "value": value, **parsed})
+    if not assertions:
+        return None
+    start = max(assertion["start"] for assertion in assertions)
+    end = min(assertion["end"] for assertion in assertions)
+    if start > end:
+        return None
+    if temporal.get("mode") != "historical_unspecified" and (
+            not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]):
+        return None
+    precision = next((assertion["precision"] for assertion in assertions
+                      if assertion["start"] == start and assertion["end"] == end), "range")
+    return {"start": start, "end": end, "precision": precision,
+            "basis": "source_caption", "conflicting": False, "assertions": assertions}
 
 
 def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: float = 30) -> list[dict]:
@@ -915,27 +960,26 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         kinds = kinds if isinstance(kinds, list) else [kinds]
         if not any(kind in ("Photograph", "ImageObject") for kind in kinds):
             continue
-        caption = _text(item.get("name") or item.get("caption") or item.get("description"))
-        taken = _text(item.get("dateTaken") or item.get("dateCreated"))
+        fields = {key: _text(item.get(key)) for key in
+                  ("name", "caption", "description", "dateTaken", "dateCreated", "datePublished", "uploadDate")
+                  if _text(item.get(key))}
+        caption = " ".join(fields[key] for key in ("name", "caption", "description") if key in fields)
         image = _crawl4ai_image_url(item.get("contentUrl"))
         if not image or NON_PHOTO.search(caption) or not _crawl4ai_location_matches(caption, place):
             continue
         if any(re.search(r"key|token|secret|signature|password|credential", name, re.I)
                for name in parse_qs(urlsplit(image).query)):
             continue
-        scene = _llm_capture_date(taken, temporal)
+        scene = _llm_reconcile_capture_dates(fields, temporal)
         if not scene:
             continue
-        if not item.get("caption_record"):
-            if any(not int(scene["start"][:4]) <= year <= int(scene["end"][:4])
-                   for year in _crawl4ai_years(caption)):
-                continue
+        if not item.get("caption_record") and fields.keys() & {"dateTaken", "dateCreated"}:
             scene["basis"] = "provider_date_taken"
         _, image_host, image_port = valid_url(image)
         public_addresses(image_host, image_port)
         images.append({"image_url": image, "title": caption, "source_page_url": final,
                        "scene_date": scene,
-                       "source_excerpt": caption + "; capture date: " + taken})
+                       "source_excerpt": "; ".join(f"{key}: {value}" for key, value in fields.items())})
     return images
 
 

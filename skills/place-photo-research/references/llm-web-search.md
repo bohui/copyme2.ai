@@ -47,3 +47,18 @@ Memoir's application photo search uses this same adapter alongside its existing
 catalogues when enabled. A gateway or source outage does not discard catalogue
 photographs. The private photo worker receives the same server-only settings
 through Compose. No new search subscription or Python dependency is needed.
+
+## Reconciling image capture evidence
+
+Each image's `name`, `caption`, `description`, `dateTaken` and `dateCreated`
+contributes independently to capture-date validation. A display name cannot hide
+another field's contradiction. Disjoint day/month/year assertions are excluded;
+compatible broad years or documented year ranges can contain a more precise
+assertion. The result keeps the narrowest compatible interval without widening
+conflicting dates. Month-only ISO capture dates retain month precision.
+
+Labeled original fields remain in the source excerpt, and parsed capture
+assertions retain their field, value and precision in the scene-date record.
+Explicit `datePublished`/`uploadDate` fields and publication-only description
+text remain provenance, never replacement capture evidence. Missing, uncertain,
+invalid or unresolved contradictory capture assertions do not qualify.

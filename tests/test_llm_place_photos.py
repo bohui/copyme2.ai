@@ -368,3 +368,165 @@ def test_skill_reads_photo_metadata_with_multiple_schema_types(search_world, tmp
     start_run(helper, tmp_path, capsys)
     assert helper.main(['discover', '--run', str(tmp_path)]) == 0
     assert json.loads(capsys.readouterr().out)['qualifying'] == 1
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('field', ['name', 'caption', 'description', 'dateTaken'])
+def test_all_image_fields_reconcile_exact_capture_dates(search_world, tmp_path, capsys, surface, field):
+    helper, world = search_world
+    record = {'@type': 'Photograph', 'name': 'Chengde street',
+              'dateCreated': '1983-10-01', 'contentUrl': 'https://images.example/street.jpg',
+              field: '1983-01-01' if field == 'dateTaken' else 'Chengde street taken 1983-01-01'}
+    world['pages']['https://archive.example/photo'] = (
+        '<script type="application/ld+json">' + json.dumps(record) + '</script>')
+    if surface == 'skill':
+        start_run(helper, tmp_path, capsys)
+        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+        assert json.loads(capsys.readouterr().out)['qualifying'] == 0
+        assert helper.read_json(tmp_path / 'candidates.json') == []
+    else:
+        assert photos.search_place_photos('Chengde', '1980s') == []
+
+
+def set_image_metadata(world, fields):
+    record = {'@type': 'Photograph', 'name': 'Chengde street',
+              'contentUrl': 'https://images.example/street.jpg', **fields}
+    world['pages']['https://archive.example/photo'] = (
+        '<script type="application/ld+json">' + json.dumps(record) + '</script>')
+
+
+def discover_image_metadata(helper, tmp_path, capsys, surface):
+    if surface == 'skill':
+        start_run(helper, tmp_path, capsys)
+        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+        summary = json.loads(capsys.readouterr().out)
+        found = helper.read_json(tmp_path / 'candidates.json')
+        assert summary['qualifying'] == len(found)
+        return found
+    return photos.search_place_photos('Chengde', '1980s')
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('fields', [
+    {'dateCreated': '1983-10-01', 'caption': 'Chengde street taken 1920'},
+    {'dateCreated': '1983-10-01', 'description': 'Chengde street taken 1920'},
+    {'dateTaken': '1983-10-01', 'dateCreated': '1920-01-01'},
+    {'dateTaken': '1920-01-01', 'dateCreated': '1983-10-01'},
+    {'name': 'Chengde street 1983', 'caption': 'Taken 1982', 'dateCreated': '1983-10-01'},
+    {'name': 'Chengde street 1983', 'description': 'Taken 1982', 'dateCreated': '1983-10-01'},
+    {'caption': 'Taken 1983-01-01', 'description': 'Taken 1983-10-01'},
+    {'dateCreated': '1983', 'caption': 'Taken 1983-01-01; taken 1983-10-01'},
+    {'dateCreated': '1983', 'description': 'Taken 1982-1984; taken 1920'},
+    {'dateCreated': '1983-02-30'},
+    {'dateCreated': 'circa 1983'},
+    {'dateCreated': '1983', 'caption': 'Chengde street circa 1982'},
+    {'dateCreated': '1983', 'dateTaken': 'unknown'},
+    {'datePublished': '1983-10-01', 'uploadDate': '1983-10-01'},
+    {'caption': 'Chengde street published 1983-10-01'},
+    {},
+], ids=['caption-cross-year', 'description-cross-year', 'metadata-cross-year', 'metadata-reverse',
+        'name-caption', 'name-description', 'caption-description', 'multiple-exact-dates',
+        'range-and-conflict', 'invalid-day', 'circa', 'uncertain-caption', 'unknown-capture-field',
+        'publication-upload-only', 'publication-caption-only', 'missing'])
+def test_image_metadata_conflicts_or_uncertainty_are_not_verified(search_world, tmp_path, capsys, surface, fields):
+    helper, world = search_world
+    set_image_metadata(world, fields)
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('fields,expected', [
+    ({'dateCreated': '1983-10-01', 'dateTaken': '1983-10-01',
+      'caption': 'Chengde street 1983', 'description': 'Taken 1983-10-01'},
+     ('1983-10-01', '1983-10-01', 'day')),
+    ({'dateCreated': '1983', 'caption': 'Chengde street taken 1983-10-01'},
+     ('1983-10-01', '1983-10-01', 'day')),
+    ({'caption': 'Chengde street 1983'}, ('1983-01-01', '1983-12-31', 'year')),
+    ({'description': 'Chengde street 1982-1985'}, ('1982-01-01', '1985-12-31', 'range')),
+    ({'dateCreated': '1982-1985', 'caption': 'Chengde street 1983'},
+     ('1983-01-01', '1983-12-31', 'year')),
+    ({'dateCreated': '1983-10-01', 'caption': 'Chengde street 1983-10-01; taken 1983-10-01'},
+     ('1983-10-01', '1983-10-01', 'day')),
+    ({'dateCreated': '1983-10-01', 'datePublished': '2025-01-01', 'uploadDate': '2026-01-01'},
+     ('1983-10-01', '1983-10-01', 'day')),
+    ({'dateCreated': '1983-10-01', 'description': 'Published 2025-01-01'},
+     ('1983-10-01', '1983-10-01', 'day')),
+], ids=['consistent-fields', 'narrow-to-day', 'ordinary-caption', 'documented-range',
+        'narrow-range-to-year', 'identical-assertions', 'separate-publication-fields', 'publication-description'])
+def test_consistent_image_metadata_keeps_precision_and_provenance(search_world, tmp_path, capsys, surface, fields, expected):
+    helper, world = search_world
+    set_image_metadata(world, fields)
+    found, = discover_image_metadata(helper, tmp_path, capsys, surface)
+    scene = found['scene_date'] if surface == 'skill' else found['scene_date_range']
+    assert (scene['start'], scene['end'], scene['precision']) == expected
+    assert scene['conflicting'] is False
+    assert scene['basis'] == ('provider_date_taken' if fields.keys() & {'dateTaken', 'dateCreated'}
+                              else 'source_caption')
+    if surface == 'skill':
+        evidence = [json.loads(line) for line in (tmp_path / 'evidence.jsonl').read_text().splitlines()]
+        excerpt = next(row['excerpt'] for row in evidence if row['kind'] == 'scene_date')
+    else:
+        excerpt = found['location_evidence']
+    for field, value in {'name': 'Chengde street', **fields}.items():
+        assert f'{field}: {value}' in excerpt
+    assert found['allowed_actions']['download'] is False
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('caption', [
+    'Chengde street taken 1920; taken 1983-10-01',
+    'Chengde street taken 1983-01-01; taken 1983-10-01',
+])
+def test_figure_conflicts_stay_excluded_on_both_interfaces(search_world, tmp_path, capsys, surface, caption):
+    helper, world = search_world
+    world['pages']['https://archive.example/photo'] = (
+        '<figure><img src="https://images.example/street.jpg">'
+        '<figcaption>' + caption + '</figcaption></figure>')
+    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('captured', ['2025-10-01', '2099-10-01'])
+def test_unspecified_history_excludes_recent_and_future_photos(search_world, tmp_path, capsys, surface, captured):
+    helper, world = search_world
+    set_image_metadata(world, {'dateCreated': captured})
+    if surface == 'skill':
+        start_run(helper, tmp_path, capsys, period='historical')
+        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+        assert json.loads(capsys.readouterr().out)['qualifying'] == 0
+    else:
+        assert photos.search_place_photos('Chengde', 'historical') == []
+
+
+def test_public_app_deduplicates_llm_and_catalogue_images(search_world, monkeypatch):
+    _, world = search_world
+    record = {'id': 'https://www.loc.gov/item/fixture/', 'title': 'Chengde street photograph',
+              'date': '1983', 'image_url': ['https://images.example/street.jpg'],
+              'item': {'medium': ['photograph'], 'rights': ['No known restrictions on publication']}}
+    def catalogues(url, **kwargs):
+        data = {'results': [record]} if 'loc.gov' in url else {'stat': 'ok', 'photos': {'photo': []}}
+        return httpx.Response(200, json=data, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', catalogues)
+    found, = photos.search_place_photos('Chengde', '1980s')
+    assert found['image_url'] == 'https://images.example/street.jpg'
+
+
+@pytest.mark.parametrize('surface', ['skill', 'app'])
+@pytest.mark.parametrize('fields,expected', [
+    ({'dateCreated': '1983-10', 'caption': 'Chengde street taken 1983-01'}, None),
+    ({'dateCreated': '1983-10-01', 'caption': 'Chengde street taken 1983-01'}, None),
+    ({'dateCreated': '1983-10', 'caption': 'Chengde street 1983'}, ('1983-10-01', '1983-10-31', 'month')),
+    ({'dateCreated': '1983-10', 'caption': 'Chengde street taken 1983-10-15'}, ('1983-10-15', '1983-10-15', 'day')),
+])
+def test_month_precision_cannot_hide_capture_conflicts(search_world, tmp_path, capsys, surface, fields, expected):
+    helper, world = search_world
+    set_image_metadata(world, fields)
+    found = discover_image_metadata(helper, tmp_path, capsys, surface)
+    if expected is None:
+        assert found == []
+    else:
+        photo, = found
+        scene = photo['scene_date'] if surface == 'skill' else photo['scene_date_range']
+        assert (scene['start'], scene['end'], scene['precision']) == expected
+        if surface == 'app' and expected[2] == 'month':
+            assert photo['date_expression'] == '1983-10'

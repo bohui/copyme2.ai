@@ -708,7 +708,9 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
             for image in images:
                 scene = image['scene_date']
                 expression = scene['start']
-                if scene['precision'] == 'year':
+                if scene['precision'] == 'month':
+                    expression = scene['start'][:7]
+                elif scene['precision'] == 'year':
                     expression = scene['start'][:4]
                 elif scene['precision'] in {'decade', 'range'}:
                     expression = scene['start'][:4] + '-' + scene['end'][:4]
