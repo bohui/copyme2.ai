@@ -26,7 +26,8 @@ EXPLICIT_MIDLIFE_NEGATION = re.compile(
     r"(?:不是|并非|不在|并不是)[^。！？.!?；;\n]{0,12}三十岁(?:以后|之后)"
 )
 EXPLICIT_CORRECTION = re.compile(
-    r"(?:更正|纠正|修正|改正|correction|correct(?:ed|ion)?|revise|revised|update)\b",
+    r"(?:更正|纠正|修正|改正|更改|"
+    r"(?:correction|correct(?:ed|ion)?|revise|revised|update)\b)",
     re.IGNORECASE,
 )
 CHINESE_STAGE_BOUNDARY = re.compile(
