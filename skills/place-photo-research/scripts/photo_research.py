@@ -850,6 +850,10 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
         return None
     days = list(dict.fromkeys(re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", value)))
     years = list(dict.fromkeys(_crawl4ai_years(value)))
+    if len(days) > 1:
+        # Multiple exact dates need an explicit interval interpretation. Do not
+        # silently widen them to a year and mark the evidence conflict-free.
+        return None
     try:
         year_range = re.search(r"(?<!\d)((?:18|19|20)\d{2})\s*[-–—]\s*((?:18|19|20)\d{2})(?!\d)", value)
         if year_range:

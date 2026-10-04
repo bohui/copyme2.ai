@@ -338,6 +338,16 @@ def test_skill_excludes_conflicting_caption_and_capture_dates(search_world, tmp_
     assert json.loads(capsys.readouterr().out)['qualifying'] == 0
 
 
+def test_skill_excludes_multiple_exact_capture_dates_in_one_caption(search_world, tmp_path, capsys):
+    helper, world = search_world
+    world['pages']['https://archive.example/photo'] = (
+        '<figure><img src="https://images.example/street.jpg">'
+        '<figcaption>Chengde street taken 1983-01-01; taken 1983-10-01</figcaption></figure>')
+    start_run(helper, tmp_path, capsys)
+    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+    assert json.loads(capsys.readouterr().out)['qualifying'] == 0
+
+
 def test_skill_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, tmp_path, capsys):
     helper, world = search_world
     world['pages']['https://archive.example/photo'] = (
