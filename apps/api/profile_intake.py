@@ -25,6 +25,56 @@ EXPLICIT_MIDLIFE_CUE = re.compile(r"三十岁(?:以后|之后)")
 EXPLICIT_MIDLIFE_NEGATION = re.compile(
     r"(?:不是|并非|不在|并不是)[^。！？.!?；;\n]{0,12}三十岁(?:以后|之后)"
 )
+EXPLICIT_CORRECTION = re.compile(
+    r"(?:更正|纠正|修正|改正|correction|correct(?:ed|ion)?|revise|revised|update)\b",
+    re.IGNORECASE,
+)
+
+
+def _author_stage_evidence(text: str) -> str | None:
+    """Classify only explicit author-age evidence used for midlife gating.
+
+    This is deliberately structural rather than a list of event verbs.  A
+    first-person age/period assertion establishes the author's stage; a
+    relative's age or a childhood-age assertion does not.  Date corrections
+    without an age cue remain model-owned facts, but they cannot promote an
+    existing stage to ``midlife`` merely because the model chose that label.
+    """
+    if not isinstance(text, str):
+        return None
+    source = text.casefold()
+    if _midlife_cue_is_author_scoped(text) and not EXPLICIT_MIDLIFE_NEGATION.search(text):
+        return "midlife"
+    author_midlife = bool(
+        re.search(
+            r"\b(?:i|we)\b[^.!?;\n]{0,80}\b(?:in|during)\s+my\s+"
+            r"(?:thirties|30s|forties|40s|fifties|50s)\b",
+            source,
+        )
+        or re.search(
+            r"\b(?:i|we)\b[^.!?;\n]{0,50}\b(?:aged|age)\s+(?:3\d|4\d|5\d)\b",
+            source,
+        )
+        or re.search(r"(?:我|我们)(?:在|到|到了)?\s*(?:三十|四十|五十)[多余]?岁", text)
+        or re.search(r"(?:中年|中年时|中年以后|中年之后)", text)
+        or re.search(r"\b(?:in|during)\s+(?:later\s+)?midlife\b", source)
+    )
+    if author_midlife:
+        return "midlife"
+    author_earlier = bool(
+        re.search(
+            r"\b(?:i|we)\b[^.!?;\n]{0,60}\b(?:when\s+i\s+was|at\s+age|aged|age)\s+"
+            r"(?:0?\d|1\d|2\d)\b",
+            source,
+        )
+        or re.search(
+            r"\b(?:when\s+i\s+was|as\s+a)\s+(?:baby|toddler|child|teenager|teen)\b",
+            source,
+        )
+        or re.search(r"(?:我|我们)[^。！？.!?；;\n]{0,20}(?:[0-2]?\d)岁", text)
+        or re.search(r"(?:小时候|幼儿时期|童年时|少年时期|青春期)", text)
+    )
+    return "non_midlife" if author_earlier else None
 
 
 def _midlife_cue_is_author_scoped(text: str) -> bool:
@@ -53,6 +103,11 @@ def _midlife_cue_is_author_scoped(text: str) -> bool:
         relative_start = match.start() - sentence_start
         before = sentence[:relative_start].strip(" \t，,：:")
         after = sentence[match.end() - sentence_start:].lstrip(" \t，,：:")
+        before = re.sub(
+            r"^(?:更正|纠正|修正|改正)\s*[:：,，]?\s*",
+            "",
+            before,
+        )
 
         # A direct first-person subject before the cue is authoritative.  Do
         # not accept ``我姐姐``/``我哥哥``: the possessive ``我`` is not the
@@ -154,7 +209,23 @@ def apply_explicit_story_stage(text: str, updates: Any) -> dict[str, Any] | None
     profile fields and uncertain wording model-owned.
     """
     validated = validate_profile_updates(updates) or {}
-    if not isinstance(text, str) or not EXPLICIT_MIDLIFE_CUE.search(text):
+    if not isinstance(text, str):
+        return validated or None
+    if not EXPLICIT_MIDLIFE_CUE.search(text):
+        focus = validated.get("story_focus") or {}
+        # Corrections are especially prone to carrying forward a stale model
+        # stage.  Preserve the previously validated stage by removing only an
+        # unsupported model-supplied midlife value; other profile fields and
+        # explicit non-stage updates still flow through the normal merge.
+        if (
+            isinstance(focus, dict)
+            and focus.get("life_stage") == "midlife"
+            and (
+                _author_stage_evidence(text) == "non_midlife"
+                or (EXPLICIT_CORRECTION.search(text) and _author_stage_evidence(text) != "midlife")
+            )
+        ):
+            return _drop_model_midlife_if_not_author_scoped(validated) or None
         return validated or None
     if EXPLICIT_MIDLIFE_NEGATION.search(text) or not _midlife_cue_is_author_scoped(text):
         return _drop_model_midlife_if_not_author_scoped(validated) or None

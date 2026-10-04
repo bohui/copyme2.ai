@@ -9,6 +9,7 @@ from pathlib import Path
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import (
     CodexRuntime,
+    _sentence_has_author_event_evidence,
     build_conversation_system_prompt,
     build_loop_trace,
     build_system_prompt,
@@ -120,7 +121,7 @@ def test_workspace_extraction_retries_a_completed_focus_without_accepted_marker(
     reply = asyncio.run(runtime._workspace_extraction(
         user_id='synthetic-user', memories=[], profile={}, place_journey=None,
         family_enabled=True, family_context=None, project_id=None,
-        text='My aunt June remembers carrying me past the bench.',
+        text='Aunt June remembers carrying me past the bench.',
         language='en-AU',
     ))
 
@@ -442,6 +443,90 @@ def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn
     ))
 
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+@pytest.mark.parametrize('text', [
+    'My first job was at the Hobart docks in 1980.',
+    'I remember buying my first house.',
+])
+def test_source_contract_keeps_possessive_and_memory_complement_events(text, monkeypatch):
+    assert _sentence_has_author_event_evidence(text) is True
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"event","kind":"event",'
+                '"title":"Grounded event","date_expression":"unknown",'
+                '"precision":"unknown"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+def test_workspace_extraction_honours_item_veto_without_dropping_other_event(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":['
+                '{"id":"e-move","kind":"event","title":"Moved to Hobart",'
+                '"date_expression":"1980","precision":"year"},'
+                '{"id":"e-house","kind":"event","title":"Bought first house",'
+                '"date_expression":"1990","precision":"year"}'
+                ']}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I moved to Hobart in 1980. Please do not add this event to my timeline. '
+             'I bought my first house in 1990.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'e-move' not in reply
+    assert 'e-house' in reply
+
+
+def test_workspace_extraction_honours_single_event_veto(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-move","kind":"event",'
+                '"title":"Moved to Hobart","date_expression":"1980",'
+                '"precision":"year"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I moved to Hobart in 1980. Please do not add this event to my timeline.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 
 def test_workspace_extraction_filters_only_the_ungrounded_reflection_entry(monkeypatch):

@@ -567,6 +567,28 @@ def _timeline_source_sentences(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"[.!?。！？；;\n]+", source) if part.strip()]
 
 
+def _author_possessive_subject(sentence: str) -> bool:
+    """Recognize an author-owned nominal subject without event verbs.
+
+    Shapes such as ``My first job ...`` and ``My first house ...`` are
+    autobiographical even when the sentence contains no literal ``I``.  A
+    possessive source (``My father's stories ...``) is not treated as the
+    storyteller's owned subject; other ``my``/``our`` phrases remain eligible
+    source-grounded material and the model still decides the event.
+    """
+    if not isinstance(sentence, str):
+        return False
+    lowered = sentence.strip().casefold()
+    if re.match(r"^(?:my|our)\s+", lowered):
+        subject = re.split(r"[.!?,;:]", lowered, maxsplit=1)[0]
+        if re.search(r"\b(?:my|our)\s+[^\s]+['’]s\b", subject):
+            return False
+        return True
+    if re.match(r"^我的", sentence.strip()):
+        return True
+    return False
+
+
 def _sentence_has_author_event_evidence(sentence: str) -> bool:
     """Recognize an asserted first-person claim without an event verb list.
 
@@ -581,9 +603,14 @@ def _sentence_has_author_event_evidence(sentence: str) -> bool:
     lowered = sentence.casefold()
     has_first_person = bool(
         re.search(r"\b(?:i|we)\b", lowered)
-        or re.search(r"(?:我|我们)(?!的|们)", sentence)
+        or re.search(
+            r"(?:^|[，,；;、])\s*[^，,；;、]{0,12}?(?:我|我们)"
+            r"(?!的|们)",
+            sentence,
+        )
     )
-    if not has_first_person:
+    possessive_subject = _author_possessive_subject(sentence)
+    if not has_first_person and not possessive_subject:
         return False
     if re.search(
         r"\b(?:i|we)\s+(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
@@ -630,10 +657,19 @@ def _sentence_has_author_event_evidence(sentence: str) -> bool:
         )
         or re.search(r"(?:有时|常常|回望|回忆|反思|只记录).{0,80}(?:记得|声音|颜色|耐心|旧)", sentence)
     )
+    memory_complement = bool(
+        re.search(
+            r"\b(?:remember|remembered|recall|recalled)\s+"
+            r"(?:that\s+)?(?:i|we)\b|"
+            r"\b(?:remember|remembered|recall|recalled)\s+\w+ing\b",
+            lowered,
+        )
+        or re.search(r"(?:记得|想起|回忆)(?:我|我们|自己)[^。！？.!?\n]{1,}", sentence)
+    )
     # A dated/aged claim can be mixed with a memory verb, for example
     # "I often remember the day I moved in 1980"; that remains source
     # evidence.
-    if pure_reflection and not strong_date:
+    if pure_reflection and not strong_date and not memory_complement:
         return False
     return True
 
@@ -695,6 +731,40 @@ def _author_timeline_marker_is_advisory_without_author_event(text: str) -> bool:
     return source_boundary or third_party_uncertainty or chinese_source_boundary
 
 
+def _timeline_veto_scope(sentence: str) -> str | None:
+    """Return the explicit user-veto scope for one source sentence."""
+    if not isinstance(sentence, str):
+        return None
+    lowered = sentence.casefold()
+    english = bool(
+        re.search(
+            r"\b(?:please\s+)?(?:do not|don't|should not|shouldn't|never)\s+"
+            r"(?:record|include|add|put|place|make|keep|treat|turn)\b"
+            r".{0,100}\b(?:timeline|dated events?|events?|records?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:leave|keep|omit|exclude)\b.{0,50}\b(?:out of|off|from)\b"
+            r".{0,30}\b(?:my\s+)?(?:timeline|records?|events?)\b",
+            lowered,
+        )
+    )
+    chinese = bool(
+        re.search(
+            r"(?:请)?(?:不要|别|不应|不应该)\s*(?:记录|加入|放进|列入|写入|算作|当作|成为)"
+            r".{0,60}(?:时间线|事件|日期|记录)",
+            sentence,
+        )
+    )
+    if not (english or chinese):
+        return None
+    item_specific = bool(
+        re.search(r"\b(?:this|that|the)\s+(?:event|item|entry|memory|reflection)\b", lowered)
+        or re.search(r"(?:这件事|这个事件|这个条目|这段回忆|这条记录)", sentence)
+    )
+    return "item" if item_specific else "all"
+
+
 _TIMELINE_GENERIC_TITLE = re.compile(
     r"^(?:a\s+)?(?:reflection|memory|later\s+life|recollection|回忆|反思|回望)$",
     re.IGNORECASE,
@@ -735,6 +805,37 @@ def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
         ))
         anchors.extend(token for token in re.findall(r"[\u3400-\u9fff]{2,}", value) if token not in generic)
     return list(dict.fromkeys(anchor for anchor in anchors if anchor))
+
+
+def _timeline_item_is_explicitly_vetoed(item: Mapping[str, Any], source: str, item_count: int) -> bool:
+    """Apply a storyteller's explicit timeline veto before marker grading.
+
+    ``this event`` refers to the nearest preceding source-grounded claim, so
+    a mixed turn can retain another independent event.  A broad ``do not add
+    events to my timeline`` veto removes every candidate.  This operates on
+    source/entry alignment and never decides whether an event verb is valid.
+    """
+    sentences = _timeline_source_sentences(source)
+    vetoes = [
+        (index, _timeline_veto_scope(sentence))
+        for index, sentence in enumerate(sentences)
+        if _timeline_veto_scope(sentence)
+    ]
+    if not vetoes:
+        return False
+    if any(scope == "all" for _index, scope in vetoes):
+        return True
+    anchors = _timeline_item_source_anchors(item)
+    for index, _scope in vetoes:
+        if item_count == 1:
+            return True
+        preceding = sentences[:index]
+        for candidate in reversed(preceding):
+            if any(anchor in candidate.casefold() for anchor in anchors):
+                return True
+        if any(anchor in sentences[index].casefold() for anchor in anchors):
+            return True
+    return False
 
 
 def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item_count: int) -> bool:
@@ -783,7 +884,8 @@ def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
         if context and timeline:
             kept = [
                 item for item in timeline
-                if _timeline_item_is_source_grounded(item, source, len(timeline))
+                if not _timeline_item_is_explicitly_vetoed(item, source, len(timeline))
+                and _timeline_item_is_source_grounded(item, source, len(timeline))
             ]
             if not _author_timeline_has_source_evidence(source):
                 # A non-empty author-timeline marker must have at least one

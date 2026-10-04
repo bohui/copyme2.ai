@@ -113,6 +113,24 @@ def test_explicit_story_stage_guard_accepts_first_person_age_subject():
     ) == {"story_focus": {"life_stage": "midlife"}}
 
 
+def test_story_stage_guard_does_not_promote_a_date_only_correction_to_midlife():
+    updates = apply_explicit_story_stage(
+        "更正：我大约一九九三年去大理，二〇〇二年前后改工作室，两处都保持大概表达。",
+        {"story_focus": {"life_stage": "midlife", "when": "大约一九九三年"}},
+    )
+    assert updates == {"story_focus": {"when": "大约一九九三年"}}
+    assert merge_profile_updates(
+        {"story_focus": {"life_stage": "later_life"}}, updates
+    ) == {"story_focus": {"life_stage": "later_life", "when": "大约一九九三年"}}
+
+
+def test_story_stage_guard_accepts_author_age_inside_a_correction():
+    assert apply_explicit_story_stage(
+        "更正：我三十岁以后开始照顾孩子。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "midlife"}}
+
+
 def test_language_updates_are_validated_and_preserve_other_profile_fields():
     assert merge_profile_updates({'name': '慧博'}, {'preferred_language': 'zh-CN'}) == {
         'name': '慧博', 'preferred_language': 'zh-CN',
