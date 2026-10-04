@@ -8,6 +8,12 @@ It does not require the memoir app, a custom tool host, database, MCP server or 
 
 When native search does not return enough historical leads, the optional Crawl4AI route can render a user-supplied Google Programmable Search page, paginate its visible image cards and crawl their public source pages. Install `requirements-crawl4ai.txt` only when using that route; it adds a headless browser runtime and is not required for the normal skill.
 
+For a configured Responses gateway, enable `MEMORY_SPARK_PHOTO_WEB_SEARCH=1`
+and use the helper's `discover` command after initializing a run. This shared
+skill/app route requires observable native search receipts and independently
+checks original pages for place and capture dates. See
+[LLM web search](references/llm-web-search.md) for configuration and output records.
+
 ## Install into a project
 
 From the project root, after saving the package as `~/Downloads/place-photo-research-codex.zip`:
