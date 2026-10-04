@@ -58,6 +58,8 @@ from .trajectory_evaluation import (
 )
 
 WORKSPACE_TIMEOUT = 240
+_MAX_WORKER_ERROR_BODY_BYTES = 64 * 1024
+_WORKER_ERROR_BODY_EXTENSION = "memoir_worker_error_body"
 
 diagnostic_logger = logging.getLogger("memoir.runtime.diagnostics")
 configure_diagnostic_logger(diagnostic_logger)
@@ -70,6 +72,39 @@ class _WorkerStreamError(RuntimeError):
         super().__init__(message)
         if isinstance(trajectory, Mapping):
             self.trajectory = dict(trajectory)
+
+
+async def _read_bounded_response_body(response: httpx.Response) -> bytes:
+    """Read only a bounded HTTP error body while a streamed response is open."""
+    try:
+        return response.content[:_MAX_WORKER_ERROR_BODY_BYTES]
+    except httpx.ResponseNotRead:
+        pass
+
+    body = bytearray()
+    async for chunk in response.aiter_bytes():
+        remaining = _MAX_WORKER_ERROR_BODY_BYTES - len(body)
+        if remaining <= 0:
+            break
+        body.extend(chunk[:remaining])
+        if len(body) >= _MAX_WORKER_ERROR_BODY_BYTES:
+            break
+    return bytes(body)
+
+
+def _worker_error_payload(response: httpx.Response) -> Mapping[str, Any] | None:
+    """Decode a bounded worker error body without ever exposing its contents."""
+    body = response.extensions.pop(_WORKER_ERROR_BODY_EXTENSION, None)
+    if not isinstance(body, bytes):
+        try:
+            body = response.content[:_MAX_WORKER_ERROR_BODY_BYTES]
+        except httpx.ResponseNotRead:
+            return None
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, TypeError, ValueError):
+        return None
+    return payload if isinstance(payload, Mapping) else None
 
 
 MEMOIR_SYSTEM_PROMPT_PATH = (
@@ -2099,6 +2134,10 @@ class CodexRuntime:
                                 },
                                 json=payload,
                             ) as response:
+                                if response.status_code >= 400:
+                                    response.extensions[_WORKER_ERROR_BODY_EXTENSION] = (
+                                        await _read_bounded_response_body(response)
+                                    )
                                 response.raise_for_status()
                                 async for line in response.aiter_lines():
                                     if not line:
@@ -2151,10 +2190,7 @@ class CodexRuntime:
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
-            try:
-                error_payload = error.response.json()
-            except (TypeError, ValueError):
-                error_payload = None
+            error_payload = _worker_error_payload(error.response)
             if isinstance(error_payload, Mapping):
                 partial = error_payload.get('trajectory')
                 if isinstance(partial, Mapping):

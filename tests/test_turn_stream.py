@@ -6,6 +6,7 @@ import pytest
 from apps.api.turn_stream import VisibleText, turn_events
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.agent_lock import AgentTurnBusyError
 from apps.api.trajectory_evaluation import TrajectoryRecorder
 import httpx
 
@@ -228,6 +229,110 @@ def test_worker_nonstream_failure_preserves_outer_trace_lineage():
         assert worker_step['trace_id'] == 'worker-trace-2'
         assert outer.final['status'] == 'failed'
         assert 'worker failure' not in str(caught.value)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+@pytest.mark.parametrize('status_code', [409, 502])
+def test_worker_http_status_errors_map_after_reading_streamed_error_body(status_code, streaming):
+    async def run():
+        partial = {
+            'schema_version': 'memoir-trajectory/1',
+            'steps': [{
+                'step_id': 'worker-http-step',
+                'sequence': 1,
+                'phase': 'codex.turn',
+                'action': 'tool.call',
+                'tool_name': 'memory.search',
+                'observation_id': 'worker-http-observation',
+                'trace_id': 'worker-http-trace',
+            }],
+            'final': {'status': 'failed', 'response': None},
+        }
+        body = json.dumps({
+            'detail': 'private credential must not escape',
+            'trajectory': partial,
+        }).encode()
+
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield body
+
+        def handle(request):
+            if streaming:
+                return httpx.Response(status_code, stream=Body(), request=request)
+            return httpx.Response(status_code, content=body, request=request)
+
+        outer = TrajectoryRecorder({'run_id': 'run-http', 'case_id': 'case-http'})
+        runtime = CodexRuntime(
+            worker_url='http://worker',
+            worker_secret='secret',
+            worker_transport=httpx.MockTransport(handle),
+        )
+        kwargs = {
+            'user_id': 'test', 'prior': None, 'memories': [], 'profile': {},
+            'place_journey': {}, 'family_enabled': False, 'family_context': {},
+            'project_id': None, 'text': 'Hi', 'language': 'en-AU',
+            'trajectory': outer,
+        }
+        if streaming:
+            async def emit(_event):
+                return None
+            kwargs['on_event'] = emit
+
+        expected = AgentTurnBusyError if status_code == 409 else RuntimeError
+        with pytest.raises(expected) as caught:
+            await runtime._worker_turn(**kwargs)
+
+        if status_code == 409:
+            assert isinstance(caught.value, AgentTurnBusyError)
+        else:
+            assert str(caught.value) == 'Codex worker rejected the turn: HTTP 502'
+        assert caught.value.trajectory['steps'][0]['observation_id'] == 'worker-http-observation'
+        assert outer.final['status'] == 'failed'
+        assert 'private credential' not in str(caught.value)
+        assert 'ResponseNotRead' not in str(caught.value)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+@pytest.mark.parametrize('body', [
+    b'not-json private credential',
+    b'{"detail":"private credential ' + (b'x' * 131072) + b'"}',
+])
+def test_worker_malformed_or_oversized_error_body_still_maps_status(streaming, body):
+    async def run():
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield body
+
+        def handle(request):
+            if streaming:
+                return httpx.Response(502, stream=Body(), request=request)
+            return httpx.Response(502, content=body, request=request)
+
+        runtime = CodexRuntime(
+            worker_url='http://worker',
+            worker_secret='secret',
+            worker_transport=httpx.MockTransport(handle),
+        )
+        kwargs = {
+            'user_id': 'test', 'prior': None, 'memories': [], 'profile': {},
+            'place_journey': {}, 'family_enabled': False, 'family_context': {},
+            'project_id': None, 'text': 'Hi', 'language': 'en-AU',
+        }
+        if streaming:
+            async def emit(_event):
+                return None
+            kwargs['on_event'] = emit
+        with pytest.raises(RuntimeError) as caught:
+            await runtime._worker_turn(**kwargs)
+
+        assert str(caught.value) == 'Codex worker rejected the turn: HTTP 502'
+        assert 'private credential' not in str(caught.value)
+        assert 'ResponseNotRead' not in str(caught.value)
 
     asyncio.run(run())
 
