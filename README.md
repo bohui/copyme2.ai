@@ -324,6 +324,20 @@ included in the correlation metadata. The publisher also exposes Langfuse SDK v4
 synchronous dataset callbacks; the local runner is the async adapter for the
 real worker turn boundary.
 
+The five-case runner can publish the same minimized evidence per round after a
+successful Langfuse preflight:
+
+```bash
+python3 scripts/run_memoir_five_case_evaluation.py \
+  --mode live --publish --run-id <isolated-run-id>
+```
+
+Each published round carries the complete ordered trajectory on its root
+observation, creates child observations when the SDK supports them, preserves
+worker-supplied observation ancestry and tool arguments, and sends deterministic
+skill invocation/output/state scores. Unavailable judge or telemetry evidence
+is recorded separately; it is never reported as a live pass.
+
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 
 ### Place journeys in the integrated Codex worker
@@ -403,6 +417,16 @@ coverage boundary and evidence produced.
 The full implementation covers consent, invitations, resumable uploads, cue reactions, evidence-linked memories, version conflicts, preview builds, checkout and verified webhooks, chapters, editions, audio links, print proofs, deletion tombstones, audit metadata, regional provider switches, Supabase persistence, and the Codex memory integration. Production merchant, regional processor, media-rights, supplier, legal, and reliability gates remain configuration and operations decisions outside this credential-free local implementation.
 
 ### Historical photo search
+
+Set `MEMORY_SPARK_PHOTO_WEB_SEARCH=1` to add Responses-native LLM discovery
+alongside the existing catalogues. It reuses the server-only gateway URL, model
+and key and requires completed search receipts with source URLs; a plain model
+answer cannot supply photo evidence. The API and private photo worker use the
+same source inspection and capture-date checks as the
+[place-photo-research helper](skills/place-photo-research/references/llm-web-search.md).
+The option is disabled by default and requires a gateway/model with actual
+`web_search` support. Discovered photos remain public memory references with
+unresolved reuse rights.
 
 The app's photo endpoint searches catalogues independently of local research
 runs. When `GOOGLE_CSE_API_KEY` is blank, it automatically browses the configured

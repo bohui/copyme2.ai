@@ -173,3 +173,12 @@ per-stage coverage, invocation/output grades, provider usage/cost, judge
 availability, failed expectations, fixed/retested defects, UI evidence, and
 remaining known failures or blockers. It will not compress blocked or
 mock-only runs into a green aggregate.
+
+The live runner also accepts `--publish` after Langfuse SDK/credentials
+preflight. It publishes one minimized root observation per round, preserves
+worker observation ancestry and tool arguments, and records deterministic
+skill invocation/output/state scores. Broad workspace extraction and focused
+Family/timeline recovery requests, completions, and bounded failures remain in
+the local trajectory. Semantic judge availability is reported separately from
+acceptance evidence; an unavailable or unconfigured judge cannot produce a
+live pass.

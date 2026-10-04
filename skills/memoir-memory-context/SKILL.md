@@ -50,6 +50,11 @@ the currently selected workspace tab, or the storyteller's present age cannot
 establish the stage of a past memory. Emit the stage together with the place-journey
 marker when both are explicit. Keep date expressions in `story_focus.when`.
 
+When the current Chinese wording explicitly says “三十岁以后” or “三十岁之后”,
+use `midlife` for `story_focus.life_stage`; do not relabel that cue as
+`young_adulthood`. Do not infer a stage from a generic “后来”/“later” without a
+clear stage cue.
+
 Do not require the storyteller to select male or female artwork explicitly. Infer
 `avatar_style` as male or female from the storyteller's own words when the
 conversation makes their gender clear. Use a clearly gendered self-identifying

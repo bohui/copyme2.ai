@@ -5,6 +5,7 @@ from datetime import date
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -196,6 +197,52 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(code, 0)
         discover.assert_called_once_with(self.run.resolve(), "https://cse.google.com/cse?cx=test",
                                          max_search_pages=2, source_limit=3)
+
+    def test_auto_provider_flag_matrix_preserves_parallel_fallback(self):
+        parallel_calls, llm_calls = [], []
+        parallel = types.ModuleType("photo_search")
+
+        def fake_parallel(*args, **kwargs):
+            parallel_calls.append((args, kwargs))
+            return {"provider": "parallel"}
+
+        def fake_llm(*args, **kwargs):
+            llm_calls.append((args, kwargs))
+            return {"provider": "llm"}
+
+        parallel.discover = fake_parallel
+        flags = (None, "0", "false", "1")
+        with patch.dict(sys.modules, {"photo_search": parallel}), \
+             patch.object(p, "llm_discover", side_effect=fake_llm), \
+             patch.object(p, "_crawl4ai_load_dotenv"), \
+             patch.dict(os.environ, {}, clear=False):
+            for flag in flags:
+                with self.subTest(flag=flag):
+                    if flag is None:
+                        os.environ.pop("MEMORY_SPARK_PHOTO_WEB_SEARCH", None)
+                    else:
+                        os.environ["MEMORY_SPARK_PHOTO_WEB_SEARCH"] = flag
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        code = p.main(["discover", "--run", str(self.run)])
+                    self.assertEqual(code, 0)
+            os.environ["MEMORY_SPARK_PHOTO_WEB_SEARCH"] = "1"
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = p.main(["discover", "--run", str(self.run), "--provider", "parallel"])
+            self.assertEqual(code, 0)
+            os.environ["MEMORY_SPARK_PHOTO_WEB_SEARCH"] = "0"
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = p.main(["discover", "--run", str(self.run), "--provider", "llm"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(parallel_calls), 4)
+        self.assertEqual(len(llm_calls), 2)
+
+    def test_explicit_llm_provider_stays_fail_closed_when_disabled(self):
+        with patch.dict(os.environ, {"MEMORY_SPARK_PHOTO_WEB_SEARCH": "0"}), \
+             patch.object(p, "_crawl4ai_load_dotenv"), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            code = p.main(["discover", "--run", str(self.run), "--provider", "llm"])
+        self.assertEqual(code, 2)
+        self.assertIn("llm_search_disabled", err.getvalue())
 
     def test_crawl4ai_search_url_adds_decade_and_removes_paging_query(self):
         request = {"place": "Chengde, Hebei, China / 河北承德",

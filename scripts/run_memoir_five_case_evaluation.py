@@ -49,6 +49,8 @@ from apps.api.place_groups import resolve_place_groups
 from apps.api.trajectory_evaluation import (
     EVALUATION_RUBRIC_VERSION,
     JUDGE_RUBRIC_VERSION,
+    LangfusePublisher,
+    TrajectoryRecorder,
     build_application_revision,
     build_skill_manifest,
     load_judge_calibration,
@@ -62,7 +64,9 @@ from scripts.memoir_five_case_evaluator import (
     aggregate_case,
     case_expectations,
     evaluate_round,
+    build_langfuse_round_scores,
     load_json,
+    mark_round_unavailable,
     merge_ui_skill_observations,
     validate_expected,
     validate_inputs,
@@ -75,7 +79,7 @@ EXPECTED_PATH = ROOT / "tests/evaluation/memoir_five_case_expected.json"
 TRUTH_PATH = ROOT / "tests/evaluation/memoir_five_case_truth.json"
 CALIBRATION_PATH = ROOT / "tests/evaluation/memoir_five_case_judge_calibration.json"
 JUDGE_PROMPT_PATH = ROOT / "tests/evaluation/memoir_five_case_judge_prompt.md"
-RUNNER_VERSION = "memoir-five-case-runner/2"
+RUNNER_VERSION = "memoir-five-case-runner/4"
 EXECUTION_MODES = {"fixture", "live", "pilot"}
 DEFAULT_PROVIDER = "http://127.0.0.1:4000/v1"
 DEFAULT_MODEL = "gpt-5.6-luna-pooled"
@@ -100,6 +104,12 @@ def write_json(path: Path, payload: Any) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def langfuse_deterministic_status(grade: Mapping[str, Any]) -> str:
+    """Keep root telemetry status aligned with the local deterministic grade."""
+    status = str(grade.get("overall") or "unavailable")
+    return status if status in {"pass", "fail", "unavailable", "mock_only"} else "unavailable"
 
 
 def parse_env_file(path: Path) -> dict[str, str]:
@@ -979,7 +989,18 @@ def state_for_grade(storage: CaseStorage) -> dict[str, Any]:
     return state
 
 
-async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any], case_expected: Mapping[str, Any], *, args: argparse.Namespace, run_dir: Path, execution_mode: str, runtime: CodexRuntime | None = None, max_rounds: int = 50) -> dict[str, Any]:
+async def run_case(
+    case: Mapping[str, Any],
+    expected_payload: Mapping[str, Any],
+    case_expected: Mapping[str, Any],
+    *,
+    args: argparse.Namespace,
+    run_dir: Path,
+    execution_mode: str,
+    runtime: CodexRuntime | None = None,
+    max_rounds: int = 50,
+    langfuse_publisher: LangfusePublisher | None = None,
+) -> dict[str, Any]:
     case_dir = run_dir / "cases" / str(case["id"])
     rounds_dir = case_dir / "rounds"
     rounds_dir.mkdir(parents=True, exist_ok=True)
@@ -1006,6 +1027,9 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
     round_grades: list[dict[str, Any]] = []
     ui_by_round: dict[int, dict[str, Any]] = {}
     failures: list[dict[str, Any]] = []
+    langfuse_published = 0
+    langfuse_unavailable = 0
+    langfuse_disabled = False
     provider_usage = {"reported": False, "input_tokens": None, "output_tokens": None, "total_tokens": None, "cost": None, "provider_calls": None, "private_worker_requests": 0, "note": "The configured provider did not expose token or cost usage; private_worker_requests counts requests sent to the configured private worker boundary only."}
     for round_number in range(1, max_rounds + 1):
         trace_path = rounds_dir / f"round-{round_number:03d}.json"
@@ -1032,7 +1056,13 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
                         composer_observation=prior.get("composer") if isinstance(prior.get("composer"), Mapping) else None,
                     )
                     if prior.get("error") is not None:
-                        regraded["overall"] = "unavailable" if execution_mode == "live" else "fail"
+                        if execution_mode == "live":
+                            regraded = mark_round_unavailable(
+                                regraded,
+                                reason=str((prior.get("error") or {}).get("type") or "prior_error"),
+                            )
+                        else:
+                            regraded["overall"] = "fail"
                         regraded["error"] = prior["error"]
                     updated = dict(prior)
                     history = list(updated.get("grade_history") or [])
@@ -1097,9 +1127,14 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
             "evaluator_version": RUNNER_VERSION,
             "model": runtime.model,
             "provider": args.provider_url,
+            "round_id": f"{round_number:03d}",
         })
         started = time.monotonic()
         worker_requests_before = int(getattr(runtime, "observed_worker_requests", 0))
+        turn_trajectory = TrajectoryRecorder(
+            correlation,
+            skill_manifest=build_skill_manifest(ROOT / "skills"),
+        )
         result: dict[str, Any]
         error: dict[str, Any] | None = None
         prior_place_count = len(storage.place_history())
@@ -1114,9 +1149,23 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
                 evaluation=correlation,
                 include_trajectory=True,
                 evaluation_context={"enabled_skills": list(SKILLS), "available_tools": ["memoir-place-groups", "place-photo-research"]},
+                trajectory=turn_trajectory,
             ), timeout=args.timeout + 30)
         except Exception as exc:
-            result = {"reply": None, "trace": [], "trajectory": {"steps": []}}
+            partial_trajectory = getattr(exc, "trajectory", None)
+            if not isinstance(partial_trajectory, Mapping):
+                turn_trajectory.finish(
+                    None,
+                    status="failed",
+                    stop_reason="runner.failed",
+                    error={"error_type": type(exc).__name__},
+                )
+                partial_trajectory = turn_trajectory.payload()
+            result = {
+                "reply": None,
+                "trace": [],
+                "trajectory": partial_trajectory,
+            }
             error = {"type": type(exc).__name__, "message": str(exc)[:240]}
         if error is None and result.get("recall_status", {}).get("payment_required"):
             error = {"type": "payment_required", "message": "isolated evaluation entitlement unexpectedly blocked a round"}
@@ -1132,11 +1181,56 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
         grade = evaluate_round(expected_payload, case_expected, round_number, result, execution_mode=execution_mode,
                                ui_observations=ui_by_round[round_number], composer_observation=composer_observation)
         if error is not None:
-            grade["overall"] = "unavailable" if execution_mode == "live" else "fail"
+            if execution_mode == "live":
+                grade = mark_round_unavailable(grade, reason=error["type"])
+            else:
+                grade["overall"] = "fail"
             grade["error"] = error
             failures.append({"round": round_number, "kind": error["type"], "message": error["message"]})
         if grade.get("overall") == "fail":
             failures.append({"round": round_number, "kind": "expectation_failure", "comments": [item.get("comment") for item in grade.get("skill_grades", {}).values() if item.get("status") == "fail"]})
+        langfuse_observation: dict[str, Any] | None = None
+        trajectory = result.get("trajectory") if isinstance(result, Mapping) else None
+        if langfuse_publisher is not None and not langfuse_disabled and isinstance(trajectory, Mapping):
+            round_correlation = {**correlation, "round_id": f"{round_number:03d}"}
+            try:
+                with langfuse_publisher.case(
+                    name=f"memoir-five-case-{case['id']}-round-{round_number:03d}",
+                    task={"case_id": case["id"], "round": round_number, "text": text},
+                    correlation=round_correlation,
+                ) as sink:
+                    sink.publish(
+                        trajectory,
+                        build_langfuse_round_scores(grade),
+                        extra_metadata={
+                            "round_status": grade.get("overall"),
+                            "deterministic_status": langfuse_deterministic_status(grade),
+                            "execution_mode": execution_mode,
+                        },
+                    )
+                    langfuse_observation = {
+                        "status": "published",
+                        "trace_id": sink.trace_id,
+                        "observation_id": sink.observation_id,
+                        "step_observations": dict(sink.step_observations),
+                    }
+                langfuse_published += 1
+            except Exception as publish_error:
+                # A failed telemetry publish must not turn a completed Memoir
+                # turn into a product failure, but it is recorded once and
+                # subsequent rounds avoid an unbounded retry storm.
+                langfuse_disabled = True
+                langfuse_unavailable += 1
+                langfuse_observation = {
+                    "status": "unavailable",
+                    "error_type": type(publish_error).__name__,
+                }
+        elif langfuse_publisher is not None:
+            langfuse_unavailable += 1
+            langfuse_observation = {
+                "status": "unavailable" if langfuse_disabled else "not_available",
+                "reason": "round did not return a normalized trajectory",
+            }
         round_worker_requests = max(0, int(getattr(runtime, "observed_worker_requests", 0)) - worker_requests_before)
         provider_usage["private_worker_requests"] += round_worker_requests
         round_record = {
@@ -1154,6 +1248,7 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
             "error": error,
             "response": redact_payload(result),
             "composer": composer_observation,
+            "langfuse": langfuse_observation,
             "ui": ui_by_round[round_number],
             "grade": grade,
             "replay": f"python scripts/run_memoir_five_case_evaluation.py --mode {execution_mode} --run-id {args.run_id} --cases {case['id']} --resume",
@@ -1182,6 +1277,13 @@ async def run_case(case: Mapping[str, Any], expected_payload: Mapping[str, Any],
     summary["provider_usage"] = provider_usage
     summary["failures"] = failures
     summary["ui_rounds"] = sorted(ui_by_round)
+    summary["langfuse"] = {
+        "requested": bool(getattr(args, "publish_langfuse", False)),
+        "configured": langfuse_publisher is not None,
+        "published_rounds": langfuse_published,
+        "unavailable_rounds": langfuse_unavailable,
+        "disabled_after_error": langfuse_disabled,
+    }
     write_json(case_dir / "summary.json", summary)
     return summary
 
@@ -1220,7 +1322,15 @@ async def photo_worker_probe(url: str, secret: str, timeout: float) -> dict[str,
         return {"status": "unreachable", "error_type": type(error).__name__, "error": str(error)[:240]}
 
 
-async def preflight(args: argparse.Namespace, env_file: Mapping[str, str], *, run_dir: Path, inputs: Mapping[str, Any], expected: Mapping[str, Any]) -> dict[str, Any]:
+async def preflight(
+    args: argparse.Namespace,
+    env_file: Mapping[str, str],
+    *,
+    run_dir: Path,
+    inputs: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    langfuse_receipt: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     provider = provider_config(env_file, args.provider_url, args.provider_model)
     probe = await provider_probe(provider["base_url"], configured_env("MEMORY_SPARK_LLM_API_KEY", env_file), min(args.timeout, 10))
     worker = await worker_probe(args.worker_url, min(args.timeout, 10)) if args.worker_url else {"status": "not_configured"}
@@ -1257,6 +1367,12 @@ async def preflight(args: argparse.Namespace, env_file: Mapping[str, str], *, ru
         blockers.append({"target": args.photo_worker_url, "reason": photo_worker.get("error") or f"photo worker probe status {photo_worker.get('status')} (HTTP {photo_worker.get('http_status')})"})
     if not args.photo_worker_secret:
         blockers.append({"target": "MEMORY_SPARK_PHOTO_WORKER_SECRET", "reason": "private photo worker authentication secret is not configured"})
+    langfuse = dict(langfuse_receipt or {"status": "not_requested"})
+    if args.publish_langfuse and langfuse.get("status") != "configured":
+        blockers.append({
+            "target": "MEMORY_SPARK_LANGFUSE_*",
+            "reason": str(langfuse.get("error") or "Langfuse publisher could not be configured")[:240],
+        })
     receipt = {
         "schema_version": "memoir-five-case-preflight/1",
         "run_id": args.run_id,
@@ -1278,6 +1394,7 @@ async def preflight(args: argparse.Namespace, env_file: Mapping[str, str], *, ru
         "codex_binary": codex,
         "photo": photo,
         "judge": {"status": "unavailable", "reason": "No separate judge endpoint configured"},
+        "langfuse": langfuse,
         "calibration": calibration,
         "dataset": {"inputs_sha256": sha256_file(INPUTS_PATH), "expected_sha256": sha256_file(EXPECTED_PATH), "truth_sha256": sha256_file(TRUTH_PATH)},
         "safety": {"isolated_project_ids": [case["project_id"] for case in inputs["cases"]], "real_customer_data": False, "production_migration": False, "shared_service_restart": False},
@@ -1314,6 +1431,12 @@ def make_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--regrade", action="store_true", help="Re-evaluate saved round traces with the current deterministic contract; never calls the provider.")
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--skip-preflight", action="store_true")
+    parser.add_argument(
+        "--publish-langfuse", "--publish",
+        dest="publish_langfuse",
+        action="store_true",
+        help="Publish minimized per-round trajectories and deterministic grades to configured Langfuse.",
+    )
     return parser
 
 
@@ -1340,6 +1463,18 @@ async def main_async(args: argparse.Namespace) -> int:
         args.photo_worker_secret = configured_env("MEMORY_SPARK_PHOTO_WORKER_SECRET", env_file)
     if args.run_id is None:
         args.run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
+    langfuse_publisher = None
+    langfuse_receipt: dict[str, Any] = {"status": "not_requested"}
+    if args.publish_langfuse:
+        try:
+            langfuse_publisher = LangfusePublisher()
+            langfuse_receipt = {"status": "configured", "sdk": "langfuse-python-v4"}
+        except Exception as error:
+            langfuse_receipt = {
+                "status": "unavailable",
+                "error_type": type(error).__name__,
+                "error": str(error)[:240],
+            }
     run_dir = Path(args.output_root) / args.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = run_dir / "manifest.json"
@@ -1363,6 +1498,7 @@ async def main_async(args: argparse.Namespace) -> int:
             "truth_sha256": sha256_file(Path(args.truth)),
         },
         "provider": provider_config(env_file, args.provider_url, args.provider_model),
+        "langfuse": langfuse_receipt,
         "private_services": {
             "codex_worker_url": args.worker_url,
             "codex_worker_secret_configured": bool(args.worker_secret),
@@ -1402,13 +1538,21 @@ async def main_async(args: argparse.Namespace) -> int:
                 "worker_probe": {"status": "skipped"},
                 "photo_worker_probe": {"status": "skipped"},
                 "calibration": {"status": "skipped"},
+                "langfuse": langfuse_receipt,
                 "blockers": [],
                 "skipped": True,
                 "skip_reason": "--skip-preflight",
             }
         write_json(run_dir / "preflight.json", receipt)
     else:
-        receipt = await preflight(args, env_file, run_dir=run_dir, inputs=inputs, expected=expected_payload)
+        receipt = await preflight(
+            args,
+            env_file,
+            run_dir=run_dir,
+            inputs=inputs,
+            expected=expected_payload,
+            langfuse_receipt=langfuse_receipt,
+        )
     if args.preflight_only:
         print(json.dumps(receipt, ensure_ascii=False, indent=2))
         return 0 if not receipt["blockers"] else 3
@@ -1441,13 +1585,24 @@ async def main_async(args: argparse.Namespace) -> int:
         if case_id not in truth_by_id or case_id not in expected_by_id:
             raise ValueError(f"missing truth/expected record for {case_id}")
         async with semaphore:
-            return await run_case(case, expected_payload, expected_by_id[case_id], args=args, run_dir=run_dir, execution_mode=execution_mode, max_rounds=max_rounds)
+            return await run_case(
+                case,
+                expected_payload,
+                expected_by_id[case_id],
+                args=args,
+                run_dir=run_dir,
+                execution_mode=execution_mode,
+                max_rounds=max_rounds,
+                langfuse_publisher=langfuse_publisher,
+            )
 
     try:
         summaries = list(await asyncio.gather(*(execute_case(case) for case in selected)))
     except ValueError as error:
         print(str(error), file=sys.stderr)
         return 2
+    if langfuse_publisher is not None:
+        langfuse_publisher.flush()
     write_json(run_dir / "summary.json", {"status": "completed", "mode": args.mode, "cases": summaries})
     aggregate = {
         "status": "mock_only" if args.mode == "fixture" else "completed",
@@ -1458,6 +1613,10 @@ async def main_async(args: argparse.Namespace) -> int:
         "exact_rounds_per_case": all(item.get("exact_50_rounds") for item in summaries) if args.mode != "pilot" else False,
         "known_blockers": [item for item in summaries if item.get("unavailable_rounds")],
         "judge": {"status": "unavailable", "reason": "No separate judge endpoint configured"},
+        "langfuse": {
+            "requested": bool(args.publish_langfuse),
+            "status": langfuse_receipt.get("status"),
+        },
         "photo_searches": {
             "planned": 10,
             "executed": sum(int(item.get("photo_searches", {}).get("executed") or 0) for item in summaries),
@@ -1491,7 +1650,7 @@ async def main_async(args: argparse.Namespace) -> int:
     report_lines = ["# Memoir five-case evaluation", "", f"Status: **{aggregate['status']}**", f"Mode: `{args.mode}`", f"Run: `{args.run_id}`", "", "| Case | Rounds | Stage coverage | Round statuses |", "|---|---:|---|---|"]
     for item in summaries:
         report_lines.append(f"| {item['case_id']} | {item['rounds_observed']} | {'yes' if item['all_life_stages_observed'] else 'no'} | {json.dumps(item['round_status_counts'], ensure_ascii=False, sort_keys=True)} |")
-    report_lines += ["", "Live-provider status is recorded in `preflight.json`; fixture/model status is not live evidence unless `mode` is `live`.", f"External photo-search calls executed: {aggregate['photo_searches']['executed']} of 10 planned.", "Judge status: unavailable (no configured judge endpoint).", ""]
+    report_lines += ["", "Live-provider status is recorded in `preflight.json`; fixture/model status is not live evidence unless `mode` is `live`.", f"External photo-search calls executed: {aggregate['photo_searches']['executed']} of 10 planned.", "Judge status: unavailable (no configured judge endpoint).", f"Langfuse publish status: {langfuse_receipt.get('status')}.", ""]
     (run_dir / "report.md").write_text("\n".join(report_lines), encoding="utf-8")
     print(json.dumps(aggregate, ensure_ascii=False, indent=2))
     return 0

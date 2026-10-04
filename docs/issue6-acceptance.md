@@ -2,16 +2,32 @@
 
 Source: [Issue 6](https://github.com/bohui/copyme2.ai/issues/6), authored by `bohui`, labelled `ready-for-agent`. Full body and all comments were read before implementation and rechecked on 2026-10-04; `updated_at=2026-10-04T01:07:30Z`, zero comments. All 56 stories and all Implementation/Testing Decisions remain requirements.
 
-This is local implementation evidence against a pinned dependency, not final integrated acceptance. Independent cloud review, review-clear PR3/current-main integration, overlapping regressions and required CI checks remain gates. Nothing was merged, migrated against production, deployed, or restarted in the shared public stack.
+This is local implementation and integration evidence, not final acceptance. The task-only head and pinned PR3 code review are clear; the integrated head still requires independent cloud review and required CI. PR3's live/evaluation acceptance gates remain separate and open. No pull request was merged, migrated against production, deployed, or restarted in the shared public stack.
 
 ## Dependency and isolation
 
 - Task branch: `codex/issue6-shared-events`; checkout: `/tmp/memoir-issue6`.
-- Exact inherited dependency: PR3 commit `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198`.
-- Exact task-only diff range: `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198..HEAD`. Cloud reviewers must use this range to distinguish Issue6 work from inherited PR3 work.
-- The stacked PR targets `memoir-five-case-evaluation`. That branch's observed integrated head `d67f39085d0fc85f0f6713f66fa9f7bfc3c4a274` is still pending correction/review and is not incorporated here. Parent explicitly authorised publishing the pinned stacked draft.
-- Main was observed at `8e61b19b0a223578450684500263e3c7e7a1c010` after PR5's photo changes. Current-main/PR3 integration is a separate, required step before final acceptance.
+- Original inherited dependency/common ancestor: PR3 commit `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198`.
+- Independently reviewed pre-integration task head / first merge parent: `95178ea37e5211fc24ddb048271eadd37812e3a8`.
+- Exact reviewed PR3 integration pin / second merge parent: `28acda14f684aab6dd4dbbaf4fcc398e4d853b9b`.
+- Current integrated task-only review range: `28acda14f684aab6dd4dbbaf4fcc398e4d853b9b..HEAD`. Historical task-only range: `d8ef614c0af4a15b41d6cc9b1ed1b1cc9ef35198..95178ea37e5211fc24ddb048271eadd37812e3a8`.
+- Integration delta for auditing conflict decisions: `95178ea37e5211fc24ddb048271eadd37812e3a8..HEAD`; it includes reviewed upstream changes. The complete combined snapshot can be reviewed against `8e61b19b0a223578450684500263e3c7e7a1c010`.
+- The stacked PR targets `memoir-five-case-evaluation`. Parent explicitly authorised integrating the exact reviewed PR3 head into this isolated task branch, then pushing for integrated-diff review. This does not merge PR9 into PR3 or main.
+- Reviewed main `8e61b19b0a223578450684500263e3c7e7a1c010` is verified as an ancestor of the PR3 integration pin and includes PR5's photo changes. PR8 remains outside the pin and unmerged.
 - The dirty primary checkout and other agents' branches, ports, customer databases and services were excluded. Schema changes are only additive migrations `202610040001_shared_memory_events.sql` and `202610040002_memoir_skill_lanes.sql`; inherited migrations were not rewritten.
+
+### Integration decisions
+
+The reviewed PR3/main delta overlaps Issue6 only in `codex_runtime.py` and `codex_worker_service.py`. The worker merged cleanly. Four textual conflicts in the runtime were resolved as follows:
+
+1. `turn` keeps Issue6's narrator `source_kind` alongside PR3's optional supplied `trajectory` recorder and existing `user_response` distinction.
+2. `_workspace_extraction` accepts both `canonical_events` and `trajectory`; authenticated canonical indexing remains independent of Family display, while legacy extraction retains PR3's routing behavior.
+3. The broad workspace worker call forwards both the canonical-event flag and evaluation correlation/trajectory. Canonical mode's family recovery remains limited to `family_tree`; PR3's trajectory recording and failure redaction are preserved.
+4. `_worker_turn` accepts both the canonical-event flag and trajectory recorder, preserving request propagation as well as bounded worker error bodies and redacted failure receipts.
+
+The automatic worker merge retains canonical `author_timeline` schema/role, isolated preparation IDs and per-preparation execution locks alongside PR3's redacted worker failures and streaming receipts. No alternative timeline index or synchronous private draft mirror was restored. PR3's advisory/negative/mixed-turn timeline routing and photo fixes were imported exactly; its evaluation scripts and calibration contract were not reimplemented. No upstream migration changed after the common ancestor; both Issue6 additive migration files remain byte-identical to the reviewed pre-integration task head.
+
+The existing real storyteller/worker/PostgreSQL family workflow is now parameterized with and without trajectory recording. It verifies canonical-only workspace dispatch, relationship-driven tree updates and relevant corrections, no unrelated tree rewrite, narrator source-kind preservation and exactly four completed rounds. This existing-behavior integration check passed in both modes without a production repair. Merge-marker/syntax setup is not counted as behavioral red evidence.
 
 ## TDD and agreed seams
 
@@ -177,15 +193,15 @@ Run date: 2026-10-04, macOS 26.3.1 arm64, Python 3.12.11, pytest 8.4.2, FastAPI 
 
 | Check | Current result | Evidence |
 | --- | --- | --- |
-| Canonical PostgreSQL/story acceptance | 97 passed in 261.38s under Node 22.22.0; zero skips. | `tests/test_shared_memory_events_postgres.py`; `/tmp/issue6-receipt-pg-final.log` |
-| Actual Temporal/outbox/private-worker recovery | 6 passed in 86.73s under Node 22.22.0; zero skips. | `tests/test_memoir_lanes_temporal.py`; `/tmp/issue6-receipt-temporal-final.log` |
-| Relevant API/storage/family/preview/private-draft/runtime regressions | 182 passed in 23.18s under Node 22.22.0; zero skips. | Files in command below; `/tmp/issue6-receipt-regressions-final.log` |
-| Browser workspace/stage/family, including real client sends, correction conflicts and pending receipt/retry polling | 22 passed in 123.76s; zero skips. | Three browser files below; `/tmp/issue6-receipt-browser-final.log` |
+| Canonical PostgreSQL/story acceptance, including trace-aware canonical workflow | 98 passed in 263.43s under Node 22.22.0; zero skips. | `tests/test_shared_memory_events_postgres.py`; `/tmp/issue6-integrated-pg-final.log` |
+| Actual Temporal/outbox/private-worker recovery | 6 passed in 86.79s under Node 22.22.0; zero skips. | `tests/test_memoir_lanes_temporal.py`; `/tmp/issue6-integrated-temporal-final.log` |
+| Full affected API/storage/family/preview/runtime and PR3/main overlap regression union | 369 passed in 30.34s under Node 22.22.0; zero skips. | Files in command below; `/tmp/issue6-integrated-regressions-final.log` |
+| Browser workspace/stage/family, including real client sends, correction conflicts and pending receipt/retry polling | 22 passed in 128.29s; zero skips. | Three browser files below; `/tmp/issue6-integrated-browser-final.log` |
 | Composer contracts and progressive fixtures, Node 22.22.0 | 62 passed, zero skipped/cancelled/todo. | `node --test tests/*.test.mjs` |
-| Migration compatibility contracts | 3 passed; zero skips. | `tests/test_memoir_migration_contract.py`; `/tmp/issue6-receipt-migration-contract.log` |
+| Migration compatibility contracts | 3 passed; zero skips. | `tests/test_memoir_migration_contract.py`; `/tmp/issue6-integrated-migration-contract.log` |
 | Python compile | Passed. | `python -m compileall -q apps/api scripts tests/fixtures/issue6_controlled_app_server.py` |
-| Next production build, Node 22.22.0 | Passed after the pending-receipt read repair. | `next build --webpack`; `/tmp/issue6-receipt-web-build.log` |
-| Independent cloud rereview and current-main/PR3 integration | Original eight findings cleared at `385ab68`; pending-receipt P2 repair still needs fresh independent delta review, review-clear base integration and CI. | Parent handoff |
+| Next production build, Node 22.22.0 | Passed after reviewed PR3/main integration. | `next build --webpack`; `/tmp/issue6-integrated-web-build.log` |
+| Independent cloud integrated review and CI | Task-only `95178ea` and PR3 `28acda1` code reviews are clear; exact integration still needs fresh independent review and CI. PR3 live/evaluation acceptance remains separate and open. | Parent handoff |
 
 Canonical and Temporal commands, from the isolated checkout:
 ```sh
@@ -195,14 +211,17 @@ PATH=/opt/homebrew/bin:$PATH MEMOIR_TEST_POSTGRES_BACKEND=apple-container \
   .venv/bin/python -m pytest -q tests/test_memoir_lanes_temporal.py --tb=short
 ```
 
-Relevant regression command:
+Full affected regression and overlap command (includes inherited native commit/round checks, PR3 trajectory/evaluator/stream privacy and PR5 photo regressions):
 ```sh
-MEMOIR_TEST_POSTGRES_BACKEND=apple-container .venv/bin/python -m pytest -q \
+PATH=/opt/homebrew/bin:$PATH MEMOIR_TEST_POSTGRES_BACKEND=apple-container .venv/bin/python -m pytest -q \
   tests/test_agent_routes.py tests/test_agent_storage.py tests/test_codex_agent.py \
   tests/test_codex_worker.py tests/test_family_agent.py tests/test_family_context.py \
   tests/test_memoir_preview.py tests/test_private_drafts.py tests/test_private_draft_broker.py \
   tests/test_preview_jobs.py tests/test_temporal_dispatch.py tests/test_task_runtime.py \
-  tests/test_workspace_latency.py tests/test_response_stage_index.py tests/test_private_rounds_postgres.py
+  tests/test_workspace_latency.py tests/test_response_stage_index.py tests/test_private_rounds_postgres.py \
+  tests/test_agent_commit_postgres.py tests/test_trajectory_evaluation.py \
+  tests/test_memoir_five_case_evaluator.py tests/test_turn_stream.py tests/test_llm_place_photos.py \
+  skills/place-photo-research/tests/test_photo_research.py
 ```
 
 Browser command while the isolated frontend is listening at `127.0.0.1:48166`:
@@ -218,7 +237,7 @@ Failed aggregate attempts are not counted as passes: the first lost a disposable
 
 ## Remaining gates and handoff
 
-1. Independent cloud review of the exact pushed task head using the pinned task-only diff range.
+1. Independent cloud review of the exact pushed integrated head against reviewed PR3 `28acda14f684aab6dd4dbbaf4fcc398e4d853b9b`, with the first-parent integration delta available for auditing.
 2. Owner fixes and fresh cloud delta review for any findings.
-3. Deliberate integration of review-clear PR3/current main, preserving concurrent photo and timeline/private-round changes, then rerun overlapping integration checks and CI.
+3. Required CI and PR3's separate live/evaluation acceptance gates. The authorized integration and full affected controlled checks are completed locally; they do not satisfy those live/evaluation gates or merge/deployment approval. PR8 remains unmerged and outside this integration.
 4. Any merge that has production consequences still needs its applicable approval. This branch must not be self-approved, merged or deployed to bypass those gates.

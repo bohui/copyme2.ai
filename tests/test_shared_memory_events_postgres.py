@@ -820,7 +820,8 @@ def test_active_composer_keeps_frozen_milestone_and_locale_while_later_targets_a
     assert catchup['coverage_round'] == catchup['milestone'] == 20 and catchup['locale'] == 'zh-CN'
 
 
-def test_story_workspace_only_dispatches_relationship_tree_and_never_duplicate_timeline(sql, tmp_path, monkeypatch):
+@pytest.mark.parametrize('trace_enabled', [False, True])
+def test_story_workspace_only_dispatches_relationship_tree_and_never_duplicate_timeline(sql, tmp_path, monkeypatch, trace_enabled):
     import sys
     import httpx
     from fastapi import FastAPI
@@ -850,29 +851,34 @@ def test_story_workspace_only_dispatches_relationship_tree_and_never_duplicate_t
         return await provider.turn(payload)
     runtime = CodexRuntime(home_root=tmp_path / 'api-homes', worker_url='http://controlled-worker.invalid',
         worker_secret='synthetic-worker-secret', worker_transport=httpx.ASGITransport(app=app))
+    options = {'include_trajectory':trace_enabled, 'source_kind':'narrator_transcript' if trace_enabled else 'narrator_chat'}
     async def scenario():
-        await runtime.turn(storage, 'I started school around 1964.', project_id='project', client_turn_id=TURN)
+        first = await runtime.turn(storage, 'I started school around 1964.', project_id='project', client_turn_id=TURN, **options)
+        if trace_enabled:
+            assert first['trajectory']['final']['status'] == 'completed'
         assert not any(c['family'] or c['focus'] == 'author_timeline' for c in calls if c['role'] == 'workspace')
         assert all(c['canonical'] for c in calls if c['role']=='workspace')
         assert storage.family_context('project') is None
         calls.clear()
-        await runtime.turn(storage, 'My father June taught me gardening.', project_id='project', client_turn_id='00000000-0000-4000-8000-000000000002')
+        await runtime.turn(storage, 'My father June taught me gardening.', project_id='project', client_turn_id='00000000-0000-4000-8000-000000000002', **options)
         assert sum(c['focus'] == 'family_tree' for c in calls) == 1
         document = storage.family_context('project')
         assert document and document['people'][0]['name'] == 'June'
         assert document['timeline'] == []
         person_id=document['people'][0]['id']
         calls.clear()
-        await runtime.turn(storage,'Actually, June was born in 1950.',project_id='project',client_turn_id='00000000-0000-4000-8000-000000000003')
+        await runtime.turn(storage,'Actually, June was born in 1950.',project_id='project',client_turn_id='00000000-0000-4000-8000-000000000003', **options)
         assert sum(c['focus']=='family_tree' for c in calls)==1
         corrected=storage.family_context('project')
         assert corrected['people'][0]['id']==person_id and corrected['people'][0]['birth_date_expression']=='1950'
         calls.clear()
-        await runtime.turn(storage,'The yellow boat crossed the bay.',project_id='project',client_turn_id='00000000-0000-4000-8000-000000000004')
+        await runtime.turn(storage,'The yellow boat crossed the bay.',project_id='project',client_turn_id='00000000-0000-4000-8000-000000000004', **options)
         assert not any(c['focus']=='family_tree' for c in calls)
         assert storage.family_context('project')==corrected
     asyncio.run(scenario())
-    assert rpc(sql, 'read_user_memory_events', "'project'")['processing']['pending_inputs'] == 4
+    view = rpc(sql, 'read_user_memory_events', "'project'")
+    assert view['processing']['pending_inputs'] == view['completed_rounds'] == 4
+    assert {source['kind'] for source in view['sources']} == {options['source_kind']}
 
 
 @pytest.mark.parametrize('precision,expression,years', [

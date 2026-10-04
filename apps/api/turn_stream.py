@@ -59,9 +59,15 @@ async def turn_events(run, cleanup=None):
         try:
             result = await run(Emitter())
             await queue.put({'type': 'result', 'data': result})
-        except Exception:
+        except Exception as error:
             # Never expose provider credentials, private artifacts or raw exceptions.
-            await queue.put({'type': 'error', 'message': 'The response could not be completed or saved. Please try again.'})
+            event = {'type': 'error', 'message': 'The response could not be completed or saved. Please try again.'}
+            partial_trajectory = getattr(error, 'trajectory', None)
+            if isinstance(partial_trajectory, dict):
+                # Worker-side trajectories are already recorder-redacted. Keep
+                # the partial evidence while never serializing the exception.
+                event['trajectory'] = partial_trajectory
+            await queue.put(event)
 
     task = asyncio.create_task(produce())
     conversation_saved = False
