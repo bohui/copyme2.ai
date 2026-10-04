@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+import asyncio
 
 
 @workflow.defn(name="MemorySparkJob")
@@ -46,3 +47,33 @@ class PrivateMemoirDraftWorkflow:
         return await workflow.execute_activity('memoir.private_draft', job_id,
             start_to_close_timeout=timedelta(minutes=30),
             retry_policy=RetryPolicy(maximum_attempts=3))
+
+
+@workflow.defn(name='MemoirSkillLane')
+class MemoirSkillLane:
+    """One stable project/skill workflow; PostgreSQL is the input authority."""
+    def __init__(self):
+        self.notified = False
+
+    @workflow.signal(name='notify')
+    def notify(self, change_sequence: int = 0):
+        # Only safe sequence metadata is accepted. Content stays in the activity.
+        self.notified = True
+
+    @workflow.run
+    async def run(self, lane_id: str) -> dict:
+        for _ in range(100):
+            self.notified = False
+            result = await workflow.execute_activity('memoir.execute_lane', lane_id,
+                start_to_close_timeout=timedelta(minutes=31),
+                retry_policy=RetryPolicy(initial_interval=timedelta(seconds=2),
+                    maximum_interval=timedelta(seconds=30), maximum_attempts=3))
+            if result['status'] == 'retry_required':
+                return {'status': 'retry_required'}
+            if result['status'] in {'saved', 'finished'} and not result.get('pending') and not self.notified:
+                return {'status': 'finished'}
+            try:
+                await workflow.wait_condition(lambda: self.notified, timeout=timedelta(seconds=5))
+            except asyncio.TimeoutError:
+                pass
+        workflow.continue_as_new(lane_id)

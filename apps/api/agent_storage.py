@@ -269,6 +269,47 @@ class UserStorage:
             'user_id':f'eq.{self.user_id}', 'limit':'1'}).json()
         return rows[0] if rows else None
 
+    def accept_narrator_source(self, project_id, client_turn_id, text, *, kind='narrator_chat', language='en-AU'):
+        """Commit original evidence and its durable intent before reply delivery."""
+        return self.request('POST', '/rest/v1/rpc/accept_user_narrator_source', json={
+            'p_project_id': project_id, 'p_client_turn_id': str(UUID(client_turn_id)),
+            'p_text': text, 'p_kind': kind, 'p_language': language,
+        }).json()
+
+    def memory_events(self, project_id):
+        return self.request('POST', '/rest/v1/rpc/read_user_memory_events',
+                            json={'p_project_id': project_id}).json()
+
+    def saved_memoir_draft(self, project_id, language=None):
+        locale = language or self.profile().get('preferred_language') or 'en-AU'
+        view = self.request('POST', '/rest/v1/rpc/read_user_memoir_draft', json={
+            'p_project_id': project_id, 'p_locale': locale,
+        }).json()
+        if view['revision'] == 0:
+            from .legacy_memoir import import_saved_cache
+            if import_saved_cache(self, project_id, locale):
+                return self.request('POST', '/rest/v1/rpc/read_user_memoir_draft', json={
+                    'p_project_id': project_id, 'p_locale': locale,
+                }).json()
+        return view
+
+    def retry_memoir_lane(self, project_id, skill):
+        return self.request('POST', '/rest/v1/rpc/retry_user_memoir_lane', json={
+            'p_project_id': project_id, 'p_skill': skill,
+        }).json()
+
+    def change_narrator_source(self, project_id, source_id, expected_version, action, text=None):
+        return self.request('POST', '/rest/v1/rpc/change_user_narrator_source', json={
+            'p_project_id': project_id, 'p_source_id': source_id, 'p_expected_version': expected_version,
+            'p_action': action, 'p_text': text,
+        }).json()
+
+    def correct_memory_event(self, project_id, event_id, expected_revision, patch, statement):
+        return self.request('POST', '/rest/v1/rpc/correct_user_memory_event', json={
+            'p_project_id': project_id, 'p_event_id': event_id, 'p_expected_revision': expected_revision,
+            'p_patch': patch, 'p_statement': statement,
+        }).json()
+
     def private_draft_rounds(self, project_id):
         return self.request('GET', '/rest/v1/user_completed_round', params={
             'project_id':f'eq.{project_id}', 'user_id':f'eq.{self.user_id}',

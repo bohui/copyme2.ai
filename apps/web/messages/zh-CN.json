@@ -449,7 +449,20 @@
       "familyPhotoInvalidType": "请选择 JPEG、PNG 或 WebP 图片。",
       "familyPhotoTooLarge": "请选择小于 10 MB 的照片。",
       "familyPhotoFailed": "照片未能保存，请重试。",
-      "familyUnlinked": "这些人物的关系尚待确认。"
+      "familyUnlinked": "这些人物的关系尚待确认。",
+      "unplacedStage": "人生阶段尚不明确",
+      "editEventTags": "修改时间",
+      "eventOriginalEvidence": "原始叙述",
+      "eventLifeStage": "人生阶段",
+      "eventDateExpression": "记忆中的日期",
+      "eventDatePrecision": "日期精确程度",
+      "eventYearStart": "有依据的起始年份（可选）",
+      "eventYearEnd": "有依据的结束年份（可选）",
+      "eventCorrectionStatement": "用自己的话说明更正",
+      "saveEventTags": "保存更正",
+      "cancelEventEdit": "取消",
+      "eventRevisionConflict": "这段记忆已更新。请重新查看后再次更正。",
+      "eventCorrectionUnavailable": "未能保存更正。请核对记忆中的日期后重试。"
     },
     "storyFlow": {
       "roundProgress": "回忆中 · {current}",

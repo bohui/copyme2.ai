@@ -195,6 +195,7 @@ export function preparePlan(r) {
       if(!asset || !asset.allowed || asset.status!=='active' || !asset.capabilities[r.target.medium]) reasons.push('media_missing_changed_or_restricted');
     }
     if(chapterText(p.chapter) && countWords(chapterText(p.chapter),r.target.locale)>HARD_MAX) reasons.push('over_word_limit');
+    if(p.chapter.event_ids.some(id=>(r.context?.dirty_event_ids??[]).includes(id))) reasons.push('canonical_event_changed');
     const newEvents=events.filter(e=>p.chapter.period_ids.includes(e.period_id)&&!p.chapter.event_ids.includes(e.id));
     if(newEvents.length) reasons.push('new_events_in_period');
     return {chapter_id:p.chapter.id,base_revision:p.revision,protected:p.approved||p.human_locked,

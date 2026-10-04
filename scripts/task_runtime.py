@@ -1,19 +1,45 @@
 """Temporal execution of deterministic memoir tasks from the durable outbox."""
 import asyncio
 import logging
+import os
 
 from temporalio import activity
 from temporalio.client import Client, WorkflowExecutionStatus
-from temporalio.common import WorkflowIDReusePolicy
+from temporalio.common import WorkflowIDReusePolicy, WorkflowIDConflictPolicy
 from temporalio.exceptions import ApplicationError, WorkflowAlreadyStartedError
 from temporalio.worker import Worker
 
 from apps.api.memoir_tasks import execute_task
 from apps.api.task_queue import configured_queue
-from apps.api.temporal_workflows import MemoirTaskWorkflow, PrivateMemoirDraftWorkflow
+from apps.api.temporal_workflows import MemoirTaskWorkflow, PrivateMemoirDraftWorkflow, MemoirSkillLane
 from apps.api.private_draft_jobs import PrivateDraftJobs
 
 log = logging.getLogger(__name__)
+
+
+@activity.defn(name='memoir.execute_lane')
+async def execute_memoir_lane(lane_id: str) -> dict:
+    from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
+    broker = MemoirLaneBroker()
+    try:
+        result = await MemoryEventWorker(broker).execute_lane(lane_id)
+        pending = lane_id in await broker.rpc('pending_memoir_lanes', p_limit=100)
+        return {'status': result['status'], 'pending': pending}
+    finally:
+        await broker.client.aclose()
+
+
+async def dispatch_memoir_lanes_once(client, broker, task_queue):
+    lane_ids = await broker.drain_once()
+    lane_ids.extend(await broker.rpc('pending_memoir_lanes', p_limit=100))
+    handles = []
+    for lane_id in dict.fromkeys(lane_ids):
+        handles.append(await client.start_workflow(MemoirSkillLane.run, lane_id,
+            id='memoir-lane:' + lane_id, task_queue=task_queue,
+            id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+            start_signal='notify', start_signal_args=[0]))
+    return handles
 
 
 @activity.defn(name='memoir.private_draft')
@@ -63,10 +89,17 @@ async def run_task_worker(address, namespace, task_queue, interval):
             log.warning('Waiting for Temporal connection')
             await asyncio.sleep(interval)
     drafts=PrivateDraftJobs(queue.path)
-    async with Worker(client, task_queue=task_queue, workflows=[MemoirTaskWorkflow,PrivateMemoirDraftWorkflow],
-                      activities=[execute_memoir_task,execute_private_draft], max_concurrent_activities=4):
+    from apps.api.memory_event_worker import MemoirLaneBroker
+    broker = MemoirLaneBroker() if os.getenv('SUPABASE_URL') and os.getenv('SUPABASE_SECRET_KEY') else None
+    async with Worker(client, task_queue=task_queue, workflows=[MemoirTaskWorkflow,PrivateMemoirDraftWorkflow,MemoirSkillLane],
+                      activities=[execute_memoir_task,execute_private_draft,execute_memoir_lane], max_concurrent_activities=4):
         while True:
-            for draft_id in await asyncio.to_thread(drafts.pending_ids):
+            if broker is not None:
+                try:
+                    await dispatch_memoir_lanes_once(client, broker, task_queue)
+                except Exception:
+                    log.warning('Memoir lane dispatch deferred')
+            for draft_id in await asyncio.to_thread(drafts.pending_ids) if broker is None else []:
                 try:
                     await client.start_workflow(PrivateMemoirDraftWorkflow.run,draft_id,id=f'memoir-private-draft:{draft_id}',
                         task_queue=task_queue,id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY)

@@ -26,6 +26,7 @@ class TurnInput(BaseModel):
     text: str = Field(min_length=1, max_length=100000)
     client_turn_id: UUID | None = None
     conversation_text: str | None = Field(default=None, min_length=1, max_length=100000)
+    source_kind: Literal['narrator_chat', 'narrator_transcript'] = 'narrator_chat'
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
     # The UI locale is not the interview language.  Omit this when the
     # storyteller has not explicitly chosen a conversation language so the
@@ -172,6 +173,7 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
             options = {
                 'project_id': payload.project_id,
                 'language': payload.language,
+                'source_kind': payload.source_kind,
                 'on_delta': emit,
                 'on_event': emit.event,
                 'user_response': False,
@@ -236,7 +238,8 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
             media_type='application/x-ndjson', headers=STREAM_HEADERS,
         )
     try:
-        options = {'project_id': payload.project_id, 'language': payload.language}
+        options = {'project_id': payload.project_id, 'language': payload.language,
+                   'source_kind': payload.source_kind}
         if payload.first_reply_localization:
             options['first_reply_localization'] = True
         if payload.conversation_text is not None:

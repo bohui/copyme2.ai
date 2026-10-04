@@ -4,6 +4,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
+from uuid import uuid4
 
 import pytest
 
@@ -16,23 +18,45 @@ NEW = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 @pytest.fixture(scope='module')
 def database():
-    if os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql')):
+    container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container'
+    if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
     with tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir='/tmp') as directory:
         data = str(Path(directory) / 'data')
-        subprocess.run(['initdb', '-D', data, '-A', 'trust', '--no-locale'],
-                       check=True, capture_output=True)
-        subprocess.run(['pg_ctl', '-D', data, '-l', str(Path(directory) / 'server.log'),
-                        '-o', f"-k {directory} -h ''", '-w', 'start'],
-                       check=True, capture_output=True)
+        if container_backend:
+            pg_container_name = 'memoir-issue6-pg-' + uuid4().hex[:12]
+            subprocess.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
+                '--cpus', '1', '--memory', '512M', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
+                'postgres:18.3', 'postgres', '-c', 'listen_addresses='], check=True, capture_output=True)
+            try:
+                until = time.monotonic() + 30
+                while True:
+                    # The image briefly starts a bootstrap server, then restarts
+                    # it. Only the final server is a stable test boundary.
+                    logs = subprocess.run(['container', 'logs', pg_container_name], capture_output=True, text=True)
+                    initialized = 'PostgreSQL init process complete; ready for start up.' in logs.stdout + logs.stderr
+                    ready = subprocess.run(['container', 'exec', pg_container_name, 'pg_isready', '-h', '/var/run/postgresql', '-U', 'postgres'], capture_output=True).returncode == 0
+                    if initialized and ready:
+                        break
+                    if time.monotonic() >= until:
+                        raise RuntimeError('Disposable PostgreSQL container did not become ready')
+                    time.sleep(.25)
+            except BaseException:
+                subprocess.run(['container', 'stop', pg_container_name], check=True, capture_output=True)
+                raise
+            command = ['container', 'exec', '--interactive', pg_container_name, 'psql', '-U', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres']
+        else:
+            subprocess.run(['initdb', '-D', data, '-A', 'trust', '--no-locale'], check=True, capture_output=True)
+            subprocess.run(['pg_ctl', '-D', data, '-l', str(Path(directory) / 'server.log'),
+                            '-o', f"-k {directory} -h ''", '-w', 'start'], check=True, capture_output=True)
+            command = ['psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-h', directory, '-d', 'postgres']
         def sql(query, *, check=True):
-            result = subprocess.run(['psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1',
-                                     '-h', directory, '-d', 'postgres'], input=query,
+            result = subprocess.run(command, input=query,
                                     capture_output=True, text=True)
             if check:
                 assert result.returncode == 0, result.stderr
             return result
-        sql.command = ['psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-h', directory, '-d', 'postgres']
+        sql.command = command
         try:
             sql('''
                 create role anon;
@@ -55,8 +79,8 @@ def database():
             sql(f"insert into auth.users values ('{OWNER}'), ('{OTHER}');")
             yield sql
         finally:
-            subprocess.run(['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'],
-                           check=True, capture_output=True)
+            subprocess.run(['container', 'stop', pg_container_name] if container_backend else
+                           ['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'], check=True, capture_output=True)
 
 
 @pytest.fixture

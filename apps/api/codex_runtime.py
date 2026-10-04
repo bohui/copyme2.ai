@@ -720,6 +720,7 @@ class CodexRuntime:
                    first_reply_localization: bool = False,
                    conversation_text: str | None = None,
                    client_turn_id: str | None = None,
+                   source_kind: str = 'narrator_chat',
                    user_response: bool = True):
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         visible = VisibleText()
@@ -740,6 +741,7 @@ class CodexRuntime:
         # through the server-owned bounded greeting route, which passes this
         # internal flag explicitly; free-form client text never selects it.
         is_user_round = bool(user_response)
+        accepted_source = None
         if client_turn_id and project_id and isinstance(storage, UserStorage):
             previous_turn = await asyncio.to_thread(storage.agent_turn_by_id, project_id, client_turn_id)
             if previous_turn:
@@ -778,6 +780,12 @@ class CodexRuntime:
                 recall_access = await lease.io(storage_recall_status, storage, entitlement)
                 if recall_access['payment_required']:
                     return {'project_id': project_id, 'recall_status': recall_access, 'reply': None}
+            if is_user_round and project_id and isinstance(storage, UserStorage):
+                from .conversation_locale import detect_reply_locale
+                client_turn_id = client_turn_id or turn_id
+                accepted_source = await lease.io(storage.accept_narrator_source,
+                    project_id, client_turn_id, saved_text, kind=source_kind,
+                    language=detect_reply_locale(saved_text) or language)
             conversation_rounds_completed = (
                 recall_access.get('rounds_completed')
                 if isinstance(recall_access, dict) else None
@@ -885,6 +893,7 @@ class CodexRuntime:
                     user_id=user_id, memories=memories, profile=profile,
                     place_journey=current_place_journey, family_enabled=family_enabled,
                     family_context=existing_family_context, project_id=project_id,
+                    canonical_events=isinstance(storage, UserStorage),
                     text=text, language=language, on_place=preview_place,
                 ))
                 async def settle_extraction():
@@ -1209,6 +1218,7 @@ class CodexRuntime:
                     },
                 )
             response = {
+                'accepted_source_id': accepted_source['id'] if accepted_source else None,
                 'recall_status': recall_access,
                 'turn_id': turn_id,
                 'source_sequence': turn_sequence,
@@ -1351,7 +1361,8 @@ class CodexRuntime:
 
     async def _workspace_extraction(self, *, user_id, memories, profile,
                                      place_journey, family_enabled,
-                                     family_context, project_id, text, language, on_event=None, on_place=None):
+                                     family_context, project_id, text, language, on_event=None, on_place=None,
+                                     canonical_events=False):
         """Run marker extraction in a separate, non-conversational pass."""
         text = original_conversation_text(text)
         marker_buffer = ''
@@ -1390,7 +1401,7 @@ class CodexRuntime:
                     memories=memories,
                     profile=profile,
                     place_journey=place_journey,
-                    family_enabled=family_enabled,
+                    family_enabled=family_enabled and not canonical_events,
                     family_context=family_context,
                     project_id=project_id,
                     text=text,
@@ -1410,10 +1421,8 @@ class CodexRuntime:
                     _, primary_updates = extract_family_skill_updates(reply)
                     _, primary_skills = combine_family_skill_updates(primary_updates)
                     present = set(primary_skills)
-                    for focus, skill_name in (
-                        ('family_tree', 'family_tree'),
-                        ('author_timeline', 'author_timeline'),
-                    ):
+                    focuses = [('family_tree', 'family_tree')] if canonical_events else [('family_tree', 'family_tree'), ('author_timeline', 'author_timeline')]
+                    for focus, skill_name in focuses:
                         if skill_name in present or not _workspace_focus_is_relevant(text, focus, family_context):
                             continue
                         try:
@@ -1566,6 +1575,7 @@ class CodexRuntime:
                 family_enabled=family_enabled,
                 family_context=existing_family_context,
                 project_id=project_id,
+                canonical_events=isinstance(storage, UserStorage),
                 text=text,
                 language=language,
                 **({'on_event': progress.harness_event} if on_event else {}),
@@ -1590,6 +1600,13 @@ class CodexRuntime:
                     'tasks_requested': len(task_requests),
                 })
 
+        if isinstance(storage, UserStorage):
+            family_skills = [skill for skill in family_skills if skill == 'family_tree']
+            if parsed_family_context:
+                parsed_family_context = {**parsed_family_context, 'timeline': []}
+                if not _workspace_focus_is_relevant(text, 'family_tree', existing_family_context) or not (parsed_family_context.get('people') or parsed_family_context.get('relationships')):
+                    parsed_family_context = None
+                    family_skills = []
         if not legacy_markers:
             await progress.update('memory-context', 'Context extraction completed', '背景提取已完成', skill='memoir-memory-context', status='completed')
         # Mira supplies the assignment for this particular response. Word
@@ -1840,14 +1857,6 @@ class CodexRuntime:
                     'workspace_status': 'ready',
                 },
             })
-        if project_id and isinstance(storage, UserStorage):
-            from .private_drafts import synchronize
-            try:
-                await asyncio.to_thread(synchronize, storage, project_id, language)
-            except (OSError, ValueError, RuntimeError, httpx.HTTPError):
-                # The transactional database outbox remains authoritative.
-                # Next authenticated refresh reconciles an interrupted mirror.
-                pass
         return {
             'place_journey': place_journey,
             'place_journey_change': place_journey_change,

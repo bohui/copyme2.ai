@@ -40,6 +40,7 @@ from .agent_lock import AgentTurnBusyError
 from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
 from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
+from .memory_events import extraction_instructions, extraction_schema
 
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
@@ -63,9 +64,10 @@ class WorkerTurnInput(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
-    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer'] = 'collector'
+    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline'] = 'collector'
     extraction_focus: Literal['family_tree', 'author_timeline'] | None = None
-    composer_phase: Literal['index', 'draft', 'review'] = 'draft'
+    composer_phase: Literal['index', 'prepare', 'draft', 'review'] = 'draft'
+    preparation_id: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
     # Present only for local/CI evaluation. Normal product turns do not carry
     # evaluation IDs and therefore do not return trajectory evidence.
@@ -77,7 +79,7 @@ class WorkerTurnInput(BaseModel):
 
     @model_validator(mode='after')
     def bound_conversation_input(self):
-        if self.agent_role != 'composer' and len(self.text) > 100000:
+        if self.agent_role not in {'composer', 'author_timeline'} and len(self.text) > 100000:
             raise ValueError('Conversation input exceeds the supported limit')
         return self
 
@@ -233,13 +235,14 @@ class CodexWorker:
             streaming=bool(on_delta or on_event),
         )
         try:
-            async with self._lock(user_id, payload.agent_role):
+            execution_role = self._execution_role(payload)
+            async with self._lock(user_id, execution_role):
                 if payload.agent_role == 'composer':
                     await self._ensure_composer_provider()
                 # Shared-volume lock also covers API disconnect/lease expiry and
                 # multiple worker processes. Collector and workspace passes have
                 # separate homes and therefore separate locks.
-                lock_key = user_id if payload.agent_role == 'collector' else f'{user_id}-{payload.agent_role}'
+                lock_key = user_id if payload.agent_role == 'collector' else f'{user_id}-{execution_role}'
                 lock_name = hashlib.sha256(lock_key.encode()).hexdigest()[:32]
                 with (self.home_root / f'.turn-{lock_name}.lock').open('a') as lock:
                     try:
@@ -291,10 +294,18 @@ class CodexWorker:
         except (OSError, TimeoutError):
             raise ComposerProviderUnavailable('The model provider is unavailable') from None
 
+    @staticmethod
+    def _execution_role(payload):
+        if payload.agent_role == 'composer' and payload.composer_phase == 'prepare':
+            if not payload.preparation_id:
+                raise ValueError('Preparation requires an opaque task ID')
+            return 'composer-' + payload.preparation_id
+        return payload.agent_role
+
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
         user_id = str(payload.user_id)
         uid = self._uid_for(user_id)
-        home = self._home(user_id, uid, payload.agent_role)
+        home = self._home(user_id, uid, self._execution_role(payload))
         model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
                                   if payload.agent_role == 'composer' else self.model)
         correlation = normalise_correlation(payload.evaluation)
@@ -357,6 +368,8 @@ class CodexWorker:
             instructions = build_language_intake_prompt()
         elif payload.agent_role == 'composer':
             instructions = composer_instructions(payload.composer_phase)
+        elif payload.agent_role == 'author_timeline':
+            instructions = extraction_instructions()
         # thread/start and thread/resume already install baseInstructions.
         # Repeating them as user input doubles prompt processing each turn.
         prompt = f"Storyteller message:\n{payload.text}"
@@ -382,7 +395,7 @@ class CodexWorker:
                 else:
                     result = await connection.request("thread/start", {
                         "cwd": str(home),
-                        "ephemeral": payload.agent_role in {'memory_context', 'workspace', 'composer'},
+                        "ephemeral": payload.agent_role in {'memory_context', 'workspace', 'composer', 'author_timeline'},
                         "modelProvider": "llm_provider",
                         "model": model,
                         "approvalPolicy": "never",
@@ -394,7 +407,8 @@ class CodexWorker:
                     thread_id,
                     prompt,
                     **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else
-                       {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else {}),
+                       {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else
+                       {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
                     **({'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}

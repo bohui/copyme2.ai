@@ -449,7 +449,20 @@
       "familyPhotoInvalidType": "Choose a JPEG, PNG or WebP image.",
       "familyPhotoTooLarge": "Choose a photo smaller than 10 MB.",
       "familyPhotoFailed": "The photo could not be saved. Please try again.",
-      "familyUnlinked": "These people’s connections are still being explored."
+      "familyUnlinked": "These people’s connections are still being explored.",
+      "unplacedStage": "Stage not yet known",
+      "editEventTags": "Edit timing",
+      "eventOriginalEvidence": "Original evidence",
+      "eventLifeStage": "Life stage",
+      "eventDateExpression": "Date as remembered",
+      "eventDatePrecision": "Date precision",
+      "eventYearStart": "Supported start year (optional)",
+      "eventYearEnd": "Supported end year (optional)",
+      "eventCorrectionStatement": "Your correction, in your own words",
+      "saveEventTags": "Save correction",
+      "cancelEventEdit": "Cancel",
+      "eventRevisionConflict": "This memory changed. Reload it and try your correction again.",
+      "eventCorrectionUnavailable": "The correction could not be saved. Check the remembered date and try again."
     },
     "storyFlow": {
       "roundProgress": "Memory recall · {current}",

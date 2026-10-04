@@ -644,7 +644,7 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
   ];
 }
 
-async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null) {
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat") {
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
@@ -840,7 +840,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
   const isGreeting = serverAction === "begin" || serverAction === "continue";
   const body = isGreeting
     ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }
-    : { text, conversation_text: conversationText, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization };
+    : { text, conversation_text: conversationText, source_kind: sourceKind, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization };
   const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
@@ -1428,9 +1428,10 @@ function applyPersistedFamilyContext(context) {
     return saved?.photo_url && !person.photo_url ? { ...person, photo_url: saved.photo_url } : person;
   }) : [];
   state.relationships = Array.isArray(context.relationships) ? context.relationships : [];
-  state.timeline = Array.isArray(context.timeline) ? context.timeline : [];
+  if (state.memoryEventProject !== context.project_id) state.timeline = Array.isArray(context.timeline) ? context.timeline : [];
 }
 
+let memoryEventTimer = null;
 async function refreshFamilyContext() {
   if (!state.familyFeaturesEnabled || !state.project?.id || !state.supabase?.accessToken) return null;
   const projectId = state.project.id;
@@ -1439,6 +1440,19 @@ async function refreshFamilyContext() {
     const body = await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`);
     if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return null;
     if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
+    const snapshot = await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`);
+    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return null;
+    if (Array.isArray(snapshot?.events)) {
+      state.memoryEventProject = projectId;
+      state.timeline = snapshot.events.map(event => ({ ...event,
+        date_expression: event.temporal?.expression || "unknown",
+        start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
+        end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
+        precision: event.temporal?.precision || "unknown", canonical: true }));
+      render();
+      if (memoryEventTimer) clearTimeout(memoryEventTimer);
+      if (snapshot.processing?.pending_inputs) memoryEventTimer = setTimeout(refreshFamilyContext, 15000);
+    }
     return body?.family_context || null;
   } catch {
     return null;
@@ -2678,7 +2692,7 @@ function workspaceContentAvailable() {
   // Public cue metadata belongs in the conversation until a current place cue
   // activates the place journey. Counting it here creates an empty Places /
   // Pictures workspace and hides the cue cards that should remain inline.
-  return Boolean(workspaceTabs().length || placeMapTarget(placeWorkspaceSelection() || state.placeJourney));
+  return Boolean(workspaceTabs().length || state.privateDraft?.preview || state.privateDraft?.updating || state.privateDraft?.error || placeMapTarget(placeWorkspaceSelection() || state.placeJourney));
 }
 
 function workspaceHasContent() {
@@ -2743,7 +2757,7 @@ function workspaceDetail() {
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${!composing && (state.placeJourney || state.privateDraft) ? lifeStageNavigator() : ""}${composing ? "" : privateDraftPreview()}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${!composing && (state.placeJourney || state.privateDraft) ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
 }
 
 let privateDraftTimer = null;
@@ -2752,7 +2766,7 @@ async function refreshPrivateDraft() {
   const projectId=state.project?.id, owner=state.supabase?.user?.id;
   if (!projectId || !state.supabase?.accessToken) return;
   try {
-    const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(conversationLanguage() || currentUiLocale())}`);
+    const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(profile().preferred_language || currentUiLocale())}`);
     if (state.project?.id!==projectId || state.supabase?.user?.id!==owner) return;
     state.privateDraft=result;
     render();
@@ -2762,7 +2776,7 @@ async function refreshPrivateDraft() {
 
 async function retryPrivateDraft() {
   await storyApi('/v1/story/private-draft/retry',{method:'POST',body:JSON.stringify({
-    project_id:state.project.id,language:conversationLanguage() || currentUiLocale()})});
+    project_id:state.project.id,language:profile().preferred_language || currentUiLocale()})});
   await refreshPrivateDraft();
 }
 
@@ -2771,7 +2785,7 @@ function privateDraftPreview() {
   if (!saved || !saved.preview && !saved.updating && !saved.error) return "";
   const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
   const preview=saved.preview;
-  const status=saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : t('privateDraftSaved',{round:saved.milestone});
+  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
   return `<section class="private-draft-status"><p>${status}</p>${preview ? `<details><summary>${t('readSavedDraft')}</summary><h3>${escapeHtml(preview.title)}</h3>${formatText(preview.text)}</details>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
 }
 
@@ -2906,9 +2920,10 @@ function composingWorkspaceActive() {
 }
 
 function workspaceTabs() {
-  if (!composingWorkspaceActive()) return [];
   const t = (key) => translate(`Memoir.workspace.${key}`);
-  return [["family", t("family")], ["timeline", t("timeline")], ["memoir", t("memoir")]];
+  const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
+  return composingWorkspaceActive() ? [...premium, ["memoir", t("memoir")]]
+    : premium.filter(([key]) => key === "timeline" ? state.timeline.length : state.people.length);
 }
 
 function activeWorkspaceTab() {
@@ -3200,9 +3215,49 @@ function timelineWorkspace() {
       const place = item.place ? ` · ${item.place}` : "";
       details = `${escapeHtml(start)} · ${precision}${escapeHtml(place)}`;
     }
-    return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}</small></div></article>`;
+    const stage = item.life_stage ? (item.life_stage === "unplaced" ? t("unplacedStage") : escapeHtml(lifeStageText(item.life_stage,"label"))) : "";
+    const edit = item.canonical && state.familyFeaturesEnabled ? `<button type="button" class="text-button" data-edit-memory-event="${escapeHtml(item.id)}">${t("editEventTags")}</button>` : "";
+    const evidence = item.canonical && item.source_refs?.length ? `<details><summary>${t("eventOriginalEvidence")}</summary>${item.source_refs.map(ref => `<p>${escapeHtml(ref.quote || "")}</p>`).join("")}</details>` : "";
+    return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}${stage ? ` · ${stage}` : ""}</small>${edit}${evidence}${state.memoryEventEdit?.id === item.id ? memoryEventEditForm() : ""}</div></article>`;
   }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
   return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="timeline-list">${items}</div></div>${referencesWorkspace()}</div>`;
+}
+
+function memoryEventEditForm() {
+  const edit = state.memoryEventEdit;
+  const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const field = (name,label,type="text") => `<label>${t(label)}<input id="event-${name}" name="${name}" type="${type}" value="${escapeHtml(edit[name] ?? "")}" ${type === "number" ? 'min="1" max="9999"' : 'maxlength="500"'} /></label>`;
+  const stages = [...LIFE_STAGES.map(stage => [stage.id,lifeStageText(stage.id,"label")]),["unplaced",translate("Memoir.workspace.unplacedStage")]];
+  const precisions = ["unknown","day","month","year","range","approximate","age","season"];
+  return `<form id="memory-event-edit-form" class="memory-event-edit-form"><label>${t("eventLifeStage")}<select id="event-life-stage" name="life-stage">${stages.map(([id,label]) => `<option value="${id}"${edit["life-stage"] === id ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>${field("date-expression","eventDateExpression")}<label>${t("eventDatePrecision")}<select id="event-date-precision" name="date-precision">${precisions.map(id => `<option value="${id}"${edit["date-precision"] === id ? " selected" : ""}>${id === "unknown" ? t("dateUnknown") : t(`precision.${id}`)}</option>`).join("")}</select></label>${field("year-start","eventYearStart","number")}${field("year-end","eventYearEnd","number")}<label>${t("eventCorrectionStatement")}<textarea id="event-correction-statement" name="correction-statement" required maxlength="2000">${escapeHtml(edit["correction-statement"] || "")}</textarea></label><button type="submit" class="button button-primary button-small">${t("saveEventTags")}</button><button type="button" class="text-button" data-action="cancel-event-edit">${t("cancelEventEdit")}</button></form>`;
+}
+
+function openMemoryEventEdit(id) {
+  const event = state.timeline.find(item => item.id === id && item.canonical);
+  if (!event || !state.familyFeaturesEnabled) return;
+  state.memoryEventEdit = {id,revision:event.revision,"life-stage":event.life_stage,
+    "date-expression":event.temporal?.expression || "unknown","date-precision":event.temporal?.precision || "unknown",
+    "year-start":event.temporal?.year_start ?? "","year-end":event.temporal?.year_end ?? "","correction-statement":""};
+  render();
+  $("#event-life-stage")?.focus();
+}
+
+async function saveMemoryEventEdit(event) {
+  event.preventDefault();
+  const edit = state.memoryEventEdit;
+  if (!edit || !state.familyFeaturesEnabled) return;
+  const temporal = {expression:edit["date-expression"] || "unknown",precision:edit["date-precision"]};
+  if (edit["year-start"] !== "") temporal.year_start = Number(edit["year-start"]);
+  if (edit["year-end"] !== "") temporal.year_end = Number(edit["year-end"]);
+  try {
+    await storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(edit.id)}`,{method:"PATCH",body:JSON.stringify({expected_revision:edit.revision,patch:{life_stage:edit["life-stage"],temporal},statement:edit["correction-statement"]})});
+    state.memoryEventEdit = null;
+    await refreshFamilyContext();
+    await refreshPrivateDraft();
+  } catch (failure) {
+    if (failure.status === 409) { state.memoryEventEdit = null; await refreshFamilyContext(); }
+    toast(translate(`Memoir.workspace.${failure.status === 409 ? "eventRevisionConflict" : "eventCorrectionUnavailable"}`));
+  }
 }
 
 function placeMapUrl(journey) {
@@ -3797,6 +3852,9 @@ function bindViewActions() {
   });
   document.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
   document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
+  document.querySelectorAll("[data-edit-memory-event]").forEach(button => button.addEventListener("click",() => openMemoryEventEdit(button.dataset.editMemoryEvent)));
+  $("#memory-event-edit-form")?.addEventListener("input",event => { Object.assign(state.memoryEventEdit,Object.fromEntries(new FormData(event.currentTarget))); });
+  $("#memory-event-edit-form")?.addEventListener("submit",saveMemoryEventEdit);
   const actions = {
     "start-memory": startMemory,
     "save-memory": completeMemory,
@@ -3826,6 +3884,7 @@ function bindViewActions() {
     "add-person": addPerson,
     "add-timeline": addTimeline,
     "retry-private-draft": retryPrivateDraft,
+    "cancel-event-edit": () => { state.memoryEventEdit = null; render(); },
   };
   document.querySelectorAll("[data-action]").forEach((button) => {
     const action = actions[button.dataset.action];
@@ -3894,6 +3953,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const input = $("#chat-input");
   const text = voiceTurn ? state.audioTranscript.trim() : (input?.value.trim() || state.audioTranscript.trim() || "");
+  const sourceKind = voiceTurn || (!(input?.value.trim()) && Boolean(state.audioTranscript.trim())) ? "narrator_transcript" : "narrator_chat";
   const uploadId = state.audioUploadId;
   const attachments = voiceTurn ? [] : [...state.attachments];
   if (attachments.length && !state.attachmentRights) return toast(translate("Memoir.story.attachmentRightsRequired"));
@@ -3974,6 +4034,8 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       detectedFirstReplyLanguage || configuredConversationLanguage || (firstReply ? currentUiLocale() : undefined),
       Boolean(detectedFirstReplyLanguage),
       messageText,
+      null,
+      sourceKind,
     );
     if (result.blocked) {
       // Another tab may have used the final free reply. Keep the unsent draft.
@@ -3991,6 +4053,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   state.loading = false;
   render();
+  void refreshFamilyContext();
   if (state.voiceMode) window.setTimeout(() => startVoiceModeTurn(), 260);
 }
 

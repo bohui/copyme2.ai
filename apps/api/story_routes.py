@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
+from .agent_storage import UserStorage
 from .family_context import family_features_enabled
 from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService
 from .store import MemoryStore, new_id, sha256_json
@@ -43,6 +44,12 @@ from .story_payments import (
 
 FLOW_KEY = "story_flow"
 ROUNDS_REQUIRED = 5
+
+
+class StoryEventCorrection(BaseModel):
+    expected_revision: int = Field(ge=1)
+    patch: dict[str, Any]
+    statement: str = Field(min_length=1, max_length=2000)
 
 
 class StoryRoundInput(BaseModel):
@@ -253,8 +260,8 @@ def build_router(
         broker_task=None
         broker=None
         if os.getenv('SUPABASE_URL') and os.getenv('SUPABASE_SECRET_KEY') and os.getenv('MEMORY_SPARK_TASK_DB'):
-            from .private_draft_broker import PrivateDraftBroker
-            broker=PrivateDraftBroker()
+            from .memory_event_worker import MemoirLaneBroker
+            broker=MemoirLaneBroker()
             broker_task=asyncio.create_task(broker.run())
         try:
             yield
@@ -296,6 +303,8 @@ def build_router(
                                   authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
+            if isinstance(storage, UserStorage):
+                return await asyncio.to_thread(storage.saved_memoir_draft, project_id, language)
             from .private_drafts import synchronize
             # Every render rechecks source authorization and versions using a
             # fresh RLS read, including changes made while the tab was closed.
@@ -307,6 +316,9 @@ def build_router(
     async def retry_private_draft(payload: StoryPreviewCreate,authorization: str | None = Header(default=None)):
         storage=await asyncio.to_thread(storage_for,authorization)
         try:
+            if isinstance(storage, UserStorage):
+                await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'composer')
+                return await asyncio.to_thread(storage.saved_memoir_draft, payload.project_id, payload.language)
             from .private_drafts import synchronize
             from .private_draft_jobs import PrivateDraftJobs
             view=await asyncio.to_thread(synchronize,storage,payload.project_id,payload.language)
@@ -316,6 +328,32 @@ def build_router(
             return view
         finally:
             await asyncio.to_thread(_close,storage)
+
+    @router.get('/events')
+    async def memory_events(project_id: str, authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
+                raise HTTPException(403, 'Timeline display requires Family legacy access')
+            return await asyncio.to_thread(storage.memory_events, project_id)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.patch('/events/{project_id}/{event_id}')
+    async def correct_event(project_id: str, event_id: str, payload: StoryEventCorrection,
+                            authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
+                raise HTTPException(403, 'Timeline editing requires Family legacy access')
+            return await asyncio.to_thread(storage.correct_memory_event, project_id, event_id,
+                                           payload.expected_revision, payload.patch, payload.statement)
+        except httpx.HTTPStatusError as failure:
+            conflict = failure.response.status_code == 409
+            raise HTTPException(409 if conflict else 422, 'Reload this event and retry' if conflict else 'Event correction is unavailable',
+                headers={'X-Error-Code': 'EVENT_REVISION_CONFLICT' if conflict else 'EVENT_CORRECTION_INVALID'}) from None
+        finally:
+            await asyncio.to_thread(_close, storage)
 
     @router.get("/state")
     def story_state(authorization: str | None = Header(default=None)):
