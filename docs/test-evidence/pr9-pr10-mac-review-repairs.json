@@ -1,0 +1,1253 @@
+{
+  "schema_version": 1,
+  "review_repair_code_head": "90e28bc3f00506f225fcd4e5f46fa34986d0d154",
+  "review_repair_tree": "dd3da78128f716c9e6318a6918afe6b4c1335d5b",
+  "broad_run_code_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+  "broad_suite_and_29_browser_batch_rerun_after_repairs": false,
+  "broad_receipts": "docs/test-evidence/pr9-pr10-mac.json",
+  "source_sha256": {
+    "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+    "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+    "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+    "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+  },
+  "focused_native_canary_counts": {
+    "scenarios": 18,
+    "passed": 18,
+    "failed": 0,
+    "unconfirmed": 0,
+    "green_unapproved_sink_requests": 0
+  },
+  "focused_native_canaries": [
+    {
+      "name": "browser-redirect-grammar-final-get",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.68,
+      "log_sha256": "318fe2f0cc9374c5cf36ab1301e5835df7aa7e68c99a73e7866668ee00abf7af",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-get.json",
+      "observation": {
+        "case": "get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60092",
+            "path": "/sink",
+            "method": "GET"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-post",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.13,
+      "log_sha256": "1b3b509a010ea6af37e803d1709dd45ccf881923bece35be72a0809f4d897ff8",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-post.json",
+      "observation": {
+        "case": "post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60096",
+            "path": "/sink",
+            "method": "POST"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-get-chain",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "get-chain"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "5b4bab854f0807f1ecd027e440d31da4e3eb7180209aa9445e348cb69646a1d1",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-get-chain.json",
+      "observation": {
+        "case": "get-chain",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60100",
+            "path": "/sink",
+            "method": "GET"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-allowed-get",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "allowed-get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.13,
+      "log_sha256": "ff79df9393e82ef803a12734e3f6cf8beb336cce0c99ae44cd2c9f8cdb8af16f",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-allowed-get.json",
+      "observation": {
+        "case": "allowed-get",
+        "outcome": "allowed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-allowed-post",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "allowed-post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.14,
+      "log_sha256": "6b9af19460ca96d06283f5539081cb4c4a460833709940245dc8e458647d7e82",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-allowed-post.json",
+      "observation": {
+        "case": "allowed-post",
+        "outcome": "allowed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "POST"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-allowed-navigation",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "allowed-navigation"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.14,
+      "log_sha256": "570952c931ec40221e9b4e53a956f69b58c4ab4ba3d2fbbb4658b88fb0541d25",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-allowed-navigation.json",
+      "observation": {
+        "case": "allowed-navigation",
+        "outcome": "allowed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-stream",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "stream"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.13,
+      "log_sha256": "efb859abc5d95f4c32bd14d420edc8e9f0c0977dd7f1a8a5924f391e34da38ce",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-stream.json",
+      "observation": {
+        "case": "stream",
+        "outcome": "streamed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-popup",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "popup"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.13,
+      "log_sha256": "f1760b191fbbdd324b26fb8f1efcaa2937ad9dcbf190111210b4b295d5c031b1",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-popup.json",
+      "observation": {
+        "case": "popup",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60127",
+            "path": "/sink",
+            "method": "GET",
+            "reason": "unsupported_target_redirect"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-backslash-get",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "backslash-get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "74bf1e27c1061056a35dd4f490ea66fbe0f262fc08bb959aa179cff0c9f814e4",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-backslash-get.json",
+      "observation": {
+        "case": "backslash-get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60132",
+            "path": "/redirect",
+            "method": "GET",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-backslash-post",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "backslash-post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.12,
+      "log_sha256": "d0e2071512b80b673105cbe0c94aa36eebfcbd07862ed5459200b5d717412afe",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-backslash-post.json",
+      "observation": {
+        "case": "backslash-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60136",
+            "path": "/redirect",
+            "method": "POST",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-popup-static",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "popup-static"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.14,
+      "log_sha256": "905cb1db50178e8b7ec7419e0043aa6a426ff4225bb80ec5b3c9c63a1ef922cf",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-popup-static.json",
+      "observation": {
+        "case": "popup-static",
+        "outcome": "opened",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-iframe",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.12,
+      "log_sha256": "dd88fa0464c825663cdef793efa45aff1235496a15f8e58649f446cb276c93fe",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-iframe.json",
+      "observation": {
+        "case": "iframe",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60143",
+            "path": "/sink",
+            "method": "GET",
+            "reason": "unsupported_target_redirect"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-iframe-static",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe-static"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.17,
+      "log_sha256": "df1ed51aa40cf78b2ced82ebdd866ab01b3e1908218c0b4b6d529edf71f96c2a",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-iframe-static.json",
+      "observation": {
+        "case": "iframe-static",
+        "outcome": "loaded",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-iframe-fetch",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe-fetch"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "a59204621abeca6fab5d318264fe855e93b230242a3a17bc734ddeb859192d01",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-iframe-fetch.json",
+      "observation": {
+        "case": "iframe-fetch",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60153",
+            "path": "/sink",
+            "method": "GET",
+            "reason": "unsupported_target_redirect"
+          }
+        ],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-triple-get",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "triple-get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.18,
+      "log_sha256": "21fc438583b0aa7095b9fb673482967d5d1ede304853ef8c36720fc6fe8bbdd5",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-triple-get.json",
+      "observation": {
+        "case": "triple-get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60161",
+            "path": "/redirect",
+            "method": "GET",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-triple-post",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "triple-post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.14,
+      "log_sha256": "612db5529275054e844c80acd12882dabdefa928f18ab5039cb35fc9d331d5f7",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-triple-post.json",
+      "observation": {
+        "case": "triple-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60165",
+            "path": "/redirect",
+            "method": "POST",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-http-triple-get",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "http-triple-get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.17,
+      "log_sha256": "1c3b939ca8b608c6c3e2d79f18ac3d9a19a743194767a9322f17026507bb57e0",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-http-triple-get.json",
+      "observation": {
+        "case": "http-triple-get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60169",
+            "path": "/redirect",
+            "method": "GET",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "browser-redirect-grammar-final-http-triple-post",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "http-triple-post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 1.21,
+      "log_sha256": "bbe3ca53c365683b309e16d44dd92d50542b7ec8a6a9db4292ebd90d1ba4c982",
+      "local_receipt": "output/mac-validation/browser-redirect-grammar-final-http-triple-post.json",
+      "observation": {
+        "case": "http-triple-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:60173",
+            "path": "/redirect",
+            "method": "POST",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    }
+  ],
+  "earlier_red_or_policy_attempts": [
+    {
+      "name": "browser-redirect-get-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "get"
+      ],
+      "base_head": "4934caba7e0e4ecec8b06d18bfcae749c845cff1",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "4284e24eae51966c638edc7f601662dd07b5155c0c28f3900355265d535eb33a",
+        "tests/fixtures/browser_guard_redirect_canary.py": "70775947d1f4043991709e0ecc66626dfc235f1ab5af1b455fa0533d84af33b1"
+      },
+      "exit_code": 1,
+      "duration_seconds": 2.35,
+      "log_sha256": "4835c16389521b073aa0b40af1768f0b1f605018986b883b615828df73d64cb9",
+      "local_receipt": "output/mac-validation/browser-redirect-get-red.json",
+      "observation": {
+        "case": "get",
+        "outcome": "reached",
+        "sink_requests": [
+          "GET"
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "name": "browser-redirect-post-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "post"
+      ],
+      "base_head": "4934caba7e0e4ecec8b06d18bfcae749c845cff1",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "160969afad30d26aa36652ce9c8ba8eaee198603daef31171418a2df0d1b6927",
+        "tests/fixtures/browser_guard_redirect_canary.py": "44fcc943d825c6326acb0e2038b49d6bf28893ff0a5bb2097a7e04ae2b022e82"
+      },
+      "exit_code": 1,
+      "duration_seconds": 1.67,
+      "log_sha256": "16d22f9bf783d14662cb143e48267201e23c1fffa71ca9ff80800ab84c454b54",
+      "local_receipt": "output/mac-validation/browser-redirect-post-red.json",
+      "observation": {
+        "case": "post",
+        "outcome": "reached",
+        "sink_requests": [
+          "POST"
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "name": "browser-redirect-popup-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "popup"
+      ],
+      "base_head": "2f40c5c789d930562854c9ce2a82805b3bac16b5",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "a1ee3512ed3184ca7c3eb01d2d96ce766178b45918837251944136591d9db98a",
+        "tests/fixtures/browser_guard_redirect_canary.py": "08b2d1c411941ef13dfd4f31e5de9dafbdc4db1547fb7d1aa3612e4c1da8f524"
+      },
+      "exit_code": 1,
+      "duration_seconds": 2.09,
+      "log_sha256": "4447cd4545afdf284884b4cfdc1ac406e7c6ca601ac2bf1af86dff82d6d5c150",
+      "local_receipt": "output/mac-validation/browser-redirect-popup-red.json",
+      "observation": {
+        "case": "popup",
+        "outcome": "opened",
+        "sink_requests": [
+          "GET"
+        ],
+        "blocked": [],
+        "final_methods": []
+      }
+    },
+    {
+      "name": "browser-redirect-backslash-get-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "backslash-get"
+      ],
+      "base_head": "2f40c5c789d930562854c9ce2a82805b3bac16b5",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "c89f11948195a3086cc314d30db4163aeeb1c744cfb97a4e00b7e1bf99c50799",
+        "tests/fixtures/browser_guard_redirect_canary.py": "98fb9515b042afaec2dd9fa9f6f995418409615e636a9d23c38cc3027254f745"
+      },
+      "exit_code": 1,
+      "duration_seconds": 2.14,
+      "log_sha256": "cb426d3594a7486ea537d35cc430facc0bb46b786c2bca5587d3f0b2bbf8cf3b",
+      "local_receipt": "output/mac-validation/browser-redirect-backslash-get-red.json",
+      "observation": {
+        "case": "backslash-get",
+        "outcome": "reached",
+        "sink_requests": [
+          "GET"
+        ],
+        "blocked": [],
+        "final_methods": []
+      }
+    },
+    {
+      "name": "browser-redirect-backslash-post-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "backslash-post"
+      ],
+      "base_head": "2f40c5c789d930562854c9ce2a82805b3bac16b5",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "c89f11948195a3086cc314d30db4163aeeb1c744cfb97a4e00b7e1bf99c50799",
+        "tests/fixtures/browser_guard_redirect_canary.py": "98fb9515b042afaec2dd9fa9f6f995418409615e636a9d23c38cc3027254f745"
+      },
+      "exit_code": 1,
+      "duration_seconds": 1.23,
+      "log_sha256": "245ae975a756fd6ebbeec0e30e9fd7b2239f40f48cad41d76ac57e7df2594eaf",
+      "local_receipt": "output/mac-validation/browser-redirect-backslash-post-red.json",
+      "observation": {
+        "case": "backslash-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": []
+      }
+    },
+    {
+      "name": "browser-redirect-iframe-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe",
+        "--guard-path",
+        "output/mac-validation/guard-2f40c5c.py"
+      ],
+      "base_head": "2f40c5c789d930562854c9ce2a82805b3bac16b5",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "d9d05fe2803af25080f28d402052e7214b3da5b1edbb312f8b342727861a8c52",
+        "tests/fixtures/browser_guard_redirect_canary.py": "f3d59106126cf960a03cc69ef156f24dabd5914039fbab69ec31f58c8f0bdd1b"
+      },
+      "exit_code": 1,
+      "duration_seconds": 2.24,
+      "log_sha256": "65784fcb10ce88388729f1fb487e87519ba665cfec13fa357e15ddf9f4d5a152",
+      "local_receipt": "output/mac-validation/browser-redirect-iframe-red.json",
+      "observation": {
+        "case": "iframe",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:59571",
+            "path": "/sink",
+            "method": "GET"
+          }
+        ],
+        "final_methods": [],
+        "executed_guard_sha256": "a1ee3512ed3184ca7c3eb01d2d96ce766178b45918837251944136591d9db98a"
+      }
+    },
+    {
+      "name": "browser-redirect-iframe-fetch-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe-fetch"
+      ],
+      "base_head": "2f40c5c789d930562854c9ce2a82805b3bac16b5",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "d9d05fe2803af25080f28d402052e7214b3da5b1edbb312f8b342727861a8c52",
+        "tests/fixtures/browser_guard_redirect_canary.py": "e1f5181a6af7dded68df7ec56536988ac5a6553e82ea739bbc5e1ca4a2e5627f"
+      },
+      "exit_code": 1,
+      "duration_seconds": 2.19,
+      "log_sha256": "0e8c50a2999c3278adc9b92ed5b5ca05dae4812d25c1c4f93bcddddb2e2eb164",
+      "local_receipt": "output/mac-validation/browser-redirect-iframe-fetch-red.json",
+      "observation": {
+        "case": "iframe-fetch",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:59673",
+            "path": "/sink",
+            "method": "GET"
+          }
+        ],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "d9d05fe2803af25080f28d402052e7214b3da5b1edbb312f8b342727861a8c52"
+      }
+    },
+    {
+      "name": "browser-redirect-triple-get-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "triple-get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc"
+      },
+      "exit_code": 1,
+      "duration_seconds": 1.67,
+      "log_sha256": "3ba3b0ba1e3a9eaee23294c4c565380cc13d559c3c0f6614abe41ab1917e8b6b",
+      "local_receipt": "output/mac-validation/browser-redirect-triple-get-red.json",
+      "observation": {
+        "case": "triple-get",
+        "outcome": "reached",
+        "sink_requests": [
+          "GET"
+        ],
+        "blocked": [],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381"
+      }
+    },
+    {
+      "name": "browser-redirect-triple-post-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "triple-post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc"
+      },
+      "exit_code": 1,
+      "duration_seconds": 1.01,
+      "log_sha256": "bf4e86b695aa7c0e96376888b8a629c0797bf2291c054be18f9893d7fea67909",
+      "local_receipt": "output/mac-validation/browser-redirect-triple-post-red.json",
+      "observation": {
+        "case": "triple-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381"
+      }
+    },
+    {
+      "name": "browser-redirect-http-triple-get-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "http-triple-get"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc"
+      },
+      "exit_code": 1,
+      "duration_seconds": 0.97,
+      "log_sha256": "2c4fb9c81f451b4066d45649f8d87a57801c6eded668ddeeb147866eef57e865",
+      "local_receipt": "output/mac-validation/browser-redirect-http-triple-get-red.json",
+      "observation": {
+        "case": "http-triple-get",
+        "outcome": "reached",
+        "sink_requests": [
+          "GET"
+        ],
+        "blocked": [],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381"
+      }
+    },
+    {
+      "name": "browser-redirect-http-triple-post-red",
+      "command": [
+        "python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "http-triple-post"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc"
+      },
+      "exit_code": 1,
+      "duration_seconds": 0.97,
+      "log_sha256": "3c9395c651ebb02967bcc70a9b331ea1b2fe0e4dc78e2a1c274fcd0e7961c76a",
+      "local_receipt": "output/mac-validation/browser-redirect-http-triple-post-red.json",
+      "observation": {
+        "case": "http-triple-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381"
+      }
+    }
+  ],
+  "red_interpretations": {
+    "get_302": "Observed one owned sink GET, blocked list empty",
+    "post_307": "Observed one owned sink POST, blocked list empty",
+    "initial_popup": "Observed one owned sink GET, blocked list empty",
+    "two_backslash_get": "Observed one owned sink GET, blocked list empty",
+    "two_backslash_post": "No sink request observed; missing explicit block caused failure; native failure cause unproven",
+    "iframe_initial": "Old guard blocked this specific redirect; failure was policy-reason mismatch, not an observed escape",
+    "iframe_fetch": "Old policy blocked this specific redirect; failure was policy-reason mismatch; no OOPIF target observed",
+    "triple_forward_slash_get": "Observed one owned sink GET, blocked list empty",
+    "http_triple_slash_get": "Observed one owned sink GET, blocked list empty",
+    "malformed_authority_post_cases": "No sink request observed; missing explicit block caused failures; native failure causes unproven"
+  },
+  "role_portability": {
+    "checks": [
+      {
+        "name": "postgres-role-portability-red",
+        "command": [
+          "python",
+          "output/mac-validation/role_portability_check.py"
+        ],
+        "exit_code": 1,
+        "duration_seconds": 0.2,
+        "base_head": "741dc3797bf9e0ef5d7ee51c2977f9c011e92bf8",
+        "environment_overrides": {
+          "MEMORY_SPARK_TEST_MODE": "1",
+          "MEMORY_SPARK_ENTITLEMENT_MODEL": "legacy",
+          "NEXT_TELEMETRY_DISABLED": "1",
+          "MEMOIR_NETWORK_RECEIPT": "postgres-role-portability-red-network"
+        },
+        "log": "/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/postgres-role-portability-red.log",
+        "local_receipt": "output/mac-validation/postgres-role-portability-red.json",
+        "log_sha256": "3e542991aee9e3bd33beefc25ed50958cd54d6fded89d1ed28b5f39a45a22000"
+      },
+      {
+        "name": "postgres-role-portability-green",
+        "command": [
+          "python",
+          "output/mac-validation/role_portability_check.py"
+        ],
+        "exit_code": 0,
+        "duration_seconds": 0.22,
+        "base_head": "741dc3797bf9e0ef5d7ee51c2977f9c011e92bf8",
+        "environment_overrides": {
+          "MEMORY_SPARK_TEST_MODE": "1",
+          "MEMORY_SPARK_ENTITLEMENT_MODEL": "legacy",
+          "NEXT_TELEMETRY_DISABLED": "1",
+          "MEMOIR_NETWORK_RECEIPT": "postgres-role-portability-green-network"
+        },
+        "log": "/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/postgres-role-portability-green.log",
+        "local_receipt": "output/mac-validation/postgres-role-portability-green.json",
+        "log_sha256": "af9ecd9211e942f46bf2f3abfadcf012b379190a6d3701059827f195daa8637c"
+      },
+      {
+        "name": "postgres-role-portability-final",
+        "command": [
+          "python",
+          "output/mac-validation/role_portability_check.py"
+        ],
+        "base_head": "4934caba7e0e4ecec8b06d18bfcae749c845cff1",
+        "source_sha256": {
+          "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+          "tests/fixtures/browser_network_guard.py": "a1ee3512ed3184ca7c3eb01d2d96ce766178b45918837251944136591d9db98a",
+          "tests/fixtures/browser_guard_redirect_canary.py": "1dacee3c9a8f3e876fef7498ffba40e8442ab21d220a930cb2927e61dfed22d3"
+        },
+        "exit_code": 0,
+        "duration_seconds": 0.28,
+        "log_sha256": "af9ecd9211e942f46bf2f3abfadcf012b379190a6d3701059827f195daa8637c",
+        "local_receipt": "output/mac-validation/postgres-role-portability-final.json"
+      }
+    ],
+    "mode": "External SQL-boundary assertion double only; not actual native PostgreSQL",
+    "baseline": "cloud_runner",
+    "native_linux_run": false,
+    "retained_contracts": [
+      "initial role restoration",
+      "unfinished transaction rollback",
+      "first SQL error stops execution",
+      "concurrent calls retain separate sessions"
+    ]
+  },
+  "changed_file_compile": {
+    "name": "review-repairs-compile-grammar-final",
+    "command": [
+      "python",
+      "-m",
+      "py_compile",
+      "tests/test_agent_commit_postgres.py",
+      "tests/fixtures/browser_network_guard.py",
+      "tests/fixtures/browser_guard_redirect_canary.py",
+      "tests/fixtures/redirect_url_policy_check.py"
+    ],
+    "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+    "source_sha256": {
+      "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+      "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+      "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+      "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+    },
+    "exit_code": 0,
+    "duration_seconds": 0.05,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "local_receipt": "output/mac-validation/review-repairs-compile-grammar-final.json"
+  },
+  "guard_scope": {
+    "known_main_frame": "Chromium CDP response headers; native streaming/navigation",
+    "unsupported_targets": "Finite Route.fetch(max_redirects=0), all redirects denied; includes initial popup and child-frame requests outside covered main-frame Page",
+    "unsupported_target_redirects_to_otherwise_allowed_origins": "Denied explicitly",
+    "ambiguous_location_forms": "Missing authority, extra authority slashes, lenient special-scheme forms, authority credentials/invalid ports, backslash, whitespace/control and invalid parsing rejected before resolution",
+    "fetch_error_policy": "Abort unsupported target request; no continue fallback",
+    "real_oopif_coverage": "Unverified; no separate iframe target observed in native cross-site canary",
+    "worker_service_worker_response_coverage": "Unverified",
+    "complete_egress_claim": false,
+    "redirect_grammar": "Full http(s) authority, exactly-two-slash network authority, or path/query/fragment with no first-segment scheme; ambiguous authority/special-scheme forms and credential-bearing authorities rejected"
+  },
+  "cloud_runtime_blockers": {
+    "source": "Parent report; not measured by this Mac session",
+    "native_postgresql_tools": "Missing in current cloud runtime",
+    "chromium_launch": "Socket EPERM; no bypass",
+    "full_cloud_e2e": "Awaiting saved coding environment with supported dependencies"
+  },
+  "secret_handling": {
+    "laptop_env_or_credential_file_read": false,
+    "secret_values_transferred": false,
+    "configuration_sources": [
+      "tracked .env.example",
+      "tracked compose.yml",
+      "tracked configuration/test code"
+    ]
+  },
+  "preserved_checkouts": {
+    "/Users/bohuihan/memoir": {
+      "unchanged": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "before": {
+        "status_sha256": "ce1a5fb5090eed3eff8739e45e25df44cc48c1485962dc97baa0eba70fb13f14",
+        "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0",
+        "head": "c6a990aa499eb63fe1d6407e4082462200598c0d"
+      },
+      "after": {
+        "head": "c6a990aa499eb63fe1d6407e4082462200598c0d",
+        "status_sha256": "ce1a5fb5090eed3eff8739e45e25df44cc48c1485962dc97baa0eba70fb13f14",
+        "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0"
+      }
+    },
+    "/tmp/memoir-issue2-integration": {
+      "unchanged": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "before": {
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061"
+      },
+      "after": {
+        "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "/tmp/memoir-issue6": {
+      "unchanged": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "before": {
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "head": "84366778f50495d065e794a00f16184d16dc4216"
+      },
+      "after": {
+        "head": "84366778f50495d065e794a00f16184d16dc4216",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "cleanup": {
+    "existing_task_services_stopped": true,
+    "existing_postgresql_containers_remaining": 0,
+    "temporal_contexts_exited": true,
+    "narrow_canary_cleanup": "Each owned HTTP server context shutdown/server_close and browser finally-close completed",
+    "unknown_process_IPC_cleanup": false,
+    "security_or_host_limit_changes": false,
+    "isolated_worktree_retained": true
+  },
+  "remaining_gates": [
+    "Independent cloud rereview of final published head",
+    "Reliable complete native and post-repair browser run in supported cloud coding environment",
+    "Previously unconfirmed image-lifecycle receipt",
+    "Real OOPIF and worker/service-worker coverage before any complete egress assertion",
+    "Approved secure live provider/judge configuration",
+    "Live source-claim pilot and five separate 50-round datasets",
+    "Durable Langfuse ClickHouse DateTime64 readback"
+  ],
+  "offline_url_policy": {
+    "red": {
+      "name": "browser-redirect-url-policy-red",
+      "command": [
+        "python",
+        "tests/fixtures/redirect_url_policy_check.py",
+        "--node",
+        "output/mac-validation/node-runtime/node_modules/.bin/node"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "a5cf38275176006a91658ae8c22e59394ff9f08c23a1a0ee7e2b07d7508ec381",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc"
+      },
+      "exit_code": 1,
+      "duration_seconds": 0.41,
+      "log_sha256": "39cd1af858addc740b7478468b0f10cda56bb8260284863dc54161fc057b43bb",
+      "local_receipt": "output/mac-validation/browser-redirect-url-policy-red.json",
+      "observation": {
+        "cases": 20,
+        "accepted": 9,
+        "rejected": 11,
+        "failures": [
+          {
+            "case": 9,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          },
+          {
+            "case": 10,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          },
+          {
+            "case": 11,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          },
+          {
+            "case": 12,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          },
+          {
+            "case": 13,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          },
+          {
+            "case": 14,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          },
+          {
+            "case": 19,
+            "kind": "ambiguous/unsupported Location was not rejected"
+          }
+        ],
+        "mode": "offline parsers only, no network"
+      }
+    },
+    "green": {
+      "name": "browser-redirect-url-policy-final",
+      "command": [
+        "python",
+        "tests/fixtures/redirect_url_policy_check.py",
+        "--node",
+        "output/mac-validation/node-runtime/node_modules/.bin/node"
+      ],
+      "base_head": "38c9c378d3610e55aeb85861e3cdb85d574b1361",
+      "source_sha256": {
+        "tests/test_agent_commit_postgres.py": "3a33787dcfffc073d6db022bce988b8c3b96ff102c4b31cf08321ca11fd9bd81",
+        "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+        "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+        "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb"
+      },
+      "exit_code": 0,
+      "duration_seconds": 0.46,
+      "log_sha256": "52a52cf95bce1706980216b6ea73023f52f57865b5db0d45fdd710aed17355c1",
+      "local_receipt": "output/mac-validation/browser-redirect-url-policy-final.json",
+      "observation": {
+        "cases": 20,
+        "accepted": 9,
+        "rejected": 11,
+        "failures": [],
+        "mode": "offline parsers only, no network"
+      }
+    }
+  }
+}
