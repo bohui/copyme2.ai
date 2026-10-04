@@ -61,6 +61,13 @@ skill does not create people. If the same turn explicitly introduces a new
 relative, emit a separate `MEMORY_SPARK_FAMILY_TREE` marker for the tree skill
 and use the saved canonical ID on a later timeline update.
 
+When the private workspace extraction prompt supplies a source-claim table,
+include its exact `source_claim_id` on every timeline item. This is temporary
+association metadata: never invent an ID, never choose one from a shared noun
+or date, and omit an item whose supporting source claim is ambiguous. The
+application validates the ID against the current message and strips it before
+persistence.
+
 When revising a saved event or period, include its canonical `existing_id`.
 An explicit name correction for a confirmed canonical person also corrects
 derived event and period titles that clearly refer to that same person. Emit

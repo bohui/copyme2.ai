@@ -11,6 +11,7 @@ from apps.api.codex_runtime import (
     CodexRuntime,
     _sentence_has_author_event_evidence,
     _timeline_item_is_explicitly_vetoed,
+    _sanitize_author_timeline_markers,
     build_conversation_system_prompt,
     build_loop_trace,
     build_system_prompt,
@@ -45,6 +46,23 @@ def test_visible_collector_prompt_is_separate_from_workspace_markers():
     assert '[[MEMORY_SPARK_PLACE_JOURNEY]]' not in conversation
     assert '[[MEMORY_SPARK_PROFILE]]' in workspace
     assert 'Workspace extraction contract' in workspace
+
+
+def test_workspace_prompt_exposes_structural_timeline_claim_ids():
+    prompt = build_workspace_extraction_prompt(
+        '(none)',
+        language='en-AU',
+        family_enabled=True,
+        source_text=(
+            'I bought a house in 1980. I sold the house in 1980. '
+            'Please do not add this event to my timeline.'
+        ),
+    )
+
+    assert 'source_claim_id' in prompt
+    assert 'Do not infer a claim id from a title synonym' in prompt
+    assert '- c0: I bought a house in 1980' in prompt
+    assert '- c1: I sold the house in 1980' in prompt
 
 
 def test_collector_prompt_reviews_breadth_after_twenty_focused_turns():
@@ -600,6 +618,52 @@ def test_item_veto_association_does_not_use_shared_year_or_noun_as_identity(
 ):
     assert _timeline_item_is_explicitly_vetoed(vetoed, source, 2) is True
     assert _timeline_item_is_explicitly_vetoed(allowed, source, 2) is False
+
+
+@pytest.mark.parametrize('title', ['Sale of house', 'House sale', 'Selling house'])
+def test_paraphrase_timeline_items_use_source_claim_ids_not_title_synonyms(title):
+    source = (
+        'I bought a house in 1980. I sold the house in 1980. '
+        'Please do not add this event to my timeline.'
+    )
+    reply = (
+        '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+        '{"timeline":['
+        '{"id":"e-purchase","kind":"event","title":"Purchase of house",'
+        '"date_expression":"1980","precision":"year","source_claim_id":"c0"},'
+        f'{{"id":"e-sale","kind":"event","title":"{title}",'
+        '"date_expression":"1980","precision":"year","source_claim_id":"c1"}'
+        ']}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+    )
+
+    sanitized = _sanitize_author_timeline_markers(reply, source)
+
+    assert 'e-purchase' in sanitized
+    assert 'e-sale' not in sanitized
+    assert 'source_claim_id' not in sanitized
+
+
+@pytest.mark.parametrize('title', ['Sale of house', 'House sale', 'Selling house'])
+def test_unresolved_paraphrase_timeline_item_stays_private(title):
+    source = (
+        'I bought a house in 1980. I sold the house in 1980. '
+        'Please do not add this event to my timeline.'
+    )
+    reply = (
+        '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+        + json.dumps({
+            'timeline': [{
+                'id': 'e-sale',
+                'kind': 'event',
+                'title': title,
+                'date_expression': '1980',
+                'precision': 'year',
+            }],
+        })
+        + '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+    )
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in _sanitize_author_timeline_markers(reply, source)
 
 
 def test_workspace_extraction_honours_single_event_veto(monkeypatch):

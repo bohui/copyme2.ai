@@ -165,7 +165,10 @@ and/or end_expression. Preserve uncertain dates and never infer
 people or exact places. A clear event with no known date still qualifies: use
 date_expression "unknown" and precision "unknown" rather than inventing a date
 or silently dropping it. Ask for clarification and emit no marker only when the
-event itself is ambiguous. The application runtime validates and strips the marker before the reply."""
+event itself is ambiguous. When the private prompt supplies source-claim IDs,
+include the exact source_claim_id for each item and omit items whose source
+claim is ambiguous; the application validates and strips this metadata before
+the reply."""
 
 
 def _load_skill(path: Path, fallback: str) -> str:
@@ -378,7 +381,8 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                                       family_context: dict | None = None,
                                       task_sources: list[MemorySource] | None = None,
                                       language: str = "en-AU",
-                                      focus: str | None = None) -> str:
+                                      focus: str | None = None,
+                                      source_text: str | None = None) -> str:
     """Build private extraction instructions; persistence follows the saved reply."""
     prompt = _build_marker_context(
         memories,
@@ -403,6 +407,22 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
         "- If nothing is explicit, return an empty string. Never infer missing profile, place, family, or task data.\n"
         "- The application removes and validates markers before they reach the storyteller."
     )
+    if source_text:
+        source_claims = _timeline_source_spans(source_text)
+        if source_claims:
+            prompt += (
+                "\n\nTimeline source-claim association contract:\n"
+                "- The source claims below are private routing metadata. For every author-timeline item, "
+                "include `source_claim_id` with the exact claim id that supports that item.\n"
+                "- Do not infer a claim id from a title synonym, a shared noun, or a shared date. If one "
+                "item cannot be associated with exactly one source claim, omit that item instead of guessing.\n"
+                "- Keep timeline items in source-claim order. Never use the recording instruction itself as "
+                "the source claim for an event. The application strips this private field before persistence.\n"
+            )
+            prompt += "\n".join(
+                f"- c{index}: {sentence}"
+                for index, (sentence, _start, _end) in enumerate(source_claims[:80])
+            )
     if focus in {"family_tree", "author_timeline", "place_journey"}:
         if focus == "family_tree":
             prompt += (
@@ -698,6 +718,18 @@ def _timeline_source_spans(text: str) -> list[tuple[str, int, int]]:
     return spans
 
 
+_TIMELINE_SOURCE_CLAIM_ID = re.compile(r"^c(?:0|[1-9]\d{0,3})$")
+
+
+def _timeline_source_claim_index(value: Any, source: str) -> int | None:
+    """Resolve private ``cN`` metadata against the current visible source."""
+    if not isinstance(value, str) or _TIMELINE_SOURCE_CLAIM_ID.fullmatch(value) is None:
+        return None
+    index = int(value[1:])
+    spans = _timeline_source_spans(source)
+    return index if index < len(spans) else None
+
+
 def _timeline_source_sentences(text: str) -> list[str]:
     return [sentence for sentence, _start, _end in _timeline_source_spans(text)]
 
@@ -977,10 +1009,32 @@ def _timeline_item_source_span_indices(
 ) -> list[int] | None:
     """Associate an item with the best matching visible source clause.
 
+    A private resolved association or ``source_claim_id`` takes precedence
+    over lexical matching. This lets extraction use source structure for
+    paraphrases without widening the host's event vocabulary.
+
     Dates and places are supporting evidence, not identity. Event-title
     tokens carry the highest weight so two events sharing a year or noun do
     not both become the target of one ``this event`` veto.
     """
+    if "_resolved_source_span_indices" in item:
+        resolved = item.get("_resolved_source_span_indices")
+        if resolved is None:
+            return None
+        if isinstance(resolved, (list, tuple)) and all(
+            isinstance(index, int) and not isinstance(index, bool) for index in resolved
+        ):
+            return list(resolved)
+        return []
+    source_claim_key = next(
+        (key for key in ("_source_claim_id", "source_claim_id") if key in item),
+        None,
+    )
+    if source_claim_key is not None:
+        claim_index = _timeline_source_claim_index(item.get(source_claim_key), source)
+        # A supplied but invalid private claim id is unresolved; do not let a
+        # forged or stale id fall back to title/date matching.
+        return [claim_index] if claim_index is not None else None
     generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
     title = str(item.get("title") or "").strip().casefold()
     identity: list[str] = []
@@ -1108,9 +1162,10 @@ def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item
     spans = _timeline_source_spans(source)
     item_indices = _timeline_item_source_span_indices(item, source)
     if item_indices is None:
-        # The item has competing author-owned source matches. Keep it as
-        # source-backed, while leaving any item-specific veto non-destructive.
-        return _author_timeline_has_source_evidence(source)
+        # The item has competing author-owned source matches and no private
+        # structural association. Keep the proposal private until it can be
+        # associated; an ambiguous title must not bypass a recording veto.
+        return False
     if item_indices:
         return any(
             _sentence_has_author_event_evidence(spans[index][0])
@@ -1120,6 +1175,51 @@ def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item
     # when there is no contradictory source anchor; multi-item markers require
     # per-item evidence so an unrelated reflection cannot ride along.
     return item_count == 1 and _author_timeline_has_source_evidence(source)
+
+
+def _validate_author_timeline_marker_for_sanitization(raw: Any) -> dict[str, Any] | None:
+    """Validate a timeline marker while retaining private claim metadata.
+
+    ``source_claim_id`` is an extraction-only association field. It is removed
+    before the normal family-context validator sees the payload and is attached
+    to the normalized item only long enough for source-boundary sanitization.
+    The field never reaches the durable family/timeline document.
+    """
+    if not isinstance(raw, dict):
+        return None
+    cleaned = dict(raw)
+    claim_ids: list[Any] = []
+    for collection in ("timeline", "life_periods"):
+        records = raw.get(collection)
+        if not isinstance(records, list):
+            continue
+        cleaned_records: list[Any] = []
+        for record in records:
+            if isinstance(record, dict):
+                claim_id = record.get("source_claim_id", record.get("_source_claim_id"))
+                claim_ids.append(claim_id if "source_claim_id" in record or "_source_claim_id" in record else None)
+                cleaned_records.append({
+                    key: value for key, value in record.items()
+                    if key not in {"source_claim_id", "_source_claim_id"}
+                })
+            else:
+                claim_ids.append(None)
+                cleaned_records.append(record)
+        cleaned[collection] = cleaned_records
+    context = validate_author_timeline_context(cleaned)
+    if not context:
+        return None
+    for item, claim_id in zip(context.get("timeline", []), claim_ids):
+        if claim_id is not None:
+            item["_source_claim_id"] = claim_id
+    return context
+
+
+def _public_timeline_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value for key, value in item.items()
+        if key not in {"_source_claim_id", "source_claim_id", "_resolved_source_span_indices"}
+    }
 
 
 def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
@@ -1144,16 +1244,27 @@ def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
             raw = json.loads(raw_text)
         except (TypeError, ValueError):
             raw = None
-        context = validate_author_timeline_context(raw)
+        context = _validate_author_timeline_marker_for_sanitization(raw)
         keep_block = True
         replacement = raw_text
         timeline = context.get("timeline", []) if isinstance(context, dict) else []
         if context and timeline:
-            kept = [
-                item for item in timeline
-                if not _timeline_item_is_explicitly_vetoed(item, source, len(timeline))
-                and _timeline_item_is_source_grounded(item, source, len(timeline))
-            ]
+            kept = []
+            for item in timeline:
+                associated_indices = _timeline_item_source_span_indices(item, source)
+                # A paraphrase that shares only a noun/date with two claims is
+                # unresolved without the private source claim contract. Keep
+                # it out of durable state instead of allowing it to bypass an
+                # explicit recording boundary.
+                if associated_indices is None:
+                    continue
+                candidate = dict(item)
+                candidate["_resolved_source_span_indices"] = associated_indices
+                if (
+                    not _timeline_item_is_explicitly_vetoed(candidate, source, len(timeline))
+                    and _timeline_item_is_source_grounded(candidate, source, len(timeline))
+                ):
+                    kept.append(candidate)
             if not _author_timeline_has_source_evidence(source):
                 # A non-empty author-timeline marker must have at least one
                 # source-grounded first-person claim. This drops accidental
@@ -1161,11 +1272,14 @@ def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
                 # finite event-verb allowlist.
                 keep_block = False
             elif kept:
-                if len(kept) != len(timeline):
+                if len(kept) != len(timeline) or any(
+                    "_source_claim_id" in item for item in timeline
+                ):
                     replacement = json.dumps(
-                        {"timeline": kept}, ensure_ascii=False, separators=(",", ":")
+                        {"timeline": [_public_timeline_item(item) for item in kept]},
+                        ensure_ascii=False, separators=(",", ":")
                     )
-            else:
+            elif timeline:
                 keep_block = False
         if keep_block:
             output.append(
@@ -2263,6 +2377,7 @@ class CodexRuntime:
                 family_context=family_context,
                 task_sources=task_sources,
                 language=language,
+                source_text=text,
             )
             prompt = f'Storyteller message:\n{text}'
             async with CodexConnection(

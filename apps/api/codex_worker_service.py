@@ -349,6 +349,7 @@ class CodexWorker:
                 task_sources=payload.task_sources,
                 language=language,
                 focus=payload.extraction_focus,
+                source_text=payload.text,
             )
         else:
             instructions = build_system_prompt(
