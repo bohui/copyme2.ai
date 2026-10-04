@@ -15,7 +15,7 @@ import sys
 from urllib.parse import urljoin, urlsplit
 import weakref
 
-from playwright.sync_api import APIRequestContext, Browser, Route
+from playwright.sync_api import APIRequestContext, Browser, Error, Route
 
 
 origins = {value.rstrip('/') for key in ('MEMOIR_BROWSER_URL', 'MEMORY_SPARK_API_ORIGIN')
@@ -39,11 +39,27 @@ def allowed(url, method='GET'):
     return parsed.scheme == 'https' and parsed.hostname in public_assets and method in ('GET', 'HEAD')
 
 
-def reject(url, method):
+def reject(url, method, reason=None):
     parsed = urlsplit(url)
     # Never record query strings, headers or bodies.
     blocked.append({'origin': f'{parsed.scheme}://{parsed.netloc}',
                     'path': parsed.path, 'method': method})
+    if reason:
+        blocked[-1]['reason'] = reason
+
+
+def redirect_destination(url, location, method):
+    # WHATWG URL parsing can treat backslashes/control whitespace differently
+    # from urljoin. Reject ambiguous forms before resolving or recording them.
+    if chr(92) in location or any(char.isspace() or ord(char) < 32 or ord(char) == 127
+                                 for char in location):
+        reject(url, method, 'ambiguous_redirect_location')
+        return None
+    try:
+        return urljoin(url, location)
+    except ValueError:
+        reject(url, method, 'invalid_redirect_location')
+        return None
 
 
 def install_redirect_guard(page):
@@ -59,12 +75,13 @@ def install_redirect_guard(page):
         if status in {301, 302, 303, 307, 308}:
             for header in event.get('responseHeaders', []):
                 if header['name'].lower() == 'location':
-                    target = urljoin(request['url'], header['value'])
                     method = request['method']
                     if (status in {301, 302} and method == 'POST') or (status == 303 and method != 'HEAD'):
                         method = 'GET'
-                    if not allowed(target, method):
-                        reject(target, method)
+                    target = redirect_destination(request['url'], header['value'], method)
+                    if target is None or not allowed(target, method):
+                        if target is not None:
+                            reject(target, method)
                         session.send('Fetch.failRequest', {'requestId': event['requestId'],
                                                           'errorReason': 'BlockedByClient'})
                         return
@@ -128,6 +145,35 @@ def guarded_route(operation, route, *args, **kwargs):
         raise RuntimeError('Browser network guard rejected an unapproved destination')
     if operation is route_fetch:
         kwargs['max_redirects'] = 0
+    elif operation is route_continue:
+        try:
+            frame = route.request.frame
+            covered = frame == frame.page.main_frame and frame.page in response_pages
+        except Error:
+            covered = False  # A popup can navigate before its Page exists.
+        if not covered:
+            # Initial popup and child-frame requests cannot rely on Page CDP.
+            # Explicit harness policy: buffer these finite documents, but deny
+            # every redirect rather than allow an unsupported target to follow
+            # Location. Normal main-page streaming/navigation stays native.
+            try:
+                response = route_fetch(route, *args, **kwargs, max_redirects=0, timeout=10000)
+            except Error:
+                reject(url, method, 'unsupported_target_fetch_failed')
+                return route.abort('blockedbyclient')
+            try:
+                location = response.headers.get('location')
+                if response.status in {301, 302, 303, 307, 308} and location:
+                    redirect_method = method
+                    if (response.status in {301, 302} and method == 'POST') or (response.status == 303 and method != 'HEAD'):
+                        redirect_method = 'GET'
+                    target = redirect_destination(url, location, redirect_method)
+                    if target is not None:
+                        reject(target, redirect_method, 'unsupported_target_redirect')
+                    return route.abort('blockedbyclient')
+                return route.fulfill(response=response)
+            finally:
+                response.dispose()
     return operation(route, *args, **kwargs)
 
 
