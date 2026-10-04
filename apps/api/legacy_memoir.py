@@ -133,16 +133,22 @@ def import_saved_cache(storage, project, locale):
         'policy': request['policy']})
     bundle['content_config'] = config
     sections = []
-    for chapter in bundle['manuscript']['chapters']:
+    bodies = [(chapter['id'], chapter) for chapter in bundle['manuscript']['chapters']]
+    if bundle['manuscript']['kind'] == 'sample_storyline':
+        bodies.append(('sample_storyline', bundle['manuscript']['storyline']))
+    for chapter_id, chapter in bodies:
         for block in chapter['blocks']:
             ids = section_event_ids(block, chapter, request)
-            sections.append({'id': chapter['id'] + '__' + block['id'], 'chapter_id': chapter['id'], 'event_ids': ids,
+            sections.append({'id': chapter_id + '__' + block['id'], 'chapter_id': chapter_id, 'event_ids': ids,
                 'source_refs': block['source_refs'], 'content': block['text'], 'block': block,
                 'fingerprint': fingerprint({'events': {id: events[id]['revision'] for id in ids},
                     'sources': block['source_refs'], 'configuration': config})})
-        sections.append({'id': chapter['id'] + '__heading', 'chapter_id': chapter['id'], 'event_ids': chapter['event_ids'],
+        heading = {'title': chapter['title']}
+        if chapter_id != 'sample_storyline':
+            heading['subtitle'] = chapter['subtitle']
+        sections.append({'id': chapter_id + '__heading', 'chapter_id': chapter_id, 'event_ids': chapter['event_ids'],
             'source_refs': chapter['source_refs'], 'content': chapter['title'],
-            'heading': {'title': chapter['title'], 'subtitle': chapter['subtitle']},
+            'heading': heading,
             'fingerprint': fingerprint({'events': {id: events[id]['revision'] for id in chapter['event_ids']},
                 'sources': chapter['source_refs'], 'configuration': config})})
     bundle['sections'] = sections

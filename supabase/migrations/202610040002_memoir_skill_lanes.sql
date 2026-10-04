@@ -455,7 +455,14 @@ grant execute on function public.protect_user_memoir_draft(text,text,bigint,bool
 create or replace function public.read_user_memoir_proposal(p_project_id text,p_locale text) returns jsonb
 language sql security definer set search_path='' as $$
   select pg_catalog.jsonb_build_object('base_revision',proposal->'base_revision','preview',proposal->'bundle'->'preview')
-    from public.user_memoir_manuscript where user_id=auth.uid() and project_id=p_project_id and locale=p_locale and proposal is not null
+    from public.user_memoir_manuscript m where user_id=auth.uid() and project_id=p_project_id and locale=p_locale and proposal is not null
+      and (proposal->>'base_revision')::bigint=m.revision
+      and not exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(proposal->'bundle'->'source_manifest','[]')) ref
+        left join public.user_narrator_source s on s.user_id=m.user_id and s.project_id=m.project_id and s.id::text=ref->>'id'
+        where s.id is null or s.status<>'active' or s.version::text is distinct from ref->>'version')
+      and not exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(proposal->'bundle'->'event_manifest','[]')) ref
+        left join public.user_memory_event e on e.user_id=m.user_id and e.project_id=m.project_id and e.id=ref->>'id'
+        where e.id is null or e.status='withdrawn' or e.revision::text is distinct from ref->>'revision')
 $$;
 revoke all on function public.read_user_memoir_proposal(text,text) from public,anon;
 grant execute on function public.read_user_memoir_proposal(text,text) to authenticated;
@@ -492,6 +499,8 @@ begin
     update public.user_memoir_manuscript m set eligible=false,proposal=null where user_id=new.user_id and project_id=new.project_id
       and exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.bundle->'event_manifest','[]')) ref where ref->>'id'=new.id);
   end if;
+  update public.user_memoir_manuscript m set proposal=null where user_id=new.user_id and project_id=new.project_id
+    and exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.proposal->'bundle'->'event_manifest','[]')) ref where ref->>'id'=new.id);
   return new;
 end $$;
 revoke all on function public.record_memory_event_change() from public,anon,authenticated;
@@ -530,6 +539,8 @@ begin
   end if;
   select array_agg(distinct s.event_id) into affected from public.user_memory_event_source s
     where user_id=owner_id and project_id=p_project_id and source_id=p_source_id;
+  update public.user_memoir_manuscript m set proposal=null where user_id=owner_id and project_id=p_project_id
+    and exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.proposal->'bundle'->'source_manifest','[]')) ref where ref->>'id'=p_source_id::text);
   -- Eligibility changes in the same transaction as the source change.
   update public.user_memoir_manuscript m set eligible=false,proposal=null,
     reuse=case when p_action='withdraw' then public.safe_memoir_reuse(coalesce(m.bundle,m.reuse),affected,p_source_id) else reuse end,
@@ -625,6 +636,8 @@ begin
     raise exception 'source link unavailable' using errcode='42501'; end if;
   insert into public.user_memory_event_source_exclusion values(owner_id,p_project_id,p_event_id,p_source_id,owner_id,p_statement,p_expected_revision) on conflict do nothing;
   delete from public.user_memory_event_source where user_id=owner_id and project_id=p_project_id and event_id=p_event_id and source_id=p_source_id;
+  update public.user_memoir_manuscript m set proposal=null where user_id=owner_id and project_id=p_project_id
+    and exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.proposal->'bundle'->'event_manifest','[]')) e where e->>'id'=p_event_id);
   update public.user_memoir_manuscript m set eligible=false,reuse=public.safe_memoir_reuse(coalesce(m.bundle,m.reuse),array[p_event_id]),bundle=null,proposal=null where user_id=owner_id and project_id=p_project_id and
     exists(select 1 from pg_catalog.jsonb_array_elements(coalesce(m.bundle->'event_manifest','[]')) e where e->>'id'=p_event_id);
   delete from public.user_memoir_checkpoint c using public.user_memoir_lane l where c.lane_id=l.id and l.user_id=owner_id and l.project_id=p_project_id and
@@ -770,8 +783,13 @@ begin
     timing:=pg_catalog.jsonb_build_object('expression',expression,'precision',precision,'basis',refs,
       'legacy_start_expression',item->'start_expression','legacy_end_expression',item->'end_expression');
     if refs<>'[]' and exists(select 1 from pg_catalog.jsonb_array_elements(refs) r where pg_catalog.strpos(r->>'quote',expression)>0) then
-      years:=pg_catalog.regexp_match(expression,'(^|[^0-9])([0-9]{4})([^0-9]|$)');
-      if years is not null and precision<>'unknown' and precision<>'age' then timing:=timing || pg_catalog.jsonb_build_object('year_start',years[2]::integer,'year_end',years[2]::integer); end if;
+      select pg_catalog.array_agg(match[1] order by ordinal) into years
+        from pg_catalog.regexp_matches(expression,'(?<![0-9])([0-9]{4})(?![0-9])','g') with ordinality matches(match,ordinal);
+      if precision='range' and pg_catalog.cardinality(years)=2 and years[1]::integer<=years[2]::integer then
+        timing:=timing || pg_catalog.jsonb_build_object('year_start',years[1]::integer,'year_end',years[2]::integer);
+      elsif precision not in ('unknown','age','range') and pg_catalog.cardinality(years)=1 then
+        timing:=timing || pg_catalog.jsonb_build_object('year_start',years[1]::integer,'year_end',years[1]::integer);
+      end if;
     end if;
     stage:='unplaced';
     select coalesce(pg_catalog.jsonb_agg(id),'[]') into person_ids from pg_catalog.jsonb_array_elements_text(coalesce(item->'person_ids','[]')) id

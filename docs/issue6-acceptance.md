@@ -128,7 +128,28 @@ Each selector is an actual collected test. Invoke it with `python -m pytest <fil
 
 Additional passing cases cover old/new grouping invalidation, stale revision conflicts, narrator birth versus a relative's birth, successful empty/out-of-order extraction, link-removal tombstones and surviving overrides, source history/context sanitisation, immutable unrelated passage and heading reuse, ambiguous legacy aliases, current policy fencing, scope-safe cache pruning, separate milestone history versus actual coverage, and the existing twenty-round sample route consuming the shared draft. Both Temporal skill-lane parameterisations cover held arrivals at ten/fifteen/twenty plus round 21, exactly one catch-up, and failed six-through-ten recovery through twenty.
 
-The existing [composer contract suite](../skills/memoir-composer/tests/composer.test.mjs) and [progressive fixture suite](../skills/memoir-composer/tests/progressive_e2e.test.mjs) additionally cover chronological assembly, exact 7000/7001 word boundaries, Chinese segmentation, original-versus-derived evidence, source/asset rights, protected chapter proposals, runtime counter validation and absence of automatic publication. The small browser suite covers desktop/mobile tag editing and reload, bilingual stage display, saved coverage/updating and premium-family display/fallback.
+The existing [composer contract suite](../skills/memoir-composer/tests/composer.test.mjs) and [progressive fixture suite](../skills/memoir-composer/tests/progressive_e2e.test.mjs) additionally cover chronological assembly, exact 7000/7001 word boundaries, Chinese segmentation, original-versus-derived evidence, source/asset rights, protected chapter proposals, runtime counter validation and absence of automatic publication. The browser suite covers actual authenticated typed/dictated sends, desktop/mobile tag editing and conflict reload, bilingual stage display, saved coverage/updating and premium-family display/fallback.
+
+## Independent cloud review repairs
+
+The first independent cloud review of PR9 at `996b0806a344eaa4766d0847449f2aa41b2bee9e` found eight introduced defects. Every reported behavior was reproduced locally through the agreed browser, story API or native PostgreSQL RPC/migration seams before its repair. PGlite probes supplied by the cloud reviewer were diagnostic evidence; they are not counted as native PostgreSQL acceptance.
+
+| Finding | Local red result | Kept regression selector |
+| --- | --- | --- |
+| Authenticated non-greeting sends reference an undefined `sourceKind`. | Actual typed submit displayed `sourceKind is not defined` before API dispatch. | B: `test_authenticated_browser_send_persists_the_original_and_its_input_kind` (typed/dictated) |
+| Separate temporal birth basis, stage and relation evidence are not dependency links. | All six edit/withdraw cases left the dependent event active with obsolete evidence. | P: `test_changing_placement_or_relation_evidence_reconciles_the_dependent_event` |
+| Proposal-only evidence survives source/event changes. | All four edit/withdraw/tag/unlink cases returned the obsolete protected proposal. | P: `test_proposal_only_evidence_changes_remove_the_proposal_and_fence_older_workers` |
+| Empty candidate arrays are mistaken for ambiguity. | A new event became unresolved; existing-event enrichment was rejected. | P: `test_empty_candidates_are_unambiguous_for_new_and_existing_canonical_events` |
+| Storyline samples have no section dependencies or immutable reuse. | Two real validated/rendered `chapters=[]` compositions changed unrelated work prose from “I started work in 1975.” to “In 1975, I began working.”; a withdrawal rebuild retried instead of saving safe survivors. | P: `test_genuine_storyline_enrichment_preserves_unrelated_passages_exactly`; `test_recomposed_storylines_hide_changed_evidence_and_reuse_only_surviving_passages` |
+| Stage-only UI edits overwrite unchanged date evidence. | The real form stayed open after a rejected correction whose statement supplied no year. | B: `test_saved_coverage_and_timeline_tag_edit_survive_browser_reload` (stage-only/date-only/both/stale, desktop/mobile) |
+| Native serialization conflicts are misclassified at the HTTP boundary. | Native SQLSTATE `40001` with documented PostgREST HTTP500 returned API422. | P: `test_stale_event_edits_recognize_native_postgrest_conflicts_without_misclassifying_internal_failures` |
+| Supported legacy periods collapse to their first year. | Both migration paths changed 1986–2005 into 1986–1986. | P: `test_legacy_period_import_preserves_both_supported_range_endpoints_and_original_evidence` |
+
+The storyline repair also covers both legacy cache stores through S30: chapter and genuine storyline bundles now keep evidence sections and exact saved prose. The public story route is exercised after repeated source edits/recomposition; old Brisbane prose is withheld on the second edit, and frozen worker output is rejected. Withdrawal rebuilds retain unrelated section bytes and revisions.
+
+The send tests use the actual local page and shipped client, authenticated agent router/runtime, actual streaming private worker and app-server protocol, plus native PostgreSQL transactions. Only external auth/project metadata, media hardware/transcription and model replies are synthetic. The corrected REST fixture obtains the real SQLSTATE from PostgreSQL instead of guessing from an error message. It models the [documented PostgREST status mapping](https://docs.postgrest.org/en/stable/references/errors.html): `40*` is HTTP500. A live PostgREST server is not part of this fixture; the native database error and actual application's HTTP classification are exercised. An unrelated native `XX000` failure stays a generic correction error and exposes no database details.
+
+Red/green logs use `/tmp/issue6-{send,dependencies,candidates,legacy-range,proposals,storyline,storyline-policy,legacy-storyline,conflict}-{red,green}.log`; desktop/mobile date-only/conflict checks use `/tmp/issue6-edits-regression.log`. Setup failures (including a SQL alias collision, HTTP bridge content type, SQL NULL rendering and receipt-drain setup) were corrected and are not treated as behavioral red evidence or passes.
 
 ## Verification record
 
@@ -136,14 +157,14 @@ Run date: 2026-10-04, macOS 26.3.1 arm64, Python 3.12.11, pytest 8.4.2, FastAPI 
 
 | Check | Current result | Evidence |
 | --- | --- | --- |
-| Canonical PostgreSQL/story acceptance | 68 passed in 191.66s under Node 22.22.0; no skipped cases. | `tests/test_shared_memory_events_postgres.py` |
-| Actual Temporal/outbox/private-worker recovery | 6 passed in 87.71s under Node 22.22.0; no skipped cases. | `tests/test_memoir_lanes_temporal.py` |
-| Relevant API/storage/family/preview/private-draft/runtime regressions | 182 passed in 23.50s under Node 22.22.0. | Files in command below |
-| Browser workspace/stage/family | 8 passed in 41.51s after mobile navigation fix. | Three browser files below |
+| Canonical PostgreSQL/story acceptance | 90 passed in 258.31s under Node 22.22.0; zero skips. | `tests/test_shared_memory_events_postgres.py`; `/tmp/issue6-review-pg-final.log` |
+| Actual Temporal/outbox/private-worker recovery | 6 passed in 91.81s under Node 22.22.0; zero skips. | `tests/test_memoir_lanes_temporal.py`; `/tmp/issue6-review-temporal-final.log` |
+| Relevant API/storage/family/preview/private-draft/runtime regressions | 182 passed in 26.44s under Node 22.22.0; zero skips. | Files in command below; `/tmp/issue6-review-regressions-final.log` |
+| Browser workspace/stage/family, including real client sends and correction conflicts | 16 passed in 86.34s; zero skips. | Three browser files below; `/tmp/issue6-review-browser-final.log` |
 | Composer contracts and progressive fixtures, Node 22.22.0 | 62 passed, zero skipped/cancelled/todo. | `node --test tests/*.test.mjs` |
 | Python compile | Passed. | `python -m compileall -q apps/api scripts tests/fixtures/issue6_controlled_app_server.py` |
-| Next production build, Node 22.22.0 | Passed with final tag-edit/mobile CSS. | `next build --webpack` |
-| Independent cloud review and current-main/PR3 integration | Pending; final acceptance blocked. | Parent handoff |
+| Next production build, Node 22.22.0 | Passed after the client send/tag corrections. | `next build --webpack`; `/tmp/issue6-review-web-build.log` |
+| Independent cloud rereview and current-main/PR3 integration | First cloud review found eight defects; repaired head still needs independent rereview, review-clear base integration and CI. | Parent handoff |
 
 Canonical and Temporal commands, from the isolated checkout:
 ```sh
@@ -170,7 +191,7 @@ MEMOIR_BROWSER_URL=http://127.0.0.1:48166 MEMOIR_TEST_POSTGRES_BACKEND=apple-con
   tests/test_stage_readiness_browser.py tests/test_family_tree_browser.py --tb=short
 ```
 
-Frontend start/build use the source checkout, `NEXT_TELEMETRY_DISABLED=1`, an unused upstream `http://127.0.0.1:49999`, Node 22.22.0 and `--webpack`. The API bridge in browser tests calls the actual authenticated story router and PostgreSQL RPCs; synthetic external auth/project metadata is labelled in the fixture. Screenshots were inspected in `output/preview-debug/issue6-event-edit-form-1440.png` and `issue6-event-edit-form-390.png`. No request is sent to the public application.
+Frontend start/build use the source checkout, `NEXT_TELEMETRY_DISABLED=1`, an unused upstream `http://127.0.0.1:49999`, Node 22.22.0 and `--webpack`. The API bridge in browser tests calls the actual authenticated story/agent routers, private streaming worker and PostgreSQL RPCs; synthetic external auth/project metadata and audio/model boundaries are labelled in the fixture. Screenshots were inspected in `output/preview-debug/issue6-event-edit-form-1440.png` and `issue6-event-edit-form-390.png`. No request is sent to the public application.
 
 Failed aggregate attempts are not counted as passes: the first lost a disposable 512 MiB database, later fixture failures exposed missing spans and outbox state leaking between test cases, a frontend start failed its sandbox loopback bind, and a mobile click exposed shrinking navigation. Only the corrected fresh runs above provide evidence. No skipped/unavailable check substitutes for passing coverage.
 

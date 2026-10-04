@@ -35,8 +35,11 @@ def section_event_ids(block, chapter, request):
 def restore_unchanged_sections(request, draft):
     """Restore stored bytes before validation, evidence review and rendering."""
     preserved = request.get('context', {}).get('preserved_sections', [])
-    for chapter in draft.get('chapters', []):
-        prior = [s for s in preserved if s['chapter_id'] == chapter['id']]
+    bodies = [(chapter['id'], chapter) for chapter in draft.get('chapters', [])]
+    if draft.get('kind') == 'sample_storyline':
+        bodies.append(('sample_storyline', draft['storyline']))
+    for chapter_id, chapter in bodies:
+        prior = [s for s in preserved if s['chapter_id'] == chapter_id]
         blocks = [s for s in prior if 'block' in s]
         by_id = {s['block']['id']: s['block'] for s in blocks}
         preserved_events = {event_id for section in blocks for event_id in section['event_ids']}
@@ -49,9 +52,9 @@ def restore_unchanged_sections(request, draft):
         if heading:
             chapter.update(copy.deepcopy(heading['heading']))
             for entry in draft.get('outline', []):
-                if entry['chapter_id'] == chapter['id']:
+                if entry['chapter_id'] == chapter_id:
                     entry['title'] = heading['heading']['title']
-            if draft.get('kind') == 'sample_chapter':
+            if draft.get('kind') in {'sample_chapter', 'sample_storyline'}:
                 draft['title'] = heading['heading']['title']
                 draft['title_source_refs'] = copy.deepcopy(heading['source_refs'])
     return draft
@@ -74,7 +77,15 @@ def composer_request(job):
                 'period_ids':list(dict.fromkeys('stage_'+e['life_stage'] for e in job['events'] if e['id'] in ids)),
                 'event_ids':ids,'source_refs':[r for s in sections if 'block' in s for r in s['source_refs']],
                 'blocks':blocks,'change_type':'enrich','update_reason':'Surviving original evidence.'})
-        previous = {**previous,'manuscript':{'kind':previous['kind'],'chapters':chapters},'draft':{'input_fingerprint':''}}
+        manuscript = {'kind':previous['kind'],'chapters':chapters}
+        if previous['kind'] == 'sample_storyline':
+            body = next((chapter for chapter in chapters if chapter['id']=='sample_storyline'), None)
+            manuscript = {'kind':'sample_storyline','chapters':[], 'storyline':{
+                'title':body['title'] if body else 'Memories',
+                'source_refs':body['source_refs'] if body else [],
+                'event_ids':body['event_ids'] if body else [],
+                'blocks':body['blocks'] if body else []}}
+        previous = {**previous,'manuscript':manuscript,'draft':{'input_fingerprint':''}}
     sources = [{key: source[key] for key in ('id', 'project_id', 'kind', 'author_role', 'text', 'status')}
                | {'version': str(source['version']), 'allowed': True, 'derived_from': [],
                   'source_order': source['sequence']} for source in job['sources']]
@@ -207,18 +218,24 @@ async def compose_shared_snapshot(job, worker):
     bundle['content_config'] = config
     sections = []
     manifest = {e['id']: e['revision'] for e in job['event_manifest']}
-    for chapter in bundle['manuscript']['chapters']:
+    bodies = [(chapter['id'], chapter) for chapter in bundle['manuscript']['chapters']]
+    if bundle['manuscript']['kind'] == 'sample_storyline':
+        bodies.append(('sample_storyline', bundle['manuscript']['storyline']))
+    for chapter_id, chapter in bodies:
         # Headings and transitions conservatively declare the chapter's events.
         # This preserves all dependencies, including multi-event original turns.
         for block in chapter['blocks']:
             event_ids = section_event_ids(block, chapter, request)
-            sections.append({'id': chapter['id'] + '__' + block['id'], 'chapter_id': chapter['id'],
+            sections.append({'id': chapter_id + '__' + block['id'], 'chapter_id': chapter_id,
                 'event_ids': event_ids, 'source_refs': block['source_refs'], 'content': block['text'],
                 'block': block, 'fingerprint': fingerprint({'events': {id: manifest[id] for id in event_ids},
                     'sources': block['source_refs'], 'configuration': config})})
-        sections.append({'id': chapter['id'] + '__heading', 'chapter_id': chapter['id'],
+        heading = {'title': chapter['title']}
+        if chapter_id != 'sample_storyline':
+            heading['subtitle'] = chapter['subtitle']
+        sections.append({'id': chapter_id + '__heading', 'chapter_id': chapter_id,
             'event_ids': chapter['event_ids'], 'source_refs': chapter['source_refs'],
-            'content': chapter['title'], 'heading': {'title': chapter['title'], 'subtitle': chapter['subtitle']},
+            'content': chapter['title'], 'heading': heading,
             'fingerprint': fingerprint({'events': {id: manifest[id] for id in chapter['event_ids']},
                 'sources': chapter['source_refs'], 'configuration': config})})
     bundle['sections'] = sections

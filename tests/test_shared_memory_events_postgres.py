@@ -37,7 +37,7 @@ def sql(event_database):
 
 
 def rpc(sql, name, arguments, *, owner=OWNER, check=True):
-    result = sql(as_user(f'select public.{name}({arguments});', owner), check=check)
+    result = sql(as_user(f"select coalesce(to_jsonb(public.{name}({arguments})),'null'::jsonb);", owner), check=check)
     return json.loads(result.stdout.splitlines()[-1]) if check else result
 
 
@@ -48,6 +48,65 @@ def literal(value):
 def extract(sql, sources, events):
     manifest = [{'id': s['id'], 'version': s['version']} for s in sources]
     return rpc(sql, 'apply_user_memory_events', f"'project', {literal(manifest)}::jsonb, {literal(events)}::jsonb")
+
+
+@pytest.mark.parametrize('dependency', ['birth_basis', 'stage_evidence', 'relation'])
+@pytest.mark.parametrize('action', ['edit', 'withdraw'])
+def test_changing_placement_or_relation_evidence_reconciles_the_dependent_event(sql, dependency, action):
+    from apps.api.memory_events import validate_extraction
+    evidence = {'birth_basis':'I was born in 1950.', 'stage_evidence':'I was an adolescent then.',
+                'relation':'School preceded my move.'}[dependency]
+    basis = rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}',{literal(evidence)}")
+    original = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000002','At age 6 I started school.'")
+    ref = {'source_id':original['id'],'version':1,'quote':original['text']}
+    basis_ref = {'source_id':basis['id'],'version':1,'quote':evidence}
+    proposal = {'kind':'event','title':'Started school','source_refs':[ref]}
+    saved_events = []
+    if dependency == 'birth_basis':
+        proposal['temporal'] = {'expression':'age 6','precision':'age','year_start':1956,'year_end':1956,'basis':[basis_ref, ref]}
+    elif dependency == 'stage_evidence':
+        proposal.update(life_stage='adolescence',stage_evidence=[basis_ref])
+    else:
+        target = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000003','I moved to Sydney.'")
+        saved_events = extract(sql, [target], [{'kind':'event','title':'Moved','source_refs':[
+            {'source_id':target['id'],'version':1,'quote':target['text']}]}])['events']
+        proposal['relations'] = [{'kind':'before','event_id':saved_events[0]['id'],'source_refs':[basis_ref]}]
+    approved = validate_extraction({'events':[proposal]}, [basis, original], saved_events)
+    before = next(event for event in extract(sql, [basis, original], approved)['events'] if event['title']=='Started school')
+    replacement = literal('My corrected statement no longer establishes that fact.') if action == 'edit' else 'null'
+    rpc(sql, 'change_user_narrator_source', f"'project','{basis['id']}',1,'{action}',{replacement}")
+    view = rpc(sql, 'read_user_memory_events', "'project'")
+    after = next(event for event in view['events'] if event['id']==before['id'])
+    assert after['status'] == 'unresolved' and after['revision'] == before['revision']+1
+    assert after['temporal'] == {'expression':'unknown','precision':'unknown'}
+    assert after['life_stage'] == 'unplaced' and not after.get('relations')
+    assert evidence not in json.dumps(after)
+    assert {r['source_id'] for r in after['source_refs']} == {original['id']}
+    assert view['completed_rounds'] == 0
+
+
+@pytest.mark.parametrize('existing', [False, True])
+@pytest.mark.parametrize('ambiguous', [False, True])
+def test_empty_candidates_are_unambiguous_for_new_and_existing_canonical_events(sql, existing, ambiguous):
+    first = rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}','I started school.'")
+    ref = {'source_id':first['id'],'version':1,'quote':first['text']}
+    original = extract(sql, [first], [{'kind':'event','title':'Started school','source_refs':[ref]}])['events'][0]
+    second = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000002','That school had a blue gate.'")
+    proposal = {'kind':'event','title':'School','source_refs':[{'source_id':second['id'],'version':1,'quote':second['text']}],
+                'candidate_ids':[original['id']] if ambiguous else []}
+    if existing:
+        proposal.update(existing_id=original['id'],expected_revision=1)
+    manifest = [{'id':second['id'],'version':1}]
+    result = rpc(sql, 'apply_user_memory_events', f"'project',{literal(manifest)}::jsonb,{literal([proposal])}::jsonb", check=False)
+    if existing and ambiguous:
+        assert result.returncode != 0 and 'ambiguous candidates' in result.stderr
+        assert rpc(sql, 'read_user_memory_events', "'project'")['events'] == [original]
+    else:
+        assert result.returncode == 0, result.stderr
+        saved = next(event for event in json.loads(result.stdout.splitlines()[-1])['events'] if event['title']=='School')
+        assert saved['status'] == ('unresolved' if ambiguous else 'active')
+        assert saved['candidate_ids'] == proposal['candidate_ids']
+        assert (saved['id']==original['id']) is existing
 
 
 def test_one_reply_has_distinct_events_and_later_reply_enriches_the_same_identity(sql):
@@ -462,6 +521,92 @@ def add_rounds(sql, start, end, text='Thanks.'):
     return result
 
 
+def storyline_rounds(sql):
+    from test_agent_commit_postgres import OLD
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    originals, proposals = [], []
+    for number, text, stage, title in [(1,'I started school in 1960.','childhood','Started school'),
+        (2,'I started work in 1975.','young_adulthood','Started work'),
+        (3,'I moved to Sydney in 1990.','midlife','Moved')]:
+        source = add_rounds(sql, number, number, text)[0]
+        originals.append(source)
+        ref = {'source_id':source['id'],'version':1,'quote':text}
+        proposals.append({'kind':'event','title':title,'life_stage':stage,'stage_evidence':[ref],'source_refs':[ref]})
+    originals.extend(add_rounds(sql, 4, 5))
+    view = extract(sql, originals, proposals)
+    return originals, view['events'], deliver_latest(sql)
+
+
+def test_genuine_storyline_enrichment_preserves_unrelated_passages_exactly(sql, tmp_path, monkeypatch):
+    originals, events, lanes = storyline_rounds(sql)
+    prose = {'Started school':'I started school in 1960.', 'Started work':'I started work in 1975.',
+             'Moved':'I moved to Sydney in 1990.'}
+    options = {'storyline_events':True,'event_prose':{e['id']:prose[e['title']] for e in events}}
+    lane = lanes['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane, control_options=options)['status']=='saved'
+    before = rpc(sql, 'read_user_memoir_draft', "'project'")
+    assert before['preview']['kind']=='sample_storyline' and 'I started work in 1975.' in before['preview']['text']
+    school = next(e for e in events if e['title']=='Started school')
+    work = next(e for e in events if e['title']=='Started work')
+    rpc(sql, 'correct_user_memory_event', f"'project','{school['id']}',1,'{{\"life_stage\":\"adolescence\"}}'::jsonb,'I was an adolescent then.'")
+    deliver_latest(sql)
+    rewritten = {**prose,'Started school':'As an adolescent, I started school in 1960.','Started work':'In 1975, I began working.'}
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane,
+        control_options={'storyline_events':True,'event_prose':{e['id']:rewritten[e['title']] for e in events}})['status']=='saved'
+    after = rpc(sql, 'read_user_memoir_draft', "'project'")
+    assert after['preview']['kind']=='sample_storyline'
+    assert 'I started work in 1975.' in after['preview']['text'] and 'In 1975, I began working.' not in after['preview']['text']
+    unchanged = next(section for section in before['sections'] if section['event_ids']==[work['id']])
+    assert next(section for section in after['sections'] if section['id']==unchanged['id'])==unchanged
+
+
+@pytest.mark.parametrize('change', ['repeat_edit', 'withdraw'])
+def test_recomposed_storylines_hide_changed_evidence_and_reuse_only_surviving_passages(sql, tmp_path, monkeypatch, change):
+    originals, events, lanes = storyline_rounds(sql)
+    lane = lanes['composer_lane_id']
+    prose = {event['id']:{'Started school':'I started school in 1960.','Started work':'I started work in 1975.',
+        'Moved':'I moved to Sydney in 1990.'}[event['title']] for event in events}
+    options = {'storyline_events':True,'event_prose':prose}
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane, control_options=options)['status']=='saved'
+    before = rpc(sql, 'read_user_memoir_draft', "'project'")
+    move = next(e for e in events if e['title']=='Moved')
+    work = next(e for e in events if e['title']=='Started work')
+    edited = rpc(sql, 'change_user_narrator_source', f"'project','{originals[2]['id']}',1,'edit','I moved to Brisbane in 1990.'")
+    assert rpc(sql, 'read_user_memoir_draft', "'project'")['preview'] is None
+    changed = next(e for e in rpc(sql, 'read_user_memory_events', "'project'")['events'] if e['id']==move['id'])
+    ref = {'source_id':edited['id'],'version':2,'quote':edited['text']}
+    extract(sql, [edited], [{'existing_id':move['id'],'expected_revision':changed['revision'],'kind':'event','title':'Moved',
+        'life_stage':'midlife','stage_evidence':[ref],'source_refs':[ref]}])
+    # Drain both the edit and extraction receipts, as the actual broker does.
+    for receipt in service_rpc(sql, 'pending_memoir_receipts', '100'):
+        service_rpc(sql, 'queue_memoir_receipt', f"'{receipt}',5")
+    options = {'storyline_events':True,'event_prose':{**prose,move['id']:'I moved to Brisbane in 1990.'}}
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane, control_options=options)['status']=='saved'
+    recomposed = rpc(sql, 'read_user_memoir_draft', "'project'")
+    assert recomposed['preview']['kind']=='sample_storyline' and 'Brisbane' in recomposed['preview']['text']
+    rpc(sql, 'retry_user_memoir_lane', "'project','composer'")
+    frozen = service_rpc(sql, 'claim_memoir_lane', f"'{lane}',300")
+    if change=='repeat_edit':
+        rpc(sql, 'change_user_narrator_source', f"'project','{edited['id']}',2,'edit','I moved to Perth in 1990.'")
+    else:
+        rpc(sql, 'change_user_narrator_source', f"'project','{edited['id']}',2,'withdraw'")
+    current = story_client(sql).get('/v1/story/private-draft?project_id=project', headers={'Authorization':'Bearer synthetic-author'})
+    assert current.status_code==200 and current.json()['status']=='stale' and current.json()['preview'] is None
+    assert 'Brisbane' not in current.text
+    assert service_rpc(sql, 'finish_memoir_composer', f"'{lane}',{literal(frozen['token'])},2,{literal(frozen['previous'])}::jsonb")['status']=='stale'
+    if change=='withdraw':
+        # The obsolete lease is discarded only in this disposable test database.
+        sql(f"update public.user_memoir_lane set lease_until=clock_timestamp()-interval '1 second' where id='{lane}';")
+        rpc(sql, 'retry_user_memoir_lane', "'project','composer'")
+        deliver_latest(sql)
+        assert run_controlled_composer(sql, tmp_path, monkeypatch, lane, control_options=options)['status']=='saved'
+        surviving = rpc(sql, 'read_user_memoir_draft', "'project'")
+        assert surviving['preview']['kind']=='sample_storyline' and 'Brisbane' not in surviving['preview']['text']
+        assert all(move['id'] not in section['event_ids'] for section in surviving['sections'])
+        immutable = next(section for section in before['sections'] if section['event_ids']==[work['id']])
+        assert next(section for section in surviving['sections'] if section['id']==immutable['id'])==immutable
+
+
 def test_unchanged_checkpoint_advances_coverage_without_new_prose_or_revision(sql, tmp_path, monkeypatch):
     sources, lanes = five_rounds(sql)
     lane = lanes['composer_lane_id']
@@ -603,6 +748,37 @@ def story_client(sql, *, entitlement=None):
     app = FastAPI()
     app.include_router(build_router(storage))
     return TestClient(app)
+
+
+def test_stale_event_edits_recognize_native_postgrest_conflicts_without_misclassifying_internal_failures(sql, monkeypatch):
+    import httpx
+    from memoir_postgres_workflow import PostgresRest
+    source = rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}','I started school.'")
+    event = extract(sql, [source], [{'kind':'event','title':'Started school','source_refs':[
+        {'source_id':source['id'],'version':1,'quote':source['text']}]}])['events'][0]
+    rpc(sql, 'correct_user_memory_event', f"'project','{event['id']}',1,'{{\"life_stage\":\"childhood\"}}'::jsonb,'I was a child then.'")
+    storage = PostgresRest(sql, OWNER).storage()
+    with pytest.raises(httpx.HTTPStatusError) as conflict:
+        storage.correct_memory_event('project', event['id'], 1, {'life_stage':'adolescence'}, 'I was an adolescent then.')
+    assert conflict.value.response.status_code==500 and conflict.value.response.json()['code']=='40001'
+    monkeypatch.setenv('STRIPE_PRICE_FAMILY','synthetic-price')
+    entitlement = {'status':'paid','plan_key':'family_memoir_v1','family_tree':True,'timeline':True,'stripe_price_id':'synthetic-price'}
+    client = story_client(sql, entitlement=entitlement)
+    endpoint = f'/v1/story/events/project/{event["id"]}'
+    payload = {'expected_revision':1,'patch':{'life_stage':'adolescence'},'statement':'I was an adolescent then.'}
+    response = client.patch(endpoint, headers={'Authorization':'Bearer synthetic-author'}, json=payload)
+    assert response.status_code==409 and response.headers['X-Error-Code']=='EVENT_REVISION_CONFLICT'
+    assert rpc(sql, 'read_user_memory_events', "'project'")['events'][0]['life_stage']=='childhood'
+    sql("""create function public.controlled_correction_failure() returns trigger language plpgsql as $$
+      begin raise exception 'synthetic internal database failure' using errcode='XX000'; end $$;
+      create trigger controlled_correction_failure before update on public.user_memory_event
+        for each row execute function public.controlled_correction_failure();""")
+    try:
+        response = client.patch(endpoint, headers={'Authorization':'Bearer synthetic-author'}, json={**payload,'expected_revision':2})
+        assert response.status_code==422 and response.headers['X-Error-Code']=='EVENT_CORRECTION_INVALID'
+        assert 'synthetic internal' not in response.text
+    finally:
+        sql('drop trigger controlled_correction_failure on public.user_memory_event; drop function public.controlled_correction_failure();')
 
 
 def test_authenticated_saved_draft_returns_shared_coverage_and_keeps_premium_display_gated(sql, tmp_path, monkeypatch):
@@ -895,6 +1071,32 @@ def test_legacy_migration_preserves_ids_original_evidence_and_private_flags_on_r
     assert rpc(sql, 'read_user_memory_events', "'project'") == before
 
 
+@pytest.mark.parametrize('namespace', ['timeline', 'composer'])
+def test_legacy_period_import_preserves_both_supported_range_endpoints_and_original_evidence(sql, namespace):
+    original = rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}','I worked as a carpenter from 1986 to 2005.'")
+    item = {'id':'legacy-carpentry','kind':'period','title':'Worked as a carpenter','start_expression':'1986','end_expression':'2005',
+            'precision':'range','date':{'original_expression':'from 1986 to 2005','precision':'range'},
+            'visibility':'private','include_in_print':False,
+            'source_refs':[{'source_id':original['id'],'quote':original['text']} ]}
+    if namespace == 'timeline':
+        sql(f"insert into public.user_family_context(user_id,project_id,document) values ('{OWNER}','project',{literal({'people':[],'timeline':[item]})}::jsonb);")
+        migrate = lambda:rpc(sql, 'migrate_user_memory_events', "'project'")
+    else:
+        migrate = lambda:rpc(sql, 'migrate_user_memoir_index', f"'project',{literal([item])}::jsonb")
+    migrate()
+    before = rpc(sql, 'read_user_memory_events', "'project'")
+    event = before['events'][0]
+    assert event['id']=='legacy-carpentry' and event['kind']=='period' and event['status']=='active'
+    assert event['temporal']['year_start']==1986 and event['temporal']['year_end']==2005
+    assert event['temporal']['expression']=='from 1986 to 2005' and event['temporal']['precision']=='range'
+    assert event['temporal']['legacy_start_expression']=='1986' and event['temporal']['legacy_end_expression']=='2005'
+    assert event['temporal']['basis']==event['source_refs']
+    assert event['source_refs'][0]['quote']==original['text']
+    assert event['visibility']=='private' and event['include_in_print'] is False
+    migrate()
+    assert rpc(sql, 'read_user_memory_events', "'project'")==before
+
+
 def test_capability_transfer_preserves_canonical_ids_draft_dependencies_and_retry_state(sql, tmp_path, monkeypatch):
     from test_agent_commit_postgres import OLD
     token = 'ef' * 32
@@ -941,6 +1143,38 @@ def test_protected_draft_keeps_its_bytes_and_saves_enrichment_as_a_revision_boun
     assert stale.returncode != 0
 
 
+@pytest.mark.parametrize('change', ['edit', 'withdraw', 'tag', 'unlink'])
+def test_proposal_only_evidence_changes_remove_the_proposal_and_fence_older_workers(sql, tmp_path, monkeypatch, change):
+    sources, lanes = five_rounds(sql)
+    lane = lanes['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status']=='saved'
+    before = rpc(sql, 'read_user_memoir_draft', "'project'")
+    rpc(sql, 'protect_user_memoir_draft', "'project','en-AU',1,true")
+    blue = add_rounds(sql, 6, 6, 'I carried a blue chest to work in 1975.')[0]
+    added = extract(sql, [blue], [{'kind':'event','title':'Started work','source_refs':[
+        {'source_id':blue['id'],'version':1,'quote':blue['text']}]}])
+    event = next(e for e in added['events'] if e['title']=='Started work')
+    extract(sql, add_rounds(sql, 7, 10), [])
+    deliver_latest(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane, control_options={'event_prose':{
+        'Started school':'I started school around 1964.', 'Started work':'I carried a blue chest to work in 1975.'}})['status']=='proposed'
+    assert 'blue chest' in rpc(sql, 'read_user_memoir_proposal', "'project','en-AU'")['preview']['text']
+    rpc(sql, 'retry_user_memoir_lane', "'project','composer'")
+    older = service_rpc(sql, 'claim_memoir_lane', f"'{lane}',300")
+    if change in ('edit','withdraw'):
+        replacement = "'I started work in 1975 without that chest.'" if change=='edit' else 'null'
+        rpc(sql, 'change_user_narrator_source', f"'project','{blue['id']}',1,'{change}',{replacement}")
+    elif change == 'tag':
+        rpc(sql, 'correct_user_memory_event', f"'project','{event['id']}',1,'{{\"life_stage\":\"adolescence\"}}'::jsonb,'I was an adolescent then.'")
+    else:
+        rpc(sql, 'unlink_user_memory_event_source', f"'project','{event['id']}',1,'{blue['id']}','That chest was not part of this event.'")
+    assert rpc(sql, 'read_user_memoir_proposal', "'project','en-AU'") is None
+    after = rpc(sql, 'read_user_memoir_draft', "'project'")
+    assert after['status']=='ready' and after['preview']==before['preview'] and after['sections']==before['sections']
+    assert not after['proposal_pending'] and after['covered_round']==5 and after['revision']==1
+    assert service_rpc(sql, 'finish_memoir_composer', f"'{lane}',{literal(older['token'])},1,{literal(older['previous'])}::jsonb")['status']=='stale'
+
+
 @pytest.mark.parametrize('language,text,expression',[
     ('en-AU','I was born in 1952. At age twelve I started school.','At age twelve'),
     ('zh-CN','我1952年出生，十二岁开始上学。','十二岁'),
@@ -956,16 +1190,25 @@ def test_supported_age_estimates_retain_original_language_expression_and_birth_b
 
 
 @pytest.mark.parametrize('cache_store',['private_jobs','memory_preview'])
-def test_saved_legacy_composer_cache_is_imported_with_stable_event_and_section_references(sql,tmp_path,monkeypatch,cache_store):
+@pytest.mark.parametrize('form', ['chapter', 'storyline'])
+def test_saved_legacy_composer_cache_is_imported_with_stable_event_and_section_references(sql,tmp_path,monkeypatch,cache_store,form):
     import sqlite3
     from apps.api.private_draft_jobs import PrivateDraftJobs
     from memoir_postgres_workflow import PostgresRest
-    sources,lanes=five_rounds(sql)
+    if form=='storyline':
+        sources,initial_events,lanes=storyline_rounds(sql)
+        options={'storyline_events':True,'event_prose':{e['id']:{'Started school':'I started school in 1960.',
+            'Started work':'I started work in 1975.','Moved':'I moved to Sydney in 1990.'}[e['title']] for e in initial_events}}
+        expected_text='I started school in 1960.\n\nI started work in 1975.\n\nI moved to Sydney in 1990.'
+    else:
+        sources,lanes=five_rounds(sql)
+        options=None
+        expected_text='I started school around 1964.'
     coverage=20 if cache_store=='memory_preview' else 5
     if coverage==20:
         extract(sql,add_rounds(sql,6,20),[])
         deliver_latest(sql)
-    assert run_controlled_composer(sql,tmp_path,monkeypatch,lanes['composer_lane_id'])['status']=='saved'
+    assert run_controlled_composer(sql,tmp_path,monkeypatch,lanes['composer_lane_id'],control_options=options)['status']=='saved'
     rpc(sql,'retry_user_memoir_lane',"'project','composer'")
     job=service_rpc(sql,'claim_memoir_lane',f"'{lanes['composer_lane_id']}',300")
     old_id=job['events'][0]['id']
@@ -987,7 +1230,8 @@ def test_saved_legacy_composer_cache_is_imported_with_stable_event_and_section_r
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(path))
     client=story_client(sql)
     saved=client.get('/v1/story/private-draft?project_id=project',headers={'Authorization':'Bearer synthetic-author'})
-    assert saved.status_code==200 and saved.json()['preview']['text']=='I started school around 1964.'
+    assert saved.status_code==200 and saved.json()['preview']['text']==expected_text
+    assert saved.json()['preview']['kind']==('sample_storyline' if form=='storyline' else 'sample_chapter')
     assert saved.json()['covered_round']==coverage and saved.json()['revision']==1
     assert saved.json()['milestones']==[{'milestone':coverage,'state':'completed','covered_round':coverage,'manuscript_revision':1}]
     events=rpc(sql,'read_user_memory_events',"'project'")['events']

@@ -799,7 +799,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           .then(() => applyWorkspace(event.data))
           .catch((error) => toast(error.message));
       }
-    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction);
+    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind);
     // A saved reply is ready even when an earlier workspace write is pending.
     // Legacy responses still need their bundled workspace applied here.
     if (!body.conversation_saved) {
@@ -837,7 +837,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   }
 }
 
-async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined, serverAction = null) {
+async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined, serverAction = null, sourceKind = "narrator_chat") {
   const isGreeting = serverAction === "begin" || serverAction === "continue";
   const body = isGreeting
     ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }
@@ -3246,6 +3246,7 @@ function openMemoryEventEdit(id) {
   const event = state.timeline.find(item => item.id === id && item.canonical);
   if (!event || !state.familyFeaturesEnabled) return;
   state.memoryEventEdit = {id,revision:event.revision,"life-stage":event.life_stage,
+    original:{life_stage:event.life_stage,temporal:{...event.temporal}},
     "date-expression":event.temporal?.expression || "unknown","date-precision":event.temporal?.precision || "unknown",
     "year-start":event.temporal?.year_start ?? "","year-end":event.temporal?.year_end ?? "","correction-statement":""};
   render();
@@ -3259,8 +3260,12 @@ async function saveMemoryEventEdit(event) {
   const temporal = {expression:edit["date-expression"] || "unknown",precision:edit["date-precision"]};
   if (edit["year-start"] !== "") temporal.year_start = Number(edit["year-start"]);
   if (edit["year-end"] !== "") temporal.year_end = Number(edit["year-end"]);
+  const patch = {};
+  if (edit["life-stage"] !== edit.original.life_stage) patch.life_stage = edit["life-stage"];
+  if (["expression","precision","year_start","year_end"].some(key => String(temporal[key] ?? "") !== String(edit.original.temporal[key] ?? ""))) patch.temporal = temporal;
+  if (!Object.keys(patch).length) { state.memoryEventEdit = null; render(); return; }
   try {
-    await storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(edit.id)}`,{method:"PATCH",body:JSON.stringify({expected_revision:edit.revision,patch:{life_stage:edit["life-stage"],temporal},statement:edit["correction-statement"]})});
+    await storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(edit.id)}`,{method:"PATCH",body:JSON.stringify({expected_revision:edit.revision,patch,statement:edit["correction-statement"]})});
     state.memoryEventEdit = null;
     await refreshFamilyContext();
     await refreshPrivateDraft();

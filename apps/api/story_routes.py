@@ -350,7 +350,12 @@ def build_router(
             return await asyncio.to_thread(storage.correct_memory_event, project_id, event_id,
                                            payload.expected_revision, payload.patch, payload.statement)
         except httpx.HTTPStatusError as failure:
-            conflict = failure.response.status_code == 409
+            try:
+                database_error = failure.response.json()
+            except ValueError:
+                database_error = None
+            conflict = failure.response.status_code == 409 or (failure.response.status_code == 500
+                and isinstance(database_error, dict) and database_error.get('code') == '40001')
             raise HTTPException(409 if conflict else 422, 'Reload this event and retry' if conflict else 'Event correction is unavailable',
                 headers={'X-Error-Code': 'EVENT_REVISION_CONFLICT' if conflict else 'EVENT_CORRECTION_INVALID'}) from None
         finally:

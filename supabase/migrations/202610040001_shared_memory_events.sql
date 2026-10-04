@@ -278,7 +278,7 @@ create or replace function public.apply_user_memory_events(p_project_id text,p_s
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare owner_id uuid:=auth.uid(); item jsonb; saved public.user_narrator_source%rowtype; updated integer;
   proposal jsonb; ref jsonb; relation jsonb; evidence public.user_narrator_source%rowtype;
-  current_event public.user_memory_event%rowtype; event_id text; event_data jsonb; event_stage text; next_change bigint;
+  current_event public.user_memory_event%rowtype; event_id text; event_data jsonb; event_refs jsonb; event_stage text; next_change bigint;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if pg_catalog.jsonb_typeof(p_sources) is distinct from 'array' or pg_catalog.jsonb_array_length(p_sources) not between 1 and 1000 or
@@ -310,7 +310,7 @@ begin
       raise exception 'invalid event proposal' using errcode='22023';
     end if;
     current_event:=null;
-    if proposal ? 'candidate_ids' and ((proposal ? 'existing_id') or exists(select 1 from pg_catalog.jsonb_array_elements_text(proposal->'candidate_ids') candidate
+    if coalesce(pg_catalog.jsonb_array_length(proposal->'candidate_ids'),0)>0 and ((proposal ? 'existing_id') or exists(select 1 from pg_catalog.jsonb_array_elements_text(proposal->'candidate_ids') candidate
         where not exists(select 1 from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=candidate))) then
       raise exception 'ambiguous candidates must remain scoped and unresolved' using errcode='42501'; end if;
     if proposal ? 'person_ids' and exists(select 1 from pg_catalog.jsonb_array_elements_text(proposal->'person_ids') person_id
@@ -392,7 +392,18 @@ begin
     if event_stage<>'unplaced' and (pg_catalog.jsonb_typeof(event_data->'stage_evidence') is distinct from 'array' or pg_catalog.jsonb_array_length(event_data->'stage_evidence')=0) then
       raise exception 'life stage requires evidence' using errcode='22023';
     end if;
-    for ref in select value from pg_catalog.jsonb_array_elements(proposal->'source_refs') loop
+    -- Every retained fact is a dependency, even when a birth/stage/chronology
+    -- statement is separate from the event's principal narrator statement.
+    select coalesce(pg_catalog.jsonb_agg(value),'[]') into event_refs from (
+      select value from pg_catalog.jsonb_array_elements(proposal->'source_refs')
+      union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal'->'basis','[]'))
+      union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'stage_evidence','[]'))
+      union select r.value from pg_catalog.jsonb_array_elements(coalesce(event_data->'relations','[]')) relation_ref,
+        pg_catalog.jsonb_array_elements(relation_ref.value->'source_refs') r
+      union select r.value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal_accounts','[]')) account,
+        pg_catalog.jsonb_array_elements(coalesce(account->'temporal'->'basis','[]')) r
+    ) dependencies;
+    for ref in select value from pg_catalog.jsonb_array_elements(event_refs) loop
       if exists(select 1 from public.user_memory_event_source_exclusion x where x.user_id=owner_id and x.project_id=p_project_id
         and x.event_id=current_event.id and x.source_id::text=ref->>'source_id') then
         raise exception 'removed source link requires an explicit author decision' using errcode='42501'; end if;
@@ -410,10 +421,10 @@ begin
       where user_id=owner_id and project_id=p_project_id returning event_sequence into next_change;
     insert into public.user_memory_event(user_id,project_id,id,revision,kind,life_stage,status,data,change_sequence)
       values(owner_id,p_project_id,event_id,coalesce(current_event.revision,0)+1,proposal->>'kind',event_stage,
-        case when proposal ? 'candidate_ids' then 'unresolved' else 'active' end,event_data,next_change)
+        case when coalesce(pg_catalog.jsonb_array_length(proposal->'candidate_ids'),0)>0 then 'unresolved' else 'active' end,event_data,next_change)
       on conflict(user_id,project_id,id) do update set revision=excluded.revision,life_stage=excluded.life_stage,
         data=excluded.data,status=excluded.status,change_sequence=excluded.change_sequence;
-    for ref in select value from pg_catalog.jsonb_array_elements(proposal->'source_refs') loop
+    for ref in select value from pg_catalog.jsonb_array_elements(event_refs) loop
       insert into public.user_memory_event_source(user_id,project_id,event_id,source_id,source_version,evidence_hash,evidence)
         values(owner_id,p_project_id,event_id,(ref->>'source_id')::uuid,(ref->>'version')::bigint,pg_catalog.md5(ref::text),ref)
         on conflict do nothing;

@@ -56,6 +56,8 @@ def composer_reply(params):
     events = request['events']
     preserved=[s for s in request.get('context',{}).get('preserved_sections',[]) if 'block' in s]
     manifest=request.get('context',{}).get('canonical_event_manifest',events)
+    if plan['kind']=='sample_storyline' and control.get('storyline_events'):
+        events=manifest
     if control.get('focus_first'):
         # This controlled adversary may rewrite an unchanged prior block even
         # when its raw evidence is absent from the compact model packet.
@@ -76,7 +78,7 @@ def composer_reply(params):
     if control.get('event_prose'):
         chapter['source_refs'] = [ref for event in events for ref in event['source_refs']]
         chapter['blocks'] = [{'id': 'passage_' + event['id'], 'type': 'paragraph',
-            'text': control['event_prose'][event['summary']], 'asset_id': None, 'asset_version': None,
+            'text': control['event_prose'].get(event['id']) or control['event_prose'][event['summary']], 'asset_id': None, 'asset_version': None,
             'caption': '', 'alt': '', 'credit': '', 'source_refs': event['source_refs'], 'uncertainty': []}
             for event in events]
     if request.get('context',{}).get('incremental_model_context')=='compact':
@@ -85,6 +87,7 @@ def composer_reply(params):
         ids=list(dict.fromkeys([*ids,*(id for s in preserved for id in s['event_ids'])]))
         periods=list(dict.fromkeys(e['period_id'] for e in manifest if e['id'] in ids and e['period_id']))
         chapter.update(event_ids=ids,period_ids=periods,source_refs=[ref for b in chapter['blocks'] for ref in b['source_refs']])
+    storyline = plan['kind']=='sample_storyline'
     return {'schema_version': '1.0', 'project_id': request['project_id'],
         'input_snapshot_id': plan['input_snapshot_id'], 'input_fingerprint': plan['input_fingerprint'],
         'expected_manuscript_revision': plan['expected_manuscript_revision'], 'kind': plan['kind'], 'status': 'draft',
@@ -92,12 +95,14 @@ def composer_reply(params):
         'source_summary': [{'id': 'school-summary', 'text': 'Started school around 1964.',
             'source_refs': refs, 'event_ids': ids, 'uncertainty': ['approximate date']}],
         'outline': [{'chapter_id': chapter_id, 'order': 0, 'title': control.get('title','Starting school'),
-            'period_ids': periods, 'event_ids': ids, 'status': 'draft',
+            'period_ids': periods, 'event_ids': ids, 'status': 'planned' if storyline else 'draft',
             'rationale': 'A supported episode.', 'source_refs': refs}],
-        'chapters': [chapter], 'storyline': {'title': '', 'source_refs': [], 'event_ids': [], 'blocks': []},
+        'chapters': [] if storyline else [chapter],
+        'storyline': {'title':chapter['title'],'source_refs':chapter['source_refs'],'event_ids':ids,'blocks':chapter['blocks']}
+            if storyline else {'title': '', 'source_refs': [], 'event_ids': [], 'blocks': []},
         'carry_forward_chapter_ids': [], 'retired_chapter_ids': [], 'proposed_replacements': [],
         'event_dispositions': [{'event_id': e['id'], 'disposition': 'included' if e['id'] in ids else 'deferred',
-            'chapter_ids': [chapter_id] if e['id'] in ids else [],'reason': 'Original evidence or a later supported chapter.'}
+            'chapter_ids': [chapter_id] if e['id'] in ids and not storyline else [],'reason': 'Original evidence or a later supported chapter.'}
             for e in manifest], 'questions_for_mira': [], 'review_flags': [],
         'next_action': 'review_preview'}
 

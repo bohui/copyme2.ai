@@ -90,11 +90,16 @@ class PostgresRest:
                 query = f"with r as (update public.user_memory set {','.join(assignments)} where user_id={quoted(self.owner)} and id={quoted(id_value)} returning *) select coalesce(jsonb_agg(to_jsonb(r)),'[]') from r;"
             else:
                 raise AssertionError('Unsupported synthetic REST operation')
-        result = self.sql(f"set role {'service_role' if self.service else 'authenticated'}; set request.jwt.claim.sub={quoted(self.owner)}; {query}", check=False)
+        result = self.sql(f"\\set VERBOSITY verbose\nset role {'service_role' if self.service else 'authenticated'}; set request.jwt.claim.sub={quoted(self.owner)}; {query}", check=False)
         if result.returncode:
             if self.service:
                 raise AssertionError('Synthetic service SQL failed: ' + result.stderr)
-            code = '40001' if 'conflict' in result.stderr else '42501'
-            return httpx.Response(409 if code == '40001' else 403, json={'code': code, 'message': result.stderr})
+            native_code = re.search(r'ERROR:\s+([A-Z0-9]{5}):', result.stderr)
+            assert native_code, 'The disposable database must report its actual SQLSTATE'
+            code = native_code[1]
+            # PostgREST documents 40* (transaction rollback) as HTTP 500.
+            # Never manufacture HTTP 409 from the word "conflict".
+            status = 500 if code.startswith(('40', 'XX')) else 403 if code=='42501' else 409 if code in ('23503','23505') else 400
+            return httpx.Response(status, json={'code': code, 'message': result.stderr})
         value = json.loads(result.stdout.splitlines()[-1] or 'null')
         return httpx.Response(200, content=json.dumps(value), headers={'Content-Type': 'application/json'})
