@@ -74,7 +74,7 @@ class WorkerTurnInput(BaseModel):
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
     agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline'] = 'collector'
-    extraction_focus: Literal['family_tree', 'author_timeline'] | None = None
+    extraction_focus: Literal['family_tree', 'author_timeline', 'place_journey'] | None = None
     composer_phase: Literal['index', 'prepare', 'draft', 'review'] = 'draft'
     preparation_id: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
@@ -362,6 +362,7 @@ class CodexWorker:
                 language=language,
                 focus=payload.extraction_focus,
                 canonical_events=payload.canonical_events,
+                source_text=payload.text,
             )
         else:
             instructions = build_system_prompt(

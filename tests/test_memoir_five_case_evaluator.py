@@ -310,8 +310,9 @@ def test_five_case_round_runner_publishes_minimized_trajectory_receipt(tmp_path)
         langfuse_publisher=LangfusePublisher(client),
     ))
 
-    assert summary["langfuse"]["published_rounds"] == 1
+    assert summary["langfuse"]["submitted_rounds"] == 1
     round_trace = json.loads((tmp_path / "cases" / case["id"] / "rounds" / "round-001.json").read_text())
-    assert round_trace["langfuse"]["status"] == "published"
+    assert round_trace["langfuse"]["status"] == "submitted"
+    assert round_trace["langfuse"]["durable_readback"] == "not_verified"
     assert client.observation.updated[0]["metadata"]["evaluation_round_status"] == "mock_only"
     assert client.flushed

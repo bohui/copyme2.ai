@@ -27,11 +27,14 @@ from .turn_stream import VisibleText
 from .family_context import (
     AUTHOR_TIMELINE_MARKER_END,
     AUTHOR_TIMELINE_MARKER_START,
+    FAMILY_TREE_MARKER_END,
+    FAMILY_TREE_MARKER_START,
     combine_family_skill_updates,
     extract_family_skill_updates,
     family_features_enabled,
     merge_family_context_document,
     valid_family_project_id,
+    validate_author_timeline_context,
 )
 from .place_journey import (
     MARKER_START as PLACE_MARKER_START,
@@ -45,6 +48,7 @@ from .place_journey import (
     place_journey_fingerprint,
 )
 from .profile_intake import (
+    apply_explicit_story_stage,
     extract_profile_updates,
     merge_profile_updates,
     profile_marker_present,
@@ -161,7 +165,10 @@ and/or end_expression. Preserve uncertain dates and never infer
 people or exact places. A clear event with no known date still qualifies: use
 date_expression "unknown" and precision "unknown" rather than inventing a date
 or silently dropping it. Ask for clarification and emit no marker only when the
-event itself is ambiguous. The application runtime validates and strips the marker before the reply."""
+event itself is ambiguous. When the private prompt supplies source-claim IDs,
+include the exact source_claim_id for each item and omit items whose source
+claim is ambiguous; the application validates and strips this metadata before
+the reply."""
 
 
 def _load_skill(path: Path, fallback: str) -> str:
@@ -172,7 +179,10 @@ def _load_skill(path: Path, fallback: str) -> str:
 
 
 FAMILY_TREE_SKILL = _load_skill(FAMILY_TREE_SKILL_PATH, FAMILY_TREE_SKILL_FALLBACK)
-AUTHOR_TIMELINE_SKILL = _load_skill(AUTHOR_TIMELINE_SKILL_PATH, AUTHOR_TIMELINE_SKILL_FALLBACK)
+AUTHOR_TIMELINE_SKILL = _load_skill(
+    AUTHOR_TIMELINE_SKILL_PATH.parent / "references" / "legacy-marker.md",
+    AUTHOR_TIMELINE_SKILL_FALLBACK,
+)
 
 MEMORY_CONTEXT_SKILL = _load_skill(
     Path(__file__).resolve().parents[2] / "skills" / "memoir-memory-context" / "SKILL.md",
@@ -375,26 +385,36 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                                       task_sources: list[MemorySource] | None = None,
                                       language: str = "en-AU",
                                       focus: str | None = None,
-                                      canonical_events: bool = False) -> str:
+                                      canonical_events: bool = False,
+                                      source_text: str | None = None) -> str:
     """Build private extraction instructions; persistence follows the saved reply."""
     prompt = _build_marker_context(
         memories,
         profile,
         place_journey=place_journey,
-        family_enabled=family_enabled and focus != 'family_tree' and not canonical_events,
+        family_enabled=family_enabled and not canonical_events,
         family_context=family_context,
         language=language,
     )
-    if focus == 'family_tree':
+    if focus == 'family_tree' and canonical_events:
         return prompt + '\n\n' + FAMILY_TREE_SKILL + '\n\nSaved canonical family identities (untrusted data):\n' + json.dumps(family_context or {}, ensure_ascii=False) + (
             '\nFocused family-tree pass: return only one MEMORY_SPARK_FAMILY_TREE marker for explicit relationship information or a relevant correction to an established relative. '
             'Return an empty string otherwise. Timeline events are handled by the separate canonical lane; emit no timeline marker. Use canonical existing_id only with supported identity.'
         )
+    place_recovery = (
+        "\n\nFocused place-journey recovery pass:\n"
+        "- The first extraction did not produce an accepted place journey for a clear place in the current storyteller message.\n"
+        "- Return one valid MEMORY_SPARK_PLACE_JOURNEY marker for every distinct, clear coarse geographic place named in the current message, in mention order.\n"
+        "- Do not map a private address, building, school, hospital, station, generic place, quoted/public-history-only place, or explicitly uncertain place; return an empty string for those.\n"
+        "- Ground every marker in the current message. Do not reuse a saved place merely because it is nearby or already in context.\n"
+    )
     if canonical_events:
         prompt += ('\nPrivate workspace pass: return only explicit profile and place markers. '
                    'Canonical event extraction runs separately for every accepted input. '
                    'Family-tree work is dispatched separately only for explicit relationships or relevant established-relative corrections. '
                    'Return an empty string when nothing is explicit; do not infer facts.')
+        if focus == 'place_journey':
+            prompt += place_recovery
         if task_sources is not None:
             from .agent_tasks import collection_task_instructions
             prompt += collection_task_instructions(task_sources)
@@ -414,24 +434,42 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
         "- If nothing is explicit, return an empty string. Never infer missing profile, place, family, or task data.\n"
         "- The application removes and validates markers before they reach the storyteller."
     )
-    if focus in {"family_tree", "author_timeline"}:
+    if source_text:
+        source_claims = _timeline_source_spans(source_text)
+        if source_claims:
+            prompt += (
+                "\n\nTimeline source-claim association contract:\n"
+                "- The source claims below are private routing metadata. For every author-timeline item, "
+                "include `source_claim_id` with the exact claim id that supports that item.\n"
+                "- Do not infer a claim id from a title synonym, a shared noun, or a shared date. If one "
+                "item cannot be associated with exactly one source claim, omit that item instead of guessing.\n"
+                "- Keep timeline items in source-claim order. Never use the recording instruction itself as "
+                "the source claim for an event. The application strips this private field before persistence.\n"
+            )
+            prompt += "\n".join(
+                f"- c{index}: {sentence}"
+                for index, (sentence, _start, _end) in enumerate(source_claims[:80])
+            )
+    if focus in {"family_tree", "author_timeline", "place_journey"}:
         if focus == "family_tree":
             prompt += (
                 "\n\nFocused family-tree recovery pass:\n"
                 "- The first extraction did not produce an accepted family-tree update. Re-read only the current storyteller message and the saved Family document.\n"
                 "- Return only one MEMORY_SPARK_FAMILY_TREE marker when the current message explicitly adds a person, person detail, family title, relationship, or correction; otherwise return an empty string.\n"
                 "- Do not let a profile, place, or timeline fact suppress an explicit family-tree item, and do not invent a relationship.\n"
-                "- Kinship titles and explicit shorthand such as `my father`, `my mother`, `my parent`, `my sister`, `my brother`, `my partner`, `my child`, `Mum`, `Mom`, `Dad`, `Gran`, or `Grandma` are explicit family-tree items even when a similar person already exists in the saved document. Preserve the title and current-turn detail in a person introduction; use an existing_id only when the saved context clearly identifies the same person. Never skip the marker just because the turn also contains an author-timeline event.\n"
+                "- Kinship titles and explicit shorthand such as `my father`, `my mother`, `my parent`, `my sister`, `my brother`, `my partner`, `my child`, `Mum`, `Mom`, `Dad`, `Gran`, or `Grandma`, as well as any grandparent detail, are explicit family-tree items even when a similar person already exists in the saved document. Preserve the title and current-turn detail in a person introduction; use an existing_id only when the saved context clearly identifies the same person. Never skip the marker just because the turn also contains an author-timeline event.\n"
                 "- For a current message such as `At about three, I followed my father to the docks`, emit a family marker for the explicit father/parent item and a separate timeline marker is handled by the other pass.\n"
                 "- For a current message such as `Mum grew mint beside the laundry`, emit a family marker for Mum with that grounded introduction; do not treat the shorthand as an unneeded duplicate of `parents`.\n"
             )
-        else:
+        elif focus == "author_timeline":
             prompt += (
                 "\n\nFocused author-timeline recovery pass:\n"
                 "- The first extraction did not produce an accepted author-timeline update. Re-read only the current storyteller message.\n"
                 "- Return only one MEMORY_SPARK_AUTHOR_TIMELINE marker when the message explicitly adds or corrects an author event or life period; otherwise return an empty string.\n"
                 "- Birth, childhood, age, season, move, work, care, visit, and correction statements are eligible even without a calendar date. Use date_expression `unknown` and precision `unknown` when needed; never let a profile or place fact suppress a clear event.\n"
             )
+        else:
+            prompt += place_recovery
     if task_sources is not None:
         from .agent_tasks import collection_task_instructions
         prompt += collection_task_instructions(task_sources)
@@ -448,7 +486,24 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
     This is a routing hint, never a substitute for model extraction.
     """
     lowered = original_conversation_text(text).casefold()
+    if focus == 'place_journey':
+        if place_journey_message_is_ambiguous(text):
+            return False
+        # Broad extraction normally handles simple birthplace/home wording.
+        # Recovery is reserved for relational place wording that models often
+        # overlook, such as “letters about Wollongong” or “returned to Dali”,
+        # while still requiring a named coarse place.
+        return bool(
+            re.search(
+                r"\b(?:about|near|around|to|from|back\s+to|returned\s+to|"
+                r"left\s+for|visited)\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ-]*(?:\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ-]*)?\b",
+                original_conversation_text(text),
+            )
+            or re.search(r"(?:关于|到|去|回|来自|住在|搬到).{0,8}[\u3400-\u9fff]{2,}", text)
+        )
     if focus == 'family_tree':
+        if _family_tree_marker_is_explicitly_disclaimed(text):
+            return False
         if re.search(
             r"\b(?:family|mother|father|parent|sister|brother|grandmother|grandfather|"
             r"grandma|grandpa|mum|mom|dad|gran|nan|partner|wife|husband|child|son|"
@@ -487,33 +542,13 @@ def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[
                         return True
         return False
     if focus == 'author_timeline':
-        if re.search(
-            r"(?:\b(?:sometimes|often)\b.{0,80}\b(?:remember|reflection|reflective|"
-            r"just to remember|memory)\b|\b(?:i|we)\s+(?:am|was)\s+unsure\s+whether\s+"
-            r"(?!i\b|we\b)|\b(?:shouldn['’]?t|should not|do not|don't|not)\b.{0,40}\b"
-            r"(?:dated event|timeline|record)\b|不一定.{0,30}(?:事件|日期|记录)|"
-            r"反思.{0,30}(?:事件|日期|记录))",
-            lowered if lowered.isascii() else f"{lowered} {text}",
-        ):
+        # This is only a recovery hint. Reflection/source-boundary cues may
+        # share a turn with a real author event, so never use a broad negative
+        # regex as a domain-wide veto here.
+        if (_author_timeline_marker_is_advisory_without_author_event(text)
+                or _author_timeline_marker_is_reflection_only(text)):
             return False
-        return bool(re.search(
-            r"\b(?:18|19|20)\d{2}\b|\b(?:age|aged|around|approximately|approximate|"
-            r"roughly|early|mid|late|season|winter|summer|spring|autumn|childhood|"
-            r"adolescen|teenage|young adulthood|midlife|later life|when i|as a|"
-            r"in my|during my|by my|before preschool)\b",
-            lowered,
-        ) or re.search(
-            r"\b(?:i|we)\s+(?:was born|arrived|moved|left|returned|worked|began|"
-            r"started|learned|met|spent|travelled|traveled|attended|opened|cared|"
-            r"taught|visited|rented|lived|joined|wrote|played|took|helped|chose|"
-            r"kept|went|came|studied|graduated|married|followed)\b",
-            lowered,
-        ) or re.search(
-            r"(?:出生|小时候|童年|幼儿|青春期|青少年|成年|中年|晚年|年龄|岁|年份|日期|月份|"
-            r"季节|冬天|夏天|春天|秋天|大约|约|前后|搬|住在|离开|回到|工作|学习|结婚|"
-            r"照顾|旅行|开始|开办|加入|毕业|记得|跟着|发生|更正)",
-            text,
-        ))
+        return _author_timeline_has_source_evidence(text)
     return False
 
 
@@ -566,6 +601,739 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     # remove the entire marker block; neighbouring claims must not erase valid
     # author events.
     return bool(english_suppression or chinese_suppression)
+
+
+_ENGLISH_POSSESSIVE_PERSON_HEADS = frozenset({
+    "aunt", "brother", "boss", "child", "colleague", "cousin", "daughter",
+    "dad", "father", "friend", "grandfather", "grandmother", "grandma",
+    "grandpa", "gran", "husband", "mentor", "mother", "mum", "mom", "nan",
+    "neighbour", "neighbor", "partner", "sibling", "sister", "son", "teacher",
+    "uncle", "wife",
+})
+_CHINESE_POSSESSIVE_PERSON_HEADS = re.compile(
+    r"^(?:的)?(?:父亲|爸爸|爸|母亲|妈妈|妈|父母|姐姐|妹妹|哥哥|弟弟|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
+_CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN = re.compile(
+    r"^(?:的)?(?:姐姐|妹妹|哥哥|弟弟|父亲|爸爸|爸|母亲|妈妈|妈|父母|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
+
+
+def _chinese_author_subject_present(sentence: str, *, require_first_subject: bool = False) -> bool:
+    """Return whether a clause contains a direct, non-relative ``我`` subject."""
+    if not isinstance(sentence, str):
+        return False
+    if require_first_subject:
+        leading = sentence.lstrip(" \t，,：:")
+        match = re.match(r"我们|我", leading)
+        if not match:
+            return False
+        suffix = leading[match.end():]
+        return not (
+            suffix.startswith("的")
+            or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix)
+        )
+    for match in re.finditer(r"我们|我", sentence):
+        suffix = sentence[match.end():]
+        if suffix.startswith("的") or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix):
+            continue
+        return True
+    return False
+
+
+def _chinese_positive_author_subject(sentence: str) -> bool:
+    """Exclude epistemic/permission clauses while keeping mixed claims."""
+    if not isinstance(sentence, str):
+        return False
+    for match in re.finditer(r"我们|我", sentence):
+        suffix = sentence[match.end():]
+        if suffix.startswith("的") or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix):
+            continue
+        if re.match(r"(?:不确定|不清楚|不知道|无法|不能|没法|不想|不愿|不需要)", suffix):
+            continue
+        return True
+    return False
+
+
+def _english_possessive_subject_is_author_owned(sentence: str) -> bool:
+    """Classify ``My ...`` by its possessed subject, not by ``my`` alone.
+
+    ``My first job`` and ``My first house`` are author-owned biographical
+    subjects. ``My aunt June`` and ``My father's stories`` are subjects owned
+    by, or attributed to, another person. The distinction is structural and
+    does not depend on enumerating event verbs.
+    """
+    lowered = sentence.strip().casefold()
+    match = re.match(r"^(?:my|our)\s+(.+)$", lowered)
+    if not match:
+        return False
+    subject = re.split(r"[.!?,;:]|\s+(?:and|but|who|that|which)\s+", match.group(1), maxsplit=1)[0]
+    tokens = re.findall(r"[a-z]+(?:['’]s)?", subject)
+    if not tokens:
+        return False
+    if tokens[0].endswith(("'s", "’s")) or tokens[0][:-2] in _ENGLISH_POSSESSIVE_PERSON_HEADS:
+        return False
+    # Allow a small determiner/adjective prefix (``my dear aunt``) while
+    # still rejecting a relational head before an arbitrary proper name.
+    for token in tokens[:3]:
+        if token.endswith(("'s", "’s")) or token.rstrip("'’s") in _ENGLISH_POSSESSIVE_PERSON_HEADS:
+            return False
+    return True
+
+
+def _author_biographical_fragment(sentence: str) -> bool:
+    """Accept clear autobiographical fragments whose subject is implicit."""
+    if not isinstance(sentence, str):
+        return False
+    stripped = sentence.strip()
+    lowered = stripped.casefold()
+    return bool(
+        re.match(r"^(?:born|raised)\s+(?:in|at|near)\b", lowered)
+        or re.match(r"^(?:出生|生于|生在)(?:于|在)?", stripped)
+    )
+
+
+def _timeline_source_spans(text: str) -> list[tuple[str, int, int]]:
+    """Split visible user text into source clauses while retaining offsets.
+
+    Offsets make a marker entry's association explicit: a veto targets the
+    nearest preceding author-owned source clause, while a later independent
+    claim remains eligible. The split also keeps mixed uncertainty and a
+    positive author claim from sharing one all-or-nothing sentence decision.
+    """
+    source = original_conversation_text(text) if isinstance(text, str) else ""
+    separator = re.compile(
+        r"[.!?。！？；;\n]+"
+        r"|,(?=\s*(?:but|although|though|however|yet|and|then)\b)"
+        r"|，(?=(?:但|但是|不过|然而|然后|同时|而且|可是|那时))"
+        r"|\bplease\s+(?=(?:do not|don't|should not|shouldn't|never)\s+"
+        r"(?:record|include|add|put|place|make|keep|treat|turn)\b)"
+        r"|(?=\b(?:do not|don't|should not|shouldn't|never)\s+"
+        r"(?:record|include|add|put|place|make|keep|treat|turn)\b)"
+        r"|，"
+        r"|请(?=(?:不要|别|不应|不应该)\s*"
+        r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+        r"(?:记录|加入|放进|列入|写入|算作|当作|成为))"
+        r"|(?=(?:不要|别|不应|不应该)\s*"
+        r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+        r"(?:记录|加入|放进|列入|写入|算作|当作|成为))",
+        re.IGNORECASE,
+    )
+    spans: list[tuple[str, int, int]] = []
+    start = 0
+    for match in separator.finditer(source):
+        raw = source[start:match.start()]
+        left = len(raw) - len(raw.lstrip())
+        right = len(raw.rstrip())
+        if right > left:
+            spans.append((raw[left:right], start + left, start + right))
+        start = match.end()
+    raw = source[start:]
+    left = len(raw) - len(raw.lstrip())
+    right = len(raw.rstrip())
+    if right > left:
+        spans.append((raw[left:right], start + left, start + right))
+    return spans
+
+
+_TIMELINE_SOURCE_CLAIM_ID = re.compile(r"^c(?:0|[1-9]\d{0,3})$")
+
+
+def _timeline_source_claim_index(value: Any, source: str) -> int | None:
+    """Resolve private ``cN`` metadata against the current visible source."""
+    if not isinstance(value, str) or _TIMELINE_SOURCE_CLAIM_ID.fullmatch(value) is None:
+        return None
+    index = int(value[1:])
+    spans = _timeline_source_spans(source)
+    return index if index < len(spans) else None
+
+
+def _timeline_source_sentences(text: str) -> list[str]:
+    return [sentence for sentence, _start, _end in _timeline_source_spans(text)]
+
+
+def _author_possessive_subject(sentence: str) -> bool:
+    """Recognize an author-owned nominal subject without event verbs.
+
+    Shapes such as ``My first job ...`` and ``My first house ...`` are
+    autobiographical even when the sentence contains no literal ``I``.  A
+    possessive source (``My father's stories ...``) is not treated as the
+    storyteller's owned subject; other ``my``/``our`` phrases remain eligible
+    source-grounded material and the model still decides the event.
+    """
+    if not isinstance(sentence, str):
+        return False
+    lowered = sentence.strip().casefold()
+    if re.match(r"^(?:my|our)\s+", lowered):
+        return _english_possessive_subject_is_author_owned(sentence)
+    stripped = sentence.strip()
+    if stripped.startswith("我的"):
+        return _CHINESE_POSSESSIVE_PERSON_HEADS.match(stripped[2:]) is None
+    if stripped.startswith("我们的"):
+        return _CHINESE_POSSESSIVE_PERSON_HEADS.match(stripped[3:]) is None
+    return False
+
+
+def _sentence_has_author_event_evidence(sentence: str) -> bool:
+    """Recognize an asserted first-person claim without an event verb list.
+
+    The model owns the event vocabulary. The host only establishes the
+    source/subject contract: a first-person assertion must not be an
+    uncertainty report or a pure reflection. Explicit dates/ages make the
+    evidence stronger, but a clear undated claim such as "I bought my first
+    house" remains eligible.
+    """
+    if not isinstance(sentence, str):
+        return False
+    lowered = sentence.casefold()
+    english_assertion = False
+    for match in re.finditer(r"\b(?:i|we)\b", lowered):
+        suffix = lowered[match.end():].lstrip()
+        if re.match(
+            r"(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
+            r"(?:cannot|can't|can\s+not|do\s+not|don't|did\s+not|didn't)\s+"
+            r"(?:know|tell|give|provide|confirm|remember|want|need)\b",
+            suffix,
+        ):
+            continue
+        english_assertion = True
+        break
+    chinese_assertion = _chinese_author_subject_present(sentence)
+    has_first_person = english_assertion or chinese_assertion
+    possessive_subject = _author_possessive_subject(sentence)
+    if not has_first_person and not possessive_subject and not _author_biographical_fragment(sentence):
+        return False
+    uncertainty_only = bool(re.search(
+        r"\b(?:i|we)\s+(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
+        r"\b(?:i|we)\s+(?:cannot|can't|can\s+not|do\s+not|don't|did\s+not|didn't)\s+"
+        r"(?:know|tell|give|provide|confirm|remember|want|need)\b",
+        lowered,
+    ))
+    chinese_uncertainty_only = bool(re.search(
+        r"(?:我|我们)\s*(?:不确定|不清楚|不知道|无法|不能|没法|不想|不愿|不需要)",
+        sentence,
+    ))
+    if uncertainty_only and not (
+        possessive_subject or _author_biographical_fragment(sentence) or english_assertion
+    ):
+        return False
+    if chinese_uncertainty_only and not (
+        possessive_subject or _author_biographical_fragment(sentence)
+        or _chinese_positive_author_subject(sentence)
+    ):
+        return False
+    strong_date = bool(
+        re.search(
+            r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b(?:age|aged)\s+\d{1,3}\b|"
+            r"\bat\s+(?:age\s+)?\d{1,3}\b|\bwhen\s+i\s+was\b|"
+            r"\b(?:during|in|as\s+a)\s+(?:childhood|adolescence|"
+            r"toddlerhood|teenage|young\s+adulthood|midlife)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:18|19|20)\d{2}年|\d{1,3}岁|(?:童年|幼儿|青春期|青少年)",
+            sentence,
+        )
+    )
+    meta_only = bool(re.search(
+        r"(?:许可|同意|授权|隐私|相册|照片|发表许可|不想把|不要把)"
+        r"(?:.{0,80}(?:许可|同意|授权|隐私|相册|照片|事实|故事))?|"
+        r"\b(?:permission|consent|approval|privacy|photo|album)\b",
+        sentence,
+        re.IGNORECASE,
+    ))
+    if meta_only and not strong_date:
+        return False
+    if re.search(
+        r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+        r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}"
+        r"(?:保留在故事之外|不应写入我的故事)",
+        sentence,
+    ):
+        return False
+    pure_reflection = bool(
+        re.search(
+            r"\b(?:sometimes|often)\b.{0,100}\b(?:remember|recall|reflection|"
+            r"reflective|just\s+to\s+remember|memory)\b|"
+            r"\b(?:i|we)\s+(?:directly\s+)?(?:remember|recall|reflect)\b",
+            lowered,
+        )
+        or re.search(r"(?:有时|常常|回望|回忆|反思|只记录).{0,80}(?:记得|声音|颜色|耐心|旧)", sentence)
+    )
+    memory_complement = bool(
+        re.search(
+            r"\b(?:remember|remembered|recall|recalled)\s+"
+            r"(?:that\s+)?(?:i|we)\b|"
+            r"\b(?:remember|remembered|recall|recalled)\s+\w+ing\b",
+            lowered,
+        )
+        or re.search(r"(?:记得|想起|回忆)(?:我|我们|自己)[^。！？.!?\n]{1,}", sentence)
+    )
+    # A dated/aged claim can be mixed with a memory verb, for example
+    # "I often remember the day I moved in 1980"; that remains source
+    # evidence.
+    if pure_reflection and not strong_date and not memory_complement:
+        return False
+    return True
+
+
+def _author_timeline_has_source_evidence(text: str) -> bool:
+    return any(_sentence_has_author_event_evidence(sentence) for sentence in _timeline_source_sentences(text))
+
+
+def _author_timeline_marker_is_reflection_only(text: str) -> bool:
+    """Recognize a pure reflection while preserving mixed author claims."""
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    reflective = bool(
+        re.search(
+            r"\b(?:in|during)\s+later[- ]life\b.{0,180}\b(?:sometimes|often)\b"
+            r".{0,120}\b(?:just\s+to\s+remember|to\s+remember|reflection|patience|"
+            r"old\s+bench)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+reflections?)\b"
+            r".{0,120}\b(?:no reliable date|timing open|rather than guess|"
+            r"not a dated event|does not need a precise date)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:晚年|晚年回忆|晚年的回忆).{0,100}(?:回望|没有可靠(?:日期|时间)|"
+            r"有时只记录|反思|不一定.{0,20}事件)",
+            original_conversation_text(text),
+        )
+    )
+    return reflective and not _author_timeline_has_source_evidence(text)
+
+
+def _author_timeline_marker_is_advisory_without_author_event(text: str) -> bool:
+    """Identify source/third-party advisory text for routing only."""
+    if not isinstance(text, str) or _author_timeline_has_source_evidence(text):
+        return False
+    source = original_conversation_text(text)
+    lowered = source.casefold()
+    source_boundary = bool(re.search(
+        r"\b(?:please\s+)?(?:preserve|keep|maintain|separate|distinguish)\b"
+        r".{0,100}\b(?:difference|distinction|boundary)\b.{0,140}\b"
+        r"(?:what\s+[a-z][a-z'’-]*\s+remembers?|what\s+[a-z][a-z'’-]*['’]s\s+"
+        r"memory|what\s+i\s+directly\s+remember|my\s+testimony|public\s+history)\b",
+        lowered,
+    ))
+    third_party_uncertainty = bool(re.search(
+        r"\b(?:i(?:'m|’m| am)|we(?:'re|’re| are))\s+(?:unsure|uncertain|"
+        r"not\s+sure|do\s+not\s+know|don't\s+know)\b.{0,100}\b(?:whether|if)\b",
+        lowered,
+    ))
+    chinese_source_boundary = bool(re.search(
+        r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+        r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
+        source,
+    ))
+    return source_boundary or third_party_uncertainty or chinese_source_boundary
+
+
+def _timeline_veto_scope(sentence: str) -> str | None:
+    """Return the explicit user-veto scope for one source sentence."""
+    if not isinstance(sentence, str):
+        return None
+    lowered = sentence.casefold()
+    english = bool(
+        re.search(
+            r"\b(?:please\s+)?(?:do not|don't|should not|shouldn't|never)\s+"
+            r"(?:record|include|add|put|place|make|keep|treat|turn)\b"
+            r".{0,100}\b(?:timeline|dated events?|events?|records?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:leave|keep|omit|exclude)\b.{0,50}\b(?:out of|off|from)\b"
+            r".{0,30}\b(?:my\s+)?(?:timeline|records?|events?)\b",
+            lowered,
+        )
+    )
+    chinese = bool(
+        re.search(
+            r"(?:请)?(?:不要|别|不应|不应该)\s*"
+            r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+            r"(?:记录|加入|放进|列入|写入|算作|当作|成为)"
+            r".{0,60}(?:时间线|事件|日期|记录)",
+            sentence,
+        )
+    )
+    if not (english or chinese):
+        return None
+    item_specific = bool(
+        re.search(r"\b(?:this|that|the)\s+(?:event|item|entry|memory|reflection)\b", lowered)
+        or re.search(
+            r"\b(?:this|that|the)\s+(?!events?\b|records?\b|timeline\b)"
+            r"[a-z][a-z'’-]*\b",
+            lowered,
+        )
+        or re.search(r"(?:这件事|这个事件|这个条目|这段回忆|这条记录)", sentence)
+    )
+    return "item" if item_specific else "all"
+
+
+_TIMELINE_GENERIC_TITLE = re.compile(
+    r"^(?:a\s+)?(?:reflection|memory|later\s+life|recollection|回忆|反思|回望)$",
+    re.IGNORECASE,
+)
+
+
+def _timeline_item_has_reflection_only_source(item: Mapping[str, Any], source: str) -> bool:
+    title = str(item.get("title") or "").strip()
+    if _TIMELINE_GENERIC_TITLE.fullmatch(title):
+        return True
+    item_text = " ".join(str(item.get(key) or "") for key in (
+        "title", "date_expression", "start_expression", "end_expression"
+    )).casefold()
+    if not re.search(r"\b(?:reflection|recollect|remember|memory)\b|回忆|反思|回望", item_text):
+        return False
+    candidates = [
+        sentence for sentence in _timeline_source_sentences(source)
+        if any(anchor and anchor.casefold() in sentence.casefold() for anchor in (
+            str(item.get("place") or ""), str(item.get("date_expression") or ""),
+            str(item.get("start_expression") or ""), str(item.get("end_expression") or ""),
+        ))
+    ]
+    return bool(candidates) and all(not _sentence_has_author_event_evidence(sentence) for sentence in candidates)
+
+
+def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
+    values = [str(item.get(key) or "") for key in (
+        "title", "date_expression", "start_expression", "end_expression", "place"
+    )]
+    anchors: list[str] = []
+    generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
+    for value in values:
+        lowered = value.casefold().strip()
+        if lowered and lowered not in generic:
+            anchors.append(lowered)
+        anchors.extend(
+            token.casefold() for token in re.findall(
+                r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b[a-z]{4,}\b", value
+            ) if token.casefold() not in generic
+        )
+        anchors.extend(
+            token for token in re.findall(r"[\u3400-\u9fff]{2,}", value)
+            if token not in generic
+        )
+    return list(dict.fromkeys(anchor for anchor in anchors if anchor))
+
+
+def _timeline_item_source_span_indices(
+    item: Mapping[str, Any], source: str,
+) -> list[int] | None:
+    """Associate an item with the best matching visible source clause.
+
+    A private resolved association or ``source_claim_id`` takes precedence
+    over lexical matching. This lets extraction use source structure for
+    paraphrases without widening the host's event vocabulary.
+
+    Dates and places are supporting evidence, not identity. Event-title
+    tokens carry the highest weight so two events sharing a year or noun do
+    not both become the target of one ``this event`` veto.
+    """
+    if "_resolved_source_span_indices" in item:
+        resolved = item.get("_resolved_source_span_indices")
+        if resolved is None:
+            return None
+        if isinstance(resolved, (list, tuple)) and all(
+            isinstance(index, int) and not isinstance(index, bool) for index in resolved
+        ):
+            return list(resolved)
+        return []
+    source_claim_key = next(
+        (key for key in ("_source_claim_id", "source_claim_id") if key in item),
+        None,
+    )
+    if source_claim_key is not None:
+        claim_index = _timeline_source_claim_index(item.get(source_claim_key), source)
+        # A supplied but invalid private claim id is unresolved; do not let a
+        # forged or stale id fall back to title/date matching.
+        return [claim_index] if claim_index is not None else None
+    generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
+    title = str(item.get("title") or "").strip().casefold()
+    identity: list[str] = []
+    if title and title not in generic:
+        identity.append(title)
+        identity.extend(
+            token.casefold() for token in re.findall(r"\b[a-z]{4,}\b", title)
+            if token.casefold() not in generic
+        )
+        identity.extend(
+            token for token in re.findall(r"[\u3400-\u9fff]{2,}", title)
+            if token not in generic
+        )
+    dates: list[str] = []
+    for key in ("date_expression", "start_expression", "end_expression"):
+        value = str(item.get(key) or "").strip().casefold()
+        if value and value not in generic:
+            dates.append(value)
+            dates.extend(
+                token.casefold() for token in re.findall(
+                    r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b\d{1,2}\b", value
+                )
+            )
+    place = str(item.get("place") or "").strip().casefold()
+    place_tokens = [place] if place else []
+    if place:
+        place_tokens.extend(re.findall(r"\b[a-z]{4,}\b", place))
+
+    def contains(sentence: str, anchor: str) -> bool:
+        if not anchor:
+            return False
+        if re.search(r"[a-z]", anchor):
+            return re.search(rf"(?<![a-z]){re.escape(anchor)}(?![a-z])", sentence) is not None
+        return anchor in sentence
+
+    spans = _timeline_source_spans(source)
+    scored: list[tuple[int, int, int, bool]] = []
+    for index, (sentence, _start, _end) in enumerate(spans):
+        lowered = sentence.casefold()
+        phrase_score = 6 if title and title not in generic and contains(lowered, title) else 0
+        identity_hits = sum(1 for anchor in identity[1:] if contains(lowered, anchor))
+        place_hits = sum(1 for anchor in place_tokens if contains(lowered, anchor))
+        date_hits = sum(1 for anchor in dates if contains(lowered, anchor))
+        score = phrase_score + (identity_hits * 4) + (place_hits * 2) + date_hits
+        if score:
+            scored.append((score, identity_hits, index, _sentence_has_author_event_evidence(sentence)))
+    if not scored:
+        return []
+    author_scored = [row for row in scored if row[3]]
+    if author_scored:
+        scored = author_scored
+    best_score = max(score for score, _identity_hits, _index, _author_owned in scored)
+    best = [row for row in scored if row[0] == best_score]
+    if len(best) > 1:
+        # A shared noun can be an identity token for several different
+        # author-owned events (for example ``house`` in ``bought`` and
+        # ``sold``).  Preserve the item, but do not let an item-specific veto
+        # destructively choose one of the tied source claims.
+        if any(author_owned for _score, _identity_hits, _index, author_owned in best):
+            return None
+        # If only shared supporting evidence (for example one year) ties, the
+        # source association is ambiguous without author-owned evidence.
+        return []
+    return [index for _score, _identity_hits, index, _author_owned in best]
+
+
+def _timeline_item_is_explicitly_vetoed(
+    item: Mapping[str, Any], source: str, item_count: int | None = None,
+) -> bool:
+    """Apply a storyteller's explicit timeline veto before marker grading.
+
+    ``this event`` refers to the nearest preceding source-grounded claim, so
+    a mixed turn can retain another independent event.  A broad ``do not add
+    events to my timeline`` veto removes every candidate.  This operates on
+    source/entry alignment and never decides whether an event verb is valid.
+    """
+    spans = _timeline_source_spans(source)
+    sentences = [sentence for sentence, _start, _end in spans]
+    vetoes = [
+        (index, _timeline_veto_scope(sentence))
+        for index, sentence in enumerate(sentences)
+        if _timeline_veto_scope(sentence)
+    ]
+    if not vetoes:
+        return False
+    if any(scope == "all" for _index, scope in vetoes):
+        return True
+    associated_indices = _timeline_item_source_span_indices(item, source)
+    # Ambiguity is handled conservatively: an item-specific veto must not
+    # delete an item that could belong to more than one author claim.
+    if associated_indices is None:
+        return False
+    item_indices = set(associated_indices)
+    author_indices = {
+        index for index, sentence in enumerate(sentences)
+        if _sentence_has_author_event_evidence(sentence)
+    }
+    for index, _scope in vetoes:
+        preceding = [candidate for candidate in author_indices if candidate < index]
+        if not preceding:
+            continue
+        target = max(preceding)
+        # A concrete item is vetoed only when its source association is the
+        # nearest preceding author claim. An item associated with a later
+        # claim must survive the earlier item-specific veto.
+        if target in item_indices:
+            return True
+        if item_indices:
+            continue
+
+        # A model can emit a generic title (for example ``Grounded event``)
+        # and provide no lexical anchor. In that case only suppress an
+        # unambiguous single-source event. If another author claim follows the
+        # veto, preserve the generic item rather than deleting the later
+        # allowed event merely because the marker has one entry.
+        later_author_claim = any(candidate > index for candidate in author_indices)
+        if not later_author_claim and (item_count in (None, 1)):
+            return True
+    return False
+
+
+def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item_count: int) -> bool:
+    if _timeline_item_has_reflection_only_source(item, source):
+        return False
+    spans = _timeline_source_spans(source)
+    item_indices = _timeline_item_source_span_indices(item, source)
+    if item_indices is None:
+        # The item has competing author-owned source matches and no private
+        # structural association. Keep the proposal private until it can be
+        # associated; an ambiguous title must not bypass a recording veto.
+        return False
+    if item_indices:
+        return any(
+            _sentence_has_author_event_evidence(spans[index][0])
+            for index in item_indices
+        )
+    # A single explicit author claim may have a generic model title. Keep it
+    # when there is no contradictory source anchor; multi-item markers require
+    # per-item evidence so an unrelated reflection cannot ride along.
+    return item_count == 1 and _author_timeline_has_source_evidence(source)
+
+
+def _validate_author_timeline_marker_for_sanitization(raw: Any) -> dict[str, Any] | None:
+    """Validate a timeline marker while retaining private claim metadata.
+
+    ``source_claim_id`` is an extraction-only association field. It is removed
+    before the normal family-context validator sees the payload and is attached
+    to the normalized item only long enough for source-boundary sanitization.
+    The field never reaches the durable family/timeline document.
+    """
+    if not isinstance(raw, dict):
+        return None
+    cleaned = dict(raw)
+    absent_claim = object()
+    claim_ids: list[Any] = []
+    for collection in ("timeline", "life_periods"):
+        records = raw.get(collection)
+        if not isinstance(records, list):
+            continue
+        cleaned_records: list[Any] = []
+        for record in records:
+            if isinstance(record, dict):
+                claim_id = record.get("source_claim_id", record.get("_source_claim_id"))
+                claim_ids.append(claim_id if "source_claim_id" in record or "_source_claim_id" in record else absent_claim)
+                cleaned_records.append({
+                    key: value for key, value in record.items()
+                    if key not in {"source_claim_id", "_source_claim_id"}
+                })
+            else:
+                claim_ids.append(absent_claim)
+                cleaned_records.append(record)
+        cleaned[collection] = cleaned_records
+    context = validate_author_timeline_context(cleaned)
+    if not context:
+        return None
+    for item, claim_id in zip(context.get("timeline", []), claim_ids):
+        if claim_id is not absent_claim:
+            item["_source_claim_id"] = claim_id
+    return context
+
+
+def _public_timeline_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value for key, value in item.items()
+        if key not in {"_source_claim_id", "source_claim_id", "_resolved_source_span_indices"}
+    }
+
+
+def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
+    """Filter timeline entries against current source, never whole turns."""
+    if not isinstance(reply, str) or AUTHOR_TIMELINE_MARKER_START not in reply:
+        return reply
+    source = original_conversation_text(text) if isinstance(text, str) else ""
+    output: list[str] = []
+    cursor = 0
+    while True:
+        start = reply.find(AUTHOR_TIMELINE_MARKER_START, cursor)
+        if start < 0:
+            output.append(reply[cursor:])
+            break
+        output.append(reply[cursor:start])
+        payload_start = start + len(AUTHOR_TIMELINE_MARKER_START)
+        end = reply.find(AUTHOR_TIMELINE_MARKER_END, payload_start)
+        if end < 0:
+            break
+        raw_text = reply[payload_start:end].strip()
+        try:
+            raw = json.loads(raw_text)
+        except (TypeError, ValueError):
+            raw = None
+        context = _validate_author_timeline_marker_for_sanitization(raw)
+        keep_block = True
+        replacement = raw_text
+        timeline = context.get("timeline", []) if isinstance(context, dict) else []
+        if context and timeline:
+            kept = []
+            for item in timeline:
+                associated_indices = _timeline_item_source_span_indices(item, source)
+                # A paraphrase that shares only a noun/date with two claims is
+                # unresolved without the private source claim contract. Keep
+                # it out of durable state instead of allowing it to bypass an
+                # explicit recording boundary.
+                if associated_indices is None:
+                    continue
+                candidate = dict(item)
+                candidate["_resolved_source_span_indices"] = associated_indices
+                if (
+                    not _timeline_item_is_explicitly_vetoed(candidate, source, len(timeline))
+                    and _timeline_item_is_source_grounded(candidate, source, len(timeline))
+                ):
+                    kept.append(candidate)
+            if not _author_timeline_has_source_evidence(source):
+                # A non-empty author-timeline marker must have at least one
+                # source-grounded first-person claim. This drops accidental
+                # model markers on permission/meta turns without relying on a
+                # finite event-verb allowlist.
+                keep_block = False
+            elif kept:
+                if len(kept) != len(timeline) or any(
+                    "_source_claim_id" in item for item in timeline
+                ):
+                    replacement = json.dumps(
+                        {"timeline": [_public_timeline_item(item) for item in kept]},
+                        ensure_ascii=False, separators=(",", ":")
+                    )
+            elif timeline:
+                keep_block = False
+        if keep_block:
+            output.append(
+                AUTHOR_TIMELINE_MARKER_START + replacement + AUTHOR_TIMELINE_MARKER_END
+            )
+        cursor = end + len(AUTHOR_TIMELINE_MARKER_END)
+    return "".join(output)
+
+
+def _family_tree_marker_is_explicitly_disclaimed(text: str) -> bool:
+    """Reject family extraction when another person's story is out of scope."""
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    return bool(
+        re.search(
+            r"\b(?:i|we)\b.{0,30}\b(?:do not|don't|would not|wouldn't|must not)\b"
+            r".{0,50}\b(?:write|treat|present|turn|make|include)\b.{0,80}\b"
+            r"(?:her|his|their)\s+(?:life|experience|story)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:her|his|their)\s+(?:life|experience|story)\b.{0,60}\b"
+            r"(?:outside|out of|separate from|not my)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+            r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
+            text,
+        )
+    )
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
@@ -1084,10 +1852,11 @@ class CodexRuntime:
                                          if (not place_journey_message_is_ambiguous(text)
                                              and place_journey_matches_message(candidate, text))]
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
-                if _author_timeline_marker_is_explicitly_disclaimed(text):
+                if _family_tree_marker_is_explicitly_disclaimed(text):
                     reply = _remove_marker_block(
-                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
                     )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 reply, parsed_family_updates = extract_family_skill_updates(reply)
                 parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
             if trajectory:
@@ -1103,6 +1872,7 @@ class CodexRuntime:
             if parsed_profile_updates:
                 parsed_profile_updates.pop('preferred_language', None)
             profile_updates = {**(parsed_profile_updates or {}), **(language_updates or {})} or None
+            profile_updates = apply_explicit_story_stage(text, profile_updates)
 
             # The conversational exchange is the first durable boundary.
             # Workspace extraction and public-reference work below may be
@@ -1508,21 +2278,53 @@ class CodexRuntime:
                 # current message. This is still model-driven extraction: the
                 # focused pass may return an empty string, and no marker is
                 # synthesized by the application.
+                _, primary_places = extract_place_journeys(reply)
+                present_place = any(
+                    not place_journey_message_is_ambiguous(text)
+                    and place_journey_matches_message(candidate, text)
+                    for candidate in primary_places
+                )
                 if family_enabled:
                     _, primary_updates = extract_family_skill_updates(reply)
                     _, primary_skills = combine_family_skill_updates(primary_updates)
                     present = set(primary_skills)
-                    focuses = [('family_tree', 'family_tree')] if canonical_events else [('family_tree', 'family_tree'), ('author_timeline', 'author_timeline')]
-                    for focus, skill_name in focuses:
-                        if skill_name in present or not _workspace_focus_is_relevant(text, focus, family_context):
-                            continue
+                    recovery_specs = [
+                        ('family_tree', 'family_tree', 'memoir-family-tree'),
+                        ('author_timeline', 'author_timeline', 'memoir-author-timeline'),
+                    ]
+                    if canonical_events:
+                        recovery_specs = [spec for spec in recovery_specs if spec[0] != 'author_timeline']
+                else:
+                    present = set()
+                    recovery_specs = []
+                recovery_specs.insert(0, ('place_journey', 'place_journey', 'memoir-place-journey'))
+                for focus, skill_name, skill_label in recovery_specs:
+                    if ((skill_name in present if skill_name != 'place_journey' else present_place)
+                            or not _workspace_focus_is_relevant(text, focus, family_context)):
+                        continue
+                    # A focused pass is still model work: the host never
+                    # synthesizes a missing marker.  The first focused pass
+                    # can complete successfully while returning only a
+                    # profile or another domain, especially when the current
+                    # sentence contains a source boundary such as a family
+                    # member's recollection.  Allow a small bounded retry
+                    # budget only while the requested domain remains absent.
+                    # This keeps recovery finite and avoids turning every
+                    # optional enrichment into a retry storm.
+                    # The observed production regression is a missing Family
+                    # marker after a successful broad/focused response. Keep
+                    # the retry scoped to that premium domain; place and
+                    # timeline recovery already have their own source/routing
+                    # guards and should retain their one-call budget.
+                    max_attempts = 3 if focus == 'family_tree' else 1
+                    for attempt in range(1, max_attempts + 1):
+                        if ((skill_name in present if skill_name != 'place_journey' else present_place)):
+                            break
                         if trajectory:
                             trajectory.record('application', 'workspace.family_recovery.requested', output={
                                 'focus': focus,
-                                'skill': {
-                                    'family_tree': 'memoir-family-tree',
-                                    'author_timeline': 'memoir-author-timeline',
-                                }[focus],
+                                'skill': skill_label,
+                                'attempt': attempt,
                             })
                         try:
                             focused = await self._worker_turn(
@@ -1539,6 +2341,7 @@ class CodexRuntime:
                                 agent_role='workspace',
                                 **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
                                 extraction_focus=focus,
+                                canonical_events=canonical_events,
                                 trajectory=trajectory,
                             )
                             if trajectory:
@@ -1551,38 +2354,49 @@ class CodexRuntime:
                                     'agent_role': 'workspace',
                                     'extraction_focus': focus,
                                     'has_trajectory': bool(focused.get('trajectory')),
+                                    'recovery_attempt': attempt,
                                 })
                             focused_reply = focused.get('reply', '')
                             if focused_reply:
                                 reply += '\n' + focused_reply
-                                _, focused_updates = extract_family_skill_updates(focused_reply)
-                                _, focused_skills = combine_family_skill_updates(focused_updates)
-                                present.update(focused_skills)
+                                if focus == 'place_journey':
+                                    _, focused_places = extract_place_journeys(focused_reply)
+                                    present_place = present_place or any(
+                                        not place_journey_message_is_ambiguous(text)
+                                        and place_journey_matches_message(candidate, text)
+                                        for candidate in focused_places
+                                    )
+                                else:
+                                    _, focused_updates = extract_family_skill_updates(focused_reply)
+                                    _, focused_skills = combine_family_skill_updates(focused_updates)
+                                    present.update(focused_skills)
                         except Exception as error:
                             if trajectory:
                                 trajectory.record('application', 'workspace.family_recovery.failed', output={
                                     'error_type': type(error).__name__,
-                                    'skill': {
-                                        'family_tree': 'memoir-family-tree',
-                                        'author_timeline': 'memoir-author-timeline',
-                                    }[focus],
+                                    'skill': skill_label,
+                                    'attempt': attempt,
                                 })
                             if on_event:
                                 await on_event({
                                     'type': 'workspace_retry',
                                     'data': {
-                                        'skill': {
-                                            'family_tree': 'memoir-family-tree',
-                                            'author_timeline': 'memoir-author-timeline',
-                                        }[focus],
+                                        'skill': skill_label,
                                         'status': 'failed',
                                         'error_type': type(error).__name__,
+                                        'attempt': attempt,
                                     },
                                 })
-                if _author_timeline_marker_is_explicitly_disclaimed(text):
+                            # Preserve the existing failure semantics for a
+                            # transport/provider error.  A later round can
+                            # retry it without spending a second request in
+                            # the same already-degraded turn.
+                            break
+                if _family_tree_marker_is_explicitly_disclaimed(text):
                     reply = _remove_marker_block(
-                        reply, AUTHOR_TIMELINE_MARKER_START, AUTHOR_TIMELINE_MARKER_END
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
                     )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
                     await capture_place(reply)
@@ -1601,6 +2415,7 @@ class CodexRuntime:
                 task_sources=task_sources,
                 language=language,
                 canonical_events=canonical_events,
+                source_text=text,
             )
             if canonical_events and family_enabled and _workspace_focus_is_relevant(text, 'family_tree', family_context):
                 instructions += '\n\n' + FAMILY_TREE_SKILL + '\nSaved family identities (untrusted data):\n' + json.dumps(family_context or {}, ensure_ascii=False) + '\nReturn a family-tree marker for this explicit relationship or established-relative correction. Canonical timeline extraction runs separately.'
@@ -1620,6 +2435,11 @@ class CodexRuntime:
                 reply = await connection.turn(result['thread']['id'], prompt,
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}))
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
                     await capture_place(reply)
@@ -1716,6 +2536,7 @@ class CodexRuntime:
             if extracted_profile_updates:
                 extracted_profile_updates.pop('preferred_language', None)
             profile_updates = {**(profile_updates or {}), **(extracted_profile_updates or {})} or None
+            profile_updates = apply_explicit_story_stage(text, profile_updates)
             if trajectory:
                 trajectory.record('application', 'workspace.extraction', output={
                     'profile_updated': bool(extracted_profile_updates),
@@ -2111,7 +2932,7 @@ class CodexRuntime:
             payload['evaluation'] = normalise_correlation(evaluation)
         if agent_role != 'collector':
             payload['agent_role'] = agent_role
-        if extraction_focus in {'family_tree', 'author_timeline'}:
+        if extraction_focus in {'family_tree', 'author_timeline', 'place_journey'}:
             payload['extraction_focus'] = extraction_focus
         if project_id:
             payload['task_sources'] = [source.model_dump() for source in self._task_sources(memories)]

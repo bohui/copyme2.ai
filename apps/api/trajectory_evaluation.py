@@ -1439,25 +1439,47 @@ def _observation_scope(observation: Any):
 class LangfusePublisher:
     """Small adapter around the optional Langfuse Python SDK v4."""
 
-    def __init__(self, client: Any = None) -> None:
+    def __init__(self, client: Any = None, *, env: Mapping[str, str] | None = None) -> None:
         if client is None:
             try:
                 from langfuse import get_client  # type: ignore[import-not-found]
             except ImportError as error:  # pragma: no cover - exercised by CLI setup
                 raise RuntimeError("Install the evaluation extra to publish to Langfuse: pip install -e '.[evaluation]'") from error
             # Keep Memoir's environment namespace separate while allowing the
-            # SDK to use its standard configuration names.
-            for source, target in (
-                ("MEMORY_SPARK_LANGFUSE_PUBLIC_KEY", "LANGFUSE_PUBLIC_KEY"),
-                ("MEMORY_SPARK_LANGFUSE_SECRET_KEY", "LANGFUSE_SECRET_KEY"),
-                ("MEMORY_SPARK_LANGFUSE_BASE_URL", "LANGFUSE_BASE_URL"),
-                ("MEMORY_SPARK_LANGFUSE_ENVIRONMENT", "LANGFUSE_TRACING_ENVIRONMENT"),
+            # SDK to use its standard configuration names.  The runner passes
+            # its parsed .env mapping explicitly because python-dotenv is not
+            # a runtime dependency of the evaluation script.  Langfuse SDK v4
+            # reads LANGFUSE_HOST (not LANGFUSE_BASE_URL).
+            sources = env or {}
+
+            def configured(*names: str) -> str:
+                for name in names:
+                    value = os.getenv(name, "") or sources.get(name, "")
+                    if value and value.strip():
+                        return value.strip()
+                return ""
+
+            for target, names in (
+                ("LANGFUSE_PUBLIC_KEY", ("LANGFUSE_PUBLIC_KEY", "MEMORY_SPARK_LANGFUSE_PUBLIC_KEY")),
+                ("LANGFUSE_SECRET_KEY", ("LANGFUSE_SECRET_KEY", "MEMORY_SPARK_LANGFUSE_SECRET_KEY")),
+                ("LANGFUSE_HOST", ("LANGFUSE_HOST", "MEMORY_SPARK_LANGFUSE_HOST", "LANGFUSE_BASE_URL", "MEMORY_SPARK_LANGFUSE_BASE_URL")),
+                ("LANGFUSE_TRACING_ENVIRONMENT", ("LANGFUSE_TRACING_ENVIRONMENT", "MEMORY_SPARK_LANGFUSE_ENVIRONMENT")),
             ):
-                value = os.getenv(source)
+                value = configured(*names)
                 if value and not os.getenv(target):
                     os.environ[target] = value
             client = get_client()
         self.client = client
+        self.auth_check_status = "not_supported"
+        auth_check = getattr(client, "auth_check", None)
+        if callable(auth_check):
+            try:
+                authenticated = auth_check()
+            except Exception as error:  # pragma: no cover - SDK/network dependent
+                raise RuntimeError("Langfuse authentication check failed") from error
+            if not authenticated:
+                raise RuntimeError("Langfuse authentication check failed")
+            self.auth_check_status = "passed"
 
     def flush(self) -> None:
         """Flush after case root scopes have been closed.

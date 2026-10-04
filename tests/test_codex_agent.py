@@ -9,6 +9,9 @@ from pathlib import Path
 from apps.api.codex_agent import CodexConnection
 from apps.api.codex_runtime import (
     CodexRuntime,
+    _sentence_has_author_event_evidence,
+    _timeline_item_is_explicitly_vetoed,
+    _sanitize_author_timeline_markers,
     build_conversation_system_prompt,
     build_loop_trace,
     build_system_prompt,
@@ -43,6 +46,23 @@ def test_visible_collector_prompt_is_separate_from_workspace_markers():
     assert '[[MEMORY_SPARK_PLACE_JOURNEY]]' not in conversation
     assert '[[MEMORY_SPARK_PROFILE]]' in workspace
     assert 'Workspace extraction contract' in workspace
+
+
+def test_workspace_prompt_exposes_structural_timeline_claim_ids():
+    prompt = build_workspace_extraction_prompt(
+        '(none)',
+        language='en-AU',
+        family_enabled=True,
+        source_text=(
+            'I bought a house in 1980. I sold the house in 1980. '
+            'Please do not add this event to my timeline.'
+        ),
+    )
+
+    assert 'source_claim_id' in prompt
+    assert 'Do not infer a claim id from a title synonym' in prompt
+    assert '- c0: I bought a house in 1980' in prompt
+    assert '- c1: I sold the house in 1980' in prompt
 
 
 def test_collector_prompt_reviews_breadth_after_twenty_focused_turns():
@@ -97,6 +117,37 @@ def test_workspace_extraction_retries_only_missing_family_domains_without_synthe
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
 
 
+def test_workspace_extraction_retries_a_completed_focus_without_accepted_marker(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        focus = kwargs.get('extraction_focus')
+        calls.append(focus)
+        if focus == 'family_tree' and calls.count('family_tree') == 1:
+            return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+        if focus == 'family_tree':
+            return {
+                'reply': (
+                    '[[MEMORY_SPARK_FAMILY_TREE]]'
+                    '{"people":[{"id":"p-june","name":"June","family_title":"aunt"}],"relationships":[]}'
+                    '[[/MEMORY_SPARK_FAMILY_TREE]]'
+                )
+            }
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='Aunt June remembers carrying me past the bench.',
+        language='en-AU',
+    ))
+
+    assert calls == [None, 'family_tree', 'family_tree']
+    assert 'MEMORY_SPARK_FAMILY_TREE' in reply
+
+
 def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
     outer = TrajectoryRecorder({'run_id': 'run-1', 'case_id': 'case-1'})
@@ -126,8 +177,14 @@ def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monk
     ))
 
     actions = [step['action'] for step in outer.payload()['steps']]
-    assert calls == [None, 'family_tree', 'author_timeline']
+    assert calls == [None, 'family_tree', 'family_tree', 'family_tree', 'author_timeline']
     assert actions == [
+        'tool.call',
+        'workspace.worker.completed',
+        'workspace.family_recovery.requested',
+        'tool.call',
+        'workspace.worker.completed',
+        'workspace.family_recovery.requested',
         'tool.call',
         'workspace.worker.completed',
         'workspace.family_recovery.requested',
@@ -139,6 +196,8 @@ def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monk
     ]
     assert [step['observation_id'] for step in outer.payload()['steps'] if step.get('observation_id')] == [
         'worker-observation-broad',
+        'worker-observation-family_tree',
+        'worker-observation-family_tree',
         'worker-observation-family_tree',
         'worker-observation-author_timeline',
     ]
@@ -162,7 +221,7 @@ def test_workspace_extraction_records_focused_recovery_failure(monkeypatch):
     ))
 
     failure = next(step for step in outer.payload()['steps'] if step['action'] == 'workspace.family_recovery.failed')
-    assert failure['output'] == {'error_type': 'RuntimeError', 'skill': 'memoir-family-tree'}
+    assert failure['output'] == {'error_type': 'RuntimeError', 'skill': 'memoir-family-tree', 'attempt': 1}
 
 
 def test_workspace_extraction_does_not_invent_missing_domain_markers(monkeypatch):
@@ -282,11 +341,9 @@ def test_workspace_extraction_drops_model_timeline_marker_for_explicit_negative_
 
 @pytest.mark.parametrize('text', [
     'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
-    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
-    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
     'I am unsure whether Ben left the neighbourhood before or after my final school year.',
 ])
-def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(monkeypatch, text):
+def test_workspace_extraction_suppresses_timeline_marker_for_advisory_without_author_event(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 
     async def worker_turn(**kwargs):
@@ -308,7 +365,66 @@ def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(m
         language='zh-CN',
     ))
 
-    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
+
+
+@pytest.mark.parametrize('text', [
+    'In later life I sometimes repair a small object just to remember the patience of the old bench.',
+    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。',
+])
+def test_workspace_extraction_suppresses_timeline_marker_for_pure_reflection(monkeypatch, text):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-reflection","title":"Reflection",'
+                '"date_expression":"later life"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='zh-CN',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
+
+
+def test_workspace_extraction_suppresses_disclaimed_third_party_family_story(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        calls.append(kwargs.get('extraction_focus'))
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_FAMILY_TREE]]'
+                '{"people":[{"id":"friend","name":"阿青","family_title":"friend"}],"relationships":[]}'
+                '[[/MEMORY_SPARK_FAMILY_TREE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"third-party","title":"阿青后来去了贵阳",'
+                '"date_expression":"unknown"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='我不想把阿青的生活写成我的事实，她的经历应该保留在故事之外。',
+        language='zh-CN',
+    ))
+
+    assert calls == [None]
+    assert 'MEMORY_SPARK_FAMILY_TREE' not in reply
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 
 @pytest.mark.parametrize('text', [
@@ -319,6 +435,14 @@ def test_workspace_extraction_keeps_model_timeline_marker_for_advisory_context(m
     '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。我在2012年退休。',
     'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I moved to Hobart during childhood.',
     'I retired in 2012, but in later life I sometimes repair a small object just to remember the patience of the old bench.',
+    'In later life I sometimes repair a small object just to remember the patience of the old bench. I gave birth to my daughter in 1990.',
+    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I was born in 1980.',
+    'In 1990 I gave birth to my daughter.',
+    'In 1980 I was born in Hobart.',
+    'I bought my first house in 1990.',
+    'I joined the navy in 1980.',
+    '我在1980年出生。',
+    '1980年我出生。',
 ])
 def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
@@ -342,6 +466,257 @@ def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn
     ))
 
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+@pytest.mark.parametrize('text', [
+    'My first job was at the Hobart docks in 1980.',
+    'I remember buying my first house.',
+])
+def test_source_contract_keeps_possessive_and_memory_complement_events(text, monkeypatch):
+    assert _sentence_has_author_event_evidence(text) is True
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"event","kind":"event",'
+                '"title":"Grounded event","date_expression":"unknown",'
+                '"precision":"unknown"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
+@pytest.mark.parametrize('text', [
+    'My aunt June moved to Hobart in 1980.',
+    "My father's stories place the move in Hobart in 1980.",
+    '我的姐姐在三十岁以后开始工作。',
+])
+def test_source_contract_rejects_other_person_possessive_subjects(text):
+    assert _sentence_has_author_event_evidence(text) is False
+
+
+@pytest.mark.parametrize('text', [
+    'Born in Hobart, with the year left uncertain.',
+    '出生在成都，年份仍然不确定。',
+])
+def test_source_contract_accepts_grounded_birth_fragments(text):
+    assert _sentence_has_author_event_evidence(text) is True
+
+
+def test_source_contract_splits_mixed_uncertainty_from_author_event():
+    assert _sentence_has_author_event_evidence(
+        'I am unsure whether Ben left before my final school year'
+    ) is False
+    assert _sentence_has_author_event_evidence(
+        'I moved to Hobart in 1985'
+    ) is True
+
+
+def test_workspace_extraction_honours_item_veto_without_dropping_other_event(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":['
+                '{"id":"e-move","kind":"event","title":"Moved to Hobart",'
+                '"date_expression":"1980","precision":"year"},'
+                '{"id":"e-house","kind":"event","title":"Bought first house",'
+                '"date_expression":"1990","precision":"year"}'
+                ']}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I moved to Hobart in 1980. Please do not add this event to my timeline. '
+             'I bought my first house in 1990.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'e-move' not in reply
+    assert 'e-house' in reply
+
+
+def test_workspace_extraction_keeps_only_later_event_when_vetoed_event_is_omitted(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-house","kind":"event",'
+                '"title":"Bought first house","date_expression":"1990",'
+                '"precision":"year"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I moved to Hobart in 1980. Please do not add this event to my timeline. '
+             'I bought my first house in 1990.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'e-house' in reply
+
+
+def test_item_veto_association_uses_source_span_not_single_item_count():
+    source = (
+        'I moved to Hobart in 1980. Please do not add this event to my timeline. '
+        'I bought my first house in 1990.'
+    )
+    assert _timeline_item_is_explicitly_vetoed(
+        {'title': 'Moved to Hobart', 'date_expression': '1980'}, source, 1
+    ) is True
+    assert _timeline_item_is_explicitly_vetoed(
+        {'title': 'Bought first house', 'date_expression': '1990'}, source, 1
+    ) is False
+
+
+@pytest.mark.parametrize(
+    ('source', 'vetoed', 'allowed'),
+    [
+        (
+            'I moved in 1980; I married in 1980; please do not add this event to my timeline.',
+            {'title': 'Married', 'date_expression': '1980'},
+            {'title': 'Moved', 'date_expression': '1980'},
+        ),
+        (
+            'I bought a house in 1980; I sold the house in 1990; please do not add the sale to my timeline.',
+            {'title': 'Sold house', 'date_expression': '1990'},
+            {'title': 'Bought house', 'date_expression': '1980'},
+        ),
+        (
+            'I bought a house in 1980. I sold the house in 1980. Please do not add this event to my timeline.',
+            {'title': 'Sold house', 'date_expression': '1980'},
+            {'title': 'Purchased house', 'date_expression': '1980'},
+        ),
+    ],
+)
+def test_item_veto_association_does_not_use_shared_year_or_noun_as_identity(
+    source, vetoed, allowed,
+):
+    assert _timeline_item_is_explicitly_vetoed(vetoed, source, 2) is True
+    assert _timeline_item_is_explicitly_vetoed(allowed, source, 2) is False
+
+
+@pytest.mark.parametrize('title', ['Sale of house', 'House sale', 'Selling house'])
+def test_paraphrase_timeline_items_use_source_claim_ids_not_title_synonyms(title):
+    source = (
+        'I bought a house in 1980. I sold the house in 1980. '
+        'Please do not add this event to my timeline.'
+    )
+    reply = (
+        '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+        '{"timeline":['
+        '{"id":"e-purchase","kind":"event","title":"Purchase of house",'
+        '"date_expression":"1980","precision":"year","source_claim_id":"c0"},'
+        f'{{"id":"e-sale","kind":"event","title":"{title}",'
+        '"date_expression":"1980","precision":"year","source_claim_id":"c1"}'
+        ']}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+    )
+
+    sanitized = _sanitize_author_timeline_markers(reply, source)
+
+    assert 'e-purchase' in sanitized
+    assert 'e-sale' not in sanitized
+    assert 'source_claim_id' not in sanitized
+
+
+@pytest.mark.parametrize('title', ['Sale of house', 'House sale', 'Selling house'])
+def test_unresolved_paraphrase_timeline_item_stays_private(title):
+    source = (
+        'I bought a house in 1980. I sold the house in 1980. '
+        'Please do not add this event to my timeline.'
+    )
+    reply = (
+        '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+        + json.dumps({
+            'timeline': [{
+                'id': 'e-sale',
+                'kind': 'event',
+                'title': title,
+                'date_expression': '1980',
+                'precision': 'year',
+            }],
+        })
+        + '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+    )
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in _sanitize_author_timeline_markers(reply, source)
+
+
+def test_workspace_extraction_honours_single_event_veto(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-move","kind":"event",'
+                '"title":"Moved to Hobart","date_expression":"1980",'
+                '"precision":"year"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='I moved to Hobart in 1980. Please do not add this event to my timeline.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
+
+
+def test_workspace_extraction_filters_only_the_ungrounded_reflection_entry(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":['
+                '{"id":"e-reflection","title":"Reflection","date_expression":"later life"},'
+                '{"id":"e-birth","title":"Gave birth to daughter","date_expression":"1990","precision":"year"}'
+                ']}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='In later life I sometimes repair an old bench just to remember patience. In 1990 I gave birth to my daughter.',
+        language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+    assert 'e-birth' in reply
+    assert 'e-reflection' not in reply
 
 
 def test_workspace_extraction_recovers_known_person_without_repeated_kinship_title(monkeypatch):
@@ -375,6 +750,8 @@ def test_workspace_recovery_routes_chinese_social_person_cues(monkeypatch):
     async def worker_turn(**kwargs):
         focus = kwargs.get('extraction_focus')
         calls.append(focus)
+        if focus == 'place_journey':
+            return {'reply': '[[MEMORY_SPARK_PLACE_JOURNEY]]{"place":"大理","hierarchy":{"city":"大理"},"granularity":"city","date_expression":"后来","confidence":"explicit"}[[/MEMORY_SPARK_PLACE_JOURNEY]]'}
         if focus == 'family_tree':
             return {'reply': '[[MEMORY_SPARK_FAMILY_TREE]]{"people":[{"id":"friend","name":"山里的朋友","family_title":"朋友"}],"relationships":[]}[[/MEMORY_SPARK_FAMILY_TREE]]'}
         return {'reply': '[[MEMORY_SPARK_AUTHOR_TIMELINE]]{"timeline":[{"id":"later","kind":"event","title":"Teaching tea identification","date_expression":"后来","precision":"unknown"}]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'}
@@ -386,7 +763,8 @@ def test_workspace_recovery_routes_chinese_social_person_cues(monkeypatch):
         text='后来我在成都教年轻人辨茶，也常回大理看山里的朋友。', language='zh-CN',
     ))
 
-    assert calls == [None, 'family_tree']
+    assert calls == [None, 'place_journey', 'family_tree']
+    assert 'MEMORY_SPARK_PLACE_JOURNEY' in reply
     assert 'MEMORY_SPARK_FAMILY_TREE' in reply
 
 
@@ -406,7 +784,7 @@ def test_workspace_recovery_routes_chinese_family_photo_permission_cue(monkeypat
         text='旧相册里有家人的脸，我没有取得每个人的发表许可。', language='zh-CN',
     ))
 
-    assert calls == [None, 'family_tree']
+    assert calls == [None, 'family_tree', 'family_tree', 'family_tree']
 
 
 def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
@@ -432,6 +810,11 @@ def test_workspace_prompt_has_independent_domain_audit_and_focused_recovery():
     assert 'Kinship titles and explicit shorthand such as `my father`' in family_focused
     assert 'At about three, I followed my father to the docks' in family_focused
     assert 'Mum grew mint beside the laundry' in family_focused
+    place_focused = build_workspace_extraction_prompt(
+        '(none)', family_enabled=True, focus='place_journey'
+    )
+    assert 'Focused place-journey recovery pass' in place_focused
+    assert 'Do not reuse a saved place' in place_focused
 
 
 def test_memory_context_prompt_disambiguates_chinese_midlife_cue():

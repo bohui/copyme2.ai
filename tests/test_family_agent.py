@@ -117,7 +117,11 @@ def test_paid_family_turn_returns_validated_context_and_strips_the_marker(monkey
             worker_url="http://codex-worker:8766",
             worker_secret="worker-secret",
             model="test-model",
-        ).turn(Storage(), "Tell me about your family.", project_id="project-family")
+        ).turn(
+            Storage(),
+            "Tell me about your family. I started school around 1964.",
+            project_id="project-family",
+        )
     )
 
     assert result["reply"] == "Who was with you?"

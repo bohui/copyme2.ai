@@ -1,4 +1,11 @@
-from apps.api.profile_intake import extract_profile_updates, merge_profile_updates, validate_profile_updates
+import pytest
+
+from apps.api.profile_intake import (
+    apply_explicit_story_stage,
+    extract_profile_updates,
+    merge_profile_updates,
+    validate_profile_updates,
+)
 
 
 def test_extracts_and_removes_explicit_profile_context():
@@ -45,6 +52,138 @@ def test_profile_merge_preserves_existing_focus_and_discards_invalid_values():
 
 def test_profile_validation_drops_unbounded_birth_year():
     assert validate_profile_updates({"name": "Mina", "birth_year": 1799}) == {"name": "Mina"}
+
+
+def test_explicit_chinese_thirty_plus_cue_overrides_only_the_story_stage():
+    assert apply_explicit_story_stage(
+        "三十岁以后，我把阳台改成小花园。",
+        {"story_focus": {"who": "我", "what": "把阳台改成小花园", "life_stage": "young_adulthood"}},
+    ) == {
+        "story_focus": {
+            "who": "我",
+            "what": "把阳台改成小花园",
+            "life_stage": "midlife",
+        }
+    }
+
+
+def test_explicit_story_stage_guard_does_not_infer_without_the_cue():
+    assert apply_explicit_story_stage(
+        "我后来把阳台改成小花园。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "young_adulthood"}}
+
+
+def test_explicit_story_stage_guard_respects_author_correction_and_subject_scope():
+    assert apply_explicit_story_stage(
+        "不是三十岁以后，是小时候，我把阳台改成小花园。",
+        {"story_focus": {"life_stage": "childhood", "what": "把阳台改成小花园"}},
+    ) == {"story_focus": {"life_stage": "childhood", "what": "把阳台改成小花园"}}
+    assert apply_explicit_story_stage(
+        "妈妈三十岁以后开始工作，那时我五岁。",
+        {"story_focus": {"life_stage": "childhood", "when": "我五岁"}},
+    ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
+def test_explicit_story_stage_guard_does_not_promote_relative_age_before_author_age():
+    text = "三十岁以后，我姐姐开始工作，那时我五岁。"
+    updates = apply_explicit_story_stage(
+        text,
+        {"story_focus": {"life_stage": "midlife", "when": "我五岁"}},
+    )
+    assert updates == {"story_focus": {"when": "我五岁"}}
+    assert merge_profile_updates(
+        {"story_focus": {"life_stage": "childhood"}}, updates
+    ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
+def test_later_chinese_correction_overrides_an_earlier_midlife_statement():
+    text = "三十岁以后，我开始工作。更正：其实是我姐姐三十岁以后开始工作。"
+    assert apply_explicit_story_stage(
+        text, {"story_focus": {"life_stage": "midlife"}}
+    ) is None
+    assert apply_explicit_story_stage(
+        "我三十岁以后才开始工作。更正：我三十岁以后才开始照顾孩子。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "midlife"}}
+
+
+@pytest.mark.parametrize("text", [
+    "我三十岁以后才开始工作。不，记错了，是小时候。",
+    "I was 35 when I changed careers.",
+    "I was 40 when I began caring for my mother.",
+    "我35岁时开始工作。",
+    "我三十五岁时开始工作。",
+])
+def test_story_stage_guard_handles_age_orthography_and_later_correction(text):
+    updates = apply_explicit_story_stage(
+        text, {"story_focus": {"life_stage": "midlife"}}
+    )
+    if "记错了" in text:
+        assert updates is None
+    else:
+        assert updates == {"story_focus": {"life_stage": "midlife"}}
+
+
+def test_unrelated_relative_age_does_not_erase_validated_author_stage():
+    text = "我出生于1980年。妈妈三十岁以后开始工作。我在2020年开始照顾孩子。"
+    assert apply_explicit_story_stage(
+        text, {"story_focus": {"life_stage": "midlife"}}
+    ) == {"story_focus": {"life_stage": "midlife"}}
+
+
+@pytest.mark.parametrize("text", [
+    "妈妈三十岁以后开始工作。",
+    "我姐姐三十岁以后开始工作。",
+])
+def test_unscoped_relative_age_does_not_fabricate_author_midlife_stage(text):
+    assert apply_explicit_story_stage(text, {}) is None
+
+
+@pytest.mark.parametrize("text", [
+    "我姐姐三十岁以后开始工作，那时我五岁。",
+    "我哥哥三十岁以后开始工作，那时我五岁。",
+    "妈妈三十岁以后开始工作，那时我五岁。",
+    "不是三十岁以后，是小时候，我在院子里玩耍。",
+])
+def test_explicit_story_stage_guard_drops_only_an_ambiguous_midlife_override(text):
+    updates = {"story_focus": {"life_stage": "midlife", "when": "我五岁"}}
+
+    # A model-supplied midlife value is not evidence when the cue belongs to a
+    # relative or is explicitly negated. Removing just that value lets the
+    # previously validated stage survive the normal profile merge.
+    assert apply_explicit_story_stage(text, updates) == {
+        "story_focus": {"when": "我五岁"}
+    }
+    assert merge_profile_updates(
+        {"story_focus": {"life_stage": "childhood"}},
+        apply_explicit_story_stage(text, updates),
+    ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
+def test_explicit_story_stage_guard_accepts_first_person_age_subject():
+    assert apply_explicit_story_stage(
+        "我三十岁以后开始照顾孩子。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "midlife"}}
+
+
+def test_story_stage_guard_does_not_promote_a_date_only_correction_to_midlife():
+    updates = apply_explicit_story_stage(
+        "更正：我大约一九九三年去大理，二〇〇二年前后改工作室，两处都保持大概表达。",
+        {"story_focus": {"life_stage": "midlife", "when": "大约一九九三年"}},
+    )
+    assert updates == {"story_focus": {"when": "大约一九九三年"}}
+    assert merge_profile_updates(
+        {"story_focus": {"life_stage": "later_life"}}, updates
+    ) == {"story_focus": {"life_stage": "later_life", "when": "大约一九九三年"}}
+
+
+def test_story_stage_guard_accepts_author_age_inside_a_correction():
+    assert apply_explicit_story_stage(
+        "更正：我三十岁以后开始照顾孩子。",
+        {"story_focus": {"life_stage": "young_adulthood"}},
+    ) == {"story_focus": {"life_stage": "midlife"}}
 
 
 def test_language_updates_are_validated_and_preserve_other_profile_fields():
