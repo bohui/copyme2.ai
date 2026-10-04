@@ -564,7 +564,8 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     )
     independent_author_event = bool(
         re.search(
-            r"\b(?:i|we)\b(?:\s+\w+){0,8}\s+\b(?:was born|born|arrived|lived|"
+            r"\b(?:i|we)\b\s+(?:(?:first|then|later|eventually|also|once|finally)\s+)?"
+            r"(?:was born|born|arrived|lived|"
             r"moved|returned|left|spent|started|began|opened|attended|learned|"
             r"worked|cared|travelled|traveled|met|married|raised|joined|"
             r"graduated|studied|wrote|took|rented|chose|chosen|kept|followed|"
@@ -603,9 +604,13 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
         r"(?:moved|left|went|returned|graduated|married)\b",
         lowered,
     ))
-    return bool(english_suppression or chinese_suppression or reflective_life_stage or
-                third_party_uncertainty or
-                (source_boundary and not independent_author_event))
+    other_claim_is_non_event = bool(
+        reflective_life_stage or third_party_uncertainty or source_boundary
+    )
+    return bool(
+        english_suppression or chinese_suppression or
+        (other_claim_is_non_event and not independent_author_event)
+    )
 
 
 def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:

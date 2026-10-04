@@ -284,6 +284,34 @@ def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monk
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in reply
 
 
+@pytest.mark.parametrize('text', [
+    'I am unsure whether Ben left the neighbourhood before or after my final school year. I moved to Hobart in 1985.',
+    'In later life I sometimes repair a small object just to remember the patience of the old bench. I moved to Hobart in 1985.',
+])
+def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn(monkeypatch, text):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+
+    async def worker_turn(**kwargs):
+        return {
+            'reply': (
+                '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'
+                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
+                '{"timeline":[{"id":"e-hobart-1985","title":"Moved to Hobart",'
+                '"date_expression":"1985","precision":"year"}]}'
+                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+            )
+        }
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text=text, language='en-AU',
+    ))
+
+    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
+
+
 def test_workspace_extraction_recovers_known_person_without_repeated_kinship_title(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
     calls = []
