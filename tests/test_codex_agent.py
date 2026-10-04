@@ -97,6 +97,37 @@ def test_workspace_extraction_retries_only_missing_family_domains_without_synthe
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
 
 
+def test_workspace_extraction_retries_a_completed_focus_without_accepted_marker(monkeypatch):
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
+    calls = []
+
+    async def worker_turn(**kwargs):
+        focus = kwargs.get('extraction_focus')
+        calls.append(focus)
+        if focus == 'family_tree' and calls.count('family_tree') == 1:
+            return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+        if focus == 'family_tree':
+            return {
+                'reply': (
+                    '[[MEMORY_SPARK_FAMILY_TREE]]'
+                    '{"people":[{"id":"p-june","name":"June","family_title":"aunt"}],"relationships":[]}'
+                    '[[/MEMORY_SPARK_FAMILY_TREE]]'
+                )
+            }
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
+    reply = asyncio.run(runtime._workspace_extraction(
+        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
+        family_enabled=True, family_context=None, project_id=None,
+        text='My aunt June remembers carrying me past the bench.',
+        language='en-AU',
+    ))
+
+    assert calls == [None, 'family_tree', 'family_tree']
+    assert 'MEMORY_SPARK_FAMILY_TREE' in reply
+
+
 def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
     outer = TrajectoryRecorder({'run_id': 'run-1', 'case_id': 'case-1'})
@@ -126,8 +157,11 @@ def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monk
     ))
 
     actions = [step['action'] for step in outer.payload()['steps']]
-    assert calls == [None, 'family_tree', 'author_timeline']
+    assert calls == [None, 'family_tree', 'family_tree', 'author_timeline']
     assert actions == [
+        'tool.call',
+        'workspace.worker.completed',
+        'workspace.family_recovery.requested',
         'tool.call',
         'workspace.worker.completed',
         'workspace.family_recovery.requested',
@@ -139,6 +173,7 @@ def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monk
     ]
     assert [step['observation_id'] for step in outer.payload()['steps'] if step.get('observation_id')] == [
         'worker-observation-broad',
+        'worker-observation-family_tree',
         'worker-observation-family_tree',
         'worker-observation-author_timeline',
     ]
@@ -162,7 +197,7 @@ def test_workspace_extraction_records_focused_recovery_failure(monkeypatch):
     ))
 
     failure = next(step for step in outer.payload()['steps'] if step['action'] == 'workspace.family_recovery.failed')
-    assert failure['output'] == {'error_type': 'RuntimeError', 'skill': 'memoir-family-tree'}
+    assert failure['output'] == {'error_type': 'RuntimeError', 'skill': 'memoir-family-tree', 'attempt': 1}
 
 
 def test_workspace_extraction_does_not_invent_missing_domain_markers(monkeypatch):
@@ -502,7 +537,7 @@ def test_workspace_recovery_routes_chinese_family_photo_permission_cue(monkeypat
         text='旧相册里有家人的脸，我没有取得每个人的发表许可。', language='zh-CN',
     ))
 
-    assert calls == [None, 'family_tree']
+    assert calls == [None, 'family_tree', 'family_tree']
 
 
 def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():

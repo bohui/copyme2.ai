@@ -1783,68 +1783,95 @@ class CodexRuntime:
                     if ((skill_name in present if skill_name != 'place_journey' else present_place)
                             or not _workspace_focus_is_relevant(text, focus, family_context)):
                         continue
-                    if trajectory:
-                        trajectory.record('application', 'workspace.family_recovery.requested', output={
-                            'focus': focus,
-                            'skill': skill_label,
-                        })
-                    try:
-                        focused = await self._worker_turn(
-                            user_id=user_id,
-                            prior=None,
-                            memories=memories,
-                            profile=profile,
-                            place_journey=place_journey,
-                            family_enabled=family_enabled,
-                            family_context=family_context,
-                            project_id=project_id,
-                            text=text,
-                            language=language,
-                            agent_role='workspace',
-                            **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
-                            extraction_focus=focus,
-                            trajectory=trajectory,
-                        )
+                    # A focused pass is still model work: the host never
+                    # synthesizes a missing marker.  The first focused pass
+                    # can complete successfully while returning only a
+                    # profile or another domain, especially when the current
+                    # sentence contains a source boundary such as a family
+                    # member's recollection.  Allow one bounded retry only
+                    # while the requested domain remains absent.  This keeps
+                    # recovery finite and avoids turning every optional
+                    # enrichment into a retry storm.
+                    # The observed production regression is a missing Family
+                    # marker after a successful broad/focused response. Keep
+                    # the retry scoped to that premium domain; place and
+                    # timeline recovery already have their own source/routing
+                    # guards and should retain their one-call budget.
+                    max_attempts = 2 if focus == 'family_tree' else 1
+                    for attempt in range(1, max_attempts + 1):
+                        if ((skill_name in present if skill_name != 'place_journey' else present_place)):
+                            break
                         if trajectory:
-                            trajectory.append_external(
-                                focused.get('trajectory', {}).get('steps', [])
-                                if isinstance(focused.get('trajectory'), dict) else [],
-                                source='codex-worker',
-                            )
-                            trajectory.record('application', 'workspace.worker.completed', output={
-                                'agent_role': 'workspace',
-                                'extraction_focus': focus,
-                                'has_trajectory': bool(focused.get('trajectory')),
-                            })
-                        focused_reply = focused.get('reply', '')
-                        if focused_reply:
-                            reply += '\n' + focused_reply
-                            if focus == 'place_journey':
-                                _, focused_places = extract_place_journeys(focused_reply)
-                                present_place = present_place or any(
-                                    not place_journey_message_is_ambiguous(text)
-                                    and place_journey_matches_message(candidate, text)
-                                    for candidate in focused_places
-                                )
-                            else:
-                                _, focused_updates = extract_family_skill_updates(focused_reply)
-                                _, focused_skills = combine_family_skill_updates(focused_updates)
-                                present.update(focused_skills)
-                    except Exception as error:
-                        if trajectory:
-                            trajectory.record('application', 'workspace.family_recovery.failed', output={
-                                'error_type': type(error).__name__,
+                            trajectory.record('application', 'workspace.family_recovery.requested', output={
+                                'focus': focus,
                                 'skill': skill_label,
+                                'attempt': attempt,
                             })
-                        if on_event:
-                            await on_event({
-                                'type': 'workspace_retry',
-                                'data': {
-                                    'skill': skill_label,
-                                    'status': 'failed',
+                        try:
+                            focused = await self._worker_turn(
+                                user_id=user_id,
+                                prior=None,
+                                memories=memories,
+                                profile=profile,
+                                place_journey=place_journey,
+                                family_enabled=family_enabled,
+                                family_context=family_context,
+                                project_id=project_id,
+                                text=text,
+                                language=language,
+                                agent_role='workspace',
+                                **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
+                                extraction_focus=focus,
+                                trajectory=trajectory,
+                            )
+                            if trajectory:
+                                trajectory.append_external(
+                                    focused.get('trajectory', {}).get('steps', [])
+                                    if isinstance(focused.get('trajectory'), dict) else [],
+                                    source='codex-worker',
+                                )
+                                trajectory.record('application', 'workspace.worker.completed', output={
+                                    'agent_role': 'workspace',
+                                    'extraction_focus': focus,
+                                    'has_trajectory': bool(focused.get('trajectory')),
+                                    'recovery_attempt': attempt,
+                                })
+                            focused_reply = focused.get('reply', '')
+                            if focused_reply:
+                                reply += '\n' + focused_reply
+                                if focus == 'place_journey':
+                                    _, focused_places = extract_place_journeys(focused_reply)
+                                    present_place = present_place or any(
+                                        not place_journey_message_is_ambiguous(text)
+                                        and place_journey_matches_message(candidate, text)
+                                        for candidate in focused_places
+                                    )
+                                else:
+                                    _, focused_updates = extract_family_skill_updates(focused_reply)
+                                    _, focused_skills = combine_family_skill_updates(focused_updates)
+                                    present.update(focused_skills)
+                        except Exception as error:
+                            if trajectory:
+                                trajectory.record('application', 'workspace.family_recovery.failed', output={
                                     'error_type': type(error).__name__,
-                                },
-                            })
+                                    'skill': skill_label,
+                                    'attempt': attempt,
+                                })
+                            if on_event:
+                                await on_event({
+                                    'type': 'workspace_retry',
+                                    'data': {
+                                        'skill': skill_label,
+                                        'status': 'failed',
+                                        'error_type': type(error).__name__,
+                                        'attempt': attempt,
+                                    },
+                                })
+                            # Preserve the existing failure semantics for a
+                            # transport/provider error.  A later round can
+                            # retry it without spending a second request in
+                            # the same already-degraded turn.
+                            break
                 if _family_tree_marker_is_explicitly_disclaimed(text):
                     reply = _remove_marker_block(
                         reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
