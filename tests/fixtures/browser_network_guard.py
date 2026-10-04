@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import runpy
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 import weakref
 
 from playwright.sync_api import APIRequestContext, Browser, Route
@@ -24,6 +24,7 @@ assert origins, 'Explicit task-owned browser/API origins are required'
 public_assets = {'unpkg.com', 'cdn.jsdelivr.net', 'cesium.com',
                  'fonts.googleapis.com', 'fonts.gstatic.com'}
 contexts = weakref.WeakSet()
+response_pages = weakref.WeakSet()
 blocked = []
 offline_profile = os.getenv('MEMOIR_BROWSER_PROFILE_FIXTURE') == '1'
 
@@ -45,10 +46,41 @@ def reject(url, method):
                     'path': parsed.path, 'method': method})
 
 
+def install_redirect_guard(page):
+    if page in response_pages:
+        return
+    # Chromium's Playwright route handler auto-continues redirect requests.
+    # Pause response headers through the supported CDP API before Chromium
+    # can follow Location, retaining native streaming and navigation behavior.
+    session = page.context.new_cdp_session(page)
+    def response(event):
+        request = event['request']
+        status = event.get('responseStatusCode')
+        if status in {301, 302, 303, 307, 308}:
+            for header in event.get('responseHeaders', []):
+                if header['name'].lower() == 'location':
+                    target = urljoin(request['url'], header['value'])
+                    method = request['method']
+                    if (status in {301, 302} and method == 'POST') or (status == 303 and method != 'HEAD'):
+                        method = 'GET'
+                    if not allowed(target, method):
+                        reject(target, method)
+                        session.send('Fetch.failRequest', {'requestId': event['requestId'],
+                                                          'errorReason': 'BlockedByClient'})
+                        return
+        session.send('Fetch.continueRequest', {'requestId': event['requestId']})
+    session.on('Fetch.requestPaused', response)
+    session.send('Fetch.enable', {'patterns': [{'urlPattern': '*', 'requestStage': 'Response'}]})
+    response_pages.add(page)
+
+
 def install(context):
     if context in contexts:
         return
     contexts.add(context)
+    context.on('page', install_redirect_guard)
+    for page in context.pages:
+        install_redirect_guard(page)
     profile = {}
     def guard(route):
         request = route.request
