@@ -399,3 +399,32 @@ def test_composer_offline_endpoint_has_safe_terminal_code(monkeypatch):
     assert response.status_code == 503
     assert response.headers['X-Error-Code'] == 'COMPOSER_PROVIDER_UNAVAILABLE'
     assert 'private' not in response.text
+
+
+def test_nonstream_worker_failure_returns_sanitized_partial_trajectory(monkeypatch):
+    from apps.api import codex_worker_service as service
+
+    monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET', 'test-secret')
+    trajectory = {
+        'schema_version': 'memoir-trajectory/1',
+        'steps': [{
+            'step_id': 'worker-step-3',
+            'action': 'worker.failed',
+            'output': {'reasoning': '[OMITTED]'},
+        }],
+        'final': {'status': 'failed', 'response': None},
+    }
+
+    async def failed(_payload):
+        raise service.WorkerTurnError('private provider failure', trajectory)
+
+    monkeypatch.setattr(service.worker, 'turn', failed)
+    response = TestClient(app).post(
+        '/internal/codex/turn',
+        headers={'X-Codex-Worker-Secret': 'test-secret'},
+        json={'user_id': str(UUID(int=1)), 'text': 'synthetic'},
+    )
+
+    assert response.status_code == 502
+    assert response.json()['trajectory'] == trajectory
+    assert 'private provider failure' not in response.text

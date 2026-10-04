@@ -549,6 +549,33 @@ def test_reasoning_protocol_items_are_filtered_before_trajectory_export():
     assert item["summary"] == {"redacted": "private-reasoning"}
 
 
+def test_reasoning_delta_notifications_are_filtered_before_recording_and_minimization():
+    recorder = TrajectoryRecorder()
+    private_values = []
+    for method in ("item/reasoning/summaryTextDelta", "item/reasoning/textDelta"):
+        private_value = f"private {method} content"
+        private_values.append(private_value)
+        recorder.record_protocol({
+            "method": method,
+            "params": {
+                "delta": {
+                    "text": private_value,
+                    "nested": [{"summary": private_value}],
+                },
+                "itemId": "reasoning-1",
+            },
+        }, phase="codex.turn")
+
+    payload = recorder.payload()
+    encoded = json.dumps(payload)
+    minimized = json.dumps(minimize_for_langfuse(payload))
+    for private_value in private_values:
+        assert private_value not in encoded
+        assert private_value not in minimized
+    for step in payload["steps"]:
+        assert step["output"]["params"]["delta"] == {"redacted": "private-reasoning"}
+
+
 def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
     client = _LangfuseDouble()
 
@@ -703,6 +730,7 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
 
     async def run():
         captured = {}
+        supplied = TrajectoryRecorder({"run_id": "run-1", "case_id": "case-1"})
 
         def handle(request):
             captured.update(json.loads(request.content))
@@ -724,9 +752,19 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
             Storage(),
             "hello",
             evaluation={"run_id": "run-1", "case_id": "case-1"},
+            evaluation_context={
+                "enabled_skills": ["memoir-memory-context"],
+                "available_tools": ["memory.search"],
+            },
+            trajectory=supplied,
         )
         assert result["trajectory"]["correlation"] == {"run_id": "run-1", "case_id": "case-1"}
         assert result["trajectory"]["final"]["status"] == "completed"
         assert captured["evaluation"] == {"run_id": "run-1", "case_id": "case-1"}
+        assert result["trajectory"]["context"]["task"] == "hello"
+        assert result["trajectory"]["context"]["project_id"] is None
+        assert result["trajectory"]["context"]["model"] == runtime.model
+        assert result["trajectory"]["context"]["enabled_skills"] == ["memoir-memory-context"]
+        assert sum(step["action"] == "turn.received" for step in result["trajectory"]["steps"]) == 1
 
     asyncio.run(run())

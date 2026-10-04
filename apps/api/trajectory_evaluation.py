@@ -309,13 +309,18 @@ def build_application_revision(repo_root: str | Path | None = None) -> str:
 def _protocol_summary(message: Mapping[str, Any]) -> dict[str, Any]:
     """Keep protocol shape and tool results while dropping private fields."""
     summary: dict[str, Any] = {}
+    method = str(message.get("method") or "")
     for key in ("id", "method"):
         if key in message:
             summary[key] = message[key]
     if "params" in message:
-        summary["params"] = redact_payload(_filter_protocol_private_items(message.get("params")))
+        summary["params"] = redact_payload(
+            _filter_protocol_message_value(method, message.get("params"))
+        )
     if "result" in message:
-        summary["result"] = redact_payload(_filter_protocol_private_items(message.get("result")))
+        summary["result"] = redact_payload(
+            _filter_protocol_message_value(method, message.get("result"))
+        )
     if "error" in message:
         summary["error"] = redact_payload(message.get("error"))
     return summary
@@ -327,6 +332,11 @@ _PRIVATE_PROTOCOL_ITEM_TYPES = {
     "chainofthought",
     "reasoning",
     "reasoning_summary",
+}
+
+_PRIVATE_REASONING_DELTA_METHODS = {
+    "item/reasoning/summarytextdelta",
+    "item/reasoning/textdelta",
 }
 
 
@@ -348,6 +358,32 @@ def _filter_protocol_private_items(value: Any) -> Any:
     if isinstance(value, (list, tuple, set)):
         return [_filter_protocol_private_items(item) for item in value]
     return value
+
+
+def _filter_protocol_message_value(method: str, value: Any) -> Any:
+    """Apply method-specific privacy filtering before recorder/export redaction.
+
+    Reasoning delta notifications carry private text in a flat ``delta`` field
+    rather than in a typed reasoning item.  Redact every delta-shaped value for
+    those methods so future nested provider payloads cannot leak it either.
+    """
+    filtered = _filter_protocol_private_items(value)
+    if method.casefold() not in _PRIVATE_REASONING_DELTA_METHODS:
+        return filtered
+
+    def redact_deltas(item: Any) -> Any:
+        if isinstance(item, Mapping):
+            return {
+                str(key): {"redacted": "private-reasoning"}
+                if str(key).casefold() == "delta"
+                else redact_deltas(nested)
+                for key, nested in item.items()
+            }
+        if isinstance(item, (list, tuple, set)):
+            return [redact_deltas(nested) for nested in item]
+        return item
+
+    return redact_deltas(filtered)
 
 
 def _protocol_action_metadata(message: Mapping[str, Any]) -> dict[str, Any]:

@@ -18,7 +18,7 @@ from uuid import UUID
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field, model_validator
 
@@ -529,8 +529,13 @@ async def turn(payload: WorkerTurnInput, request: Request,
                             headers={'X-Error-Code': 'COMPOSER_PROVIDER_UNAVAILABLE'}) from None
     except TimeoutError:
         raise HTTPException(status_code=504, detail='Codex worker turn timed out') from None
+    except WorkerTurnError as error:
+        return JSONResponse(
+            status_code=502,
+            content={'detail': 'Codex worker failed', 'trajectory': error.trajectory},
+        )
     except RuntimeError as error:
-        raise HTTPException(status_code=502, detail=f"Codex worker failed: {error}") from None
+        raise HTTPException(status_code=502, detail='Codex worker failed') from None
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)

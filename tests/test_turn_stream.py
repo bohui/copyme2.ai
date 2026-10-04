@@ -187,6 +187,51 @@ def test_worker_stream_failure_preserves_outer_trace_lineage():
     asyncio.run(run())
 
 
+def test_worker_nonstream_failure_preserves_outer_trace_lineage():
+    async def run():
+        partial = {
+            'schema_version': 'memoir-trajectory/1',
+            'steps': [{
+                'step_id': 'worker-step-2',
+                'sequence': 1,
+                'phase': 'codex.turn',
+                'action': 'tool.call',
+                'tool_name': 'memory.search',
+                'observation_id': 'worker-observation-2',
+                'trace_id': 'worker-trace-2',
+            }],
+            'final': {'status': 'failed', 'response': None},
+        }
+
+        def handle(request):
+            return httpx.Response(502, json={
+                'detail': 'Codex worker failed',
+                'trajectory': partial,
+            })
+
+        outer = TrajectoryRecorder({'run_id': 'run-2', 'case_id': 'case-2'})
+        runtime = CodexRuntime(
+            worker_url='http://worker',
+            worker_secret='secret',
+            worker_transport=httpx.MockTransport(handle),
+        )
+        with pytest.raises(RuntimeError) as caught:
+            await runtime._worker_turn(
+                user_id='test', prior=None, memories=[], profile={}, place_journey={},
+                family_enabled=False, family_context={}, project_id=None, text='Hi',
+                language='en-AU', trajectory=outer,
+            )
+
+        assert caught.value.trajectory['steps'][0]['observation_id'] == 'worker-observation-2'
+        worker_step = next(step for step in outer.steps if step.get('source') == 'codex-worker-failure')
+        assert worker_step['observation_id'] == 'worker-observation-2'
+        assert worker_step['trace_id'] == 'worker-trace-2'
+        assert outer.final['status'] == 'failed'
+        assert 'worker failure' not in str(caught.value)
+
+    asyncio.run(run())
+
+
 def test_codex_deltas_forwarded_before_turn_completed():
     async def run():
         connection = CodexConnection([], '.')

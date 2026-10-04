@@ -763,6 +763,7 @@ class CodexRuntime:
                 correlation,
                 skill_manifest=build_skill_manifest(Path(__file__).resolve().parents[2] / 'skills'),
             )
+        if trajectory is not None:
             trajectory.set_context(
                 task=text,
                 project_id=project_id,
@@ -771,12 +772,13 @@ class CodexRuntime:
             )
             if evaluation_context:
                 trajectory.set_context(**dict(evaluation_context))
-            trajectory.record('application', 'turn.received', input={
-                'text': text,
-                'project_id': project_id,
-                'language': language,
-                'user_response': bool(user_response),
-            })
+            if not any(step.get('action') == 'turn.received' for step in trajectory.steps):
+                trajectory.record('application', 'turn.received', input={
+                    'text': text,
+                    'project_id': project_id,
+                    'language': language,
+                    'user_response': bool(user_response),
+                })
         async with AsyncExitStack() as preparation_scope, AsyncExitStack() as turn_scope:
             await turn_scope.enter_async_context(self._lock(user_id))
             turn_sequence = self._next_turn_sequence(user_id)
@@ -2149,6 +2151,14 @@ class CodexRuntime:
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
+            try:
+                error_payload = error.response.json()
+            except (TypeError, ValueError):
+                error_payload = None
+            if isinstance(error_payload, Mapping):
+                partial = error_payload.get('trajectory')
+                if isinstance(partial, Mapping):
+                    error.trajectory = dict(partial)
             preserve_failure_trajectory(error)
             status_code = error.response.status_code
             log_diagnostic(
