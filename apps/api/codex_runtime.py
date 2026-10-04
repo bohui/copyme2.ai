@@ -974,7 +974,7 @@ def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
 
 def _timeline_item_source_span_indices(
     item: Mapping[str, Any], source: str,
-) -> list[int]:
+) -> list[int] | None:
     """Associate an item with the best matching visible source clause.
 
     Dates and places are supporting evidence, not identity. Event-title
@@ -1034,9 +1034,15 @@ def _timeline_item_source_span_indices(
         scored = author_scored
     best_score = max(score for score, _identity_hits, _index, _author_owned in scored)
     best = [row for row in scored if row[0] == best_score]
-    # If only shared supporting evidence (for example one year) ties, the
-    # source association is ambiguous; do not destructively veto either item.
-    if len(best) > 1 and not any(identity_hits for _score, identity_hits, _index, _author_owned in best):
+    if len(best) > 1:
+        # A shared noun can be an identity token for several different
+        # author-owned events (for example ``house`` in ``bought`` and
+        # ``sold``).  Preserve the item, but do not let an item-specific veto
+        # destructively choose one of the tied source claims.
+        if any(author_owned for _score, _identity_hits, _index, author_owned in best):
+            return None
+        # If only shared supporting evidence (for example one year) ties, the
+        # source association is ambiguous without author-owned evidence.
         return []
     return [index for _score, _identity_hits, index, _author_owned in best]
 
@@ -1062,7 +1068,12 @@ def _timeline_item_is_explicitly_vetoed(
         return False
     if any(scope == "all" for _index, scope in vetoes):
         return True
-    item_indices = set(_timeline_item_source_span_indices(item, source))
+    associated_indices = _timeline_item_source_span_indices(item, source)
+    # Ambiguity is handled conservatively: an item-specific veto must not
+    # delete an item that could belong to more than one author claim.
+    if associated_indices is None:
+        return False
+    item_indices = set(associated_indices)
     author_indices = {
         index for index, sentence in enumerate(sentences)
         if _sentence_has_author_event_evidence(sentence)
@@ -1096,6 +1107,10 @@ def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item
         return False
     spans = _timeline_source_spans(source)
     item_indices = _timeline_item_source_span_indices(item, source)
+    if item_indices is None:
+        # The item has competing author-owned source matches. Keep it as
+        # source-backed, while leaving any item-specific veto non-destructive.
+        return _author_timeline_has_source_evidence(source)
     if item_indices:
         return any(
             _sentence_has_author_event_evidence(spans[index][0])

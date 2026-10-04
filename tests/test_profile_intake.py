@@ -133,6 +133,14 @@ def test_unrelated_relative_age_does_not_erase_validated_author_stage():
 
 
 @pytest.mark.parametrize("text", [
+    "妈妈三十岁以后开始工作。",
+    "我姐姐三十岁以后开始工作。",
+])
+def test_unscoped_relative_age_does_not_fabricate_author_midlife_stage(text):
+    assert apply_explicit_story_stage(text, {}) is None
+
+
+@pytest.mark.parametrize("text", [
     "我姐姐三十岁以后开始工作，那时我五岁。",
     "我哥哥三十岁以后开始工作，那时我五岁。",
     "妈妈三十岁以后开始工作，那时我五岁。",

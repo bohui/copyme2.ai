@@ -328,10 +328,13 @@ def apply_explicit_story_stage(text: str, updates: Any) -> dict[str, Any] | None
         return validated or None
     scoped_midlife = _midlife_cue_is_author_scoped(text)
     stage_evidence = _author_stage_evidence(text)
-    if EXPLICIT_MIDLIFE_NEGATION.search(text) or (
-        not scoped_midlife and stage_evidence == "non_midlife"
-    ):
-        return _drop_model_midlife_if_not_author_scoped(validated) or None
+    if not scoped_midlife:
+        if EXPLICIT_MIDLIFE_NEGATION.search(text) or stage_evidence == "non_midlife":
+            return _drop_model_midlife_if_not_author_scoped(validated) or None
+        # A relative's age, or an unscoped/bare cue, is not author evidence.
+        # Preserve any already validated model fields but never fabricate a
+        # new midlife stage from that cue.
+        return validated or None
     focus = dict(validated.get("story_focus") or {})
     focus["life_stage"] = "midlife"
     validated["story_focus"] = focus

@@ -588,6 +588,11 @@ def test_item_veto_association_uses_source_span_not_single_item_count():
             {'title': 'Sold house', 'date_expression': '1990'},
             {'title': 'Bought house', 'date_expression': '1980'},
         ),
+        (
+            'I bought a house in 1980. I sold the house in 1980. Please do not add this event to my timeline.',
+            {'title': 'Sold house', 'date_expression': '1980'},
+            {'title': 'Purchased house', 'date_expression': '1980'},
+        ),
     ],
 )
 def test_item_veto_association_does_not_use_shared_year_or_noun_as_identity(
