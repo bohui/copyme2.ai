@@ -376,6 +376,8 @@ def test_workspace_extraction_suppresses_disclaimed_third_party_family_story(mon
     '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。我在2012年退休。',
     'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I moved to Hobart during childhood.',
     'I retired in 2012, but in later life I sometimes repair a small object just to remember the patience of the old bench.',
+    'In later life I sometimes repair a small object just to remember the patience of the old bench. I gave birth to my daughter in 1990.',
+    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I was born in 1980.',
 ])
 def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')

@@ -72,6 +72,17 @@ def test_explicit_story_stage_guard_does_not_infer_without_the_cue():
     ) == {"story_focus": {"life_stage": "young_adulthood"}}
 
 
+def test_explicit_story_stage_guard_respects_author_correction_and_subject_scope():
+    assert apply_explicit_story_stage(
+        "不是三十岁以后，是小时候，我把阳台改成小花园。",
+        {"story_focus": {"life_stage": "childhood", "what": "把阳台改成小花园"}},
+    ) == {"story_focus": {"life_stage": "childhood", "what": "把阳台改成小花园"}}
+    assert apply_explicit_story_stage(
+        "妈妈三十岁以后开始工作，那时我五岁。",
+        {"story_focus": {"life_stage": "childhood", "when": "我五岁"}},
+    ) == {"story_focus": {"life_stage": "childhood", "when": "我五岁"}}
+
+
 def test_language_updates_are_validated_and_preserve_other_profile_fields():
     assert merge_profile_updates({'name': '慧博'}, {'preferred_language': 'zh-CN'}) == {
         'name': '慧博', 'preferred_language': 'zh-CN',

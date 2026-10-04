@@ -22,6 +22,16 @@ PROFILE_FIELDS = {
 LIFE_STAGES = {"baby", "toddler", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
 STORY_FOCUS_FIELDS = {"who": 500, "where": 300, "when": 160, "what": 1000}
 EXPLICIT_MIDLIFE_CUE = re.compile(r"三十岁(?:以后|之后)")
+EXPLICIT_AUTHOR_MIDLIFE_CUE = re.compile(
+    r"(?:^|[。！？.!?；;\n])\s*(?:我[^。！？.!?；;\n]{0,12})?三十岁(?:以后|之后)"
+)
+EXPLICIT_MIDLIFE_NEGATION = re.compile(
+    r"(?:不是|并非|不在|并不是)[^。！？.!?；;\n]{0,12}三十岁(?:以后|之后)"
+)
+THIRD_PARTY_MIDLIFE_CUE = re.compile(
+    r"(?:妈妈|母亲|父亲|爸爸|爷爷|奶奶|外婆|外公|她|他|家人|阿姨|叔叔)"
+    r"[^。！？.!?；;\n]{0,12}三十岁(?:以后|之后)"
+)
 
 
 def _text(value: Any, limit: int) -> str | None:
@@ -97,7 +107,13 @@ def apply_explicit_story_stage(text: str, updates: Any) -> dict[str, Any] | None
     profile fields and uncertain wording model-owned.
     """
     validated = validate_profile_updates(updates) or {}
-    if not isinstance(text, str) or not EXPLICIT_MIDLIFE_CUE.search(text):
+    if (
+        not isinstance(text, str)
+        or not EXPLICIT_MIDLIFE_CUE.search(text)
+        or EXPLICIT_MIDLIFE_NEGATION.search(text)
+        or THIRD_PARTY_MIDLIFE_CUE.search(text)
+        or not EXPLICIT_AUTHOR_MIDLIFE_CUE.search(text)
+    ):
         return validated or None
     focus = dict(validated.get("story_focus") or {})
     focus["life_stage"] = "midlife"

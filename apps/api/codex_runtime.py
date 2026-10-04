@@ -617,30 +617,10 @@ def _author_timeline_marker_is_reflection_only(text: str) -> bool:
     if not reflective:
         return False
 
-    # A separate grounded first-person event keeps the whole marker block. The
-    # date/stage cue is required so a reflective verb such as “repair” or
-    # “记录” cannot itself turn this narrow guard into a broad event veto.
-    explicit_event = bool(
-        re.search(
-            r"\b(?:i|we)\b[^.!?。！？;；\n]{0,120}\b(?:18|19|20)\d{2}\b"
-            r"[^.!?。！？;；\n]{0,80}\b(?:moved|returned|left|retired|worked|"
-            r"started|began|opened|married|graduated|visited|travelled|traveled)\b",
-            lowered,
-        )
-        or re.search(
-            r"\b(?:i|we)\s+(?:(?:had|have)\s+)?(?:moved|returned|left|retired|worked|started|began|"
-            r"opened|married|graduated|visited|travelled|traveled)\b.{0,80}"
-            r"\b(?:in\s+(?:18|19|20)\d{2}|during\s+(?:childhood|adolescence|"
-            r"midlife)|at\s+(?:age\s+)?\d{1,3}|when\s+i\s+was)\b",
-            lowered,
-        )
-        or re.search(
-            r"(?:我|我们)[^。！？\n]{0,120}(?:18|19|20)\d{2}年[^。！？\n]{0,80}"
-            r"(?:搬|回到|离开|退休|工作|开始|开办|结婚|毕业)",
-            text,
-        )
-    )
-    return reflective and not explicit_event
+    # A separate grounded first-person event keeps the whole marker block.
+    # Keep this test shared with source/third-party advisory suppression so a
+    # new event verb cannot accidentally create a domain-wide veto.
+    return reflective and not _author_timeline_marker_has_grounded_author_event(text)
 
 
 def _author_timeline_marker_has_grounded_author_event(text: str) -> bool:
@@ -656,9 +636,11 @@ def _author_timeline_marker_has_grounded_author_event(text: str) -> bool:
             lowered,
         )
         or re.search(
-            r"\b(?:i|we)\s+(?:(?:had|have)\s+)?(?:moved|returned|left|retired|worked|started|began|"
-            r"opened|married|graduated|visited|travelled|traveled|grew up|"
-            r"arrived|lived|learned|followed)\b.{0,100}"
+            r"\b(?:i|we)\s+(?:(?:had|have)\s+)?(?:was\s+born|were\s+born|"
+            r"gave\s+birth|had\s+(?:a\s+)?child|became\s+a\s+parent|"
+            r"moved|returned|left|retired|worked|started|began|opened|married|"
+            r"graduated|visited|travelled|traveled|grew\s+up|arrived|lived|"
+            r"learned|followed)\b.{0,100}"
             r"\b(?:in\s+(?:18|19|20)\d{2}|during\s+(?:childhood|adolescence|"
             r"midlife|toddlerhood)|at\s+(?:age\s+)?\d{1,3}|when\s+i\s+was|"
             r"as\s+a\s+(?:child|toddler|teenager))\b",
