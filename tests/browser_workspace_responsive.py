@@ -52,8 +52,7 @@ def main() -> None:
         page.get_by_role("button", name="Send message").click()
         expect(page.locator(".context-visible")).to_be_visible()
         page.set_viewport_size({"width": 823, "height": 580})
-        layout_display = page.locator(".conversation-layout").evaluate("element => getComputedStyle(element).display")
-        assert layout_display == "grid", f"workspace layout became {layout_display} at CSS width 823px"
+        expect(page.locator('.conversation-layout')).to_have_css('display', 'grid')
 
         page.locator("[data-action='toggle-workspace']").click()
         expect(page.locator(".story-shell.workspace-collapsed")).to_be_visible()
@@ -62,17 +61,18 @@ def main() -> None:
         textbox.fill("Now I remember Melbourne.")
         page.get_by_role("button", name="Send message").click()
         expect(page.locator(".assistant-message")).to_have_count(3)
+        expect(page.locator('.message-streaming')).to_have_count(0, timeout=15000)
 
         shell = page.locator(".story-shell")
         shell_classes = shell.get_attribute("class") or ""
         assert "context-visible" in shell_classes, shell_classes
         assert "workspace-collapsed" not in shell_classes
-        assert page.locator(".conversation-layout").evaluate("element => getComputedStyle(element).display") == "grid"
+        expect(page.locator('.conversation-layout')).to_have_css('display', 'grid')
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         assert turn_number == 2
 
         page.set_viewport_size({"width": 760, "height": 580})
-        assert page.locator(".conversation-layout").evaluate("element => getComputedStyle(element).flexDirection") == "column"
+        expect(page.locator('.conversation-layout')).to_have_css('flex-direction', 'column')
 
         browser.close()
         print("Workspace reveal passed: a newly triggered place reopens a previously collapsed workspace.")

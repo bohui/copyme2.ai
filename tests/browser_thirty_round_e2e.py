@@ -35,6 +35,7 @@ def run_case(browser, base_url: str) -> None:
     page_errors: list[str] = []
     page = browser.new_page(locale=locale, viewport={"width": 1440, "height": 960})
     page.on("pageerror", lambda error: page_errors.append(str(error)))
+    persisted_family = None
 
     def story_state(route) -> None:
         route.fulfill(
@@ -64,7 +65,7 @@ def run_case(browser, base_url: str) -> None:
                 {
                     "project_id": "project-thirty-rounds",
                     "family_features_enabled": True,
-                    "family_context": EMPTY_FAMILY_CONTEXT,
+                    "family_context": persisted_family,
                     "family_context_update": None,
                 }
             ),
@@ -91,6 +92,7 @@ def run_case(browser, base_url: str) -> None:
         )
 
     def agent_turn(route) -> None:
+        nonlocal persisted_family
         if route.request.method != "POST":
             route.fallback()
             return
@@ -141,6 +143,7 @@ def run_case(browser, base_url: str) -> None:
         if response.get('family_context'):
             response['family_context'] = {**response['family_context'], 'project_id': payload['project_id']}
             response['family_context_update']['project_id'] = payload['project_id']
+            persisted_family = response['family_context']
         route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
     page.route("**/place-photos?**", lambda route: route.fulfill(json={"items": [PUBLIC_CUE]}))

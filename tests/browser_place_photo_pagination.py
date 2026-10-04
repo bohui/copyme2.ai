@@ -57,6 +57,8 @@ def main():
         page.locator("#chat-form button[type='submit']").click()
         gallery = page.locator('.workspace-media-gallery .place-pictures')
         expect(gallery.locator('figure')).to_have_count(10, timeout=30000)
+        expect(page.locator('.assistant-message .message-text').last).to_have_text('What do you remember about Chengde?')
+        expect(page.locator('.message-streaming')).to_have_count(0, timeout=15000)
         gallery.evaluate('(node) => { node.scrollTop = node.scrollHeight; }')
         retry = page.locator('[data-photo-more]')
         expect(retry).to_have_text('Try loading more photos again', timeout=15000)
@@ -64,11 +66,11 @@ def main():
         page.wait_for_timeout(300)
         assert len(requests) == 2, requests  # No automatic failure/retry loop.
         retry.scroll_into_view_if_needed()
-        before_append = gallery.evaluate('(node) => node.scrollTop')
+        before_append = page.evaluate("document.querySelector('.workspace-media-gallery .place-pictures').scrollTop")
         assert before_append > 0, 'Fixture must scroll before append preservation is exercised'
         retry.click()
         expect(gallery.locator('figure')).to_have_count(20, timeout=15000)
-        after_append = gallery.evaluate('(node) => node.scrollTop')
+        after_append = page.evaluate("document.querySelector('.workspace-media-gallery .place-pictures').scrollTop")
         assert abs(after_append - before_append) < 2, f'Appending changed scroll from {before_append} to {after_append}'
         gallery.evaluate('(node) => { node.scrollTop = node.scrollHeight; }')
         expect(gallery.locator('figure')).to_have_count(23, timeout=15000)
