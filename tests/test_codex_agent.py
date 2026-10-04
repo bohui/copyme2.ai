@@ -287,6 +287,9 @@ def test_workspace_extraction_drops_model_timeline_marker_for_negative_text(monk
 @pytest.mark.parametrize('text', [
     'I am unsure whether Ben left the neighbourhood before or after my final school year. I moved to Hobart in 1985.',
     'In later life I sometimes repair a small object just to remember the patience of the old bench. I moved to Hobart in 1985.',
+    'I am unsure whether Ben left the neighbourhood before or after my final school year. I had moved to Hobart in 1985.',
+    'In later life I sometimes repair a small object just to remember the patience of the old bench. I retired in 2012.',
+    '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。我在2012年退休。',
 ])
 def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn(monkeypatch, text):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')

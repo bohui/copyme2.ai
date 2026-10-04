@@ -562,23 +562,56 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
             text,
         )
     )
-    independent_author_event = bool(
-        re.search(
-            r"\b(?:i|we)\b\s+(?:(?:first|then|later|eventually|also|once|finally)\s+)?"
-            r"(?:was born|born|arrived|lived|"
-            r"moved|returned|left|spent|started|began|opened|attended|learned|"
-            r"worked|cared|travelled|traveled|met|married|raised|joined|"
-            r"graduated|studied|wrote|took|rented|chose|chosen|kept|followed|"
-            r"argued|visited|taught|ran)\b",
-            lowered,
-        )
-        or re.search(
-            r"(?:我|我们)[^。！？\n]{0,80}(?:出生|住在|住过|住几天|居住|租房|搬|"
-            r"回到|离开|度过|开始|开办|参加|学习|工作|照顾|旅行|结婚|抚养|"
-            r"加入|毕业|写|经营|记得|争论|租|带回|教|改成|跟着|搬家|发生)",
-            text,
-        )
-    )
+    # Suppression is claim-scoped.  A dated first-person claim in a separate
+    # sentence must survive even when a neighbouring claim is reflective or
+    # uncertain.  Use the explicit date/person shape rather than an open-ended
+    # verb allowlist so tense and Chinese wording do not change the decision.
+    independent_dated_author_claim = False
+    for claim in re.split(r"(?<=[.!?。！？；;\n])\s*", text):
+        claim = claim.strip()
+        if not claim:
+            continue
+        claim_lower = original_conversation_text(claim).casefold()
+        if not re.search(r"\b(?:i|we)\b|(?:我|我们)", claim_lower):
+            continue
+        if not re.search(
+            r"\b(?:18|19|20)\d{2}\b|\d{4}年|"
+            r"\b(?:age|aged)\s+\d{1,3}\b|\b\d{1,3}\s*(?:years?\s+old|岁)\b",
+            claim_lower,
+        ):
+            continue
+        if re.search(
+            r"\b(?:i|we)\s+(?:am|was)\s+(?:unsure|uncertain|not\s+certain|not\s+sure)\s+"
+            r"whether\s+(?!i\b|we\b)[a-z][a-z'-]*\s+"
+            r"(?:moved|left|went|returned|graduated|married)\b",
+            claim_lower,
+        ):
+            continue
+        if re.search(
+            r"\b(?:in|during)\s+later[- ]life\b.{0,160}\b(?:sometimes|often|"
+            r"just\s+to\s+remember|to\s+remember|reflection|patience|feeling|notice)\b"
+            r"|\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+"
+            r"reflections?)\b.{0,120}\b(?:no reliable date|timing open|"
+            r"rather than|guess|not a dated event)\b",
+            claim_lower,
+        ) or re.search(
+            r"(?:晚年|晚年回忆|晚年的回忆).{0,80}(?:反思|有时只记得|没有.*年份|"
+            r"有时只记录|回望|没有可靠(?:日期|时间)|不一定.*事件|保留.*空白|时间.*开放)",
+            claim,
+        ):
+            continue
+        if re.search(
+            r"(?:difference between what .* remembers and what I .* remember|"
+            r"preserve the difference|directly remember from)",
+            claim_lower,
+        ) or re.search(
+            r"(?:家庭叙述|家庭材料|家人的回忆来源|没有直接记忆|不能确认|"
+            r"不是我的亲历|不替代我的亲历|不是.*证据)",
+            claim,
+        ):
+            continue
+        independent_dated_author_claim = True
+        break
     reflective_life_stage = bool(
         re.search(
             r"\b(?:in|during)\s+later[- ]life\b.{0,160}\b(?:sometimes|often|"
@@ -609,7 +642,7 @@ def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
     )
     return bool(
         english_suppression or chinese_suppression or
-        (other_claim_is_non_event and not independent_author_event)
+        (other_claim_is_non_event and not independent_dated_author_claim)
     )
 
 
