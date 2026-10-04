@@ -410,7 +410,7 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                 "- The first extraction did not produce an accepted family-tree update. Re-read only the current storyteller message and the saved Family document.\n"
                 "- Return only one MEMORY_SPARK_FAMILY_TREE marker when the current message explicitly adds a person, person detail, family title, relationship, or correction; otherwise return an empty string.\n"
                 "- Do not let a profile, place, or timeline fact suppress an explicit family-tree item, and do not invent a relationship.\n"
-                "- Kinship titles and explicit shorthand such as `my father`, `my mother`, `my parent`, `my sister`, `my brother`, `my partner`, `my child`, `Mum`, `Mom`, `Dad`, `Gran`, or `Grandma` are explicit family-tree items even when a similar person already exists in the saved document. Preserve the title and current-turn detail in a person introduction; use an existing_id only when the saved context clearly identifies the same person. Never skip the marker just because the turn also contains an author-timeline event.\n"
+                "- Kinship titles and explicit shorthand such as `my father`, `my mother`, `my parent`, `my sister`, `my brother`, `my partner`, `my child`, `Mum`, `Mom`, `Dad`, `Gran`, or `Grandma`, as well as any grandparent detail, are explicit family-tree items even when a similar person already exists in the saved document. Preserve the title and current-turn detail in a person introduction; use an existing_id only when the saved context clearly identifies the same person. Never skip the marker just because the turn also contains an author-timeline event.\n"
                 "- For a current message such as `At about three, I followed my father to the docks`, emit a family marker for the explicit father/parent item and a separate timeline marker is handled by the other pass.\n"
                 "- For a current message such as `Mum grew mint beside the laundry`, emit a family marker for Mum with that grounded introduction; do not treat the shorthand as an unneeded duplicate of `parents`.\n"
             )
@@ -1890,16 +1890,16 @@ class CodexRuntime:
                     # can complete successfully while returning only a
                     # profile or another domain, especially when the current
                     # sentence contains a source boundary such as a family
-                    # member's recollection.  Allow one bounded retry only
-                    # while the requested domain remains absent.  This keeps
-                    # recovery finite and avoids turning every optional
-                    # enrichment into a retry storm.
+                    # member's recollection.  Allow a small bounded retry
+                    # budget only while the requested domain remains absent.
+                    # This keeps recovery finite and avoids turning every
+                    # optional enrichment into a retry storm.
                     # The observed production regression is a missing Family
                     # marker after a successful broad/focused response. Keep
                     # the retry scoped to that premium domain; place and
                     # timeline recovery already have their own source/routing
                     # guards and should retain their one-call budget.
-                    max_attempts = 2 if focus == 'family_tree' else 1
+                    max_attempts = 3 if focus == 'family_tree' else 1
                     for attempt in range(1, max_attempts + 1):
                         if ((skill_name in present if skill_name != 'place_journey' else present_place)):
                             break

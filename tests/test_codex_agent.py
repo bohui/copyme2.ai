@@ -158,8 +158,11 @@ def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monk
     ))
 
     actions = [step['action'] for step in outer.payload()['steps']]
-    assert calls == [None, 'family_tree', 'family_tree', 'author_timeline']
+    assert calls == [None, 'family_tree', 'family_tree', 'family_tree', 'author_timeline']
     assert actions == [
+        'tool.call',
+        'workspace.worker.completed',
+        'workspace.family_recovery.requested',
         'tool.call',
         'workspace.worker.completed',
         'workspace.family_recovery.requested',
@@ -174,6 +177,7 @@ def test_workspace_extraction_appends_worker_and_family_recovery_trajectory(monk
     ]
     assert [step['observation_id'] for step in outer.payload()['steps'] if step.get('observation_id')] == [
         'worker-observation-broad',
+        'worker-observation-family_tree',
         'worker-observation-family_tree',
         'worker-observation-family_tree',
         'worker-observation-author_timeline',
@@ -622,7 +626,7 @@ def test_workspace_recovery_routes_chinese_family_photo_permission_cue(monkeypat
         text='旧相册里有家人的脸，我没有取得每个人的发表许可。', language='zh-CN',
     ))
 
-    assert calls == [None, 'family_tree', 'family_tree']
+    assert calls == [None, 'family_tree', 'family_tree', 'family_tree']
 
 
 def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
