@@ -21,8 +21,8 @@ function setup(state) {
 
 test('an omitted period end stays unknown, while an explicit ongoing expression survives', () => {
   const context = setup({timeline: [
-    {title: 'School', kind: 'period', start_expression: 'around 1955'},
-    {title: 'Present life', kind: 'period', start_expression: '2008', end_expression: 'ongoing'},
+    {id: 'school', title: 'School', kind: 'period', start_expression: 'around 1955'},
+    {id: 'present', title: 'Present life', kind: 'period', start_expression: '2008', end_expression: 'ongoing'},
   ]});
   const html = context.timelineWorkspace();
   assert.match(html, /around 1955 → dateUnknown/);
@@ -31,10 +31,10 @@ test('an omitted period end stays unknown, while an explicit ongoing expression 
 
 test('renders the backend timeline in its supplied order without merging or extra headings', () => {
   const state = {timeline: [
-    {title: '回到大石庙镇', kind: 'event', date_expression: '2018年', precision: 'year'},
-    {title: '在承德市做木工', kind: 'period', start_expression: '1986年', end_expression: '2005年'},
-    {title: '暑假看外祖母', kind: 'event', date_expression: '1958年暑假', precision: 'season'},
-    {title: '童年玩耍', kind: 'event', date_expression: '童年', precision: 'age'},
+    {id: 'return', title: '回到大石庙镇', kind: 'event', date_expression: '2018年', precision: 'year'},
+    {id: 'work', title: '在承德市做木工', kind: 'period', start_expression: '1986年', end_expression: '2005年'},
+    {id: 'visit', title: '暑假看外祖母', kind: 'event', date_expression: '1958年暑假', precision: 'season'},
+    {id: 'play', title: '童年玩耍', kind: 'event', date_expression: '童年', precision: 'age'},
   ]};
   const original = structuredClone(state);
   const html = setup(state).timelineWorkspace();
@@ -52,8 +52,8 @@ test('renders the backend timeline in its supplied order without merging or extr
 
 test('event-only and period-only timelines have no empty state', () => {
   for (const state of [
-    {timeline: [{title: 'An event', kind: 'event', date_expression: '1958'}]},
-    {timeline: [{title: 'A period', kind: 'period', start_expression: '1986'}]},
+    {timeline: [{id: 'event', title: 'An event', kind: 'event', date_expression: '1958'}]},
+    {timeline: [{id: 'period', title: 'A period', kind: 'period', start_expression: '1986'}]},
   ]) {
     const html = setup(state).timelineWorkspace();
     assert.equal((html.match(/class="timeline-row"/g) || []).length, 1);

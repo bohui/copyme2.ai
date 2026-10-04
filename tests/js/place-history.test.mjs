@@ -108,8 +108,9 @@ test('does not activate the workspace without a map target', async () => {
   state: {placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
   profile: () => ({memory_places: [unknown, mapped]}), workspaceTabs: () => [],
+  workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
  });
- for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'workspaceHasContent']) {
+ for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
  assert.equal(context.workspaceHasContent(), false);

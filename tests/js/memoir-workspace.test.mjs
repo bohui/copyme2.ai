@@ -10,7 +10,7 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&am
 function setup(overrides = {}) {
   const state = {project: {id:'p'}, workspaceTab:'memoir', workspaceUnlocked:false, compositionStage:0,
     familyFeaturesEnabled:true, familyContext:{}, storyPlans:[{}], checkout:{},
-    chapters:[], selectedMemoirChapter:null, placeJourney:{place:'Chengde'}, ...overrides};
+    people:[], timeline:[], chapters:[], selectedMemoirChapter:null, placeJourney:{place:'Chengde'}, ...overrides};
   const translate = key => messages[key.split('.').at(-1)] || key;
   const context = vm.createContext({state, escapeHtml, translate,
     translateWith:(key, values) => translate(key).replace(/\{(\w+)\}/g, (_, name) => values[name]),
@@ -34,16 +34,21 @@ test('interview keeps place/photo panels without family or payment tabs', () => 
   assert.doesNotMatch(markup, /data-workspace-tab/);
 });
 
-test('all composition signals produce exactly three tabs and suppress media on every tab', () => {
+test('composition adds Family tabs only with entitlement and suppresses media on every tab', () => {
   for (const signal of [{compositionStage:3}, {workspaceUnlocked:true}, {project:{id:'p', workspace_unlocked:true}}]) {
-    const context = setup({...signal, familyFeaturesEnabled:false});
-    assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['family','timeline','memoir']);
-    assert.deepEqual(Array.from(context.workspaceTabs(), item => item[1]), ['家族树','时间线','回忆录']);
-    for (const tab of ['family','timeline','memoir']) {
-      context.state.workspaceTab = tab;
-      const markup = context.workspaceDetail();
-      assert.equal((markup.match(/data-workspace-tab=/g) || []).length, 3);
-      assert.doesNotMatch(markup, /workspace-media-overview|places and pictures|life stages/);
+    for (const fixture of [
+      {enabled: true, tabs: ['family','timeline','memoir'], labels: ['家族树','时间线','回忆录']},
+      {enabled: false, tabs: ['memoir'], labels: ['回忆录']},
+    ]) {
+      const context = setup({...signal, familyFeaturesEnabled:fixture.enabled});
+      assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), fixture.tabs);
+      assert.deepEqual(Array.from(context.workspaceTabs(), item => item[1]), fixture.labels);
+      for (const tab of fixture.tabs) {
+        context.state.workspaceTab = tab;
+        const markup = context.workspaceDetail();
+        assert.equal((markup.match(/data-workspace-tab=/g) || []).length, fixture.tabs.length);
+        assert.doesNotMatch(markup, /workspace-media-overview|places and pictures|life stages/);
+      }
     }
   }
 });

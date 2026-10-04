@@ -149,6 +149,10 @@ def test_ordinary_turns_cannot_use_legacy_opening_text_to_avoid_the_free_gate(mo
         def agent_turn_by_id(self, project_id, client_turn_id):
             return self.saved.get((project_id, client_turn_id))
 
+        def accept_narrator_source(self, project_id, client_turn_id, text, *, kind='narrator_chat', language='en-AU'):
+            # This quota double controls the external source-persistence boundary.
+            return {'id': client_turn_id}
+
         def commit_agent_turn(self, token, thread_id, text, source_paths, **kwargs):
             self.commits.append(kwargs)
             self.completed += int(kwargs.get('user_response', True))

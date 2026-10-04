@@ -8,7 +8,6 @@ from apps.api.store import MemoryStore
 def no_live_browser_search(monkeypatch):
     # Catalogue unit tests never launch real browsers or query external sites.
     monkeypatch.setattr('apps.api.place_photo_browser.crawl_place_photos', lambda *args, **kwargs: [])
-    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
 
 
 def test_project_retains_places_with_their_stages_and_picture_references():
@@ -68,18 +67,19 @@ def test_place_photo_search_excludes_wrong_decade_undated_and_banknotes(monkeypa
     assert search_place_photos("Chengde", "unknown childhood period") == []
 
 
-def test_bare_year_search_covers_ten_calendar_years_either_side(monkeypatch):
+def test_bare_year_starts_a_ten_year_window_and_explicit_ranges_stay_exact():
     from apps.api.place_photos import _date_matches, _period_bounds, _search_queries
-    assert _period_bounds("1980") == (1980, 1980)
+    assert _period_bounds("1980") == (1980, 1989)
     assert _period_bounds("1980年") == (1980, 1980)
     assert _date_matches("1980-01-01", "1980")
     assert _date_matches("1989-12-31", "1980")
-    assert _date_matches("1970-01-01", "1980")
-    assert _date_matches("1990-12-31", "1980")
-    assert not _date_matches("1969-12-31", "1980")
-    assert not _date_matches("1991-01-01", "1980")
-    assert "1970" in _search_queries("Chengde", "1980")[0]
-    assert "1990" in _search_queries("Chengde", "1980")[0]
+    assert not _date_matches("1979-12-31", "1980")
+    assert not _date_matches("1990-01-01", "1980")
+    assert _period_bounds("1980-1980") == (1980, 1980)
+    assert not _date_matches("1981-01-01", "1980-1980")
+    query = _search_queries("Chengde", "1980")[0]
+    assert "1980" in query and "1989" in query
+    assert "1970" not in query and "1990" not in query
 
 
 def test_place_photo_search_expands_queries_and_deduplicates(monkeypatch):
@@ -167,9 +167,9 @@ def test_flickr_search_uses_capture_dates_bilingual_queries_and_pagination(monke
             data = {'user': {}}
         else:
             calls.append(params)
-            assert params['min_taken_date'] == '1970-01-01 00:00:00'
-            assert params['max_taken_date'] == '1999-12-31 23:59:59'
-            assert 'geo' in params['extras']
+            assert params['min_taken_date'] == '1980-01-01 00:00:00'
+            assert params['max_taken_date'] == '1989-12-31 23:59:59'
+            assert 'date_taken' in params['extras']
             assert params['license'] == '4'
             assert 'min_upload_date' not in params
             photos = []
@@ -196,7 +196,7 @@ def test_flickr_rejects_wrong_year_unknown_date_and_unlicensed_photos(monkeypatc
         if params['method'] == 'flickr.photos.licenses.getInfo':
             data = {'licenses': {'license': [{'id': '4', 'name': 'Attribution', 'url': 'https://creativecommons.org/licenses/by/2.0/'}]}}
         else:
-            assert params['max_taken_date'] == '1990-12-31 23:59:59'
+            assert params['max_taken_date'] == '1980-12-31 23:59:59'
             base = {'id': '1', 'owner': '123@N01', 'title': 'Chengde street', 'datetaken': '1980-10-01',
                     'license': '4', 'url_z': 'https://live.staticflickr.com/1/1.jpg'}
             data = {'photos': {'pages': 1, 'photo': [

@@ -27,6 +27,7 @@ test = [
   "pytest>=9.1.1,<10",
   "httpx>=0.28.1,<1",
   "playwright>=1.63.0,<2",
+  "jsonschema>=4.25,<5",
 ]
 evaluation = [
   "langfuse>=4,<5",
