@@ -1,0 +1,258 @@
+{
+  "base_main": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+  "base_tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+  "merge": {
+    "merge_sha": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+    "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+    "parents": [
+      "a4d8abf810eefa1ec36cc219710f8ac954bb52e9",
+      "b7b9cde7b3413c63e706cb5ca4eb759fd16fcec8"
+    ],
+    "pr11": {
+      "headRefOid": "b7b9cde7b3413c63e706cb5ca4eb759fd16fcec8",
+      "mergeCommit": {
+        "oid": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914"
+      },
+      "mergedAt": "2026-10-05T13:05:05Z",
+      "state": "MERGED",
+      "url": "https://github.com/bohui/copyme2.ai/pull/11"
+    },
+    "incorporated_prs": [
+      {
+        "baseRefName": "main",
+        "headRefName": "memoir-five-case-evaluation",
+        "headRefOid": "28acda14f684aab6dd4dbbaf4fcc398e4d853b9b",
+        "number": 3,
+        "state": "MERGED",
+        "url": "https://github.com/bohui/copyme2.ai/pull/3",
+        "included_in_main": true
+      },
+      {
+        "baseRefName": "memoir-five-case-evaluation",
+        "headRefName": "codex/issue6-shared-events",
+        "headRefOid": "84366778f50495d065e794a00f16184d16dc4216",
+        "number": 9,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/pull/9",
+        "included_in_main": true
+      },
+      {
+        "baseRefName": "memoir-five-case-evaluation",
+        "headRefName": "memoir-five-case-evaluation-integrated",
+        "headRefOid": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+        "number": 10,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/pull/10",
+        "included_in_main": true
+      }
+    ]
+  },
+  "pr_and_issue_reconciliation": {
+    "merge_sha": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+    "prs": [
+      {
+        "headRefName": "memoir-five-case-evaluation",
+        "headRefOid": "28acda14f684aab6dd4dbbaf4fcc398e4d853b9b",
+        "number": 3,
+        "state": "MERGED",
+        "url": "https://github.com/bohui/copyme2.ai/pull/3",
+        "remote_branch_retained": true
+      },
+      {
+        "headRefName": "codex/issue6-shared-events",
+        "headRefOid": "84366778f50495d065e794a00f16184d16dc4216",
+        "number": 9,
+        "state": "CLOSED",
+        "url": "https://github.com/bohui/copyme2.ai/pull/9",
+        "remote_branch_retained": true
+      },
+      {
+        "headRefName": "memoir-five-case-evaluation-integrated",
+        "headRefOid": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+        "number": 10,
+        "state": "CLOSED",
+        "url": "https://github.com/bohui/copyme2.ai/pull/10",
+        "remote_branch_retained": true
+      },
+      {
+        "headRefName": "codex/mac-pr9-pr10-validation-20261004",
+        "headRefOid": "b7b9cde7b3413c63e706cb5ca4eb759fd16fcec8",
+        "number": 11,
+        "state": "MERGED",
+        "url": "https://github.com/bohui/copyme2.ai/pull/11",
+        "remote_branch_retained": true
+      }
+    ],
+    "issues": [
+      {
+        "number": 2,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/issues/2"
+      },
+      {
+        "number": 6,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/issues/6"
+      },
+      {
+        "number": 12,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/issues/12"
+      },
+      {
+        "number": 13,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/issues/13"
+      },
+      {
+        "number": 14,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/issues/14"
+      },
+      {
+        "number": 15,
+        "state": "OPEN",
+        "url": "https://github.com/bohui/copyme2.ai/issues/15"
+      }
+    ]
+  },
+  "followup_branch": "codex/post-merge-evaluation-20261005",
+  "source_identity_note": "Focused tests ran with these working-tree overlays on exact merged main. Final published source files must match these hashes.",
+  "source_sha256": {
+    "scripts/run_memoir_five_case_evaluation.py": "2da081681ede4bea50e8e205463ccce92d99d4a82bde9c957f3d98102238f896",
+    "scripts/run_canonical_five_case_evaluation.py": "a3da3fa4b82db72ffee15c52db6d39b48dd84e69902b8799c56963c2cb467c66",
+    "tests/test_canonical_evaluation_cli.py": "c7830581493eedf8369bb8081010640718d5e2d3f088aa136e0293a3b7abb0e4"
+  },
+  "checks": [
+    {
+      "name": "live-cli-budget-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation_cli.py"
+      ],
+      "exit_code": 1,
+      "base_head": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+      "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 2.33,
+      "log_sha256": "7b022df23cf72a83c3284133097cb47042eb7be7e39041dd7776cbbc8b76c383"
+    },
+    {
+      "name": "live-cli-budget-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation_cli.py"
+      ],
+      "exit_code": 0,
+      "base_head": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+      "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.96,
+      "log_sha256": "730410d23add507d10274b5400f29dd16f80db2f65bf9ef1c50a875848f3486b"
+    },
+    {
+      "name": "canonical-plan-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation_cli.py",
+        "-k",
+        "canonical_plan"
+      ],
+      "exit_code": 1,
+      "base_head": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+      "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.61,
+      "log_sha256": "51561beecd5e2ad96ba0e39b2535f432fc937537fab2c1f5f41c2453dc44b41f"
+    },
+    {
+      "name": "canonical-plan-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation_cli.py"
+      ],
+      "exit_code": 0,
+      "base_head": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+      "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.28,
+      "log_sha256": "f62c784a4ad189e78dba04de0b7c8e2dfb60ed101e5d5dec5811ac95000ad903"
+    },
+    {
+      "name": "post-merge-light-final",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation_cli.py",
+        "tests/test_memoir_five_case_evaluator.py",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+      "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 7.69,
+      "log_sha256": "8b35b68c57d549b2a40f4af1ef9d02292c1b450809c2424aa31701fe9849495e"
+    },
+    {
+      "name": "post-merge-light-final-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation_cli.py",
+        "tests/test_memoir_five_case_evaluator.py",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+      "tree": "6a63232bf1d8742d0b83561b99fdc011ab0ba600",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.71,
+      "log_sha256": "502bc77964e26eafd26454c267abfce4ef0729d8d265a69852fc932f93becb34"
+    }
+  ],
+  "final_result": {
+    "name": "post-merge-light-final-02",
+    "passed": 32,
+    "skipped": 0,
+    "failed": 0,
+    "errors": 0,
+    "duration_seconds": 1.26
+  },
+  "reproduced_defect": {
+    "legacy_unmetered_live_skip_preflight_synthetic_worker_contacts": 2,
+    "fixed_synthetic_worker_contacts": 0
+  },
+  "heavy_fixtures_started": 0,
+  "model_calls": 0,
+  "judge_calls": 0,
+  "photo_provider_calls": 0,
+  "langfuse_publications": 0,
+  "browser_read_only_retry": {
+    "chrome_windows": 0,
+    "canary_ui_status": "unverified"
+  },
+  "pending": "Cloud review this new head. Native launcher execution waits for parent-serialized resource window; actual provider accounting/prices and calibrated judging/live approval remain open."
+}

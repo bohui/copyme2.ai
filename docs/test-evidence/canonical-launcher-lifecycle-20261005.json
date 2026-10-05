@@ -1,0 +1,439 @@
+{
+  "schema_version": "memoir-canonical-launcher-lifecycle/1",
+  "branch": "codex/canonical-launcher-offline-20261005",
+  "reviewed_defective_head": "b4287d195d24267d24190301435f9fe80a65c2d7",
+  "source_sha256": {
+    "scripts/canonical_native_fixture.py": "d693b068730a6de84a8d2fb2d8d022fb4b999811b13af4b1f5cbec94a024b005",
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "scripts/run_canonical_five_case_evaluation.py": "2b384f1fa86b72db1a218ffb1c13cdd6830ed4ac66c849fa02a6c442ee607757",
+    "tests/test_agent_commit_postgres.py": "c2d46b3ff4c28f9bfe347287c827ca99855d41841b648480ec9c85bed2dc3778",
+    "tests/test_canonical_evaluation_cli.py": "84d89aa93b96466c476c6b54b415d6f76022d8383369a1b8519b1cfe36ea547d",
+    "tests/test_canonical_fixture_lifecycle.py": "15df2cc36e4f5a608164f73070976d2d2a0b0cd65c16861fdcf5dae872a3e96e",
+    "tests/test_canonical_native_launcher.py": "1b2ecf98449b489304833f3e90d4167f6c4f2d68431a2ee7e97f810d06bc1cb4",
+    "tests/test_evaluation_budget.py": "54ba1e6bdc28e2962d13c00507f6baf2e4ff81bf290266cd2e8432c7d9d0728f"
+  },
+  "current_lightweight": {
+    "passed": 74,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "deselected": 2,
+    "warning_count": 1,
+    "pytest_seconds": 15.79,
+    "runner_receipt": "output/mac-validation/canonical-lifecycle/lifecycle-light-final.json",
+    "source_identity": "Pre-publication fix snapshot; every recorded source SHA256 matches clean native-tested 10d8de585ac95dbc0bf94d04c79bb6a81b2800bb"
+  },
+  "historical_native": {
+    "callback": {
+      "head": "b4287d195d24267d24190301435f9fe80a65c2d7",
+      "passed": 2,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "deselected": 15,
+      "receipt": "output/mac-validation/canonical-native/native-callback-b4287d.json"
+    },
+    "full_cli": {
+      "head": "b4287d195d24267d24190301435f9fe80a65c2d7",
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "failure": "Temporal startup banner corrupts CLI stdout JSON",
+      "runner_seconds": 568.31,
+      "fixture_completed_rounds": 250,
+      "fixture_completed_checkpoints": 50,
+      "fixture_protocol_calls": 1048,
+      "fixture_elapsed_seconds": 566.761,
+      "model_requests": 0,
+      "model_input_tokens": 0,
+      "model_output_tokens": 0,
+      "container": "memoir-issue6-pg-c0b04453e208",
+      "exact_container_not_found_verified": true,
+      "cleanup_summary": {
+        "temporal_closed": true,
+        "readiness_closed": true,
+        "postgres_fixture_closed": true,
+        "workspace_removed": true
+      },
+      "receipt": "output/mac-validation/canonical-native/native-five-case-b4287d.json",
+      "log_sha256": "d69aa922fe0cedc5c1b0d262f794d4e04f74b797bdbb8524b25f779db06e1a0b",
+      "partial_summary_retention": "Read terminal summary before pytest purged its temporary directory; original runner receipt and failure log retained. No archived full case receipt exists for this run."
+    }
+  },
+  "tdd_cycles": [
+    {
+      "defect": "null cases crashes validation",
+      "red": "null-cases-red",
+      "green": "null-cases-green"
+    },
+    {
+      "defect": "unbounded container startup and SQL/migration I/O",
+      "red": "setup-deadline-red",
+      "green": "setup-deadline-green-02"
+    },
+    {
+      "defect": "SIGTERM skips cleanup and terminal receipt",
+      "red": "cleanup-cancellation-red-02",
+      "green": "cleanup-cancellation-green",
+      "earlier_receipt": "cleanup-cancellation-red hit sandbox loopback denial before Temporal; not a reproduction"
+    },
+    {
+      "defect": "created container plus failed readiness/stop falsely reports no allocation/closed",
+      "red": "startup-stop-red",
+      "green": "startup-stop-green"
+    },
+    {
+      "defect": "implicit workspace finalization defeats retention",
+      "red": "startup-stop-retention-red",
+      "green": "startup-stop-retention-green"
+    },
+    {
+      "defect": "body consumption escapes worker deadline",
+      "red": "worker-body-deadline-red",
+      "green": "worker-body-deadline-green"
+    },
+    {
+      "defect": "native stdout corrupts JSON",
+      "red": "native-stdout-red",
+      "green": "native-stdout-green"
+    }
+  ],
+  "native_on_fixed_source": {
+    "status": "completed",
+    "native_callback": {
+      "passed": 2,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "deselected": 15,
+      "receipt": "output/mac-validation/canonical-native/native-callback-10d8de5.json"
+    },
+    "postgres_transport": {
+      "passed": 6,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "output/mac-validation/canonical-native/postgres-transport-10d8de5.json"
+    },
+    "full_cli": {
+      "passed": 1,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "elapsed_seconds": 534.912,
+      "runner_receipt": "output/mac-validation/canonical-native/native-five-case-10d8de5.json",
+      "summary_path": "output/mac-validation/canonical-native/five-case-10d8de5-retained/test_five_native_case_owners_p0/native-five-case-fixture/summary.json",
+      "summary_sha256": "0152fe579a47d140e61728b14ba25a83a658286665b47cbc9ffb823bd57b078b",
+      "dataset": {
+        "version": "memoir-five-case/1",
+        "inputs_sha256": "e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927"
+      },
+      "fixture_protocol_calls": 1048,
+      "private_worker_requests_started": 1048,
+      "provider_requests_started": 0,
+      "provider_input_tokens": 0,
+      "provider_output_tokens": 0,
+      "cleanup": {
+        "worker_transport_closed": true,
+        "temporal_closed": true,
+        "readiness_closed": true,
+        "postgres_removal_verified": true,
+        "postgres_fixture_closed": true,
+        "workspace_removed": true
+      },
+      "postgres_container": "memoir-issue6-pg-a39f4b5c1ec0",
+      "independent_exact_uuid_not_found_verified": true,
+      "all_source_manifest_hashes_match": true,
+      "evidence_mode": "mock_only",
+      "model_output_quality": "unavailable",
+      "cases": [
+        {
+          "case_id": "harbour-copper-notebook",
+          "owner_id": "590d1131-fa55-4f6c-95cc-323b7ea3e297",
+          "project_id": "canonical-62f5bfecfe8f48369ddc71c140960518",
+          "status": "completed",
+          "rounds": 50,
+          "checkpoints": 10,
+          "completed_rounds": 50,
+          "extracted_through": 50,
+          "all_originals_match_inputs": true,
+          "source_kind": "narrator_chat",
+          "source_texts_sha256": "46cadb82c31bbc4c22bfa7e34f9afa39a500911b9cdcfe08de6a0cdea6324c33",
+          "receipt_sha256": "efaeae1b1de0925ef376e93325d70afec3fad78ae32783a7f4f741a5e319726f"
+        },
+        {
+          "case_id": "chengdu-tea-ledger",
+          "owner_id": "44acf50a-55ff-4e4d-b1cd-b2b343f9ac15",
+          "project_id": "canonical-68d0aaf927644528b439b0b1ca055e35",
+          "status": "completed",
+          "rounds": 50,
+          "checkpoints": 10,
+          "completed_rounds": 50,
+          "extracted_through": 50,
+          "all_originals_match_inputs": true,
+          "source_kind": "narrator_chat",
+          "source_texts_sha256": "788af101b68a7e885abfdeee992a75e369b9d84868b4de1a69d2f1e07113f02b",
+          "receipt_sha256": "07fd6166008c84948c85f78f52985dd23a6c34e4330a629afad462a32a797159"
+        },
+        {
+          "case_id": "perth-workshop-compass",
+          "owner_id": "bb05bad2-f4c4-4c9f-890b-9521b2a0fb2a",
+          "project_id": "canonical-78c5a7e6d24e4d7e8f8406013fa694c0",
+          "status": "completed",
+          "rounds": 50,
+          "checkpoints": 10,
+          "completed_rounds": 50,
+          "extracted_through": 50,
+          "all_originals_match_inputs": true,
+          "source_kind": "narrator_chat",
+          "source_texts_sha256": "6b204ff4cab2cb4144121de3f63b1558ada593c64e4601d7113c9069f5d27b0a",
+          "receipt_sha256": "1677ce3f37e13921685609f94ece6582d68f45aaf53bb18c8da1caa2f0428a50"
+        },
+        {
+          "case_id": "kunming-garden-lanterns",
+          "owner_id": "d56d8b9f-95af-4900-8a56-d9e998c7c08a",
+          "project_id": "canonical-3706521ea67e4c04a0b4834baeb27da4",
+          "status": "completed",
+          "rounds": 50,
+          "checkpoints": 10,
+          "completed_rounds": 50,
+          "extracted_through": 50,
+          "all_originals_match_inputs": true,
+          "source_kind": "narrator_chat",
+          "source_texts_sha256": "e871f956ca1bf1e19c7de54c6af89bf6c562cf4c1dbb94432ec3758c136d33c7",
+          "receipt_sha256": "edf3b4346063750e2c2f2e20d3274228b2c84ae432ddcf14493adbf221a42e93"
+        },
+        {
+          "case_id": "sydney-platform-letters",
+          "owner_id": "b9e71b89-10c4-40da-ac23-198acdecb6b5",
+          "project_id": "canonical-1787c225ddc64ef6a417a0f79051573f",
+          "status": "completed",
+          "rounds": 50,
+          "checkpoints": 10,
+          "completed_rounds": 50,
+          "extracted_through": 50,
+          "all_originals_match_inputs": true,
+          "source_kind": "narrator_chat",
+          "source_texts_sha256": "4b8efc4ca7c66c88812e1c327dfaeca2a5f1fcd45e129e6878e0b48751bfc730",
+          "receipt_sha256": "8f600a258488ae48c492c3f6d1cdefad923cdc6deb11a2e55cd236bfb3f8caf3"
+        }
+      ]
+    },
+    "dependent_runtime_temporal_browser": {
+      "passed": 140,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 109.79,
+      "module_counts": {
+        "tests.test_private_rounds_postgres": 7,
+        "tests.test_guest_conversation_transfer": 11,
+        "tests.test_recall_usage": 2,
+        "tests.test_shared_memory_events_postgres": 98,
+        "tests.test_memoir_lanes_temporal": 6,
+        "tests.test_shared_memory_browser": 16
+      },
+      "receipt": "output/mac-validation/canonical-native/dependent-10d8de5-02/dependent-native-browser-10d8de5-02.json",
+      "junit_sha256": "03e5af37a902c4955006c7e4242dea0114c68dfbe5ddf9fe29b045da10556457",
+      "owned_services_and_cleanup": {
+        "head": "10d8de585ac95dbc0bf94d04c79bb6a81b2800bb",
+        "tree": "d4748bee4969f118416396e5cc32d920db183b28",
+        "real_model_calls": 0,
+        "services": [
+          {
+            "name": "api",
+            "pid": 86694,
+            "port": 56842,
+            "command": [
+              "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+              "-m",
+              "uvicorn",
+              "apps.api.main:app",
+              "--host",
+              "127.0.0.1",
+              "--port",
+              "56842"
+            ]
+          },
+          {
+            "name": "web",
+            "pid": 86732,
+            "port": 56843,
+            "command": [
+              "/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/node-runtime/node_modules/.bin/node",
+              "node_modules/next/dist/bin/next",
+              "start",
+              "--hostname",
+              "127.0.0.1",
+              "--port",
+              "56843"
+            ]
+          }
+        ],
+        "cleanup": {
+          "web": {
+            "owned_group_id": 86732,
+            "group_gone": true
+          },
+          "api": {
+            "owned_group_id": 86694,
+            "group_gone": true
+          },
+          "postgres": [
+            {
+              "container": "memoir-issue6-pg-16a17a20cb76",
+              "not_found_verified": true,
+              "reconciliation_needed": false
+            },
+            {
+              "container": "memoir-issue6-pg-448ea9b672fe",
+              "not_found_verified": true,
+              "reconciliation_needed": false
+            },
+            {
+              "container": "memoir-issue6-pg-4a1ed64722d0",
+              "not_found_verified": true,
+              "reconciliation_needed": false
+            },
+            {
+              "container": "memoir-issue6-pg-5588e669be3f",
+              "not_found_verified": true,
+              "reconciliation_needed": false
+            },
+            {
+              "container": "memoir-issue6-pg-6656d410ffe8",
+              "not_found_verified": true,
+              "reconciliation_needed": false
+            },
+            {
+              "container": "memoir-issue6-pg-904d046e43e2",
+              "not_found_verified": true,
+              "reconciliation_needed": false
+            }
+          ],
+          "workspace_removed": true
+        },
+        "production-build-10d8de5-02": {
+          "exit_code": 0
+        },
+        "proxy_verification": {
+          "api_rules": [
+            {
+              "source": "/api/v1/memoir/:path*",
+              "destination": "http://127.0.0.1:56842/api/v1/memoir/:path*",
+              "regex": "^/api/v1/memoir(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+            },
+            {
+              "source": "/api/v1/memoir",
+              "destination": "http://127.0.0.1:56842/api/v1/memoir",
+              "regex": "^/api/v1/memoir(?:/)?$"
+            }
+          ],
+          "auth_mode": "test"
+        },
+        "dependent-native-browser-10d8de5-02": {
+          "exit_code": 0
+        },
+        "status": "completed"
+      },
+      "guard_blocked_count": 0,
+      "runner_artifact": "docs/test-evidence/canonical-dependent-native-runner-20261005.py.txt",
+      "runner_sha256": "2228352a60c58f2b7f01b07e98126c7a11698b8763844f9e5e11ebf8e3d9e61d"
+    },
+    "production_build": {
+      "exit_code": 0,
+      "receipt": "output/mac-validation/canonical-native/dependent-10d8de5-02/production-build-10d8de5-02.json",
+      "proxy_auth_mode": "test",
+      "rewrites_verified_owned_api": true
+    }
+  },
+  "blockers": [
+    "independent cloud review of fixed head pending",
+    "current codex-lb strips output caps; live disabled",
+    "accepted judge configuration/calibration unavailable",
+    "authenticated Langfuse browser binding unavailable"
+  ],
+  "actions_this_follow_up": {
+    "real_model_calls": 0,
+    "judge_calls": 0,
+    "photo_calls": 0,
+    "geocoding_calls": 0,
+    "langfuse_publications": 0,
+    "shared_service_restarts": 0,
+    "persistent_host_changes": 0,
+    "prs_merged": 0
+  },
+  "tested_code_revision": {
+    "commit": "10d8de585ac95dbc0bf94d04c79bb6a81b2800bb",
+    "tree": "d4748bee4969f118416396e5cc32d920db183b28",
+    "worktree_dirty": false
+  },
+  "additional_retained_failures": [
+    {
+      "receipt": "output/mac-validation/canonical-native/dependent-10d8de5/dependent-native-browser-10d8de5.json",
+      "passed": 139,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "cause": "Harness passed the API task-store setting to pytest, activating unsupported Mock task publication in test_transfer_api_hides_database_failure_details",
+      "resolution": "Scope task-store setting to the owned API server; application and test sources unchanged",
+      "affected_test_recheck": "output/mac-validation/canonical-native/transfer-task-environment-green.json",
+      "affected_test_recheck_passed": 1,
+      "all_six_recorded_containers_absent": true,
+      "api_and_web_groups_gone": true
+    }
+  ],
+  "current_gate_totals": {
+    "passed": 223,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "components": "74 lightweight + 6 PostgreSQL transport + 2 native callback + 1 full CLI + 140 dependent runtime/Temporal/browser",
+    "overlapping_red_green_and_historical_checks_excluded": true,
+    "broad_1194_result": "Historical; not relabeled as this head"
+  },
+  "preservation": {
+    "original": {
+      "head": "c6a990aa499eb63fe1d6407e4082462200598c0d",
+      "status_sha256": "ea89f389506d7dae23199a2de098cc9aa3ca73ee308a783d724b596d7dc23d85",
+      "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0"
+    },
+    "issue2": {
+      "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "issue6": {
+      "head": "84366778f50495d065e794a00f16184d16dc4216",
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "remote_state_readback": {
+    "main": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+    "pr16": {
+      "state": "open",
+      "draft": true,
+      "head": "5ccedc75e33b349571aec485ded0c546f1a24704",
+      "base": "main",
+      "merged": false
+    },
+    "open_prs": [
+      {
+        "number": 16,
+        "title": "Block unmetered live evaluation and plan canonical acceptance",
+        "draft": true,
+        "head": "5ccedc75e33b349571aec485ded0c546f1a24704"
+      }
+    ]
+  },
+  "resource_window": "Released after successful shutdown; all recorded task UUIDs explicitly absent; API/frontend groups gone and task-data workspaces removed",
+  "contracts": {
+    "canonical_memory_events": "application/migration/skill trees unchanged from b4287d; dependent native gates pass",
+    "model_usage": "controlled fixture protocol only; zero real model requests/tokens; no live acceptance claim",
+    "langfuse_browser": "no browser/node_repl/tool_search binding callable at final availability check; signed-in Chrome remains untouched"
+  },
+  "checkpoint_scope": "Historical native/offline code head 10d8de585ac95dbc0bf94d04c79bb6a81b2800bb; later P2 changes have separate validation",
+  "later_follow_up": "docs/test-evidence/canonical-launcher-rereview-p2-20261005.json"
+}

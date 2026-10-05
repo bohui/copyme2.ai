@@ -4,6 +4,80 @@ import httpx
 import pytest
 
 
+def test_worker_deadline_covers_response_body_after_headers_and_closes_stream():
+    from scripts.evaluation_budget import RequestLimitedTransport
+
+    closed = []
+    class SlowBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            await asyncio.sleep(.15)
+            yield b'Synthetic response'
+        async def aclose(self):
+            closed.append(True)
+    async def worker(request):
+        return httpx.Response(200, stream=SlowBody())
+    async def scenario():
+        transport = RequestLimitedTransport(httpx.MockTransport(worker),
+            max_requests=2, max_elapsed_seconds=.03)
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(client.get('http://synthetic.invalid/worker'), .5)
+            with pytest.raises(httpx.RequestError, match='time cap'):
+                await client.get('http://synthetic.invalid/worker')
+        assert closed == [True]
+        assert transport.requests_started == 1
+    asyncio.run(scenario())
+
+
+def test_worker_time_ceiling_cancels_inflight_request_and_blocks_every_role_afterwards():
+    from scripts.evaluation_budget import RequestLimitedTransport
+
+    contacted, cancelled = [], []
+    async def worker(request):
+        contacted.append(request.url.path)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.append(True)
+    async def scenario():
+        transport = RequestLimitedTransport(httpx.MockTransport(worker),
+            max_requests=5, max_elapsed_seconds=.03)
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(client.post('http://synthetic.invalid/collector'), 1)
+            with pytest.raises(httpx.RequestError, match='time cap'):
+                await client.post('http://synthetic.invalid/composer')
+        assert contacted == ['/collector']
+        assert cancelled == [True]
+        assert transport.requests_started == 1
+    asyncio.run(scenario())
+
+
+def test_elapsed_time_cap_cancels_external_provider_and_keeps_reserved_usage():
+    from scripts.evaluation_budget import BudgetExceeded, BudgetLimits, BudgetedProvider
+
+    contacted, cancelled = [], []
+    async def provider(*, max_output_tokens):
+        contacted.append(max_output_tokens)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.append(True)
+
+    async def scenario():
+        budget = BudgetedProvider(BudgetLimits(5, 100, 100, 5), max_elapsed_seconds=.03)
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(budget.call(provider, input_tokens_upper_bound=4), 1)
+        with pytest.raises(BudgetExceeded):
+            await budget.call(provider, input_tokens_upper_bound=4)
+        assert contacted == [5]
+        assert cancelled == [True]
+        assert budget.receipt()['input_tokens_accounted'] == 4
+        assert budget.receipt()['output_tokens_accounted'] == 5
+        assert budget.receipt()['blocked_reason'] == 'provider_call_interrupted_or_failed'
+    asyncio.run(scenario())
+
+
 def test_worker_request_cap_covers_shared_clients_before_dispatch():
     from scripts.evaluation_budget import RequestLimitedTransport
 

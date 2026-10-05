@@ -6,6 +6,9 @@ unmetered private-worker request into a provider token/spend guarantee.
 """
 from dataclasses import dataclass
 from collections.abc import Mapping
+import asyncio
+import math
+import time
 
 import httpx
 
@@ -17,18 +20,42 @@ class RequestLimitedTransport(httpx.AsyncBaseTransport):
     The caller owns the underlying transport's lifetime; individual clients
     may close this wrapper without resetting its count or closing siblings.
     """
-    def __init__(self, transport, *, max_requests):
+    def __init__(self, transport, *, max_requests, max_elapsed_seconds=None):
         if type(max_requests) is not int or max_requests < 0:
             raise ValueError('An explicit nonnegative worker request cap is required')
+        if (max_elapsed_seconds is not None and
+                (type(max_elapsed_seconds) not in (int, float)
+                 or not math.isfinite(max_elapsed_seconds) or max_elapsed_seconds <= 0)):
+            raise ValueError('A finite positive worker duration is required')
+        self.deadline = None if max_elapsed_seconds is None else time.monotonic() + max_elapsed_seconds
         self.transport = transport
         self.max_requests = max_requests
         self.requests_started = 0
 
     async def handle_async_request(self, request):
+        if self.deadline is not None and time.monotonic() >= self.deadline:
+            raise httpx.RequestError('Worker time cap reached', request=request)
         if self.requests_started >= self.max_requests:
             raise httpx.RequestError('Worker request cap reached', request=request)
         self.requests_started += 1
-        return await self.transport.handle_async_request(request)
+        remaining = None if self.deadline is None else max(0, self.deadline - time.monotonic())
+        response = None
+        try:
+            async with asyncio.timeout(remaining):
+                response = await self.transport.handle_async_request(request)
+                # Worker replies are JSON. Buffer the complete body inside
+                # the same absolute deadline, rather than returning headers
+                # and leaving subsequent client consumption unbounded.
+                await response.aread()
+                return response
+        except BaseException:
+            if response is not None:
+                try:
+                    async with asyncio.timeout(5):
+                        await response.aclose()
+                except (Exception, asyncio.CancelledError):
+                    pass
+            raise
 
 
 class BudgetExceeded(RuntimeError):
@@ -44,11 +71,16 @@ class BudgetLimits:
 
 
 class BudgetedProvider:
-    def __init__(self, limits: BudgetLimits):
+    def __init__(self, limits: BudgetLimits, *, max_elapsed_seconds=None):
         values = (limits.max_requests, limits.max_input_tokens,
                   limits.max_output_tokens, limits.max_output_tokens_per_request)
         if any(type(value) is not int or value < 0 for value in values) or values[-1] == 0:
             raise ValueError('Explicit integer request/token caps are required')
+        if (max_elapsed_seconds is not None and
+                (type(max_elapsed_seconds) not in (int, float)
+                 or not math.isfinite(max_elapsed_seconds) or max_elapsed_seconds <= 0)):
+            raise ValueError('A finite positive provider duration is required')
+        self.deadline = None if max_elapsed_seconds is None else time.monotonic() + max_elapsed_seconds
         self.limits = limits
         self.requests_started = 0
         self.input_tokens_accounted = 0
@@ -62,6 +94,9 @@ class BudgetedProvider:
             raise ValueError('A measured nonnegative integer input bound is required')
         if self.blocked_reason:
             raise BudgetExceeded('Provider accounting is blocked')
+        if self.deadline is not None and time.monotonic() >= self.deadline:
+            self.blocked_reason = 'provider_time_limit_reached'
+            raise BudgetExceeded('Provider time limit reached')
         if self.requests_started >= self.limits.max_requests:
             raise BudgetExceeded('Model request limit reached')
         if self.input_tokens_accounted + input_tokens_upper_bound > self.limits.max_input_tokens:
@@ -73,7 +108,9 @@ class BudgetedProvider:
         self.input_tokens_accounted += input_tokens_upper_bound
         self.output_tokens_accounted += output_bound
         try:
-            result = await provider(max_output_tokens=output_bound)
+            remaining = None if self.deadline is None else max(0, self.deadline - time.monotonic())
+            async with asyncio.timeout(remaining):
+                result = await provider(max_output_tokens=output_bound)
         except BaseException:
             self.blocked_reason = 'provider_call_interrupted_or_failed'
             raise

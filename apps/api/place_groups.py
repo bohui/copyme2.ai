@@ -34,7 +34,7 @@ def _coordinates(place):
                for value in (lat, lon)) and -90 <= lat <= 90 and -180 <= lon <= 180
 
 
-def resolve_place_groups(places):
+def resolve_place_groups(places, *, allow_provider=True):
     cities = [place for place in places if place['granularity'] == 'city']
     records, lookups, provider_available = [], 0, True
     for index, place in enumerate(places):
@@ -49,7 +49,7 @@ def resolve_place_groups(places):
                               and place.get('longitude') == city.get('longitude'))
         pin = {**deepcopy(place), 'accuracy': 'approximate'} if own_coordinates and not same_as_parent else None
         details = None
-        if (not city or not pin) and lookups < MAX_LOOKUPS and provider_available:
+        if allow_provider and (not city or not pin) and lookups < MAX_LOOKUPS and provider_available:
             lookups += 1
             try:
                 details = search_place_details(', '.join(reversed(_path(place))))

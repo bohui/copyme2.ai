@@ -24,7 +24,7 @@ class CanonicalEvaluationDriver:
         self.task_queue = task_queue
 
     async def run_case(self, *, case_id, project_id, rounds, language,
-                       evidence_mode, settle_timeout=60):
+                       evidence_mode, settle_timeout=60, progress=None):
         """Submit original turns and await durable extraction/draft workflows.
 
         Receipts contain synthetic story bytes. The caller owns fixture setup,
@@ -52,6 +52,9 @@ class CanonicalEvaluationDriver:
                 raise RuntimeError(f'Canonical conversation round {ordinal} was not delivered')
             records.append({'round': ordinal, 'reply': result['reply'],
                             'trajectory': result.get('trajectory')})
+            if progress is not None:
+                await progress({'status': 'pending_settlement', 'rounds': records,
+                                'checkpoints': checkpoints})
             async with asyncio.timeout(settle_timeout):
                 while True:
                     handles = await dispatch_memoir_lanes_once(
@@ -73,6 +76,10 @@ class CanonicalEvaluationDriver:
                             continue
                         checkpoints.append({'milestone': ordinal, 'draft': draft})
                     break
+            records[-1]['background_settled'] = True
+            if progress is not None:
+                await progress({'status': 'running', 'rounds': records,
+                                'checkpoints': checkpoints})
         return {'case_id': case_id, 'project_id': project_id, 'status': 'completed',
                 'evidence_mode': evidence_mode, 'rounds': records,
                 'checkpoints': checkpoints, 'workflow_ids': sorted(workflow_ids)}
