@@ -1,15 +1,22 @@
 # Mac live acceptance and landing plan
 
-Status on 2026-10-05: **planning and read-only diagnosis only**. No new model,
-judge, photo-search or telemetry-write request was made. Shared configuration,
-credentials and data were not changed. The combined candidate includes the
-exact PR3/PR9/PR10 heads and merged PR8. Tested code is
-`c1f5e296d6f2dd921c5474dc7c613abc1968b8fc`; cloud rereview was requested for
-documentation head `2c8d4b7db27aea09b1a4f03203df436e1f3b926b`.
+Status on 2026-10-05: **native validation and the approved local Langfuse
+repair are complete**. The user approved the local fix/restart and temporary
+host caps. One synthetic root, child span and numeric score passed fresh API
+and database readback; no model, judge or photo-search call was made. The
+[repair report](langfuse-mac-timestamp-repair-20261005.md) records applied
+configuration, exact IDs, preservation and rollback. Browser confirmation of
+that canary is still unverified. The combined candidate includes the exact
+PR3/PR9/PR10 heads and merged PR8. Tested code is
+`c1f5e296d6f2dd921c5474dc7c613abc1968b8fc`; independent review remains in cloud.
 Native results remain 1,194 passes, four live-only skips, zero failures/errors.
 This plan does not establish full acceptance.
 
-## Why the local Langfuse pages are empty
+## Initial diagnosis of the empty local Langfuse pages
+
+The following diagnosis records the state **before** the approved repair.
+The historical bad scores and absent historical traces remain; new canary
+records now ingest with correct timestamps.
 
 The requested project exists. Read-only ClickHouse queries found zero
 `traces`, `observations` and `events_full` rows, and 3,750 API scores referencing
@@ -35,7 +42,7 @@ pins ClickHouse 25.12. No downgrade or persistent setting change was performed.
 Sanitized [database evidence](test-evidence/langfuse-mac-readonly-20261005.json)
 records the observed results and limits.
 
-The smallest proposed repair is to enable
+The initial repair proposal was to enable
 `input_format_read_datetime_number_as_raw_value=1` **only for Langfuse's
 ingestion database user/client**. Query-log metadata identifies that user as
 `langfuse`; it is managed by `users_xml` and inherits `default`. Its deployment
@@ -57,13 +64,12 @@ user fragment would inherit the current profile and change only that setting:
 ```
 
 This follows [ClickHouse's profile inheritance and configuration merge rules](https://clickhouse.com/docs/concepts/features/configuration/settings/settings-profiles).
-The proposed target is a new `users.d/zz-langfuse-numeric-datetime.xml` fragment,
-with rollback by removing only that fragment. It is not installed. Persisting
-it across container recreation also needs a deployment declaration; any
-required recreation/restart is outside the current authorization and must be
-explicitly approved before proceeding. This requires permission to change
-shared configuration. It does not
-repair corrupted historical scores or recreate missing traces. Keep those
+The approved implementation installs that fragment through a read-only
+Compose file mount, along with a second fragment bounding startup concurrency.
+The six local Langfuse services were restarted, and the separately approved
+temporary host caps resolved startup's open-file exhaustion. The linked repair
+report specifies both fragments, their verified effective values and rollback.
+It does not repair corrupted historical scores or recreate missing traces. Keep those
 rows untouched; recovery from retained original ingestion data is a separate
 operation requiring its own verified source and approval. Do not write guessed
 timestamps or remount existing data into an older server.
@@ -75,13 +81,13 @@ timestamps or remount existing data into an older server.
 | Provider | Existing Mac `MEMORY_SPARK_LLM_BASE_URL`, `MEMORY_SPARK_LLM_MODEL`, `MEMORY_SPARK_LLM_API_KEY` are present; no new provider probe was sent, so current reachability, quota and price remain unverified |
 | Composer | `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`, `MEMORY_SPARK_LLM_REASONING_EFFORT`, `MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT` are present; no model substitution is proposed |
 | Private workers | `MEMORY_SPARK_CODEX_WORKER_URL/SECRET` and `MEMORY_SPARK_PHOTO_WORKER_URL/SECRET` are absent from the checked Memoir file/current process; task test services were cleaned up; existing shared-worker configuration was not established |
-| Langfuse | Local web, PostgreSQL and ClickHouse respond; existing `LANGFUSE_COPYME2AI_PUBLIC_KEY/SECRET_KEY` names are configured in the local provider setup; previously valid authentication was not rechecked or transferred; Memoir/current task process has no tracing keys |
+| Langfuse | The local stack is healthy after the approved restart; existing `LANGFUSE_COPYME2AI_PUBLIC_KEY/SECRET_KEY` were used privately in the canary process, verified the exact existing project, and passed durable API/database readback; no tracing credentials were copied into the task checkout |
 | Judge | No judge configuration was found in the checked sources; the five-case runner explicitly reports no judge endpoint; calibration is `requires-human-review` with no reviewer/date |
 | Isolation | Current task checkout has no copied `.env`; offline supervision deliberately strips provider/tracing credentials and cannot be used as the live launcher |
 
 Presence is not readiness. Existing provider credentials can be reused on the
 Mac after bounded authorization; they do not supply the missing canonical
-driver, calibrated judge, worker isolation, token/spend cap or tracing repair.
+driver, calibrated judge, worker isolation or token/spend cap.
 Automatic approval review rejected loading complete container environments
 because they could contain secrets. Diagnosis continued through supported
 read-only clients; no rejected inspection was retried indirectly.
@@ -92,13 +98,12 @@ read-only clients; no rejected inspection was retried indirectly.
    corrections, and required CI. Preserve all canonical MemoryEvent, accepted
    narrator-source, attributed/timing veto, null-claim, cN association and
    private-metadata stripping contracts.
-2. After the approved Langfuse repair, publish **one synthetic root, one child
-   observation and one numeric score**, with no provider/judge call. Flush,
-   then fetch their exact IDs through supported public APIs and check the
-   current version's `events_full`/score records, timestamps, parent linkage,
-   score value and project identity. Confirm the same records in the user's
-   browser with an explicit time window. Submission/authentication alone is
-   not durable evidence. No automatic evaluator is created by this canary.
+2. **Completed API/database gate:** one synthetic root, child observation and
+   numeric score passed exact-ID readback after publication exited, including
+   timestamps, root markers, parent/score linkage, value and project identity.
+   No provider/judge call or automatic evaluator was created. **Pending browser
+   gate:** confirm those same records in the user's browser with an explicit
+   time window. The repair report and sanitized receipt contain the exact IDs.
 3. Close the four configured-provider follow-up skips: current-message and
    earlier-context prompts in en-AU and zh-CN; one ephemeral Codex turn each.
    The narrow question oracle is deterministic; general conversational
@@ -194,23 +199,24 @@ the supported disposable UUID AppleContainer fixture, no shared mounts/ports,
 TCP disabled and exact task cleanup. Do not use a shared worker with durable
 customer storage. Model gateway requests consume existing shared quota, and
 approved Langfuse writes use the existing shared tracing stack. No production
-database, shared restart, migration, billing/voice call or new credential is
-part of this plan.
+database migration, billing/voice call or new credential is part of this plan.
+The approved local shared Langfuse restart is complete; future shared restarts
+are not implied by the remaining live-run plan.
 
 ## Approval boundaries and landing
 
-The immediate concrete approval is the **Langfuse-only timestamp compatibility
-repair plus the one zero-provider telemetry canary and readback**, using
-existing local authentication. Keep the profile scoped to `langfuse`, preserve
-the known prior value (zero) for rollback, and stop
-if application requires an unapproved restart or wider configuration change.
+The **Langfuse timestamp repair, local restart, one zero-provider canary and
+temporary host caps** were explicitly approved and completed. The profile is
+scoped to `langfuse`, with its prior value (zero) recorded for rollback; the
+3,750 historical bad score rows retain their full logical-row fingerprint.
 Historical-row recovery is excluded. Paid execution needs a separate explicit
 hard budget and ready, reviewed canonical/judge harness; unknown prices are
 not a basis for approving 267 inputs as a spend cap. A new judge endpoint/model
 and human calibration sign-off must be supplied rather than inferred.
 
-Publish one draft integration PR from this validation branch to current main,
-linking PR3, PR9, PR10 and Issues2/6. It already contains all three PR heads plus
+Draft [integration PR11](https://github.com/bohui/copyme2.ai/pull/11) is published
+from this validation branch to main, linking PR3, PR9, PR10 and Issues2/6.
+It already contains all three PR heads plus
 PR8; merging the old heads into one another adds no missing code. Keep the old
 PRs open. Finish review/CI, harness readiness, live five-case/browser/judge and
 durable-tracing gates before marking full acceptance or merging. If main moves,

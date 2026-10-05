@@ -14,6 +14,12 @@ remain in the isolated worktree's ignored `output/mac-validation/resume`.
 A later documentation commit must retain the tested `apps`, `supabase`,
 `skills`, `tests` and `scripts` trees recorded there.
 
+The approved [local Langfuse repair and synthetic canary](langfuse-mac-timestamp-repair-20261005.md)
+subsequently passed fresh API/database readback, with 176 gateway checks and
+zero model/judge/photo calls. That follow-up changes local gateway configuration
+and records documentation here; Memoir's tested source trees are unchanged.
+Its browser confirmation and the full five-case live acceptance remain pending.
+
 The deliberate PR8 integration is merge
 `0c1571677ffe331c37493c8c78be4e5e6646ef89`, ordered parents
 `9359d4baa549a71458eec079ff2415f6bad7366f` and verified PR8 main merge
