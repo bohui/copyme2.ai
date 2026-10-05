@@ -172,7 +172,14 @@ def test_real_temporal_worker_interruption_recovers_failed_range_without_new_tur
         provider=CodexWorker(home_root=tmp_path/'first-worker',base_url=f'http://127.0.0.1:{readiness.sockets[0].getsockname()[1]}/v1',
             command=[sys.executable,str(ROOT/'tests/fixtures/issue6_controlled_app_server.py'),str(control)])
         @app.post('/internal/codex/turn')
-        async def turn(payload:WorkerTurnInput): return await provider.turn(payload)
+        async def turn(payload:WorkerTurnInput):
+            # This provider speaks one role's protocol and logs that role's
+            # packets. Unrelated dispatched lanes must not enter its call log.
+            expected_role = 'author_timeline' if skill == 'timeline' else 'composer'
+            if payload.agent_role != expected_role:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=503, content={'detail': 'Unrelated controlled provider unavailable'})
+            return await provider.turn(payload)
         options={'download_dest_dir':'/tmp/memoir-issue6-temporal','dev_server_database_filename':str(tmp_path/'recovery-temporal.sqlite'),'ip':'127.0.0.1','ui':False}
         async with await WorkflowEnvironment.start_local(**options) as env:
             async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql,OWNER,service=True).handle)) as client:
