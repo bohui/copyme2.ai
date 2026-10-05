@@ -13,6 +13,18 @@ from scripts.run_isolated_check import offline_environment
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_canonical_null_cases_returns_invalid_dataset_without_allocation(tmp_path):
+    path = tmp_path / 'null-cases.json'
+    path.write_text('{"cases":null}')
+    result = subprocess.run([sys.executable, 'scripts/run_canonical_five_case_evaluation.py',
+        '--plan-only', '--inputs', str(path), '--run-id', 'null-cases',
+        '--output-root', str(tmp_path)], cwd=ROOT, env=offline_environment(ROOT),
+        capture_output=True, text=True, timeout=10)
+    assert result.returncode == 2, result.stderr
+    assert json.loads(result.stdout)['status'] == 'invalid_dataset'
+    assert not (tmp_path / 'null-cases').exists()
+
+
 def test_canonical_fixture_zero_request_budget_refuses_service_allocation(tmp_path):
     result = subprocess.run([sys.executable, 'scripts/run_canonical_five_case_evaluation.py',
         '--execute-fixture', '--run-id', 'zero-budget-fixture', '--output-root', str(tmp_path),

@@ -50,7 +50,10 @@ def test_five_native_case_owners_preserve_all_250_originals_and_50_checkpoints(t
                                 case['case_id'] / 'receipt.json').read_text())
         assert persisted == case
     assert receipt['cleanup'] == {'temporal_closed': True, 'readiness_closed': True,
-        'postgres_fixture_closed': True, 'workspace_removed': True}
+        'worker_transport_closed': True, 'postgres_fixture_closed': True,
+        'postgres_removal_verified': True, 'workspace_removed': True}
     # Inspect only the exact task UUID; no inventory of unrelated containers.
-    stopped = subprocess.run(['container', 'inspect', receipt['postgres_container']], capture_output=True)
+    stopped = subprocess.run(['container', 'inspect', receipt['postgres_container']],
+        capture_output=True, text=True, timeout=15)
     assert stopped.returncode != 0
+    assert f"container not found: {receipt['postgres_container']}" in stopped.stderr.lower()

@@ -1,5 +1,6 @@
 """Run fencing/atomicity checks on a disposable local PostgreSQL, never Supabase."""
 import os
+import queue
 import re
 from pathlib import Path
 import shutil
@@ -18,16 +19,59 @@ OLD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 NEW = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 
+class ProcessDeadline:
+    """Bound task-owned commands, including pipe I/O, and poll cancellation."""
+
+    def __init__(self, deadline=None, cancellation=None):
+        self.deadline = deadline
+        self.cancellation = cancellation
+
+    def remaining(self):
+        if self.cancellation is not None and self.cancellation.is_set():
+            raise InterruptedError('Native fixture setup cancelled')
+        if self.deadline is None:
+            return .1
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Native fixture deadline reached')
+        return min(.1, remaining)
+
+    def run(self, command, *, check=False, text=False, input=None):
+        self.remaining()
+        process = subprocess.Popen(command, stdin=subprocess.PIPE if input is not None else None,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text)
+        try:
+            first = True
+            while True:
+                try:
+                    output, errors = process.communicate(input if first else None, timeout=self.remaining())
+                    break
+                except subprocess.TimeoutExpired:
+                    first = False
+            if check and process.returncode:
+                raise subprocess.CalledProcessError(process.returncode, command, output, errors)
+            return subprocess.CompletedProcess(command, process.returncode, output, errors)
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=2)
+            for pipe in (process.stdin, process.stdout, process.stderr):
+                if pipe is not None and not pipe.closed:
+                    pipe.close()
+
+
 class ContainerSql:
     """Reuse psql transports while retaining fresh sessions and concurrent SQL."""
 
-    def __init__(self, command):
+    def __init__(self, command, *, deadline=None):
         self.command = command
+        self.deadline = deadline or ProcessDeadline()
         self.lock = threading.Lock()
         self.idle = []
         self.sessions = []
 
     def __call__(self, query):
+        self.deadline.remaining()
         with self.lock:
             session = self.idle.pop() if self.idle else None
         if session is None:
@@ -36,10 +80,19 @@ class ContainerSql:
             errors = []
             reader = threading.Thread(target=lambda: errors.extend(process.stderr), daemon=True)
             reader.start()
-            session = process, errors, reader
+            output = queue.Queue()
+            def read_output():
+                try:
+                    for line in process.stdout:
+                        output.put(line)
+                finally:
+                    output.put(None)
+            stdout_reader = threading.Thread(target=read_output, daemon=True)
+            stdout_reader.start()
+            session = process, errors, reader, output, stdout_reader
             with self.lock:
                 self.sessions.append(session)
-        process, errors, reader = session
+        process, errors, reader, output, _ = session
         marker = 'memoir_sql_' + uuid4().hex
         lines = []
         try:
@@ -47,9 +100,28 @@ class ContainerSql:
             # settings, temporary objects and psql's error presentation too.
             # Closing a one-shot connection rolled back an unfinished
             # transaction. Release its locks before returning this call too.
-            process.stdin.write('\\set VERBOSITY default\ndiscard all;\n' + query + '\nrollback;\n\\echo ' + marker + '\n')
-            process.stdin.flush()
-            for line in process.stdout:
+            written, write_errors = threading.Event(), []
+            def write_input():
+                try:
+                    process.stdin.write('\\set VERBOSITY default\ndiscard all;\n' + query + '\nrollback;\n\\echo ' + marker + '\n')
+                    process.stdin.flush()
+                except Exception as error:
+                    write_errors.append(error)
+                finally:
+                    written.set()
+            writer = threading.Thread(target=write_input, daemon=True)
+            writer.start()
+            while not written.wait(self.deadline.remaining()):
+                pass
+            if write_errors:
+                raise write_errors[0]
+            while True:
+                try:
+                    line = output.get(timeout=self.deadline.remaining())
+                except queue.Empty:
+                    continue
+                if line is None:
+                    break
                 if line.strip() == marker:
                     with self.lock:
                         self.idle.append(session)
@@ -57,7 +129,11 @@ class ContainerSql:
                 lines.append(line)
         except BrokenPipeError:
             pass
-        process.wait(timeout=5)
+        except BaseException:
+            process.kill()
+            self._close(session)
+            raise
+        process.wait(timeout=self.deadline.remaining())
         reader.join(timeout=5)
         self._close(session)
         return subprocess.CompletedProcess(self.command, process.returncode or 1,
@@ -65,7 +141,7 @@ class ContainerSql:
 
     @staticmethod
     def _close(session):
-        process, _, reader = session
+        process, _, reader, _, stdout_reader = session
         try:
             process.stdin.close()
         except BrokenPipeError:
@@ -76,6 +152,7 @@ class ContainerSql:
             process.kill()
             process.wait(timeout=5)
         reader.join(timeout=5)
+        stdout_reader.join(timeout=5)
         process.stdout.close()
         process.stderr.close()
 
@@ -87,7 +164,8 @@ class ContainerSql:
 
 
 @pytest.fixture(scope='module')
-def database():
+def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None):
+    commands = ProcessDeadline(deadline, cancellation)
     container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container'
     if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
@@ -97,35 +175,43 @@ def database():
             pg_container_name = os.getenv('MEMOIR_TEST_POSTGRES_CONTAINER_NAME') or 'memoir-issue6-pg-' + uuid4().hex[:12]
             if not re.fullmatch(r'memoir-issue6-pg-[0-9a-f]{12}', pg_container_name):
                 raise ValueError('A task-owned UUID PostgreSQL container name is required')
-            subprocess.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
-                '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
-                'postgres:18.3', 'postgres', '-c', 'listen_addresses='], check=True, capture_output=True)
             try:
+                commands.remaining()
+                if allocation is not None:
+                    allocation['attempted'] = True
+                    if on_allocation is not None:
+                        on_allocation()
+                commands.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
+                    '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
+                    'postgres:18.3', 'postgres', '-c', 'listen_addresses='], check=True)
+                if allocation is not None:
+                    allocation['created'] = True
+                    if on_allocation is not None:
+                        on_allocation()
                 until = time.monotonic() + 30
                 while True:
                     # The image briefly starts a bootstrap server, then restarts
                     # it. Only the final server is a stable test boundary.
-                    logs = subprocess.run(['container', 'logs', pg_container_name], capture_output=True, text=True)
+                    logs = commands.run(['container', 'logs', pg_container_name], text=True)
                     initialized = 'PostgreSQL init process complete; ready for start up.' in logs.stdout + logs.stderr
-                    ready = subprocess.run(['container', 'exec', pg_container_name, 'pg_isready', '-h', '/var/run/postgresql', '-U', 'postgres'], capture_output=True).returncode == 0
+                    ready = commands.run(['container', 'exec', pg_container_name, 'pg_isready', '-h', '/var/run/postgresql', '-U', 'postgres']).returncode == 0
                     if initialized and ready:
                         break
                     if time.monotonic() >= until:
                         raise RuntimeError('Disposable PostgreSQL container did not become ready')
-                    time.sleep(.25)
+                    time.sleep(min(.25, commands.remaining()))
             except BaseException:
-                subprocess.run(['container', 'stop', pg_container_name], check=True, capture_output=True)
+                ProcessDeadline(time.monotonic() + 10).run(['container', 'stop', pg_container_name], check=True)
                 raise
             command = ['container', 'exec', '--interactive', pg_container_name, 'psql', '-U', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres']
         else:
-            subprocess.run(['initdb', '-D', data, '-A', 'trust', '--no-locale'], check=True, capture_output=True)
-            subprocess.run(['pg_ctl', '-D', data, '-l', str(Path(directory) / 'server.log'),
-                            '-o', f"-k {directory} -h ''", '-w', 'start'], check=True, capture_output=True)
+            commands.run(['initdb', '-D', data, '-A', 'trust', '--no-locale'], check=True)
+            commands.run(['pg_ctl', '-D', data, '-l', str(Path(directory) / 'server.log'),
+                            '-o', f"-k {directory} -h ''", '-w', 'start'], check=True)
             command = ['psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-h', directory, '-d', 'postgres']
-        container_sql = ContainerSql(command) if container_backend else None
+        container_sql = ContainerSql(command, deadline=commands) if container_backend else None
         def sql(query, *, check=True):
-            result = container_sql(query) if container_sql else subprocess.run(
-                command, input=query, capture_output=True, text=True)
+            result = container_sql(query) if container_sql else commands.run(command, input=query, text=True)
             if check:
                 assert result.returncode == 0, result.stderr
             return result
@@ -156,8 +242,8 @@ def database():
                 if container_sql:
                     container_sql.close()
             finally:
-                subprocess.run(['container', 'stop', pg_container_name] if container_backend else
-                               ['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'], check=True, capture_output=True)
+                ProcessDeadline(time.monotonic() + 10).run(['container', 'stop', pg_container_name] if container_backend else
+                               ['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'], check=True)
 
 
 @pytest.fixture

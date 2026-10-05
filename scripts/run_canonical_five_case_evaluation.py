@@ -7,10 +7,12 @@ loads configured credentials or labels fixture output as live acceptance.
 """
 import argparse
 import asyncio
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -24,6 +26,21 @@ if str(ROOT) not in sys.path:
 
 from apps.api.trajectory_evaluation import build_skill_manifest
 from scripts.memoir_five_case_evaluator import validate_inputs
+
+
+@contextmanager
+def service_logs_to_stderr():
+    """The CLI owns this process; reserve stdout for its JSON receipt."""
+    sys.stdout.flush()
+    descriptor = sys.stdout.fileno()
+    saved = os.dup(descriptor)
+    try:
+        os.dup2(sys.stderr.fileno(), descriptor)
+        yield
+    finally:
+        sys.stdout.flush()
+        os.dup2(saved, descriptor)
+        os.close(saved)
 
 
 def main():
@@ -54,7 +71,7 @@ def main():
     inputs_bytes = args.inputs.read_bytes()
     inputs = json.loads(inputs_bytes)
     errors = validate_inputs(inputs)
-    if any(not isinstance(case.get('id'), str) or
+    if not errors and any(not isinstance(case.get('id'), str) or
             not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,120}', case['id'])
             for case in inputs.get('cases', []) if isinstance(case, dict)):
         errors.append('Safe case IDs are required for isolated receipt directories')
@@ -93,8 +110,9 @@ def main():
         stream.write(json.dumps(plan, ensure_ascii=False, indent=2) + '\n')
     if args.execute_fixture:
         from scripts.canonical_native_fixture import run_fixture
-        result = asyncio.run(run_fixture(plan, destination.parent,
-            max_worker_requests=args.max_worker_requests, deadline=deadline))
+        with service_logs_to_stderr():
+            result = asyncio.run(run_fixture(plan, destination.parent,
+                max_worker_requests=args.max_worker_requests, deadline=deadline))
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result['status'] == 'completed' else 3
     print(json.dumps(plan, ensure_ascii=False, indent=2))

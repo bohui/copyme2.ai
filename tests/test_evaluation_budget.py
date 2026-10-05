@@ -4,6 +4,31 @@ import httpx
 import pytest
 
 
+def test_worker_deadline_covers_response_body_after_headers_and_closes_stream():
+    from scripts.evaluation_budget import RequestLimitedTransport
+
+    closed = []
+    class SlowBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            await asyncio.sleep(.15)
+            yield b'Synthetic response'
+        async def aclose(self):
+            closed.append(True)
+    async def worker(request):
+        return httpx.Response(200, stream=SlowBody())
+    async def scenario():
+        transport = RequestLimitedTransport(httpx.MockTransport(worker),
+            max_requests=2, max_elapsed_seconds=.03)
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(client.get('http://synthetic.invalid/worker'), .5)
+            with pytest.raises(httpx.RequestError, match='time cap'):
+                await client.get('http://synthetic.invalid/worker')
+        assert closed == [True]
+        assert transport.requests_started == 1
+    asyncio.run(scenario())
+
+
 def test_worker_time_ceiling_cancels_inflight_request_and_blocks_every_role_afterwards():
     from scripts.evaluation_budget import RequestLimitedTransport
 

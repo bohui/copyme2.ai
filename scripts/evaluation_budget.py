@@ -39,8 +39,23 @@ class RequestLimitedTransport(httpx.AsyncBaseTransport):
             raise httpx.RequestError('Worker request cap reached', request=request)
         self.requests_started += 1
         remaining = None if self.deadline is None else max(0, self.deadline - time.monotonic())
-        async with asyncio.timeout(remaining):
-            return await self.transport.handle_async_request(request)
+        response = None
+        try:
+            async with asyncio.timeout(remaining):
+                response = await self.transport.handle_async_request(request)
+                # Worker replies are JSON. Buffer the complete body inside
+                # the same absolute deadline, rather than returning headers
+                # and leaving subsequent client consumption unbounded.
+                await response.aread()
+                return response
+        except BaseException:
+            if response is not None:
+                try:
+                    async with asyncio.timeout(5):
+                        await response.aclose()
+                except (Exception, asyncio.CancelledError):
+                    pass
+            raise
 
 
 class BudgetExceeded(RuntimeError):

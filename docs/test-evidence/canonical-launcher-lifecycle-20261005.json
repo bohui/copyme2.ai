@@ -1,0 +1,119 @@
+{
+  "schema_version": "memoir-canonical-launcher-lifecycle/1",
+  "branch": "codex/canonical-launcher-offline-20261005",
+  "reviewed_defective_head": "b4287d195d24267d24190301435f9fe80a65c2d7",
+  "source_sha256": {
+    "scripts/canonical_native_fixture.py": "d693b068730a6de84a8d2fb2d8d022fb4b999811b13af4b1f5cbec94a024b005",
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "scripts/run_canonical_five_case_evaluation.py": "2b384f1fa86b72db1a218ffb1c13cdd6830ed4ac66c849fa02a6c442ee607757",
+    "tests/test_agent_commit_postgres.py": "c2d46b3ff4c28f9bfe347287c827ca99855d41841b648480ec9c85bed2dc3778",
+    "tests/test_canonical_evaluation_cli.py": "84d89aa93b96466c476c6b54b415d6f76022d8383369a1b8519b1cfe36ea547d",
+    "tests/test_canonical_fixture_lifecycle.py": "15df2cc36e4f5a608164f73070976d2d2a0b0cd65c16861fdcf5dae872a3e96e",
+    "tests/test_canonical_native_launcher.py": "1b2ecf98449b489304833f3e90d4167f6c4f2d68431a2ee7e97f810d06bc1cb4",
+    "tests/test_evaluation_budget.py": "54ba1e6bdc28e2962d13c00507f6baf2e4ff81bf290266cd2e8432c7d9d0728f"
+  },
+  "current_lightweight": {
+    "passed": 74,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "deselected": 2,
+    "warning_count": 1,
+    "pytest_seconds": 15.79,
+    "runner_receipt": "output/mac-validation/canonical-lifecycle/lifecycle-light-final.json",
+    "source_identity": "uncommitted fix snapshot identified by source_sha256; publication pending"
+  },
+  "historical_native": {
+    "callback": {
+      "head": "b4287d195d24267d24190301435f9fe80a65c2d7",
+      "passed": 2,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "deselected": 15,
+      "receipt": "output/mac-validation/canonical-native/native-callback-b4287d.json"
+    },
+    "full_cli": {
+      "head": "b4287d195d24267d24190301435f9fe80a65c2d7",
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "failure": "Temporal startup banner corrupts CLI stdout JSON",
+      "runner_seconds": 568.31,
+      "fixture_completed_rounds": 250,
+      "fixture_completed_checkpoints": 50,
+      "fixture_protocol_calls": 1048,
+      "fixture_elapsed_seconds": 566.761,
+      "model_requests": 0,
+      "model_input_tokens": 0,
+      "model_output_tokens": 0,
+      "container": "memoir-issue6-pg-c0b04453e208",
+      "exact_container_not_found_verified": true,
+      "cleanup_summary": {
+        "temporal_closed": true,
+        "readiness_closed": true,
+        "postgres_fixture_closed": true,
+        "workspace_removed": true
+      },
+      "receipt": "output/mac-validation/canonical-native/native-five-case-b4287d.json",
+      "log_sha256": "d69aa922fe0cedc5c1b0d262f794d4e04f74b797bdbb8524b25f779db06e1a0b",
+      "partial_summary_retention": "Read terminal summary before pytest purged its temporary directory; original runner receipt and failure log retained. No archived full case receipt exists for this run."
+    }
+  },
+  "tdd_cycles": [
+    {
+      "defect": "null cases crashes validation",
+      "red": "null-cases-red",
+      "green": "null-cases-green"
+    },
+    {
+      "defect": "unbounded container startup and SQL/migration I/O",
+      "red": "setup-deadline-red",
+      "green": "setup-deadline-green-02"
+    },
+    {
+      "defect": "SIGTERM skips cleanup and terminal receipt",
+      "red": "cleanup-cancellation-red-02",
+      "green": "cleanup-cancellation-green",
+      "earlier_receipt": "cleanup-cancellation-red hit sandbox loopback denial before Temporal; not a reproduction"
+    },
+    {
+      "defect": "created container plus failed readiness/stop falsely reports no allocation/closed",
+      "red": "startup-stop-red",
+      "green": "startup-stop-green"
+    },
+    {
+      "defect": "implicit workspace finalization defeats retention",
+      "red": "startup-stop-retention-red",
+      "green": "startup-stop-retention-green"
+    },
+    {
+      "defect": "body consumption escapes worker deadline",
+      "red": "worker-body-deadline-red",
+      "green": "worker-body-deadline-green"
+    },
+    {
+      "defect": "native stdout corrupts JSON",
+      "red": "native-stdout-red",
+      "green": "native-stdout-green"
+    }
+  ],
+  "native_on_fixed_source": "pending after publication; serialized max one UUID PostgreSQL and one Temporal server",
+  "blockers": [
+    "independent cloud review of fixed head pending",
+    "current codex-lb strips output caps; live disabled",
+    "accepted judge configuration/calibration unavailable",
+    "authenticated Langfuse browser binding unavailable"
+  ],
+  "actions_this_follow_up": {
+    "real_model_calls": 0,
+    "judge_calls": 0,
+    "photo_calls": 0,
+    "geocoding_calls": 0,
+    "langfuse_publications": 0,
+    "shared_service_restarts": 0,
+    "persistent_host_changes": 0,
+    "prs_merged": 0
+  }
+}

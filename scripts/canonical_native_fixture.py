@@ -9,9 +9,11 @@ import asyncio
 import json
 import os
 import signal
+import shutil
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import time
 from uuid import uuid4
 
@@ -50,8 +52,7 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
     environment = offline_environment(ROOT)
     environment = {key: value for key, value in environment.items() if key in
         {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SHELL', 'NEXT_TELEMETRY_DISABLED'}}
-    workspace_manager = tempfile.TemporaryDirectory(prefix='memoir-canonical-', dir='/tmp')
-    workspace = Path(workspace_manager.name)
+    workspace = Path(tempfile.mkdtemp(prefix='memoir-canonical-', dir='/tmp'))
     os.environ.clear()
     os.environ.update(environment)
     os.environ.update(MEMOIR_TEST_POSTGRES_BACKEND='apple-container',
@@ -81,16 +82,25 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
         from apps.api.trajectory_evaluation import evaluate_trajectory
         from scripts.canonical_evaluation import CanonicalEvaluationDriver
         from scripts.evaluation_budget import RequestLimitedTransport
+        from test_agent_commit_postgres import ProcessDeadline
 
     except Exception as error:
         receipt['status'] = 'incomplete'
         receipt['error_class'] = type(error).__name__
-        workspace_manager.cleanup()
+        shutil.rmtree(workspace)
         receipt['cleanup']['workspace_removed'] = True
         save(summary_path, receipt)
         return receipt
 
-    generator = database.__wrapped__()
+    cancellation = threading.Event()
+    allocation = {'attempted': False, 'created': False}
+    receipt['postgres_allocation'] = allocation
+    def allocation_changed():
+        receipt['resources_allocated'] = True if allocation['created'] else None
+        save(summary_path, receipt)
+    generator = database.__wrapped__(deadline=deadline, cancellation=cancellation,
+        allocation=allocation, on_allocation=allocation_changed)
+    setup_task = None
     transport, readiness, temporal = None, None, None
     postgres_name = 'memoir-issue6-pg-' + uuid4().hex[:12]
     os.environ['MEMOIR_TEST_POSTGRES_CONTAINER_NAME'] = postgres_name
@@ -100,19 +110,26 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
     loop = asyncio.get_running_loop()
     owner_task = asyncio.current_task()
     previous_sigterm = signal.getsignal(signal.SIGTERM)
-    loop.add_signal_handler(signal.SIGTERM, owner_task.cancel)
+    def cancel_run():
+        cancellation.set()
+        owner_task.cancel()
+    loop.add_signal_handler(signal.SIGTERM, cancel_run)
     receipt['execution_started'] = True
     save(summary_path, receipt)
     try:
-        sql = next(generator)
-        receipt['resources_allocated'] = True
-        if sql.command[3] != postgres_name:
-            raise RuntimeError('Native fixture container identity differs from the receipt')
-        save(summary_path, receipt)
-        sql = event_database.__wrapped__(private_database.__wrapped__(
-            attachment_database.__wrapped__(sql)))
-        for case in plan['cases']:
-            sql(f"insert into auth.users(id,is_anonymous) values ({quoted(case['owner_id'])},false);")
+        def setup():
+            sql = next(generator)
+            receipt['resources_allocated'] = True
+            if sql.command[3] != postgres_name:
+                raise RuntimeError('Native fixture container identity differs from the receipt')
+            save(summary_path, receipt)
+            sql = event_database.__wrapped__(private_database.__wrapped__(
+                attachment_database.__wrapped__(sql)))
+            for case in plan['cases']:
+                sql(f"insert into auth.users(id,is_anonymous) values ({quoted(case['owner_id'])},false);")
+            return sql
+        setup_task = asyncio.create_task(asyncio.to_thread(setup))
+        sql = await asyncio.shield(setup_task)
         if time.monotonic() >= deadline:
             raise TimeoutError('Fixture deadline expired during setup')
 
@@ -232,40 +249,102 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
         receipt['status'] = 'incomplete'
         receipt['error_class'] = type(error).__name__
     finally:
-        if transport is not None:
-            receipt['private_worker_requests_started'] = transport.requests_started
-            await transport.transport.aclose()
-        for label, resource in [('temporal', temporal), ('readiness', readiness)]:
-            if resource is None:
-                continue
+        cancellation.set()
+
+        async def close_resource(label, operation, seconds=10):
             try:
-                if label == 'temporal':
-                    await resource.shutdown()
-                else:
-                    resource.close()
-                    await resource.wait_closed()
-                receipt['cleanup'][label + '_closed'] = True
-            except Exception as error:
-                receipt['cleanup'][label + '_closed'] = False
+                async with asyncio.timeout(seconds):
+                    await operation()
+                receipt['cleanup'][label] = True
+            except (Exception, asyncio.CancelledError) as error:
+                receipt['cleanup'][label] = False
                 receipt['cleanup'][label + '_error_class'] = type(error).__name__
                 receipt['status'] = 'incomplete'
-        try:
-            generator.close()
-            receipt['cleanup']['postgres_fixture_closed'] = True
-        except Exception as error:
-            receipt['cleanup']['postgres_fixture_closed'] = False
-            receipt['cleanup']['postgres_error_class'] = type(error).__name__
-            receipt['status'] = 'incomplete'
-        if workspace_manager is not None:
-            try:
-                workspace_manager.cleanup()
-                receipt['cleanup']['workspace_removed'] = True
-            except Exception as error:
+
+        async def cleanup():
+            if setup_task is not None:
+                try:
+                    await asyncio.shield(setup_task)
+                except (Exception, asyncio.CancelledError):
+                    pass
+            if transport is not None:
+                receipt['private_worker_requests_started'] = transport.requests_started
+                await close_resource('worker_transport_closed', transport.transport.aclose)
+            if temporal is not None:
+                await close_resource('temporal_closed', temporal.shutdown)
+            if readiness is not None:
+                async def close_readiness():
+                    readiness.close()
+                    await readiness.wait_closed()
+                await close_resource('readiness_closed', close_readiness)
+
+            async def reconcile_postgres():
+                try:
+                    await asyncio.to_thread(generator.close)
+                except Exception as error:
+                    receipt['cleanup']['postgres_generator_error_class'] = type(error).__name__
+                    receipt['status'] = 'incomplete'
+                receipt['resources_allocated'] = allocation['created']
+                if not allocation['attempted']:
+                    return
+                # A closed/exhausted Python generator is not evidence that
+                # its container disappeared. Inspect only the recorded UUID,
+                # retry its stop if needed, then require explicit not-found.
+                commands = ProcessDeadline(time.monotonic() + 20)
+                def absent():
+                    result = commands.run(['container', 'inspect', postgres_name], text=True)
+                    if result.returncode == 0:
+                        receipt['resources_allocated'] = True
+                        return False
+                    if f'container not found: {postgres_name}' in result.stderr.lower():
+                        return True
+                    if not allocation['created']:
+                        receipt['resources_allocated'] = None
+                    raise RuntimeError('Exact task PostgreSQL state could not be verified')
+                try:
+                    removed = await asyncio.to_thread(absent)
+                except Exception:
+                    removed = False
+                if not removed:
+                    try:
+                        await asyncio.to_thread(commands.run,
+                            ['container', 'stop', postgres_name], check=True)
+                    except Exception as error:
+                        receipt['cleanup']['postgres_stop_error_class'] = type(error).__name__
+                    if not await asyncio.to_thread(absent):
+                        raise RuntimeError('Recorded task PostgreSQL container still exists')
+                receipt['cleanup']['postgres_removal_verified'] = True
+
+            await close_resource('postgres_fixture_closed', reconcile_postgres, seconds=55)
+            if (receipt['cleanup'].get('postgres_fixture_closed') is False
+                    or receipt['cleanup'].get('temporal_closed') is False):
                 receipt['cleanup']['workspace_removed'] = False
-                receipt['cleanup']['workspace_error_class'] = type(error).__name__
-                receipt['status'] = 'incomplete'
-        loop.remove_signal_handler(signal.SIGTERM)
-        signal.signal(signal.SIGTERM, previous_sigterm)
-        receipt['elapsed_seconds'] = round(time.monotonic() - started, 3)
-        save(summary_path, receipt)
+                receipt['workspace_retained_for_reconciliation'] = str(workspace)
+            else:
+                await close_resource('workspace_removed',
+                    lambda: asyncio.to_thread(shutil.rmtree, workspace))
+
+        # SIGTERM cancels the owning run, never its separate cleanup task.
+        # A cancellation raised by an individual closer is recorded and the
+        # remaining owned resources are still attempted. Terminal state is
+        # saved even when cancellation arrives during normal shutdown.
+        cleanup_task = asyncio.create_task(cleanup())
+        try:
+            while True:
+                try:
+                    await asyncio.shield(cleanup_task)
+                    break
+                except asyncio.CancelledError:
+                    receipt['status'] = 'incomplete'
+                    receipt['error_class'] = 'CancelledError'
+                    if cleanup_task.done():
+                        break
+        except Exception as error:
+            receipt['status'] = 'incomplete'
+            receipt['cleanup']['error_class'] = type(error).__name__
+        finally:
+            loop.remove_signal_handler(signal.SIGTERM)
+            signal.signal(signal.SIGTERM, previous_sigterm)
+            receipt['elapsed_seconds'] = round(time.monotonic() - started, 3)
+            save(summary_path, receipt)
     return receipt
