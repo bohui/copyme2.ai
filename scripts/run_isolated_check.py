@@ -35,13 +35,37 @@ def save_receipt(path, receipt):
 
 
 def stop_owned(process):
-    if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
+    # Popen created this exact process group with start_new_session=True.
+    # Its leader exiting does not mean its owned descendants have exited.
+    group_id = process.pid
+    def group_exists():
         try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait(timeout=5)
+            os.killpg(group_id, 0)
+            return True
+        except ProcessLookupError:
+            return False
+    if group_exists():
+        try:
+            os.killpg(group_id, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            process.poll()  # Reap our immediate child without losing its group.
+            if not group_exists():
+                break
+            time.sleep(.05)
+        if group_exists():
+            try:
+                os.killpg(group_id, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    if process.poll() is None:
+        process.wait(timeout=5)
+    deadline = time.monotonic() + 1
+    while group_exists() and time.monotonic() < deadline:
+        time.sleep(.05)
+    return {'owned_group_id': group_id, 'group_gone': not group_exists()}
 
 
 def main():
@@ -77,26 +101,57 @@ def main():
     env['MEMOIR_NETWORK_RECEIPT'] = args.name + '-network'
     if any(str(value).startswith('tests/browser_') for value in command):
         env.setdefault('MEMOIR_BROWSER_PROFILE_FIXTURE', '1')
+    termination = None
+    def receive_signal(signum, frame):
+        # Only record intent in the signal handler. Cleanup and receipt I/O
+        # happen in the ordinary control flow after Popen returns its handle.
+        nonlocal termination
+        termination = termination or signum
+    handlers = {signum: signal.signal(signum, receive_signal)
+                for signum in (signal.SIGINT, signal.SIGTERM)}
+    process = None
+    code, status = 2, 'launch_failed'
     with logfile.open('w') as stream:
         try:
             process = subprocess.Popen(command, cwd=args.root, stdout=stream,
                                        stderr=subprocess.STDOUT, start_new_session=True, env=env)
+            deadline = time.monotonic() + args.timeout
+            while termination is None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    code, status = 124, 'timed_out'
+                    break
+                try:
+                    code = process.wait(timeout=min(remaining, .2))
+                    status = 'completed'
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
         except OSError as error:
-            receipt.update(status='launch_failed', failure_class=type(error).__name__)
-            save_receipt(receipt_path, receipt)
-            return 2
-        try:
-            code = process.wait(timeout=args.timeout)
-            status = 'completed'
-        except subprocess.TimeoutExpired:
-            stop_owned(process)
-            code, status = 124, 'timed_out'
-        except KeyboardInterrupt:
-            stop_owned(process)
-            code, status = 130, 'interrupted'
-    receipt.update(status=status, exit_code=code, child_returncode=process.returncode,
-                   duration_seconds=round(time.monotonic() - started, 2))
-    save_receipt(receipt_path, receipt)
+            receipt['failure_class'] = type(error).__name__
+        finally:
+            try:
+                if termination is not None:
+                    code = 128 + termination
+                    status = 'interrupted' if termination == signal.SIGINT else 'terminated'
+                    receipt['termination_signal'] = termination
+                if process is not None and status != 'completed':
+                    try:
+                        receipt['cleanup'] = stop_owned(process)
+                    except OSError as error:
+                        # Preserve the check's failure and actual child outcome
+                        # even when the environment blocks group verification.
+                        receipt['cleanup'] = {'owned_group_id': process.pid,
+                                              'group_gone': False,
+                                              'failure_class': type(error).__name__,
+                                              'errno': error.errno}
+                receipt.update(status=status, exit_code=code,
+                               child_returncode=process.returncode if process else None,
+                               duration_seconds=round(time.monotonic() - started, 2))
+                save_receipt(receipt_path, receipt)
+            finally:
+                for signum, handler in handlers.items():
+                    signal.signal(signum, handler)
     return code
 
 

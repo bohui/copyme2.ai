@@ -2,8 +2,12 @@
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
+import time
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,3 +74,76 @@ def test_offline_child_cannot_inherit_provider_or_database_credentials(tmp_path)
                            env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert (tmp_path / 'clean-child.log').read_text() == 'None\nNone\n'
+
+
+def test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits(tmp_path):
+    descendant = tmp_path / 'descendant.py'
+    descendant.write_text('import os,signal,time\nfrom pathlib import Path\n'
+                          'signal.signal(signal.SIGTERM, signal.SIG_IGN)\n'
+                          f'Path({str(tmp_path / "descendant-pid")!r}).write_text(str(os.getpid()))\n'
+                          'time.sleep(30)\n')
+    root_script = tmp_path / 'root.py'
+    root_script.write_text('import os,subprocess,sys,time\nfrom pathlib import Path\n'
+                          f'Path({str(tmp_path / "group-pid")!r}).write_text(str(os.getpid()))\n'
+                          f'subprocess.Popen([sys.executable, {str(descendant)!r}])\n'
+                          'time.sleep(30)\n')
+    group_id = None
+    try:
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/run_isolated_check.py'),
+                                '--root', str(ROOT), '--output-dir', str(tmp_path),
+                                '--name', 'owned-descendant', '--timeout', '0.5', '--',
+                                sys.executable, str(root_script)],
+                               capture_output=True, text=True, timeout=15)
+        group_id = int((tmp_path / 'group-pid').read_text())
+        descendant_id = int((tmp_path / 'descendant-pid').read_text())
+        assert result.returncode == 124, result.stderr
+        receipt = json.loads((tmp_path / 'owned-descendant.json').read_text())
+        assert receipt['status'] == 'timed_out' and receipt['child_returncode'] == -signal.SIGTERM
+        try:
+            descendant_group = os.getpgid(descendant_id)
+        except ProcessLookupError:
+            descendant_group = None
+        assert descendant_group is None, 'Owned descendant survived after its parent exited'
+    finally:
+        # Red runs must clean only the exact synthetic session created above.
+        if group_id is not None:
+            try:
+                if os.getpgid(descendant_id) == group_id:
+                    os.killpg(group_id, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+def test_supervisor_sigterm_stops_the_child_and_finalizes_termination_receipt(tmp_path):
+    marker = tmp_path / 'owned-child-pid'
+    command = [sys.executable, '-c',
+               f'import os,time; from pathlib import Path; Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(30)']
+    runner = subprocess.Popen([sys.executable, str(ROOT / 'scripts/run_isolated_check.py'),
+                               '--root', str(ROOT), '--output-dir', str(tmp_path),
+                               '--name', 'supervisor-termination', '--', *command],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    child_id = None
+    try:
+        deadline = time.monotonic() + 5
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(.02)
+        child_id = int(marker.read_text())
+        runner.send_signal(signal.SIGTERM)
+        code = runner.wait(timeout=15)
+        receipt = json.loads((tmp_path / 'supervisor-termination.json').read_text())
+        assert receipt['status'] == 'terminated'
+        assert code == receipt['exit_code'] == 128 + signal.SIGTERM
+        assert receipt['termination_signal'] == signal.SIGTERM
+        assert receipt['child_returncode'] == -signal.SIGTERM
+        with pytest.raises(ProcessLookupError):
+            os.kill(child_id, 0)
+    finally:
+        if runner.poll() is None:
+            runner.kill()
+            runner.wait(timeout=5)
+        if child_id is not None:
+            try:
+                if os.getpgid(child_id) == child_id:
+                    os.killpg(child_id, signal.SIGKILL)
+            except ProcessLookupError:
+                pass

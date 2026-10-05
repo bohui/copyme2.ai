@@ -214,7 +214,7 @@ def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
     """Exercise the real client with a slow credential-free job fixture."""
     from datetime import datetime, timedelta
     copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())['Memoir']['recall']
-    model = {'posts': 0, 'polls': 0, 'ready': False, 'poll_error': False, 'held': None}
+    model = {'posts': 0, 'polls': 0, 'ready': False, 'poll_error': False, 'held': None, 'held_poll': None}
     project = {'id': 'preview-fixture', 'revision': 1, 'profile': {'preferred_language': locale}, 'mode': 'self'}
 
     def api(route):
@@ -240,6 +240,9 @@ def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
             return
         elif path == '/story/preview/fixture-job':
             model['polls'] += 1
+            if model['polls'] == 1:
+                model['held_poll'] = route
+                return
             if model['poll_error']:
                 model['poll_error'] = False
                 return route.fulfill(status=503, content_type='application/json', body='{}')
@@ -280,17 +283,35 @@ def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
         card.screenshot(path=str(destination / f'loading-{locale}.png'))
         assert model['posts'] == 2
         assert model['held'] is not None
-        model['held'].fulfill(status=202, content_type='application/json', body=json.dumps({
-            'status': 'pending', 'preview': None, 'job': {'id': 'fixture-job', 'status': 'RUNNING'}, 'retry_after': 3}))
-        page.clock.fast_forward(31000)
+        with page.expect_response(lambda response: response.url.endswith('/story/preview')
+                                  and response.status == 202) as submitted:
+            model['held'].fulfill(status=202, content_type='application/json', body=json.dumps({
+                'status': 'pending', 'preview': None, 'job': {'id': 'fixture-job', 'status': 'RUNNING'}, 'retry_after': 3}))
+        submitted.value.finished()
+        # Hold the first pending HTTP poll while advancing the clock, then
+        # complete that response before changing the fixture to its error phase.
+        # Clock jumps alone do not wait for async fetch/response processing.
+        with page.expect_request(lambda request: request.url.endswith('/story/preview/fixture-job')):
+            page.clock.run_for(4000)
+        page.clock.fast_forward(27000)
+        assert model['held_poll'] is not None
+        with page.expect_response(lambda response: response.url.endswith('/story/preview/fixture-job')
+                                  and response.status == 200) as pending:
+            model['held_poll'].fulfill(content_type='application/json', body=json.dumps({
+                'status': 'pending', 'job': {'id': 'fixture-job', 'status': 'RUNNING'}, 'retry_after': 3}))
+        pending.value.finished()
         expect(card.get_by_role('status')).to_contain_text(copy['previewSlow'])
         card.screenshot(path=str(destination / f'slow-{locale}.png'))
         assert model['posts'] == 2
         model['poll_error'] = True
-        page.clock.fast_forward(4000)
+        with page.expect_response(lambda response: response.url.endswith('/story/preview/fixture-job')
+                                  and response.status == 503):
+            page.clock.fast_forward(4000)
         expect(card.get_by_role('status')).to_contain_text(copy['previewReconnecting'])
         model['ready'] = True
-        page.clock.fast_forward(4000)
+        with page.expect_response(lambda response: response.url.endswith('/story/preview/fixture-job')
+                                  and response.status == 200):
+            page.clock.fast_forward(4000)
         expect(card).to_contain_text('A short sample from a synthetic story.')
         card.screenshot(path=str(destination / f'ready-{locale}.png'))
         assert model['posts'] == 2
