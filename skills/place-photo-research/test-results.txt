@@ -66,6 +66,7 @@ test_old_unknown (test_photo_research.TemporalTests.test_old_unknown) ... ok
 test_previous_period_not_an_input (test_photo_research.TemporalTests.test_previous_period_not_an_input) ... ok
 test_reversed_rejected (test_photo_research.TemporalTests.test_reversed_rejected) ... ok
 test_today_strict (test_photo_research.TemporalTests.test_today_strict) ... ok
+test_auto_provider_flag_matrix_preserves_parallel_fallback (test_photo_research.WorkflowTests.test_auto_provider_flag_matrix_preserves_parallel_fallback) ... ok
 test_budget (test_photo_research.WorkflowTests.test_budget) ... ok
 test_chengde_landmark_aliases_keep_city_and_memory_period (test_photo_research.WorkflowTests.test_chengde_landmark_aliases_keep_city_and_memory_period) ... ok
 test_crawl4ai_cli_dispatch (test_photo_research.WorkflowTests.test_crawl4ai_cli_dispatch) ... ok
@@ -78,6 +79,7 @@ test_crawl4ai_source_filter_drops_related_media (test_photo_research.WorkflowTes
 test_download_and_resume (test_photo_research.WorkflowTests.test_download_and_resume) ... ok
 test_download_failure_reported (test_photo_research.WorkflowTests.test_download_failure_reported) ... ok
 test_evidence_without_timezone (test_photo_research.WorkflowTests.test_evidence_without_timezone) ... ok
+test_explicit_llm_provider_stays_fail_closed_when_disabled (test_photo_research.WorkflowTests.test_explicit_llm_provider_stays_fail_closed_when_disabled) ... ok
 test_gallery_escapes_untrusted_content (test_photo_research.WorkflowTests.test_gallery_escapes_untrusted_content) ... ok
 test_init_cli_current (test_photo_research.WorkflowTests.test_init_cli_current) ... ok
 test_init_photo_count (test_photo_research.WorkflowTests.test_init_photo_count) ... ok
@@ -88,6 +90,6 @@ test_rights_block_no_network (test_photo_research.WorkflowTests.test_rights_bloc
 test_sha_dedup (test_photo_research.WorkflowTests.test_sha_dedup) ... ok
 
 ----------------------------------------------------------------------
-Ran 88 tests in 0.259s
+Ran 90 tests in 0.288s
 
 OK

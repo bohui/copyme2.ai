@@ -1,41 +1,17 @@
 {
   "skill_version": "1.1.0",
-  "validated_at": "2026-10-02",
+  "validated_at": "2026-10-05",
   "runtime_versions": {
     "python": "3.12.11",
-    "crawl4ai": "0.8.0",
-    "playwright": "1.62.0",
-    "lxml": "5.3.2",
-    "Pillow": "12.0.0",
-    "pytest": "8.4.2"
+    "crawl4ai": "not installed; optional browser provider is mocked offline",
+    "playwright": "1.63.0",
+    "lxml": "not installed; optional browser provider is mocked offline",
+    "Pillow": "12.3.0",
+    "pytest": "9.1.1"
   },
-  "offline_tests": 88,
-  "passed": 88,
+  "offline_tests": 90,
+  "passed": 90,
   "failed": 0,
-  "shared_api_tests_passed": 54,
-  "photo_js_tests_passed": 26,
-  "full_repository_suite": {
-    "passed": 445,
-    "skipped": 24,
-    "failed": 1,
-    "failure": "Pre-existing migration-count assertion expects one file; existing user guest-transfer migration adds another. No migration changed."
-  },
-  "parallel_live_smoke": {
-    "place": "Chengde",
-    "input_period": null,
-    "as_of": "2026-10-02",
-    "serpapi_leads": 99,
-    "serpapi_seconds": 1.869601,
-    "cse_status": "blocked_captcha",
-    "cse_seconds": 6.295368,
-    "combined_search_seconds": 6.317591,
-    "repeat_search_seconds": 0.014133,
-    "repeat_provider_calls": 0,
-    "search_quota_usage_delta": 1,
-    "verified_reference_count": 0,
-    "credential_artifact_scan": "passed",
-    "downloaded_bytes": 0
-  },
   "historical_validation_v1_0_0": {
     "skill_version": "1.0.0",
     "validated_at": "2026-10-01",
@@ -81,7 +57,70 @@
   },
   "limitations": [
     "Search leads are not capture-date, authenticity or rights proof.",
-    "Shared app helper callers tested; app routing is unchanged.",
-    "Pillow runtime 12.0.0 is below existing declared download minimum 12.3.0; no live downloads."
-  ]
+    "No new live provider calls or image downloads were made.",
+    "Full native/browser acceptance is recorded separately for the exact integrated commit."
+  ],
+  "historical_validation_v1_1_0": {
+    "skill_version": "1.1.0",
+    "validated_at": "2026-10-02",
+    "runtime_versions": {
+      "python": "3.12.11",
+      "crawl4ai": "0.8.0",
+      "playwright": "1.62.0",
+      "lxml": "5.3.2",
+      "Pillow": "12.0.0",
+      "pytest": "8.4.2"
+    },
+    "offline_tests": 88,
+    "passed": 88,
+    "failed": 0,
+    "shared_api_tests_passed": 54,
+    "photo_js_tests_passed": 26,
+    "full_repository_suite": {
+      "passed": 445,
+      "skipped": 24,
+      "failed": 1,
+      "failure": "Pre-existing migration-count assertion expects one file; existing user guest-transfer migration adds another. No migration changed."
+    },
+    "parallel_live_smoke": {
+      "place": "Chengde",
+      "input_period": null,
+      "as_of": "2026-10-02",
+      "serpapi_leads": 99,
+      "serpapi_seconds": 1.869601,
+      "cse_status": "blocked_captcha",
+      "cse_seconds": 6.295368,
+      "combined_search_seconds": 6.317591,
+      "repeat_search_seconds": 0.014133,
+      "repeat_provider_calls": 0,
+      "search_quota_usage_delta": 1,
+      "verified_reference_count": 0,
+      "credential_artifact_scan": "passed",
+      "downloaded_bytes": 0
+    }
+  },
+  "historical_issue7_validation": {
+    "source_commit": "a4d8abf810eefa1ec36cc219710f8ac954bb52e9",
+    "issue": "https://github.com/bohui/copyme2.ai/issues/7",
+    "public_interface_cases_passed": 251,
+    "public_interface_cases_failed": 0,
+    "public_interface_cases_skipped": 0,
+    "command": "python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py",
+    "mocks": "External HTTP and DNS only; real CLI/app, parsing, validation and provider orchestration",
+    "helper_sha256": "faff5fa6ec61f38d32e4f6f4670d40f0beeb22f070a820e1eb43024d56ac979a",
+    "full_snapshot_receipts": "See the Issue #7 implementation PR for the exact clean commit and complete suite outcomes",
+    "live_search": "Not run; disabled by default; historical live_smoke below is not a new receipt",
+    "independent_review_regressions": 144
+  },
+  "integrated_pr8_pr9_pr10_offline_validation": {
+    "base_commit": "9359d4baa549a71458eec079ff2415f6bad7366f",
+    "merged_main_commit": "a4d8abf810eefa1ec36cc219710f8ac954bb52e9",
+    "passed": 395,
+    "failed": 0,
+    "skipped": 0,
+    "errors": 0,
+    "command": "python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py tests/test_place_photo_browser.py tests/test_place_photo_pages.py tests/test_photo_progress.py tests/test_photo_worker.py skills/place-photo-research/tests",
+    "helper_sha256": "9a5359f7a576f00f2d0873a50740b67af96b65b186d127146d87c467c94ab738",
+    "live_search": "Not run; this receipt is offline only."
+  }
 }

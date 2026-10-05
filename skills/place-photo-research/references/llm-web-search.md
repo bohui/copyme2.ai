@@ -47,3 +47,49 @@ Memoir's application photo search uses this same adapter alongside its existing
 catalogues when enabled. A gateway or source outage does not discard catalogue
 photographs. The private photo worker receives the same server-only settings
 through Compose. No new search subscription or Python dependency is needed.
+
+## Reconciling image capture evidence
+
+Each image's `name`, `caption`, `description`, `dateTaken` and `dateCreated`
+contributes independently to capture-date validation. A display name cannot hide
+another field's contradiction. Disjoint day/month/year assertions are excluded;
+compatible broad years or documented year ranges can contain a more precise
+assertion. The result keeps the narrowest compatible interval without widening
+conflicting dates. Month-only ISO capture dates retain month precision.
+
+Labeled original fields remain in the source excerpt, and parsed capture
+assertions retain their field, value and precision in the scene-date record.
+Explicit `datePublished`/`uploadDate` fields and publication-only description
+text remain provenance, never replacement capture evidence. Missing, uncertain,
+invalid or unresolved contradictory capture assertions do not qualify.
+
+Capture and publication/upload/scanning/digitization assertions are classified
+clause by clause, so a later publication date cannot erase a valid earlier
+capture date. Capture uncertainty (including unknown dates, approximate language
+and question marks) rejects the image even when another field supplies a date.
+Non-zero-padded numeric dates retain day/month precision; unsupported precise
+formats are excluded rather than silently reduced to a year. All image records
+for the same URL on a source page are reconciled before deduplication, and
+malformed graph metadata does not prevent inspecting healthy sibling sources.
+
+Event association also recognizes non-capture labels after a date, such as
+`1983 (digitized)` or `1983 (upload date)`. Such a date cannot establish the
+scene's capture year. When publication text transitions back to capture text,
+all intervening qualifiers are retained for uncertainty checks; a second,
+partial qualifier whitelist is not used.
+
+An explicitly identified capture claim remains independent of later events.
+For example, `taken 1920 and later uploaded` still asserts capture in 1920 even
+though no upload date is supplied. A later undated event cannot erase a capture
+conflict or uncertainty. Circa qualifiers remain uncertain before or after the
+date expression.
+
+Date syntax guards apply to date-adjacent tokens. Dotted place abbreviations
+such as `Washington, D.C.`, photographer initials, and names such as `March town`
+are not themselves uncertain dates. Actual circa-date expressions and
+unsupported named-month date expressions remain excluded.
+
+Recognizable punctuation-separated named-month dates, including `January, 1983`
+and `Jan-1983`, retain their unsupported precise-date classification rather than
+falling back to a year. Punctuation followed by a place word, as in `March,
+Cambridgeshire`, is not a month/date expression.
