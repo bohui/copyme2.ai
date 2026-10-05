@@ -1,0 +1,85 @@
+{
+  "schema_version": "memoir-canonical-rereview-p2/1",
+  "reviewed_head": "0b319004b1d453f96f0557f81339ea831f1b1b40",
+  "branch": "codex/canonical-launcher-offline-20261005",
+  "fixes": {
+    "sql_eof_exit": "Poll until actual remaining deadline, retain five-second default fixture grace, and always kill/reap/close an unfinished failed SQL session before returning",
+    "historical_allocation": "Attempted but unconfirmed allocation remains null even after verified absence; final removal is recorded separately"
+  },
+  "source_sha256": {
+    "scripts/canonical_native_fixture.py": "8a10b8f0e8c22dc7a8b4a9bb30ef321b80c6897d9988e0cb22dc87c1f5977cf8",
+    "tests/test_agent_commit_postgres.py": "29d4dd8406d1e01f5eab19b6ae1ca634a35fbf8f33ee7c831645913fcd4b84a7",
+    "tests/test_canonical_fixture_lifecycle.py": "9845bb393741aab3aeb744f49ae7c3ed98caea38962e4f8100decd6405fd1837"
+  },
+  "tdd": [
+    {
+      "case": "delayed EOF exit within budget",
+      "red": "eof-delayed-exit-red",
+      "green": "eof-delayed-exit-green"
+    },
+    {
+      "case": "EOF exit deadline exhausted",
+      "red": "eof-exhausted-deadline-red",
+      "green": "eof-exhausted-deadline-green"
+    },
+    {
+      "case": "uncertain historical allocation after verified removal",
+      "red": "uncertain-allocation-red",
+      "green": "uncertain-allocation-green"
+    }
+  ],
+  "focused": {
+    "passed": 77,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "deselected": 2,
+    "warning_count": 1,
+    "pytest_seconds": 22.67,
+    "receipt": "output/mac-validation/canonical-transport-review/focused-final.json",
+    "command_argv": [
+      ".venv/bin/python",
+      "scripts/run_isolated_check.py",
+      "--output-dir",
+      "output/mac-validation/canonical-transport-review",
+      "--name",
+      "focused-final",
+      "--timeout",
+      "90",
+      "--",
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_canonical_evaluation_cli.py",
+      "tests/test_canonical_fixture_lifecycle.py",
+      "tests/test_evaluation_budget.py",
+      "tests/test_memoir_five_case_evaluator.py",
+      "tests/test_place_groups.py",
+      "tests/test_place_geocoding.py",
+      "tests/test_canonical_evaluation.py",
+      "-k",
+      "not authenticated_rounds"
+    ]
+  },
+  "native_transport": "pending after publication; no full heavy suite rerun",
+  "historical_full_native": "250 original rounds and 50 checkpoints, 140 dependent runtime/Temporal/browser gates, and the build passed on 10d8de5; not relabeled as this source",
+  "cloud_review": "All three original lifecycle defects independently passed at 0b319004; P2 fixes await rereview",
+  "actions": {
+    "real_model_calls": 0,
+    "judge_calls": 0,
+    "photo_calls": 0,
+    "geocoding_calls": 0,
+    "langfuse_publications": 0,
+    "full_heavy_runs_repeated": 0,
+    "shared_service_restarts": 0,
+    "persistent_host_changes": 0,
+    "prs_merged": 0
+  },
+  "blockers": [
+    "independent cloud P2 review pending",
+    "codex-lb strips output caps; live remains blocked",
+    "accepted judge calibration unavailable",
+    "no callable browser tool for authenticated Langfuse UI"
+  ]
+}

@@ -133,9 +133,20 @@ class ContainerSql:
             process.kill()
             self._close(session)
             raise
-        process.wait(timeout=self.deadline.remaining())
-        reader.join(timeout=5)
-        self._close(session)
+        # The 100ms value is a polling interval, not the exit deadline.
+        # Standalone fixtures retain their original five-second exit grace.
+        exit_wait = (self.deadline if self.deadline.deadline is not None else
+            ProcessDeadline(time.monotonic() + 5, self.deadline.cancellation))
+        try:
+            while process.poll() is None:
+                try:
+                    process.wait(timeout=exit_wait.remaining())
+                except subprocess.TimeoutExpired:
+                    continue
+        finally:
+            if process.poll() is None:
+                process.kill()
+            self._close(session)
         return subprocess.CompletedProcess(self.command, process.returncode or 1,
             ''.join(lines), ''.join(errors))
 

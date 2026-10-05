@@ -284,7 +284,8 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
                 except Exception as error:
                     receipt['cleanup']['postgres_generator_error_class'] = type(error).__name__
                     receipt['status'] = 'incomplete'
-                receipt['resources_allocated'] = allocation['created']
+                receipt['resources_allocated'] = (True if allocation['created'] else
+                    None if allocation['attempted'] else False)
                 if not allocation['attempted']:
                     return
                 # A closed/exhausted Python generator is not evidence that

@@ -1,5 +1,6 @@
 """Public fixture CLI failures using only controlled external process boundaries."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import shutil
@@ -14,7 +15,7 @@ from scripts.run_isolated_check import offline_environment
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def fake_container(tmp_path, *, slow_stage=None, malformed_logs=False, stop_fails=False):
+def fake_container(tmp_path, *, slow_stage=None, malformed_logs=False, stop_fails=False, eof_delay=None):
     """An external command stub: no Apple Container or PostgreSQL is launched."""
     binary = tmp_path / 'bin'
     binary.mkdir()
@@ -22,7 +23,7 @@ def fake_container(tmp_path, *, slow_stage=None, malformed_logs=False, stop_fail
     commands = tmp_path / 'container-commands.jsonl'
     executable = binary / 'container'
     executable.write_text(f'''#!{sys.executable}
-import json, pathlib, sys, time
+import json, os, pathlib, sys, time
 state = pathlib.Path({str(state)!r})
 with pathlib.Path({str(commands)!r}).open('a') as log:
     log.write(json.dumps(sys.argv[1:]) + '\\n')
@@ -37,6 +38,12 @@ elif action == 'logs':
 elif action == 'exec' and 'pg_isready' in sys.argv:
     pass
 elif action == 'exec' and 'psql' in sys.argv:
+    pathlib.Path({str(tmp_path / 'sql-process.pid')!r}).write_text(str(os.getpid()))
+    if {eof_delay!r} is not None:
+        os.close(1)
+        time.sleep({eof_delay!r})
+        os.write(2, b'Synthetic SQL failure\\n')
+        os._exit(1)
     for line in sys.stdin:
         if {slow_stage!r} == 'migration': time.sleep(8)
         if line.startswith('\\\\echo '):
@@ -61,6 +68,53 @@ def fixture_command(tmp_path, *, seconds=3):
     return [sys.executable, 'scripts/run_canonical_five_case_evaluation.py',
         '--execute-fixture', '--run-id', 'external-lifecycle', '--output-root', str(tmp_path),
         '--max-worker-requests', '1', '--max-seconds', str(seconds)]
+
+
+def test_sql_stdout_eof_waits_for_delayed_exit_within_remaining_fixture_budget(tmp_path):
+    environment, state, _ = fake_container(tmp_path, eof_delay=.35)
+    result = subprocess.run(fixture_command(tmp_path, seconds=5), cwd=ROOT, env=environment,
+        capture_output=True, text=True, timeout=15)
+    assert result.returncode == 3, result.stderr
+    receipt = json.loads(result.stdout)
+    # A genuine SQL failure remains the outcome, rather than a spurious
+    # process-wait timeout while the execution budget still has headroom.
+    assert receipt['error_class'] == 'AssertionError'
+    assert receipt['cleanup']['postgres_fixture_closed'] is True
+    assert not state.exists()
+    pid = int((tmp_path / 'sql-process.pid').read_text())
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+
+def test_sql_stdout_eof_exhausted_deadline_closes_process_before_later_cleanup(tmp_path):
+    environment, state, _ = fake_container(tmp_path, eof_delay=10)
+    started = time.monotonic()
+    result = subprocess.run(fixture_command(tmp_path, seconds=3), cwd=ROOT, env=environment,
+        capture_output=True, text=True, timeout=15)
+    assert time.monotonic() - started < 6, 'Expired SQL exit wait must kill its owned process promptly'
+    assert result.returncode == 3, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt['error_class'] == 'TimeoutError'
+    assert receipt['cleanup']['postgres_fixture_closed'] is True
+    assert not state.exists()
+    pid = int((tmp_path / 'sql-process.pid').read_text())
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+
+def test_successful_removal_preserves_uncertain_historical_container_allocation(tmp_path):
+    environment, state, _ = fake_container(tmp_path, slow_stage='startup')
+    result = subprocess.run(fixture_command(tmp_path, seconds=3), cwd=ROOT, env=environment,
+        capture_output=True, text=True, timeout=15)
+    assert result.returncode == 3, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt['postgres_allocation'] == {'attempted': True, 'created': False}
+    # The container command created its external resource before stalling,
+    # but never confirmed success. Final absence cannot prove no allocation.
+    assert receipt['resources_allocated'] is None
+    assert receipt['cleanup']['postgres_fixture_closed'] is True
+    assert receipt['cleanup']['postgres_removal_verified'] is True
+    assert not state.exists()
 
 
 @pytest.mark.parametrize('stage', ['startup', 'migration'])

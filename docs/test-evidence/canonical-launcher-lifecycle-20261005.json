@@ -433,5 +433,7 @@
     "canonical_memory_events": "application/migration/skill trees unchanged from b4287d; dependent native gates pass",
     "model_usage": "controlled fixture protocol only; zero real model requests/tokens; no live acceptance claim",
     "langfuse_browser": "no browser/node_repl/tool_search binding callable at final availability check; signed-in Chrome remains untouched"
-  }
+  },
+  "checkpoint_scope": "Historical native/offline code head 10d8de585ac95dbc0bf94d04c79bb6a81b2800bb; later P2 changes have separate validation",
+  "later_follow_up": "docs/test-evidence/canonical-launcher-rereview-p2-20261005.json"
 }
