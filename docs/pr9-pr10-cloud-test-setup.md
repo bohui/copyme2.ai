@@ -7,6 +7,12 @@ zero failures/errors, and all 29 standalone browsers passed. The historical
 setup and credential-name guidance below remain available for cloud replay and
 the separately approved live phase.
 
+The current [live plan and Langfuse diagnosis](pr8-pr9-pr10-mac-live-plan.md)
+supersede the historical unresolved tracing note. Supplemental renderer
+receipts verify command success but did not retain mode flags; they do not
+establish real/fallback selection. The current JSON records recovered API
+rewrite/proxy evidence and verified cached asset hashes at that resolution.
+
 Continue from branch `codex/mac-pr9-pr10-validation-20261004`. Mac validation
 was published at `741dc3797bf9e0ef5d7ee51c2977f9c011e92bf8`; its tested code
 head is `4529258ad0f5a88e5c5fc019789c8f6f69f756ff`. The later focused repair

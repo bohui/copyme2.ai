@@ -4,7 +4,7 @@ The authorized native/offline phase is complete. Code head
 `c1f5e296d6f2dd921c5474dc7c613abc1968b8fc`, tree
 `4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6`, passed **1,194** Python cases,
 with **4 live-only skips, zero failures and zero errors**. All 29 standalone
-browser journeys and the additional checks below also passed. Branch:
+browser journeys passed; additional evidence and its limits appear below. Branch:
 `bohui/copyme2.ai:codex/mac-pr9-pr10-validation-20261004`.
 
 [Machine-readable evidence](test-evidence/pr8-pr9-pr10-mac.json) records all
@@ -32,8 +32,8 @@ rejection, cN validation and metadata stripping remain covered.
 | Pytest browser UI | All 48 passed, included above; 16 use actual PostgreSQL/router/private-worker paths |
 | Standalone browsers | 29 passed, 0 failed, 0 unconfirmed; both locales, blocked-photo and map/gallery variants |
 | JavaScript, including composer | 173 passed, 0 failed, 0 skipped |
-| Production build/API rewrites | Passed at `ec7f4487`; identical final `apps` tree; both rewrites reach the task API and report test auth |
-| Additional real/fallback renderers | Both passed; real D3/family-chart/vis bundles have three verified cached checksums |
+| Production build/API rewrites | Build passed at `ec7f4487`; identical final `apps` tree; both compiled destinations select task API port 56888; retained proxy check reports test auth |
+| Additional renderer invocations | Two command receipts passed; selected real/fallback modes were not retained and are unverified; cached assets match all three retained hashes |
 | Native redirect canaries | 18 passed; zero unapproved sink requests |
 | Offline URL policy | 20 passed: 9 accepted, 11 rejected |
 | Localization/ICU | 541 messages across en-AU and zh-CN; ICU passed |
@@ -49,6 +49,22 @@ Optional Crawl4AI is mocked offline; no live search/download was performed.
 The redirect frame probe did not observe an OOPIF target. Worker/service-worker
 redirects and detached sessions remain unverified; these receipts establish
 the exercised fixture paths, not complete egress containment.
+
+The renderer commands are identical and their empty logs do not record
+`MEMOIR_RENDERER_FIXTURES` or `MEMOIR_RENDERER_EXPECT_FALLBACK`. Their names do
+not establish mode selection. The JSON now records this gap and all three
+recomputed cached bundle hashes; possession of the assets does not establish
+their use. To establish both modes, rerun only those two checks with explicit
+mode/asset receipts and fresh task services. No rerun was performed for this
+documentation correction.
+
+The retained `resume/production-proxy-verification.json` records both API
+rewrite rules, the task API/Next origins and test auth. The retained compiled
+`routes-manifest.json` matches those destinations and hashes to
+`f2d658d236d69511a71a5caef29bed544e8db3efb34e23c1bd11c5d09d155bd5`.
+Individual request paths, HTTP statuses and response bodies were not retained
+in that proxy receipt, so it does not establish an independent auth response
+for each rewrite. The JSON preserves the observation at that resolution.
 
 Five defects were fixed through the agreed command/runtime/browser seams:
 
@@ -108,8 +124,15 @@ created.
 No new live pilot or five separate 50-round run was made. Baseline `d67f390`
 remains 205 pass / 8 fail / 37 unavailable of 250; affected `28acda14` remains
 152 pass / 5 fail / 43 unavailable of 200. Diagnostic pilots are not acceptance.
-Existing Langfuse authentication can be used privately, but durable ClickHouse
-DateTime64 readback remains unresolved. Cloud review, approved provider/judge
-setup and budget, and durable readback precede the live phase; missing judge
-configuration must not be invented. The [cloud setup handoff](pr9-pr10-cloud-test-setup.md)
+Read-only Mac diagnosis on 2026-10-05 found zero trace/event rows, 3,750 API
+scores with year-9999 timestamps, and zero configured evaluator/job records in
+the requested Langfuse project. ClickHouse 26.9.8.3 interprets Langfuse's numeric
+millisecond/microsecond timestamps as seconds; historical inserts failed with
+DateTime64 overflow. A query-local compatibility setting correctly decoded
+both units. Persistent repair, telemetry canary and durable API/browser
+readback remain pending approval. See the [live acceptance plan](pr8-pr9-pr10-mac-live-plan.md)
+and its sanitized [database evidence](test-evidence/langfuse-mac-readonly-20261005.json).
+Cloud review, approved provider/judge setup and budget, and durable readback
+precede the live phase; missing judge configuration must not be invented.
+The [cloud setup handoff](pr9-pr10-cloud-test-setup.md)
 contains reproducible commands and credential names without secret values.

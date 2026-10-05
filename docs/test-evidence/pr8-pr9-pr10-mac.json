@@ -796,7 +796,13 @@
       "status": "completed",
       "child_returncode": 0,
       "duration_seconds": 3.06,
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "renderer_mode_evidence": {
+        "status": "not_retained",
+        "actual_MEMOIR_RENDERER_FIXTURES": null,
+        "actual_MEMOIR_RENDERER_EXPECT_FALLBACK": null,
+        "claim_limit": "Command exit 0 is verified; receipt label does not establish real/stub/fallback selection. Empty log and network receipt omit these flags."
+      }
     },
     {
       "name": "family-renderers-fallback-01",
@@ -813,7 +819,13 @@
       "status": "completed",
       "child_returncode": 0,
       "duration_seconds": 2.36,
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "renderer_mode_evidence": {
+        "status": "not_retained",
+        "actual_MEMOIR_RENDERER_FIXTURES": null,
+        "actual_MEMOIR_RENDERER_EXPECT_FALLBACK": null,
+        "claim_limit": "Command exit 0 is verified; receipt label does not establish real/stub/fallback selection. Empty log and network receipt omit these flags."
+      }
     }
   ],
   "javascript_counts": {
@@ -837,7 +849,36 @@
     "child_returncode": 0,
     "duration_seconds": 1.64,
     "log_sha256": "156707c9f0208ae3b63406130fb6bfd8954fb72dcb47203aae21aa44dd98ffff",
-    "app_source_tree_equivalent": true
+    "app_source_tree_equivalent": true,
+    "proxy_evidence": {
+      "checked_at_utc": "2026-10-05T09:39:10+00:00",
+      "source_receipt": {
+        "path": "output/mac-validation/resume/production-proxy-verification.json",
+        "sha256": "7445e8d28ddd99480e37fb5685c3f574d7639b15d146188ca8d8c78220b4ca67"
+      },
+      "selected_api_origin_from_retained_artifacts": "http://127.0.0.1:56888",
+      "web_origin": "http://127.0.0.1:56889",
+      "compiled_routes_manifest": {
+        "path": "apps/web/.next/routes-manifest.json",
+        "sha256": "f2d658d236d69511a71a5caef29bed544e8db3efb34e23c1bd11c5d09d155bd5",
+        "build_id": "9EJjigmlMWgyQnqcDUaM_"
+      },
+      "api_rules": [
+        {
+          "source": "/api/v1/memoir/:path*",
+          "destination": "http://127.0.0.1:56888/api/v1/memoir/:path*",
+          "regex": "^/api/v1/memoir(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+        },
+        {
+          "source": "/api/v1/memoir",
+          "destination": "http://127.0.0.1:56888/api/v1/memoir",
+          "regex": "^/api/v1/memoir(?:/)?$"
+        }
+      ],
+      "retained_proxy_auth_mode": "test",
+      "per_rewrite_request_path_method_status_response": "not_retained",
+      "claim_limit": "Both compiled destinations match the owned API origin. Retained proxy receipt reports test auth; separate HTTP/auth responses for each rewrite are not established."
+    }
   },
   "photo_skill_checksums": [
     {
@@ -1654,8 +1695,55 @@
     "remaining_gates": [
       "Independent cloud review of final repair head and deliberate landing plan",
       "Approved provider/source-claim pilot setup and budget before a new live run",
-      "Existing Langfuse authentication may be used privately; durable ClickHouse DateTime64 readback remains unresolved",
+      "Read-only diagnosis established ClickHouse 26.9 numeric timestamp incompatibility; persistent scoped repair, zero-provider telemetry canary and durable API/browser readback await approval",
       "Do not invent missing judge configuration or create credentials"
     ]
+  },
+  "renderer_evidence": {
+    "checked_at_utc": "2026-10-05T09:39:10+00:00",
+    "cached_asset_manifest": {
+      "path": "output/mac-validation/renderer-assets/assets.json",
+      "sha256": "340ad5a16c3295fa30f58c9d2342992af008dcfa83b7a6e1d6fc7a6443a2e187"
+    },
+    "assets": [
+      {
+        "file": "d3.min.js",
+        "url": "https://unpkg.com/d3@7.9.0/dist/d3.min.js",
+        "bytes": 279706,
+        "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+        "local_path": "output/mac-validation/renderer-assets/d3.min.js",
+        "verified_sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+        "used_by_prior_renderer_runs": "not_verified"
+      },
+      {
+        "file": "family-chart.min.js",
+        "url": "https://unpkg.com/family-chart@0.9.0/dist/family-chart.min.js",
+        "bytes": 105994,
+        "sha256": "7fb3e5d8ac6402f26fafebe4759e50febd942f089b34d27848a474119aec3675",
+        "local_path": "output/mac-validation/renderer-assets/family-chart.min.js",
+        "verified_sha256": "7fb3e5d8ac6402f26fafebe4759e50febd942f089b34d27848a474119aec3675",
+        "used_by_prior_renderer_runs": "not_verified"
+      },
+      {
+        "file": "vis-timeline.min.js",
+        "url": "https://unpkg.com/vis-timeline@7.7.3/standalone/umd/vis-timeline-graph2d.min.js",
+        "bytes": 569230,
+        "sha256": "55f5627557103696a538c5e662cab07d554fafc545882a082dfb5e2b5dea65d6",
+        "local_path": "output/mac-validation/renderer-assets/vis-timeline.min.js",
+        "verified_sha256": "55f5627557103696a538c5e662cab07d554fafc545882a082dfb5e2b5dea65d6",
+        "used_by_prior_renderer_runs": "not_verified"
+      }
+    ],
+    "mode_specific_acceptance": "unverified",
+    "proposed_bounded_rerun": "Rerun only the two supplemental checks against fresh task API/Next services; retain explicit fixture directory/fallback flag and hashes before launching. No rerun performed."
+  },
+  "evidence_correction": {
+    "checked_at_utc": "2026-10-05T09:39:10+00:00",
+    "base_documentation_head": "2c8d4b7db27aea09b1a4f03203df436e1f3b926b",
+    "changes": "Documentation/receipt correction only; no code, dataset, service or broad test rerun",
+    "renderer_mode_claim_narrowed": true,
+    "api_destination_and_proxy_auth_evidence_recovered": true,
+    "live_plan": "docs/pr8-pr9-pr10-mac-live-plan.md",
+    "langfuse_readonly_evidence": "docs/test-evidence/langfuse-mac-readonly-20261005.json"
   }
 }
