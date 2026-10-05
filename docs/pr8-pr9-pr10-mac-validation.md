@@ -11,8 +11,10 @@ browser journeys passed; additional evidence and its limits appear below. Branch
 commands, exact heads, log/JUnit hashes, source trees, focused results, earlier
 failed attempts, preservation and cleanup. Detailed logs, XML and screenshots
 remain in the isolated worktree's ignored `output/mac-validation/resume`.
-A later documentation commit must retain the tested `apps`, `supabase`,
-`skills`, `tests` and `scripts` trees recorded there.
+The tested source trees remain recorded there. The later canonical readiness
+work adds only new `tests` and `scripts`; its separate focused receipt and
+source hashes appear in the [landing disposition](landing-issue-disposition-20261005.md).
+It does not relabel this historical whole-suite result as a new whole-suite run.
 
 The approved [local Langfuse repair and synthetic canary](langfuse-mac-timestamp-repair-20261005.md)
 subsequently passed fresh API/database readback, with 176 gateway checks and
@@ -39,7 +41,7 @@ rejection, cN validation and metadata stripping remain covered.
 | Standalone browsers | 29 passed, 0 failed, 0 unconfirmed; both locales, blocked-photo and map/gallery variants |
 | JavaScript, including composer | 173 passed, 0 failed, 0 skipped |
 | Production build/API rewrites | Build passed at `ec7f4487`; identical final `apps` tree; both compiled destinations select task API port 56888; retained proxy check reports test auth |
-| Additional renderer invocations | Two command receipts passed; selected real/fallback modes were not retained and are unverified; cached assets match all three retained hashes |
+| Additional renderer invocations | Both modes subsequently passed at `ea989ebb` with explicit flags, cached-asset hashes and fresh task services; see canonical readiness receipt |
 | Native redirect canaries | 18 passed; zero unapproved sink requests |
 | Offline URL policy | 20 passed: 9 accepted, 11 rejected |
 | Localization/ICU | 541 messages across en-AU and zh-CN; ICU passed |
@@ -56,13 +58,18 @@ The redirect frame probe did not observe an OOPIF target. Worker/service-worker
 redirects and detached sessions remain unverified; these receipts establish
 the exercised fixture paths, not complete egress containment.
 
-The renderer commands are identical and their empty logs do not record
+The original renderer commands are identical and their empty logs do not record
 `MEMOIR_RENDERER_FIXTURES` or `MEMOIR_RENDERER_EXPECT_FALLBACK`. Their names do
 not establish mode selection. The JSON now records this gap and all three
 recomputed cached bundle hashes; possession of the assets does not establish
-their use. To establish both modes, rerun only those two checks with explicit
-mode/asset receipts and fresh task services. No rerun was performed for this
-documentation correction.
+their use. That historical gap is now closed by two fresh checks retaining
+`MEMOIR_RENDERER_FIXTURES` and `MEMOIR_RENDERER_EXPECT_FALLBACK=0/1`, all three
+asset hashes, actual command exit codes and cleanup limits in the
+[new receipt](test-evidence/canonical-readiness-20261005.json). The first
+attempt failed before page load because the guard's allowlisted task origins
+were omitted; that failure remains recorded. Both task ports are closed.
+A descendant-group probe returned EPERM, so complete descendant disappearance
+is not independently claimed.
 
 The retained `resume/production-proxy-verification.json` records both API
 rewrite rules, the task API/Next origins and test auth. The retained compiled
@@ -121,6 +128,9 @@ Caches/evidence remain. One overly broad read-only inventory emitted shared
 container configuration into local tool output; no values from it were added
 to this branch/handoff, and subsequent inventories emit task IDs/status only.
 
+The user now requests reviewed integration landing first, then five separate
+50-round datasets on exact main. The [requirement disposition](landing-issue-disposition-20261005.md)
+maps every Issue2/6 story/testing decision and keeps incomplete acceptance open.
 The parent coordinates cloud rereview and landing. Current PR3, PR9, PR10 heads
 and exact PR8 main are verified ancestors of this candidate. Review/land the
 combined candidate against verified current main, retaining the conflict
@@ -146,8 +156,9 @@ unverified. See the [repair report and rollback](langfuse-mac-timestamp-repair-2
 [current sanitized evidence](test-evidence/langfuse-mac-repair-20261005.json),
 and [live acceptance plan](pr8-pr9-pr10-mac-live-plan.md); the earlier
 [read-only diagnosis](test-evidence/langfuse-mac-readonly-20261005.json) is a historical snapshot.
-The temporary caps reset at reboot. Current usage (173,135 files) exceeds the
-old system cap (122,880); do not lower the cap under this workload. Rebooting
+The temporary caps reset at reboot. Repair reconciliation used 173,135 files;
+the later readiness sample used 134,485. Both exceed the old system cap
+(122,880); do not lower the cap under this workload. Rebooting
 without addressing that capacity can reintroduce startup failures.
 Cloud review, browser confirmation, the reviewed canonical live harness and
 approved provider/judge setup and budget precede the live phase; missing judge

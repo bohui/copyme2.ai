@@ -10,7 +10,21 @@ that canary is still unverified. The combined candidate includes the exact
 PR3/PR9/PR10 heads and merged PR8. Tested code is
 `c1f5e296d6f2dd921c5474dc7c613abc1968b8fc`; independent review remains in cloud.
 Native results remain 1,194 passes, four live-only skips, zero failures/errors.
-This plan does not establish full acceptance.
+This plan does not establish full acceptance. The user's later instruction
+changes ordering: **land the reviewed integration, then run five separate
+50-round datasets on exact main and fix/review/retest observed bugs**. The
+[current disposition](landing-issue-disposition-20261005.md) supersedes any
+earlier implication that the whole live workload must precede landing.
+Parent confirmation of the final reviewed head/disposition remains required.
+
+The new `scripts/canonical_evaluation.py` callback passes native default and
+nondefault cadence through normal UserStorage/runtime/private-worker and
+PostgreSQL/Temporal lanes. It retains originals and trajectories, awaits durable
+coverage/checkpoints and rejects reused projects, malformed inputs, unbounded
+settle timeouts and live labels. It is a **fixture callback, not a complete live
+five-case command**. New request/token budget components pass controlled
+provider tests, but the actual-provider accounting adapter and price/hard-spend
+verification remain missing. See the new receipt and G1/G3 follow-up bodies.
 
 ## Initial diagnosis of the empty local Langfuse pages
 
@@ -141,67 +155,43 @@ cloud review before paid canonical execution; do not weaken its assertions.
 
 ## Commands and bounded request plan
 
-These are **proposed existing-runner commands, not executed commands**. Supply
-existing approved configuration only in the task process environment. No
-secrets belong in arguments, receipts, repository files or cloud transfers.
+The legacy five-case live command is diagnostic only and is not proposed as
+canonical acceptance. Do not run it as the post-merge full acceptance command.
+The native-tested callback is not a complete executable live launcher; G1/G3
+must supply and review that command first. Offline supervision strips configured
+provider/tracing credentials and must not be reused as a live launcher.
 
-```sh
-.venv/bin/python scripts/run_memoir_five_case_evaluation.py \
-  --mode live --env-file /dev/null --preflight-only --publish-langfuse \
-  --run-id mac-integrated-preflight --output-root output/live-acceptance
+The smallest proposed first paid scope is eight bilingual source-claim pilot
+inputs plus four ephemeral follow-up cases. It includes no judge/photo call or
+composer checkpoint. Proposed ceilings are 80 **actual provider** requests,
+400,000 total input tokens, 80,000 total output tokens and 1,000 output tokens
+per request, plus a verified US$2 gateway cap or a verified worst-case price
+below US$2. These are a reviewable proposal, **not approved or currently
+verified live enforcement**. Existing models/protocols must honor the caps;
+no silent model substitution is permitted. See the
+[G3 agent-ready proposal](test-evidence/proposals/g3-provider-budget-and-calibrated-judging.md).
 
-.venv/bin/python scripts/run_memoir_five_case_evaluation.py \
-  --mode live --env-file /dev/null --cases harbour-copper-notebook \
-  --max-rounds 5 --case-concurrency 1 --timeout 120 --composer-timeout 300 \
-  --publish-langfuse --run-id mac-integrated-pilot --output-root output/live-acceptance
+`RequestLimitedTransport` enforces a separate worker HTTP ceiling across roles
+and clients. `BudgetedProvider` reserves input/output before concurrent calls,
+validates reported usage and blocks after unknown/interrupted/over-bound usage.
+Its adapter must measure a conservative input bound and enforce the output cap
+at the actual upstream provider boundary. A worker HTTP count, Codex turn count,
+120/300-second timeout or concurrency of one does not prove model usage or cost.
+No actual-provider adapter, exact billing rates or gateway monetary cap have
+yet been verified. Missing judge configuration/calibration remains unavailable.
 
-MEMORY_SPARK_RUN_LIVE_INTERVIEW_TESTS=1 .venv/bin/python -m pytest -q \
-  tests/test_interview_followups.py -k live_followup
+After the reviewed pilot, derive a separate numerical envelope for the five
+50-round datasets, ten cadence checkpoints per dataset, judging and any
+approved photo/search fan-out. Count every provider/tool/retry/background call,
+pin exact main and retain unavailable/failing outcomes. Do not extrapolate the
+legacy runner's 15 sampled checkpoints to canonical acceptance.
 
-.venv/bin/python scripts/run_memoir_five_case_evaluation.py \
-  --mode live --env-file /dev/null --max-rounds 50 --case-concurrency 1 \
-  --timeout 120 --composer-timeout 300 --publish-langfuse \
-  --run-id mac-integrated-full --output-root output/live-acceptance
-```
-
-`--mode pilot` is a fixture mode; real pilots require `--mode live`.
-Preflight performs health/authentication reads but no story-model turn.
-Use unique run IDs and preserve prior attempts. No resume retry is included
-in this budget. The canonical driver and judge integration do not yet have
-approved executable commands; finalize their bounded interface before use.
-
-| Planned work | Logical boundary count |
-| --- | --- |
-| Telemetry canary | 1 root + 1 child + 1 score; zero model/judge/photo requests |
-| Initial live smoke | 5 conversation turns; no planned photo/composer action |
-| Canonical veto pilot | 8 story inputs; driver pending |
-| Four follow-up regressions | 4 direct ephemeral Codex turns |
-| Full five-case run | 250 conversation turns; 10 positive private photo-worker requests; existing runner has 15 composer checkpoints |
-| Combined planned storyteller/model-turn inputs | 267; not an upstream provider-request or token cap |
-| Proposed judge batch | At most 4 calibration examples + 13 pilot trajectories + 250 full trajectories = 267 HTTP judgments; requires integration/configuration/review |
-
-The judge class defaults to 1,200 requested output tokens per call, so that
-proposed batch requests at most **320,400 output tokens** if the provider
-honors the limit. Judge input/reasoning tokens and all storyteller/composer
-token limits are unbounded by these commands. Composer indexing batches and
-up to three draft/review attempts, focused recovery, Codex/provider retries,
-and photo search/source-page fan-out add requests. The runner records private
-worker boundaries but currently reports provider tokens/cost as unavailable.
-Its 120/300/45-second turn/composer/photo limits and concurrency 1 are not
-spend limits. No defensible total token maximum, unit price or dollar budget
-is known; no new charge was incurred by these read-only checks. Require a
-verified provider/gateway hard cap and usage measurement before approving a
-paid full run. The runner does not stop on every failed grade automatically.
-
-Use only fresh task project IDs, user fixtures, object-store/Codex directories,
-loopback API/Next ports and task Temporal SQLite. Native PostgreSQL must retain
-the supported disposable UUID AppleContainer fixture, no shared mounts/ports,
-TCP disabled and exact task cleanup. Do not use a shared worker with durable
-customer storage. Model gateway requests consume existing shared quota, and
-approved Langfuse writes use the existing shared tracing stack. No production
-database migration, billing/voice call or new credential is part of this plan.
-The approved local shared Langfuse restart is complete; future shared restarts
-are not implied by the remaining live-run plan.
+Use fresh task owners/projects, object-store/Codex directories, loopback API/
+Next ports and task Temporal SQLite. Native PostgreSQL retains the supported
+UUID Apple Container fixture, no shared mounts/ports, TCP disabled and exact
+cleanup. Coordinate heavy work; at most one fixture container and one Temporal
+process run concurrently. No shared customer worker, new credential, production
+migration or further shared restart is authorised by this live-run plan.
 
 ## Approval boundaries and landing
 
@@ -211,15 +201,17 @@ scoped to `langfuse`, with its prior value (zero) recorded for rollback; the
 3,750 historical bad score rows retain their full logical-row fingerprint.
 Historical-row recovery is excluded. Paid execution needs a separate explicit
 hard budget and ready, reviewed canonical/judge harness; unknown prices are
-not a basis for approving 267 inputs as a spend cap. A new judge endpoint/model
+not a basis for approving logical input counts as a spend cap. A new judge endpoint/model
 and human calibration sign-off must be supplied rather than inferred.
 
 Draft [integration PR11](https://github.com/bohui/copyme2.ai/pull/11) is published
 from this validation branch to main, linking PR3, PR9, PR10 and Issues2/6.
 It already contains all three PR heads plus
 PR8; merging the old heads into one another adds no missing code. Keep the old
-PRs open. Finish review/CI, harness readiness, live five-case/browser/judge and
-durable-tracing gates before marking full acceptance or merging. If main moves,
+PRs open until parent confirms the final reviewed head and disposition. Land
+that one combined candidate, then run exact-main acceptance under its approved
+numerical budget. Keep incomplete Issues2/6 open and link their concrete gaps;
+full live/browser/judge/durable-tracing acceptance is still incomplete. If main moves,
 deliberately integrate it into this candidate, review the delta and rerun the
 affected acceptance. Only after an approved combined landing coordinate closing
 the incorporated PRs. Do not merge them independently, retarget them, deploy,
