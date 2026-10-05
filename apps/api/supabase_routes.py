@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
+from .conversation_text import original_conversation_text
 
 router = APIRouter(prefix='/v1/user', tags=['Supabase user data'])
 
@@ -119,30 +120,76 @@ def conversation_attachments(authorization: str | None = Header(default=None)):
             'select': 'id,project_id,messages,workspace,created_at',
             'user_id': f'eq.{service.user_id}', 'order': 'created_at.desc', 'limit': '100',
         }).json()
+        for item in items:
+            for message in item.get('messages', []):
+                if message.get('role') == 'user':
+                    message['text'] = original_conversation_text(message['text'])
         queue = _queue_if_configured()
         if queue:
             for item in items:
                 item.setdefault('workspace', {})['generated_documents'] = queue.list(service.user_id, item['project_id'])
                 item['workspace']['collection'] = queue.collection(service.user_id, item['project_id'])
+        # Normal OAuth conversations are persisted as agent memories; they
+        # never pass through the guest-attachment table. Show both sources.
+        imported_ids = {str(memory_id) for item in items
+                        for memory_id in (item.get('workspace', {}).get('memory_id_map') or {}).values()}
+        messages = []
+        created_at = None
+        for memory in service.all_memories():
+            if memory.get('kind') != 'agent' or str(memory.get('id')) in imported_ids:
+                continue
+            content = memory.get('content') or ''
+            if not content.startswith('Storyteller: '):
+                continue
+            question, separator, reply = content.removeprefix('Storyteller: ').partition('\nMemory Spark: ')
+            if not separator:
+                continue
+            messages.extend([{'role': 'user', 'text': original_conversation_text(question)},
+                             {'role': 'assistant', 'text': reply}])
+            created_at = memory.get('created_at')
+        if messages:
+            items.append({'id': 'account-conversation', 'project_id': 'account-conversation',
+                          'messages': messages, 'workspace': {}, 'created_at': created_at})
+        items.sort(key=lambda item: item.get('created_at') or '', reverse=True)
         return {'items': items}
     finally:
         service.client.close()
 
 
 @router.put('/profile')
-def save_profile(payload: dict, authorization: str | None = Header(default=None)):
+async def save_profile(payload: dict, authorization: str | None = Header(default=None)):
     service = storage(authorization)
     try:
-        return service.save_profile(payload)
+        from .agent_lock import AgentTurnLease, AgentTurnBusyError
+        async with AgentTurnLease(service) as lease:
+            current = await lease.io(service.profile)
+            # Generic workspace writes may be delayed snapshots. Explicit
+            # language changes belong to the dedicated profile-settings route.
+            merged = {**current, **payload}
+            for key in ('preferred_language', 'conversation_language'):
+                if key in current:
+                    merged[key] = current[key]
+                else:
+                    merged.pop(key, None)
+            await lease.check()
+            result = await lease.io(service.save_profile, merged)
+            await lease.check()
+            return result
+    except AgentTurnBusyError:
+        raise HTTPException(409, 'Please wait for the current reply before saving workspace context.') from None
     finally:
         service.client.close()
 
 
 @router.get('/profile')
-def read_workspace_profile(authorization: str | None = Header(default=None)):
+async def read_workspace_profile(authorization: str | None = Header(default=None)):
     service = storage(authorization)
     try:
-        return {key: value for key, value in service.profile().items() if not key.startswith('_')}
+        import asyncio
+        from .conversation_locale import restore_from_history
+        profile = await asyncio.to_thread(service.profile)
+        profile = await restore_from_history(service, profile)
+        return {key: value for key, value in profile.items() if not key.startswith('_')}
     finally:
         service.client.close()
 

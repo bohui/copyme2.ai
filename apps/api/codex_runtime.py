@@ -6,7 +6,9 @@ import base64
 import binascii
 import httpx
 import json
+import logging
 import os
+import re
 import time
 import unicodedata
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -15,17 +17,24 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
+from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
 from .recall import recall_status, storage_recall_status
 from .agent_storage import UserStorage
+from .conversation_text import original_conversation_text
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
 from .turn_stream import VisibleText
 from .family_context import (
+    AUTHOR_TIMELINE_MARKER_END,
+    AUTHOR_TIMELINE_MARKER_START,
+    FAMILY_TREE_MARKER_END,
+    FAMILY_TREE_MARKER_START,
     combine_family_skill_updates,
     extract_family_skill_updates,
     family_features_enabled,
     merge_family_context_document,
     valid_family_project_id,
+    validate_author_timeline_context,
 )
 from .place_journey import (
     MARKER_START as PLACE_MARKER_START,
@@ -34,10 +43,12 @@ from .place_journey import (
     extract_place_journey,
     extract_place_journeys,
     normalize_persisted_place_journey,
+    place_journey_message_is_ambiguous,
     place_journey_matches_message,
     place_journey_fingerprint,
 )
 from .profile_intake import (
+    apply_explicit_story_stage,
     extract_profile_updates,
     merge_profile_updates,
     profile_marker_present,
@@ -49,6 +60,55 @@ from .trajectory_evaluation import (
     build_skill_manifest,
     normalise_correlation,
 )
+
+WORKSPACE_TIMEOUT = 240
+_MAX_WORKER_ERROR_BODY_BYTES = 64 * 1024
+_WORKER_ERROR_BODY_EXTENSION = "memoir_worker_error_body"
+
+diagnostic_logger = logging.getLogger("memoir.runtime.diagnostics")
+configure_diagnostic_logger(diagnostic_logger)
+
+
+class _WorkerStreamError(RuntimeError):
+    """A streamed worker failure carrying its recorder-redacted receipt."""
+
+    def __init__(self, message: str, trajectory: Mapping[str, Any] | None = None):
+        super().__init__(message)
+        if isinstance(trajectory, Mapping):
+            self.trajectory = dict(trajectory)
+
+
+async def _read_bounded_response_body(response: httpx.Response) -> bytes:
+    """Read only a bounded HTTP error body while a streamed response is open."""
+    try:
+        return response.content[:_MAX_WORKER_ERROR_BODY_BYTES]
+    except httpx.ResponseNotRead:
+        pass
+
+    body = bytearray()
+    async for chunk in response.aiter_bytes():
+        remaining = _MAX_WORKER_ERROR_BODY_BYTES - len(body)
+        if remaining <= 0:
+            break
+        body.extend(chunk[:remaining])
+        if len(body) >= _MAX_WORKER_ERROR_BODY_BYTES:
+            break
+    return bytes(body)
+
+
+def _worker_error_payload(response: httpx.Response) -> Mapping[str, Any] | None:
+    """Decode a bounded worker error body without ever exposing its contents."""
+    body = response.extensions.pop(_WORKER_ERROR_BODY_EXTENSION, None)
+    if not isinstance(body, bytes):
+        try:
+            body = response.content[:_MAX_WORKER_ERROR_BODY_BYTES]
+        except httpx.ResponseNotRead:
+            return None
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, TypeError, ValueError):
+        return None
+    return payload if isinstance(payload, Mapping) else None
 
 
 MEMOIR_SYSTEM_PROMPT_PATH = (
@@ -99,8 +159,16 @@ clarification when needed. The application runtime validates and strips the mark
 AUTHOR_TIMELINE_SKILL_PATH = Path(__file__).resolve().parents[2] / "skills" / "memoir-author-timeline" / "SKILL.md"
 AUTHOR_TIMELINE_SKILL_FALLBACK = """When the server says the storyteller has the paid Family legacy feature, extract only
 the author's explicitly stated timeline events and life periods. Append one bounded
-[[MEMORY_SPARK_AUTHOR_TIMELINE]] JSON marker. Preserve uncertain dates and never infer
-people or exact places. The application runtime validates and strips the marker before the reply."""
+[[MEMORY_SPARK_AUTHOR_TIMELINE]] JSON marker with a single timeline array. Each entry
+has kind "event" or "period"; events use date_expression and periods use start_expression
+and/or end_expression. Preserve uncertain dates and never infer
+people or exact places. A clear event with no known date still qualifies: use
+date_expression "unknown" and precision "unknown" rather than inventing a date
+or silently dropping it. Ask for clarification and emit no marker only when the
+event itself is ambiguous. When the private prompt supplies source-claim IDs,
+include the exact source_claim_id for each item and omit items whose source
+claim is ambiguous; the application validates and strips this metadata before
+the reply."""
 
 
 def _load_skill(path: Path, fallback: str) -> str:
@@ -111,7 +179,10 @@ def _load_skill(path: Path, fallback: str) -> str:
 
 
 FAMILY_TREE_SKILL = _load_skill(FAMILY_TREE_SKILL_PATH, FAMILY_TREE_SKILL_FALLBACK)
-AUTHOR_TIMELINE_SKILL = _load_skill(AUTHOR_TIMELINE_SKILL_PATH, AUTHOR_TIMELINE_SKILL_FALLBACK)
+AUTHOR_TIMELINE_SKILL = _load_skill(
+    AUTHOR_TIMELINE_SKILL_PATH.parent / "references" / "legacy-marker.md",
+    AUTHOR_TIMELINE_SKILL_FALLBACK,
+)
 
 MEMORY_CONTEXT_SKILL = _load_skill(
     Path(__file__).resolve().parents[2] / "skills" / "memoir-memory-context" / "SKILL.md",
@@ -121,8 +192,9 @@ MEMORY_CONTEXT_SKILL = _load_skill(
 PROFILE_INTAKE_INSTRUCTIONS = """Profile intake contract:
 When the storyteller explicitly shares profile or story-context information, append one
 machine marker after the visible reply using exactly this format:
-[[MEMORY_SPARK_PROFILE]]{"name":"...","preferred_language":"zh-CN","birth_year":1980,"birth_date_expression":"...","birth_place":"...","childhood_place":"...","story_focus":{"who":"...","where":"...","when":"...","what":"..."}}[[/MEMORY_SPARK_PROFILE]]
+[[MEMORY_SPARK_PROFILE]]{"name":"...","birth_year":1980,"birth_date_expression":"...","birth_place":"...","childhood_place":"...","story_focus":{"who":"...","where":"...","when":"...","what":"..."}}[[/MEMORY_SPARK_PROFILE]]
 Include only fields the storyteller stated or clearly corrected. Omit unknown fields;
+Conversation language is host-owned. Never emit preferred_language or conversation_language in this marker.
 never infer a name, date, place, person, or event. `story_focus` records the current
 memory thread, not a confirmed biography. The application runtime strips the marker and saves the
 validated fields to the private profile. Extract profile facts quietly. Do not ask a question merely to fill a missing field.
@@ -208,8 +280,11 @@ def _build_marker_context(memories: str, profile: dict | None = None, *,
           "The server checks this exact source wording. Never translate or transliterate this "
           "field to match the conversation language. For example, when the storyteller says "
           "河北承德附属医院, use place=承德, not Chengde; when they say Chengde, use "
-          "place=Chengde. The visible reply and other hierarchy labels may use the conversation "
-          "language. Keep the final hierarchy label identical to `place`."
+          "place=Chengde. Keep hierarchy[0] exactly `Earth` in every language; the remaining "
+          "hierarchy labels may use the conversation language. Keep the final hierarchy label "
+          "identical to `place`. Use only named countries, regions, cities, suburbs or towns. "
+          "For a hospital, school, street or residential compound, extract its explicitly named "
+          "containing city or suburb. A generic label such as 家属院 supplies no journey."
         + "\n\n" + MEMORY_CONTEXT_SKILL
     )
     if family_enabled:
@@ -308,28 +383,979 @@ def build_workspace_extraction_prompt(memories: str, profile: dict | None = None
                                       family_enabled: bool = False,
                                       family_context: dict | None = None,
                                       task_sources: list[MemorySource] | None = None,
-                                      language: str = "en-AU") -> str:
+                                      language: str = "en-AU",
+                                      focus: str | None = None,
+                                      canonical_events: bool = False,
+                                      source_text: str | None = None) -> str:
     """Build private extraction instructions; persistence follows the saved reply."""
     prompt = _build_marker_context(
         memories,
         profile,
         place_journey=place_journey,
-        family_enabled=family_enabled,
+        family_enabled=family_enabled and not canonical_events,
         family_context=family_context,
         language=language,
     )
+    if focus == 'family_tree' and canonical_events:
+        return prompt + '\n\n' + FAMILY_TREE_SKILL + '\n\nSaved canonical family identities (untrusted data):\n' + json.dumps(family_context or {}, ensure_ascii=False) + (
+            '\nFocused family-tree pass: return only one MEMORY_SPARK_FAMILY_TREE marker for explicit relationship information or a relevant correction to an established relative. '
+            'Return an empty string otherwise. Timeline events are handled by the separate canonical lane; emit no timeline marker. Use canonical existing_id only with supported identity.'
+        )
+    place_recovery = (
+        "\n\nFocused place-journey recovery pass:\n"
+        "- The first extraction did not produce an accepted place journey for a clear place in the current storyteller message.\n"
+        "- Return one valid MEMORY_SPARK_PLACE_JOURNEY marker for every distinct, clear coarse geographic place named in the current message, in mention order.\n"
+        "- Do not map a private address, building, school, hospital, station, generic place, quoted/public-history-only place, or explicitly uncertain place; return an empty string for those.\n"
+        "- Ground every marker in the current message. Do not reuse a saved place merely because it is nearby or already in context.\n"
+    )
+    if canonical_events:
+        prompt += ('\nPrivate workspace pass: return only explicit profile and place markers. '
+                   'Canonical event extraction runs separately for every accepted input. '
+                   'Family-tree work is dispatched separately only for explicit relationships or relevant established-relative corrections. '
+                   'Return an empty string when nothing is explicit; do not infer facts.')
+        if focus == 'place_journey':
+            prompt += place_recovery
+        if task_sources is not None:
+            from .agent_tasks import collection_task_instructions
+            prompt += collection_task_instructions(task_sources)
+        return prompt
     prompt += (
         "\n\nWorkspace extraction contract:\n"
         "- This is a private parallel extraction pass. Do not write a conversational response.\n"
         "- Return only the machine markers required by the contracts above.\n"
         "- Emit one place journey marker for every distinct, clear place named in the current message, in mention order, before other markers so maps can appear during the reply.\n"
+        "- Do not restrict timeline extraction to dated sentences. For every clearly stated author event or life period, preserve it; when its date is not supplied, use date_expression `unknown` and precision `unknown` (for example, a clear birth statement). Never invent a date or drop the event only because its date is unknown.\n"
+        "- Evaluate each enabled domain independently before returning: profile, place journey, family tree, and author timeline. A profile or place marker never substitutes for a family-tree or author-timeline marker.\n"
+        "- When Family is enabled, emit a family-tree marker for every current-turn person introduction, family title, relationship assertion, person detail, or correction that is explicit and unambiguous; the person need not be a blood relative. Emit a separate author-timeline marker for every current-turn author event or life period, including explicit birth, childhood, age, season, move, work, care, visit, or correction statements.\n"
+        "- Use an empty `people`/`relationships` or `timeline` array only when that domain has no current-turn item. Do not omit a domain because another marker was emitted. Do not treat a source/uncertainty statement as a reason to drop an otherwise explicit person or author event; preserve the source and uncertainty in the marker.\n"
+        "- Mandatory audit before returning: if the current text says `I was born in Hobart`, the output must contain an author-timeline marker with an event whose date_expression is `unknown`; if it says `At sixteen I began helping at the shop`, the output must contain an author-timeline marker with an age/approximate event. These markers are required even when a profile marker is also present; never let birth_place or story_focus replace the timeline event. For `进入青春期后，我开始在茶馆里帮忙记账`, emit a separate timeline event with date_expression `进入青春期后` and precision `age`.\n"
+        "- Exact birth-shape example (adapt the facts, do not copy unsupported facts): `[[MEMORY_SPARK_AUTHOR_TIMELINE]]{\"timeline\":[{\"id\":\"e-birth\",\"kind\":\"event\",\"title\":\"Was born in Hobart\",\"date_expression\":\"unknown\",\"precision\":\"unknown\",\"place\":\"Hobart\"}]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]`.\n"
+        "- Other examples: `My sister Nora says ...` requires a family-tree person/introduction; `I met my partner Sam ...` requires a family-tree item and a separate timeline event.\n"
         "- If nothing is explicit, return an empty string. Never infer missing profile, place, family, or task data.\n"
         "- The application removes and validates markers before they reach the storyteller."
     )
+    if source_text:
+        source_claims = _timeline_source_spans(source_text)
+        if source_claims:
+            prompt += (
+                "\n\nTimeline source-claim association contract:\n"
+                "- The source claims below are private routing metadata. For every author-timeline item, "
+                "include `source_claim_id` with the exact claim id that supports that item.\n"
+                "- Do not infer a claim id from a title synonym, a shared noun, or a shared date. If one "
+                "item cannot be associated with exactly one source claim, omit that item instead of guessing.\n"
+                "- Keep timeline items in source-claim order. Never use the recording instruction itself as "
+                "the source claim for an event. The application strips this private field before persistence.\n"
+            )
+            prompt += "\n".join(
+                f"- c{index}: {sentence}"
+                for index, (sentence, _start, _end) in enumerate(source_claims[:80])
+            )
+    if focus in {"family_tree", "author_timeline", "place_journey"}:
+        if focus == "family_tree":
+            prompt += (
+                "\n\nFocused family-tree recovery pass:\n"
+                "- The first extraction did not produce an accepted family-tree update. Re-read only the current storyteller message and the saved Family document.\n"
+                "- Return only one MEMORY_SPARK_FAMILY_TREE marker when the current message explicitly adds a person, person detail, family title, relationship, or correction; otherwise return an empty string.\n"
+                "- Do not let a profile, place, or timeline fact suppress an explicit family-tree item, and do not invent a relationship.\n"
+                "- Kinship titles and explicit shorthand such as `my father`, `my mother`, `my parent`, `my sister`, `my brother`, `my partner`, `my child`, `Mum`, `Mom`, `Dad`, `Gran`, or `Grandma`, as well as any grandparent detail, are explicit family-tree items even when a similar person already exists in the saved document. Preserve the title and current-turn detail in a person introduction; use an existing_id only when the saved context clearly identifies the same person. Never skip the marker just because the turn also contains an author-timeline event.\n"
+                "- For a current message such as `At about three, I followed my father to the docks`, emit a family marker for the explicit father/parent item and a separate timeline marker is handled by the other pass.\n"
+                "- For a current message such as `Mum grew mint beside the laundry`, emit a family marker for Mum with that grounded introduction; do not treat the shorthand as an unneeded duplicate of `parents`.\n"
+            )
+        elif focus == "author_timeline":
+            prompt += (
+                "\n\nFocused author-timeline recovery pass:\n"
+                "- The first extraction did not produce an accepted author-timeline update. Re-read only the current storyteller message.\n"
+                "- Return only one MEMORY_SPARK_AUTHOR_TIMELINE marker when the message explicitly adds or corrects an author event or life period; otherwise return an empty string.\n"
+                "- Birth, childhood, age, season, move, work, care, visit, and correction statements are eligible even without a calendar date. Use date_expression `unknown` and precision `unknown` when needed; never let a profile or place fact suppress a clear event.\n"
+            )
+        else:
+            prompt += place_recovery
     if task_sources is not None:
         from .agent_tasks import collection_task_instructions
         prompt += collection_task_instructions(task_sources)
     return prompt
+
+
+def _workspace_focus_is_relevant(text: str, focus: str, family_context: Mapping[str, Any] | None = None) -> bool:
+    """Avoid chargeable recovery passes when the current turn has no cue.
+
+    The broad workspace pass still runs for every turn.  A focused recovery
+    pass is only useful when the storyteller's current words contain evidence
+    for that domain; running both focused passes on every family-enabled turn
+    adds latency and can create unnecessary provider work on negative rounds.
+    This is a routing hint, never a substitute for model extraction.
+    """
+    lowered = original_conversation_text(text).casefold()
+    if focus == 'place_journey':
+        if place_journey_message_is_ambiguous(text):
+            return False
+        # Broad extraction normally handles simple birthplace/home wording.
+        # Recovery is reserved for relational place wording that models often
+        # overlook, such as “letters about Wollongong” or “returned to Dali”,
+        # while still requiring a named coarse place.
+        return bool(
+            re.search(
+                r"\b(?:about|near|around|to|from|back\s+to|returned\s+to|"
+                r"left\s+for|visited)\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ-]*(?:\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ-]*)?\b",
+                original_conversation_text(text),
+            )
+            or re.search(r"(?:关于|到|去|回|来自|住在|搬到).{0,8}[\u3400-\u9fff]{2,}", text)
+        )
+    if focus == 'family_tree':
+        if _family_tree_marker_is_explicitly_disclaimed(text):
+            return False
+        if re.search(
+            r"\b(?:family|mother|father|parent|sister|brother|grandmother|grandfather|"
+            r"grandma|grandpa|mum|mom|dad|gran|nan|partner|wife|husband|child|son|"
+            r"daughter|aunt|uncle|cousin|sibling|friend|colleague|teacher|"
+            r"neighbou?r|mentor|boss)\b",
+            lowered,
+        ) or re.search(
+            r"(?:家人|家庭|母亲|妈妈|妈|父亲|爸爸|爸|父母|姐妹|妹妹|姐姐|兄弟|哥哥|弟弟|"
+            r"外婆|外公|奶奶|爷爷|伴侣|妻子|丈夫|孩子|儿子|女儿|阿姨|叔叔|舅舅|姑姑|表亲|"
+            r"朋友|同事|同学|老师|邻居|导师|老板)",
+            text,
+        ) or re.search(
+            r"(?:家人.{0,12}(?:脸|照片|相册|发表许可)|(?:旧|老)?相册.{0,12}家人)",
+            text,
+        ):
+            return True
+        # A known person can be referred to by name without repeating their
+        # kinship title (for example, “what June remembers”).  Use only names
+        # already accepted into this project's Family document; do not infer
+        # that an arbitrary capitalized word is a relative.
+        if isinstance(family_context, Mapping):
+            for person in family_context.get('people') or []:
+                if not isinstance(person, Mapping):
+                    continue
+                values = [person.get('name')]
+                aliases = person.get('aliases')
+                values.extend(aliases if isinstance(aliases, list) else [aliases])
+                for value in values:
+                    if not isinstance(value, str) or not value.strip():
+                        continue
+                    candidate = value.strip().casefold()
+                    if any(char.isalpha() and ord(char) > 127 for char in candidate):
+                        if candidate in lowered:
+                            return True
+                    elif re.search(rf"(?<![A-Za-z]){re.escape(candidate)}(?![A-Za-z])", lowered):
+                        return True
+        return False
+    if focus == 'author_timeline':
+        # This is only a recovery hint. Reflection/source-boundary cues may
+        # share a turn with a real author event, so never use a broad negative
+        # regex as a domain-wide veto here.
+        if (_author_timeline_marker_is_advisory_without_author_event(text)
+                or _author_timeline_marker_is_reflection_only(text)):
+            return False
+        return _author_timeline_has_source_evidence(text)
+    return False
+
+
+def _author_timeline_marker_is_explicitly_disclaimed(text: str) -> bool:
+    """Reject only a marker the storyteller explicitly says is not an event.
+
+    Routing heuristics decide whether a focused recovery pass is worth asking
+    for. They must not decide whether a grounded marker can be persisted. The
+    narrow exception here is an explicit source instruction that a reflection
+    should not become a dated event, timeline entry, or record.
+    """
+    lowered = original_conversation_text(text).casefold()
+
+    # Do not treat a bare negation as an instruction to discard a marker:
+    # ``I moved in 1980, not 1981; please correct my timeline`` contains the
+    # word "not", but it is explicitly asking for a correction to be kept.
+    # Suppression therefore requires a recording verb/object or an explicit
+    # statement that the item is outside the timeline.
+    english_suppression = (
+        re.search(
+            r"\b(?:please\s+)?(?:do not|don't|should not|shouldn't|never)\s+"
+            r"(?:record|include|add|put|place|make|keep|treat|turn)\b.{0,80}\b"
+            r"(?:dated event|timeline|event|record)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:leave|keep|omit|exclude)\b.{0,40}\b(?:out of|off|from)\b.{0,30}\b"
+            r"(?:my\s+)?(?:timeline|record|events?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:is|be|belongs?)\s+(?:not|never)\s+(?:on|in|part of)\s+"
+            r"(?:my\s+)?(?:timeline|record|events?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:isn't|is not|wasn't|was not)\s+(?:a\s+)?dated\s+event\b",
+            lowered,
+        )
+    )
+    chinese_suppression = re.search(
+        r"(?:请)?(?:不要|别|不应|不应该)\s*(?:记录|加入|放进|列入|写入|算作|当作|成为)"
+        r".{0,50}(?:时间线|事件|日期|记录)"
+        r"|(?:不属于|不是).{0,20}(?:时间线|事件|记录)"
+        r"|(?:反思|回忆).{0,40}(?:不一定|不要|不应|不应该).{0,40}(?:事件|日期|记录)",
+        text,
+    )
+    # Reflection, uncertainty, and source-boundary cues are advisory routing
+    # signals. Only an explicit instruction about recording the timeline may
+    # remove the entire marker block; neighbouring claims must not erase valid
+    # author events.
+    return bool(english_suppression or chinese_suppression)
+
+
+_ENGLISH_POSSESSIVE_PERSON_HEADS = frozenset({
+    "aunt", "brother", "boss", "child", "colleague", "cousin", "daughter",
+    "dad", "father", "friend", "grandfather", "grandmother", "grandma",
+    "grandpa", "gran", "husband", "mentor", "mother", "mum", "mom", "nan",
+    "neighbour", "neighbor", "partner", "sibling", "sister", "son", "teacher",
+    "uncle", "wife",
+})
+_CHINESE_POSSESSIVE_PERSON_HEADS = re.compile(
+    r"^(?:的)?(?:父亲|爸爸|爸|母亲|妈妈|妈|父母|姐姐|妹妹|哥哥|弟弟|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
+_CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN = re.compile(
+    r"^(?:的)?(?:姐姐|妹妹|哥哥|弟弟|父亲|爸爸|爸|母亲|妈妈|妈|父母|"
+    r"外婆|外公|奶奶|爷爷|祖父|祖母|伴侣|妻子|丈夫|孩子|儿子|女儿|"
+    r"阿姨|叔叔|舅舅|姑姑|表亲|朋友|同事|同学|老师|邻居|导师|老板)"
+)
+
+
+def _chinese_author_subject_present(sentence: str, *, require_first_subject: bool = False) -> bool:
+    """Return whether a clause contains a direct, non-relative ``我`` subject."""
+    if not isinstance(sentence, str):
+        return False
+    if require_first_subject:
+        leading = sentence.lstrip(" \t，,：:")
+        match = re.match(r"我们|我", leading)
+        if not match:
+            return False
+        suffix = leading[match.end():]
+        return not (
+            suffix.startswith("的")
+            or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix)
+        )
+    for match in re.finditer(r"我们|我", sentence):
+        suffix = sentence[match.end():]
+        if suffix.startswith("的") or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix):
+            continue
+        return True
+    return False
+
+
+def _chinese_positive_author_subject(sentence: str) -> bool:
+    """Exclude epistemic/permission clauses while keeping mixed claims."""
+    if not isinstance(sentence, str):
+        return False
+    for match in re.finditer(r"我们|我", sentence):
+        suffix = sentence[match.end():]
+        if suffix.startswith("的") or _CHINESE_RELATIVE_AFTER_AUTHOR_PRONOUN.match(suffix):
+            continue
+        if re.match(r"(?:不确定|不清楚|不知道|无法|不能|没法|不想|不愿|不需要)", suffix):
+            continue
+        return True
+    return False
+
+
+def _english_possessive_subject_is_author_owned(sentence: str) -> bool:
+    """Classify ``My ...`` by its possessed subject, not by ``my`` alone.
+
+    ``My first job`` and ``My first house`` are author-owned biographical
+    subjects. ``My aunt June`` and ``My father's stories`` are subjects owned
+    by, or attributed to, another person. The distinction is structural and
+    does not depend on enumerating event verbs.
+    """
+    lowered = sentence.strip().casefold()
+    match = re.match(r"^(?:my|our)\s+(.+)$", lowered)
+    if not match:
+        return False
+    subject = re.split(r"[.!?,;:]|\s+(?:and|but|who|that|which)\s+", match.group(1), maxsplit=1)[0]
+    tokens = re.findall(r"[a-z]+(?:['’]s)?", subject)
+    if not tokens:
+        return False
+    if tokens[0].endswith(("'s", "’s")) or tokens[0][:-2] in _ENGLISH_POSSESSIVE_PERSON_HEADS:
+        return False
+    # Allow a small determiner/adjective prefix (``my dear aunt``) while
+    # still rejecting a relational head before an arbitrary proper name.
+    for token in tokens[:3]:
+        if token.endswith(("'s", "’s")) or token.rstrip("'’s") in _ENGLISH_POSSESSIVE_PERSON_HEADS:
+            return False
+    return True
+
+
+def _author_biographical_fragment(sentence: str) -> bool:
+    """Accept clear autobiographical fragments whose subject is implicit."""
+    if not isinstance(sentence, str):
+        return False
+    stripped = sentence.strip()
+    lowered = stripped.casefold()
+    return bool(
+        re.match(r"^(?:born|raised)\s+(?:in|at|near)\b", lowered)
+        or re.match(r"^(?:出生|生于|生在)(?:于|在)?", stripped)
+    )
+
+
+def _timeline_source_spans(text: str) -> list[tuple[str, int, int]]:
+    """Split visible user text into source clauses while retaining offsets.
+
+    Offsets make a marker entry's association explicit: a veto targets the
+    nearest preceding author-owned source clause, while a later independent
+    claim remains eligible. The split also keeps mixed uncertainty and a
+    positive author claim from sharing one all-or-nothing sentence decision.
+    """
+    source = original_conversation_text(text) if isinstance(text, str) else ""
+    separator = re.compile(
+        r"[.!?。！？；;\n]+"
+        r"|,(?=\s*(?:but|although|though|however|yet|and|then)\b)"
+        r"|，(?=(?:但|但是|不过|然而|然后|同时|而且|可是|那时))"
+        r"|\bplease\s+(?=(?:do not|don't|should not|shouldn't|never)\s+"
+        r"(?:record|include|add|put|place|make|keep|treat|turn)\b)"
+        r"|(?=\b(?:do not|don't|should not|shouldn't|never)\s+"
+        r"(?:record|include|add|put|place|make|keep|treat|turn)\b)"
+        r"|，"
+        r"|请(?=(?:不要|别|不应|不应该)\s*"
+        r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+        r"(?:记录|加入|放进|列入|写入|算作|当作|成为))"
+        r"|(?=(?:不要|别|不应|不应该)\s*"
+        r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+        r"(?:记录|加入|放进|列入|写入|算作|当作|成为))",
+        re.IGNORECASE,
+    )
+    spans: list[tuple[str, int, int]] = []
+    start = 0
+    for match in separator.finditer(source):
+        raw = source[start:match.start()]
+        left = len(raw) - len(raw.lstrip())
+        right = len(raw.rstrip())
+        if right > left:
+            spans.append((raw[left:right], start + left, start + right))
+        start = match.end()
+    raw = source[start:]
+    left = len(raw) - len(raw.lstrip())
+    right = len(raw.rstrip())
+    if right > left:
+        spans.append((raw[left:right], start + left, start + right))
+    return spans
+
+
+_TIMELINE_SOURCE_CLAIM_ID = re.compile(r"^c(?:0|[1-9]\d{0,3})$")
+
+
+def _timeline_source_claim_index(value: Any, source: str) -> int | None:
+    """Resolve private ``cN`` metadata against the current visible source."""
+    if not isinstance(value, str) or _TIMELINE_SOURCE_CLAIM_ID.fullmatch(value) is None:
+        return None
+    index = int(value[1:])
+    spans = _timeline_source_spans(source)
+    return index if index < len(spans) else None
+
+
+def _timeline_source_sentences(text: str) -> list[str]:
+    return [sentence for sentence, _start, _end in _timeline_source_spans(text)]
+
+
+def _author_possessive_subject(sentence: str) -> bool:
+    """Recognize an author-owned nominal subject without event verbs.
+
+    Shapes such as ``My first job ...`` and ``My first house ...`` are
+    autobiographical even when the sentence contains no literal ``I``.  A
+    possessive source (``My father's stories ...``) is not treated as the
+    storyteller's owned subject; other ``my``/``our`` phrases remain eligible
+    source-grounded material and the model still decides the event.
+    """
+    if not isinstance(sentence, str):
+        return False
+    lowered = sentence.strip().casefold()
+    if re.match(r"^(?:my|our)\s+", lowered):
+        return _english_possessive_subject_is_author_owned(sentence)
+    stripped = sentence.strip()
+    if stripped.startswith("我的"):
+        return _CHINESE_POSSESSIVE_PERSON_HEADS.match(stripped[2:]) is None
+    if stripped.startswith("我们的"):
+        return _CHINESE_POSSESSIVE_PERSON_HEADS.match(stripped[3:]) is None
+    return False
+
+
+def _sentence_has_author_event_evidence(sentence: str) -> bool:
+    """Recognize an asserted first-person claim without an event verb list.
+
+    The model owns the event vocabulary. The host only establishes the
+    source/subject contract: a first-person assertion must not be an
+    uncertainty report or a pure reflection. Explicit dates/ages make the
+    evidence stronger, but a clear undated claim such as "I bought my first
+    house" remains eligible.
+    """
+    if not isinstance(sentence, str):
+        return False
+    lowered = sentence.casefold()
+    english_assertion = False
+    for match in re.finditer(r"\b(?:i|we)\b", lowered):
+        suffix = lowered[match.end():].lstrip()
+        if re.match(
+            r"(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
+            r"(?:cannot|can't|can\s+not|do\s+not|don't|did\s+not|didn't)\s+"
+            r"(?:know|tell|give|provide|confirm|remember|want|need)\b",
+            suffix,
+        ):
+            continue
+        english_assertion = True
+        break
+    chinese_assertion = _chinese_author_subject_present(sentence)
+    has_first_person = english_assertion or chinese_assertion
+    possessive_subject = _author_possessive_subject(sentence)
+    if not has_first_person and not possessive_subject and not _author_biographical_fragment(sentence):
+        return False
+    uncertainty_only = bool(re.search(
+        r"\b(?:i|we)\s+(?:am|was|are|were)\s+(?:unsure|uncertain|not\s+sure)\b|"
+        r"\b(?:i|we)\s+(?:cannot|can't|can\s+not|do\s+not|don't|did\s+not|didn't)\s+"
+        r"(?:know|tell|give|provide|confirm|remember|want|need)\b",
+        lowered,
+    ))
+    chinese_uncertainty_only = bool(re.search(
+        r"(?:我|我们)\s*(?:不确定|不清楚|不知道|无法|不能|没法|不想|不愿|不需要)",
+        sentence,
+    ))
+    if uncertainty_only and not (
+        possessive_subject or _author_biographical_fragment(sentence) or english_assertion
+    ):
+        return False
+    if chinese_uncertainty_only and not (
+        possessive_subject or _author_biographical_fragment(sentence)
+        or _chinese_positive_author_subject(sentence)
+    ):
+        return False
+    strong_date = bool(
+        re.search(
+            r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b(?:age|aged)\s+\d{1,3}\b|"
+            r"\bat\s+(?:age\s+)?\d{1,3}\b|\bwhen\s+i\s+was\b|"
+            r"\b(?:during|in|as\s+a)\s+(?:childhood|adolescence|"
+            r"toddlerhood|teenage|young\s+adulthood|midlife)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:18|19|20)\d{2}年|\d{1,3}岁|(?:童年|幼儿|青春期|青少年)",
+            sentence,
+        )
+    )
+    meta_only = bool(re.search(
+        r"(?:许可|同意|授权|隐私|相册|照片|发表许可|不想把|不要把)"
+        r"(?:.{0,80}(?:许可|同意|授权|隐私|相册|照片|事实|故事))?|"
+        r"\b(?:permission|consent|approval|privacy|photo|album)\b",
+        sentence,
+        re.IGNORECASE,
+    ))
+    if meta_only and not strong_date:
+        return False
+    if re.search(
+        r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+        r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}"
+        r"(?:保留在故事之外|不应写入我的故事)",
+        sentence,
+    ):
+        return False
+    pure_reflection = bool(
+        re.search(
+            r"\b(?:sometimes|often)\b.{0,100}\b(?:remember|recall|reflection|"
+            r"reflective|just\s+to\s+remember|memory)\b|"
+            r"\b(?:i|we)\s+(?:directly\s+)?(?:remember|recall|reflect)\b",
+            lowered,
+        )
+        or re.search(r"(?:有时|常常|回望|回忆|反思|只记录).{0,80}(?:记得|声音|颜色|耐心|旧)", sentence)
+    )
+    memory_complement = bool(
+        re.search(
+            r"\b(?:remember|remembered|recall|recalled)\s+"
+            r"(?:that\s+)?(?:i|we)\b|"
+            r"\b(?:remember|remembered|recall|recalled)\s+\w+ing\b",
+            lowered,
+        )
+        or re.search(r"(?:记得|想起|回忆)(?:我|我们|自己)[^。！？.!?\n]{1,}", sentence)
+    )
+    # A dated/aged claim can be mixed with a memory verb, for example
+    # "I often remember the day I moved in 1980"; that remains source
+    # evidence.
+    if pure_reflection and not strong_date and not memory_complement:
+        return False
+    return True
+
+
+def _author_timeline_has_source_evidence(text: str) -> bool:
+    return any(_sentence_has_author_event_evidence(sentence) for sentence in _timeline_source_sentences(text))
+
+
+def _author_timeline_marker_is_reflection_only(text: str) -> bool:
+    """Recognize a pure reflection while preserving mixed author claims."""
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    reflective = bool(
+        re.search(
+            r"\b(?:in|during)\s+later[- ]life\b.{0,180}\b(?:sometimes|often)\b"
+            r".{0,120}\b(?:just\s+to\s+remember|to\s+remember|reflection|patience|"
+            r"old\s+bench)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:later[- ]life\s+(?:memories|reflections?)|later\s+reflections?)\b"
+            r".{0,120}\b(?:no reliable date|timing open|rather than guess|"
+            r"not a dated event|does not need a precise date)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:晚年|晚年回忆|晚年的回忆).{0,100}(?:回望|没有可靠(?:日期|时间)|"
+            r"有时只记录|反思|不一定.{0,20}事件)",
+            original_conversation_text(text),
+        )
+    )
+    return reflective and not _author_timeline_has_source_evidence(text)
+
+
+def _author_timeline_marker_is_advisory_without_author_event(text: str) -> bool:
+    """Identify source/third-party advisory text for routing only."""
+    if not isinstance(text, str) or _author_timeline_has_source_evidence(text):
+        return False
+    source = original_conversation_text(text)
+    lowered = source.casefold()
+    source_boundary = bool(re.search(
+        r"\b(?:please\s+)?(?:preserve|keep|maintain|separate|distinguish)\b"
+        r".{0,100}\b(?:difference|distinction|boundary)\b.{0,140}\b"
+        r"(?:what\s+[a-z][a-z'’-]*\s+remembers?|what\s+[a-z][a-z'’-]*['’]s\s+"
+        r"memory|what\s+i\s+directly\s+remember|my\s+testimony|public\s+history)\b",
+        lowered,
+    ))
+    third_party_uncertainty = bool(re.search(
+        r"\b(?:i(?:'m|’m| am)|we(?:'re|’re| are))\s+(?:unsure|uncertain|"
+        r"not\s+sure|do\s+not\s+know|don't\s+know)\b.{0,100}\b(?:whether|if)\b",
+        lowered,
+    ))
+    chinese_source_boundary = bool(re.search(
+        r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+        r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
+        source,
+    ))
+    return source_boundary or third_party_uncertainty or chinese_source_boundary
+
+
+def _timeline_veto_scope(sentence: str) -> str | None:
+    """Return the explicit user-veto scope for one source sentence."""
+    if not isinstance(sentence, str):
+        return None
+    lowered = sentence.casefold()
+    english = bool(
+        re.search(
+            r"\b(?:please\s+)?(?:do not|don't|should not|shouldn't|never)\s+"
+            r"(?:record|include|add|put|place|make|keep|treat|turn)\b"
+            r".{0,100}\b(?:timeline|dated events?|events?|records?)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:leave|keep|omit|exclude)\b.{0,50}\b(?:out of|off|from)\b"
+            r".{0,30}\b(?:my\s+)?(?:timeline|records?|events?)\b",
+            lowered,
+        )
+    )
+    chinese = bool(
+        re.search(
+            r"(?:请)?(?:不要|别|不应|不应该)\s*"
+            r"(?:(?:把|将)[^。！？.!?；;\n]{0,20}?)?\s*"
+            r"(?:记录|加入|放进|列入|写入|算作|当作|成为)"
+            r".{0,60}(?:时间线|事件|日期|记录)",
+            sentence,
+        )
+    )
+    if not (english or chinese):
+        return None
+    item_specific = bool(
+        re.search(r"\b(?:this|that|the)\s+(?:event|item|entry|memory|reflection)\b", lowered)
+        or re.search(
+            r"\b(?:this|that|the)\s+(?!events?\b|records?\b|timeline\b)"
+            r"[a-z][a-z'’-]*\b",
+            lowered,
+        )
+        or re.search(r"(?:这件事|这个事件|这个条目|这段回忆|这条记录)", sentence)
+    )
+    return "item" if item_specific else "all"
+
+
+_TIMELINE_GENERIC_TITLE = re.compile(
+    r"^(?:a\s+)?(?:reflection|memory|later\s+life|recollection|回忆|反思|回望)$",
+    re.IGNORECASE,
+)
+
+
+def _timeline_item_has_reflection_only_source(item: Mapping[str, Any], source: str) -> bool:
+    title = str(item.get("title") or "").strip()
+    if _TIMELINE_GENERIC_TITLE.fullmatch(title):
+        return True
+    item_text = " ".join(str(item.get(key) or "") for key in (
+        "title", "date_expression", "start_expression", "end_expression"
+    )).casefold()
+    if not re.search(r"\b(?:reflection|recollect|remember|memory)\b|回忆|反思|回望", item_text):
+        return False
+    candidates = [
+        sentence for sentence in _timeline_source_sentences(source)
+        if any(anchor and anchor.casefold() in sentence.casefold() for anchor in (
+            str(item.get("place") or ""), str(item.get("date_expression") or ""),
+            str(item.get("start_expression") or ""), str(item.get("end_expression") or ""),
+        ))
+    ]
+    return bool(candidates) and all(not _sentence_has_author_event_evidence(sentence) for sentence in candidates)
+
+
+def _timeline_item_source_anchors(item: Mapping[str, Any]) -> list[str]:
+    values = [str(item.get(key) or "") for key in (
+        "title", "date_expression", "start_expression", "end_expression", "place"
+    )]
+    anchors: list[str] = []
+    generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
+    for value in values:
+        lowered = value.casefold().strip()
+        if lowered and lowered not in generic:
+            anchors.append(lowered)
+        anchors.extend(
+            token.casefold() for token in re.findall(
+                r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b[a-z]{4,}\b", value
+            ) if token.casefold() not in generic
+        )
+        anchors.extend(
+            token for token in re.findall(r"[\u3400-\u9fff]{2,}", value)
+            if token not in generic
+        )
+    return list(dict.fromkeys(anchor for anchor in anchors if anchor))
+
+
+def _timeline_item_source_span_indices(
+    item: Mapping[str, Any], source: str,
+) -> list[int] | None:
+    """Associate an item with the best matching visible source clause.
+
+    A private resolved association or ``source_claim_id`` takes precedence
+    over lexical matching. This lets extraction use source structure for
+    paraphrases without widening the host's event vocabulary.
+
+    Dates and places are supporting evidence, not identity. Event-title
+    tokens carry the highest weight so two events sharing a year or noun do
+    not both become the target of one ``this event`` veto.
+    """
+    if "_resolved_source_span_indices" in item:
+        resolved = item.get("_resolved_source_span_indices")
+        if resolved is None:
+            return None
+        if isinstance(resolved, (list, tuple)) and all(
+            isinstance(index, int) and not isinstance(index, bool) for index in resolved
+        ):
+            return list(resolved)
+        return []
+    source_claim_key = next(
+        (key for key in ("_source_claim_id", "source_claim_id") if key in item),
+        None,
+    )
+    if source_claim_key is not None:
+        claim_index = _timeline_source_claim_index(item.get(source_claim_key), source)
+        # A supplied but invalid private claim id is unresolved; do not let a
+        # forged or stale id fall back to title/date matching.
+        return [claim_index] if claim_index is not None else None
+    generic = {"unknown", "later life", "event", "period", "reflection", "memory", "回忆", "反思", "回望"}
+    title = str(item.get("title") or "").strip().casefold()
+    identity: list[str] = []
+    if title and title not in generic:
+        identity.append(title)
+        identity.extend(
+            token.casefold() for token in re.findall(r"\b[a-z]{4,}\b", title)
+            if token.casefold() not in generic
+        )
+        identity.extend(
+            token for token in re.findall(r"[\u3400-\u9fff]{2,}", title)
+            if token not in generic
+        )
+    dates: list[str] = []
+    for key in ("date_expression", "start_expression", "end_expression"):
+        value = str(item.get(key) or "").strip().casefold()
+        if value and value not in generic:
+            dates.append(value)
+            dates.extend(
+                token.casefold() for token in re.findall(
+                    r"(?<!\d)(?:18|19|20)\d{2}(?!\d)|\b\d{1,2}\b", value
+                )
+            )
+    place = str(item.get("place") or "").strip().casefold()
+    place_tokens = [place] if place else []
+    if place:
+        place_tokens.extend(re.findall(r"\b[a-z]{4,}\b", place))
+
+    def contains(sentence: str, anchor: str) -> bool:
+        if not anchor:
+            return False
+        if re.search(r"[a-z]", anchor):
+            return re.search(rf"(?<![a-z]){re.escape(anchor)}(?![a-z])", sentence) is not None
+        return anchor in sentence
+
+    spans = _timeline_source_spans(source)
+    scored: list[tuple[int, int, int, bool]] = []
+    for index, (sentence, _start, _end) in enumerate(spans):
+        lowered = sentence.casefold()
+        phrase_score = 6 if title and title not in generic and contains(lowered, title) else 0
+        identity_hits = sum(1 for anchor in identity[1:] if contains(lowered, anchor))
+        place_hits = sum(1 for anchor in place_tokens if contains(lowered, anchor))
+        date_hits = sum(1 for anchor in dates if contains(lowered, anchor))
+        score = phrase_score + (identity_hits * 4) + (place_hits * 2) + date_hits
+        if score:
+            scored.append((score, identity_hits, index, _sentence_has_author_event_evidence(sentence)))
+    if not scored:
+        return []
+    author_scored = [row for row in scored if row[3]]
+    if author_scored:
+        scored = author_scored
+    best_score = max(score for score, _identity_hits, _index, _author_owned in scored)
+    best = [row for row in scored if row[0] == best_score]
+    if len(best) > 1:
+        # A shared noun can be an identity token for several different
+        # author-owned events (for example ``house`` in ``bought`` and
+        # ``sold``).  Preserve the item, but do not let an item-specific veto
+        # destructively choose one of the tied source claims.
+        if any(author_owned for _score, _identity_hits, _index, author_owned in best):
+            return None
+        # If only shared supporting evidence (for example one year) ties, the
+        # source association is ambiguous without author-owned evidence.
+        return []
+    return [index for _score, _identity_hits, index, _author_owned in best]
+
+
+def _timeline_item_is_explicitly_vetoed(
+    item: Mapping[str, Any], source: str, item_count: int | None = None,
+) -> bool:
+    """Apply a storyteller's explicit timeline veto before marker grading.
+
+    ``this event`` refers to the nearest preceding source-grounded claim, so
+    a mixed turn can retain another independent event.  A broad ``do not add
+    events to my timeline`` veto removes every candidate.  This operates on
+    source/entry alignment and never decides whether an event verb is valid.
+    """
+    spans = _timeline_source_spans(source)
+    sentences = [sentence for sentence, _start, _end in spans]
+    vetoes = [
+        (index, _timeline_veto_scope(sentence))
+        for index, sentence in enumerate(sentences)
+        if _timeline_veto_scope(sentence)
+    ]
+    if not vetoes:
+        return False
+    if any(scope == "all" for _index, scope in vetoes):
+        return True
+    associated_indices = _timeline_item_source_span_indices(item, source)
+    # Ambiguity is handled conservatively: an item-specific veto must not
+    # delete an item that could belong to more than one author claim.
+    if associated_indices is None:
+        return False
+    item_indices = set(associated_indices)
+    author_indices = {
+        index for index, sentence in enumerate(sentences)
+        if _sentence_has_author_event_evidence(sentence)
+    }
+    for index, _scope in vetoes:
+        preceding = [candidate for candidate in author_indices if candidate < index]
+        if not preceding:
+            continue
+        target = max(preceding)
+        # A concrete item is vetoed only when its source association is the
+        # nearest preceding author claim. An item associated with a later
+        # claim must survive the earlier item-specific veto.
+        if target in item_indices:
+            return True
+        if item_indices:
+            continue
+
+        # A model can emit a generic title (for example ``Grounded event``)
+        # and provide no lexical anchor. In that case only suppress an
+        # unambiguous single-source event. If another author claim follows the
+        # veto, preserve the generic item rather than deleting the later
+        # allowed event merely because the marker has one entry.
+        later_author_claim = any(candidate > index for candidate in author_indices)
+        if not later_author_claim and (item_count in (None, 1)):
+            return True
+    return False
+
+
+def _timeline_item_is_source_grounded(item: Mapping[str, Any], source: str, item_count: int) -> bool:
+    if _timeline_item_has_reflection_only_source(item, source):
+        return False
+    spans = _timeline_source_spans(source)
+    item_indices = _timeline_item_source_span_indices(item, source)
+    if item_indices is None:
+        # The item has competing author-owned source matches and no private
+        # structural association. Keep the proposal private until it can be
+        # associated; an ambiguous title must not bypass a recording veto.
+        return False
+    if item_indices:
+        return any(
+            _sentence_has_author_event_evidence(spans[index][0])
+            for index in item_indices
+        )
+    # A single explicit author claim may have a generic model title. Keep it
+    # when there is no contradictory source anchor; multi-item markers require
+    # per-item evidence so an unrelated reflection cannot ride along.
+    return item_count == 1 and _author_timeline_has_source_evidence(source)
+
+
+def _validate_author_timeline_marker_for_sanitization(raw: Any) -> dict[str, Any] | None:
+    """Validate a timeline marker while retaining private claim metadata.
+
+    ``source_claim_id`` is an extraction-only association field. It is removed
+    before the normal family-context validator sees the payload and is attached
+    to the normalized item only long enough for source-boundary sanitization.
+    The field never reaches the durable family/timeline document.
+    """
+    if not isinstance(raw, dict):
+        return None
+    cleaned = dict(raw)
+    absent_claim = object()
+    claim_ids: list[Any] = []
+    for collection in ("timeline", "life_periods"):
+        records = raw.get(collection)
+        if not isinstance(records, list):
+            continue
+        cleaned_records: list[Any] = []
+        for record in records:
+            if isinstance(record, dict):
+                claim_id = record.get("source_claim_id", record.get("_source_claim_id"))
+                claim_ids.append(claim_id if "source_claim_id" in record or "_source_claim_id" in record else absent_claim)
+                cleaned_records.append({
+                    key: value for key, value in record.items()
+                    if key not in {"source_claim_id", "_source_claim_id"}
+                })
+            else:
+                claim_ids.append(absent_claim)
+                cleaned_records.append(record)
+        cleaned[collection] = cleaned_records
+    context = validate_author_timeline_context(cleaned)
+    if not context:
+        return None
+    for item, claim_id in zip(context.get("timeline", []), claim_ids):
+        if claim_id is not absent_claim:
+            item["_source_claim_id"] = claim_id
+    return context
+
+
+def _public_timeline_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value for key, value in item.items()
+        if key not in {"_source_claim_id", "source_claim_id", "_resolved_source_span_indices"}
+    }
+
+
+def _sanitize_author_timeline_markers(reply: str, text: str) -> str:
+    """Filter timeline entries against current source, never whole turns."""
+    if not isinstance(reply, str) or AUTHOR_TIMELINE_MARKER_START not in reply:
+        return reply
+    source = original_conversation_text(text) if isinstance(text, str) else ""
+    output: list[str] = []
+    cursor = 0
+    while True:
+        start = reply.find(AUTHOR_TIMELINE_MARKER_START, cursor)
+        if start < 0:
+            output.append(reply[cursor:])
+            break
+        output.append(reply[cursor:start])
+        payload_start = start + len(AUTHOR_TIMELINE_MARKER_START)
+        end = reply.find(AUTHOR_TIMELINE_MARKER_END, payload_start)
+        if end < 0:
+            break
+        raw_text = reply[payload_start:end].strip()
+        try:
+            raw = json.loads(raw_text)
+        except (TypeError, ValueError):
+            raw = None
+        context = _validate_author_timeline_marker_for_sanitization(raw)
+        keep_block = True
+        replacement = raw_text
+        timeline = context.get("timeline", []) if isinstance(context, dict) else []
+        if context and timeline:
+            kept = []
+            for item in timeline:
+                associated_indices = _timeline_item_source_span_indices(item, source)
+                # A paraphrase that shares only a noun/date with two claims is
+                # unresolved without the private source claim contract. Keep
+                # it out of durable state instead of allowing it to bypass an
+                # explicit recording boundary.
+                if associated_indices is None:
+                    continue
+                candidate = dict(item)
+                candidate["_resolved_source_span_indices"] = associated_indices
+                if (
+                    not _timeline_item_is_explicitly_vetoed(candidate, source, len(timeline))
+                    and _timeline_item_is_source_grounded(candidate, source, len(timeline))
+                ):
+                    kept.append(candidate)
+            if not _author_timeline_has_source_evidence(source):
+                # A non-empty author-timeline marker must have at least one
+                # source-grounded first-person claim. This drops accidental
+                # model markers on permission/meta turns without relying on a
+                # finite event-verb allowlist.
+                keep_block = False
+            elif kept:
+                if len(kept) != len(timeline) or any(
+                    "_source_claim_id" in item for item in timeline
+                ):
+                    replacement = json.dumps(
+                        {"timeline": [_public_timeline_item(item) for item in kept]},
+                        ensure_ascii=False, separators=(",", ":")
+                    )
+            elif timeline:
+                keep_block = False
+        if keep_block:
+            output.append(
+                AUTHOR_TIMELINE_MARKER_START + replacement + AUTHOR_TIMELINE_MARKER_END
+            )
+        cursor = end + len(AUTHOR_TIMELINE_MARKER_END)
+    return "".join(output)
+
+
+def _family_tree_marker_is_explicitly_disclaimed(text: str) -> bool:
+    """Reject family extraction when another person's story is out of scope."""
+    if not isinstance(text, str):
+        return False
+    lowered = original_conversation_text(text).casefold()
+    return bool(
+        re.search(
+            r"\b(?:i|we)\b.{0,30}\b(?:do not|don't|would not|wouldn't|must not)\b"
+            r".{0,50}\b(?:write|treat|present|turn|make|include)\b.{0,80}\b"
+            r"(?:her|his|their)\s+(?:life|experience|story)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:her|his|their)\s+(?:life|experience|story)\b.{0,60}\b"
+            r"(?:outside|out of|separate from|not my)\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:不想把|不要把).{0,30}(?:生活|经历|讲述).{0,30}(?:写成|当成|变成).{0,20}"
+            r"(?:我的事实|我的亲历|我的故事)|(?:经历|生活).{0,30}(?:保留在故事之外|不应写入我的故事)",
+            text,
+        )
+    )
+
+
+def _remove_marker_block(text: str, start_marker: str, end_marker: str) -> str:
+    """Remove one private marker domain without disturbing other domains."""
+    if not isinstance(text, str):
+        return ""
+    visible: list[str] = []
+    cursor = 0
+    while True:
+        start = text.find(start_marker, cursor)
+        if start < 0:
+            visible.append(text[cursor:])
+            break
+        visible.append(text[cursor:start])
+        payload_start = start + len(start_marker)
+        end = text.find(end_marker, payload_start)
+        if end < 0:
+            # An incomplete control block is not visible prose and must not
+            # leak into the storyteller reply.
+            break
+        cursor = end + len(end_marker)
+    return "".join(visible)
 
 
 def build_loop_trace(*, memory_count: int, resumed: bool, saved_paths: int,
@@ -445,7 +1471,8 @@ class CodexRuntime:
         self.home_root = Path(home_root or os.getenv('MEMORY_SPARK_CODEX_HOME', 'var/codex-users'))
         self.command = command or [os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), 'app-server']
         self.provider_env = provider_env or {}
-        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'deepseek-v4-flash')
+        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
+        self.composer_model = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'legal2ai-luna-low')
         self.base_url = base_url or os.getenv('MEMORY_SPARK_LLM_BASE_URL', 'http://127.0.0.1:4000/v1')
         self.api_key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
         self.timeout = timeout
@@ -465,6 +1492,17 @@ class CodexRuntime:
         self._locks = {}
         self._workspace_locks = {}
         self._turn_sequences: dict[str, int] = {}
+        # The configured provider does not expose token/cost usage to this
+        # application. Keep a separate request counter for evaluation receipts
+        # so it is never mistaken for billing evidence.
+        self._observed_worker_requests = 0
+
+    def record_worker_request(self) -> None:
+        self._observed_worker_requests += 1
+
+    @property
+    def observed_worker_requests(self) -> int:
+        return self._observed_worker_requests
 
     def _lock(self, user_id):
         return self._locks.setdefault(user_id, asyncio.Lock())
@@ -514,7 +1552,13 @@ class CodexRuntime:
                    evaluation: Mapping[str, Any] | None = None,
                    include_trajectory: bool = False,
                    evaluation_context: Mapping[str, Any] | None = None,
-                   first_reply_localization: bool = False):
+                   first_reply_localization: bool = False,
+                   conversation_text: str | None = None,
+                   client_turn_id: str | None = None,
+                   source_kind: str = 'narrator_chat',
+                   user_response: bool = True,
+                   trajectory: TrajectoryRecorder | None = None):
+        saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         visible = VisibleText()
         turn_id = str(uuid4())
         progress = TurnProgress(on_event, turn_id, project_id, language)
@@ -528,13 +1572,26 @@ class CodexRuntime:
         if project_id is not None and valid_family_project_id(project_id) is None:
             raise ValueError('Invalid Family project id')
         user_id = storage.user_id
+        # Public /turn requests are user responses even when the optional
+        # conversation_text field is absent. Assistant-only turns must enter
+        # through the server-owned bounded greeting route, which passes this
+        # internal flag explicitly; free-form client text never selects it.
+        is_user_round = bool(user_response)
+        accepted_source = None
+        if client_turn_id and project_id and isinstance(storage, UserStorage):
+            previous_turn = await asyncio.to_thread(storage.agent_turn_by_id, project_id, client_turn_id)
+            if previous_turn:
+                _, _, previous_reply = previous_turn['content'].partition('\nMemory Spark: ')
+                entitlement = await asyncio.to_thread(storage.story_entitlement)
+                return {'project_id':project_id,'reply':previous_reply,'conversation_saved':True,'cached':True,
+                        'recall_status':await asyncio.to_thread(storage_recall_status,storage,entitlement)}
         correlation = normalise_correlation(evaluation)
-        trajectory = None
-        if correlation or include_trajectory:
+        if trajectory is None and (correlation or include_trajectory):
             trajectory = TrajectoryRecorder(
                 correlation,
                 skill_manifest=build_skill_manifest(Path(__file__).resolve().parents[2] / 'skills'),
             )
+        if trajectory is not None:
             trajectory.set_context(
                 task=text,
                 project_id=project_id,
@@ -543,11 +1600,13 @@ class CodexRuntime:
             )
             if evaluation_context:
                 trajectory.set_context(**dict(evaluation_context))
-            trajectory.record('application', 'turn.received', input={
-                'text': text,
-                'project_id': project_id,
-                'language': language,
-            })
+            if not any(step.get('action') == 'turn.received' for step in trajectory.steps):
+                trajectory.record('application', 'turn.received', input={
+                    'text': text,
+                    'project_id': project_id,
+                    'language': language,
+                    'user_response': bool(user_response),
+                })
         async with AsyncExitStack() as preparation_scope, AsyncExitStack() as turn_scope:
             await turn_scope.enter_async_context(self._lock(user_id))
             turn_sequence = self._next_turn_sequence(user_id)
@@ -558,6 +1617,12 @@ class CodexRuntime:
                 recall_access = await lease.io(storage_recall_status, storage, entitlement)
                 if recall_access['payment_required']:
                     return {'project_id': project_id, 'recall_status': recall_access, 'reply': None}
+            if is_user_round and project_id and isinstance(storage, UserStorage):
+                from .conversation_locale import detect_reply_locale
+                client_turn_id = client_turn_id or turn_id
+                accepted_source = await lease.io(storage.accept_narrator_source,
+                    project_id, client_turn_id, saved_text, kind=source_kind,
+                    language=detect_reply_locale(saved_text) or language)
             conversation_rounds_completed = (
                 recall_access.get('rounds_completed')
                 if isinstance(recall_access, dict) else None
@@ -570,47 +1635,55 @@ class CodexRuntime:
             profile_reader = getattr(storage, "profile", None)
             profile = await lease.io(profile_reader) if callable(profile_reader) else {}
             language_updates = None
+            from .conversation_locale import (FIELD, LOCALES, state as locale_state,
+                record as locale_record, eligible_reply, first_narrator_reply,
+                detect_reply_locale, explicit_request, explicit_profile)
             saved_language = profile.get('preferred_language')
-            if first_reply_localization:
-                # This is the explicitly requested first-reply exception. The
-                # browser has detected the supported language locally; resolve
-                # it before the visible worker turn and allow it to replace a
-                # legacy/default saved conversation language for this turn.
-                if on_event:
-                    await progress.update('language', 'Detecting the first reply language', '正在识别第一条回复的语言', skill='app-auto-localization')
-                inferred_language = guess_conversation_language(text, language)
-                language = inferred_language
-                language_updates = {'preferred_language': language}
-                profile = merge_profile_updates(profile, language_updates)
-                if on_event:
-                    await progress.update('language', 'First reply language detected', '第一条回复的语言已识别', skill='app-auto-localization', status='completed')
-            elif saved_language in ('en-AU', 'zh-CN'):
+            current_locale_state = locale_state(profile)
+            narrator = eligible_reply(saved_text) if is_user_round else None
+            requested = explicit_request(narrator) if narrator else None
+            if requested:
+                profile = explicit_profile(profile, requested)
+                language = requested
+                language_updates = {'preferred_language': language, FIELD: profile[FIELD]}
+            elif current_locale_state:
+                language = saved_language if saved_language in LOCALES else current_locale_state.get('locale') or language
+            elif narrator or prior:
+                if isinstance(storage, UserStorage):
+                    first = await lease.io(storage.first_narrator_reply)
+                else:
+                    first = first_narrator_reply(memories)
+                first = first or ({'text': narrator, 'id': client_turn_id or turn_id} if narrator else None)
+                if not first:
+                    inferred_language = None
+                    if saved_language in LOCALES:
+                        language = saved_language
+                elif saved_language in LOCALES:
+                    # Existing settings lack provenance. Preserve them rather
+                    # than guessing they were defaults or replacing a manual choice.
+                    inferred_language = detect_reply_locale(first['text'])
+                    language = saved_language
+                    source = 'legacy'
+                else:
+                    await progress.update('language', 'Resolving the first reply language', '正在确认第一条回复的语言', skill='memoir-memory-context')
+                    inferred_language = (detect_reply_locale(first['text']) if on_delta
+                        else await self._resolve_language(storage.user_id, first['text'], language))
+                    language = inferred_language or language
+                    source = 'first_reply'
+                    await progress.update('language', 'First reply language saved', '第一条回复的语言已保存', skill='memoir-memory-context', status='completed')
+                if first:
+                    current_locale_state = locale_record(language, source=source,
+                        detected=inferred_language, first_reply_id=first['id'])
+                    profile = {**profile, 'preferred_language': language, FIELD: current_locale_state}
+                    language_updates = {'preferred_language': language, FIELD: current_locale_state}
+            elif saved_language in LOCALES:
                 language = saved_language
-            else:
-                # Streaming turns must not wait for a private language model
-                # pass. Use a conservative local guess for the first reply;
-                # non-streaming callers retain the validated intake pass.
-                if not on_delta:
-                    await progress.update('language', 'Resolving the conversation language', '正在确认对话语言', skill='memoir-memory-context')
-                inferred_language = (
-                    guess_conversation_language(text, language)
-                    if on_delta
-                    else await self._resolve_language(storage.user_id, text, language)
-                )
-                if not on_delta:
-                    await progress.update('language', 'Language check completed', '语言检查已完成', skill='memoir-memory-context', status='completed')
+            if language_updates:
+                # Persist within the cross-replica conversation lease before
+                # visible generation. Optional enrichment cannot own this write.
                 await lease.check()
-                if inferred_language:
-                    language = inferred_language
-                    language_updates = {'preferred_language': language}
-                    profile = merge_profile_updates(profile, language_updates)
-                    if not on_delta:
-                        await lease.io(storage.save_profile, profile)
-                        await lease.check()
-                if trajectory:
-                    trajectory.record('application', 'memoir-memory-context.language',
-                                      output={'preferred_language': inferred_language,
-                                              'saved': bool(language_updates)})
+                await lease.io(storage.save_profile, profile)
+                await lease.check()
             progress.language = language
             await progress.update('context', f'Loaded {len(memories)} memory summaries', f'已加载 {len(memories)} 条回忆摘要', status='completed')
             if trajectory:
@@ -647,7 +1720,8 @@ class CodexRuntime:
             extraction_task = None
             if on_delta and on_event:
                 async def preview_place(candidate):
-                    if place_journey_matches_message(candidate, text):
+                    if (not place_journey_message_is_ambiguous(text)
+                            and place_journey_matches_message(candidate, text)):
                         await on_event({'type': 'place_preview', 'data': {
                             'turn_id': turn_id, 'project_id': project_id,
                             'source_sequence': turn_sequence, 'place_journey': candidate,
@@ -656,7 +1730,9 @@ class CodexRuntime:
                     user_id=user_id, memories=memories, profile=profile,
                     place_journey=current_place_journey, family_enabled=family_enabled,
                     family_context=existing_family_context, project_id=project_id,
+                    canonical_events=isinstance(storage, UserStorage),
                     text=text, language=language, on_place=preview_place,
+                    trajectory=trajectory,
                 ))
                 async def settle_extraction():
                     if not extraction_task.done():
@@ -677,7 +1753,9 @@ class CodexRuntime:
                     project_id=project_id,
                     text=text,
                     language=language,
+                    trajectory=trajectory,
                     conversation_rounds_completed=conversation_rounds_completed,
+                    diagnostic_request_id=turn_id,
                     **({'evaluation': correlation} if correlation else {}),
                     **({'on_delta': emit_visible} if on_delta else {}),
                     **({'on_event': progress.harness_event} if on_event else {}),
@@ -738,7 +1816,7 @@ class CodexRuntime:
                         prompt,
                         **({'on_delta': emit_visible} if on_delta else {}),
                         **({'on_event': progress.harness_event} if on_event else {}),
-                        **({'responsesapi_client_metadata': correlation} if correlation else {}),
+                        responsesapi_client_metadata={**correlation, 'request_id': turn_id},
                     )
                 await lease.check()
                 # The session artifacts are transferred by the workspace pass
@@ -771,8 +1849,14 @@ class CodexRuntime:
                 reply, task_requests = extract_task_requests(reply)
                 reply, parsed_place_journeys = extract_place_journeys(reply)
                 parsed_place_journeys = [candidate for candidate in parsed_place_journeys
-                                         if place_journey_matches_message(candidate, text)]
+                                         if (not place_journey_message_is_ambiguous(text)
+                                             and place_journey_matches_message(candidate, text))]
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 reply, parsed_family_updates = extract_family_skill_updates(reply)
                 parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
             if trajectory:
@@ -785,7 +1869,10 @@ class CodexRuntime:
                 })
             if on_delta:
                 reply = VisibleText().feed(reply, final=True).strip()
-            profile_updates = {**(language_updates or {}), **(parsed_profile_updates or {})} or None
+            if parsed_profile_updates:
+                parsed_profile_updates.pop('preferred_language', None)
+            profile_updates = {**(parsed_profile_updates or {}), **(language_updates or {})} or None
+            profile_updates = apply_explicit_story_stage(text, profile_updates)
 
             # The conversational exchange is the first durable boundary.
             # Workspace extraction and public-reference work below may be
@@ -797,9 +1884,13 @@ class CodexRuntime:
                     storage.commit_agent_turn,
                     lease.lease_token,
                     thread_id,
-                    f'Storyteller: {text}\nMemory Spark: {reply}',
+                    f'Storyteller: {saved_text}\nMemory Spark: {reply}',
                     paths,
                     source_sequence=turn_sequence,
+                    **({'project_id':project_id,'client_turn_id':client_turn_id,'user_response':is_user_round}
+                       if isinstance(storage, UserStorage) and project_id else {}),
+                    **({'life_stage':(profile_updates or {}).get('story_focus', {}).get('life_stage') or 'unplaced'}
+                       if isinstance(storage, UserStorage) and project_id else {}),
                 )
             except TypeError as error:
                 if 'source_sequence' not in str(error):
@@ -808,12 +1899,12 @@ class CodexRuntime:
                     storage.commit_agent_turn,
                     lease.lease_token,
                     thread_id,
-                    f'Storyteller: {text}\nMemory Spark: {reply}',
+                    f'Storyteller: {saved_text}\nMemory Spark: {reply}',
                     paths,
                 )
             await progress.update('save', 'Conversation memory saved', '对话记忆已保存', status='completed')
             if recall_access is not None:
-                recall_access = recall_status(recall_access['rounds_completed'] + 1, entitlement)
+                recall_access = recall_status(recall_access['rounds_completed'] + int(is_user_round), entitlement)
             turn_sequence = self._stored_memory_sequence(stored) or turn_sequence
             if trajectory:
                 trajectory.record('application', 'memory.persist', output={
@@ -884,6 +1975,7 @@ class CodexRuntime:
                         'thread_id': thread_id,
                         'reply': reply,
                         'conversation_saved': True,
+                        'profile_updates': language_updates,
                         'recall_status': recall_access,
                         'trace': list(progress.steps),
                         'trace_mode': 'live',
@@ -907,8 +1999,13 @@ class CodexRuntime:
                     on_event=on_event,
                     trajectory=trajectory,
                 )
-            except Exception:
+            except Exception as workspace_failure:
                 await progress.update('workspace', 'Workspace update could not finish; the reply is saved', '工作区更新未完成；回复已保存', status='failed')
+                if trajectory:
+                    trajectory.record('application', 'workspace.failed', output={
+                        'error_type': type(workspace_failure).__name__,
+                        'retryable': True,
+                    })
                 # The exchange is already durable. A workspace failure is
                 # optional and must not turn the saved reply into a failed
                 # conversation.
@@ -920,6 +2017,10 @@ class CodexRuntime:
                             'project_id': project_id,
                             'source_sequence': turn_sequence,
                             'retryable': True,
+                            # Keep diagnostics bounded and type-only; never
+                            # expose provider prompts, private data, or raw
+                            # exception text in the application event stream.
+                            'error_type': type(workspace_failure).__name__,
                         },
                     })
                 workspace = {
@@ -963,6 +2064,7 @@ class CodexRuntime:
                     },
                 )
             response = {
+                'accepted_source_id': accepted_source['id'] if accepted_source else None,
                 'recall_status': recall_access,
                 'turn_id': turn_id,
                 'source_sequence': turn_sequence,
@@ -977,7 +2079,7 @@ class CodexRuntime:
                 'place_journey': place_journey,
                 'place_journey_change': place_journey_change,
                 'place_journeys': workspace.get('place_journeys', []),
-                'profile_updates': profile_updates,
+                'profile_updates': {**(profile_updates or {}), **(language_updates or {})} or None,
                 'family_context': family_context,
                 'family_context_update': family_context_update,
                 'family_features_enabled': family_enabled,
@@ -1105,8 +2207,11 @@ class CodexRuntime:
 
     async def _workspace_extraction(self, *, user_id, memories, profile,
                                      place_journey, family_enabled,
-                                     family_context, project_id, text, language, on_event=None, on_place=None):
+                                     family_context, project_id, text, language,
+                                     on_event=None, on_place=None, trajectory=None,
+                                     canonical_events=False):
         """Run marker extraction in a separate, non-conversational pass."""
+        text = original_conversation_text(text)
         marker_buffer = ''
         previewed_places = set()
         async def capture_place(delta):
@@ -1129,7 +2234,7 @@ class CodexRuntime:
                     return
                 _, candidate = extract_place_journey(marker_buffer[:end + len(PLACE_MARKER_END)])
                 marker_buffer = marker_buffer[end + len(PLACE_MARKER_END):]
-                if candidate and on_place:
+                if candidate and on_place and not place_journey_message_is_ambiguous(text):
                     key = json.dumps([candidate['place'], candidate['hierarchy'], candidate['granularity']], ensure_ascii=False)
                     if key not in previewed_places:
                         previewed_places.add(key)
@@ -1143,21 +2248,161 @@ class CodexRuntime:
                     memories=memories,
                     profile=profile,
                     place_journey=place_journey,
-                    family_enabled=family_enabled,
+                    family_enabled=family_enabled and not canonical_events,
                     family_context=family_context,
                     project_id=project_id,
                     text=text,
                     language=language,
                     agent_role='workspace',
+                    canonical_events=canonical_events,
+                    **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}),
+                    trajectory=trajectory,
                 )
+                if trajectory:
+                    trajectory.append_external(
+                        result.get('trajectory', {}).get('steps', [])
+                        if isinstance(result.get('trajectory'), dict) else [],
+                        source='codex-worker',
+                    )
+                    trajectory.record('application', 'workspace.worker.completed', output={
+                        'agent_role': 'workspace',
+                        'extraction_focus': None,
+                        'has_trajectory': bool(result.get('trajectory')),
+                    })
+                reply = result['reply']
+                # A single broad extraction pass can correctly save profile or
+                # place context while overlooking one of the premium Family
+                # domains. Retry only the missing domain against the same
+                # current message. This is still model-driven extraction: the
+                # focused pass may return an empty string, and no marker is
+                # synthesized by the application.
+                _, primary_places = extract_place_journeys(reply)
+                present_place = any(
+                    not place_journey_message_is_ambiguous(text)
+                    and place_journey_matches_message(candidate, text)
+                    for candidate in primary_places
+                )
+                if family_enabled:
+                    _, primary_updates = extract_family_skill_updates(reply)
+                    _, primary_skills = combine_family_skill_updates(primary_updates)
+                    present = set(primary_skills)
+                    recovery_specs = [
+                        ('family_tree', 'family_tree', 'memoir-family-tree'),
+                        ('author_timeline', 'author_timeline', 'memoir-author-timeline'),
+                    ]
+                    if canonical_events:
+                        recovery_specs = [spec for spec in recovery_specs if spec[0] != 'author_timeline']
+                else:
+                    present = set()
+                    recovery_specs = []
+                recovery_specs.insert(0, ('place_journey', 'place_journey', 'memoir-place-journey'))
+                for focus, skill_name, skill_label in recovery_specs:
+                    if ((skill_name in present if skill_name != 'place_journey' else present_place)
+                            or not _workspace_focus_is_relevant(text, focus, family_context)):
+                        continue
+                    # A focused pass is still model work: the host never
+                    # synthesizes a missing marker.  The first focused pass
+                    # can complete successfully while returning only a
+                    # profile or another domain, especially when the current
+                    # sentence contains a source boundary such as a family
+                    # member's recollection.  Allow a small bounded retry
+                    # budget only while the requested domain remains absent.
+                    # This keeps recovery finite and avoids turning every
+                    # optional enrichment into a retry storm.
+                    # The observed production regression is a missing Family
+                    # marker after a successful broad/focused response. Keep
+                    # the retry scoped to that premium domain; place and
+                    # timeline recovery already have their own source/routing
+                    # guards and should retain their one-call budget.
+                    max_attempts = 3 if focus == 'family_tree' else 1
+                    for attempt in range(1, max_attempts + 1):
+                        if ((skill_name in present if skill_name != 'place_journey' else present_place)):
+                            break
+                        if trajectory:
+                            trajectory.record('application', 'workspace.family_recovery.requested', output={
+                                'focus': focus,
+                                'skill': skill_label,
+                                'attempt': attempt,
+                            })
+                        try:
+                            focused = await self._worker_turn(
+                                user_id=user_id,
+                                prior=None,
+                                memories=memories,
+                                profile=profile,
+                                place_journey=place_journey,
+                                family_enabled=family_enabled,
+                                family_context=family_context,
+                                project_id=project_id,
+                                text=text,
+                                language=language,
+                                agent_role='workspace',
+                                **({'evaluation': trajectory.correlation} if trajectory and trajectory.correlation else {}),
+                                extraction_focus=focus,
+                                canonical_events=canonical_events,
+                                trajectory=trajectory,
+                            )
+                            if trajectory:
+                                trajectory.append_external(
+                                    focused.get('trajectory', {}).get('steps', [])
+                                    if isinstance(focused.get('trajectory'), dict) else [],
+                                    source='codex-worker',
+                                )
+                                trajectory.record('application', 'workspace.worker.completed', output={
+                                    'agent_role': 'workspace',
+                                    'extraction_focus': focus,
+                                    'has_trajectory': bool(focused.get('trajectory')),
+                                    'recovery_attempt': attempt,
+                                })
+                            focused_reply = focused.get('reply', '')
+                            if focused_reply:
+                                reply += '\n' + focused_reply
+                                if focus == 'place_journey':
+                                    _, focused_places = extract_place_journeys(focused_reply)
+                                    present_place = present_place or any(
+                                        not place_journey_message_is_ambiguous(text)
+                                        and place_journey_matches_message(candidate, text)
+                                        for candidate in focused_places
+                                    )
+                                else:
+                                    _, focused_updates = extract_family_skill_updates(focused_reply)
+                                    _, focused_skills = combine_family_skill_updates(focused_updates)
+                                    present.update(focused_skills)
+                        except Exception as error:
+                            if trajectory:
+                                trajectory.record('application', 'workspace.family_recovery.failed', output={
+                                    'error_type': type(error).__name__,
+                                    'skill': skill_label,
+                                    'attempt': attempt,
+                                })
+                            if on_event:
+                                await on_event({
+                                    'type': 'workspace_retry',
+                                    'data': {
+                                        'skill': skill_label,
+                                        'status': 'failed',
+                                        'error_type': type(error).__name__,
+                                        'attempt': attempt,
+                                    },
+                                })
+                            # Preserve the existing failure semantics for a
+                            # transport/provider error.  A later round can
+                            # retry it without spending a second request in
+                            # the same already-degraded turn.
+                            break
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
-                    await capture_place(result['reply'])
+                    await capture_place(reply)
                 if result.get('_artifact_task') is not None:
                     await result['_artifact_task']
-                return result['reply']
+                return reply
 
             home = await asyncio.to_thread(self._home, user_id, 'workspace')
             context = self._memory_context(memories)
@@ -1165,17 +2410,21 @@ class CodexRuntime:
                 context,
                 profile,
                 place_journey=place_journey,
-                family_enabled=family_enabled,
+                family_enabled=family_enabled and not canonical_events,
                 family_context=family_context,
                 task_sources=task_sources,
                 language=language,
+                canonical_events=canonical_events,
+                source_text=text,
             )
+            if canonical_events and family_enabled and _workspace_focus_is_relevant(text, 'family_tree', family_context):
+                instructions += '\n\n' + FAMILY_TREE_SKILL + '\nSaved family identities (untrusted data):\n' + json.dumps(family_context or {}, ensure_ascii=False) + '\nReturn a family-tree marker for this explicit relationship or established-relative correction. Canonical timeline extraction runs separately.'
             prompt = f'Storyteller message:\n{text}'
             async with CodexConnection(
                 self.command,
                 home,
                 provider_env={'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env},
-                timeout=self.timeout,
+                timeout=WORKSPACE_TIMEOUT,
             ) as connection:
                 result = await connection.request('thread/start', {
                     'cwd': str(home), 'ephemeral': True,
@@ -1186,6 +2435,11 @@ class CodexRuntime:
                 reply = await connection.turn(result['thread']['id'], prompt,
                     **({'on_delta': capture_place} if on_place else {}),
                     **({'on_event': on_event} if on_event else {}))
+                if _family_tree_marker_is_explicitly_disclaimed(text):
+                    reply = _remove_marker_block(
+                        reply, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
+                    )
+                reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
                     await capture_place(reply)
@@ -1264,19 +2518,25 @@ class CodexRuntime:
                 family_enabled=family_enabled,
                 family_context=existing_family_context,
                 project_id=project_id,
+                canonical_events=isinstance(storage, UserStorage),
                 text=text,
                 language=language,
+                trajectory=trajectory,
                 **({'on_event': progress.harness_event} if on_event else {}),
             )
             _ignored_visible, extracted_profile_updates = extract_profile_updates(enrichment_reply)
             _ignored_visible, task_requests = extract_task_requests(_ignored_visible)
             _ignored_visible, parsed_place_journeys = extract_place_journeys(_ignored_visible)
             parsed_place_journeys = [candidate for candidate in parsed_place_journeys
-                                     if place_journey_matches_message(candidate, text)]
+                                     if (not place_journey_message_is_ambiguous(text)
+                                         and place_journey_matches_message(candidate, text))]
             parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
             _ignored_visible, parsed_family_updates = extract_family_skill_updates(_ignored_visible)
             parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
+            if extracted_profile_updates:
+                extracted_profile_updates.pop('preferred_language', None)
             profile_updates = {**(profile_updates or {}), **(extracted_profile_updates or {})} or None
+            profile_updates = apply_explicit_story_stage(text, profile_updates)
             if trajectory:
                 trajectory.record('application', 'workspace.extraction', output={
                     'profile_updated': bool(extracted_profile_updates),
@@ -1285,8 +2545,31 @@ class CodexRuntime:
                     'tasks_requested': len(task_requests),
                 })
 
+        if isinstance(storage, UserStorage):
+            family_skills = [skill for skill in family_skills if skill == 'family_tree']
+            if parsed_family_context:
+                parsed_family_context = {**parsed_family_context, 'timeline': []}
+                if not _workspace_focus_is_relevant(text, 'family_tree', existing_family_context) or not (parsed_family_context.get('people') or parsed_family_context.get('relationships')):
+                    parsed_family_context = None
+                    family_skills = []
         if not legacy_markers:
             await progress.update('memory-context', 'Context extraction completed', '背景提取已完成', skill='memoir-memory-context', status='completed')
+        # Mira supplies the assignment for this particular response. Word
+        # aggregation is deterministic and never uses the global focus as a
+        # substitute for assignments on older responses.
+        assigned_stage = (profile_updates or {}).get('story_focus', {}).get('life_stage') or 'unplaced'
+        stage_writer = getattr(storage, 'assign_memory_stage', None)
+        if assigned_stage and callable(stage_writer):
+            from .stage_readiness import LIFE_STAGES, stage_readiness
+            if assigned_stage in (*LIFE_STAGES, 'unplaced'):
+                saved_memory = memory[0] if isinstance(memory, list) and memory else memory
+                if isinstance(saved_memory, dict) and saved_memory.get('id'):
+                    await asyncio.to_thread(stage_writer, saved_memory['id'], assigned_stage)
+                    if on_event:
+                        reader = getattr(storage, 'all_memories', storage.memories)
+                        rows = await asyncio.to_thread(reader)
+                        await on_event({'type':'workspace_update', 'data':{
+                            'project_id':project_id, 'stage_readiness':stage_readiness(rows, project_id)}})
         if parsed_place_journey:
             await progress.update('place', 'Validating the place mentioned in this turn', '正在验证本轮提到的地点', skill='memoir-place-journey', status='triggered')
         for skill in family_skills if family_enabled else []:
@@ -1375,6 +2658,17 @@ class CodexRuntime:
                         place_journey, place_journey_change = await self._persist_place_journey(
                             storage, lease, latest_place_journey, candidate, turn_sequence
                         )
+                        focus = (profile_updates or {}).get('story_focus') or {}
+                        period = focus.get('when', '')
+                        # An explicit empty period prevents a new undated/current
+                        # request from inheriting a previous historical photo search.
+                        place_journey = {**place_journey, 'period': ''}
+                        if (re.search(r'(?:18|19|20)\d{2}', period)
+                                and period in text):
+                            # Calendar context belongs only to the place named
+                            # in that memory, not every place in a multi-place turn.
+                            place_journey = {**place_journey, 'period': period
+                                if place_journey_matches_message(candidate, focus.get('where', '')) else ''}
                         place_journeys.append(place_journey)
                         latest_place_journey = place_journey
         elif current_place_journey:
@@ -1407,6 +2701,8 @@ class CodexRuntime:
                 latest_profile = profile
                 if callable(latest_profile_reader):
                     latest_profile = await lease.io(latest_profile_reader)
+                profile_updates = {k:v for k,v in profile_updates.items()
+                    if k not in {'preferred_language', 'conversation_language'}}
                 profile, accepted_profile_updates = self._merge_profile_updates_if_newer(
                     latest_profile, profile_updates, turn_sequence
                 )
@@ -1597,9 +2893,23 @@ class CodexRuntime:
     async def _worker_turn(self, *, user_id, prior, memories, profile, place_journey,
                            family_enabled, family_context, project_id, text,
                            language, conversation_rounds_completed=None, on_delta=None,
-                           evaluation=None, agent_role='collector', on_event=None):
+                           evaluation=None, agent_role='collector', on_event=None,
+                           extraction_focus=None, diagnostic_request_id=None,
+                           trajectory: TrajectoryRecorder | None = None, canonical_events=False):
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
+        request_id = new_request_id(diagnostic_request_id)
+        started = time.perf_counter()
+        model = self.composer_model if agent_role == 'composer' else self.model
+        log_diagnostic(
+            diagnostic_logger,
+            'worker_request_start',
+            request_id,
+            component='memoir.api.worker_client',
+            agent_role=agent_role,
+            model=model,
+            streaming=bool(on_delta or on_event),
+        )
         payload = {
             'user_id': user_id,
             'thread_id': prior.get('codex_thread_id') if prior else None,
@@ -1610,28 +2920,67 @@ class CodexRuntime:
             'family_context': family_context or {},
             'project_id': project_id,
             'text': text,
-            'model': self.model,
+            'model': model,
             'language': language,
+            'diagnostic_request_id': request_id,
         }
+        if canonical_events:
+            payload['canonical_events'] = True
         if conversation_rounds_completed is not None:
             payload['conversation_rounds_completed'] = conversation_rounds_completed
         if evaluation:
             payload['evaluation'] = normalise_correlation(evaluation)
         if agent_role != 'collector':
             payload['agent_role'] = agent_role
+        if extraction_focus in {'family_tree', 'author_timeline', 'place_journey'}:
+            payload['extraction_focus'] = extraction_focus
         if project_id:
             payload['task_sources'] = [source.model_dump() for source in self._task_sources(memories)]
+        execution_timeout = WORKSPACE_TIMEOUT if agent_role == 'workspace' else self.timeout
+        worker_headers = {
+            'X-Codex-Worker-Secret': self.worker_secret,
+            'X-Memoir-Request-ID': request_id,
+        }
+        result: Any = None
+
+        def preserve_failure_trajectory(error: BaseException) -> None:
+            """Attach worker evidence to the exception and outer turn receipt."""
+            partial = getattr(error, 'trajectory', None)
+            if not isinstance(partial, Mapping) and isinstance(result, Mapping):
+                candidate = result.get('trajectory')
+                if isinstance(candidate, Mapping):
+                    partial = candidate
+            if trajectory is not None:
+                if isinstance(partial, Mapping):
+                    steps = partial.get('steps')
+                    if isinstance(steps, list):
+                        trajectory.append_external(steps, source='codex-worker-failure')
+                trajectory.record('application', 'codex.worker.failed', output={
+                    'error_type': type(error).__name__,
+                    'has_partial_trajectory': isinstance(partial, Mapping),
+                })
+                trajectory.finish(
+                    None,
+                    status='failed',
+                    stop_reason='worker.failed',
+                    error={'error_type': type(error).__name__},
+                )
+                partial = trajectory.payload()
+            if isinstance(partial, Mapping) and isinstance(error, Exception):
+                error.trajectory = dict(partial)
+
         try:
             if on_delta or on_event:
                 # Keep consuming the worker stream after provider_complete so
                 # artifact enumeration can finish after the API has committed
                 # the visible reply. The returned task owns the HTTP client.
                 provider_complete = asyncio.get_running_loop().create_future()
+                self.record_worker_request()
 
                 async def consume_worker_stream():
                     terminal = None
                     try:
-                        client_options = {'timeout': self.timeout + 15}
+                        client_options = {'timeout': execution_timeout + 15}
                         if self.worker_transport is not None:
                             client_options['transport'] = self.worker_transport
                         async with httpx.AsyncClient(**client_options) as client:
@@ -1639,11 +2988,15 @@ class CodexRuntime:
                                 'POST',
                                 f'{self.worker_url}/internal/codex/turn',
                                 headers={
-                                    'X-Codex-Worker-Secret': self.worker_secret,
+                                    **worker_headers,
                                     'Accept': 'application/x-ndjson',
                                 },
                                 json=payload,
                             ) as response:
+                                if response.status_code >= 400:
+                                    response.extensions[_WORKER_ERROR_BODY_EXTENSION] = (
+                                        await _read_bounded_response_body(response)
+                                    )
                                 response.raise_for_status()
                                 async for line in response.aiter_lines():
                                     if not line:
@@ -1660,7 +3013,11 @@ class CodexRuntime:
                                     elif event['type'] == 'result':
                                         terminal = event['data']
                                     elif event['type'] == 'error':
-                                        raise RuntimeError('Codex worker turn failed')
+                                        partial = event.get('trajectory')
+                                        raise _WorkerStreamError(
+                                            'Codex worker turn failed',
+                                            partial if isinstance(partial, Mapping) else None,
+                                        )
                         if not provider_complete.done():
                             provider_complete.set_result(terminal or {})
                         return (terminal or {}).get('artifacts', [])
@@ -1679,27 +3036,104 @@ class CodexRuntime:
                 result = dict(result)
                 result['_artifact_task'] = artifact_task
             else:
-                client_options = {'timeout': self.timeout + 15}
+                client_options = {'timeout': execution_timeout + 15}
                 if self.worker_transport is not None:
                     client_options['transport'] = self.worker_transport
+                self.record_worker_request()
                 async with httpx.AsyncClient(**client_options) as client:
                     response = await client.post(
                         f'{self.worker_url}/internal/codex/turn',
-                        headers={'X-Codex-Worker-Secret': self.worker_secret},
+                        headers=worker_headers,
                         json=payload,
                     )
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
-            if error.response.status_code == 409:
-                raise AgentTurnBusyError('Codex worker is busy for this user') from None
-            raise RuntimeError(f'Codex worker rejected the turn: HTTP {error.response.status_code}') from None
+            error_payload = _worker_error_payload(error.response)
+            if isinstance(error_payload, Mapping):
+                partial = error_payload.get('trajectory')
+                if isinstance(partial, Mapping):
+                    error.trajectory = dict(partial)
+            preserve_failure_trajectory(error)
+            status_code = error.response.status_code
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class=failure_class(error, status_code=status_code),
+                http_status=status_code,
+                elapsed_ms=elapsed_ms(started),
+            )
+            if status_code == 409:
+                busy = AgentTurnBusyError('Codex worker is busy for this user')
+                if isinstance(getattr(error, 'trajectory', None), Mapping):
+                    busy.trajectory = dict(error.trajectory)
+                raise busy from None
+            rejected = RuntimeError(f'Codex worker rejected the turn: HTTP {status_code}')
+            if isinstance(getattr(error, 'trajectory', None), Mapping):
+                rejected.trajectory = dict(error.trajectory)
+            raise rejected from None
         except httpx.RequestError as error:
-            raise RuntimeError(f'Codex worker unavailable: {error}') from None
+            preserve_failure_trajectory(error)
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class='request_error',
+                elapsed_ms=elapsed_ms(started),
+            )
+            unavailable = RuntimeError('Codex worker unavailable')
+            if isinstance(getattr(error, 'trajectory', None), Mapping):
+                unavailable.trajectory = dict(error.trajectory)
+            raise unavailable from None
+        except BaseException as error:
+            preserve_failure_trajectory(error)
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class=failure_class(error),
+                elapsed_ms=elapsed_ms(started),
+            )
+            raise
         if not isinstance(result, dict) or not isinstance(result.get('thread_id'), str) or not isinstance(result.get('reply'), str):
+            log_diagnostic(
+                diagnostic_logger,
+                'worker_request_failed',
+                request_id,
+                component='memoir.api.worker_client',
+                agent_role=agent_role,
+                model=model,
+                status='failed',
+                failure_class='invalid_response',
+                elapsed_ms=elapsed_ms(started),
+            )
             raise RuntimeError('Codex worker returned an invalid turn result')
         result.setdefault('artifacts', [])
         result['_workspace_capable'] = True
+        log_diagnostic(
+            diagnostic_logger,
+            'worker_request_terminal',
+            request_id,
+            component='memoir.api.worker_client',
+            agent_role=agent_role,
+            model=model,
+            status='completed',
+            terminal_event='worker.response',
+            elapsed_ms=elapsed_ms(started),
+        )
         return result
 
     @staticmethod

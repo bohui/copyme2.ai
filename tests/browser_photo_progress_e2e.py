@@ -36,6 +36,7 @@ def main():
             const picture = index => ({asset_id: 'photo-' + index, title: 'Chengde street ' + index,
               image_url: '/static/timeline_avatar_child_female.png?photo=' + index,
               source_url: 'https://archive.example/' + index, date_expression: '1983',
+              latitude: 40.9515, longitude: 117.9634,
               allowed_actions: {embed: true}});
             const encoder = new TextEncoder();
             return new Response(new ReadableStream({start(controller) {

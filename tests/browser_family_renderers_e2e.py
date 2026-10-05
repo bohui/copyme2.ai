@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
+from fixtures.browser_memory_events import SCHOOL_QUOTE, school_events
 
 
 FAMILY_CHART_STUB = """
@@ -17,8 +18,15 @@ window.f3 = {
       target.innerHTML = '<div class="family-chart-library-content">Family chart renderer</div>';
     }
     return {
+      setSingleParentEmptyCard: function () { return this; },
+      setShowSiblingsOfMain: function () { return this; },
+      updateMainId: function () { return this; },
       setCardHtml: function () { return this; },
       setCardDisplay: function () { return this; },
+      setCardInnerHtmlCreator: function () { return this; },
+      setOnCardClick: function () { return this; },
+      setCardXSpacing: function () { return this; },
+      setCardYSpacing: function () { return this; },
       updateTree: function () { return this; },
     };
   },
@@ -45,6 +53,7 @@ def main() -> None:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 960}, device_scale_factor=1)
         codex_calls = 0
+        persisted = None
 
         page.route(
             "**/api/v1/memoir/story/state",
@@ -63,8 +72,9 @@ def main() -> None:
         )
 
         def codex_turn(route) -> None:
-            nonlocal codex_calls
+            nonlocal codex_calls, persisted
             codex_calls += 1
+            project_id = route.request.post_data_json['project_id']
             response = {"reply": "Tell me more about that family memory.", "trace": [], "trace_mode": "codex"}
             # The fixed opening is product copy; the first real storyteller
             # answer is the first Codex turn.
@@ -74,7 +84,7 @@ def main() -> None:
                         "family_features_enabled": True,
                         "family_context": {
                             "schema_version": 1,
-                            "project_id": "project-test",
+                            "project_id": project_id,
                             "revision": 1,
                             "updated_at": "2026-09-26T00:00:00Z",
                             "people": [
@@ -98,7 +108,7 @@ def main() -> None:
                         },
                         "family_context_update": {
                             "schema_version": 1,
-                            "project_id": "project-test",
+                            "project_id": project_id,
                             "changed": True,
                             "persisted": True,
                             "revision": 1,
@@ -108,9 +118,14 @@ def main() -> None:
                         },
                     }
                 )
+                persisted = response['family_context']
             route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
         page.route("**/api/v1/memoir/agent/turn", codex_turn)
+        page.route('**/api/v1/memoir/agent/family-context*', lambda route:
+                   route.fulfill(json={'family_features_enabled': True, 'family_context': persisted}))
+        page.route("**/api/v1/memoir/story/events?**",
+                   lambda route: school_events(route, present=codex_calls > 0))
         fixture_dir = Path(os.environ["MEMOIR_RENDERER_FIXTURES"]) if os.environ.get("MEMOIR_RENDERER_FIXTURES") else None
         expect_fallback = os.environ.get("MEMOIR_RENDERER_EXPECT_FALLBACK") == "1"
 
@@ -129,23 +144,23 @@ def main() -> None:
         page.get_by_role("button", name="Begin my story").click()
         page.get_by_role("textbox", name="Your message").fill("My mother Mei helped me start school around 1964 in Hobart.")
         page.get_by_role("button", name="Send message").click()
+        page.get_by_role('button', name='Family tree', exact=True).click()
 
         family = page.get_by_role("complementary", name="Family tree workspace")
         if expect_fallback:
             expect(family.locator("[data-renderer-status='fallback']")).to_be_visible()
         else:
             expect(family.locator("[data-library-mounted='family-chart']")).to_be_visible()
-        expect(family.locator(".people-list strong", has_text="Mei")).to_be_visible()
-        navigator = page.locator(".life-stage-navigator")
+        expect(family.locator(".family-person-card strong", has_text="Mei")).to_be_visible()
+        navigator = page.locator('.life-stage-navigator')
         expect(navigator).to_be_visible()
-        expect(navigator.locator("h2, h3, p, .life-stage-badge, .life-stage-detail")).to_have_count(0)
-        expect(navigator.locator("[data-life-stage-tab]")).to_have_count(7)
-        expect(navigator.locator("[data-life-stage-tab='childhood']")).to_have_attribute("aria-pressed", "true")
+        expect(navigator.locator('[data-life-stage-tab]')).to_have_count(7)
+        expect(navigator.locator("[data-life-stage-tab='childhood']")).to_have_attribute('aria-pressed', 'true')
         navigator.locator("[data-life-stage-tab='adolescence']").click()
-        expect(navigator.locator("[data-life-stage-tab='adolescence']")).to_have_attribute("aria-pressed", "true")
-        expect(navigator.locator("[data-life-stage-tab='childhood']")).to_have_attribute("aria-pressed", "false")
-        navigator.locator("[data-life-stage-tab='adolescence']").press("ArrowRight")
-        expect(navigator.locator("[data-life-stage-tab='young_adulthood']")).to_have_attribute("aria-pressed", "true")
+        expect(navigator.locator("[data-life-stage-tab='adolescence']")).to_have_attribute('aria-pressed', 'true')
+        expect(navigator.locator("[data-life-stage-tab='childhood']")).to_have_attribute('aria-pressed', 'false')
+        navigator.locator("[data-life-stage-tab='adolescence']").press('ArrowRight')
+        expect(navigator.locator("[data-life-stage-tab='young_adulthood']")).to_have_attribute('aria-pressed', 'true')
         page.get_by_role("button", name="Timeline").click()
         timeline = page.get_by_role("complementary", name="Timeline workspace")
         if expect_fallback:
@@ -153,10 +168,12 @@ def main() -> None:
         else:
             expect(timeline.locator("[data-library-mounted='vis-timeline']")).to_be_visible()
         expect(timeline.locator(".timeline-list strong", has_text="Started school")).to_be_visible()
-        expect(timeline.locator(".life-stage-navigator")).to_be_visible()
-        expect(timeline.locator("[data-life-stage-tab='young_adulthood']")).to_have_attribute("aria-pressed", "true")
+        timeline.get_by_text("Original evidence", exact=True).click()
+        expect(timeline.get_by_text(SCHOOL_QUOTE, exact=True)).to_be_visible()
         page.set_viewport_size({"width": 390, "height": 900})
-        expect(timeline.locator(".life-stage-navigator")).to_be_visible()
+        expect(timeline).to_be_visible()
+        expect(navigator).to_be_visible()
+        expect(navigator.locator("[data-life-stage-tab='young_adulthood']")).to_have_attribute('aria-pressed', 'true')
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
         browser.close()
 

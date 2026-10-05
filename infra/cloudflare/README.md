@@ -18,6 +18,17 @@ The ingress exposes the frontend and its existing `/api/v1/memoir/*` proxy.
 The API, Codex worker, photo worker, Temporal and deterministic worker are not
 separately routed through this tunnel. Unmatched hostnames return 404.
 
+## Verified deployment
+
+On 2 October 2026 (Australia/Sydney), the proxied apex CNAME was switched to
+`dff6a4c3-fb6b-4c7b-89b9-f8ccb7733bbb.cfargotunnel.com`. The local container
+health check passed, Cloudflare reported four connected Sydney edge sessions,
+and public requests returned HTTP 200 for `/`, `/memoir/start`,
+`/static/styles.css`, `/api/v1/memoir/config`, and
+`/api/v1/memoir/agent/config`. The landing page rendered in Chrome through
+`https://copyme2.ai/`. Supabase authentication remained enabled. The original
+Hundredquant default certificate and CopyMe2 email MX/TXT records were preserved.
+
 ## Setup and operation
 
 Set `MEMORY_SPARK_PUBLIC_URL=https://copyme2.ai` in `.env`, then:

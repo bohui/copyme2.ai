@@ -1,0 +1,849 @@
+{
+  "recorded_utc": "2026-10-05T12:44:38.908545+00:00",
+  "baseline_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+  "baseline_tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+  "source_identity_note": "Tests ran against these new working-tree overlays; supervisor Git HEAD/tree alone does not include them. Final published commit must have these exact four file hashes.",
+  "source_sha256": {
+    "scripts/canonical_evaluation.py": "7ffb0fe2e3b34a87c932c20c21f53aebcef6eaf7b5fad678bb1ba1c8b6890a14",
+    "scripts/evaluation_budget.py": "e508b4ce6ef55c89fe41533bd6d5a3bb296e6e3aa42c22cfd324ab87f41160d8",
+    "tests/test_canonical_evaluation.py": "0176641d85f33d6ae964ed5fd2dcab9d3e26500ca525d7d8664fe504c9a74687",
+    "tests/test_evaluation_budget.py": "3a1bf689d163c06959df5762df3808d10cce0f3578a3a538d2f3888d3d3b4450"
+  },
+  "final_focused_result": {
+    "name": "canonical-budget-final-02",
+    "passed": 33,
+    "skipped": 0,
+    "failed": 0,
+    "errors": 0,
+    "duration_seconds": 20.44,
+    "evidence_mode": "mock_only",
+    "live_model_calls": 0,
+    "judge_calls": 0,
+    "photo_provider_calls": 0
+  },
+  "attempts": [
+    {
+      "name": "budget-config-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.6,
+      "log_sha256": "ef0631201b0665680a41ea773cf4785ad0b980d4a4b118c1e56a17d5270b7751",
+      "pytest_result": "15 passed in 0.08s"
+    },
+    {
+      "name": "budget-config-red-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py",
+        "-k",
+        "invalid_input_estimates or invalid_limits"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.45,
+      "log_sha256": "1b5f7fba43a3abce575135f9511e198fed0035216fd44ebd3bed231363906baf",
+      "pytest_result": "6 failed, 9 deselected in 0.17s"
+    },
+    {
+      "name": "budget-config-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py",
+        "-k",
+        "invalid_input_estimates_or_invalid_limits"
+      ],
+      "exit_code": 5,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 5,
+      "duration_seconds": 0.33,
+      "log_sha256": "f8d0ea8c4b2b7c76d3b567b24d0e0330b31af1ce55496c329dcd1d489ae5e57b",
+      "pytest_result": "15 deselected in 0.06s"
+    },
+    {
+      "name": "budget-first-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.38,
+      "log_sha256": "3605abb09038ce24e90d81df8f7c0d87bb6f647a5e016bf461d8a8fcb408f6e9",
+      "pytest_result": "1 passed in 0.06s"
+    },
+    {
+      "name": "budget-first-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.59,
+      "log_sha256": "cd58fb6a337d0abbb606fdf6a1d88bc8c1148685be48fef5d13744140b1694e3",
+      "pytest_result": "1 failed in 0.11s"
+    },
+    {
+      "name": "budget-input-green-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py::test_model_budget_refuses_the_next_request_before_contacting_provider",
+        "tests/test_evaluation_budget.py::test_input_tokens_are_reserved_before_the_next_provider_call"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.49,
+      "log_sha256": "bfb94aa3bce5e5c9a8e413d4c0b8cbbecf5444cc553dd49310e15bc548c86a10",
+      "pytest_result": "2 passed in 0.07s"
+    },
+    {
+      "name": "budget-input-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 124,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "timed_out",
+      "child_returncode": null,
+      "duration_seconds": 30.0,
+      "cleanup": {
+        "owned_group_id": 19826,
+        "group_gone": false,
+        "failure_class": "PermissionError",
+        "errno": 1
+      },
+      "log_sha256": "cdb4ee2aea69cc6a83331bbe96dc2caa9a299d21329efb0336fc02a82e1839a8",
+      "pytest_result": null
+    },
+    {
+      "name": "budget-input-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py::test_input_tokens_are_reserved_before_the_next_provider_call"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.6,
+      "log_sha256": "7668124a1426321c18d5e1da8365dd2b56685f9362c5590e0036ba1d0a75b679",
+      "pytest_result": "1 failed in 0.14s"
+    },
+    {
+      "name": "budget-output-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.11,
+      "log_sha256": "db7f09414dbfd608dbdbc9dc30246e56e6598dc0e7fbf509c46c3bdd43c83e32",
+      "pytest_result": "3 passed in 0.08s"
+    },
+    {
+      "name": "budget-output-red-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py::test_inflight_output_reservations_prevent_concurrent_overspending"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.8,
+      "log_sha256": "9f6ab9c904208ea315a64e877ad28cbf918c7739f5d50b7c5d06fa5c94a0b953",
+      "pytest_result": "1 failed in 0.35s"
+    },
+    {
+      "name": "budget-output-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py::test_inflight_output_reservations_prevent_concurrent_overspending"
+      ],
+      "exit_code": 124,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "timed_out",
+      "child_returncode": null,
+      "duration_seconds": 5.01,
+      "cleanup": {
+        "owned_group_id": 19831,
+        "group_gone": false,
+        "failure_class": "PermissionError",
+        "errno": 1
+      },
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pytest_result": null
+    },
+    {
+      "name": "budget-usage-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.35,
+      "log_sha256": "edea1fe2e925f38d64cba1ee0f8ba3f25b2723ff28e7e65063c9b7b3e2414e63",
+      "pytest_result": "9 passed in 0.06s"
+    },
+    {
+      "name": "budget-usage-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py",
+        "-k",
+        "missing_or_invalid_usage"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.59,
+      "log_sha256": "480420d0ecb942d418a4199e709ce44ba64b9bf37c3812aa6455f818ac2f6a70",
+      "pytest_result": "6 failed, 3 deselected in 0.19s"
+    },
+    {
+      "name": "canonical-budget-final-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 21.2,
+      "log_sha256": "cfa11d43076871c49eed50f34f20f9b3f0398b2c089ee1acf3c0e7fe0cfe58e1",
+      "pytest_result": "33 passed, 1 warning in 20.44s"
+    },
+    {
+      "name": "canonical-budget-final",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 18.4,
+      "log_sha256": "1eca2b4a08ec1123c0f930ac433d7015cfd9822aa27942ab701d0688297943b2",
+      "pytest_result": "22 passed, 1 warning in 17.93s"
+    },
+    {
+      "name": "canonical-cadence-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "[3]"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 11.94,
+      "log_sha256": "7a79db80aa11dd3ddc5014de8895bd5ed548490a376ab5499100108ee46cf13c",
+      "pytest_result": "1 failed, 5 deselected, 1 warning in 11.37s"
+    },
+    {
+      "name": "canonical-fresh-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 12.29,
+      "log_sha256": "b98dbb8da8c16078aca6805e86947e3c54de9f8a2a7ff3c124cded74cbe8d690",
+      "pytest_result": "5 passed, 1 warning in 11.57s"
+    },
+    {
+      "name": "canonical-fresh-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "five_authenticated_rounds"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 16.09,
+      "log_sha256": "74a3eef073280c4e1a10b260a8d7bf589cc3d89d432a82f5cc5f3c41ab1d52d7",
+      "pytest_result": "1 failed, 4 deselected, 1 warning in 15.55s"
+    },
+    {
+      "name": "canonical-input-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "invalid_case_inputs"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.8,
+      "log_sha256": "254381033b2fac20d8f6b618a6d8b61702d342cf4dee3e73bb5319ad3420a7cb",
+      "pytest_result": "5 passed, 6 deselected, 1 warning in 1.21s"
+    },
+    {
+      "name": "canonical-input-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "invalid_case_inputs"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 1.88,
+      "log_sha256": "d185143d1940874c6ae5390f596b0d6d05179e1a28f78d7a2cfae3a4c87f3459",
+      "pytest_result": "5 failed, 6 deselected, 1 warning in 1.41s"
+    },
+    {
+      "name": "canonical-livegate-green-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "unverified_live"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.74,
+      "log_sha256": "a3ad4a50b2bb1be72e761eb42f65bf1a6e86e89e62d814821233a81c9dc2f333",
+      "pytest_result": "3 passed, 2 deselected, 1 warning in 1.13s"
+    },
+    {
+      "name": "canonical-livegate-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "unverified_live"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 1.45,
+      "log_sha256": "2d9fa59ffd496e64a8aaf504d45e2c2a37a400fd5b5aefdfe001f22885fe234a",
+      "pytest_result": "3 failed, 2 deselected, 1 warning in 0.92s"
+    },
+    {
+      "name": "canonical-livegate-red-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "unverified_live"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 2.17,
+      "log_sha256": "1276750523db72ac50d9f9ecd4f8cc3ffc043efe0553a6274f65b567066e7fa1",
+      "pytest_result": "3 failed, 2 deselected, 1 warning in 1.53s"
+    },
+    {
+      "name": "canonical-livegate-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "unverified_live"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 2.17,
+      "log_sha256": "8a0b086af4162528c7123f6c9e8b979ae021ee6532975b7d97f2a91bb1fb1266",
+      "pytest_result": "3 failed, 2 deselected, 1 warning in 1.63s"
+    },
+    {
+      "name": "canonical-native-green-02",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 12.95,
+      "log_sha256": "cf8f785da79d7de071aee533edf5eb92b4afadf04581bdcaf6b7322c3b4af087",
+      "pytest_result": "2 passed, 1 warning in 12.19s"
+    },
+    {
+      "name": "canonical-native-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 8.4,
+      "log_sha256": "2f6e56eed747df44c6b0e88deaf3b1e68d2d8fd620e87ed05f76f82d80315f50",
+      "pytest_result": "1 failed, 1 passed, 1 warning in 7.80s"
+    },
+    {
+      "name": "canonical-native-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "five_authenticated_rounds"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 6.56,
+      "log_sha256": "9365f79adf3b0283b79a22edaeca71f616e3dac540fe917983a1928694198e05",
+      "pytest_result": "1 failed, 1 deselected, 1 warning in 5.86s"
+    },
+    {
+      "name": "canonical-storage-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.61,
+      "log_sha256": "976ea3fe6dfa65b827ec05fc16bf49cec94d3fda3b2d6ad4719708e74a38b32d",
+      "pytest_result": "1 passed in 0.15s"
+    },
+    {
+      "name": "canonical-storage-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.44,
+      "log_sha256": "96c622c0f4a342733a98725cfc156658c1e2fa334ef139032c9a7314bc3e4a9a",
+      "pytest_result": "1 failed in 0.06s"
+    },
+    {
+      "name": "canonical-timeout-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_evaluation.py",
+        "-k",
+        "invalid_settle_timeout"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 2.43,
+      "log_sha256": "ee7885aab15b4ad45e062485b71db396b526cb651350541e094ebfc32b17cfa3",
+      "pytest_result": "6 failed, 11 deselected, 1 warning in 1.86s"
+    },
+    {
+      "name": "worker-budget-green",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.49,
+      "log_sha256": "e36b6ac3f26f6514018446c23569d17ea08e20849d68730d4f16bfe467656eb5",
+      "pytest_result": "16 passed in 0.09s"
+    },
+    {
+      "name": "worker-budget-red",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_budget.py",
+        "-k",
+        "worker_request_cap"
+      ],
+      "exit_code": 1,
+      "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+      "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+      "status": "completed",
+      "child_returncode": 1,
+      "duration_seconds": 0.45,
+      "log_sha256": "331e20f78b303e9a9daedded3060e904c4431eaa84ae0836bbad5e8a62ca8dd2",
+      "pytest_result": "1 failed, 15 deselected in 0.12s"
+    }
+  ],
+  "attempt_limits": [
+    "budget-input-green and budget-output-red timed out on an initially unbounded test oracle; the corrected bounded oracle re-established red/green. Exact hung pytest PIDs were checked and stopped; no timeout counted as a pass.",
+    "budget-config-red selected no tests (exit 5); budget-config-red-02 is the meaningful red receipt.",
+    "canonical-native-green rejected the normal runtime response using an SSE-only conversation_saved field; green-02 checks accepted_source_id and public completed-round state.",
+    "canonical-livegate-red and canonical-livegate-green failed at fixture authentication; corrected authentication fixture re-established red-02 and green-02.",
+    "Renderer first attempt was blocked before navigation due to omitted allowlisted task origins. Both corrected explicit-mode receipts passed; names alone were not treated as mode evidence."
+  ],
+  "renderer": {
+    "checks": [
+      {
+        "name": "renderer-explicit-real-02",
+        "command": [
+          "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+          "tests/fixtures/browser_network_guard.py",
+          "tests/browser_family_renderers_e2e.py",
+          "--base-url",
+          "http://127.0.0.1:56889"
+        ],
+        "exit_code": 0,
+        "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+        "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+        "status": "completed",
+        "child_returncode": 0,
+        "duration_seconds": 4.17,
+        "renderer_mode": "real",
+        "explicit_safe_flags": {
+          "MEMOIR_RENDERER_FIXTURES": "/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/renderer-assets",
+          "MEMOIR_RENDERER_EXPECT_FALLBACK": "0"
+        },
+        "asset_sha256": {
+          "d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+          "family-chart.min.js": "7fb3e5d8ac6402f26fafebe4759e50febd942f089b34d27848a474119aec3675",
+          "vis-timeline.min.js": "55f5627557103696a538c5e662cab07d554fafc545882a082dfb5e2b5dea65d6"
+        }
+      },
+      {
+        "name": "renderer-explicit-fallback-02",
+        "command": [
+          "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+          "tests/fixtures/browser_network_guard.py",
+          "tests/browser_family_renderers_e2e.py",
+          "--base-url",
+          "http://127.0.0.1:56889"
+        ],
+        "exit_code": 0,
+        "base_head": "ea989ebb523cea69e3745468346e66f16f9908ec",
+        "tree": "8dede44682fe692d7f22e75cd9b1bbe069358003",
+        "status": "completed",
+        "child_returncode": 0,
+        "duration_seconds": 3.02,
+        "renderer_mode": "fallback",
+        "explicit_safe_flags": {
+          "MEMOIR_RENDERER_FIXTURES": "/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/renderer-assets",
+          "MEMOIR_RENDERER_EXPECT_FALLBACK": "1"
+        },
+        "asset_sha256": {
+          "d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+          "family-chart.min.js": "7fb3e5d8ac6402f26fafebe4759e50febd942f089b34d27848a474119aec3675",
+          "vis-timeline.min.js": "55f5627557103696a538c5e662cab07d554fafc545882a082dfb5e2b5dea65d6"
+        }
+      }
+    ],
+    "task_service_cleanup": [
+      {
+        "owned_group_id": 509,
+        "group_gone": true
+      },
+      {
+        "owned_group_id": 510,
+        "group_gone": false,
+        "verification_blocked": "EPERM",
+        "child_returncode": null
+      }
+    ],
+    "model_calls": 0,
+    "final_task_port_cleanup": {
+      "ports_closed": [
+        56888,
+        56889
+      ],
+      "exact_web_port_owner_stopped": [],
+      "group_probe_was_blocked": true,
+      "all_descendants_gone_independently_verified": false
+    }
+  },
+  "cleanup": {
+    "task_postgres_container_ids": [],
+    "controlled_provider_pids": [],
+    "temporal_dev_pids": [],
+    "closed_task_ports": [
+      56888,
+      56889
+    ],
+    "full_renderer_descendant_group_verification": false,
+    "reason": "EPERM on one group probe; closed ports and exact native process inventory verified separately"
+  },
+  "browser": {
+    "application": "Google Chrome",
+    "visible_windows": 0,
+    "user_reported_signed_in": true,
+    "canary_browser_status": "unverified",
+    "api_and_database_canary_status": "passed in separate Langfuse repair receipt"
+  },
+  "host_read_only": {
+    "macos": "26.3.1(a)",
+    "build": "25D771280a",
+    "kern_maxfiles": 262144,
+    "kern_maxfilesperproc": 131072,
+    "kern_num_files": 134485,
+    "persistent_setting_installed": false
+  },
+  "preservation": {
+    "original": {
+      "head": "c6a990aa499eb63fe1d6407e4082462200598c0d",
+      "status_sha256": "ce1a5fb5090eed3eff8739e45e25df44cc48c1485962dc97baa0eba70fb13f14",
+      "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0"
+    },
+    "older_issue2": {
+      "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "older_issue6": {
+      "head": "84366778f50495d065e794a00f16184d16dc4216",
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provider_unrelated": {
+      "Dockerfile.langfuse-minio": {
+        "matches_baseline": true,
+        "sha256": null
+      },
+      "Dockerfile.langfuse-redis": {
+        "matches_baseline": true,
+        "sha256": null
+      },
+      "Makefile": {
+        "matches_baseline": true,
+        "sha256": "00e0decf1767562d54ddd775cd7ca9d2a28e37f6f28082a03d7e0033c0621510"
+      },
+      "README.md": {
+        "matches_baseline": true,
+        "sha256": "8a9ccc999242063fb2ef1e6cf3cb26e2e88f2588e8e5481e144afe2e63b6a4ea"
+      },
+      "structured_output_hook.py": {
+        "matches_baseline": true,
+        "sha256": "523b0db524f7bbc41b2ee9bb4ecc6ea7a17448bff8883a03175e67444989dddf"
+      },
+      "tests/test_makefile_startup.py": {
+        "matches_baseline": true,
+        "sha256": "751c91eed0d21173bc2ac3b329bc2664ac85ee856bdaedd54a3daf832a208ec3"
+      },
+      "tests/test_structured_output_hook.py": {
+        "matches_baseline": true,
+        "sha256": "4f241f70e8399409d63a6833f400b50c532c437426f3d0d2282122458244e34e"
+      }
+    }
+  },
+  "gap_tickets": [
+    {
+      "gap": "G1",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/12",
+      "title": "Complete canonical five-case launcher and exact-main 250-round acceptance"
+    },
+    {
+      "gap": "G2",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/13",
+      "title": "Validate bilingual seven-skill and source-claim acceptance"
+    },
+    {
+      "gap": "G3",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/14",
+      "title": "Enforce provider budgets and calibrate trajectory judging"
+    },
+    {
+      "gap": "G4",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/15",
+      "title": "Verify durable Langfuse browser linkage and score replay"
+    }
+  ],
+  "merge": {
+    "performed": false,
+    "parent_confirmation_required": true,
+    "branch_rules_readback": [],
+    "missing_attached_checks_not_counted_as_pass": true
+  },
+  "local_inventory_incident": "A cleanup command emitted full shared container configuration into local tool output; no environment values from it were copied into any file or published artifact. Subsequent inventories emitted only task IDs/states.",
+  "live_limit": "RequestLimitedTransport caps worker HTTP requests only; BudgetedProvider requires verified conservative input bounds and actual upstream output enforcement/usage. A real adapter, billing rates/gateway monetary cap, calibrated judge and complete five-case live launcher remain gaps; live mode is rejected before dispatch.",
+  "timeout_test_cleanup": [
+    {
+      "receipt": "budget-input-green",
+      "exact_child_pid": 19826,
+      "child_present_after_cleanup": false
+    },
+    {
+      "receipt": "budget-output-red",
+      "exact_child_pid": 19831,
+      "child_present_after_cleanup": false
+    }
+  ]
+}

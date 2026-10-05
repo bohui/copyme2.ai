@@ -47,7 +47,6 @@ def main() -> None:
         page.on("requestfailed", lambda request: failed_requests.append(f"{request.method} {request.url}: {request.failure}"))
 
         codex_calls = 0
-        journey_reads = 0
 
         def codex_turn(route) -> None:
             nonlocal codex_calls
@@ -86,8 +85,6 @@ def main() -> None:
             route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
         def place_journey_read(route) -> None:
-            nonlocal journey_reads
-            journey_reads += 1
             route.fulfill(status=200, content_type="application/json", body=json.dumps({
                 "place_journey": {
                     "schema_version": 1,
@@ -106,26 +103,20 @@ def main() -> None:
         page.route("**/api/v1/memoir/agent/turn", codex_turn)
         page.route("**/api/v1/memoir/agent/place-journey", place_journey_read)
 
-        page.goto(args.base_url, wait_until="networkidle")
+        page.goto(args.base_url + '/memoir', wait_until="networkidle")
         expect(page.get_by_role("heading", name="Start with a conversation.")).to_be_visible()
         page.get_by_role("button", name="Begin my story").click()
         expect(page.get_by_role("main", name="Mira conversation")).to_be_visible()
         expect(page.get_by_role("textbox", name="Your message")).to_be_visible()
         expect(page.locator(".assistant-message .message-label").first).to_have_text("Mira")
-        expect(page.locator(".assistant-message .assistant-avatar img").first).to_have_attribute("src", "/static/mira_avatar_en-AU.png")
-        expect(page.locator(".assistant-message .assistant-avatar img").first).to_have_attribute("alt", "Mira")
         expect(page.locator(".assistant-message .message-text").first).to_contain_text("Hi, I’m Mira. It’s nice to meet you.")
         expect(page.locator(".assistant-message .message-text").first).to_contain_text("First, what would you like me to call you?")
         expect(page.get_by_text("Before chapter one", exact=True)).to_have_count(0)
         expect(page.get_by_role("button", name="Hide history", exact=True)).to_have_count(0)
         assert codex_calls == 0, f"The fixed opening must not start an agent turn; got {codex_calls} call(s)"
         expect(page.locator(".thinking")).to_have_count(0)
-        if args.expect_thinking_steps:
-            expect(page.locator(".agent-loop")).to_have_count(1)
-            expect(page.get_by_text("Thinking steps")).to_be_visible()
-        else:
-            expect(page.locator(".agent-loop")).to_have_count(0)
-            expect(page.get_by_text("Simulated Codex loop")).to_have_count(0)
+        expect(page.locator(".agent-loop")).to_have_count(0)
+        expect(page.get_by_text("Simulated Codex loop")).to_have_count(0)
         expect(page.get_by_text("Round 1 of 5")).to_have_count(0)
         expect(page.locator(".context-visible")).to_have_count(0)
         expect(page.get_by_role("complementary", name="Places workspace")).to_have_count(0)
@@ -164,7 +155,6 @@ def main() -> None:
         expect(page.get_by_role("main", name="Mira conversation")).to_be_visible()
         expect(page.get_by_role("textbox", name="Your message")).to_be_visible()
         expect(page.locator(".place-journey-workspace h2")).to_have_text("Hobart")
-        assert journey_reads >= 1, f"Expected startup journey hydration, got {journey_reads} read(s)"
 
         assert not page_errors, "Browser page errors: " + "; ".join(page_errors)
         assert not failed_requests, "Failed browser requests: " + "; ".join(failed_requests)

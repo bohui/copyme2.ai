@@ -35,7 +35,7 @@ from urllib.error import HTTPError, URLError
 import warnings
 from zoneinfo import ZoneInfo
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 UA = "PlacePhotoResearch/1.0"
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
 MAX_PAGE_BYTES = 2 * 1024 * 1024
@@ -56,6 +56,12 @@ WEAK_DATE_BASES = {"unknown", "upload_date", "page_publication", "visual_guess"}
 
 class ResearchError(Exception):
     pass
+
+
+class SearchBlocked(ResearchError):
+    def __init__(self, cards):
+        super().__init__("CSE access challenge; no retry or CAPTCHA solving")
+        self.cards = cards
 
 
 def _text(value) -> str:
@@ -484,22 +490,56 @@ def _crawl4ai_years(text: str) -> list[int]:
 
 
 def _crawl4ai_scene_date(text: str, temporal: dict) -> dict | None:
-    """Return a supported source assertion without treating upload dates as scene dates."""
-    bounds = None
-    if temporal.get("mode") == "historical_range":
-        bounds = (date.fromisoformat(temporal["start"]).year, date.fromisoformat(temporal["end"]).year)
-    years = _crawl4ai_years(text)
-    if bounds:
-        matching = [year for year in years if bounds[0] <= year <= bounds[1]]
-        if matching:
-            year = matching[0]
-            return {"start": f"{year:04d}-01-01", "end": f"{year:04d}-12-31", "precision": "year",
-                    "basis": "source_caption", "conflicting": False}
-        if re.search(fr"\b{bounds[0]}s\b", text or "", re.I) or (
-                bounds == (1980, 1989) and re.search(r"(?:上世纪|20世纪)?\s*(?:80|八十)年代", text or "", re.I)):
-            return {"start": f"{bounds[0]:04d}-01-01", "end": f"{bounds[1]:04d}-12-31", "precision": "decade",
-                    "basis": "source_caption", "conflicting": False}
-    return None
+    """Parse a capture assertion, never select a convenient year from mixed dates.
+
+    Callers must supply an image caption or explicit capture metadata, not a
+    page title, search snippet, publication date or upload timestamp.
+    """
+    text = _text(text)
+    # Explicit capture labels distinguish mixed 'taken / uploaded' records.
+    capture = re.search(r"(?:taken on|photographed(?: on)?|captured(?: on)?|拍摄(?:于)?|摄于)\s*[:：]?\s*([^;；\n]+)", text, re.I)
+    if capture:
+        text = capture.group(1)
+    text = re.split(r"uploaded|published|updated|scanned|copyright|上传|发表|发布|更新|扫描|©", text, maxsplit=1, flags=re.I)[0]
+    dates, consumed = [], text
+    for match in re.finditer(r"(?<!\d)((?:18|19|20)\d{2})[-:/年](\d{1,2})[-:/月](\d{1,2})(?:日)?", text):
+        try:
+            day = date(*map(int, match.groups()))
+        except ValueError:
+            return None
+        dates.append((day, day, "day"))
+        consumed = consumed.replace(match.group(0), " ")
+    for match in re.finditer(r"\b([A-Za-z]+ \d{1,2},? (?:18|19|20)\d{2})\b", text):
+        for fmt in ("%B %d, %Y", "%B %d %Y", "%b %d, %Y", "%b %d %Y"):
+            try:
+                day = datetime.strptime(match.group(1), fmt).date()
+                dates.append((day, day, "day"))
+                consumed = consumed.replace(match.group(0), " ")
+                break
+            except ValueError:
+                pass
+    for match in re.finditer(r"(?<!\d)((?:18|19|20)\d{2})(?:s|年代)", consumed, re.I):
+        year = int(match.group(1))
+        if year % 10:
+            return None
+        dates.append((date(year, 1, 1), date(year + 9, 12, 31), "decade"))
+        consumed = consumed.replace(match.group(0), " ")
+    if re.search(r"(?:上世纪|20世纪)?\s*(?:80|八十)年代", consumed):
+        dates.append((date(1980, 1, 1), date(1989, 12, 31), "decade"))
+        consumed = re.sub(r"(?:上世纪|20世纪)?\s*(?:80|八十)年代", " ", consumed)
+    for year in set(_crawl4ai_years(consumed)):
+        # A repeated year alongside a precise date is not a second assertion.
+        if not any(a.year <= year <= b.year for a, b, _ in dates):
+            dates.append((date(year, 1, 1), date(year, 12, 31), "year"))
+    dates = list(dict.fromkeys(dates))
+    if len(dates) != 1:
+        return None
+    start, end, precision = dates[0]
+    if temporal.get("start") and temporal.get("end"):
+        if not date.fromisoformat(temporal["start"]) <= start <= end <= date.fromisoformat(temporal["end"]):
+            return None
+    return {"start": start.isoformat(), "end": end.isoformat(), "precision": precision,
+            "basis": "source_caption", "conflicting": False}
 
 
 def _crawl4ai_image_url(value: str) -> str | None:
@@ -539,7 +579,7 @@ def _crawl4ai_load_dotenv() -> None:
                 continue
             key, value = line.split("=", 1)
             key, value = key.strip(), value.strip().strip("\"'")
-            if re.fullmatch(r"[A-Z][A-Z0-9_]{1,80}", key) and key not in os.environ:
+            if key in {"SERPAPI_KEY", "GOOGLE_CSE_URL", "GOOGLE_CSE_ID"} and key not in os.environ:
                 os.environ[key] = value
         return
 
@@ -559,17 +599,22 @@ def _crawl4ai_search_url(search_url: str | None, request: dict) -> str:
     params = parse_qs(parsed.query, keep_blank_values=True)
     if not params.get("cx", [""])[0]:
         fail("Crawl4AI search URL must include a Programmable Search cx")
+    # Only public widget options are allowed in logged/cached search URLs.
+    params = {"cx": params["cx"], "q": [_crawl4ai_query(request)]}
+    return urlunsplit((parsed.scheme, parsed.hostname, parsed.path or "/cse", urlencode(params, doseq=True), ""))
+
+
+def _crawl4ai_query(request: dict) -> str:
     temporal = request["temporal"]
-    place_query = _crawl4ai_place_query(request["place"])
-    terms = [place_query, "老照片"]
-    if temporal.get("mode") == "historical_range":
+    terms = [_crawl4ai_place_query(request["place"])]
+    if temporal.get("mode") == "current":
+        terms += ["现在", "街景"]
+    elif temporal.get("mode") == "historical_range":
         start, end = date.fromisoformat(temporal["start"]).year, date.fromisoformat(temporal["end"]).year
-        terms.insert(1, f"{start}年代" if start % 10 == 0 else f"{start}-{end}")
-    query = " ".join(" ".join(str(term).split()) for term in terms if term)
-    params["q"] = [query]
-    params.pop("start", None)
-    params.pop("page", None)
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/cse", urlencode(params, doseq=True), ""))
+        terms += [f"{start}年代" if start % 10 == 0 and end == start + 9 else f"{start}-{end}", "老照片"]
+    else:
+        terms += ["老照片"]
+    return " ".join(terms)
 
 
 def _crawl4ai_search_js(page_number: int) -> str:
@@ -644,9 +689,13 @@ def _crawl4ai_search_pages(search_url: str, max_pages: int, before_page=None) ->
                     check_robots_txt=False, verbose=False,
                 )
                 result = await crawler.arun(url=search_url, config=config)
+                blocked_text = re.search(r"please verify that you are not a robot|unusual traffic from your computer network|g-recaptcha", result.html or "", re.I)
+                js_result = getattr(result, "js_execution_result", None)
+                if blocked_text or (isinstance(js_result, dict) and '"blocked": true' in json.dumps(js_result)):
+                    raise SearchBlocked(cards)
                 if not result.success:
                     if page_number == 1:
-                        fail(f"Crawl4AI search failed: {result.error_message or result.status_code}")
+                        fail("Crawl4AI search failed")
                     break
                 page_cards = parse_crawl4ai_image_results(result.html or "")
                 for card in page_cards:
@@ -691,67 +740,69 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     source_url = page["url"]
     parsed = PageParser(source_url)
     parsed.feed(page.get("html", ""))
-    page_record = parsed.output()
-    page_title = page_record.get("title", "") or page.get("title", "")
-    page_excerpt = page_record.get("text_excerpt", "") or page.get("text", "")
-    identity_text = " ".join([page_title, page_excerpt[:2000]])
-    if not _crawl4ai_location_matches(identity_text, request["place"]):
+    record = parsed.output()
+    title = record.get("title") or page.get("title", "")
+    excerpt = record.get("text_excerpt") or page.get("text", "")
+    if not _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"]):
         return []
-    if _crawl4ai_scene_date(identity_text, request["temporal"]) is None:
-        return []
-    page_text = " ".join([identity_text, page.get("markdown", ""), card.get("text", "")])
-    if NON_PHOTO.search(page_text) and not re.search(r"照片|photo|photograph", page_text, re.I):
-        return []
-    if not _crawl4ai_location_matches(page_text, request["place"]):
-        return []
-    source_date = _crawl4ai_scene_date(page_text, request["temporal"])
-    if source_date is None:
-        return []
-    media = page.get("media") if isinstance(page.get("media"), list) else []
-    image_records = []
-    for item in media:
-        if not isinstance(item, dict):
+    images = []
+    for item in page.get("media", []) if isinstance(page.get("media"), list) else []:
+        if isinstance(item, dict):
+            images.append({"url": item.get("src") or item.get("url"), "alt": item.get("alt", ""),
+                           "description": item.get("desc", "")})
+    for item in record["image_candidates"]:
+        for url in item["candidate_urls"]:
+            images.append({"url": url, "alt": item["alt"], "description": item["figure_text"]})
+    capture_metadata = {}
+    def visit(node, depth=0):
+        if depth > 10:
+            return
+        if isinstance(node, list):
+            for child in node[:150]: visit(child, depth + 1)
+        elif isinstance(node, dict):
+            kinds = node.get("@type", [])
+            if isinstance(kinds, str): kinds = [kinds]
+            if set(kinds).intersection({"Photograph", "ImageObject"}):
+                url = _crawl4ai_image_url(node.get("contentUrl"))
+                taken = node.get("dateTaken") or node.get("dateCreated")
+                if url and isinstance(taken, str):
+                    capture_metadata[url] = taken
+                    images.append({"url": url, "alt": node.get("name", ""), "description": node.get("caption", "")})
+            for child in node.values(): visit(child, depth + 1)
+    visit(record["json_ld"])
+    metadata = {str(item.get("property") or item.get("name") or "").lower(): item.get("content", "")
+                for item in record["metadata"]}
+    primary = _crawl4ai_image_url(metadata.get("og:image"))
+    taken = next((metadata[key] for key in ("datetaken", "date_taken", "exif:datetimeoriginal", "photo:datetaken") if metadata.get(key)), None)
+    if primary and taken:
+        capture_metadata[primary] = taken
+        images.append({"url": primary, "alt": metadata.get("og:title", title), "description": ""})
+    unique = {}
+    for image in images:
+        observed = image.get("url")
+        if isinstance(observed, str): observed = urljoin(source_url, observed)
+        url = _crawl4ai_image_url(observed)
+        if not url: continue
+        alt, caption = _text(image.get("alt")), _text(image.get("description"))
+        if NON_PHOTO.search(" ".join([alt, caption])): continue
+        if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
             continue
-        image_records.append({"url": item.get("src") or item.get("url"), "alt": item.get("alt", ""),
-                              "description": item.get("desc", ""), "width": item.get("width"), "height": item.get("height", "")})
-    for item in page_record.get("image_candidates", []):
-        for image_url in item.get("candidate_urls", []):
-            image_records.append({"url": image_url, "alt": item.get("alt", ""),
-                                  "description": item.get("figure_text", ""), "width": None, "height": None})
-    unique, seen = [], set()
-    for image in image_records:
-        observed_url = image.get("url")
-        if isinstance(observed_url, str) and observed_url.startswith("//"):
-            observed_url = urljoin(source_url, observed_url)
-        image_url = _crawl4ai_image_url(observed_url)
-        if not image_url or image_url in seen:
+        if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
             continue
-        seen.add(image_url)
-        image_text = " ".join([str(image.get("alt", "")), str(image.get("description", "")),
-                                card.get("title", ""), page_title])
-        image_alt = _text(image.get("alt"))
-        image_description = _text(image.get("description"))
-        if image_alt and not (
-                _crawl4ai_location_matches(image_alt, request["place"])
-                or _crawl4ai_scene_date(image_alt, request["temporal"])):
-            continue
-        if not image_alt and image_description and not (
-                _crawl4ai_location_matches(image_description, request["place"])
-                or _crawl4ai_scene_date(image_description, request["temporal"])):
-            # Related-video cards and recommendation thumbnails often appear in
-            # Crawl4AI's media inventory. Keep them out even when the article
-            # itself is a valid historical source.
-            continue
-        if NON_PHOTO.search(image_text):
-            continue
-        scene_date = _crawl4ai_scene_date(image_text, request["temporal"]) or source_date
-        if scene_date is None:
-            continue
-        title = _text(image.get("alt")) or _text(image.get("description")) or _text(card.get("title")) or page_title or "Historical photo reference"
-        unique.append({"image_url": image_url, "observed_image_url": observed_url,
-                       "title": title[:1000], "scene_date": scene_date,
-                       "source_excerpt": _text(image_text)[:1200]})
-    return unique
+        # Repeated article-title alt text is not an image-specific date assertion.
+        assertion = capture_metadata.get(url) or " ".join(value for value in (alt, caption) if value and value != title)
+        scene = _crawl4ai_scene_date(assertion, request["temporal"])
+        if scene is None: continue
+        if request.get("as_of"):
+            as_of = date.fromisoformat(request["as_of"])
+            end = date.fromisoformat(scene["end"])
+            if end > as_of: continue
+            if request["temporal"]["mode"] == "historical_unspecified" and end >= subtract_months(as_of, request.get("recent_months", 24)):
+                continue
+        if url in capture_metadata: scene["basis"] = "provider_date_taken"
+        unique[url] = {"image_url": url, "observed_image_url": observed, "title": (alt or caption or title)[:1000],
+                       "scene_date": scene, "source_excerpt": ("Place: " + title + "; Image capture assertion: " + assertion)[:1200]}
+    return list(unique.values())
 
 
 def _crawl4ai_evidence_id(source_url: str, image_url: str, kind: str) -> str:
@@ -1175,10 +1226,29 @@ def crawl4ai_discover(run: Path, search_url: str | None = None, *, max_search_pa
     cards = _crawl4ai_search_pages(search, max_search_pages, before_page=before_search_page)
     if not seen_search_pages:
         log_event(run, "page", "Crawl4AI image-search page 1", [search])
+    return _discover_cards(run, cards, search, source_limit)
+
+
+def _discover_cards(run: Path, cards: list[dict], search: str | None, source_limit: int, *, fetch_source=None) -> dict:
+    request, existing, evidence = load_records(run)
+    target = request["count"]
+    fetch_source = fetch_source or _crawl4ai_source_page
     merged = list(existing)
     existing_ids = {candidate.get("id") for candidate in merged}
+    def verified_reference_urls(candidates):
+        verified = set()
+        for candidate in candidates:
+            evaluation = evaluate(candidate, request, evidence)
+            identity_errors = [reason for reason in evaluation["reason_codes"]
+                               if reason.startswith(("DATE_", "PLACE_", "AUTHENTICITY_", "NO_DIRECT_IMAGE"))]
+            if not identity_errors and (candidate.get("memory_reference_only") or evaluation["eligible_for_local_download"]):
+                verified.add(candidate["image_url"])
+        return verified
+    preserved = verified_reference_urls(existing)
     seen_sources, qualifying = set(), 0
     for card in cards:
+        if len(preserved) + qualifying >= target:
+            break
         source_url = card.get("source_url")
         if not source_url or source_url in seen_sources or len(seen_sources) >= source_limit:
             continue
@@ -1186,26 +1256,36 @@ def crawl4ai_discover(run: Path, search_url: str | None = None, *, max_search_pa
             _, source_host, source_port = valid_url(source_url)
             public_addresses(source_host, source_port)
         except ResearchError as error:
-            log_event(run, "note", f"Skipped unsafe CSE source URL: {error}", [search])
+            log_event(run, "note", f"Skipped unsafe CSE source URL: {error}", [search] if search else [])
             continue
         if not _crawl4ai_location_matches(card.get("text", ""), request["place"]):
-            continue
-        if _crawl4ai_scene_date(card.get("text", ""), request["temporal"]) is None:
             continue
         seen_sources.add(source_url)
         log_event(run, "page", "Crawl4AI source-page inspection", [source_url])
         try:
-            page = _crawl4ai_source_page(source_url)
+            page = fetch_source(source_url)
             images = _crawl4ai_source_images(page, card, request)
+            source_cards = [lead for lead in cards if lead.get("source_url") == source_url]
+            origins = [origin for lead in source_cards for origin in lead.get("origins", [])]
+            providers = sorted({provider for lead in source_cards for provider in lead.get("providers", ["cse"])})
         except (ResearchError, OSError, ValueError, http.client.HTTPException) as error:
-            log_event(run, "note", f"Crawl4AI source skipped: {type(error).__name__}: {error}", [source_url])
+            log_event(run, "note", f"Crawl4AI source skipped: {type(error).__name__}", [source_url])
             continue
         for image in images:
-            if qualifying >= target or len(merged) >= 100:
+            if len(preserved) + qualifying >= target or len(merged) >= 100:
                 break
             image_url = image["image_url"]
+            related = [lead for lead in cards if lead.get("image_url") == image_url]
+            image_origins = origins + [origin for lead in related for origin in lead.get("origins", [])]
+            image_origins = list({json.dumps(origin, sort_keys=True): origin for origin in image_origins}.values())
+            image_providers = sorted(set(providers + [provider for lead in related for provider in lead.get("providers", [])]))
             candidate_id = "crawl4ai-" + hashlib.sha256(f"{source_url}\n{image_url}".encode()).hexdigest()[:24]
-            if candidate_id in existing_ids or any(c.get("image_url") == image_url for c in merged):
+            duplicate = next((c for c in merged if c.get("image_url") == image_url), None)
+            if duplicate:
+                duplicate["providers"] = sorted(set(duplicate.get("providers", []) + image_providers))
+                duplicate["discovery_origins"] = list({json.dumps(origin, sort_keys=True): origin for origin in duplicate.get("discovery_origins", []) + image_origins}.values())
+                continue
+            if candidate_id in existing_ids:
                 continue
             evidence_ids = []
             for kind, excerpt in (("place", image["source_excerpt"]), ("scene_date", image["source_excerpt"]),
@@ -1226,7 +1306,8 @@ def crawl4ai_discover(run: Path, search_url: str | None = None, *, max_search_pa
             candidate = {
                 "id": candidate_id, "title": image["title"], "source_page_url": source_url,
                 "image_url": image_url, "observed_image_url": image.get("observed_image_url") or image_url,
-                "creator": None, "collection_page_url": search,
+                "creator": None, "collection_page_url": search or source_url,
+                "providers": image_providers, "discovery_origins": image_origins,
                 "authenticity": "source_described_photograph", "memory_reference_only": True,
                 "place": {"label": request["place"], "match": "exact", "evidence_ids": [evidence_ids[0]]},
                 "scene_date": {**image["scene_date"], "evidence_ids": [evidence_ids[1]]},
@@ -1241,14 +1322,15 @@ def crawl4ai_discover(run: Path, search_url: str | None = None, *, max_search_pa
             merged.append(candidate)
             existing_ids.add(candidate_id)
             qualifying += 1
-        if qualifying >= target:
+        if len(preserved) + qualifying >= target:
             break
     write_json(run / "candidates.json", merged[:100])
     write_text(run / "evidence.jsonl", "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in evidence.values()))
     manifest = build_manifest(run)
+    total = len(verified_reference_urls(merged))
     summary = {"search_url": search, "search_cards": len(cards), "source_pages": len(seen_sources),
-               "qualifying": qualifying, "target": target, "shortfall": max(0, target - qualifying),
-               "reference_status": "complete" if qualifying >= target else "incomplete",
+               "qualifying": total, "verified_memory_references_added": qualifying, "target": target, "shortfall": max(0, target - total),
+               "reference_status": "complete" if total >= target else "incomplete",
                "manifest": manifest["summary"]}
     return summary
 
@@ -1407,6 +1489,7 @@ def build_manifest(run: Path, *, download: bool = False) -> dict:
         verdict = evaluate(c, request, evidence)
         entry = {"id": c["id"], "title": c["title"], "source_page_url": c["source_page_url"],
                  "scene_date": c["scene_date"], "creator": c.get("creator"), "rights": c["rights"],
+                 "providers": c.get("providers", []), "discovery_origins": c.get("discovery_origins", []),
                  "memory_reference_only": bool(c.get("memory_reference_only")),
                  "evaluation": verdict, "download_status": "not_downloaded", "local_path": None}
         old_entry = prior.get(c["id"], {})
@@ -1454,7 +1537,7 @@ def build_manifest(run: Path, *, download: bool = False) -> dict:
     for candidate, result in zip(candidates, results):
         if not result["evaluation"]["eligible_for_local_download"]:
             continue
-        keys = {candidate["source_page_url"], candidate.get("image_url")}
+        keys = {candidate.get("image_url") or candidate["source_page_url"]}
         keys.discard(None)
         if result.get("acquisition", {}).get("sha256"):
             keys.add(result["acquisition"]["sha256"])
@@ -1483,7 +1566,7 @@ def render_reports(run: Path, manifest: dict) -> None:
         date_label = f"{cdate.get('start')} to {cdate.get('end')}" if cdate.get("start") else "Capture date unknown"
         clean_title = row["title"].replace("\n", " ")
         md.extend([f"## {row['id']} — {md_escape(clean_title)}", "", f"Scene date: {date_label}; evidence basis: {cdate.get('basis')}",
-                   f"Download: {row['download_status']}", f"Source: <{row['source_page_url']}>",
+                   f"Providers: {', '.join(row.get('providers', [])) or 'manual/native'}", f"Download: {row['download_status']}", f"Source: <{row['source_page_url']}>",
                    f"Attribution: {md_escape(row['rights'].get('attribution') or 'Not recorded')}",
                    "Checks: " + (", ".join(row["evaluation"]["reason_codes"]) or "Local download checks passed"),
                    "Publication: separate review required.", ""])
@@ -1537,11 +1620,22 @@ def main(argv=None) -> int:
     crawl.add_argument("--search-url", help="Google Programmable Search page URL; defaults to GOOGLE_CSE_URL or GOOGLE_CSE_ID")
     crawl.add_argument("--max-search-pages", type=int, default=CRAWL4AI_MAX_SEARCH_PAGES)
     crawl.add_argument("--source-limit", type=int, default=CRAWL4AI_MAX_SOURCE_PAGES)
-    discover = sub.add_parser("discover", help="Discover source-backed place photos through configured LLM web search")
+    discover = sub.add_parser(
+        "discover",
+        help="Discover source-backed place photos through the configured provider route",
+    )
     discover.add_argument("--run", required=True)
-    discover.add_argument("--source-limit", type=int, default=24)
-    discover.add_argument("--provider-timeout", type=float, default=30)
-    discover.add_argument("--cache-ttl", type=int, default=86400)
+    discover.add_argument("--search-url", help="Google CSE page URL for the parallel route")
+    discover.add_argument("--max-search-pages", type=int, default=1)
+    discover.add_argument("--source-limit", type=int, default=CRAWL4AI_MAX_SOURCE_PAGES)
+    discover.add_argument("--provider-timeout", type=float, default=45)
+    discover.add_argument("--cache-ttl", type=int, default=86400, help="Public search metadata TTL seconds; 0 disables reads")
+    discover.add_argument(
+        "--provider",
+        choices=("auto", "llm", "parallel"),
+        default="auto",
+        help="auto uses LLM when MEMORY_SPARK_PHOTO_WEB_SEARCH is set, otherwise parallel SerpAPI/CSE",
+    )
     for name in ("audit", "download", "report"):
         p = sub.add_parser(name)
         p.add_argument("--run", required=True)
@@ -1591,9 +1685,22 @@ def main(argv=None) -> int:
             write_json(checked_path(run, rel), record)
             print(json.dumps({"saved": str(checked_path(run, rel)), "images": len(record["image_candidates"]), "title": record["title"]}, ensure_ascii=False))
         elif args.command == "discover":
-            summary = llm_discover(Path(args.run), source_limit=args.source_limit,
-                                   provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
-            print(json.dumps(summary, ensure_ascii=False))
+            _crawl4ai_load_dotenv()
+            flag = _configured_env("MEMORY_SPARK_PHOTO_WEB_SEARCH").lower()
+            if args.provider == "llm" or (args.provider == "auto" and flag in {"1", "true", "yes"}):
+                summary = llm_discover(Path(args.run), source_limit=args.source_limit,
+                                       provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
+            else:
+                # Import lazily: app callers load this helper by file path.
+                scripts = str(Path(__file__).resolve().parent)
+                if scripts not in sys.path:
+                    sys.path.insert(0, scripts)
+                sys.modules.setdefault("photo_research", sys.modules[__name__])
+                from photo_search import discover as parallel_discover
+                summary = parallel_discover(Path(args.run).resolve(), args.search_url,
+                    max_search_pages=args.max_search_pages, source_limit=args.source_limit,
+                    provider_timeout=args.provider_timeout, cache_ttl=args.cache_ttl)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
         elif args.command == "crawl4ai":
             summary = crawl4ai_discover(Path(args.run).resolve(), args.search_url,
                                          max_search_pages=args.max_search_pages, source_limit=args.source_limit)

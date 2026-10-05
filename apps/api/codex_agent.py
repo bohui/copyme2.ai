@@ -1,11 +1,18 @@
 """Codex app-server stdio protocol. Caller supplies an isolated user runtime."""
 import asyncio
 import json
+import logging
 import os
 import signal
+import time
 from pathlib import Path
 
+from .diagnostics import configure_diagnostic_logger, elapsed_ms, log_diagnostic, new_request_id
 from .trajectory_evaluation import normalise_correlation, protocol_request_evidence
+
+
+diagnostic_logger = logging.getLogger("memoir.appserver.diagnostics")
+configure_diagnostic_logger(diagnostic_logger)
 
 
 class CodexConnection:
@@ -111,12 +118,24 @@ class CodexConnection:
         else:
             self.events.append(message)
 
-    async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None, output_schema=None, on_event=None):
+    async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None,
+                   output_schema=None, on_event=None, effort=None):
         self.events.clear()
-        params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}]}
+        started = time.perf_counter()
+        params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}],
+                  'effort': effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max')}
         if output_schema is not None:
             params['outputSchema'] = output_schema
         metadata = normalise_correlation(responsesapi_client_metadata)
+        request_id = new_request_id(metadata.get('request_id'))
+        metadata['request_id'] = request_id
+        log_diagnostic(
+            diagnostic_logger,
+            'appserver_turn_start',
+            request_id,
+            component='memoir.appserver.client',
+            model=metadata.get('model'),
+        )
         if metadata:
             params['responsesapiClientMetadata'] = {
                 key: value for key, value in metadata.items()
@@ -125,6 +144,8 @@ class CodexConnection:
                     'application_revision', 'skill_hash', 'generation_name',
                     'evaluator_version', 'rubric_version', 'judge_rubric_version',
                     'model', 'provider', 'variant',
+                    'round_id',
+                    'request_id',
                 }
             }
         result = await self.request('turn/start', params)
@@ -170,9 +191,32 @@ class CodexConnection:
                             await on_delta(item['text'])
                 if event.get('method') == 'turn/completed' and params['turn']['id'] == turn_id:
                     if params['turn']['status'] != 'completed':
+                        log_diagnostic(
+                            diagnostic_logger,
+                            'appserver_turn_failed',
+                            request_id,
+                            component='memoir.appserver.client',
+                            model=metadata.get('model'),
+                            status='failed',
+                            terminal_event='turn.completed',
+                            terminal_status=params['turn'].get('status'),
+                            failure_class='turn_status',
+                            elapsed_ms=elapsed_ms(started),
+                        )
                         if self.trajectory:
                             self.trajectory.record('codex.turn', 'turn.failed', output=params['turn'])
                         raise RuntimeError('Codex turn failed; no reply was substituted')
+                    log_diagnostic(
+                        diagnostic_logger,
+                        'appserver_turn_terminal',
+                        request_id,
+                        component='memoir.appserver.client',
+                        model=metadata.get('model'),
+                        status='completed',
+                        terminal_event='turn.completed',
+                        terminal_status='completed',
+                        elapsed_ms=elapsed_ms(started),
+                    )
                     if self.trajectory:
                         self.trajectory.record('codex.turn', 'turn.completed', output={'turn': params['turn'], 'message_count': len(messages)})
                     return '\n'.join(messages)
@@ -183,6 +227,7 @@ def provider_config(base_url, model):
     return '\n'.join([
         'model_provider = "llm_provider"',
         'model = ' + json.dumps(model),
+        'model_reasoning_effort = ' + json.dumps(os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max')),
         'approval_policy = "never"',
         'sandbox_mode = "read-only"',
         '[model_providers.llm_provider]',

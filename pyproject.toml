@@ -12,6 +12,7 @@ dependencies = [
   "fastapi>=0.141.1,<1",
   "uvicorn[standard]>=0.53.0,<1",
   "pydantic>=2.13.5,<3",
+  "Pillow>=12,<13",
   "temporalio>=1.33.0,<2",
 ]
 
@@ -26,6 +27,7 @@ test = [
   "pytest>=9.1.1,<10",
   "httpx>=0.28.1,<1",
   "playwright>=1.63.0,<2",
+  "jsonschema>=4.25,<5",
 ]
 evaluation = [
   "langfuse>=4,<5",

@@ -1,0 +1,1749 @@
+{
+  "schema_version": 1,
+  "branch": "codex/mac-pr9-pr10-validation-20261004",
+  "tested_code_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+  "tested_code_tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+  "original_cloud_integration": {
+    "cloud_base": "d11a25389edabfd5e0f5d0e92a74174b0bf7badb",
+    "cloud_tree": "b687763efee2c86bc6043ea166402cd947514a30",
+    "cloud_ordered_parents": [
+      "84366778f50495d065e794a00f16184d16dc4216",
+      "90dee1f2be4f6a83fbc44e779f8d2e91106c6061"
+    ]
+  },
+  "pr8_main_merge": {
+    "sha": "a4d8abf810eefa1ec36cc219710f8ac954bb52e9",
+    "tree": "8bbcecabb43aeca01bdeb37dbe7c1f38715b99c9"
+  },
+  "mac_pr8_integration_merge": {
+    "sha": "0c1571677ffe331c37493c8c78be4e5e6646ef89",
+    "parents": [
+      "9359d4baa549a71458eec079ff2415f6bad7366f",
+      "a4d8abf810eefa1ec36cc219710f8ac954bb52e9"
+    ]
+  },
+  "source_trees": {
+    "apps": "66b7d7a7bc58dc91289940d9eebc24321b0a46e1",
+    "supabase": "2e49d91944dcd5341f50a963fcda62fbb92e0dc2",
+    "skills": "0ab4dac2cd27d3b56f994efb49406405740b2523",
+    "tests": "7e17f2becf9900a75c2db7874e49282981d8abca",
+    "scripts": "d2cba2fd3b4b96186503128ba7794fd44989a08c"
+  },
+  "native_python": {
+    "collected": 1198,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 4,
+    "passed": 1194,
+    "receipt": {
+      "name": "native-full-03",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_network_guard.py",
+        "pytest",
+        "-q",
+        "--junitxml=/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/resume/native-full-03.xml"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 276.13,
+      "log_sha256": "0b5d17020c56c06d2ff7498f628a7926380faa6c5ba30bea75fd1af91b63af94"
+    },
+    "junit_sha256": "6db62faa4b59d744dda245d5dc31a7cdc67f7e74555e5ae2e00d063243d5a04f",
+    "live_skip_reason": "Four opt-in configured-provider follow-up evaluations (two locales, current/earlier context). Skips are not passes.",
+    "ui_cases": 48,
+    "photo_browser_api_eligibility_cases": 42,
+    "real_temporal_cases": 6
+  },
+  "exact_head_focused_receipts": {
+    "code_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+    "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+    "source": "native-full-03.xml",
+    "source_sha256": "6db62faa4b59d744dda245d5dc31a7cdc67f7e74555e5ae2e00d063243d5a04f",
+    "groups": {
+      "tests.test_isolated_check_runner": [
+        {
+          "name": "test_completed_child_keeps_its_receipt_when_later_git_would_abort",
+          "status": "passed",
+          "seconds": 0.557
+        },
+        {
+          "name": "test_unavailable_identity_prevents_the_check_and_records_the_blocker",
+          "status": "passed",
+          "seconds": 0.397
+        },
+        {
+          "name": "test_timed_out_child_is_stopped_and_receipted_as_a_timeout",
+          "status": "passed",
+          "seconds": 0.333
+        },
+        {
+          "name": "test_offline_child_cannot_inherit_provider_or_database_credentials",
+          "status": "passed",
+          "seconds": 0.084
+        },
+        {
+          "name": "test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+          "status": "passed",
+          "seconds": 5.647
+        },
+        {
+          "name": "test_supervisor_sigterm_stops_the_child_and_finalizes_termination_receipt",
+          "status": "passed",
+          "seconds": 0.351
+        }
+      ],
+      "tests.test_memoir_lanes_temporal": [
+        {
+          "name": "test_real_worker_and_temporal_coalesce_busy_lane_to_latest_available_inputs[timeline]",
+          "status": "passed",
+          "seconds": 4.011
+        },
+        {
+          "name": "test_real_worker_and_temporal_coalesce_busy_lane_to_latest_available_inputs[composer]",
+          "status": "passed",
+          "seconds": 0.781
+        },
+        {
+          "name": "test_real_temporal_dispatch_commits_evidence_without_story_text_in_history",
+          "status": "passed",
+          "seconds": 0.24
+        },
+        {
+          "name": "test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn[timeline]",
+          "status": "passed",
+          "seconds": 10.506
+        },
+        {
+          "name": "test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn[composer]",
+          "status": "passed",
+          "seconds": 3.204
+        },
+        {
+          "name": "test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry",
+          "status": "passed",
+          "seconds": 18.999
+        }
+      ],
+      "tests.test_recall_browser": [
+        {
+          "name": "test_final_reply_package_selection_refresh_and_payment[False-en-AU]",
+          "status": "passed",
+          "seconds": 2.612
+        },
+        {
+          "name": "test_final_reply_package_selection_refresh_and_payment[False-zh-CN]",
+          "status": "passed",
+          "seconds": 2.071
+        },
+        {
+          "name": "test_final_reply_package_selection_refresh_and_payment[True-en-AU]",
+          "status": "passed",
+          "seconds": 1.836
+        },
+        {
+          "name": "test_final_reply_package_selection_refresh_and_payment[True-zh-CN]",
+          "status": "passed",
+          "seconds": 1.848
+        },
+        {
+          "name": "test_account_history_and_busy_preview_resume_without_manual_retry",
+          "status": "passed",
+          "seconds": 1.238
+        },
+        {
+          "name": "test_preview_retry_shows_progress_polls_and_recovers[en-AU-1440]",
+          "status": "passed",
+          "seconds": 1.811
+        },
+        {
+          "name": "test_preview_retry_shows_progress_polls_and_recovers[zh-CN-390]",
+          "status": "passed",
+          "seconds": 1.743
+        }
+      ]
+    }
+  },
+  "standalone_browser_counts": {
+    "passed": 29,
+    "failed": 0,
+    "unconfirmed": 0
+  },
+  "standalone_browsers": [
+    {
+      "name": "browser_auth_reminder-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_auth_reminder.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 9.67,
+      "log_sha256": "6381127cf4d8b127d5cb39f056d304563b1ba1fdd66f2321515024c300334018"
+    },
+    {
+      "name": "browser_collection_review-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_collection_review.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 8.36,
+      "log_sha256": "05baf846b9843f4da895721f3feeb5c186a7d0e36cea95747de3c57fe7f5052e"
+    },
+    {
+      "name": "browser_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889",
+        "--expect-thinking-steps"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 15.5,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_family_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.45,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_family_gate_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_gate_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.33,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_family_renderers_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_renderers_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.38,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_fast_conversation_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_fast_conversation_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 4.27,
+      "log_sha256": "4d893e8c1d0fa12885093f368c35968058f0e8b3535d1167559ee103a8d3bf81"
+    },
+    {
+      "name": "browser_first_reply_localization-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_first_reply_localization.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 3.31,
+      "log_sha256": "0e3fd7a6f83695a22d5e8549bdf9f418472ab73d900e3b4ce91a90fd07c749c7"
+    },
+    {
+      "name": "browser_localization_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_localization_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 10.82,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_memoir_progressive_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_memoir_progressive_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889",
+        "--locale",
+        "all"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 68.6,
+      "log_sha256": "87ac2eeb0dfd26220b61f10fd568e00f4aba47e9701c3ca0b422134d5439c798"
+    },
+    {
+      "name": "browser_photo_progress_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_photo_progress_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 4.32,
+      "log_sha256": "1f93f6eb0c2de5273a8cc82ce3b76c173ac29f23454b6fc4e6dd57164a459cae"
+    },
+    {
+      "name": "browser_photo_progress_e2e-blocked-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_photo_progress_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889",
+        "--blocked"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 4.2,
+      "log_sha256": "aa272d2594a5fcf3628be4c36bb57d4168b516c926881e847d7a6a28bc0fa2fa"
+    },
+    {
+      "name": "browser_place_groups_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_groups_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 10.11,
+      "log_sha256": "94e135380c7fc27e4a127ef1e108ea5c0dc86ba598fb41a0ed42ae411fb06e9f"
+    },
+    {
+      "name": "browser_place_map_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_map_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 8.98,
+      "log_sha256": "012edb086cd444d99699ce49bda397f2842f77eaf6490c02b626a529bdbacf07"
+    },
+    {
+      "name": "browser_place_map_e2e-gallery-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_map_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889",
+        "--with-gallery"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 9.46,
+      "log_sha256": "012edb086cd444d99699ce49bda397f2842f77eaf6490c02b626a529bdbacf07"
+    },
+    {
+      "name": "browser_place_photo_pagination-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_photo_pagination.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 7.18,
+      "log_sha256": "2dbb66ca52d5cfd3f12cca424187f6062ec93bf4434336eff4ac6ae41091149f"
+    },
+    {
+      "name": "browser_place_photos_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_photos_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 4.43,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_place_preview_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_preview_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 6.24,
+      "log_sha256": "2ce282de39e1316b89e31a6423f5915f0fa7a8ea148ec41b9264fff96ac90de2"
+    },
+    {
+      "name": "browser_profile_history-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_profile_history.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.44,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_profile_settings-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_profile_settings.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 3.15,
+      "log_sha256": "df6f4be82450c5a32581c8cffb2df0eda88cd05a3a0f938b7d1e5308baad46eb"
+    },
+    {
+      "name": "browser_smoke-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_smoke.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.65,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_start_flow-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_start_flow.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 5.03,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_streaming_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_streaming_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 4.41,
+      "log_sha256": "d1ca023c95cc1f66b710d8ab60ada813911761c299ca33c392e933f27071fd19"
+    },
+    {
+      "name": "browser_ten_round_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_ten_round_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889",
+        "--locale",
+        "all"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 24.74,
+      "log_sha256": "ae988f6e3240eaf0d36c7d5b0190733143ff987096de463e42a1aa37adb6d49a"
+    },
+    {
+      "name": "browser_thirty_round_e2e-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_thirty_round_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 41.32,
+      "log_sha256": "558c202b77cc3ba1903ce660e24b476804232cf272d344b66e6580820535cf06"
+    },
+    {
+      "name": "browser_voice_controls-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_voice_controls.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.58,
+      "log_sha256": "11406aec3f111aebefbebbd9d9bb398b74ac4e55c5261c84cc88d18c7b0682f8"
+    },
+    {
+      "name": "browser_workspace_gate-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_workspace_gate.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.42,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_workspace_image_lifecycle-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_workspace_image_lifecycle.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 6.42,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "browser_workspace_responsive-batch-01",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_workspace_responsive.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 13.8,
+      "log_sha256": "3072d94c64ce6d6606eb00de28a761b414b7644397dc04e34c06ca36f5e4968d"
+    }
+  ],
+  "other_checks": [
+    {
+      "name": "javascript-01",
+      "command": [
+        "node",
+        "--test",
+        "skills/memoir-composer/tests/composer.test.mjs",
+        "skills/memoir-composer/tests/progressive_e2e.test.mjs",
+        "tests/js/auth-reminder.test.mjs",
+        "tests/js/auth-session-menu.test.mjs",
+        "tests/js/chat-layout.test.mjs",
+        "tests/js/conversation-locale.test.mjs",
+        "tests/js/dates.test.mjs",
+        "tests/js/family-tree.test.mjs",
+        "tests/js/guest-conversation-transfer.test.mjs",
+        "tests/js/i18n-config.test.mjs",
+        "tests/js/i18n-fallback.test.mjs",
+        "tests/js/interview-project-restore.test.mjs",
+        "tests/js/live-trace.test.mjs",
+        "tests/js/memoir-workspace.test.mjs",
+        "tests/js/place-groups.test.mjs",
+        "tests/js/place-history.test.mjs",
+        "tests/js/place-photo-fallback.test.mjs",
+        "tests/js/place-photo-pagination.test.mjs",
+        "tests/js/place-photo-period.test.mjs",
+        "tests/js/recall-preview-progress.test.mjs",
+        "tests/js/stream-latency.test.mjs",
+        "tests/js/timeline-uncertainty.test.mjs",
+        "tests/js/workspace-visibility.test.mjs"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.49,
+      "log_sha256": "e9d99bad06eb0efcc8f557865ded650471a03bd7cd0fdcc472d3ade204127091"
+    },
+    {
+      "name": "python-compile-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "apps",
+        "scripts",
+        "tests"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.42,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "localization-catalog-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "scripts/check_localization_catalog.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.08,
+      "log_sha256": "a2bc43dbff07d9d89bc638f017fd1c9e5c2a29e227d8c9e521bd6f9340d64f77"
+    },
+    {
+      "name": "localization-icu-01",
+      "command": [
+        "node",
+        "apps/web/scripts/check_localization_icu.mjs"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.07,
+      "log_sha256": "515963c276678fd507134c4998619d40c025ecda80f136411204e7b107f87c6e"
+    },
+    {
+      "name": "route-audit-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "scripts/audit_spec_routes.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.0,
+      "log_sha256": "2a6730c7cfdcacc031d97ddd5362d60e80250a8256b3fc60ad4d78d8ca9fa5d0"
+    },
+    {
+      "name": "redirect-url-policy-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/redirect_url_policy_check.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 0.18,
+      "log_sha256": "52a52cf95bce1706980216b6ea73023f52f57865b5db0d45fdd710aed17355c1"
+    },
+    {
+      "name": "family-renderers-real-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_renderers_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 3.06,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "renderer_mode_evidence": {
+        "status": "not_retained",
+        "actual_MEMOIR_RENDERER_FIXTURES": null,
+        "actual_MEMOIR_RENDERER_EXPECT_FALLBACK": null,
+        "claim_limit": "Command exit 0 is verified; receipt label does not establish real/stub/fallback selection. Empty log and network receipt omit these flags."
+      }
+    },
+    {
+      "name": "family-renderers-fallback-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_renderers_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:56889"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 2.36,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "renderer_mode_evidence": {
+        "status": "not_retained",
+        "actual_MEMOIR_RENDERER_FIXTURES": null,
+        "actual_MEMOIR_RENDERER_EXPECT_FALLBACK": null,
+        "claim_limit": "Command exit 0 is verified; receipt label does not establish real/stub/fallback selection. Empty log and network receipt omit these flags."
+      }
+    }
+  ],
+  "javascript_counts": {
+    "passed": 173,
+    "failed": 0,
+    "skipped": 0
+  },
+  "production_build": {
+    "name": "production-build-01",
+    "command": [
+      "npm",
+      "--prefix",
+      "apps/web",
+      "run",
+      "build"
+    ],
+    "exit_code": 0,
+    "base_head": "ec7f4487b3616a8a266d49aa5432d07f790c6541",
+    "tree": "066d856cd4b8de09d4d8d023f45c5cca495cb9a9",
+    "status": "completed",
+    "child_returncode": 0,
+    "duration_seconds": 1.64,
+    "log_sha256": "156707c9f0208ae3b63406130fb6bfd8954fb72dcb47203aae21aa44dd98ffff",
+    "app_source_tree_equivalent": true,
+    "proxy_evidence": {
+      "checked_at_utc": "2026-10-05T09:39:10+00:00",
+      "source_receipt": {
+        "path": "output/mac-validation/resume/production-proxy-verification.json",
+        "sha256": "7445e8d28ddd99480e37fb5685c3f574d7639b15d146188ca8d8c78220b4ca67"
+      },
+      "selected_api_origin_from_retained_artifacts": "http://127.0.0.1:56888",
+      "web_origin": "http://127.0.0.1:56889",
+      "compiled_routes_manifest": {
+        "path": "apps/web/.next/routes-manifest.json",
+        "sha256": "f2d658d236d69511a71a5caef29bed544e8db3efb34e23c1bd11c5d09d155bd5",
+        "build_id": "9EJjigmlMWgyQnqcDUaM_"
+      },
+      "api_rules": [
+        {
+          "source": "/api/v1/memoir/:path*",
+          "destination": "http://127.0.0.1:56888/api/v1/memoir/:path*",
+          "regex": "^/api/v1/memoir(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+        },
+        {
+          "source": "/api/v1/memoir",
+          "destination": "http://127.0.0.1:56888/api/v1/memoir",
+          "regex": "^/api/v1/memoir(?:/)?$"
+        }
+      ],
+      "retained_proxy_auth_mode": "test",
+      "per_rewrite_request_path_method_status_response": "not_retained",
+      "claim_limit": "Both compiled destinations match the owned API origin. Retained proxy receipt reports test auth; separate HTTP/auth responses for each rewrite are not established."
+    }
+  },
+  "photo_skill_checksums": [
+    {
+      "path": ".gitignore",
+      "sha256": "22bc478fc0eb97818e8c2efd9a6c8f9dce55490bdd8074a3f2b6b8653c5c12d5"
+    },
+    {
+      "path": "README.md",
+      "sha256": "fec53febc3b710322a52cece2f0ea97c42537b526802e1a224301ae3bc9cfc35"
+    },
+    {
+      "path": "SKILL.md",
+      "sha256": "758d6f63141355a5da43ad25b7e386f6dea4cec7209ff20b69e5353ee2ae3a47"
+    },
+    {
+      "path": "VALIDATION.json",
+      "sha256": "6f374cb84bae6352492389ad9170ab7724acd157e924b0bb34d04cd9a4768f48"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "sha256": "700b63367856c1f068935bf32333d6a1fff34c7e9eb86c4bf769990aa500af1d"
+    },
+    {
+      "path": "examples/candidate-template.json",
+      "sha256": "5229cc23af29e2709212f2b315e4529ce060bd20b60f35d9dca271b13b5b1d5e"
+    },
+    {
+      "path": "examples/prompts.md",
+      "sha256": "316b72a244c5cd74bfa079c57d03334f3d3dc19982473153e5ea02d69db03c2e"
+    },
+    {
+      "path": "references/llm-web-search.md",
+      "sha256": "642c43610834c2d6c634de2a892e29aeba1e5cbd0bd3c21c5110b1b8730bdb8b"
+    },
+    {
+      "path": "references/record-format.md",
+      "sha256": "778106ca8e266195908c2948186142b77ee91f4efac4f5cd333bc352c47403ec"
+    },
+    {
+      "path": "references/source-strategy.md",
+      "sha256": "fa18f213a0fea336246c444f277b59a5a35ff9920b69514afaf520f50cab3ccf"
+    },
+    {
+      "path": "requirements-crawl4ai.txt",
+      "sha256": "4f11014a2985c4f96b6a571d6eb3ba730f52bb44aadceffd2b07be48ad29d392"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "d016685024e1be1fbc143a1f51494575d808862b6449b5e20b9486e5ab5ebe71"
+    },
+    {
+      "path": "scripts/photo_research.py",
+      "sha256": "9a5359f7a576f00f2d0873a50740b67af96b65b186d127146d87c467c94ab738"
+    },
+    {
+      "path": "scripts/photo_search.py",
+      "sha256": "fa2874d713cb848291ec2e62bb7aae84f647f6c28aa7a187c1667c04bda094a8"
+    },
+    {
+      "path": "test-results.txt",
+      "sha256": "b0c842f402e499ed9d50f9677c64bbfe17749b75be8dc3b2e3df17957832f6d5"
+    },
+    {
+      "path": "tests/test_parallel_search.py",
+      "sha256": "d586b26b8d9fa7f54525f0b96f3d6189ab02ede3bc832b34332a64624a23c796"
+    },
+    {
+      "path": "tests/test_photo_research.py",
+      "sha256": "e937abbf249359540dca83a3c3db83a223ccc9f268f72e710b309bbda7dd90ac"
+    }
+  ],
+  "redirect_canaries": [
+    {
+      "name": "redirect-canary-allowed-get-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "allowed-get"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "ff79df9393e82ef803a12734e3f6cf8beb336cce0c99ae44cd2c9f8cdb8af16f",
+      "observation": {
+        "case": "allowed-get",
+        "outcome": "allowed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-allowed-navigation-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "allowed-navigation"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.14,
+      "log_sha256": "570952c931ec40221e9b4e53a956f69b58c4ab4ba3d2fbbb4658b88fb0541d25",
+      "observation": {
+        "case": "allowed-navigation",
+        "outcome": "allowed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-allowed-post-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "allowed-post"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "6b9af19460ca96d06283f5539081cb4c4a460833709940245dc8e458647d7e82",
+      "observation": {
+        "case": "allowed-post",
+        "outcome": "allowed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "POST"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-backslash-get-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "backslash-get"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "e3c2c0f62f726b824b3891611cd4706696a9b0e7c997848214ff3242cff98dc7",
+      "observation": {
+        "case": "backslash-get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62077",
+            "path": "/redirect",
+            "method": "GET",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-backslash-post-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "backslash-post"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "f970a9ebcd587fad2d7def309b4c609930f11fc7303a2108c35df7b9e14e8451",
+      "observation": {
+        "case": "backslash-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62081",
+            "path": "/redirect",
+            "method": "POST",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-get-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "get"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.14,
+      "log_sha256": "6180bde5b68663bda710de1aef33be19de99963f9dbf7c26f0603d0fd69d15aa",
+      "observation": {
+        "case": "get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62040",
+            "path": "/sink",
+            "method": "GET"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-get-chain-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "get-chain"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "984031b0db27ae9db232679fee2591185ea895d4190329443dc4433bec833600",
+      "observation": {
+        "case": "get-chain",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62048",
+            "path": "/sink",
+            "method": "GET"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-http-triple-get-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "http-triple-get"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "c884ba72bd843931de24a8a67ba27041feac91285aa7721cf66dcdb6c2f8b987",
+      "observation": {
+        "case": "http-triple-get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62118",
+            "path": "/redirect",
+            "method": "GET",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-http-triple-post-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "http-triple-post"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "11d5997135f838f1cba0261a725ae2da8676fec37b4a2b5407d947144cf51c82",
+      "observation": {
+        "case": "http-triple-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62122",
+            "path": "/redirect",
+            "method": "POST",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-iframe-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "d6326a65cabf7d57954ceee9f5b61f8343f3249341c295e164e1915acdb4adfc",
+      "observation": {
+        "case": "iframe",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62088",
+            "path": "/sink",
+            "method": "GET",
+            "reason": "unsupported_target_redirect"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-iframe-fetch-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe-fetch"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "2bda523e16c8eb0bb6821ea14d1e16ceedbccbb80292ef5845c7c4c7b57dba52",
+      "observation": {
+        "case": "iframe-fetch",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62098",
+            "path": "/sink",
+            "method": "GET",
+            "reason": "unsupported_target_redirect"
+          }
+        ],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-iframe-static-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "iframe-static"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "df1ed51aa40cf78b2ced82ebdd866ab01b3e1908218c0b4b6d529edf71f96c2a",
+      "observation": {
+        "case": "iframe-static",
+        "outcome": "loaded",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-popup-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "popup"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "72fa1a56a80c887562055fe9c1a4b55de7aaf9407d2daf7ea85b5cb2734defdf",
+      "observation": {
+        "case": "popup",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62072",
+            "path": "/sink",
+            "method": "GET",
+            "reason": "unsupported_target_redirect"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-popup-static-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "popup-static"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "905cb1db50178e8b7ec7419e0043aa6a426ff4225bb80ec5b3c9c63a1ef922cf",
+      "observation": {
+        "case": "popup-static",
+        "outcome": "opened",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [
+          "GET"
+        ],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-post-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "post"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.15,
+      "log_sha256": "42de6f48bb1ad691013cdd99af19961031cf0c29403f23af8dee02c13892ee7f",
+      "observation": {
+        "case": "post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62044",
+            "path": "/sink",
+            "method": "POST"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-stream-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "stream"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "efb859abc5d95f4c32bd14d420edc8e9f0c0977dd7f1a8a5924f391e34da38ce",
+      "observation": {
+        "case": "stream",
+        "outcome": "streamed",
+        "sink_requests": [],
+        "blocked": [],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-triple-get-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "triple-get"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.18,
+      "log_sha256": "02cfb1dca64e29712d4bfbc70565ad26f6ab1bc87d135e9677ebc781d3c08655",
+      "observation": {
+        "case": "triple-get",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62106",
+            "path": "/redirect",
+            "method": "GET",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    },
+    {
+      "name": "redirect-canary-triple-post-01",
+      "command": [
+        "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+        "tests/fixtures/browser_guard_redirect_canary.py",
+        "--case",
+        "triple-post"
+      ],
+      "exit_code": 0,
+      "base_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+      "tree": "4e1afdc3552c4c6b8e45c2644ae12b8e85e6eee6",
+      "status": "completed",
+      "child_returncode": 0,
+      "duration_seconds": 1.16,
+      "log_sha256": "b70ba4640c73669d72f084fa6988ea4dbba89936442257c17c942a72cb1ae99b",
+      "observation": {
+        "case": "triple-post",
+        "outcome": "blocked",
+        "sink_requests": [],
+        "blocked": [
+          {
+            "origin": "http://127.0.0.1:62114",
+            "path": "/redirect",
+            "method": "POST",
+            "reason": "ambiguous_redirect_location"
+          }
+        ],
+        "final_methods": [],
+        "oopif_target_observed": false,
+        "executed_guard_sha256": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508"
+      }
+    }
+  ],
+  "redirect_canary_counts": {
+    "passed": 18,
+    "failed": 0,
+    "unapproved_sink_requests": 0,
+    "oopif_target_observed": false
+  },
+  "url_policy": {
+    "cases": 20,
+    "accepted": 9,
+    "rejected": 11,
+    "failures": [],
+    "mode": "offline parsers only, no network"
+  },
+  "earlier_resume_attempts": [
+    {
+      "receipt": {
+        "name": "native-full-01",
+        "command": [
+          "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+          "tests/fixtures/browser_network_guard.py",
+          "pytest",
+          "-q",
+          "--junitxml=/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/resume/native-full-01.xml"
+        ],
+        "exit_code": 1,
+        "base_head": "ec7f4487b3616a8a266d49aa5432d07f790c6541",
+        "tree": "066d856cd4b8de09d4d8d023f45c5cca495cb9a9",
+        "status": "completed",
+        "child_returncode": 1,
+        "duration_seconds": 267.98,
+        "log_sha256": "155e95c86b67693a103c143c476b3d5ec912db69a1fc66cfe64e7af49f460f06"
+      },
+      "passed": 1191,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 4,
+      "failure_cases": [
+        "tests.test_recall_browser::test_preview_retry_shows_progress_polls_and_recovers[zh-CN-390]"
+      ]
+    },
+    {
+      "receipt": {
+        "name": "native-full-02",
+        "command": [
+          "/private/tmp/memoir-pr9-pr10-mac-20261004/.venv/bin/python",
+          "tests/fixtures/browser_network_guard.py",
+          "pytest",
+          "-q",
+          "--junitxml=/private/tmp/memoir-pr9-pr10-mac-20261004/output/mac-validation/resume/native-full-02.xml"
+        ],
+        "exit_code": 1,
+        "base_head": "5b543390dd731678d26b35c09552a8dc25ee444f",
+        "tree": "853a869b7839eccb25f617509e0f272979483adf",
+        "status": "completed",
+        "child_returncode": 1,
+        "duration_seconds": 278.73,
+        "log_sha256": "47349c3adcc4b7655fe0bb31b5ec84ebc4883e59d4942616dfd9eab25e4fc1f4"
+      },
+      "passed": 1193,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 4,
+      "failure_cases": [
+        "tests.test_memoir_lanes_temporal::test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn[timeline]"
+      ]
+    }
+  ],
+  "resource_observations": [
+    {
+      "attempt": "native-full-01",
+      "minimum_global_files": 112097,
+      "maximum_global_files": 121141,
+      "maxfiles": 122880,
+      "sample_count": 54
+    },
+    {
+      "attempt": "native-full-02",
+      "minimum_global_files": 108555,
+      "maximum_global_files": 122707,
+      "maxfiles": 122880,
+      "sample_count": 56
+    },
+    {
+      "attempt": "native-full-03",
+      "minimum_global_files": 108562,
+      "maximum_global_files": 122678,
+      "maxfiles": 122880,
+      "sample_count": 56
+    }
+  ],
+  "preserved_checkouts": {
+    "/Users/bohuihan/memoir": {
+      "matches_resume_baseline": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "current": {
+        "head": "c6a990aa499eb63fe1d6407e4082462200598c0d",
+        "status_sha256": "ce1a5fb5090eed3eff8739e45e25df44cc48c1485962dc97baa0eba70fb13f14",
+        "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0"
+      }
+    },
+    "/tmp/memoir-issue2-integration": {
+      "matches_resume_baseline": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "current": {
+        "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "/tmp/memoir-issue6": {
+      "matches_resume_baseline": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "current": {
+        "head": "84366778f50495d065e794a00f16184d16dc4216",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "cleanup": {
+    "services": [
+      {
+        "name": "api",
+        "pid": 33360,
+        "port": 56888,
+        "exact_owned_group_stopped": true,
+        "port_closed": true
+      },
+      {
+        "name": "web",
+        "pid": 33398,
+        "port": 56889,
+        "exact_owned_group_stopped": true,
+        "port_closed": true
+      }
+    ],
+    "remaining_task_postgres_containers": [],
+    "shared_services_changed": false,
+    "host_limits_changed": false,
+    "unknown_processes_or_ipc_cleaned": false
+  },
+  "open_prs": [
+    {
+      "baseRefName": "memoir-five-case-evaluation",
+      "headRefName": "memoir-five-case-evaluation-integrated",
+      "headRefOid": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+      "number": 10,
+      "title": "Issue2: reusable memoir E2E evaluation and routing contracts",
+      "url": "https://github.com/bohui/copyme2.ai/pull/10"
+    },
+    {
+      "baseRefName": "memoir-five-case-evaluation",
+      "headRefName": "codex/issue6-shared-events",
+      "headRefOid": "84366778f50495d065e794a00f16184d16dc4216",
+      "number": 9,
+      "title": "Unify timeline and progressive memoir persistence (Issue 6, stacked)",
+      "url": "https://github.com/bohui/copyme2.ai/pull/9"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "memoir-five-case-evaluation",
+      "headRefOid": "28acda14f684aab6dd4dbbaf4fcc398e4d853b9b",
+      "number": 3,
+      "title": "Add Memoir E2E evaluation and diagnostics (Issue #2, part 1)",
+      "url": "https://github.com/bohui/copyme2.ai/pull/3"
+    }
+  ],
+  "live_phase": {
+    "new_provider_calls": 0,
+    "new_5_by_50_run": false,
+    "baseline_250": {
+      "code": "d67f390",
+      "passed": 205,
+      "failed": 8,
+      "unavailable": 37
+    },
+    "affected_200": {
+      "code": "28acda14",
+      "passed": 152,
+      "failed": 5,
+      "unavailable": 43
+    },
+    "remaining_gates": [
+      "Independent cloud review of final repair head and deliberate landing plan",
+      "Approved provider/source-claim pilot setup and budget before a new live run",
+      "Read-only diagnosis established ClickHouse 26.9 numeric timestamp incompatibility; persistent scoped repair, zero-provider telemetry canary and durable API/browser readback await approval",
+      "Do not invent missing judge configuration or create credentials"
+    ]
+  },
+  "renderer_evidence": {
+    "checked_at_utc": "2026-10-05T09:39:10+00:00",
+    "cached_asset_manifest": {
+      "path": "output/mac-validation/renderer-assets/assets.json",
+      "sha256": "340ad5a16c3295fa30f58c9d2342992af008dcfa83b7a6e1d6fc7a6443a2e187"
+    },
+    "assets": [
+      {
+        "file": "d3.min.js",
+        "url": "https://unpkg.com/d3@7.9.0/dist/d3.min.js",
+        "bytes": 279706,
+        "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+        "local_path": "output/mac-validation/renderer-assets/d3.min.js",
+        "verified_sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+        "used_by_prior_renderer_runs": "not_verified"
+      },
+      {
+        "file": "family-chart.min.js",
+        "url": "https://unpkg.com/family-chart@0.9.0/dist/family-chart.min.js",
+        "bytes": 105994,
+        "sha256": "7fb3e5d8ac6402f26fafebe4759e50febd942f089b34d27848a474119aec3675",
+        "local_path": "output/mac-validation/renderer-assets/family-chart.min.js",
+        "verified_sha256": "7fb3e5d8ac6402f26fafebe4759e50febd942f089b34d27848a474119aec3675",
+        "used_by_prior_renderer_runs": "not_verified"
+      },
+      {
+        "file": "vis-timeline.min.js",
+        "url": "https://unpkg.com/vis-timeline@7.7.3/standalone/umd/vis-timeline-graph2d.min.js",
+        "bytes": 569230,
+        "sha256": "55f5627557103696a538c5e662cab07d554fafc545882a082dfb5e2b5dea65d6",
+        "local_path": "output/mac-validation/renderer-assets/vis-timeline.min.js",
+        "verified_sha256": "55f5627557103696a538c5e662cab07d554fafc545882a082dfb5e2b5dea65d6",
+        "used_by_prior_renderer_runs": "not_verified"
+      }
+    ],
+    "mode_specific_acceptance": "unverified",
+    "proposed_bounded_rerun": "Rerun only the two supplemental checks against fresh task API/Next services; retain explicit fixture directory/fallback flag and hashes before launching. No rerun performed."
+  },
+  "evidence_correction": {
+    "checked_at_utc": "2026-10-05T09:39:10+00:00",
+    "base_documentation_head": "2c8d4b7db27aea09b1a4f03203df436e1f3b926b",
+    "changes": "Documentation/receipt correction only; no code, dataset, service or broad test rerun",
+    "renderer_mode_claim_narrowed": true,
+    "api_destination_and_proxy_auth_evidence_recovered": true,
+    "live_plan": "docs/pr8-pr9-pr10-mac-live-plan.md",
+    "langfuse_readonly_evidence": "docs/test-evidence/langfuse-mac-readonly-20261005.json"
+  }
+}

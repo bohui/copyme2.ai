@@ -34,6 +34,10 @@ Inspect the actual distribution of distinct supported memories:
 
 Generate value before the application displays its package offer. No sales pitch in memoir prose. The skill must not decide when a person is emotionally vulnerable or change the trial length.
 
+### Private `private_draft_checkpoint` → early private prose
+
+The host may explicitly authorize an early private draft after its configured cadence (default five completed narrator/assistant rounds). Require `private_draft_authorized`, the truthful `private_rounds_completed` and `private_draft_cadence`. Keep `free_rounds_completed` and `free_round_limit` truthful; five completed rounds do not exhaust a twenty-round allowance. This gate supports only storyteller-facing web samples, never formal composition, publication or payment. Later private updates use `new_context` with the saved prior manuscript and original evidence.
+
 ### B. `storytelling_complete` → formal composition
 
 Run full composition when the storyteller has said they are ready to turn the material into a memoir, or an authorised helper has made the application's supported request. The backend must confirm composition authorisation and consent.
@@ -82,7 +86,22 @@ Retain the originals. A shorter summary must not delete source evidence or becom
 
 ## 4. Build the chronological main storyline first
 
-Create one event index using deduplicated real-life events, not chat dates or repeated mentions. Preserve relative timing, date ranges, unknown dates and competing accounts.
+Consume the host's shared PostgreSQL MemoryEvent index and exact original sources.
+Timeline and prose use the same stable event IDs and independent event/source
+revisions. Do not extract, merge or retag events in composer. Record discrepancies
+as review flags for the shared event service. Stage/year/event groups are retrieval
+and preparation units, not mandatory chapter boundaries. Preserve intervals,
+unknown placement, original date expressions and competing attribution.
+
+The host serialises one composer lane, waits for extraction through the selected
+round, and freezes source/event/policy manifests and output locale. Later milestones
+coalesce; catch-up may cover turns beyond its triggering milestone. Prepare only
+dirty groups with bounded parallelism inside that run. Reuse fingerprinted successful
+preparations on retry. Preserve unchanged blocks, headings and transitions exactly,
+with immutable revisions and declared event/source dependencies. Model rewrites
+cannot replace unchanged stored text. Affected human-edited, approved or locked
+text receives an exact-base proposal. Failed/timed-out work never advances successful
+cursors; revisions, access policy, ownership tokens and deadlines fence late output.
 
 1. Order supported events by their remembered dates or source-supported before/after relations.
 2. Group coherent stretches around meaningful transitions: a home, school or learning period, new responsibility, place change, relationship, occupation, migration or later-life interest—only when actually supported.

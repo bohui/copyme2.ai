@@ -10,7 +10,7 @@ The model appends one line per distinct clear place, in first-mention order, in 
 [[MEMORY_SPARK_PLACE_JOURNEY]]<JSON>[[/MEMORY_SPARK_PLACE_JOURNEY]]
 ```
 
-`apps/api/place_journey.py` extracts every marker, parses JSON, validates each schema and bounds, deduplicates geographic identities, and returns the visible reply with all markers removed. Invalid and unterminated markers are dropped rather than shown to the storyteller; a bad marker does not discard later valid markers. Each accepted place must independently match the current storyteller message. The single-place extraction helper remains available for compatibility.
+`apps/api/place_journey.py` extracts every marker, parses JSON, validates each schema and bounds, deduplicates geographic identities, and returns the visible reply with all markers removed. The parser normalizes Chinese `地球` to canonical `Earth`. Accepted precision is country, region, city or named suburb/town; landmarks, premises and generic labels are rejected even if mislabelled as a suburb. Invalid and unterminated markers are dropped rather than shown to the storyteller; a bad marker does not discard later valid markers. Each accepted place must independently match the current storyteller message. The single-place extraction helper remains available for compatibility.
 
 The validated marker is persisted by the authenticated agent storage boundary in
 the RLS-protected `user_place_journey` table. There is one current record per
@@ -43,6 +43,8 @@ The API response from `POST /v1/agent/turn` contains:
   }
 }
 ```
+
+When the current extraction explicitly ties a calendar period to a place, its confirmed record also carries `period` for project photo research. Other places in the same turn receive an empty period for current photos; the profile’s date must not date unrelated places. The user-level journey row keeps geographic fields only; project history retains the photo period.
 
 The response and confirmed workspace events also contain `place_journeys`, an
 array of all accepted records from this turn in marker order. It is empty when

@@ -52,7 +52,7 @@ def main() -> None:
         expect(page).to_have_url(re.compile(r"/memoir/?$"))
         expect(page.get_by_role("heading", name="用自己的话，讲述自己的人生")).to_be_visible()
         expect(page.get_by_role("button", name=re.compile("开始讲我的故事"))).to_be_visible()
-        expect(page.get_by_role("button", name="帮助我爱的人")).to_be_visible()
+        expect(page.get_by_role("button", name="帮亲人讲述故事")).to_be_visible()
         expect(page.get_by_role("heading", name="聊一聊，或许就能想起一些事")).to_be_visible()
         expect(page.get_by_role("combobox", name="语言")).to_have_value("zh-CN")
 
@@ -71,9 +71,9 @@ def main() -> None:
         expect(page.get_by_role("heading", name="让我们一起回忆。")).to_be_visible()
         expect(page.get_by_role("textbox", name="您的消息")).to_be_visible()
         expect(page.get_by_text("可以进行语音对话")).to_be_visible()
-        expect(page.get_by_text("你好，我是 Mira。很高兴认识你。")).to_be_visible()
+        expect(page.locator('.assistant-message .message-text').first).to_contain_text("你好，我是 Mira，很高兴认识你。")
         page.get_by_role("button", name="打开个人资料菜单").click()
-        expect(page.locator(".profile-trigger-name")).to_have_text("个人资料")
+        expect(page.locator(".profile-trigger-name")).to_have_text("私密会话")
         expect(page.locator(".profile-dropdown select")).to_have_count(0)
         expect(page.get_by_role("menuitem", name="个人资料", exact=True)).to_be_visible()
         expect(page.get_by_role("menuitem", name="登录")).to_be_visible()
@@ -82,7 +82,7 @@ def main() -> None:
         expect(page.get_by_text("Tell me whatever part of that afternoon is still with you.")).to_be_visible(timeout=15000)
         expect(page.get_by_role("complementary", name="地点 工作区")).to_be_visible()
         expect(page.get_by_role("heading", name="地点")).to_be_visible()
-        expect(page.get_by_text("大致城市")).to_be_visible()
+        expect(page.get_by_text("地点的大致范围", exact=True)).to_be_visible()
         assert project_requests, "Expected the UI to create a Memoir project"
         assert project_requests[-1].post_data_json.get("language") is None
         assert agent_requests, "Expected the UI to create a localized Codex turn"
@@ -123,8 +123,12 @@ def main() -> None:
         )
         error_page.goto(f"{args.base_url}/memoir", wait_until="networkidle")
         expect(error_page.get_by_role("heading", name="用自己的话，讲述自己的人生")).to_be_visible()
-        error_page.get_by_role("button", name=re.compile("开始讲我的故事")).click()
-        expect(error_page.get_by_text("出了点问题，请再试一次。")).to_be_visible()
+        error_page.wait_for_function("() => globalThis.__copyme2Intl?.locale === 'zh-CN'")
+        with error_page.expect_response(lambda response: response.url.endswith('/projects') and response.request.method == 'POST') as failed_start:
+            error_page.get_by_role("button", name=re.compile("开始讲我的故事")).click()
+        assert failed_start.value.status == 500
+        expect(error_page.locator('#toast')).to_have_text("出了点问题，请再试一次。")
+        expect(error_page.locator('#toast')).to_be_visible()
         assert "provider secret leaked" not in error_page.locator("body").inner_text()
         error_context.close()
 

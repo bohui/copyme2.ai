@@ -33,10 +33,14 @@ def test_migrate_target_uses_supabase_migration_tracking():
     assert "psql" not in recipe
 
 
-def test_supabase_has_one_active_migration_file():
+def test_supabase_has_a_baseline_and_uniquely_versioned_incremental_migrations():
     migrations = sorted((Path(__file__).resolve().parents[1] / "supabase/migrations").glob("*.sql"))
 
-    assert [migration.name for migration in migrations] == ["202610010001_initial_schema.sql"]
+    assert migrations[0].name == "202610010001_initial_schema.sql"
+    versions = [migration.name.split('_', 1)[0] for migration in migrations]
+    assert all(version.isdigit() and len(version) == 12 for version in versions)
+    assert len(versions) == len(set(versions))
+    assert "202610020003_place_photo_searches.sql" in {migration.name for migration in migrations}
 
 
 def test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness():

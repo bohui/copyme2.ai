@@ -1,0 +1,1577 @@
+{
+  "source": "GitHub Issues 2 and 6 User Stories and Testing Decisions (no literal Acceptance Criteria heading)",
+  "baseline_code_head": "c1f5e296d6f2dd921c5474dc7c613abc1968b8fc",
+  "new_driver_status": "native fixture callback only; live adapter/launcher not complete",
+  "references": {
+    "E01": {
+      "path": "tests/test_canonical_evaluation.py",
+      "test": "test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_temporal",
+      "line": 81
+    },
+    "E02": {
+      "path": "tests/test_canonical_evaluation.py",
+      "test": "test_unverified_live_provider_cannot_be_dispatched_or_labeled_as_acceptance",
+      "line": 55
+    },
+    "E03": {
+      "path": "tests/test_evaluation_budget.py",
+      "test": "test_worker_request_cap_covers_shared_clients_before_dispatch",
+      "line": 7
+    },
+    "E04": {
+      "path": "tests/test_evaluation_budget.py",
+      "test": "test_inflight_output_reservations_prevent_concurrent_overspending",
+      "line": 100
+    },
+    "E05": {
+      "path": "tests/test_evaluation_cases.py",
+      "test": "test_cases_have_reproducible_context_metadata",
+      "line": 16
+    },
+    "E06": {
+      "path": "tests/test_evaluation_cases.py",
+      "test": "test_checked_in_cases_pass_through_the_runtime_boundary",
+      "line": 29
+    },
+    "E07": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_recorder_adds_pre_action_context_normalized_actions_and_reports_overflow",
+      "line": 44
+    },
+    "E08": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_recorder_keeps_observable_results_and_omits_private_fields",
+      "line": 24
+    },
+    "E09": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_protocol_tool_events_normalize_tool_name_and_arguments",
+      "line": 117
+    },
+    "E10": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_evaluator_credits_a_bounded_retry_but_not_a_duplicate_success",
+      "line": 188
+    },
+    "E11": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_deterministic_evaluators_check_order_budget_and_state",
+      "line": 222
+    },
+    "E12": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_provider_payload_minimizes_storyteller_text_and_identifiers",
+      "line": 161
+    },
+    "E13": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_openai_compatible_judge_uses_template_and_records_safe_usage",
+      "line": 269
+    },
+    "E14": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_judge_calibration_requires_explicit_human_review",
+      "line": 307
+    },
+    "E15": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_langfuse_publisher_creates_step_observations_and_targets_step_scores",
+      "line": 453
+    },
+    "E16": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double",
+      "line": 598
+    },
+    "E17": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_runner_can_add_a_semantic_judge_and_compare_variants",
+      "line": 638
+    },
+    "E18": {
+      "path": "tests/test_trajectory_evaluation.py",
+      "test": "test_unavailable_judge_is_separate_from_deterministic_acceptance_evidence",
+      "line": 662
+    },
+    "E19": {
+      "path": "tests/test_codex_worker.py",
+      "test": "test_worker_turn_timeout_cancels_execution",
+      "line": 267
+    },
+    "E20": {
+      "path": "tests/test_install_codex_skill.py",
+      "test": "test_install_skill_replaces_one_skill_and_cleans_archive",
+      "line": 7
+    },
+    "E21": {
+      "path": "tests/test_runtime_configuration.py",
+      "test": "test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness",
+      "line": 46
+    },
+    "E22": {
+      "path": "tests/test_llm_place_photos.py",
+      "test": "test_omitted_period_finds_recent_photos_without_inheriting_history",
+      "line": 201
+    },
+    "E23": {
+      "path": "tests/test_place_journey.py",
+      "test": "test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named",
+      "line": 191
+    },
+    "E24": {
+      "path": "tests/test_family_context.py",
+      "test": "test_family_feature_requires_paid_family_entitlement_and_configured_price",
+      "line": 158
+    },
+    "E25": {
+      "path": "tests/test_collection_routes.py",
+      "test": "test_organiser_validates_sources_before_publishing",
+      "line": 110
+    },
+    "E26": {
+      "path": "tests/test_memoir_five_case_evaluator.py",
+      "test": "test_checked_in_five_case_fixture_is_exactly_250_rounds_and_covers_the_contract",
+      "line": 27
+    },
+    "E27": {
+      "path": "tests/test_memoir_five_case_evaluator.py",
+      "test": "test_langfuse_round_scores_keep_skill_invocation_and_output_grades_separate",
+      "line": 121
+    },
+    "E28": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_one_reply_has_distinct_events_and_later_reply_enriches_the_same_identity",
+      "line": 112
+    },
+    "E29": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_empty_extraction_advances_only_its_committed_input",
+      "line": 171
+    },
+    "E30": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_durable_narrator_acceptance_survives_missing_reply_and_replay",
+      "line": 140
+    },
+    "E31": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_new_evidence_for_an_old_event_changes_its_passage_and_preserves_unrelated_bytes",
+      "line": 711
+    },
+    "E32": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_similar_events_ambiguous_matches_and_long_periods_share_originals_without_merging",
+      "line": 1567
+    },
+    "E33": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_empty_candidates_are_unambiguous_for_new_and_existing_canonical_events",
+      "line": 90
+    },
+    "E34": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_explicit_tag_correction_preserves_identity_and_fences_later_model_estimate",
+      "line": 181
+    },
+    "E35": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_unsupported_numeric_dates_are_rejected_at_the_public_persistence_boundary",
+      "line": 888
+    },
+    "E36": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_supported_age_estimates_retain_original_language_expression_and_birth_basis",
+      "line": 1189
+    },
+    "E37": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author_correction",
+      "line": 1544
+    },
+    "E38": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_existing_composer_worker_uses_shared_event_ids_and_originals_without_reextracting",
+      "line": 392
+    },
+    "E39": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_authenticated_chat_completes_while_independent_partition_preparations_are_held",
+      "line": 696
+    },
+    "E40": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_composer_checkpoint_waits_for_extraction_and_coalesces_at_claim_time",
+      "line": 321
+    },
+    "E41": {
+      "path": "tests/test_private_rounds_postgres.py",
+      "test": "test_assistant_only_reply_does_not_count_and_edits_do_not_increment",
+      "line": 62
+    },
+    "E42": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_existing_conversation_memory_edit_and_delete_update_canonical_evidence",
+      "line": 1299
+    },
+    "E43": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_genuine_storyline_enrichment_preserves_unrelated_passages_exactly",
+      "line": 540
+    },
+    "E44": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_source_changes_immediately_hide_dependent_drafts_and_reject_late_output",
+      "line": 627
+    },
+    "E45": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_tag_correction_invalidates_old_and_new_groups_without_changing_rounds",
+      "line": 647
+    },
+    "E46": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_latest_validated_draft_is_available_with_coverage_while_update_is_running",
+      "line": 366
+    },
+    "E47": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_terminal_extraction_failure_stops_draft_polling_until_the_author_retries",
+      "line": 1440
+    },
+    "E48": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_terminal_composer_failure_exposes_a_retry_instead_of_perpetual_updating",
+      "line": 1459
+    },
+    "E49": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_protected_draft_keeps_its_bytes_and_saves_enrichment_as_a_revision_bound_proposal",
+      "line": 1130
+    },
+    "E50": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_authenticated_voice_turn_retains_original_chinese_and_failed_reply_does_not_count",
+      "line": 994
+    },
+    "E51": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_active_composer_keeps_frozen_milestone_and_locale_while_later_targets_arrive",
+      "line": 799
+    },
+    "E52": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_authenticated_saved_draft_returns_shared_coverage_and_keeps_premium_display_gated",
+      "line": 784
+    },
+    "E53": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_story_workspace_only_dispatches_relationship_tree_and_never_duplicate_timeline",
+      "line": 824
+    },
+    "E54": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_event_person_and_chronology_references_cannot_cross_project_scope",
+      "line": 949
+    },
+    "E55": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_capability_transfer_preserves_canonical_ids_draft_dependencies_and_retry_state",
+      "line": 1106
+    },
+    "E56": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_stale_event_edits_recognize_native_postgrest_conflicts_without_misclassifying_internal_failures",
+      "line": 753
+    },
+    "E57": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_bounded_partition_preparation_reuses_successes_after_provider_failure",
+      "line": 662
+    },
+    "E58": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_a_changed_access_policy_refuses_an_older_frozen_composer_result",
+      "line": 1608
+    },
+    "E59": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_legacy_migration_preserves_ids_original_evidence_and_private_flags_on_replay",
+      "line": 1051
+    },
+    "E60": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_saved_legacy_composer_cache_is_imported_with_stable_event_and_section_references",
+      "line": 1201
+    },
+    "E61": {
+      "path": "tests/test_memoir_lanes_temporal.py",
+      "test": "test_real_worker_and_temporal_coalesce_busy_lane_to_latest_available_inputs",
+      "line": 22
+    },
+    "E62": {
+      "path": "tests/test_memoir_lanes_temporal.py",
+      "test": "test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn",
+      "line": 143
+    },
+    "E63": {
+      "path": "tests/test_memoir_lanes_temporal.py",
+      "test": "test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry",
+      "line": 231
+    },
+    "E64": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_failed_and_timed_out_timeline_ranges_remain_pending_and_late_worker_is_fenced",
+      "line": 258
+    },
+    "E65": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_story_workflow_retains_original_testimony_when_provider_delivery_fails",
+      "line": 205
+    },
+    "E66": {
+      "path": "tests/test_shared_memory_browser.py",
+      "test": "test_saved_coverage_and_timeline_tag_edit_survive_browser_reload",
+      "line": 252
+    },
+    "E67": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_nondefault_private_cadence_does_not_change_the_independent_round_allowance",
+      "line": 1587
+    },
+    "E68": {
+      "path": "tests/test_shared_memory_events_postgres.py",
+      "test": "test_an_unreviewed_or_oversized_canonical_candidate_never_becomes_a_ready_saved_draft",
+      "line": 436
+    }
+  },
+  "issues": {
+    "2": {
+      "body_sha256": "855210318aa70c234833aab7b939ea622bb91b0f793e2f1b1ce8c785bd0801ac",
+      "disposition": "KEEP OPEN",
+      "stories": [
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E06",
+            "E01"
+          ],
+          "finding": "G1: wire the canonical callback into the five-case command",
+          "number": 1,
+          "requirement": "As a developer, I want one local evaluation command, so that I can run a skill-enabled Memoir case without starting a second agent runtime."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E06",
+            "E01"
+          ],
+          "finding": "G1: full canonical command and five isolated 50-round runs remain",
+          "number": 2,
+          "requirement": "As a developer, I want the evaluator to invoke the same API and `codex-worker` boundary used by the product, so that evaluation results predict product behavior."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E05"
+          ],
+          "finding": "Isolated native fixtures; each reused project is refused",
+          "number": 3,
+          "requirement": "As a developer, I want every case to use an isolated synthetic storyteller and project, so that evaluation cannot read or modify customer data."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E05"
+          ],
+          "finding": "Declarative synthetic context contract",
+          "number": 4,
+          "requirement": "As a developer, I want a case to declare its user message, prior memories, profile, entitlement, language, enabled skills, and expected outcome, so that a run is reproducible."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E05",
+            "E26"
+          ],
+          "finding": "G1/G3: exact merged-main model/provider/evaluator manifest and calibrated rubric need run evidence",
+          "number": 5,
+          "requirement": "As a developer, I want the runner to pin the application revision, skill manifest, model, provider configuration, and evaluator version, so that two experiment runs can be compared fairly."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E06"
+          ],
+          "finding": "G2: real explicit skill loading/adherence remains live evidence",
+          "number": 6,
+          "requirement": "As a skill author, I want to test a skill when it is explicitly enabled, so that instruction-following failures are separated from discovery failures."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E06"
+          ],
+          "finding": "G2: real natural-selection behavior remains live evidence",
+          "number": 7,
+          "requirement": "As a skill author, I want to test ordinary requests with the normal skill catalogue, so that inappropriate activation and missed activation are visible."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E07",
+            "E20"
+          ],
+          "finding": "G2: actual loaded references/versions for all seven skills need live receipts",
+          "number": 8,
+          "requirement": "As a skill author, I want the run to record which skill version and reference materials were loaded, so that loading failures are distinguishable from adherence failures."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E07"
+          ],
+          "finding": "Observable pre-action context contract",
+          "number": 9,
+          "requirement": "As a developer, I want the trajectory to show the context available immediately before each action, so that a judge does not penalize or excuse a decision using information the agent did not have."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E09"
+          ],
+          "finding": "Normalized tool names/arguments/categories",
+          "number": 10,
+          "requirement": "As a developer, I want each model action to include its selected tool, normalized arguments, and action category, so that tool choice can be checked independently of the final prose."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E07",
+            "E10"
+          ],
+          "finding": "Protocol ordering, errors and bounded retry contract",
+          "number": 11,
+          "requirement": "As a developer, I want each tool result, error, timeout, and retry recorded in order, so that recovery and repetition can be evaluated from evidence."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E11",
+            "E01"
+          ],
+          "finding": "Application validation/state and native canonical outcome",
+          "number": 12,
+          "requirement": "As a developer, I want application-side validation, entitlement checks, marker parsing, persistence, task publication, and artifact commits recorded as trajectory steps, so that a successful reply cannot conceal an invalid state change."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E08"
+          ],
+          "finding": "Private reasoning omitted",
+          "number": 13,
+          "requirement": "As a privacy reviewer, I want private reasoning excluded from the trajectory, so that evaluation records contain observable inputs and actions without claiming access to chain-of-thought."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E07",
+            "E01"
+          ],
+          "finding": "Terminal response/state and ordered trajectory",
+          "number": 14,
+          "requirement": "As a developer, I want the final visible response, stop reason, terminal status, and resulting application state captured, so that answer quality and task success can be scored separately."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E11",
+            "E25",
+            "E54"
+          ],
+          "finding": "Deterministic permissions/state/source ownership",
+          "number": 15,
+          "requirement": "As a developer, I want deterministic checks for tool permissions, schema validity, marker grounding, entitlement gates, source ownership, retry limits, and saved-state revisions, so that objective failures do not depend on judge variability."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E15",
+            "E13"
+          ],
+          "finding": "G3: managed run/step judging is not configured or calibrated",
+          "number": 16,
+          "requirement": "As a reviewer, I want a trajectory-quality score for the whole run and targeted scores for failed steps, so that a run can be triaged without treating every defect as an answer-quality problem."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E27",
+            "E15"
+          ],
+          "finding": "G3: scoring contracts pass; semantic live scores still unavailable",
+          "number": 17,
+          "requirement": "As a reviewer, I want separate scores for skill selection, skill adherence, execution quality, state correctness, and final response quality, so that the team can fix the right layer."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E13",
+            "E10"
+          ],
+          "finding": "G3: reviewed semantic judges remain unavailable",
+          "number": 18,
+          "requirement": "As a reviewer, I want judges to assess tool appropriateness, evidence use, recovery, unnecessary repetition, and stopping behavior, so that trajectory quality is broader than exact-sequence matching."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E10",
+            "E11"
+          ],
+          "finding": "G3: outcome checks allow recovery; semantic credit for equivalent valid paths needs judge calibration",
+          "number": 19,
+          "requirement": "As a developer, I want equivalent valid paths to receive credit, so that evaluation does not require one arbitrary tool sequence when the resulting behavior is safe and grounded."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E10"
+          ],
+          "finding": "Transient retry versus duplicate success",
+          "number": 20,
+          "requirement": "As a developer, I want the evaluator to distinguish a sensible retry after a transient error from repeating a successful action, so that recovery is measured accurately."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E17"
+          ],
+          "finding": "G3: same-case prior/current/no-skill comparison not executed with a calibrated judge",
+          "number": 21,
+          "requirement": "As a developer, I want to compare a new skill revision with a previous revision and a no-skill baseline on the same cases, so that improvements and regressions are visible."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E17"
+          ],
+          "finding": "G3: controlled model/provider comparison not executed",
+          "number": 22,
+          "requirement": "As a developer, I want to compare model and provider configurations while keeping the case and rubric fixed, so that quality and latency trade-offs are attributable."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E18"
+          ],
+          "finding": "Missing/asynchronous judge separated from local deterministic evidence",
+          "number": 23,
+          "requirement": "As a developer, I want local experiment results to remain useful when managed judging is asynchronous, so that runtime behavior does not depend on a Langfuse worker being available during the turn."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E19",
+            "E11"
+          ],
+          "finding": "Runtime timeout/cancellation precede judging",
+          "number": 24,
+          "requirement": "As an operator, I want runtime timeouts, cancellation, maximum iterations, and permissions enforced before evaluation, so that a judge cannot become a loop-prevention mechanism."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E12",
+            "E08"
+          ],
+          "finding": "G4: minimization passes; retention policy and signed-in UI receipt not established",
+          "number": 25,
+          "requirement": "As a privacy reviewer, I want sensitive storyteller content redacted or minimized before it is sent to Langfuse, so that evaluation retention follows the application's data policy."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E16"
+          ],
+          "finding": "G4: idempotent mock identifiers pass; durable duplicate-write replay not verified",
+          "number": 26,
+          "requirement": "As a developer, I want each Langfuse score write to be idempotent, so that retries do not create duplicate or conflicting evaluation results."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E16",
+            "E27"
+          ],
+          "finding": "G4: fresh exact-ID canary API/DB pass; canonical run-to-browser links remain",
+          "number": 27,
+          "requirement": "As a reviewer, I want a trace or run identifier linked to the local case result, so that a failure can be inspected in Langfuse without searching by free text."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E11",
+            "E01"
+          ],
+          "finding": "Real saved state/draft inspected through public storage",
+          "number": 28,
+          "requirement": "As a developer, I want deterministic artifact and persisted-state checks to inspect the real output, so that a plausible final answer cannot substitute for a missing file or incorrect workspace revision."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E22",
+            "E23"
+          ],
+          "finding": "Offline current/historical/uncertain/unrelated place-photo and journey contracts",
+          "number": 29,
+          "requirement": "As a skill author, I want explicit cases for current-day versus historical place-photo searches, uncertain dates, unrelated requests, and ambiguous place cues, so that the place-photo and place-journey contracts remain grounded."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E24",
+            "E52"
+          ],
+          "finding": "Server-owned paid/unpaid/pending/revoked display contracts",
+          "number": 30,
+          "requirement": "As a Family feature developer, I want cases for paid, unpaid, pending, and revoked entitlements, so that premium skill activation and persisted Family context remain server-controlled."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E25"
+          ],
+          "finding": "Collection approval/source/task boundary regression suite",
+          "number": 31,
+          "requirement": "As a collection developer, I want cases for collection review, organiser handoff, source ownership, and deterministic task results, so that the background workflow is evaluated beyond the organiser's proposal."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E18",
+            "E07"
+          ],
+          "finding": "Local partial-trajectory/evidence preservation",
+          "number": 32,
+          "requirement": "As a developer, I want a failed case to preserve enough local evidence to reproduce it without uploading unnecessary content, so that debugging remains practical and privacy-aware."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E06",
+            "E01"
+          ],
+          "finding": "Native host regression suite; no retired harness service dependency",
+          "number": 33,
+          "requirement": "As a maintainer, I want repository checks to run directly on the host or in ordinary CI, so that removing the dedicated harness does not remove regression coverage."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E20",
+            "E21"
+          ],
+          "finding": "G2: file replacement and rebuild recipe pass; actual cache refresh in both running runtimes needs receipt",
+          "number": 34,
+          "requirement": "As a maintainer, I want `install_skill` to refresh every runtime that caches skill text, so that an evaluation never silently uses an older skill bundle."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E14",
+            "E26"
+          ],
+          "finding": "G3: rubric/dataset versions exist; human reviewer/date and accepted calibration absent",
+          "number": 35,
+          "requirement": "As a reviewer, I want the accepted rubric and dataset version recorded with every run, so that score changes caused by rubric edits are not mistaken for agent improvements."
+        }
+      ],
+      "testing_decisions": [
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E06"
+          ],
+          "finding": "Normal runtime/private-worker public outcome; canonical fixture added",
+          "number": 1,
+          "requirement": "Test externally observable behavior at the highest available seam: a complete evaluation case through the normal application/worker contract. Avoid tests that merely assert an internal event list was assembled in one implementation method."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E07",
+            "E08",
+            "E09"
+          ],
+          "finding": "Protocol ordering/redaction/private-reasoning regression suite",
+          "number": 2,
+          "requirement": "Unit-test trajectory normalization with protocol fixtures containing tool calls, successful results, errors, retries, interleaved events, cancellation, and terminal failures. Verify ordering, redaction, and omission of private reasoning."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E11",
+            "E25",
+            "E54",
+            "E10"
+          ],
+          "finding": "Deterministic evaluator rejection/retry/state contracts",
+          "number": 3,
+          "requirement": "Contract-test deterministic evaluators with valid and invalid marker payloads, unauthorized tools, malformed arguments, wrong-project sources, repeated successful calls, bounded retries, missing artifacts, and stale revisions."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E06"
+          ],
+          "finding": "Synthetic provider with real application/worker/state outcome",
+          "number": 4,
+          "requirement": "Integration-test the local runner with a fake model/provider and the real application/worker boundary. Assert that a case returns a final outcome, ordered trajectory, metadata, and state assertions without requiring a live Langfuse judge."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E16",
+            "E15",
+            "E12"
+          ],
+          "finding": "Mock Langfuse linkage/score identifiers/minimization",
+          "number": 5,
+          "requirement": "Test Langfuse publishing with a mock client for trace/observation linkage, redacted payloads, run-level and step-level score targets, and idempotent score identifiers. Keep network-dependent experiment tests opt-in and clearly marked."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E22",
+            "E23",
+            "E24"
+          ],
+          "finding": "G2: offline fixtures pass; real explicit/natural seven-skill paths need receipts",
+          "number": 6,
+          "requirement": "Exercise skill fixtures for explicit loading and natural selection separately. Include the present-day place-photo default, explicit historical period, uncertain source date, unrelated request, place-journey grounding, and Family entitlement cases."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E25",
+            "E19",
+            "E53"
+          ],
+          "finding": "Existing runtime/worker/collection regressions retained",
+          "number": 7,
+          "requirement": "Preserve existing runtime and application regression coverage for Codex connection behavior, worker isolation, marker extraction, Family gating, collection review, organiser handoff, task ownership, and deterministic task execution. Add no test that depends on the removed `codex-harness` service."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E20",
+            "E01"
+          ],
+          "finding": "Native/build checks pass; Langfuse release score gates remain disabled pending G3/G4",
+          "number": 8,
+          "requirement": "Verify the operational change with Compose configuration validation, focused Makefile/skill-install tests, the Codex worker tests, and the full local repository checks before enabling Langfuse scores as release gates."
+        }
+      ],
+      "story_counts": {
+        "PARTIAL": 17,
+        "PASS": 18
+      }
+    },
+    "6": {
+      "body_sha256": "95c01f8fa4e5c5718b8093b1b136723f3a0535e62b4fc1efc33226f264bca07c",
+      "disposition": "KEEP OPEN",
+      "stories": [
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E01",
+            "E29"
+          ],
+          "finding": "G2: canonical contract passes; all-stage live extraction quality remains",
+          "number": 1,
+          "requirement": "As a storyteller, I want every accepted message processed for life events in the background, so that my timeline grows without a separate recording step."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E29"
+          ],
+          "finding": "G2: empty controlled extraction passes; model acknowledgements/vetoes need live pilot",
+          "number": 2,
+          "requirement": "As a storyteller, I want conversational acknowledgements to produce no invented events, so that my timeline contains memories I actually described."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E28"
+          ],
+          "finding": "Distinct canonical identities from one reply",
+          "number": 3,
+          "requirement": "As a storyteller, I want several events from one reply saved separately, so that different stages and years are represented accurately."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E28"
+          ],
+          "finding": "Multiple original sources enrich one stable identity",
+          "number": 4,
+          "requirement": "As a storyteller, I want several replies about one event linked together, so that extra details enrich the same story."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E31"
+          ],
+          "finding": "Old-event evidence changes its passage and preserves unrelated bytes",
+          "number": 5,
+          "requirement": "As a storyteller, I want new details to reach an event first discussed much earlier, so that I can revisit memories naturally."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E32"
+          ],
+          "finding": "Similar events and long periods are not merged implicitly",
+          "number": 6,
+          "requirement": "As a storyteller, I want distinct events with similar descriptions kept separate, so that recurring experiences are not merged accidentally."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E33"
+          ],
+          "finding": "Ambiguous matches remain unresolved",
+          "number": 7,
+          "requirement": "As a storyteller, I want uncertain event matches left unresolved, so that the assistant does not attach my words to the wrong memory."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E34",
+            "E35"
+          ],
+          "finding": "G2: supported-stage validators/editing pass; live all-stage assignment pending",
+          "number": 8,
+          "requirement": "As a storyteller, I want events assigned to supported life stages, so that I can navigate my story by period of life."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E35",
+            "E36",
+            "E37"
+          ],
+          "finding": "G2: timing validators pass; live date extraction pending",
+          "number": 9,
+          "requirement": "As a storyteller, I want each event assigned its supported year or date range, so that capture dates do not become story dates."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E36",
+            "E35"
+          ],
+          "finding": "Approximate/original expressions retained; unsupported numeric dates refused",
+          "number": 10,
+          "requirement": "As a storyteller, I want approximate expressions such as around 1970 preserved, so that my memoir reflects my uncertainty."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E32",
+            "E35"
+          ],
+          "finding": "Unknown/undated evidence retained without fabricated timing",
+          "number": 11,
+          "requirement": "As a storyteller, I want an undated memory retained, so that missing timing does not discard an otherwise clear event."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E36"
+          ],
+          "finding": "Age estimates retain original evidence and birth basis",
+          "number": 12,
+          "requirement": "As a storyteller, I want a year estimate linked to its evidence, so that I can understand and correct its basis."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E32"
+          ],
+          "finding": "Long periods retain supported ranges as records",
+          "number": 13,
+          "requirement": "As a storyteller, I want long life periods retained as single records with ranges, so that my work or residence history is not fragmented into invented yearly events."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E34",
+            "E45"
+          ],
+          "finding": "Explicit stage edit preserves event identity/revision",
+          "number": 14,
+          "requirement": "As a storyteller, I want to correct a previously saved event's life stage, so that its placement matches my recollection."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E34",
+            "E45"
+          ],
+          "finding": "Explicit year edit invalidates affected groups",
+          "number": 15,
+          "requirement": "As a storyteller, I want to correct a previously saved event's year, so that both the timeline and writing reflect the correction."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E34"
+          ],
+          "finding": "Corrected tags fence later model estimates",
+          "number": 16,
+          "requirement": "As a storyteller, I want my explicit tag corrections retained during later extraction, so that the assistant does not silently undo them."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E34",
+            "E38"
+          ],
+          "finding": "Stable identity and downstream dependencies",
+          "number": 17,
+          "requirement": "As a storyteller, I want an event's identity retained when its tags change, so that its source and chapter links remain intact."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E37"
+          ],
+          "finding": "Attributed conflicting dates remain unresolved",
+          "number": 18,
+          "requirement": "As a storyteller, I want conflicting accounts to retain their attribution, so that the system does not silently choose a factual winner."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E38",
+            "E28"
+          ],
+          "finding": "Original source references retained and readable",
+          "number": 19,
+          "requirement": "As a storyteller, I want access to the original evidence behind an event, so that I can review what supports the timeline and prose."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E66"
+          ],
+          "finding": "Tag/coverage readback survives browser reload in controlled product fixture",
+          "number": 20,
+          "requirement": "As a storyteller, I want event records to survive closing the browser and returning later, so that my work is recoverable across sessions."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E39"
+          ],
+          "finding": "Authenticated chat continues during bounded preparations",
+          "number": 21,
+          "requirement": "As a storyteller, I want conversation to continue while extraction and writing run, so that background work does not interrupt storytelling."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E40"
+          ],
+          "finding": "Native default five-round checkpoint saved",
+          "number": 22,
+          "requirement": "As a storyteller, I want the first supported private draft after five completed rounds, so that I can see progress early."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E31",
+            "E61",
+            "E40"
+          ],
+          "finding": "Later checkpoints and catch-up use eligible evidence",
+          "number": 23,
+          "requirement": "As a storyteller, I want later five-round checkpoints to update relevant writing, so that the draft grows as I provide more memories."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E41",
+            "E65"
+          ],
+          "finding": "Failed replies/technical retry do not add completed rounds",
+          "number": 24,
+          "requirement": "As a storyteller, I want failed replies and technical retries excluded from the round count, so that milestones reflect actual conversation."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E42",
+            "E41"
+          ],
+          "finding": "Source edits reconcile without increasing usage",
+          "number": 25,
+          "requirement": "As a storyteller, I want editing an earlier message to update affected writing without counting as a new round, so that correcting a memory does not change my allowance."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E43",
+            "E31"
+          ],
+          "finding": "Unchanged passage bytes/revisions retained",
+          "number": 26,
+          "requirement": "As a storyteller, I want unchanged passages preserved exactly, so that new memories do not unexpectedly rewrite earlier writing."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E44"
+          ],
+          "finding": "Changed/withdrawn evidence invalidates eligible derived output and fences late output",
+          "number": 27,
+          "requirement": "As a storyteller, I want deleted or withdrawn sources removed from eligible derived content, so that earlier drafts do not continue exposing that material."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E45"
+          ],
+          "finding": "Both former/current grouping invalidated without duplicate identity",
+          "number": 28,
+          "requirement": "As a storyteller, I want an event moved between stage/year groups to update both affected groups, so that it is neither duplicated nor left behind."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E40",
+            "E61"
+          ],
+          "finding": "Checkpoint waits for required extraction and captures stated coverage",
+          "number": 29,
+          "requirement": "As a storyteller, I want a checkpoint to include extraction through its stated round, so that its coverage label is accurate."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E46"
+          ],
+          "finding": "Latest eligible draft remains available during ordinary updates",
+          "number": 30,
+          "requirement": "As a storyteller, I want the latest validated draft available while a newer version runs, so that I can review saved progress immediately."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E46",
+            "E66"
+          ],
+          "finding": "Saved coverage displayed and retained on reload",
+          "number": 31,
+          "requirement": "As a storyteller, I want to see the round covered by my saved draft, so that I understand how current it is."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E47",
+            "E48"
+          ],
+          "finding": "Terminal failure exposes explicit retry and stops endless polling",
+          "number": 32,
+          "requirement": "As a storyteller, I want recoverable failures to show a clear retry state, so that quiet background processing does not conceal a stalled update."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E49"
+          ],
+          "finding": "Protected bytes retained; revision-bound enrichment proposal saved",
+          "number": 33,
+          "requirement": "As a storyteller, I want human-edited or approved writing protected, so that automatic enrichment becomes a reviewable proposal."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E38",
+            "E68"
+          ],
+          "finding": "G2/G3: structural chapter contract passes; meaningful narrative transitions need reviewed live semantics",
+          "number": 34,
+          "requirement": "As a storyteller, I want chapters grouped around meaningful narrative transitions, so that event indexing does not turn my memoir into disconnected fragments."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E51",
+            "E50"
+          ],
+          "finding": "Original testimony language kept distinct from output locale",
+          "number": 35,
+          "requirement": "As a storyteller, I want source language and memoir output language kept distinct, so that indexing does not alter my original testimony."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E50",
+            "E01"
+          ],
+          "finding": "G2: Chinese voice/canonical contracts pass; bilingual full live workload pending",
+          "number": 36,
+          "requirement": "As a storyteller, I want Chinese and English memories processed through the same event contract, so that language choice does not change persistence behavior."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E52",
+            "E40"
+          ],
+          "finding": "Private cadence separate from allowance/payment/publication",
+          "number": 37,
+          "requirement": "As a storyteller, I want background draft checkpoints kept separate from payment and formal-book readiness, so that routine updates do not initiate a purchase or publication."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E53"
+          ],
+          "finding": "Relationship mentions dispatch tree updates through actual story worker",
+          "number": 38,
+          "requirement": "As a Family legacy storyteller, I want explicit relationship mentions to trigger family-tree updates, so that my tree grows when relevant information appears."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E53"
+          ],
+          "finding": "Existing relative correction dispatches one tree pass",
+          "number": 39,
+          "requirement": "As a Family legacy storyteller, I want relevant corrections to an established relative processed, so that the saved tree remains accurate without repeating the relationship introduction."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E53"
+          ],
+          "finding": "Unrelated narration leaves tree unchanged",
+          "number": 40,
+          "requirement": "As a storyteller, I want ordinary messages without relationship information to leave the family tree unchanged, so that unrelated conversation does not cause unnecessary tree work."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E54"
+          ],
+          "finding": "Cross-owner/project event and reference boundaries",
+          "number": 41,
+          "requirement": "As a storyteller, I want my events isolated from other users and projects, so that private memories cannot cross ownership boundaries."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E55"
+          ],
+          "finding": "Authorised guest transfer preserves IDs/dependencies/retry state",
+          "number": 42,
+          "requirement": "As a returning guest storyteller, I want an authorised account transfer to preserve event identities and source links, so that signing in does not duplicate my story or milestones."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E38"
+          ],
+          "finding": "Timeline and composer use canonical event IDs without re-extraction",
+          "number": 43,
+          "requirement": "As an editor, I want timeline and composer to use the same canonical event IDs, so that a correction has one target throughout the project."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E56",
+            "E34"
+          ],
+          "finding": "Expected-revision conflicts are recoverable and fence stale writes",
+          "number": 44,
+          "requirement": "As an editor, I want stale writes rejected with a recoverable conflict, so that concurrent extraction or editing cannot overwrite newer decisions."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E30",
+            "E62"
+          ],
+          "finding": "Durable input/outbox and native Temporal recovery",
+          "number": 45,
+          "requirement": "As an operator, I want background intents to survive disconnects and restarts, so that saved narrator messages are eventually processed without asking the storyteller to repeat them."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E57"
+          ],
+          "finding": "Successful partition preparation reused after failed provider task",
+          "number": 46,
+          "requirement": "As an operator, I want retries to reuse completed work, so that a failed render or review does not repeat every successful partition task."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E57",
+            "E39"
+          ],
+          "finding": "Bounded preparation concurrency and ongoing chat",
+          "number": 47,
+          "requirement": "As an operator, I want partition preparation to run with bounded concurrency, so that independent work can finish faster without unlimited provider requests."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E58",
+            "E44"
+          ],
+          "finding": "Corrections/revocation invalidate and fence obsolete output",
+          "number": 48,
+          "requirement": "As an operator, I want obsolete output rejected after a relevant correction or revocation, so that a late job cannot restore outdated or inaccessible content."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E59",
+            "E60"
+          ],
+          "finding": "Legacy IDs/provenance/privacy and manuscript references preserved on replay",
+          "number": 49,
+          "requirement": "As a maintainer, I want existing event and manuscript references preserved during migration, so that the shared index can replace duplicate indexes without losing prior work."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E53",
+            "E65"
+          ],
+          "finding": "Existing UserStorage/runtime/private-worker acceptance seam",
+          "number": 50,
+          "requirement": "As a maintainer, I want acceptance tests driven through the story workflow, so that refactoring internal storage does not require rewriting tests for every helper function."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E61"
+          ],
+          "finding": "One active invocation and coalesced later milestones",
+          "number": 51,
+          "requirement": "As a storyteller, I want later milestones to wait while an earlier background run is active, so that competing jobs cannot overwrite my event structure or draft."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E61"
+          ],
+          "finding": "Catch-up resolves latest eligible accumulated inputs at claim time",
+          "number": 52,
+          "requirement": "As a storyteller, I want the next background run to include all accumulated inputs, so that a slow run can catch up across ten or fifteen conversation rounds."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E62",
+            "E64"
+          ],
+          "finding": "Failed ranges stay pending and successful cursor does not advance",
+          "number": 53,
+          "requirement": "As a storyteller, I want inputs from a failed background attempt kept pending, so that an unsuccessful run does not silently lose part of my story."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E65",
+            "E30"
+          ],
+          "finding": "Accepted original survives failed assistant delivery without a completed round",
+          "number": 54,
+          "requirement": "As a storyteller, I want my durably accepted message retained as evidence even when an assistant reply fails, so that a delivery error does not discard the memory I supplied."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E63"
+          ],
+          "finding": "Configured deadline bounds held native provider and exposes retry",
+          "number": 55,
+          "requirement": "As an operator, I want a stalled background run to reach a configured timeout, so that queued work can recover without waiting forever."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E64",
+            "E62"
+          ],
+          "finding": "Late timed-out worker cannot overwrite replacement work",
+          "number": 56,
+          "requirement": "As an operator, I want output from a timed-out worker rejected after a replacement run starts, so that a late response cannot overwrite newer saved state."
+        }
+      ],
+      "testing_decisions": [
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E53",
+            "E65"
+          ],
+          "finding": "Authenticated story runtime, worker, native storage and Temporal outcome",
+          "number": 1,
+          "requirement": "The primary acceptance seam is the existing authenticated story workflow: submit narrator turns, drive the background worker to an observable state, edit/read canonical events, and read the saved private draft. Prefer this seam over isolated tests of prompts, private helpers, table layout, or function-call order. Use controlled responses only at the external model/provider boundary; exercise application validation, persistence, dispatch, revision handling, and rendering together."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E34",
+            "E46",
+            "E54"
+          ],
+          "finding": "Public identity/evidence/coverage/access observations",
+          "number": 2,
+          "requirement": "A good test asserts what the storyteller or authorised caller can observe: event identity and tags, evidence links, accurate coverage, unchanged output content/revisions, corrected output, access denial, or a recoverable processing state. Tests remain valid when internal batching, queue adapters, or module arrangement change."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E28",
+            "E31",
+            "E38"
+          ],
+          "finding": "Multiple/old evidence and shared canonical IDs",
+          "number": 3,
+          "requirement": "Cover one reply describing several events in different stages/years and several replies describing one event. Read timeline and draft dependencies to prove both use the same canonical event ID, including a late new detail about a much older event."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E35",
+            "E36",
+            "E37",
+            "E32",
+            "E50"
+          ],
+          "finding": "Supported/uncertain/conflicting/unknown ranges and transcribed Chinese",
+          "number": 4,
+          "requirement": "Cover explicit, approximate, age-based, ranged, conflicting, and unknown dates; unknown stage; undated events; and periods spanning years. Check uncertainty and original expressions rather than expecting fabricated numeric dates. Exercise both supported conversation languages and transcribed voice using the same persistence contract."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E34",
+            "E45"
+          ],
+          "finding": "Corrected stable IDs/group invalidation/fenced late estimates",
+          "number": 5,
+          "requirement": "Cover stage/year edits without source-text changes. Assert stable event ID, a changed revision, invalidation of former/current grouping, updated timeline and affected draft, and preservation of unrelated output. Delay an earlier extraction response and prove that it cannot restore a tag the user corrected later."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E29",
+            "E62",
+            "E40"
+          ],
+          "finding": "Empty/failure/restart/replay and settled extraction coverage",
+          "number": 6,
+          "requirement": "Cover successful empty extraction, failed extraction, out-of-order completion, disconnect, restart, and replay. A milestone must remain pending while a required extraction gap exists, then compose against a snapshot covering the stated round once the gap settles."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E41",
+            "E67",
+            "E40"
+          ],
+          "finding": "Before/at checkpoints, configured cadence, retry/usage independence",
+          "number": 7,
+          "requirement": "Cover checkpoints before five rounds, at five and ten rounds, and under a non-default cadence. Duplicate inputs, failed replies, source edits, and background jobs must not increase completed-round usage. An unchanged checkpoint advances processing state without new generated output or duplicate provider work."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E61"
+          ],
+          "finding": "Both lanes held through later milestones and latest catch-up",
+          "number": 8,
+          "requirement": "Hold a background run active while milestones at ten, fifteen, and twenty arrive. Assert that the lane still has one active invocation, then finish it and verify one catch-up run consumes the latest eligible range rather than three obsolete milestone packets. Include extra inputs arriving between milestones and prove that the worker resolves its snapshot at claim time. Perform this through the existing worker boundary for both skill lanes."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E62",
+            "E64"
+          ],
+          "finding": "Failed 6\u201310 range retained through 20 and completed work reused",
+          "number": 9,
+          "requirement": "Fail or time out an attempt covering six through ten after saving through five, then provide inputs through twenty. Assert that the next eligible run covers six through twenty, including the failed range, and that no claim or failed attempt advances a successful cursor. Reuse applicable successful checkpoints and verify that sources and already committed events are not duplicated."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E64",
+            "E63",
+            "E62"
+          ],
+          "finding": "Controlled deadline/lease recovery and obsolete completion fencing",
+          "number": 10,
+          "requirement": "Advance a controlled clock past the configured run deadline while the original worker remains stalled. Verify that ownership is fenced, pending work becomes eligible without another user turn, and a late completion cannot save over the replacement run. Cover lease expiry after a process crash as the equivalent recovery boundary; test durable outcomes rather than sleep durations or scheduler internals."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E65",
+            "E30"
+          ],
+          "finding": "Accepted evidence survives delivery failure and replay",
+          "number": 11,
+          "requirement": "Persist an accepted narrator input and fail assistant delivery. Read back its source/event evidence, prove it is included in later authorised catch-up processing, and verify that completed-round usage remains unchanged. Retry the same client input and assert that source identity and evidence links are reused."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E31",
+            "E43"
+          ],
+          "finding": "Unchanged overlap preserves bytes; older dirty evidence updates dependencies",
+          "number": 12,
+          "requirement": "Cover conversation overlap that refers only to unchanged material. It must not trigger rewriting. Cover new evidence for an existing older event outside the overlap window and assert that its dependent section updates. These are regressions for the dirty-content selection gaps reproduced during the review."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E44",
+            "E58",
+            "E46"
+          ],
+          "finding": "Removal/revocation and eligible prior-draft visibility",
+          "number": 13,
+          "requirement": "Cover edits, source-link removal, deletion, and access withdrawal. Rebuild from surviving evidence and refuse late output that depends on removed or inaccessible sources. Verify that a permitted previous draft remains available during an ordinary update while an ineligible one is withheld."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E57",
+            "E39",
+            "E56"
+          ],
+          "finding": "Bounded concurrent preparation, failed-task reuse and revision safety",
+          "number": 14,
+          "requirement": "Cover independent dirty partitions with controlled delayed responses. Demonstrate bounded concurrent preparation and continuing chat, then fail one task and prove that already successful tasks are reused on retry. Verify that concurrent runs cannot overwrite a newer manuscript revision."
+        },
+        {
+          "status": "PARTIAL",
+          "evidence": [
+            "E68",
+            "E49",
+            "E43"
+          ],
+          "finding": "G2/G3: structural/ceiling/review/protection contracts pass; coherent narrative quality needs reviewed live evidence",
+          "number": 15,
+          "requirement": "Cover exact unchanged-content preservation, coherent chapter assembly, the existing word ceiling, failed evidence review, and protected text. Unchanged sections retain content and revisions; a protected affected chapter receives a proposal rather than silent replacement. A failed candidate never becomes the ready draft."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E54",
+            "E56",
+            "E59",
+            "E28"
+          ],
+          "finding": "Native PostgreSQL isolation/change/replay/reference contracts",
+          "number": 16,
+          "requirement": "Add focused real-PostgreSQL integration checks for the shared event service and migration boundary: user/project isolation, expected-revision conflicts, atomic change/outbox recording, many-to-many references, migration replay, and preservation of legacy IDs, provenance, and privacy. Extend the existing disposable PostgreSQL migration harness rather than adding a production test endpoint or new storage subsystem."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E66",
+            "E52"
+          ],
+          "finding": "Controlled workspace editing/reload/coverage/premium display",
+          "number": 17,
+          "requirement": "Use the existing browser workspace seam for the small presentation contract: event tag editing, reload persistence, saved-draft coverage/updating status, and premium timeline/family-tree visibility. Do not duplicate every worker recovery scenario in browser tests."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E53",
+            "E24",
+            "E52"
+          ],
+          "finding": "Mention/correction/unrelated and server-owned entitlement",
+          "number": 18,
+          "requirement": "Family-tree acceptance scenarios cover a relationship mention, a relevant correction, and unrelated narration. Preserve server-owned entitlement checks and prove that internal event indexing for a non-Family storyteller does not grant premium tree/timeline display access."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E59",
+            "E55",
+            "E33",
+            "E54"
+          ],
+          "finding": "Preserved migration/transfer IDs/unresolved matches and rejected cross-scope edits",
+          "number": 19,
+          "requirement": "Migration and account-transfer scenarios preserve shared identity and manuscript references, retain unresolved legacy matches, and replay without extra rounds or milestones. Cross-project references and unauthorised event edits are rejected."
+        },
+        {
+          "status": "PASS",
+          "evidence": [
+            "E01",
+            "E38"
+          ],
+          "finding": "Existing public boundaries/native fixtures reused",
+          "number": 20,
+          "requirement": "Prior art includes the existing authenticated agent-turn and family-context tests, private-draft milestone/recovery tests, outbox broker tests, preview persistence/review tests, response-stage tests, disposable PostgreSQL timeline migration tests, and workspace browser tests. Reuse their public boundaries and fixtures; add new seams only where the required behavior cannot be observed through them."
+        }
+      ],
+      "story_counts": {
+        "PARTIAL": 6,
+        "PASS": 50
+      }
+    }
+  },
+  "gap_tickets": [
+    {
+      "gap": "G1",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/12",
+      "title": "Complete canonical five-case launcher and exact-main 250-round acceptance"
+    },
+    {
+      "gap": "G2",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/13",
+      "title": "Validate bilingual seven-skill and source-claim acceptance"
+    },
+    {
+      "gap": "G3",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/14",
+      "title": "Enforce provider budgets and calibrate trajectory judging"
+    },
+    {
+      "gap": "G4",
+      "status": "created",
+      "url": "https://github.com/bohui/copyme2.ai/issues/15",
+      "title": "Verify durable Langfuse browser linkage and score replay"
+    }
+  ]
+}

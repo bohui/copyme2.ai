@@ -4,9 +4,15 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
-const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`});
+const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
+  date_expression: '1983', latitude: 40.98, longitude: 117.94});
 
 function harness(entry, api) {
+  Object.assign(entry, {period: '1980s', latitude: 40.98, longitude: 117.94, ...entry});
+  if (entry.photo_next_cursor) Object.assign(entry, {
+    photo_search_policy: 'place-radius20-years10-v5',
+    photo_search_latitude: 40.98, photo_search_longitude: 117.94,
+  });
   let saved = {memory_places: [entry]};
   const state = {project: {id: 'project'}, placeJourney: entry};
   const context = vm.createContext({state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
@@ -14,7 +20,7 @@ function harness(entry, api) {
     profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {},
     saveProfileUpdates: async updates => { saved = {...saved, ...updates}; },
   });
-  for (const name of ['photoSearchPeriod', 'mergePlacePictures', 'loadPlacePictures']) {
+  for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   return {context, state, entry: () => saved.memory_places[0]};
@@ -110,7 +116,7 @@ test('expired cursors restart safely without erasing visible pictures', async ()
 });
 
 test('unavailable later pages preserve pictures and expose manual retry', async () => {
-  const original = {place: 'Chengde', photo_search_period: '', photo_next_cursor: 'snapshot:10', pictures: [picture('a')]};
+  const original = {place: 'Chengde', photo_search_period: '1980s', photo_next_cursor: 'snapshot:10', pictures: [picture('a')]};
   const h = harness(original, async () => ({status: 'UNAVAILABLE', items: []}));
   await h.context.loadPlacePictures(h.entry(), 'project', {more: true});
   assert.equal(h.entry(), original);
@@ -153,7 +159,7 @@ test('older empty searches are retried under the bilingual search policy', async
   await h.context.loadPlacePictures(h.entry(), 'project');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 1);
-  assert.equal(h.entry().photo_search_policy, 'place-aliases-v4');
+  assert.equal(h.entry().photo_search_policy, 'place-radius20-years10-v5');
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {
@@ -161,7 +167,9 @@ test('decade matches are labelled and a zero-image wall stays hidden', () => {
     placeHistoryKey: item => item.place, referenceUrl: value => value,
     formatDateExpression: value => value, currentUiLocale: () => 'en-AU',
     photoPaginationMarkup: () => ''});
-  vm.runInContext(source.match(/function pictureWall\([^]*?\n\}/)[0], context);
+  for (const name of ['mergePlacePictures', 'pictureWall']) {
+    vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+  }
   assert.equal(context.pictureWall([]), '');
   const html = context.pictureWall([{...picture('a'), allowed_actions: {embed: true},
     date_expression: '1984', period_match: 'decade'}]);

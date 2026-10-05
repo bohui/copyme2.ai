@@ -8,6 +8,11 @@ import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { openCollectionReview } from "./collection.js";
 import { openProfileSettings } from "./profile.js";
 import { formatDateExpression } from "./dates.mjs";
+import { createConversationScroll, installConversationViewport } from "./conversation-scroll.mjs";
+import englishMessages from "../../messages/en-AU.json";
+import chineseMessages from "../../messages/zh-CN.json";
+
+const openingMessages = [englishMessages, chineseMessages].map(messages => messages.Memoir.conversation.opening);
 
 const state = {
   accountId: null,
@@ -20,6 +25,9 @@ const state = {
   people: [],
   relationships: [],
   timeline: [],
+  stageReadiness: {},
+  privateDraft: null,
+  pendingConversationTurn: null,
   preview: null,
   chat: [],
   chatHistoryCollapsed: false,
@@ -30,8 +38,12 @@ const state = {
   profileIntakePending: true,
   placeJourney: null,
   placeJourneyChange: null,
-  workspaceTab: "chapters",
+  workspaceTab: "memoir",
+  selectedMemoirChapter: null,
+  selectedFamilyPerson: null,
+  familyPhotoTask: null,
   workspaceUnlocked: false,
+  compositionStage: 0,
   workspaceCollapsed: false,
   lifeStage: "childhood",
   selectedPlace: null,
@@ -42,7 +54,6 @@ const state = {
   recallPreview: null,
   familyFeaturesEnabled: false,
   familyContext: null,
-  familyPeriods: [],
   storyPlans: [],
   selectedStoryPlan: "electronic_memoir_v1",
   storyBookCount: 2,
@@ -68,6 +79,7 @@ const state = {
   attachmentProgress: "",
   audioUploadId: null,
   audioTranscript: "",
+  audioTranscriptKind: "narrator_chat",
   audioPlayer: null,
   voiceMode: false,
   voiceModeStatus: "off",
@@ -120,6 +132,7 @@ const authReminder = createAuthReminder({
   busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
   signInExisting: provider => guestTransfer.signIn(provider),
   cancelTransfer: () => guestTransfer.cancel(),
+  onUserChanged: () => refreshProfileMenu(),
 });
 
 const MEMOIR_API_PREFIX = "/api/v1/memoir";
@@ -143,10 +156,14 @@ let cesiumPlaceJourneyViewer = null;
 let cesiumLoadPromise = null;
 const visualizationLoadPromises = new Map();
 let familyChartMountId = 0;
+const familyCharts = new WeakMap();
 let timelineMountId = 0;
 let assistantMessageSequence = 0;
 let workspaceUpdateQueue = Promise.resolve();
 const appliedWorkspaceSequences = new Map();
+const WORKSPACE_VISIBILITY_DEBOUNCE_MS = 180;
+const workspaceVisibility = { projectId: null, stable: false, pending: null, timer: null };
+const conversationScroll = createConversationScroll();
 
 const ASSISTANT_STREAM_CHUNK_SIZE = 3;
 const ASSISTANT_STREAM_DELAY_MS = 12;
@@ -178,6 +195,17 @@ function cleanAssistantText(value = "") {
     .replace(/<!--\s*profile\s*:[\s\S]*?(?:-->|$)/gi, "");
 }
 
+function originalConversationText(text = "") {
+  const prefix = "The storyteller said: ";
+  if (!text.startsWith(prefix)) return text;
+  const boundaries = [
+    "This is the storyteller's first answer to the shared profile-intake opening.",
+    "Acknowledge the storyteller naturally, then ask one gentle open-ended follow-up question.",
+    "Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory.",
+  ].map(instruction => text.indexOf(`\n${instruction}`, prefix.length)).filter(index => index >= 0);
+  return boundaries.length ? text.slice(prefix.length, Math.min(...boundaries)) : text;
+}
+
 function resizeChatInput(input = $("#chat-input")) {
   if (!input) return;
   input.style.height = "auto";
@@ -191,7 +219,7 @@ function resizeChatInput(input = $("#chat-input")) {
 function conversationLanguage() {
   // Conversation language is an explicit profile preference. An omitted
   // value lets the runtime infer it without changing the UI locale.
-  return profile().preferred_language || undefined;
+  return profile().preferred_language || profile().conversation_language?.locale || undefined;
 }
 
 function conversationMessage(key) {
@@ -308,6 +336,10 @@ function persistChatHistory() {
         error: message.error || "",
       };
       if (Array.isArray(message.cues) && message.cues.length) saved.cues = message.cues;
+      if (Array.isArray(message.trace) && message.trace.length) {
+        saved.trace = message.trace;
+        saved.traceMode = message.traceMode;
+      }
       if (message.action && typeof message.action === "object") {
         saved.action = { name: message.action.name, label: message.action.label };
       }
@@ -340,6 +372,8 @@ function restoreChatHistory(projectId) {
           text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
           error: typeof message.error === "string" ? message.error : "",
           cues: Array.isArray(message.cues) ? message.cues : undefined,
+          trace: Array.isArray(message.trace) ? message.trace : undefined,
+          traceMode: typeof message.traceMode === "string" ? message.traceMode : undefined,
           action,
         };
       });
@@ -401,7 +435,7 @@ async function applyFirstReplyLocalization(locale) {
   const setUiLocale = globalThis.__copyme2SetUiLocale;
   if (typeof setUiLocale !== "function") return false;
   // This is the explicitly requested product exception: only the first
-  // onboarding answer may provide a bounded UI-language signal. It changes
+  // narrator answer may provide a bounded UI-language signal. It changes
   // the current session and never writes account metadata.
   const changed = await setUiLocale(locale, { persistAccount: false, persistCookie: true, source: "automatic" });
   if (changed) writeUiLocaleSource("automatic");
@@ -430,6 +464,18 @@ function installUiLocaleBridge() {
     }
     const client = state.supabase?.client;
     const user = state.supabase?.user;
+    if (persistAccount && state.project && state.supabase?.accessToken) {
+      const projectId = state.project.id;
+      const ownerId = user?.id;
+      try {
+        const saved = await storyApi("/v1/agent/profile", {method:"PATCH", body:JSON.stringify({preferred_language:nextLocale})});
+        if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return false;
+        state.project = {...state.project, profile:preserveConversationLocale({...profile(), ...saved}, profile())};
+      } catch {
+        toast(translate("Profile.saveError"));
+        return false;
+      }
+    }
     if (!persistAccount || !client || !user || user.is_anonymous) return true;
     try {
       const result = await client.auth.updateUser({
@@ -494,10 +540,16 @@ async function loadSupabaseConfig() {
 function syncSupabaseSession(session) {
   state.supabaseSession = session || null;
   if (!state.supabase) return;
+  const previousUser = state.supabase.user;
   state.supabase.accessToken = session?.access_token || null;
   state.supabase.refreshToken = session?.refresh_token || null;
   state.supabase.user = session?.user || null;
   authReminder.tick();
+  const user = state.supabase.user;
+  if (previousUser?.id !== user?.id || previousUser?.is_anonymous !== user?.is_anonymous
+      || previousUser?.email !== user?.email
+      || previousUser?.user_metadata?.full_name !== user?.user_metadata?.full_name
+      || previousUser?.user_metadata?.name !== user?.user_metadata?.name) refreshProfileMenu();
   const accountLocale = session?.user?.user_metadata?.ui_locale;
   if (UI_LOCALES.has(accountLocale) && !readCookie(UI_LOCALE_COOKIE)) {
     writeUiLocaleCookie(accountLocale);
@@ -593,15 +645,37 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
   ];
 }
 
-async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false) {
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat") {
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
   const liveTrace = [];
   const streamProjectId = state.project?.id || null;
+  const ownerId = state.supabase?.user?.id;
+  const previousTurn = state.pendingConversationTurn;
+  const requestTurn = previousTurn?.projectId === streamProjectId && previousTurn?.ownerId === ownerId
+      && previousTurn?.text === text ? previousTurn : {projectId:streamProjectId,ownerId,text,
+      id:globalThis.crypto?.randomUUID?.() || null};
+  state.pendingConversationTurn = requestTurn;
   const previousJourney = state.placeJourney;
   const previousSelection = state.selectedPlace;
   let previewJourney = null;
+  const recordProgress = (step) => {
+    if (state.project?.id !== streamProjectId || !step?.id) return;
+    const index = liveTrace.findIndex(item => item.id === step.id);
+    if (index < 0) liveTrace.push(step);
+    else if (step.status === "completed" || step.status === "failed") {
+      liveTrace.splice(index, 1);
+      liveTrace.push(step);
+    } else liveTrace[index] = step;
+    if (!streamedMessage) {
+      streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
+      state.chat.push(streamedMessage);
+    }
+    streamedMessage.trace = liveTrace;
+    streamedMessage.traceMode = "live";
+    updateStreamingAssistantMessage(streamedMessage);
+  };
   if (state.supabase.google_maps_browser_api_key) void loadCesium().catch(() => {});
   try {
     const applyWorkspace = async (update) => {
@@ -635,7 +709,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         if (update.profile_updates.story_focus?.when && state.placeJourney) {
           // Profile and place are separate stream events. Restart discovery
           // for the new period even if the earlier search is still pending.
-          void loadPlacePictures(state.placeJourney, streamProjectId);
+            void loadPlacePictures(state.placeJourney, streamProjectId, {onProgress: recordProgress});
         }
       }
       if (Object.prototype.hasOwnProperty.call(update, "place_journey")) {
@@ -652,7 +726,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           const stage = update.profile_updates?.story_focus?.life_stage;
           const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
           const candidates = (update.place_journeys?.length ? update.place_journeys : [update.place_journey])
-            .map(journey => ({ ...journey, life_stage: lifeStage }));
+            .map(journey => ({ period: "", ...journey, life_stage: lifeStage }));
           const places = mergePlaces([...(profile().memory_places || []), ...candidates]);
           const entries = candidates.map(candidate => places.find(item => placeHistoryKey(item) === placeHistoryKey(candidate)));
           const entry = entries.at(-1);
@@ -664,18 +738,37 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           // Render the map and loading panel while it runs independently.
           for (const place of entries) {
             resolvePlaceMap(place);
-            void loadPlacePictures(place, streamProjectId);
+            void loadPlacePictures(place, streamProjectId, {onProgress: recordProgress});
           }
         }
         // Places and pictures are presented together in the workspace overview,
         // rather than as separate navigation destinations.
       }
+      const composition = update.composer_delivery || update.memoir_composition || null;
+      const rawCompositionStage = update.composition_stage ?? update.memoir_stage ?? composition?.stage;
+      const nextCompositionStage = Number(rawCompositionStage);
+      if (Number.isFinite(nextCompositionStage) && markCurrent("composition")) {
+        state.compositionStage = nextCompositionStage;
+        const deliveredChapters = Array.isArray(composition?.chapters)
+          ? composition.chapters
+          : Array.isArray(update.chapters) ? update.chapters : null;
+        if (deliveredChapters) state.chapters = deliveredChapters;
+        if (composition?.story_chapter) state.storyChapter = composition.story_chapter;
+        state.project = { ...state.project, composition_stage: nextCompositionStage };
+        if (nextCompositionStage >= 3) {
+          state.workspaceUnlocked = true;
+          state.project.workspace_unlocked = true;
+          state.workspaceCollapsed = false;
+          state.workspaceTab = "memoir";
+        }
+      }
       if (state.familyFeaturesEnabled && update.family_features_enabled === true && update.family_context_update?.persisted === true && update.family_context && markCurrent("family")) {
         applyPersistedFamilyContext(update.family_context);
-        if (!state.workspaceUnlocked || state.workspaceTab === "chapters") state.workspaceTab = "family";
+        if (!composingWorkspaceActive()) state.workspaceTab = "family";
       }
       if (update.task_errors?.length) toast(translate("Collection.taskFailed"));
       else if (update.tasks?.length) toast(translate("Collection.taskQueued"));
+      if (update.stage_readiness) state.stageReadiness = update.stage_readiness;
       render();
     };
     const body = await streamAgentTurn(text, async (delta) => {
@@ -688,22 +781,11 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       updateStreamingAssistantMessage(streamedMessage);
     }, async (event) => {
       if (event.type === "progress") {
-        if (state.project?.id !== streamProjectId) return;
-        const step = event.data;
-        if (!step?.id) return;
-        const index = liveTrace.findIndex(item => item.id === step.id);
-        if (index < 0) liveTrace.push(step);
-        else if (step.status === "completed" || step.status === "failed") {
-          liveTrace.splice(index, 1);
-          liveTrace.push(step);
-        } else liveTrace[index] = step;
-        if (!streamedMessage) {
-          streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
-          state.chat.push(streamedMessage);
+        recordProgress(event.data);
+      } else if (event.type === "conversation_saved") {
+        if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
+          await applyCommittedConversationLocale(event.data?.profile_updates);
         }
-        streamedMessage.trace = liveTrace;
-        streamedMessage.traceMode = "live";
-        updateStreamingAssistantMessage(streamedMessage);
       } else if (event.type === "workspace_error") {
         for (const step of liveTrace) if (step.status === "running") step.status = "failed";
         if (streamedMessage) updateStreamingAssistantMessage(streamedMessage);
@@ -717,14 +799,19 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           .then(() => applyWorkspace(event.data))
           .catch((error) => toast(error.message));
       }
-    }, language, firstReplyLocalization);
+    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind);
     // A saved reply is ready even when an earlier workspace write is pending.
     // Legacy responses still need their bundled workspace applied here.
     if (!body.conversation_saved) {
       workspaceUpdateQueue = workspaceUpdateQueue.then(() => applyWorkspace(body));
       await workspaceUpdateQueue;
     }
+    if (body.profile_updates?.conversation_language && state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
+      await applyCommittedConversationLocale(body.profile_updates);
+    }
     if (body.recall_status) state.recallStatus = body.recall_status;
+    if (body.reply && state.pendingConversationTurn === requestTurn) state.pendingConversationTurn = null;
+    if (body.conversation_saved) void refreshPrivateDraft();
     if (state.recallStatus?.payment_required) void ensureRecallPreview();
     if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
     if (!streamedMessage && body.reply) {
@@ -750,13 +837,17 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   }
 }
 
-async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false) {
-  const response = await fetch(memoirApiPath("/v1/agent/turn"), {
+async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined, serverAction = null, sourceKind = "narrator_chat") {
+  const isGreeting = serverAction === "begin" || serverAction === "continue";
+  const body = isGreeting
+    ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }
+    : { text, conversation_text: conversationText, source_kind: sourceKind, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization };
+  const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
       Authorization: `Bearer ${state.supabase.accessToken}`,
       "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf") },
-    body: JSON.stringify({ text, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }),
+    body: JSON.stringify(body),
   });
   if (response.status === 401) {
     state.supabase.accessToken = null;
@@ -894,7 +985,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
   return readyPromise;
 }
 
-async function loadPlacePictures(entry, projectId, { more = false } = {}) {
+async function loadPlacePictures(entry, projectId, { more = false, force = false, onProgress = null } = {}) {
   if (!projectId || !entry?.place) return;
   const key = placeHistoryKey(entry);
   entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === key) || entry;
@@ -902,25 +993,41 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
   const parents = (entry.hierarchy || []).filter(label => label && label !== entry.place && label !== "Earth");
   const parent = ["suburb", "landmark"].includes(entry.granularity) ? parents.at(-1) : "";
   const searchPlace = parent && !entry.place.includes(parent) ? `${entry.place}, ${parent}` : entry.place;
+  const center = placePhotoCenter(entry);
   const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
-  const sameSearch = entry.photo_search_period === period && samePlace;
+  const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
+  const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
+    && entry.photo_search_policy === "place-radius20-years10-v5";
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
-  if (!more && sameSearch && Object.hasOwn(entry, "photo_next_cursor")
-      && entry.photo_search_policy === "place-aliases-v4"
-      && Date.now() - (entry.photo_search_at || 0) < 15 * 60 * 1000) return;
+  if (!more && !force && sameSearch && ((entry.pictures || []).length
+      || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
+        && entry.photo_search_policy === "place-radius20-years10-v5" && entry.photo_search_at > 0))) return;
   state.photoRequests ||= new Map();
-  const requestKey = JSON.stringify([projectId, key, period]);
+  const requestKey = photoRequestKey(entry, projectId);
   if (state.photoRequests.get(requestKey)?.loading) return;
   state.photoRequests.set(requestKey, { loading: true });
+  let photoStatus = "SEARCHING";
+  const reportProgress = (status, label) => {
+    if (onProgress) onProgress({id: `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
+      label: "place-photo-research", status,
+      detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`});
+  };
+  reportProgress("running", "picturesSearching");
   render();
   const control = document.querySelector("[data-photo-more]");
   if (control) { control.disabled = true; control.setAttribute("aria-busy", "true"); }
   try {
     const query = new URLSearchParams({ place: searchPlace, period });
+    if (center) {
+      query.set("latitude", center.latitude);
+      query.set("longitude", center.longitude);
+    }
+    if (force) query.set("refresh", "true");
     if (more) query.set("cursor", entry.photo_next_cursor);
     let deliveredFinal = false;
     const acceptPage = async (result) => {
       if (state.project?.id !== projectId) return;
+      photoStatus = result.status || "PARTIAL";
       if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
         state.photoRequests.set(requestKey, { error: true, failures: result.failures || [] });
         return;
@@ -934,19 +1041,30 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
         const index = places.findIndex(item => placeHistoryKey(item) === key);
         const latest = index >= 0 ? places[index] : entry;
         if (photoSearchPeriod(latest, profile().story_focus) !== period) return;
+        if (photoRequestKey(latest, projectId) !== requestKey) return;
+        const latestCenter = placePhotoCenter(latest);
+        if (center && latestCenter && (center.latitude !== latestCenter.latitude || center.longitude !== latestCenter.longitude)) return;
+        const resultCenter = result.search_center || center;
+        const scope = {...latest, ...(resultCenter ? {photo_search_latitude: resultCenter.latitude,
+          photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
-          && (latest.photo_search_place || latest.place) === searchPlace ? latest.pictures || [] : [], result.items);
+          && (latest.photo_search_place || latest.place) === searchPlace
+          && latest.photo_search_policy === "place-radius20-years10-v5" ? latest.pictures || [] : [], result.items)
+          .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
+          ...(resultCenter ? {photo_search_latitude: resultCenter.latitude, photo_search_longitude: resultCenter.longitude} : {}),
           photo_search_place: searchPlace,
           photo_next_cursor: result.next_cursor || null,
           photo_search_at: result.searching ? 0 : Date.now(),
-          photo_search_policy: "place-aliases-v4" };
+          photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
+          photo_search_complete: !result.searching,
+          photo_search_policy: "place-radius20-years10-v5" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;
         if (state.placeJourney && placeHistoryKey(state.placeJourney) === key) state.placeJourney = updatedEntry;
         render();
-        await saveProfileUpdates({ memory_places: places }, projectId);
+        await saveProfileUpdates({ memory_places: places }, projectId, { force: true });
       });
       workspaceUpdateQueue = persist.catch(() => {});
       await persist;
@@ -969,19 +1087,34 @@ async function loadPlacePictures(entry, projectId, { more = false } = {}) {
     state.photoRequests.set(requestKey, { error: true });
   } finally {
     state.photoRequests.set(requestKey, {...state.photoRequests.get(requestKey), loading: false});
+    const failed = state.photoRequests.get(requestKey)?.error;
+    reportProgress(failed ? "failed" : "completed",
+      failed ? "picturesUnavailable" : photoStatus === "NO_MATCH" ? "picturesNoMatch" : "pictures");
     if (state.project?.id === projectId) render();
   }
 }
 
 function mergePlacePictures(existing, incoming) {
   const seen = new Set();
-  return [...existing, ...incoming].filter(picture => {
+  const unique = [];
+  for (const picture of [...existing, ...incoming]) {
     const keys = [picture.asset_id && `asset:${picture.asset_id}`, picture.content_hash && `hash:${picture.content_hash}`];
     for (const value of [picture.original_url, picture.image_url]) {
       if (!value) continue;
       try {
         const url = new URL(value, window.location.origin);
         url.hash = "";
+        let filename = "";
+        const decodedPath = decodeURIComponent(url.pathname);
+        if (url.hostname === "upload.wikimedia.org") {
+          let path = decodedPath.replace("/thumb/", "/");
+          if (decodedPath.includes("/thumb/")) path = path.slice(0, path.lastIndexOf("/"));
+          filename = path.split("/").at(-1).replace(/^\d{14}!/, "");
+        } else if (url.hostname === "commons.wikimedia.org" || url.hostname.endsWith(".wikipedia.org")) {
+          const match = decodedPath.match(/\/(?:Special:(?:FilePath|Redirect\/file)\/|(?:File|文件|檔案):)(.+)$/i);
+          filename = (match?.[1] || url.searchParams.get("title") || "").replace(/^(?:File|文件|檔案):/i, "");
+        }
+        if (/\.(?:jpe?g|png|webp|gif|tiff?)$/i.test(filename)) keys.push(`wikimedia:${filename.replaceAll("_", " ").trim()}`);
         if (url.hostname === "upload.wikimedia.org" && url.pathname.includes("/thumb/")) {
           url.pathname = url.pathname.replace("/thumb/", "/").split("/").slice(0, -1).join("/");
         }
@@ -996,16 +1129,90 @@ function mergePlacePictures(existing, incoming) {
         keys.push(`image:${url.href}`);
       } catch { /* Invalid URLs cannot create image identities. */ }
     }
+    try {
+      const source = new URL(picture.source_url);
+      const id = source.pathname.match(/^\/photos\/[^/]+\/(\d+)\/?$/)?.[1];
+      if (["www.flickr.com", "flickr.com"].includes(source.hostname) && id) keys.push(`flickr:${id}`);
+    } catch { /* Source links are optional. */ }
     const valid = keys.filter(Boolean);
-    if (valid.some(key => seen.has(key))) return false;
+    const similar = /^[0-9a-f]{16}$/.test(picture.perceptual_hash || "") && unique.some(other => {
+      if (!/^[0-9a-f]{16}$/.test(other.perceptual_hash || "")) return false;
+      let difference = BigInt(`0x${picture.perceptual_hash}`) ^ BigInt(`0x${other.perceptual_hash}`);
+      let bits = 0;
+      while (difference) { difference &= difference - 1n; bits++; }
+      return bits <= 6;
+    });
+    const duplicate = valid.some(key => seen.has(key)) || similar;
     valid.forEach(key => seen.add(key));
-    return true;
-  });
+    if (!duplicate) unique.push(picture);
+  }
+  return unique;
+}
+
+function placePhotoCenter(entry) {
+  const target = entry?.place && typeof placeMapTarget === "function" ? placeMapTarget(entry) : null;
+  const candidates = [entry, target?.place === entry?.place ? target : null,
+    {latitude: entry?.photo_search_latitude, longitude: entry?.photo_search_longitude}];
+  for (const candidate of candidates) {
+    if (!candidate || candidate.latitude == null || candidate.longitude == null
+        || String(candidate.latitude).trim() === "" || String(candidate.longitude).trim() === ""
+        || typeof candidate.latitude === "boolean" || typeof candidate.longitude === "boolean") continue;
+    const latitude = Number(candidate.latitude), longitude = Number(candidate.longitude);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
+      return {latitude, longitude};
+    }
+  }
+  return null;
+}
+
+function photoRequestKey(entry, projectId = state.project?.id) {
+  const center = placePhotoCenter({...entry, photo_search_latitude: undefined, photo_search_longitude: undefined});
+  return JSON.stringify([projectId, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus),
+    center?.latitude ?? null, center?.longitude ?? null]);
+}
+
+function photoMatchesScope(picture, entry, focus = null) {
+  const period = photoSearchPeriod(entry, focus);
+  const expression = picture.date_expression || "";
+  const years = Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
+  if (!years.length || /circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后/i.test(expression)
+      || /upload|publication|published|modified|visual_guess/i.test(picture.date_basis || "")) return false;
+  const today = new Date().toLocaleDateString("en-CA", {timeZone: "Australia/Sydney"});
+  const isoDate = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
+  if (Math.max(...years) > Number(today.slice(0, 4)) || (isoDate && (isoDate > today
+      || !Number.isFinite(Date.parse(isoDate)) || new Date(isoDate).toISOString().slice(0, 10) !== isoDate))) return false;
+  const bounds = value => {
+    const years = Array.from(value.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
+    if (!years.length) return null;
+    return /(?:18|19|20)\d0\s*(?:s|年代)/i.test(value) ? [years[0], years[0] + 9] : [Math.min(...years), Math.max(...years)];
+  };
+  const requested = bounds(period), captured = bounds(expression);
+  if (requested) {
+    if (captured[0] < requested[0] - 10 || captured[1] > requested[1] + 10) return false;
+  } else {
+    const recent = new Date(`${today}T00:00:00Z`);
+    const day = recent.getUTCDate();
+    recent.setUTCDate(1);
+    recent.setUTCFullYear(recent.getUTCFullYear() - 2);
+    recent.setUTCDate(Math.min(day, new Date(Date.UTC(recent.getUTCFullYear(), recent.getUTCMonth() + 1, 0)).getUTCDate()));
+    const exact = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
+    const parsed = /^[A-Za-z]+ \d{1,2},? \d{4}$/.test(expression) ? new Date(expression) : null;
+    const date = exact || (parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : null);
+    const start = date || `${captured[0]}-01-01`, end = date || `${captured[1]}-12-31`;
+    if (start < recent.toISOString().slice(0, 10) || end > today) return false;
+  }
+  const center = placePhotoCenter(entry);
+  const point = placePhotoCenter({latitude: picture.latitude, longitude: picture.longitude});
+  if (!center || !point) return false;
+  const radians = value => value * Math.PI / 180;
+  const deltaLat = radians(point.latitude - center.latitude), deltaLon = radians(point.longitude - center.longitude);
+  const haversine = Math.sin(deltaLat / 2) ** 2 + Math.cos(radians(center.latitude)) * Math.cos(radians(point.latitude)) * Math.sin(deltaLon / 2) ** 2;
+  return 6371.0088 * 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, haversine)))) <= 20;
 }
 
 function photoPaginationMarkup(entry) {
   if (!entry) return "";
-  const requestKey = JSON.stringify([state.project?.id, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus)]);
+  const requestKey = photoRequestKey(entry);
   const request = state.photoRequests?.get(requestKey);
   if (!entry.photo_next_cursor) {
     if (request?.loading) return `<p class="photo-search-status assistant-progress-shimmer" role="status">${escapeHtml(translate("Memoir.workspace.picturesLoading"))}</p>`;
@@ -1021,7 +1228,7 @@ function bindPhotoPagination() {
   const retry = document.querySelector("[data-photo-retry]");
   if (retry) retry.addEventListener("click", () => {
     const entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === retry.dataset.photoRetry);
-    if (entry) void loadPlacePictures(entry, state.project?.id);
+    if (entry) void loadPlacePictures(entry, state.project?.id, { force: true });
   });
   const button = document.querySelector("[data-photo-more]");
   if (!button) return;
@@ -1032,7 +1239,7 @@ function bindPhotoPagination() {
     if (button.isConnected && state.project?.id === projectId) void loadPlacePictures(entry, projectId, { more: true });
   };
   button.addEventListener("click", load);
-  const requestKey = JSON.stringify([projectId, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus)]);
+  const requestKey = photoRequestKey(entry, projectId);
   if (state.photoRequests?.get(requestKey)?.error || !("IntersectionObserver" in window)) return;
   const wall = button.closest(".place-pictures");
   photoPaginationObserver = new IntersectionObserver(entries => {
@@ -1045,8 +1252,10 @@ function bindPhotoPagination() {
 function photoSearchPeriod(entry, focus) {
   // Life-stage labels such as 青年时期 describe the memoir, not calendar
   // dates. Only a grounded year/range can restrict a historical photo search.
-  const expression = entry?.period || focus?.when || "";
-  return /(?:18|19|20)\d{2}/.test(expression) ? expression : "";
+  if (entry?.period === "" || /(?:18|19|20)\d{2}/.test(entry?.period || "")) {
+    return /(?:18|19|20)\d{2}/.test(entry.period || "") ? entry.period : "";
+  }
+  return /(?:18|19|20)\d{2}/.test(focus?.when || "") ? focus.when : "";
 }
 
 function referenceUrl(value) {
@@ -1058,7 +1267,8 @@ function referenceUrl(value) {
 
 function pictureWall(pictures = [], entry = null) {
   const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
-  const renderablePictures = pictures.filter((picture) => picture.allowed_actions?.embed);
+  const renderablePictures = mergePlacePictures([], pictures).filter((picture) => picture.allowed_actions?.embed
+    && (!entry || photoMatchesScope(picture, entry, profile().story_focus)));
   if (!renderablePictures.length) return "";
   return `<section class="place-pictures" ${entry ? `data-photo-place="${escapeHtml(placeHistoryKey(entry))}"` : ""} aria-label="${t("publicReferenceCues")}">${renderablePictures.map((picture) => {
     const src = referenceUrl(picture.image_url);
@@ -1074,7 +1284,8 @@ function pictureWall(pictures = [], entry = null) {
     const media = src
       ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(picture.title || "")}" loading="lazy" />`
       : `<div class="picture-wall-placeholder ${picture.kind === "video" ? "video-art" : "image-art"}" aria-hidden="true"><span>${picture.kind === "video" ? "▶" : "✦"}</span></div>`;
-    const periodNote = picture.period_match === "decade" ? ` · ${t("sameDecadeReference")}` : "";
+    const periodNote = picture.period_match === "decade" ? ` · ${t("sameDecadeReference")}`
+      : picture.period_match === "nearby" ? ` · ${t("nearbyPeriodReference")}` : "";
     return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}${periodNote}</small></figcaption></figure>`;
   }).join("")}${photoPaginationMarkup(entry)}</section>`;
 }
@@ -1095,7 +1306,7 @@ function updateStreamingAssistantMessage(message) {
     return;
   }
   const scroll = $("#chat-scroll");
-  const followConversation = !scroll || scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 48;
+  const followConversation = conversationScroll.following();
   const text = row.querySelector(".message-text");
   const visibleText = cleanAssistantText(message.text);
   const responseStarted = Boolean(visibleText) && Boolean(text?.hidden);
@@ -1112,7 +1323,7 @@ function updateStreamingAssistantMessage(message) {
     trace.innerHTML = traceHtml;
     if (!responseStarted && expanded !== undefined && trace.querySelector("details")) trace.querySelector("details").open = expanded;
   }
-  if (scroll && followConversation) scroll.scrollTop = scroll.scrollHeight;
+  if (scroll && followConversation) conversationScroll.refresh();
 }
 
 function waitForAssistantStream() {
@@ -1152,6 +1363,12 @@ async function streamAssistantMessage(text, metadata = {}) {
 
 async function hydratePlaceJourney() {
   const savedPlaces = mergePlaces(profile().memory_places || []);
+  const projectId = state.project?.id;
+  if (Array.isArray(profile().memory_places)
+      && JSON.stringify(savedPlaces) !== JSON.stringify(profile().memory_places)) {
+    await saveProfileUpdates({ memory_places: savedPlaces }, projectId);
+    if (state.project?.id !== projectId) return;
+  }
   if (Array.isArray(savedPlaces) && savedPlaces.length) {
     // History is ordered by life stage, while the current place follows the
     // most recent explicit mention. Server sequence/revision records recency.
@@ -1160,13 +1377,8 @@ async function hydratePlaceJourney() {
         ? place : current, savedPlaces.at(-1));
     state.lifeStage = state.placeJourney.life_stage || "all";
     state.selectedPlace = placeHistoryKey(state.placeJourney);
-    state.workspaceTab = "chapters";
+    state.workspaceTab = "memoir";
     rememberPlaceJourneyProject(state.project?.id);
-    const projectId = state.project?.id;
-    if (JSON.stringify(savedPlaces) !== JSON.stringify(profile().memory_places)) {
-      await saveProfileUpdates({ memory_places: savedPlaces }, projectId);
-      if (state.project?.id !== projectId) return;
-    }
     void loadPlacePictures(state.placeJourney, projectId);
     resolvePlaceMap(state.placeJourney);
     return;
@@ -1207,20 +1419,52 @@ function rememberPlaceJourneyProject(projectId = state.project?.id) {
 
 function applyPersistedFamilyContext(context) {
   if (!context || typeof context !== "object") return;
+  if (state.familyContext?.project_id === context.project_id
+      && Number.isInteger(state.familyContext?.revision) && Number.isInteger(context.revision)
+      && state.familyContext.revision > context.revision) return;
+  const previous = state.familyContext?.project_id === context.project_id ? state.people : [];
   state.familyContext = context;
-  state.people = Array.isArray(context.people) ? context.people : [];
+  state.people = Array.isArray(context.people) ? context.people.map(person => {
+    const saved = previous.find(item => item.id === person.id && item.photo_path && item.photo_path === person.photo_path);
+    return saved?.photo_url && !person.photo_url ? { ...person, photo_url: saved.photo_url } : person;
+  }) : [];
   state.relationships = Array.isArray(context.relationships) ? context.relationships : [];
-  state.timeline = Array.isArray(context.timeline) ? context.timeline : [];
-  state.familyPeriods = Array.isArray(context.life_periods) ? context.life_periods : [];
+  if (state.memoryEventProject !== context.project_id) state.timeline = Array.isArray(context.timeline) ? context.timeline : [];
 }
 
+let memoryEventTimer = null;
 async function refreshFamilyContext() {
   if (!state.familyFeaturesEnabled || !state.project?.id || !state.supabase?.accessToken) return null;
+  const projectId = state.project.id;
+  const ownerId = state.supabase.user?.id;
   try {
-    const body = await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(state.project.id)}`);
+    const body = await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`);
+    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return null;
     if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
+    const snapshot = await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`);
+    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return null;
+    if (Array.isArray(snapshot?.events)) {
+      state.memoryEventProject = projectId;
+      state.timeline = snapshot.events.map(event => ({ ...event,
+        date_expression: event.temporal?.expression || "unknown",
+        start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
+        end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
+        precision: event.temporal?.precision || "unknown", canonical: true }));
+      render();
+      if (memoryEventTimer) clearTimeout(memoryEventTimer);
+      if (snapshot.processing?.pending_inputs) memoryEventTimer = setTimeout(refreshFamilyContext, 15000);
+    }
     return body?.family_context || null;
-  } catch {
+  } catch (failure) {
+    if (failure.status === 403 && state.project?.id === projectId && state.supabase?.user?.id === ownerId) {
+      state.familyFeaturesEnabled = false;
+      state.timeline = [];
+      state.familyContext = null;
+      state.people = [];
+      state.relationships = [];
+      state.memoryEventEdit = null;
+      render();
+    }
     return null;
   }
 }
@@ -1237,7 +1481,6 @@ async function refreshFamilyEntitlement() {
       && features.has("timeline");
     if (!state.familyFeaturesEnabled) {
       state.familyContext = null;
-      state.familyPeriods = [];
     } else {
       await refreshFamilyContext();
     }
@@ -1245,7 +1488,6 @@ async function refreshFamilyEntitlement() {
     state.familyEntitlement = null;
     state.familyFeaturesEnabled = false;
     state.familyContext = null;
-    state.familyPeriods = [];
   }
   return state.familyFeaturesEnabled;
 }
@@ -1355,21 +1597,13 @@ function timelineDate(expression, end = false) {
 }
 
 function timelineRendererItems() {
-  const events = state.timeline.map((item) => ({
+  return state.timeline.map((item) => ({
     id: String(item.id),
     content: escapeHtml(item.title),
-    start: timelineDate(item.date_expression),
-    end: null,
-    className: "memoir-event",
-  }));
-  const periods = state.familyPeriods.map((item) => ({
-    id: `period:${item.id}`,
-    content: escapeHtml(item.title),
-    start: timelineDate(item.start_expression),
-    end: timelineDate(item.end_expression, true),
-    className: "memoir-period",
-  }));
-  return [...events, ...periods]
+    start: timelineDate(item.kind === "period" ? item.start_expression : item.date_expression),
+    end: item.kind === "period" ? timelineDate(item.end_expression, true) : null,
+    className: item.kind === "period" ? "memoir-period" : "memoir-event",
+  }))
     .filter((item) => item.start)
     .map((item) => (item.end && item.end <= item.start ? { ...item, end: null } : item));
 }
@@ -1383,16 +1617,36 @@ async function mountFamilyChartAdapter(container) {
     const mount = document.createElement("div");
     mount.className = "family-chart-library f3";
     mount.id = `family-chart-renderer-${familyChartMountId += 1}`;
-    mount.setAttribute("aria-hidden", "true");
-    container.appendChild(mount);
+    mount.setAttribute("aria-label", translate("Memoir.workspace.familyChart"));
+    container.insertBefore(mount, container.querySelector(".family-chart-fallback"));
     const chart = f3.createChart(`#${mount.id}`, data);
-    chart.setCardHtml().setCardDisplay([["first name", "last name"], ["family title"], ["birthday"]]);
-    chart.updateTree({ initial: true });
+    chart.setSingleParentEmptyCard(false);
+    chart.setShowSiblingsOfMain(true);
+    chart.setCardXSpacing(210);
+    chart.setCardYSpacing(230);
+    const author = familyAuthor();
+    if (author) chart.updateMainId(String(author.id));
+    chart.setCardHtml()
+      .setCardInnerHtmlCreator((datum) => familyPersonCard(state.people.find(person => String(person.id) === datum.data.id)))
+      .setOnCardClick((event, datum) => selectFamilyPerson(datum.data.id));
+    chart.updateTree({ initial: true, transition_time: 0, tree_position: "fit" });
+    familyCharts.set(container, { chart, f3 });
+    container.querySelectorAll("[data-family-zoom]").forEach(button => { button.disabled = false; });
+    const renderedIds = new Set(Array.from(mount.querySelectorAll("[data-family-person]"), button => button.dataset.familyPerson));
+    const fallback = container.querySelector(".family-chart-fallback");
+    fallback?.querySelectorAll("[data-family-person]").forEach(button => {
+      if (renderedIds.has(button.dataset.familyPerson)) button.remove();
+    });
+    if (fallback) {
+      fallback.hidden = !fallback.querySelector("[data-family-person]");
+      if (!fallback.hidden) fallback.insertAdjacentHTML("afterbegin", `<p class="family-chart-hint">${escapeHtml(translate("Memoir.workspace.familyUnlinked"))}</p>`);
+    }
     mount.dataset.libraryMounted = "family-chart";
     container.dataset.rendererStatus = "family-chart";
   } catch (error) {
+    container.querySelector(".family-chart-library")?.remove();
     container.dataset.rendererStatus = "fallback";
-    console.warn("Family chart renderer unavailable; using the accessible list.", error);
+    console.warn("Family chart renderer unavailable; using the accessible person cards.", error);
   }
 }
 
@@ -1424,7 +1678,6 @@ async function mountVisTimelineAdapter(container) {
 }
 
 function initFamilyVisualizations() {
-  if (!state.familyFeaturesEnabled) return;
   const family = document.querySelector("[data-renderer='family-chart']");
   const timeline = document.querySelector("[data-renderer='vis-timeline']");
   if (family) mountFamilyChartAdapter(family);
@@ -1512,7 +1765,16 @@ function mergeProfileUpdates(updates) {
   ["name", "birth_date_expression", "birth_place", "childhood_place"].forEach((key) => {
     if (typeof updates[key] === "string" && updates[key].trim()) next[key] = updates[key].trim();
   });
-  if (["en-AU", "zh-CN"].includes(updates.preferred_language)) next.preferred_language = updates.preferred_language;
+  const incomingLocale = updates.conversation_language;
+  const savedLocale = current.conversation_language;
+  const validLocale = incomingLocale?.version === 1 && incomingLocale.initialized === true;
+  const currentLocale = !savedLocale || validLocale && Number(incomingLocale.revision || 0) >= Number(savedLocale.revision || 0);
+  if (validLocale && currentLocale) {
+    next.conversation_language = incomingLocale;
+    if (["en-AU", "zh-CN"].includes(incomingLocale.locale)) next.preferred_language = incomingLocale.locale;
+    else delete next.preferred_language;
+  }
+  if (["en-AU", "zh-CN"].includes(updates.preferred_language) && currentLocale) next.preferred_language = updates.preferred_language;
   if (Array.isArray(updates.memory_places)) next.memory_places = updates.memory_places;
   if (["male", "female"].includes(updates.avatar_style)) next.avatar_style = updates.avatar_style;
   if (Number.isInteger(updates.birth_year)) next.birth_year = updates.birth_year;
@@ -1526,12 +1788,12 @@ function mergeProfileUpdates(updates) {
   return JSON.stringify(next) === JSON.stringify(current) ? null : next;
 }
 
-async function saveProfileUpdates(updates, expectedProjectId = null) {
+async function saveProfileUpdates(updates, expectedProjectId = null, { force = false } = {}) {
   if (!updates || !state.project || (expectedProjectId && state.project.id !== expectedProjectId)) return;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (!state.project || (expectedProjectId && state.project.id !== expectedProjectId)) return;
     const project = state.project;
-    const merged = mergeProfileUpdates(updates);
+    const merged = mergeProfileUpdates(updates) || (force ? { ...profile(), ...updates } : null);
     if (!merged) return;
     state.project = { ...project, profile: merged };
     state.profileIntakePending = false;
@@ -1540,20 +1802,40 @@ async function saveProfileUpdates(updates, expectedProjectId = null) {
         method: "PATCH",
         body: JSON.stringify({ profile: merged, expected_revision: project.revision }),
       });
-      if (state.project?.id === project.id) state.project = { ...state.project, ...saved };
+      if (state.project?.id === project.id) state.project = { ...state.project, ...saved,
+        profile: { ...saved.profile, ...(state.project.profile?.conversation_language ? {
+          preferred_language:state.project.profile.preferred_language, conversation_language:state.project.profile.conversation_language} : {}) } };
       return;
     } catch (error) {
       if (error.status === 409 && attempt === 0 && state.project?.id === project.id) {
         // Another serialized workspace update may have advanced the project
         // revision. Reload the base profile and retry the same explicit fields.
         const latest = await api(`/v1/projects/${project.id}`);
-        if (state.project?.id === project.id) state.project = { ...state.project, ...latest };
+        if (state.project?.id === project.id) state.project = { ...state.project, ...latest,
+          profile: preserveConversationLocale(latest.profile, state.project.profile) };
         continue;
       }
       toast(translateWith("Memoir.conversation.profileSaveError", { error: error.message }));
       return;
     }
   }
+}
+
+async function applyCommittedConversationLocale(updates) {
+  if (!updates?.conversation_language || !state.project) return;
+  const merged = mergeProfileUpdates({preferred_language:updates.preferred_language,
+    conversation_language:updates.conversation_language});
+  if (merged) state.project = {...state.project, profile:merged};
+  await applyProfileUiLocale(conversationLanguage());
+}
+
+function preserveConversationLocale(incoming = {}, current = {}) {
+  const saved = current.conversation_language;
+  const candidate = incoming.conversation_language;
+  if (saved?.initialized && (!candidate?.initialized || Number(candidate.revision || 0) < Number(saved.revision || 0))) {
+    return { ...incoming, preferred_language: current.preferred_language, conversation_language: saved };
+  }
+  return incoming;
 }
 
 function profileDetails() {
@@ -1599,6 +1881,15 @@ function closeProfileMenu(restoreFocus = false) {
   if (restoreFocus) trigger.focus();
 }
 
+function refreshProfileMenu() {
+  const menu = $("[data-profile-menu]");
+  if (!menu) return;
+  const open = menu.querySelector("[data-profile-trigger]")?.getAttribute("aria-expanded") === "true";
+  menu.outerHTML = profileMenu();
+  bindProfileMenu();
+  if (open) $("[data-profile-trigger]")?.click();
+}
+
 function bindProfileMenu() {
   const menu = $("[data-profile-menu]");
   const trigger = menu?.querySelector("[data-profile-trigger]");
@@ -1621,14 +1912,19 @@ function bindProfileMenu() {
       onLanguageChange: applyProfileUiLocale,
       onSave: async (settings) => {
         if (state.project) {
-          const updated = { ...profile(), ...settings };
-          const saved = await api(`/v1/projects/${state.project.id}`, {
+          const projectId = state.project.id;
+          const ownerId = state.supabase?.user?.id;
+          const updated = preserveConversationLocale({ ...profile(), ...settings }, profile());
+          state.project = {...state.project, profile:updated};
+          const saved = await api(`/v1/projects/${projectId}`, {
             method: "PATCH",
             body: JSON.stringify({ profile: updated, expected_revision: state.project.revision }),
           });
-          state.project = { ...state.project, ...saved };
+          if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+          state.project = { ...state.project, ...saved,
+            profile:preserveConversationLocale({...saved.profile, ...settings}, profile()) };
         }
-        await applyProfileUiLocale(settings.preferred_language);
+        await applyProfileUiLocale(conversationLanguage());
         render();
       },
       onClose: () => $("[data-profile-trigger]")?.focus(),
@@ -1637,7 +1933,7 @@ function bindProfileMenu() {
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
   menu.querySelector("[data-profile-action='login']")?.addEventListener("click", () => {
     closeProfileMenu();
-    authReminder.open();
+    authReminder.open({ signIn: true });
   });
   menu.querySelector("[data-profile-action='collection']")?.addEventListener("click", reviewCollection);
   menu.querySelector("[data-profile-action='attached-history']")?.addEventListener("click", () => {
@@ -1683,8 +1979,9 @@ async function signOut() {
     state.profileIntakePending = true;
     state.placeJourney = null;
     state.placeJourneyChange = null;
-    state.workspaceTab = "chapters";
+    state.workspaceTab = "memoir";
     state.workspaceUnlocked = false;
+    state.compositionStage = 0;
     state.workspaceCollapsed = false;
     state.lifeStage = "childhood";
     state.chapterDecision = null;
@@ -1692,7 +1989,6 @@ async function signOut() {
     state.familyEntitlement = null;
     state.familyFeaturesEnabled = false;
     state.familyContext = null;
-    state.familyPeriods = [];
     state.storyPlans = [];
     state.selectedStoryPlan = "electronic_memoir_v1";
     state.storyBookCount = 2;
@@ -1892,7 +2188,6 @@ function bindStoryFlowActions() {
     state.familyEntitlement = null;
     state.familyFeaturesEnabled = false;
     state.familyContext = null;
-    state.familyPeriods = [];
     state.storyAnswers = [];
     state.storyChapter = null;
     state.storyRecording = false;
@@ -2100,7 +2395,7 @@ async function generateFullMemoir() {
 }
 
 function render() {
-  if (!state.project) { disposeCesiumPlaceJourney(); return renderLanding(); }
+  if (!state.project) { conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding(); }
   renderStory();
 }
 
@@ -2207,8 +2502,9 @@ async function startMemoirStory(mode = "self") {
     state.placeJourney = null;
     state.placeJourneyChange = null;
     try { localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY); } catch { /* private browsing */ }
-    state.workspaceTab = "chapters";
+    state.workspaceTab = "memoir";
     state.workspaceCollapsed = false;
+    state.compositionStage = 0;
     state.lifeStage = "childhood";
     state.story = null;
     localStorage.removeItem("memory-spark-story-started");
@@ -2237,34 +2533,87 @@ async function startMemoirStory(mode = "self") {
 
 async function refreshProject() {
   const projectId = state.project.id;
+  const ownerId = state.supabase?.user?.id;
+  state.stageReadiness = {};
+  state.privateDraft = null;
   const base = await api(`/v1/projects/${projectId}`);
   const journey = await api(`/v1/projects/${projectId}/journey`);
-  state.project = { ...base, ...journey };
-  if (state.supabase?.user && !state.supabase.user.is_anonymous) {
+  if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+  state.project = { ...base, ...journey, profile: preserveConversationLocale(base.profile, state.project.profile) };
+  if (state.supabase?.accessToken) {
     const savedProfile = await storyApi("/v1/user/profile");
-    state.project.profile = { ...state.project.profile, ...savedProfile,
-      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])]) };
+    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+    state.project.profile = preserveConversationLocale({ ...state.project.profile, ...savedProfile,
+      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])]) }, state.project.profile);
   }
   state.session = journey.active_session;
   state.preview = state.project.preview || null;
-  state.workspaceUnlocked = Boolean(state.workspaceUnlocked || state.project.workspace_unlocked);
-  if (state.workspaceUnlocked) {
+  const parsedCompositionStage = Number(state.project.composition_stage ?? state.project.memoir_stage ?? 0);
+  state.compositionStage = Math.max(state.compositionStage, Number.isFinite(parsedCompositionStage) ? parsedCompositionStage : 0);
+  const workspaceReady = Boolean(state.workspaceUnlocked || state.project.workspace_unlocked || state.compositionStage >= 3);
+  state.workspaceUnlocked = workspaceReady;
+  if (workspaceReady) {
     const [memories, sources, chapters, people, relationships, timeline] = await Promise.all([
       api(`/v1/projects/${projectId}/memories`),
       api(`/v1/projects/${projectId}/sources`),
-      api(`/v1/projects/${projectId}/chapters`),
+      loadAllChapters(projectId),
       api(`/v1/projects/${projectId}/people`),
       api(`/v1/projects/${projectId}/relationships`),
       api(`/v1/projects/${projectId}/timeline`),
     ]);
     state.memories = memories.items;
     state.sources = sources.items;
-    state.chapters = chapters.items;
+    state.chapters = chapters;
     state.people = people.items;
     state.relationships = relationships.items;
     state.timeline = timeline.items;
     if (state.familyFeaturesEnabled) await refreshFamilyContext();
   }
+  void refreshStageReadiness();
+  void refreshPrivateDraft();
+}
+
+function normalizeHistoryOpening(messages) {
+  if (!messages.length) return messages;
+  const normalize = text => text.replace(/\s+/g, " ").trim();
+  const openings = new Set(openingMessages.map(normalize));
+  const isOpening = message => message.role === "assistant" && openings.has(normalize(message.text));
+  const opening = messages.find(isOpening) || {
+    id: "history-opening", role: "assistant", text: conversationMessage("opening"),
+  };
+  return [opening, ...messages.filter(message => !isOpening(message))];
+}
+
+async function hydrateAccountHistory() {
+  const user = state.supabase?.user;
+  const projectId = state.project?.id;
+  if (!user || user.is_anonymous || !projectId) return;
+  const { items } = await storyApi("/v1/user/conversations");
+  if (state.supabase?.user?.id !== user.id || state.project?.id !== projectId) return;
+  const messages = [...items].sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""))
+    .flatMap(item => item.messages.map((message, index) => ({
+      id: `history-${item.id}-${index}`, role: message.role,
+      text: message.role === "assistant" ? cleanAssistantText(message.text) : originalConversationText(message.text),
+    })));
+  // Local entries can mirror saved turns or the freshly attached guest chat.
+  // Consume matching occurrences so repeated memories in server history remain.
+  const signature = message => JSON.stringify([message.role, message.text]);
+  const saved = new Map();
+  for (const message of messages) {
+    const key = signature(message);
+    saved.set(key, [...(saved.get(key) || []), message]);
+  }
+  for (const local of state.chat) {
+    const message = local.role === "user" ? { ...local, text: originalConversationText(local.text) } : local;
+    const key = signature(message);
+    const matching = saved.get(key)?.shift();
+    if (matching && Array.isArray(message.trace)) {
+      matching.trace = message.trace;
+      matching.traceMode = message.traceMode;
+    } else if (!matching) messages.push(message);
+  }
+  state.chat = normalizeHistoryOpening(messages);
+  persistChatHistory();
 }
 
 function renderStory() {
@@ -2276,7 +2625,7 @@ function renderStory() {
   const previousGallery = $(".place-pictures[data-photo-place]");
   const galleryTop = previousGallery?.scrollTop || 0;
   const galleryPlace = previousGallery?.dataset.photoPlace;
-  const followConversation = !previousScroll || previousScroll.scrollHeight - previousTop - previousScroll.clientHeight < 48;
+  const followConversation = !previousScroll || conversationScroll.following();
   const composer = $("#chat-input");
   const draft = composer?.value;
   const composerFocused = composer && document.activeElement === composer;
@@ -2284,7 +2633,7 @@ function renderStory() {
 
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const storyText = (key, values = {}) => escapeHtml(translateWith(`Memoir.story.${key}`, values));
-  const unlocked = state.workspaceUnlocked || state.project.workspace_unlocked;
+  const unlocked = state.workspaceUnlocked || state.project.workspace_unlocked || state.compositionStage >= 3;
   const workspaceVisible = workspaceIsVisible();
   const workspaceAvailable = workspaceHasContent();
   const contextOnly = workspaceVisible && !unlocked;
@@ -2307,8 +2656,7 @@ function renderStory() {
       </header>
       <div class="conversation-layout">
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
-          <div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div>
-          <div id="chat-scroll" class="chat-scroll"><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
+          <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
@@ -2339,6 +2687,9 @@ function renderStory() {
     scroll.scrollTop = recallPrompt
       ? (hadRecallPrompt ? previousTop : recallPrompt.getBoundingClientRect().top - scroll.getBoundingClientRect().top)
       : followConversation ? scroll.scrollHeight : previousTop;
+    if (recallPrompt || !followConversation) conversationScroll.pause();
+    else conversationScroll.follow();
+    conversationScroll.mount(scroll);
   }
   if (composerFocused && $("#chat-input")) {
     $("#chat-input").focus({ preventScroll: true });
@@ -2347,11 +2698,47 @@ function renderStory() {
   persistChatHistory();
 }
 
-function workspaceHasContent() {
+function workspaceContentAvailable() {
   // Public cue metadata belongs in the conversation until a current place cue
   // activates the place journey. Counting it here creates an empty Places /
   // Pictures workspace and hides the cue cards that should remain inline.
-  return Boolean(workspaceTabs().length || placeMapTarget(placeWorkspaceSelection() || state.placeJourney));
+  return Boolean(workspaceTabs().length || state.privateDraft?.preview || state.privateDraft?.updating || state.privateDraft?.error || placeMapTarget(placeWorkspaceSelection() || state.placeJourney));
+}
+
+function workspaceHasContent() {
+  // Async map, grouping, and photo updates can briefly make the selected
+  // target unavailable. Keep the mounted workspace stable until that gap
+  // persists, otherwise the Cesium flight is destroyed and restarted.
+  const projectId = state.project?.id || null;
+  if (workspaceVisibility.projectId !== projectId) {
+    if (workspaceVisibility.timer) clearTimeout(workspaceVisibility.timer);
+    workspaceVisibility.projectId = projectId;
+    workspaceVisibility.stable = false;
+    workspaceVisibility.pending = null;
+    workspaceVisibility.timer = null;
+  }
+  const available = workspaceContentAvailable();
+  if (available) {
+    if (workspaceVisibility.timer) clearTimeout(workspaceVisibility.timer);
+    workspaceVisibility.stable = true;
+    workspaceVisibility.pending = null;
+    workspaceVisibility.timer = null;
+    return true;
+  }
+  if (!workspaceVisibility.stable) return false;
+  if (workspaceVisibility.pending !== false) {
+    if (workspaceVisibility.timer) clearTimeout(workspaceVisibility.timer);
+    workspaceVisibility.pending = false;
+    workspaceVisibility.timer = setTimeout(() => {
+      workspaceVisibility.timer = null;
+      workspaceVisibility.pending = null;
+      if (workspaceVisibility.projectId !== projectId) return;
+      if (workspaceContentAvailable()) return;
+      workspaceVisibility.stable = false;
+      render();
+    }, WORKSPACE_VISIBILITY_DEBOUNCE_MS);
+  }
+  return true;
 }
 
 function workspaceDetail() {
@@ -2367,21 +2754,49 @@ function workspaceDetail() {
     ? familyWorkspace()
     : active === "timeline"
       ? timelineWorkspace()
-      : active === "delivery"
-        ? deliveryWorkspace()
-        : active === "chapters"
-          ? chaptersWorkspace()
-          : "";
+      : active === "memoir"
+        ? memoirWorkspace()
+        : "";
   const tabsMarkup = tabs.length
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
   const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
-  const mediaOverview = workspaceMediaOverview(toggle);
+  const composing = composingWorkspaceActive();
+  const mediaOverview = composing ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || state.placeJourney ? lifeStageNavigator() : ""}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${!composing && (state.placeJourney || state.privateDraft) ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
+}
+
+let privateDraftTimer = null;
+async function refreshPrivateDraft() {
+  if (privateDraftTimer) clearTimeout(privateDraftTimer);
+  const projectId=state.project?.id, owner=state.supabase?.user?.id;
+  if (!projectId || !state.supabase?.accessToken) return;
+  try {
+    const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(profile().preferred_language || currentUiLocale())}`);
+    if (state.project?.id!==projectId || state.supabase?.user?.id!==owner) return;
+    state.privateDraft=result;
+    render();
+    if (result.updating) privateDraftTimer=setTimeout(refreshPrivateDraft,15000);
+  } catch (_) { /* Quiet background work never hides a saved interview. */ }
+}
+
+async function retryPrivateDraft() {
+  await storyApi('/v1/story/private-draft/retry',{method:'POST',body:JSON.stringify({
+    project_id:state.project.id,language:profile().preferred_language || currentUiLocale()})});
+  await refreshPrivateDraft();
+}
+
+function privateDraftPreview() {
+  const saved=state.privateDraft;
+  if (!saved || !saved.preview && !saved.updating && !saved.error) return "";
+  const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
+  const preview=saved.preview;
+  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
+  return `<section class="private-draft-status"><p>${status}</p>${preview ? `<details><summary>${t('readSavedDraft')}</summary><h3>${escapeHtml(preview.title)}</h3>${formatText(preview.text)}</details>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
 }
 
 function workspaceProgressSummary() {
@@ -2465,7 +2880,8 @@ function renderablePictureItems(pictures = []) {
 function workspacePictureItems(place, group = null) {
   const period = photoSearchPeriod(place, profile().story_focus);
   const matchesPeriod = source => !source || !Object.hasOwn(source, "photo_search_period") || source.photo_search_period === period;
-  let pictures = matchesPeriod(place) ? renderablePictureItems(place?.pictures || []) : [];
+  const eligible = pictures => renderablePictureItems(pictures).filter(picture => photoMatchesScope(picture, place, profile().story_focus));
+  let pictures = matchesPeriod(place) ? eligible(place?.pictures || []) : [];
   if (!pictures.length && group) {
     // Grouping changes the map, while photographs remain attached to their
     // source. Keep the city's saved references visible during a child search.
@@ -2473,21 +2889,13 @@ function workspacePictureItems(place, group = null) {
     const cityKey = placeHistoryKey(group.city);
     const ordered = [...members.filter(member => placeHistoryKey(member) === cityKey),
       ...members.filter(member => placeHistoryKey(member) !== cityKey)];
-    const samePeriod = ordered.filter(member => matchesPeriod(member) && renderablePictureItems(member.pictures).length);
+    const samePeriod = ordered.filter(member => matchesPeriod(member) && eligible(member.pictures).length);
     pictures = (samePeriod.length ? samePeriod : ordered).flatMap(member =>
-      renderablePictureItems(member.pictures).map(picture => ({...picture, reference_place: member.place})));
+      eligible(member.pictures).map(picture => ({...picture, reference_place: member.place})));
   }
-  // Retain any prior references with their dates when no closer match exists.
-  if (!pictures.length) pictures = place?.pictures || [];
-  const items = [];
-  const seen = new Set();
-  for (const picture of [...pictures, ...searchedPictures()]) {
-    const key = picture.asset_id || picture.id || picture.source_url || picture.title;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    items.push(picture);
-  }
-  return items;
+  if (!pictures.length) pictures = eligible(place?.pictures || []);
+  return mergePlacePictures([], [...pictures, ...searchedPictures()])
+    .filter(picture => photoMatchesScope(picture, place, profile().story_focus));
 }
 
 function workspaceMediaOverview(toggle = "") {
@@ -2506,7 +2914,7 @@ function workspaceMediaOverview(toggle = "") {
     ? placeJourneyMarkup(current, "workspace", activeGroup)
     : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
   const pictureItems = renderablePictureItems(workspacePictureItems(current, photoGroup));
-  const requestKey = JSON.stringify([state.project?.id, placeHistoryKey(current), photoSearchPeriod(current, profile().story_focus)]);
+  const requestKey = photoRequestKey(current);
   const request = state.photoRequests?.get(requestKey);
   const empty = request?.loading
     ? `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`
@@ -2517,30 +2925,21 @@ function workspaceMediaOverview(toggle = "") {
   return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
-function deliveryAvailable() {
-  if (state.recallStatus?.payment_required) return false;
-  return Boolean(state.storyPlans.length || state.checkout || state.storyChapter || state.story?.next_action === "payment" || state.story?.payment_status === "paid");
+function composingWorkspaceActive() {
+  return Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked || state.compositionStage >= 3);
 }
 
 function workspaceTabs() {
   const t = (key) => translate(`Memoir.workspace.${key}`);
-  const tabs = [];
-  const persistent = Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked);
-  const familyWorkspaceEnabled = state.familyFeaturesEnabled && (persistent || state.familyContext);
-  if (deliveryAvailable()) tabs.push(["delivery", t("delivery"), t("deliverySubtitle")]);
-  if (persistent) {
-    tabs.push(["chapters", t("chapters"), t("chaptersSubtitle")]);
-  }
-  if (familyWorkspaceEnabled) {
-    tabs.push(["family", t("family"), t("familySubtitle")], ["timeline", t("timeline"), t("timelineSubtitle")]);
-  }
-  return tabs;
+  const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
+  return composingWorkspaceActive() ? [...premium, ["memoir", t("memoir")]]
+    : premium.filter(([key]) => key === "timeline" ? state.timeline.length : state.people.length);
 }
 
 function activeWorkspaceTab() {
   const tabs = workspaceTabs();
   if (!tabs.length) return state.workspaceTab;
-  if (!tabs.some(([key]) => key === state.workspaceTab)) state.workspaceTab = tabs[0][0];
+  if (!tabs.some(([key]) => key === state.workspaceTab)) state.workspaceTab = "memoir";
   return state.workspaceTab;
 }
 
@@ -2579,9 +2978,27 @@ function lifeStageNavigator() {
     const stageEvidence = lifeStageEvidence(stage.id);
     const label = lifeStageText(stage.id, "label");
     const hasMemory = stageEvidence.memoryCount > 0;
-    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(label)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(label)}"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></button>`;
+    const context = state.stageReadiness[stage.id] || { percent: 0, color: "red", word_equivalents: 0 };
+    const percent = Math.min(50, Math.max(0, Number(context.percent) || 0));
+    const color = ["red", "amber", "green"].includes(context.color) ? context.color : "red";
+    const description = translateWith("Memoir.workspace.contextReadiness", { stage: label, percent,
+      words: Number(context.word_equivalents) || 0 });
+    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(description)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(description)}"><span class="life-stage-readiness readiness-${color}" style="--readiness:${percent}%"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></span></button>`;
   }).join("");
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div></section>`;
+}
+
+async function refreshStageReadiness() {
+  const projectId = state.project?.id;
+  const owner = state.supabase?.user?.id;
+  if (!projectId || !state.supabase?.accessToken) return;
+  try {
+    const result = await storyApi(`/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`);
+    if (state.project?.id === projectId && state.supabase?.user?.id === owner) {
+      state.stageReadiness = result.stages || {};
+      render();
+    }
+  } catch (_) { /* Readiness is optional; keep the saved conversation usable. */ }
 }
 
 function selectLifeStage(stageId, focus = false) {
@@ -2592,24 +3009,270 @@ function selectLifeStage(stageId, focus = false) {
   if (focus) document.querySelector(`[data-life-stage-tab="${stageId}"]`)?.focus({ preventScroll: true });
 }
 
-function chaptersWorkspace() {
+function chapterSourceIds(chapter) {
+  return chapter.source_memory_ids || chapter.source_ids || (chapter.source_refs || []).map((item) => item.source_id).filter(Boolean);
+}
+
+function chapterBlockMarkup(block) {
+  const type = block?.type || "paragraph";
+  if (type === "heading") return `<h4 class="chapter-block-heading">${escapeHtml(block.text || "")}</h4>`;
+  if (type === "quote") return `<blockquote class="chapter-block-quote">${formatText(block.text || "")}</blockquote>`;
+  if (type === "image") {
+    const label = block.alt || translate("Memoir.workspace.personalSource");
+    return `<figure class="chapter-photo-slot"><div role="img" aria-label="${escapeHtml(label)}">${escapeHtml(block.caption || label)}</div>${block.credit ? `<figcaption>${escapeHtml(block.credit)}</figcaption>` : ""}</figure>`;
+  }
+  return block.text ? `<p class="chapter-body-block">${formatText(block.text)}</p>` : "";
+}
+
+async function loadAllChapters(projectId) {
+  const chapters = [];
+  let cursor = null;
+  do {
+    const page = await api(`/v1/projects/${projectId}/chapters?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+    chapters.push(...page.items);
+    cursor = page.next_cursor;
+  } while (cursor);
+  return chapters;
+}
+
+function memoirChapters() {
+  const chapters = state.chapters.length ? state.chapters : state.storyChapter ? [state.storyChapter] : [];
+  return [...chapters].sort((a, b) => (a.chapter_number || 0) - (b.chapter_number || 0));
+}
+
+function memoirChapterKey(chapter, index) {
+  return `${state.project?.id || ""}:${chapter.id || `chapter-${index + 1}`}`;
+}
+
+function selectMemoirChapter(key) {
+  if (!memoirChapters().some((chapter, index) => memoirChapterKey(chapter, index) === key)) return;
+  state.selectedMemoirChapter = key;
+  render();
+  document.querySelector(".chapter-pagination [aria-current='page']")?.focus({ preventScroll: true });
+}
+
+function memoirWorkspace() {
   const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
-  const chapters = state.chapters.length ? state.chapters.map((chapter) => `<article class="workspace-card chapter-card"><div class="card-topline"><span class="tag">${t("chapter")} ${chapter.chapter_number || 1}</span><span class="mini-status">${escapeHtml(chapter.status.toLowerCase())}</span></div><h3>${escapeHtml(chapter.title)}</h3><p>${t("chapterSummary", { blocks: chapter.blocks?.length || 0, memories: chapter.source_memory_ids?.length || 0 })}</p><div class="source-pills">${sourcePills(chapter.source_memory_ids || [])}</div></article>`).join("") : `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`;
-  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("chapters")}</h2><p>${t("chaptersIntro")}</p></div><div class="workspace-list">${chapters}</div>${referencesWorkspace()}</div>`;
+  const chapters = memoirChapters();
+  let selected = chapters.findIndex((chapter, index) => memoirChapterKey(chapter, index) === state.selectedMemoirChapter);
+  if (selected < 0) selected = 0;
+  const chapter = chapters[selected];
+  if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div><div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>${privateDraftPreview()}</div>`;
+  state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
+  const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
+  const pagination = `<nav class="chapter-pagination" aria-label="${t("chapterPagination")}">${button(Math.max(0, selected - 1), t("previousChapter"), selected === 0)}<div class="chapter-page-numbers">${chapters.map((item, index) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(item, index))}" aria-current="${index === selected ? "page" : "false"}" aria-label="${t("chapterPage", { number: item.chapter_number || index + 1, title: item.title || "" })}" title="${escapeHtml(item.title || "")}">${item.chapter_number || index + 1}</button>`).join("")}</div>${button(Math.min(chapters.length - 1, selected + 1), t("nextChapter"), selected === chapters.length - 1)}</nav>`;
+  const sourceIds = chapterSourceIds(chapter);
+  const blocks = Array.isArray(chapter.blocks) ? chapter.blocks.map(chapterBlockMarkup).join("") : "";
+  const body = blocks || (chapter.text ? `<div class="chapter-body-block">${formatText(chapter.text)}</div>` : `<p>${t("chapterContentPending")}</p>`);
+  return `<div class="workspace-scroll memoir-workspace"><div class="workspace-intro"><h2>${t("memoir")}</h2><p>${t("chapterPosition", { current: selected + 1, total: chapters.length })}</p></div>${pagination}<article class="workspace-card chapter-card" data-chapter-id="${escapeHtml(chapter.id || `chapter-${selected + 1}`)}"><div class="card-topline"><span class="tag">${t("chapter")} ${chapter.chapter_number || selected + 1}</span></div><h3>${escapeHtml(chapter.title || `${t("chapter")} ${selected + 1}`)}</h3><div class="chapter-body">${body}</div>${sourceIds.length ? `<div class="source-pills">${sourcePills(sourceIds)}</div>` : ""}</article>${referencesWorkspace()}${privateDraftPreview()}</div>`;
 }
 
 function familyWorkspace() {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  const people = state.people.length ? state.people.map((person) => `<article class="person-row"><span class="person-avatar">${escapeHtml((person.name || "?").slice(0, 1).toUpperCase())}</span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.family_title || translate("Memoir.workspace.familyMemberFallback"))}</small></div></article>`).join("") : `<div class="workspace-empty"><span>♧</span><p>${t("peopleEmpty")}</p></div>`;
-  const relationships = state.relationships.map((relation) => { const fromPerson = state.people.find((person) => person.id === relation.from_person_id); const toPerson = state.people.find((person) => person.id === relation.to_person_id); const from = fromPerson?.name || translate("Memoir.workspace.someone"); const to = toPerson?.name || translate("Memoir.workspace.someone"); const title = fromPerson?.family_title ? `${fromPerson.family_title} · ${relation.relationship_type}` : relation.relationship_type; return `<div class="relationship-row"><span>${escapeHtml(from)}</span><b>→</b><span>${escapeHtml(to)}</span><small>${escapeHtml(title)}</small></div>`; }).join("");
-  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("family")}</h2><p>${t("familyIntro")}</p></div><button class="button button-secondary button-small" data-action="add-person">${t("addPerson")}</button></div></div><div class="family-chart-adapter" data-renderer="family-chart" aria-label="${t("familyChartFallback")}"><div class="eyebrow">${t("familyChart")}</div><div class="people-list">${people}</div></div>${relationships ? `<div class="relationship-list"><div class="eyebrow">${t("connections")}</div>${relationships}</div>` : ""}<div class="reference-note">${t("familyReferenceNote")}</div>${referencesWorkspace()}</div>`;
+  const people = state.people.filter(person => person?.id && person?.name);
+  const fallback = people.length ? `<div class="family-chart-fallback">${people.map(familyPersonCard).join("")}</div>` : `<div class="workspace-empty"><span>♧</span><p>${t("peopleEmpty")}</p></div>`;
+  return `<div class="workspace-scroll family-workspace"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("family")}</h2><p>${t("familyIntro")}</p></div><button class="button button-secondary button-small" data-action="add-person">${t("addPerson")}</button></div></div><div class="family-chart-adapter" data-renderer="family-chart" aria-label="${t("familyChart")}"><div class="family-chart-toolbar"><span class="eyebrow">${t("familyChart")}</span><div class="family-chart-controls" role="group" aria-label="${t("familyZoomControls")}"><button type="button" data-family-zoom="out" disabled aria-label="${t("familyZoomOut")}" title="${t("familyZoomOut")}">−</button><button type="button" data-family-zoom="in" disabled aria-label="${t("familyZoomIn")}" title="${t("familyZoomIn")}">+</button><button type="button" class="family-chart-fit" data-family-zoom="fit" disabled>${t("familyZoomFit")}</button></div></div>${fallback}</div><div id="family-person-detail" aria-live="polite">${familyPersonDetail()}</div><div class="reference-note">${t("familyReferenceNote")}</div>${referencesWorkspace()}</div>`;
+}
+
+function familyAuthor() {
+  const normalize = value => String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const name = normalize(profile().name);
+  const matches = name ? state.people.filter(person => [person.name, person.chinese_name, ...(person.aliases || [])].some(alias => normalize(alias) === name)) : [];
+  if (matches.length) return matches.length === 1 ? matches[0] : null;
+  const self = state.people.filter(person => ["self", "me", "author", "storyteller", "我", "本人", "作者"].includes(normalize(person.family_title)));
+  return self.length === 1 ? self[0] : null;
+}
+
+function familyPersonCard(person) {
+  if (!person) return "";
+  const author = familyAuthor()?.id === person.id;
+  const selected = state.selectedFamilyPerson?.projectId === state.project?.id && state.selectedFamilyPerson?.id === String(person.id);
+  const label = translateWith("Memoir.workspace.familyPersonOpen", { name: person.name });
+  return `<button type="button" class="card-inner family-person-card${author ? " is-author" : ""}" data-family-person="${escapeHtml(person.id)}" aria-label="${escapeHtml(label)}" aria-controls="family-person-detail" aria-pressed="${selected}">${familyPersonPortrait(person)}<strong>${escapeHtml(person.name)}</strong>${author ? `<span class="family-author-badge">${escapeHtml(translate("Memoir.workspace.familyAuthor"))}</span>` : `<small>${escapeHtml(person.family_title || "")}</small>`}</button>`;
+}
+
+function familyPhotoUrl(person) {
+  try {
+    const url = new URL(person.photo_url);
+    return ["https:", "http:"].includes(url.protocol) ? url.href : "";
+  } catch { return ""; }
+}
+
+function familyPersonPortrait(person) {
+  const url = familyPhotoUrl(person);
+  return `<span class="family-person-portrait" aria-hidden="true"><span>${escapeHtml(Array.from(person.name)[0] || "?")}</span>${url ? `<img src="${escapeHtml(url)}" alt="" referrerpolicy="no-referrer" data-family-portrait>` : ""}</span>`;
+}
+
+function familyPersonDetail() {
+  const selected = state.selectedFamilyPerson;
+  const person = selected?.projectId === state.project?.id && state.people.find(person => String(person.id) === selected.id);
+  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
+  if (!person) return `<p class="family-person-prompt">${t("familyPersonHint")}</p>`;
+  const facts = [["familyPersonAliases", (person.aliases || []).join(" · ")], ["familyPersonBirth", person.birth_date_expression], ["familyPersonDeath", person.death_date_expression]]
+    .filter(([, value]) => value).map(([label, value]) => `<div><dt>${t(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  const task = state.familyPhotoTask?.projectId === selected.projectId && state.familyPhotoTask?.id === selected.id ? state.familyPhotoTask : null;
+  const busy = state.familyPhotoTask?.busy;
+  const hasPhoto = Boolean(person.photo_path || familyPhotoUrl(person));
+  const controls = state.familyFeaturesEnabled && state.supabase?.accessToken ? `<div class="family-photo-editor"><div class="family-photo-actions"><input type="file" id="family-person-photo" accept="image/jpeg,image/png,image/webp" hidden><button type="button" class="button button-secondary button-small" data-family-photo-upload ${busy ? "disabled" : ""}>${t(hasPhoto ? "familyPhotoReplace" : "familyPhotoAdd")}</button>${hasPhoto ? `<button type="button" class="text-button" data-family-photo-remove ${busy ? "disabled" : ""}>${t("familyPhotoRemove")}</button>` : ""}</div><p class="family-photo-hint">${t("familyPhotoHint")}</p>${task?.message ? `<p class="family-photo-status${task.error ? " is-error" : ""}" role="${task.error ? "alert" : "status"}">${t(task.message)}</p>` : ""}</div>` : "";
+  return `<section class="family-person-detail" aria-labelledby="family-person-name" aria-busy="${Boolean(task?.busy)}"><div class="family-person-heading">${familyPersonPortrait(person)}<div class="family-person-heading-text"><span class="eyebrow">${t("familyPersonIntroduction")}</span><h3 id="family-person-name" tabindex="-1">${escapeHtml(person.name)}</h3>${familyAuthor()?.id === person.id ? `<span class="family-author-badge">${t("familyAuthor")}</span>` : ""}</div><button type="button" class="text-button" data-family-person-close aria-label="${t("familyPersonClose")}">×</button></div>${controls}${person.introduction ? `<p class="family-person-introduction">${formatText(person.introduction)}</p>` : `<p class="family-person-introduction">${t("familyPersonIntroductionEmpty", { name: person.name })}</p>`}${facts ? `<dl class="family-person-facts">${facts}</dl>` : ""}</section>`;
+}
+
+function updateFamilyPersonViews() {
+  const focused = document.activeElement;
+  const focusSelector = focused?.matches("[data-family-photo-upload]") ? "[data-family-photo-upload]" : focused?.matches("[data-family-photo-remove]") ? "[data-family-photo-remove]" : null;
+  document.querySelectorAll("[data-family-person]").forEach(button => {
+    const person = state.people.find(item => String(item.id) === button.dataset.familyPerson);
+    if (person) button.outerHTML = familyPersonCard(person);
+  });
+  const detail = document.querySelector("#family-person-detail");
+  if (detail) detail.innerHTML = familyPersonDetail();
+  if (focusSelector) document.querySelector(focusSelector)?.focus({ preventScroll: true });
+}
+
+async function saveFamilyPersonPhoto(file = null) {
+  const selected = state.selectedFamilyPerson;
+  const person = selected?.projectId === state.project?.id && state.people.find(item => String(item.id) === selected.id);
+  if (!person || state.familyPhotoTask?.busy || !state.supabase?.accessToken || !state.familyFeaturesEnabled) return;
+  const task = { ...selected, ownerId: state.supabase.user?.id, busy: false, message: null, error: false };
+  state.familyPhotoTask = task;
+  if (file && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    task.message = "familyPhotoInvalidType";
+    task.error = true;
+    updateFamilyPersonViews();
+    return;
+  }
+  if (file && (!file.size || file.size > 10 * 1024 * 1024)) {
+    task.message = "familyPhotoTooLarge";
+    task.error = true;
+    updateFamilyPersonViews();
+    return;
+  }
+  task.busy = true;
+  task.message = file ? "familyPhotoSaving" : "familyPhotoRemoving";
+  updateFamilyPersonViews();
+  try {
+    const result = await supabaseApi(`/v1/agent/family-context/${encodeURIComponent(task.projectId)}/people/${encodeURIComponent(task.id)}/photo`, file ? { method: "PUT", body: file, headers: { "Content-Type": file.type } } : { method: "DELETE" });
+    if (state.project?.id !== task.projectId || state.supabase?.user?.id !== task.ownerId) return;
+    if (!result?.person || String(result.person.id) !== task.id) throw new Error("Missing saved person");
+    if (Number.isInteger(state.familyContext?.revision) && state.familyContext.revision > result.revision) {
+      await refreshFamilyContext();
+    } else {
+      state.people = state.people.map(item => {
+        if (String(item.id) !== task.id) return item;
+        const { photo_path, photo_url, ...previous } = item;
+        return { ...previous, ...result.person };
+      });
+      if (state.familyContext) state.familyContext = { ...state.familyContext, people: state.people, revision: result.revision };
+    }
+    task.message = file ? "familyPhotoSaved" : "familyPhotoRemoved";
+  } catch {
+    if (state.project?.id !== task.projectId || state.supabase?.user?.id !== task.ownerId) return;
+    // Check the persisted result before allowing a retry after an uncertain save.
+    await refreshFamilyContext();
+    task.message = "familyPhotoFailed";
+    task.error = true;
+  } finally {
+    task.busy = false;
+    if (state.project?.id === task.projectId && state.supabase?.user?.id === task.ownerId) {
+      updateFamilyPersonViews();
+      if (state.selectedFamilyPerson?.id === task.id) document.querySelector("[data-family-photo-upload]")?.focus({ preventScroll: true });
+    }
+  }
+}
+
+function zoomFamilyChart(action) {
+  const container = document.querySelector(".family-chart-adapter");
+  const renderer = familyCharts.get(container);
+  if (!renderer) return;
+  if (action === "fit") renderer.chart.updateTree({ transition_time: 0, tree_position: "fit" });
+  else renderer.f3.handlers.manualZoom({ amount: action === "in" ? 1.25 : 0.8, svg: renderer.chart.svg, transition_time: 0 });
+}
+
+function selectFamilyPerson(id) {
+  if (!state.people.some(person => String(person.id) === String(id))) return;
+  state.selectedFamilyPerson = { projectId: state.project?.id, id: String(id) };
+  const detail = document.querySelector("#family-person-detail");
+  if (detail) detail.innerHTML = familyPersonDetail();
+  document.querySelectorAll("[data-family-person]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.familyPerson === String(id))));
+  document.querySelector("#family-person-name")?.focus({ preventScroll: true });
+  detail?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function closeFamilyPerson() {
+  const id = state.selectedFamilyPerson?.id;
+  state.selectedFamilyPerson = null;
+  const detail = document.querySelector("#family-person-detail");
+  if (detail) detail.innerHTML = familyPersonDetail();
+  document.querySelectorAll("[data-family-person]").forEach(button => {
+    button.setAttribute("aria-pressed", "false");
+    if (button.dataset.familyPerson === id) button.focus({ preventScroll: true });
+  });
 }
 
 function timelineWorkspace() {
   const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
-  const items = state.timeline.length ? state.timeline.map((item) => { const precisionKey = { approximate: "precision.approximate", range: "precision.range", exact: "precision.exact", year: "precision.year", decade: "precision.decade", month: "precision.month", day: "precision.day" }[item.precision]; const precision = precisionKey ? t("datePrecision", { precision: t(precisionKey) }) : t("dateUnknown"); const place = item.place ? ` · ${item.place}` : ""; const date = formatDateExpression(item.date_expression, currentUiLocale()) || translate("Memoir.workspace.dateUnknown"); return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(date)} · ${precision}${escapeHtml(place)}</small></div></article>`; }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
-  const periods = state.familyPeriods.length ? `<div class="timeline-periods"><div class="eyebrow">${t("timeline")}</div>${state.familyPeriods.map((period) => { const start = formatDateExpression(period.start_expression, currentUiLocale()) || translate("Memoir.workspace.dateUnknown"); const end = formatDateExpression(period.end_expression, currentUiLocale()) || translate("Memoir.workspace.ongoing"); return `<div class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(period.title)}</strong><small>${escapeHtml(start)} → ${escapeHtml(end)}</small></div></div>`; }).join("")}</div>` : "";
-  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="eyebrow">${t("lifeTimeline")}</div><div class="timeline-list">${items}</div>${periods}</div>${referencesWorkspace()}</div>`;
+  const items = state.timeline.length ? state.timeline.map((item) => {
+    const period = item.kind === "period";
+    const date = period ? item.start_expression : item.date_expression;
+    const start = formatDateExpression(date, currentUiLocale()) || translate("Memoir.workspace.dateUnknown");
+    let details;
+    if (period) {
+      const end = formatDateExpression(item.end_expression, currentUiLocale()) || translate("Memoir.workspace.dateUnknown");
+      details = `${escapeHtml(start)} → ${escapeHtml(end)}`;
+    } else {
+      const precisionKey = { approximate: "precision.approximate", range: "precision.range", exact: "precision.exact", year: "precision.year", decade: "precision.decade", month: "precision.month", day: "precision.day", season: "precision.season", age: "precision.age" }[item.precision];
+      const precision = precisionKey ? t("datePrecision", { precision: t(precisionKey) }) : t("dateUnknown");
+      const place = item.place ? ` · ${item.place}` : "";
+      details = `${escapeHtml(start)} · ${precision}${escapeHtml(place)}`;
+    }
+    const stage = item.life_stage ? (item.life_stage === "unplaced" ? t("unplacedStage") : escapeHtml(lifeStageText(item.life_stage,"label"))) : "";
+    const edit = item.canonical && state.familyFeaturesEnabled ? `<button type="button" class="text-button" data-edit-memory-event="${escapeHtml(item.id)}">${t("editEventTags")}</button>` : "";
+    const evidence = item.canonical && item.source_refs?.length ? `<details><summary>${t("eventOriginalEvidence")}</summary>${item.source_refs.map(ref => `<p>${escapeHtml(ref.quote || "")}</p>`).join("")}</details>` : "";
+    return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}${stage ? ` · ${stage}` : ""}</small>${edit}${evidence}${state.memoryEventEdit?.id === item.id ? memoryEventEditForm() : ""}</div></article>`;
+  }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
+  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="timeline-list">${items}</div></div>${referencesWorkspace()}</div>`;
+}
+
+function memoryEventEditForm() {
+  const edit = state.memoryEventEdit;
+  const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const field = (name,label,type="text") => `<label>${t(label)}<input id="event-${name}" name="${name}" type="${type}" value="${escapeHtml(edit[name] ?? "")}" ${type === "number" ? 'min="1" max="9999"' : 'maxlength="500"'} /></label>`;
+  const stages = [...LIFE_STAGES.map(stage => [stage.id,lifeStageText(stage.id,"label")]),["unplaced",translate("Memoir.workspace.unplacedStage")]];
+  const precisions = ["unknown","day","month","year","range","approximate","age","season"];
+  return `<form id="memory-event-edit-form" class="memory-event-edit-form"><label>${t("eventLifeStage")}<select id="event-life-stage" name="life-stage">${stages.map(([id,label]) => `<option value="${id}"${edit["life-stage"] === id ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>${field("date-expression","eventDateExpression")}<label>${t("eventDatePrecision")}<select id="event-date-precision" name="date-precision">${precisions.map(id => `<option value="${id}"${edit["date-precision"] === id ? " selected" : ""}>${id === "unknown" ? t("dateUnknown") : t(`precision.${id}`)}</option>`).join("")}</select></label>${field("year-start","eventYearStart","number")}${field("year-end","eventYearEnd","number")}<label>${t("eventCorrectionStatement")}<textarea id="event-correction-statement" name="correction-statement" required maxlength="2000">${escapeHtml(edit["correction-statement"] || "")}</textarea></label><button type="submit" class="button button-primary button-small">${t("saveEventTags")}</button><button type="button" class="text-button" data-action="cancel-event-edit">${t("cancelEventEdit")}</button></form>`;
+}
+
+function openMemoryEventEdit(id) {
+  const event = state.timeline.find(item => item.id === id && item.canonical);
+  if (!event || !state.familyFeaturesEnabled) return;
+  state.memoryEventEdit = {id,revision:event.revision,"life-stage":event.life_stage,
+    original:{life_stage:event.life_stage,temporal:{...event.temporal}},
+    "date-expression":event.temporal?.expression || "unknown","date-precision":event.temporal?.precision || "unknown",
+    "year-start":event.temporal?.year_start ?? "","year-end":event.temporal?.year_end ?? "","correction-statement":""};
+  render();
+  $("#event-life-stage")?.focus();
+}
+
+async function saveMemoryEventEdit(event) {
+  event.preventDefault();
+  const edit = state.memoryEventEdit;
+  if (!edit || !state.familyFeaturesEnabled) return;
+  const temporal = {expression:edit["date-expression"] || "unknown",precision:edit["date-precision"]};
+  if (edit["year-start"] !== "") temporal.year_start = Number(edit["year-start"]);
+  if (edit["year-end"] !== "") temporal.year_end = Number(edit["year-end"]);
+  const patch = {};
+  if (edit["life-stage"] !== edit.original.life_stage) patch.life_stage = edit["life-stage"];
+  if (["expression","precision","year_start","year_end"].some(key => String(temporal[key] ?? "") !== String(edit.original.temporal[key] ?? ""))) patch.temporal = temporal;
+  if (!Object.keys(patch).length) { state.memoryEventEdit = null; render(); return; }
+  try {
+    await storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(edit.id)}`,{method:"PATCH",body:JSON.stringify({expected_revision:edit.revision,patch,statement:edit["correction-statement"]})});
+    state.memoryEventEdit = null;
+    await refreshFamilyContext();
+    await refreshPrivateDraft();
+  } catch (failure) {
+    if (failure.status === 409) { state.memoryEventEdit = null; await refreshFamilyContext(); }
+    toast(translate(`Memoir.workspace.${failure.status === 409 ? "eventRevisionConflict" : "eventCorrectionUnavailable"}`));
+  }
 }
 
 function placeMapUrl(journey) {
@@ -2629,7 +3292,6 @@ function placeJourneyMarkup(journey, variant = "surface", group = null) {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   const tWith = (key, values) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
   const title = group?.city || journey;
-  const labels = (title.hierarchy || []).filter((label) => label !== title.place).map((label) => `<span class="place-journey-label">${escapeHtml(label)}</span>`).join('<span class="place-journey-arrow" aria-hidden="true">/</span>');
   const target = group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
   if (!target) return "";
   const mapUrl = placeMapUrl(target);
@@ -2643,7 +3305,7 @@ function placeJourneyMarkup(journey, variant = "surface", group = null) {
   const pins = target.pins || [];
   const pinData = group ? ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"` : "";
   const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
-  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-hierarchy" aria-label="${t("placeContext")}">${labels}</div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${!group && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${!group && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
 }
 
 function placeJourneySurface() {
@@ -2671,15 +3333,6 @@ function picturesWorkspace() {
   const pictures = renderablePictureItems(searchedPictures());
   if (!pictures.length) return "";
   return `<div class="workspace-scroll"><div class="workspace-intro"><p>${t("picturesIntro")}</p></div>${renderCueCards(pictures)}</div>`;
-}
-
-function deliveryWorkspace() {
-  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  const plans = state.storyPlans.length ? state.storyPlans : FALLBACK_STORY_PLANS;
-  const selected = plans.find((plan) => plan.plan_key === state.selectedStoryPlan) || plans[0];
-  const chapter = state.storyChapter ? `<article class="workspace-card"><div class="eyebrow">${t("chapterOne")}</div><h3>${escapeHtml(state.storyChapter.title || t("firstChapter"))}</h3><p>${formatText(state.storyChapter.text || t("firstChapterReady"))}</p></article>` : "";
-  const planCards = plans.slice(0, 3).map((plan) => `<article class="workspace-card delivery-card ${plan.plan_key === selected?.plan_key ? "selected" : ""}"><div class="card-topline"><span class="tag">${escapeHtml(plan.name)}</span><strong>${formatAudMinor(plan.price_minor)}</strong></div><p>${escapeHtml(plan.description)}</p><small>${plan.features?.slice(0, 2).map((feature) => `✓ ${escapeHtml(feature)}`).join(" · ") || t("electronicMemoirDelivery")}</small></article>`).join("");
-  return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("delivery")}</h2><p>${t("deliveryIntro")}</p></div>${chapter}<div class="workspace-list">${planCards}</div>${state.checkout?.message ? `<div class="reference-note">${escapeHtml(state.checkout.message)}</div>` : ""}</div>`;
 }
 
 function disposeCesiumPlaceJourney() {
@@ -2726,6 +3379,13 @@ function publicPlaceFields(place) {
     latitude: place.latitude, longitude: place.longitude};
 }
 
+function selectPlace(key) {
+  state.selectedPlace = key;
+  const place = (profile().memory_places || []).find(item => placeHistoryKey(item) === key);
+  if (place) void loadPlacePictures(place, state.project?.id);
+  render();
+}
+
 function workspacePlaceGroups(places) {
   const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])]);
   return groupPlaces(entries.map(place => {
@@ -2745,8 +3405,10 @@ function resolvePlaceGroups(journey) {
   const projectId = state.project?.id;
   if (!projectId || !journey) return;
   const merged = mergePlaces([...(profile().memory_places || []), journey]);
+  const newest = merged.find(place => placeHistoryKey(place) === placeHistoryKey(journey));
+  if (!newest) return;
   // Resolve the newest mention first even when history is sorted by life stage.
-  const places = [merged.find(place => placeHistoryKey(place) === placeHistoryKey(journey)),
+  const places = [newest,
     ...merged.filter(place => placeHistoryKey(place) !== placeHistoryKey(journey))];
   // The grouping service receives only public geographic fields.
   const publicPlaces = places.map(publicPlaceFields);
@@ -2784,6 +3446,7 @@ function resolvePlaceMap(journey) {
       if (result.target) resolvedPlaceTargets.set(key, result.target);
       // Cache no-match as well to avoid repeated searches on every render.
       else resolvedPlaceTargets.set(key, null);
+      if (result.target?.place === journey.place) void loadPlacePictures(journey, projectId);
       if (state.project?.id === projectId) render();
     }).catch(() => { resolvedPlaceTargets.set(key, null); })
     .finally(() => pendingPlaceTargets.delete(key));
@@ -3000,42 +3663,75 @@ async function uploadAttachments(items) {
   }
 }
 
-async function ensureRecallPreview({ retry = false } = {}) {
+async function ensureRecallPreview({ retry = false, poll = false } = {}) {
   const projectId = state.project?.id;
+  const userId = state.supabase?.user?.id;
   if (!projectId || !state.recallStatus?.payment_required) return;
-  if (!retry && state.recallPreview?.projectId === projectId) return;
-  state.recallPreview = { projectId, status: "loading" };
+  const previous = state.recallPreview?.projectId === projectId && state.recallPreview.userId === userId
+    ? state.recallPreview : null;
+  if (previous?.inFlight || previous?.status === "loading") return;
+  if (!retry && !poll && previous) return;
+  if (previous?.timer) clearTimeout(previous.timer);
+  const checking = poll || (retry && previous?.status === "paused");
+  const attempt = { projectId, userId, status: checking ? "pending" : "loading", inFlight: true,
+    startedAt: checking ? previous?.startedAt || Date.now() : Date.now(), job: checking ? previous?.job : null,
+    pollErrors: checking ? previous?.pollErrors || 0 : 0,
+    slow: checking && Date.now() - (previous?.startedAt || Date.now()) >= 30000 };
+  state.recallPreview = attempt;
   render();
+  const current = () => state.recallPreview === attempt && state.project?.id === projectId
+    && state.supabase?.user?.id === userId;
+  const slowTimer = setTimeout(() => {
+    if (current()) { attempt.slow = true; render(); }
+  }, 30000);
+  const controller = new AbortController();
+  const requestTimer = setTimeout(() => controller.abort(), 30000);
   try {
-    let result;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        result = await storyApi("/v1/story/preview", {
-          method: "POST",
-          body: JSON.stringify({ project_id: projectId, language: conversationLanguage() }),
-        });
-        break;
-      } catch (error) {
-        if (error.code !== "AGENT_TURN_IN_PROGRESS" || attempt === 3) throw error;
-        await new Promise(resolve => setTimeout(resolve, 1500));
+    const result = await storyApi(checking && attempt.job?.id
+      ? `/v1/story/preview/${encodeURIComponent(attempt.job.id)}` : "/v1/story/preview", {
+      ...(checking && attempt.job?.id ? {} : { method: "POST",
+        body: JSON.stringify({ project_id: projectId, language: conversationLanguage() }) }),
+      signal: controller.signal,
+    });
+    if (!current()) return;
+    Object.assign(attempt, result, { pollErrors: 0, reconnect: false });
+  } catch (error) {
+    if (!current()) return;
+    const pending = error.code === "AGENT_TURN_IN_PROGRESS";
+    const reconnecting = checking && attempt.job && (error.name === "AbortError" || !error.status || error.status >= 500);
+    attempt.pollErrors += reconnecting ? 1 : 0;
+    attempt.status = pending || (reconnecting && attempt.pollErrors <= 3) ? "pending" : "error";
+    attempt.reconnect = reconnecting;
+    attempt.authRequired = error.status === 401 || error.status === 403;
+  } finally {
+    clearTimeout(slowTimer);
+    clearTimeout(requestTimer);
+    if (current()) {
+      attempt.inFlight = false;
+      attempt.slow = Date.now() - attempt.startedAt >= 30000;
+      if (attempt.status === "pending") {
+        if (Date.now() - attempt.startedAt >= 900000) attempt.status = "paused";
+        else attempt.timer = setTimeout(() => {
+          if (state.recallPreview === attempt && state.project?.id === projectId
+              && state.supabase?.user?.id === userId) void ensureRecallPreview({ poll: true });
+        }, attempt.job ? Math.min(15000, Math.max(3000, (attempt.retry_after || 3) * 1000)) : 15000);
       }
+      render();
     }
-    if (state.project?.id === projectId) state.recallPreview = { projectId, ...result };
-  } catch {
-    if (state.project?.id === projectId) state.recallPreview = { projectId, status: "error" };
   }
-  if (state.project?.id === projectId) render();
 }
 
 function recallPackagePrompt() {
   if (!state.recallStatus?.payment_required) return "";
   const t = key => escapeHtml(translate(`Memoir.recall.${key}`));
-  const sample = state.recallPreview?.projectId === state.project?.id ? state.recallPreview : null;
-  if (!sample || sample.status === "loading") {
-    return `<section class="recall-preview" aria-busy="true"><h2>${t("previewTitle")}</h2><p role="status">${t("previewPreparing")}</p></section>`;
+  const sample = state.recallPreview?.projectId === state.project?.id
+    && state.recallPreview.userId === state.supabase?.user?.id ? state.recallPreview : null;
+  if (!sample || sample.status === "loading" || sample.status === "pending") {
+    const message = sample?.reconnect ? "previewReconnecting" : sample?.slow ? "previewSlow" : "previewPreparing";
+    return `<section class="recall-preview" aria-busy="true"><h2>${t("previewTitle")}</h2><p role="status" aria-live="polite"><span class="preview-spinner" aria-hidden="true"></span>${t(message)}</p><button type="button" class="button button-secondary" disabled>${t("previewWorking")}</button></section>`;
   }
   if (sample.status !== "ready" || !sample.preview) {
-    return `<section class="recall-preview"><h2>${t("previewTitle")}</h2><p role="status">${t(sample.status === "insufficient_context" ? "previewInsufficient" : "previewFailed")}</p><button type="button" class="button button-secondary" data-retry-recall-preview>${t("previewRetry")}</button></section>`;
+    return `<section class="recall-preview"><h2>${t("previewTitle")}</h2><p role="status" aria-live="polite">${t(sample.authRequired ? "previewSignIn" : sample.status === "paused" ? "previewPaused" : sample.status === "stale" ? "previewStale" : sample.status === "insufficient_context" ? "previewInsufficient" : "previewFailed")}</p><button type="button" class="button button-secondary" data-retry-recall-preview>${t(sample.status === "paused" ? "previewCheck" : "previewRetry")}</button></section>`;
   }
   const preview = sample.preview;
   const excerpt = `<article class="recall-preview"><div class="eyebrow">${t(preview.kind === "sample_storyline" ? "sampleStoryline" : "sampleChapter")}</div><h2>${escapeHtml(preview.title)}</h2><div class="recall-preview-text">${formatText(preview.text)}</div>${preview.kind === "sample_storyline" && preview.outline?.length ? `<ol>${preview.outline.map(title => `<li>${escapeHtml(title)}</li>`).join("")}</ol>` : ""}<p class="fine-print">${t("previewNote")}</p></article>`;
@@ -3089,6 +3785,25 @@ function renderCueCards(cues) {
 }
 
 function bindViewActions() {
+  $(".family-workspace")?.addEventListener("error", event => {
+    if (event.target.matches("[data-family-portrait]")) event.target.remove();
+  }, true);
+  document.querySelectorAll("[data-family-zoom]").forEach(button => button.addEventListener("click", () => zoomFamilyChart(button.dataset.familyZoom)));
+  $(".family-chart-fallback")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-family-person]");
+    if (button) selectFamilyPerson(button.dataset.familyPerson);
+  });
+  $("#family-person-detail")?.addEventListener("click", event => {
+    if (event.target.closest("[data-family-person-close]")) closeFamilyPerson();
+    if (event.target.closest("[data-family-photo-upload]")) $("#family-person-photo")?.click();
+    if (event.target.closest("[data-family-photo-remove]")) void saveFamilyPersonPhoto();
+  });
+  $("#family-person-detail")?.addEventListener("change", event => {
+    if (event.target.id === "family-person-photo" && event.target.files?.[0]) void saveFamilyPersonPhoto(event.target.files[0]);
+  });
+  $("#family-person-detail")?.addEventListener("keydown", event => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeFamilyPerson(); }
+  });
   $("[data-retry-recall-preview]")?.addEventListener("click", () => ensureRecallPreview({ retry: true }));
   $("[data-check-recall-payment]")?.addEventListener("click", async () => {
     state.loading = true;
@@ -3110,7 +3825,7 @@ function bindViewActions() {
     render();
   });
   $("[data-all-places]")?.addEventListener("click", () => { state.lifeStage = "all"; state.selectedPlace = null; render(); });
-  document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => { state.selectedPlace = button.dataset.placeChoice; render(); }));
+  document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => selectPlace(button.dataset.placeChoice)));
   $("[data-action='toggle-workspace']")?.addEventListener("click", () => {
     state.workspaceCollapsed = !state.workspaceCollapsed;
     render();
@@ -3119,13 +3834,18 @@ function bindViewActions() {
   $("[data-action='toggle-chat-history']")?.addEventListener("click", () => {
     state.chatHistoryCollapsed = !state.chatHistoryCollapsed;
     render();
+    if (!state.chatHistoryCollapsed && $("#chat-scroll")) {
+      conversationScroll.pause();
+      $("#chat-scroll").scrollTop = 0;
+    }
     $("[data-action='toggle-chat-history']")?.focus({ preventScroll: true });
   });
   $("#chat-attachments")?.addEventListener("change", event => selectAttachments(Array.from(event.target.files || [])));
   $("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
-  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.chatHistoryCollapsed = false; state.workspaceTab = "chapters"; cancelDictation(); render(); });
+  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.chatHistoryCollapsed = false; state.workspaceTab = "memoir"; cancelDictation(); render(); });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
   $("#chat-input")?.addEventListener("input", (event) => {
+    if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
     state.audioTranscript = event.target.value;
     resizeChatInput(event.target);
   });
@@ -3146,7 +3866,11 @@ function bindViewActions() {
       selectLifeStage(lifeStageTabs[nextIndex].dataset.lifeStageTab, true);
     });
   });
+  document.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
   document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
+  document.querySelectorAll("[data-edit-memory-event]").forEach(button => button.addEventListener("click",() => openMemoryEventEdit(button.dataset.editMemoryEvent)));
+  $("#memory-event-edit-form")?.addEventListener("input",event => { Object.assign(state.memoryEventEdit,Object.fromEntries(new FormData(event.currentTarget))); });
+  $("#memory-event-edit-form")?.addEventListener("submit",saveMemoryEventEdit);
   const actions = {
     "start-memory": startMemory,
     "save-memory": completeMemory,
@@ -3175,6 +3899,8 @@ function bindViewActions() {
     "cue-reaction": (button) => reactCue(button.dataset.asset, button.dataset.reaction),
     "add-person": addPerson,
     "add-timeline": addTimeline,
+    "retry-private-draft": retryPrivateDraft,
+    "cancel-event-edit": () => { state.memoryEventEdit = null; render(); },
   };
   document.querySelectorAll("[data-action]").forEach((button) => {
     const action = actions[button.dataset.action];
@@ -3201,7 +3927,7 @@ async function beginMemoryConversation(renderNow = true) {
   if (state.recallStatus?.payment_required) return;
   await ensureMemorySession();
   const fallback = conversationMessage("fallback");
-  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"]);
+  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "begin");
   await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   try {
   const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLanguage(), requested_media: ["image"] }) });
@@ -3222,7 +3948,7 @@ async function startMemory() {
     render();
     await ensureMemorySession();
     const fallback = conversationMessage("fallback");
-    const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"]);
+    const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "continue");
     await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
   } catch (error) { toast(error.message); }
   state.loading = false;
@@ -3243,6 +3969,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const input = $("#chat-input");
   const text = voiceTurn ? state.audioTranscript.trim() : (input?.value.trim() || state.audioTranscript.trim() || "");
+  const sourceKind = voiceTurn ? "narrator_transcript" : state.audioTranscriptKind;
   const uploadId = state.audioUploadId;
   const attachments = voiceTurn ? [] : [...state.attachments];
   if (attachments.length && !state.attachmentRights) return toast(translate("Memoir.story.attachmentRightsRequired"));
@@ -3269,7 +3996,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
-  const firstReply = profileIntake && !state.chat.some((message) => message.role === "user");
+  const firstReply = !profile().conversation_language?.initialized && !state.chat.some((message) => message.role === "user");
   const configuredConversationLanguage = conversationLanguage();
   const detectedFirstReplyLanguage = firstReply && !configuredConversationLanguage
     ? firstReplyLanguage(messageText)
@@ -3277,6 +4004,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   if ($("#chat-input")) $("#chat-input").value = "";
   state.chatHistoryCollapsed = false;
   state.chat.push({ role: "user", text: messageText, attachments });
+  conversationScroll.follow();
   state.audioUploadId = null;
   state.audioTranscript = "";
   render();
@@ -3292,7 +4020,17 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     if (session) {
       try {
         const turnType = session.turns?.length ? "follow_up" : "initial";
-        state.session = await api(`/v1/memory-sessions/${session.id}/answers`, { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) });
+        const answerOptions = { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) };
+        try {
+          state.session = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
+        } catch (error) {
+          if (error.code !== "POLICY_EPOCH_CONFLICT") throw error;
+          // Consent/project setup is allowed to complete in parallel with the
+          // first paint. Resync this still-open session once, then retry the
+          // same answer; the Codex conversation remains the primary path.
+          await api(`/v1/memory-sessions/${session.id}/resume`, { method: "POST" });
+          state.session = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
+        }
         cues = state.session.context_cues || [];
         const remaining = memoryFollowUpsRemaining(state.session);
         fallback = memoryFollowUpPrompt(state.session);
@@ -3309,8 +4047,11 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       `The storyteller said: ${messageText}\n${instruction}${mediaContext}`,
       fallback,
       ["memory.save", "memory.search"],
-      detectedFirstReplyLanguage || configuredConversationLanguage,
+      detectedFirstReplyLanguage || configuredConversationLanguage || (firstReply ? currentUiLocale() : undefined),
       Boolean(detectedFirstReplyLanguage),
+      messageText,
+      null,
+      sourceKind,
     );
     if (result.blocked) {
       // Another tab may have used the final free reply. Keep the unsent draft.
@@ -3328,6 +4069,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   state.loading = false;
   render();
+  void refreshFamilyContext();
   if (state.voiceMode) window.setTimeout(() => startVoiceModeTurn(), 260);
 }
 
@@ -3656,6 +4398,7 @@ async function startVoiceModeTurn() {
         }
         state.audioUploadId = saved.uploadId;
         state.audioTranscript = saved.text;
+        state.audioTranscriptKind = "narrator_transcript";
         await sendChatMessage({ voiceTurn: true });
       } catch (error) {
         if (state.voiceMode) {
@@ -3764,6 +4507,7 @@ async function transcribeDictation(id) {
     if (state.dictationId !== id) return;
     if (state.dictationId !== id) return;
     state.audioTranscript = [state.audioTranscript.trim(), saved.text].filter(Boolean).join(" ");
+    state.audioTranscriptKind = "narrator_transcript";
     shouldSend = state.dictationSend && Boolean(saved.text);
   } catch (error) { if (state.dictationId === id) toast(error.message); }
   finally {
@@ -3873,7 +4617,12 @@ async function boot() {
     // refresh always returns to the persistent Codex conversation instead of
     // reopening a fixed question card.
     localStorage.removeItem("memory-spark-story-started");
-    const saved = localStorage.getItem("memory-spark-project");
+    // The interview URL identifies this page's project. The shared cache can
+    // point at an older project or one opened in another tab.
+    const interviewPrefix = `${MEMOIR_ROUTES.interview}/`;
+    const routeProject = currentPath().startsWith(interviewPrefix)
+      ? currentPath().slice(interviewPrefix.length).split("/")[0] : null;
+    const saved = routeProject || localStorage.getItem("memory-spark-project");
     if (saved) {
       try {
         state.project = { id: saved };
@@ -3881,6 +4630,9 @@ async function boot() {
         state.chat = restoreChatHistory(saved);
         state.chatHistoryCollapsed = true;
         await refreshProject();
+        localStorage.setItem("memory-spark-project", saved);
+        try { await hydrateAccountHistory(); }
+        catch { toast(translate("AuthReminder.historyError")); }
         await syncProfileUiLocale();
         await hydratePlaceJourney();
         await refreshFamilyEntitlement();
@@ -3912,6 +4664,10 @@ window.addEventListener("click", (event) => {
 });
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeProfileMenu(true);
+});
+installConversationViewport(() => {
+  resizeChatInput();
+  conversationScroll.refresh();
 });
 installUiLocaleBridge();
 // Keep the shell's loading view until boot resolves the saved project.

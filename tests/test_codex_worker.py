@@ -31,6 +31,21 @@ def test_worker_allocates_stable_distinct_os_identities(tmp_path):
     assert 20000 <= second < 60000
 
 
+def test_worker_can_opt_out_of_linux_privdrop_only_when_explicitly_requested(tmp_path, monkeypatch):
+    worker = CodexWorker(home_root=tmp_path, command=["codex", "app-server"])
+    assert worker._run_command(20001)[0] == "/usr/bin/setpriv"
+    monkeypatch.setenv("MEMORY_SPARK_DISABLE_PRIVDROP", "1")
+    assert worker._run_command(20001) == ["codex", "app-server"]
+
+
+def test_worker_reads_bounded_timeout_from_environment_for_isolated_runs(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", "180")
+    worker = CodexWorker(home_root=tmp_path)
+    assert worker.timeout == 180
+    monkeypatch.setenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", "999")
+    assert CodexWorker(home_root=tmp_path / "capped").timeout == 240
+
+
 def test_memory_context_pass_is_ephemeral_and_never_streams_or_exports_artifacts(tmp_path, monkeypatch):
     class Connection:
         def __init__(self, *args, **kwargs):
@@ -71,6 +86,37 @@ def test_memory_context_pass_is_ephemeral_and_never_streams_or_exports_artifacts
     assert result['artifacts'] == []
 
 
+def test_workspace_focus_pass_uses_the_requested_domain_contract(tmp_path, monkeypatch):
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def request(self, method, params):
+            assert method == 'thread/start'
+            assert 'Focused author-timeline recovery pass' in params['baseInstructions']
+            return {'thread': {'id': 'focused'}}
+
+        async def turn(self, thread_id, prompt, **kwargs):
+            assert prompt == 'Storyteller message:\nI was born in Hobart.'
+            return '[[MEMORY_SPARK_AUTHOR_TIMELINE]]{"timeline":[]}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
+
+    worker = CodexWorker(home_root=tmp_path)
+    monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    result = asyncio.run(worker.turn(WorkerTurnInput(
+        user_id='11111111-1111-4111-8111-111111111111',
+        text='I was born in Hobart.', agent_role='workspace',
+        extraction_focus='author_timeline', family_enabled=True,
+    )))
+    assert result['reply'].startswith('[[MEMORY_SPARK_AUTHOR_TIMELINE]]')
+
+
 @pytest.mark.parametrize('role', ['collector', 'workspace'])
 def test_worker_sends_instructions_once_instead_of_repeating_them_in_user_input(tmp_path, monkeypatch, role):
     class Connection:
@@ -102,6 +148,19 @@ def test_worker_sends_instructions_once_instead_of_repeating_them_in_user_input(
         user_id='11111111-1111-4111-8111-111111111111',
         text='I grew up in Sydney.', agent_role=role,
     ), on_delta=delta))
+
+
+def test_collector_thread_refresh_boundary_is_bounded_and_role_specific():
+    from apps.api.codex_worker_service import WorkerTurnInput
+
+    base = dict(
+        user_id='11111111-1111-4111-8111-111111111111',
+        thread_id='old-thread', text='A synthetic turn.',
+        conversation_rounds_completed=40,
+    )
+    assert CodexWorker._refresh_collector_thread(WorkerTurnInput(**base)) is True
+    assert CodexWorker._refresh_collector_thread(WorkerTurnInput(**{**base, 'conversation_rounds_completed': 39})) is False
+    assert CodexWorker._refresh_collector_thread(WorkerTurnInput(**{**base, 'agent_role': 'workspace'})) is False
 
 
 def test_worker_home_permissions_separate_sibling_homes(monkeypatch, tmp_path):
@@ -220,6 +279,20 @@ def test_worker_turn_timeout_cancels_execution(tmp_path, monkeypatch):
     assert cancelled == [True]
 
 
+def test_workspace_can_finish_after_the_collector_execution_budget(tmp_path, monkeypatch):
+    worker = CodexWorker(home_root=tmp_path, timeout=0.01)
+
+    async def extraction(payload):
+        await asyncio.sleep(0.02)
+        return {'reply': '[[MEMORY_SPARK_PROFILE]]{}[[/MEMORY_SPARK_PROFILE]]'}
+
+    monkeypatch.setattr(worker, '_turn', extraction)
+    payload = WorkerTurnInput(user_id=UUID(int=1), text='memory', agent_role='workspace')
+    assert asyncio.run(worker.turn(payload))['reply']
+    with pytest.raises(TimeoutError):
+        asyncio.run(worker.turn(payload.model_copy(update={'agent_role': 'collector'})))
+
+
 def test_worker_instances_cannot_write_the_same_home(tmp_path, monkeypatch):
     from apps.api.agent_lock import AgentTurnBusyError
     first = CodexWorker(home_root=tmp_path)
@@ -265,3 +338,93 @@ def test_disconnected_api_cancels_and_settles_worker(monkeypatch):
                                Request(), 'test-secret')
     asyncio.run(run())
     assert stopped == [True]
+
+
+@pytest.mark.parametrize('phase,timeout_name', [('index', 'COMPOSER_TIMEOUT'), ('draft', 'COMPOSER_DRAFT_TIMEOUT')])
+def test_composer_has_its_own_budget_and_structured_output(tmp_path, monkeypatch, phase, timeout_name):
+    from apps.api import memoir_preview
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'composer-test-low')
+    seen = []
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            seen.append(kwargs['timeout'])
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def request(self, method, params):
+            assert params['ephemeral'] is True
+            assert params['model'] == 'composer-test-low'
+            return {'thread': {'id': 'composer'}}
+        async def turn(self, thread_id, prompt, **kwargs):
+            assert ('periods' if phase == 'index' else 'schema_version') in kwargs['output_schema']['required']
+            return '{"periods":[],"events":[]}'
+    worker = CodexWorker(home_root=tmp_path, timeout=1)
+    async def reachable(): pass
+    monkeypatch.setattr(worker, '_ensure_composer_provider', reachable)
+    monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    asyncio.run(worker.turn(WorkerTurnInput(user_id='11111111-1111-4111-8111-111111111111',
+                                          text='test', agent_role='composer', composer_phase=phase)))
+    assert seen == [getattr(memoir_preview, timeout_name)]
+
+
+def test_only_composer_accepts_larger_structured_packets():
+    from pydantic import ValidationError
+    options = {'user_id': '11111111-1111-4111-8111-111111111111', 'text': 'x' * 120001}
+    with pytest.raises(ValidationError):
+        WorkerTurnInput(**options)
+    assert WorkerTurnInput(**options, agent_role='composer').agent_role == 'composer'
+
+
+def test_composer_offline_provider_fails_before_model_start(tmp_path, monkeypatch):
+    from apps.api.codex_worker_service import ComposerProviderUnavailable
+    async def refused(*args):
+        raise ConnectionRefusedError('private endpoint details must not escape')
+    monkeypatch.setattr(asyncio, 'open_connection', refused)
+    worker = CodexWorker(home_root=tmp_path)
+    monkeypatch.setattr(worker, '_turn', lambda *args: pytest.fail('Offline provider must not start model work'))
+    with pytest.raises(ComposerProviderUnavailable, match='^The model provider is unavailable$'):
+        asyncio.run(worker.turn(WorkerTurnInput(user_id=UUID(int=1), text='synthetic', agent_role='composer')))
+
+
+def test_composer_offline_endpoint_has_safe_terminal_code(monkeypatch):
+    from apps.api import codex_worker_service as service
+    monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET', 'test-secret')
+    async def offline(payload):
+        raise service.ComposerProviderUnavailable('private diagnostic')
+    monkeypatch.setattr(service.worker, 'turn', offline)
+    response = TestClient(app).post('/internal/codex/turn', headers={'X-Codex-Worker-Secret':'test-secret'},
+        json={'user_id':str(UUID(int=1)), 'text':'synthetic', 'agent_role':'composer'})
+    assert response.status_code == 503
+    assert response.headers['X-Error-Code'] == 'COMPOSER_PROVIDER_UNAVAILABLE'
+    assert 'private' not in response.text
+
+
+def test_nonstream_worker_failure_returns_sanitized_partial_trajectory(monkeypatch):
+    from apps.api import codex_worker_service as service
+
+    monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET', 'test-secret')
+    trajectory = {
+        'schema_version': 'memoir-trajectory/1',
+        'steps': [{
+            'step_id': 'worker-step-3',
+            'action': 'worker.failed',
+            'output': {'reasoning': '[OMITTED]'},
+        }],
+        'final': {'status': 'failed', 'response': None},
+    }
+
+    async def failed(_payload):
+        raise service.WorkerTurnError('private provider failure', trajectory)
+
+    monkeypatch.setattr(service.worker, 'turn', failed)
+    response = TestClient(app).post(
+        '/internal/codex/turn',
+        headers={'X-Codex-Worker-Secret': 'test-secret'},
+        json={'user_id': str(UUID(int=1)), 'text': 'synthetic'},
+    )
+
+    assert response.status_code == 502
+    assert response.json()['trajectory'] == trajectory
+    assert 'private provider failure' not in response.text

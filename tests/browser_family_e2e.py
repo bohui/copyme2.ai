@@ -4,6 +4,7 @@ import argparse
 import json
 
 from playwright.sync_api import expect, sync_playwright
+from fixtures.browser_memory_events import SCHOOL_QUOTE, school_events
 
 
 def main() -> None:
@@ -37,7 +38,7 @@ def main() -> None:
             )
 
         def codex_turn(route) -> None:
-            nonlocal codex_calls
+            nonlocal codex_calls, persisted
             codex_calls += 1
             request_payload = json.loads(route.request.post_data or "{}")
             assert request_payload.get("project_id")
@@ -48,7 +49,7 @@ def main() -> None:
                 response["family_features_enabled"] = True
                 response["family_context"] = {
                     "schema_version": 1,
-                    "project_id": "project-test",
+                    "project_id": request_payload["project_id"],
                     "revision": 1,
                     "updated_at": "2026-09-26T00:00:00Z",
                     "people": [
@@ -72,7 +73,7 @@ def main() -> None:
                 }
                 response["family_context_update"] = {
                     "schema_version": 1,
-                    "project_id": "project-test",
+                    "project_id": request_payload["project_id"],
                     "changed": True,
                     "persisted": True,
                     "revision": 1,
@@ -80,6 +81,7 @@ def main() -> None:
                     "added": {"people": 2, "relationships": 1, "timeline": 1, "life_periods": 0},
                     "updated": {"people": 0, "relationships": 0, "timeline": 0, "life_periods": 0},
                 }
+                persisted = response["family_context"]
             route.fulfill(status=200, content_type="application/json", body=json.dumps(response))
 
         persisted = {
@@ -108,25 +110,30 @@ def main() -> None:
             ),
         )
         page.route("**/api/v1/memoir/agent/turn", codex_turn)
+        page.route("**/api/v1/memoir/story/events?**",
+                   lambda route: school_events(route, present=codex_calls > 0))
         page.goto(args.base_url, wait_until="networkidle")
         page.get_by_role("button", name="Begin my story").click()
         expect(page.get_by_role("main", name="Mira conversation")).to_be_visible()
-        expect(page.locator(".people-list strong", has_text="Persisted relative")).to_be_visible()
+        page.get_by_role('button', name='Family tree', exact=True).click()
+        expect(page.locator(".family-person-card strong", has_text="Persisted relative")).to_be_visible()
 
         page.get_by_role("textbox", name="Your message").fill("My mother Mei helped me start school around 1964 in Hobart.")
         page.get_by_role("button", name="Send message").click()
 
         expect(page.get_by_role("complementary", name="Family tree workspace")).to_be_visible()
-        expect(page.locator(".people-list strong", has_text="Mei")).to_be_visible()
-        expect(page.get_by_role("complementary", name="Family tree workspace").get_by_text("mother · parent")).to_be_visible()
+        expect(page.locator(".family-person-card strong", has_text="Mei")).to_be_visible()
+        expect(page.get_by_role("complementary", name="Family tree workspace").get_by_text("mother", exact=True)).to_be_visible()
         expect(page.get_by_role("button", name="Timeline")).to_be_visible()
 
         page.get_by_role("button", name="Timeline").click()
         expect(page.get_by_role("heading", name="Timeline")).to_be_visible()
         timeline = page.get_by_role("complementary", name="Timeline workspace")
         expect(timeline.locator(".timeline-list strong", has_text="Started school")).to_be_visible()
-        expect(timeline.get_by_text("around 1964 · Approximate date · Hobart", exact=True)).to_be_visible()
+        expect(timeline.locator('.timeline-row small')).to_have_text("around 1964 · Approximate date · Hobart · Childhood")
         expect(timeline.get_by_text("Approximate date · Hobart")).to_be_visible()
+        timeline.get_by_text("Original evidence", exact=True).click()
+        expect(timeline.get_by_text(SCHOOL_QUOTE, exact=True)).to_be_visible()
         browser.close()
 
 

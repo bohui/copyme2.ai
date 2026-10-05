@@ -1,3 +1,23 @@
+test_current_query_and_precise_capture_date (test_parallel_search.CaptureTests.test_current_query_and_precise_capture_date) ... ok
+test_each_figure_retains_its_own_capture_date (test_parallel_search.CaptureTests.test_each_figure_retains_its_own_capture_date) ... ok
+test_mixed_years_and_future_dates_do_not_qualify (test_parallel_search.CaptureTests.test_mixed_years_and_future_dates_do_not_qualify) ... ok
+test_photo_metadata_date_is_bound_to_its_image (test_parallel_search.CaptureTests.test_photo_metadata_date_is_bound_to_its_image) ... ok
+test_publication_or_upload_year_is_not_capture_date (test_parallel_search.CaptureTests.test_publication_or_upload_year_is_not_capture_date) ... ok
+test_search_title_never_dates_all_images_in_article (test_parallel_search.CaptureTests.test_search_title_never_dates_all_images_in_article) ... ok
+test_unspecified_old_request_does_not_promote_recent_photo (test_parallel_search.CaptureTests.test_unspecified_old_request_does_not_promote_recent_photo) ... ok
+test_album_does_not_collapse_different_photos (test_parallel_search.ParallelTests.test_album_does_not_collapse_different_photos) ... ok
+test_authenticated_urls_and_echoed_secrets_are_never_cached (test_parallel_search.ParallelTests.test_authenticated_urls_and_echoed_secrets_are_never_cached) ... ok
+test_blocked_partial_results_preserved_and_no_cse_retry (test_parallel_search.ParallelTests.test_blocked_partial_results_preserved_and_no_cse_retry) ... ok
+test_concurrent_start_and_cache_hits_make_zero_provider_calls (test_parallel_search.ParallelTests.test_concurrent_start_and_cache_hits_make_zero_provider_calls) ... ok
+test_cse_challenge_preserves_prior_page_cards (test_parallel_search.ParallelTests.test_cse_challenge_preserves_prior_page_cards) ... ok
+test_expiry_and_options_change_cause_misses (test_parallel_search.ParallelTests.test_expiry_and_options_change_cause_misses) ... ok
+test_failure_does_not_lose_sibling_cards (test_parallel_search.ParallelTests.test_failure_does_not_lose_sibling_cards) ... ok
+test_http_exception_never_exposes_authenticated_url (test_parallel_search.ParallelTests.test_http_exception_never_exposes_authenticated_url) ... ok
+test_manifest_counts_distinct_album_images (test_parallel_search.ParallelTests.test_manifest_counts_distinct_album_images) ... ok
+test_missing_serpapi_key_does_not_disable_cse (test_parallel_search.ParallelTests.test_missing_serpapi_key_does_not_disable_cse) ... ok
+test_preview_bridges_unique_original_without_collapsing_album (test_parallel_search.ParallelTests.test_preview_bridges_unique_original_without_collapsing_album) ... ok
+test_source_inspected_once_and_provenance_reaches_manifest (test_parallel_search.ParallelTests.test_source_inspected_once_and_provenance_reaches_manifest) ... ok
+test_worker_hard_timeout_kills_and_reaps (test_parallel_search.ParallelTests.test_worker_hard_timeout_kills_and_reaps) ... ok
 test_access_requires_evidence (test_photo_research.EligibilityTests.test_access_requires_evidence) ... ok
 test_commercial_permission_required (test_photo_research.EligibilityTests.test_commercial_permission_required) ... ok
 test_conflicting_date (test_photo_research.EligibilityTests.test_conflicting_date) ... ok
@@ -46,6 +66,7 @@ test_old_unknown (test_photo_research.TemporalTests.test_old_unknown) ... ok
 test_previous_period_not_an_input (test_photo_research.TemporalTests.test_previous_period_not_an_input) ... ok
 test_reversed_rejected (test_photo_research.TemporalTests.test_reversed_rejected) ... ok
 test_today_strict (test_photo_research.TemporalTests.test_today_strict) ... ok
+test_auto_provider_flag_matrix_preserves_parallel_fallback (test_photo_research.WorkflowTests.test_auto_provider_flag_matrix_preserves_parallel_fallback) ... ok
 test_budget (test_photo_research.WorkflowTests.test_budget) ... ok
 test_chengde_landmark_aliases_keep_city_and_memory_period (test_photo_research.WorkflowTests.test_chengde_landmark_aliases_keep_city_and_memory_period) ... ok
 test_crawl4ai_cli_dispatch (test_photo_research.WorkflowTests.test_crawl4ai_cli_dispatch) ... ok
@@ -58,6 +79,7 @@ test_crawl4ai_source_filter_drops_related_media (test_photo_research.WorkflowTes
 test_download_and_resume (test_photo_research.WorkflowTests.test_download_and_resume) ... ok
 test_download_failure_reported (test_photo_research.WorkflowTests.test_download_failure_reported) ... ok
 test_evidence_without_timezone (test_photo_research.WorkflowTests.test_evidence_without_timezone) ... ok
+test_explicit_llm_provider_stays_fail_closed_when_disabled (test_photo_research.WorkflowTests.test_explicit_llm_provider_stays_fail_closed_when_disabled) ... ok
 test_gallery_escapes_untrusted_content (test_photo_research.WorkflowTests.test_gallery_escapes_untrusted_content) ... ok
 test_init_cli_current (test_photo_research.WorkflowTests.test_init_cli_current) ... ok
 test_init_photo_count (test_photo_research.WorkflowTests.test_init_photo_count) ... ok
@@ -68,6 +90,6 @@ test_rights_block_no_network (test_photo_research.WorkflowTests.test_rights_bloc
 test_sha_dedup (test_photo_research.WorkflowTests.test_sha_dedup) ... ok
 
 ----------------------------------------------------------------------
-Ran 68 tests in 0.067s
+Ran 90 tests in 0.288s
 
 OK

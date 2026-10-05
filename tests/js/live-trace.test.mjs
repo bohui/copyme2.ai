@@ -26,6 +26,7 @@ test('fast saved response retains live trace and later triggered skills', async 
    await onEvent({type:'progress',data:{id:'context',label:'Context',detail:'Conversation context loaded',status:'completed'}});
    return {reply:'Hello',conversation_saved:true};
  }});
+ context.refreshPrivateDraft = async () => {};
  vm.runInContext(extract('agentTurn'),context);
  const result=await context.agentTurn('Hi');
  assert.equal(result.streamedMessage.progressText,undefined);
@@ -66,7 +67,7 @@ test('incoming text replaces thinking without a standalone progress row', () => 
  const thinking={hidden:false};
  const progress={textContent:'',hidden:true};
  const row={querySelector:selector=>({'.message-text':text,'.message-thinking':thinking,'.message-progress':progress}[selector] || null)};
- const context=vm.createContext({document:{querySelector:()=>row},$:()=>null,formatText:String,cleanAssistantText:String,renderAgentTrace:()=>''});
+ const context=vm.createContext({document:{querySelector:()=>row},$:()=>null,formatText:String,cleanAssistantText:String,renderAgentTrace:()=>'',conversationScroll:{following:()=>true,refresh:()=>{}}});
  vm.runInContext(extract('updateStreamingAssistantMessage'),context);
  context.updateStreamingAssistantMessage({id:'m',text:'Hello',streaming:true,progressText:'Preparing your reply'});
  assert.equal(text.innerHTML,'Hello');
@@ -93,6 +94,7 @@ test('finished workspace checks appear last inside the collapsed thinking steps'
    await onEvent({type:'progress',data:{id:'place',detail:'Place skill finished',status:'completed'}});
    return {reply:'Hello',conversation_saved:true};
  }});
+ context.refreshPrivateDraft = async () => {};
  for (const name of ['agentTurn','renderAgentTrace','renderMessage']) vm.runInContext(extract(name),context);
  const result=await context.agentTurn('Hi');
  await emitEvent({type:'progress',data:{id:'workspace',detail:'Workspace checks completed',status:'completed'}});
@@ -126,6 +128,7 @@ test('thinking status stays visible through steps, then hides when the response 
  const row={querySelector:selector=>({'.message-text':text,'.message-thinking':thinking,'.message-trace':trace}[selector])};
  context.document={querySelector:()=>row};
  context.$=()=>null;
+ context.conversationScroll={following:()=>true,refresh:()=>{}};
  context.updateStreamingAssistantMessage(message);
  assert.equal(thinking.hidden,false);
  assert.equal(details.open,true);
@@ -154,4 +157,18 @@ test('real memory saves and named skill events remain visible, simulated traces 
  assert.match(html,/Conversation memory saved/);
  assert.match(html,/memoir-place-journey · Memoir.trace.status.triggered/);
  assert.equal(context.renderAgentTrace(steps,'simulated'),'');
+});
+
+test('completed skill progress survives saving and restoring the local chat', () => {
+ const trace=[{id:'photos:p',kind:'skill',skill:'place-photo-research',status:'completed',detail:'悉尼'}];
+ let saved='';
+ const state={project:{id:'p'},chat:[{id:'assistant-message-1',role:'assistant',text:'Hello',trace,traceMode:'live'}]};
+ const context=vm.createContext({state,CHAT_HISTORY_STORAGE_PREFIX:'chat:',assistantMessageSequence:0,
+   sessionStorage:{setItem:(key,value)=>{saved=value;},getItem:()=>saved},cleanAssistantText:text=>text,
+ });
+ for(const name of ['chatHistoryStorageKey','persistChatHistory','restoreChatHistory']) vm.runInContext(extract(name),context);
+ context.persistChatHistory();
+ const restored=context.restoreChatHistory('p');
+ assert.deepEqual(JSON.parse(JSON.stringify(restored[0].trace)),trace);
+ assert.equal(restored[0].traceMode,'live');
 });

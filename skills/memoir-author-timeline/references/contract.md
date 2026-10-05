@@ -1,33 +1,33 @@
-# Author-timeline skill contract
+# Shared MemoryEvent service, version 1
 
-The server enables `memoir-author-timeline` only for a paid Family entitlement
-backed by `STRIPE_PRICE_FAMILY`. The skill emits one bounded
-`MEMORY_SPARK_AUTHOR_TIMELINE` marker with `timeline` and `life_periods` only.
+`apps/api/memory_events.py` defines the schema-bound proposal contract. The model
+has no database capability; trusted backend services resolve authenticated owner
+and project scope and commit validated changes to PostgreSQL.
 
-Marker IDs are temporary. A persisted record is revised only with an explicit
-`existing_id`; the server never performs fuzzy matching. `person_ids` refer to
-canonical people already saved by the family-tree skill. Invalid markers are
-discarded as a unit and removed from the visible reply.
+`read_user_memory_events` returns stable opaque IDs, event/period kind, revision,
+lifecycle, supported stage/temporal placement, uncertainty, change sequence and
+exact many-to-many source-version links. New proposal IDs are correlations only;
+the server allocates identity. Existing proposals require `existing_id` and
+`expected_revision`. Legacy mappings use stable aliases and honest unresolved
+provenance rather than title-based merging.
 
-The marker is merged into the same user/project `user_family_context` document
-used by the family-tree skill. The response update envelope identifies the
-source skill:
+`accept_user_narrator_source` commits the original source/version and its outbox
+intent before optional reply delivery. `apply_user_memory_events` validates the
+source manifest, quotes/spans, scope, placements, corrections and revisions, then
+commits event revisions, links and processing together. `finish_memoir_timeline`
+also checks the lane's expiring ownership token and total deadline. Empty results
+advance processing; pending gaps cannot be skipped by the extraction cursor.
 
-~~~json
-{
-  "family_context_update": {
-    "schema_version": 1,
-    "project_id": "project_123",
-    "changed": true,
-    "persisted": true,
-    "revision": 2,
-    "skills": ["author_timeline"],
-    "added": {"people": 0, "relationships": 0, "timeline": 1, "life_periods": 0},
-    "updated": {"people": 0, "relationships": 0, "timeline": 0, "life_periods": 0}
-  }
-}
-~~~
+Author edits use `correct_user_memory_event`, `change_user_narrator_source` and
+`unlink_user_memory_event_source`, with expected event revision/source version.
+Corrections retain actor/origin, identity and authority, invalidate former/current
+stage/year/event groups, and may refresh prose between checkpoints without adding
+rounds. Original deletion/withdrawal invalidates dependent derived content and
+restricted caches immediately; surviving evidence is reconciled honestly.
 
-The workspace reads the canonical document, not the marker or a renderer's
-private state. Uncertain dates, visibility, and print-inclusion remain in the
-stored records.
+Composer reads these same canonical event IDs and original sources in a frozen
+snapshot, never a second index. Source/event/policy manifests and manuscript
+revision are rechecked at commit. Internal extraction applies to every authorised
+narrator; premium timeline display and relationship-driven family-tree access
+retain their server-owned entitlement checks. The private writing checkpoint is
+five completed rounds by default, independently of the twenty-round allowance.

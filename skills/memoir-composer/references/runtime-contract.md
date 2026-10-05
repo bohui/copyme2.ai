@@ -2,7 +2,7 @@
 
 ## 1. What this package does and does not do
 
-This is a reusable authoring skill plus executable guardrails. The agent performs source summarisation, event deduplication, editorial planning and writing. The Node utilities select a trigger mode from a supplied grounded index, count words, validate a candidate and create review-only text artifacts. There is no bundled model SDK, database connector, image downloader, payment client or publisher.
+This is a reusable authoring skill plus executable guardrails. The agent performs source summarisation, editorial planning and writing from the shared canonical MemoryEvent service. The Node utilities select a trigger mode from a supplied grounded index, count words, validate a candidate and create review-only text artifacts. There is no bundled model SDK, database connector, image downloader, payment client or publisher.
 
 The host must provide authorised project retrieval and persistence. Logical capability names below are adapter contracts, **not assertions that tools with these names already exist**. Bind them to the tools available in your harness. Do not invent a tool invocation when a binding is absent.
 
@@ -25,11 +25,11 @@ In a filesystem-only Codex run, the harness can mount a read-only authorised sna
 
 The full machine contract is `schemas/request.schema.json`; six complete synthetic packets are in `examples/`. Important fields:
 
-- `trigger`: backend-confirmed event. Free previews require completion of the backend's configured `free_round_limit` (currently 20 saved context-collection turns). A new formal memoir requires a non-null host confirmation reference and composition authorisation.
+- `trigger`: backend-confirmed event. An early `private_draft_checkpoint` requires an explicit host authorization, truthful project completed-round count and configured cadence. It permits only private storyteller/web samples and must never forge the account free-allowance counter. Free previews require completion of the backend's configured `free_round_limit` (currently 20 saved context-collection turns). A new formal memoir requires a non-null host confirmation reference and composition authorisation.
 - `target`: edition locale, intended audience and medium. UI locale is distinct and may be supplied in `context` only for the final conversational summary.
 - `snapshot`: immutable snapshot ID, policy epoch, expected manuscript revision, source-retrieval completeness, glossary version and preference version.
-- `sources`: immutable text records with stable IDs/versions, author role, kind, current eligibility and derived lineage. This may include revocation/supersession tombstones needed to invalidate old dependencies.
-- `periods` / `events`: a normalised, source-linked index produced by this agent or an upstream memory skill. Treat it as candidates until checked against sources. Dates belong to life events, not upload timestamps. `order` is the source-grounded period order, not an age inferred by the validator.
+- `sources`: immutable text records with stable IDs/versions, author role, kind, current eligibility and derived lineage. Host-captured responses also carry `life_stage` (one of the seven stages or `unplaced`) and `source_order` (capture order, never an event date). The host sorts responses by stage and then capture order, and supplies `context.stage_source_ids` for direct group lookup. This may include revocation/supersession tombstones needed to invalidate old dependencies.
+- `periods` / `events`: a read-only projection of the shared canonical MemoryEvent service. Use its stable IDs/revisions and original evidence; report discrepancies rather than independently extracting or retagging events. Dates belong to life events, not upload timestamps. `order` is the source-grounded period order, not an age inferred by the validator.
 - `policy.preview_preference`: `auto` by default; an authorised user/editor can request a supported focused chapter or partial storyline. It is not an override for consent, evidence or the chapter limit.
 - `assets`: stable ID/version and content hash, registered resolver reference, origin and explicit medium capabilities. The host has already evaluated appropriate copyright, consent and audience restrictions.
 - `prior_state`: previously committed composition kind and complete current chapter snapshots, including immutable revision number and approval/lock flags. No prior state is represented by kind `none`, revision `0`, and no chapters.
@@ -39,6 +39,18 @@ The full machine contract is `schemas/request.schema.json`; six complete synthet
 `allowed`, `status`, author roles and authorisation flags are assertions by the authenticated host, not capabilities that the LLM can grant to itself. Local validation cannot prove a JSON packet came from a trusted host. Production admission must sign or otherwise authenticate the envelope and filter its sources before the agent sees them.
 
 Each source key is `source_id@version`. Keep at most one active version of the same source ID in a request; older versions may be present as superseded records. A correction is a new immutable source version. Missing original lineage, cross-project references, revoked sources and assistant-only testimony are rejected for memoir use.
+
+For canonical incremental composition, supply dirty event/source manifests and
+surviving originals plus a small authorised continuity context. Conversation
+overlap alone is not new evidence and must not dirty unchanged writing.
+Legacy standalone packets remain schema-compatible; their indexing fixture
+format is not the production canonical persistence path. Supply
+the validated saved index in `context.previous_index`, earlier IDs needing repair
+in `context.invalidated_index`, and a compact original-source manifest. Retain all
+authorized originals for drafting and evidence review. A stage reassignment changes
+the source version and invalidates dependent entries just like a text correction;
+deleting a response leaves other source versions stable. Legacy packets may omit
+the stage fields and remain valid; the host puts unclassified history in `unplaced`.
 
 Text evidence spans use zero-based, half-open **Unicode code-point offsets** over the exact stored source text. Do not mutate source normalisation after version creation. Direct quotations are matched against those exact spans. Word-count normalisation is separate and does not rewrite source text.
 
@@ -72,10 +84,16 @@ Application-level example; adapt names to the actual event bus:
 
 ```text
 on primary_free_rounds_completed(project):
-    verify completed_primary_rounds == configured_free_limit == 5
+    verify completed_primary_rounds == configured_free_limit == 20
     create confirmed free_rounds_completed event
     create one preview run for the event + source snapshot
     invoke $memoir-composer explicitly
+
+on private_checkpoint(project):
+    verify completed_project_rounds >= configured_cadence == 5
+    wait for required original-input extraction to settle
+    coalesce into the project's composer lane using its latest claim-time snapshot
+    preserve the independent twenty-round account allowance
 
 on storyteller_requests_composition(project, confirmation):
     verify confirmation authority, consent and product entitlement
@@ -91,7 +109,7 @@ on sources_or_media_or_policy_changed(project):
 
 This is **not** a recurring ChatGPT task, and the package does not schedule jobs. The host dispatches durable workflow events. Optional Codex metadata disables implicit invocation, so untrusted chat text cannot casually initiate a full composition; the app invokes it explicitly after its gates.
 
-Five free rounds finishing and the whole storytelling journey finishing are separate events. Purchasing a package alone does not mean storytelling is finished. The user may request composition before using every paid session, then continue supplying memories afterwards.
+Five completed project rounds, the twenty-round free allowance, and completion of the storytelling journey are separate boundaries. Purchasing a package alone does not mean storytelling is finished. The user may request composition before using every paid session, then continue supplying memories afterwards.
 
 ## 5. Persistence, resumability and concurrency
 

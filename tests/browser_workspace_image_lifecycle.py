@@ -13,6 +13,7 @@ PLACE_JOURNEY = {
     "status": "active",
     "revision": 1,
     "place": "Hobart",
+    "period": "1980s",
     "hierarchy": ["Earth", "Australia", "Tasmania", "Hobart"],
     "granularity": "city",
     "latitude": -42.8826,
@@ -28,6 +29,7 @@ PICTURE = {
     "location": "霍巴特",
     "image_url": "/static/copyme2_icon_light.png",
     "source_url": "https://example.com/hobart-reference",
+    "date_expression": "1983", "latitude": -42.8826, "longitude": 147.3257,
     "allowed_actions": {"embed": True},
 }
 

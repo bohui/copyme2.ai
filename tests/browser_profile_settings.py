@@ -1,9 +1,12 @@
 """Profile menu and dialog checks against the local dev app (mock private profile API)."""
 import os
+from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
 
 
 def main():
+    output = Path(__file__).resolve().parents[1] / 'output/playwright'
+    output.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={'width': 1280, 'height': 900})
@@ -60,11 +63,11 @@ def main():
         expect(dialog.locator('[data-status]')).to_contain_text('could not be saved')
         expect(dialog).to_be_visible()
         fail_save = False
-        page.screenshot(path='/tmp/memoir-profile-desktop.png')
+        page.screenshot(path=str(output / 'profile-desktop.png'))
         page.set_viewport_size({'width': 390, 'height': 844})
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         assert dialog.evaluate('e => e.scrollWidth <= e.clientWidth')
-        page.screenshot(path='/tmp/memoir-profile-mobile.png')
+        page.screenshot(path=str(output / 'profile-mobile.png'))
         page.keyboard.press('Escape')
         expect(dialog).to_have_count(0)
         browser.close()

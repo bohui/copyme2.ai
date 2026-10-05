@@ -45,3 +45,25 @@ def test_profile_settings_require_authentication(monkeypatch):
     client = TestClient(create_app(MemoryStore()))
     assert client.get('/v1/agent/profile').status_code == 401
     assert client.patch('/v1/agent/profile', json={'name': 'A'}).status_code == 401
+
+
+def test_explicit_locale_preserves_first_reply_and_blocks_stale_workspace_write(monkeypatch):
+    from apps.api import supabase_routes
+    from apps.api.conversation_locale import record
+    saved={'preferred_language':'zh-CN','conversation_language':record('zh-CN',source='first_reply',detected='zh-CN')}
+    storage=Mock();storage.user_id='owner'
+    storage.profile.side_effect=lambda:deepcopy(saved)
+    storage.save_profile.side_effect=lambda p:(saved.clear(),saved.update(p))
+    storage.acquire_agent_turn_lease.return_value=True;storage.renew_agent_turn_lease.return_value=True
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:storage)
+    monkeypatch.setattr(supabase_routes,'storage',lambda _:storage)
+    client=TestClient(create_app(MemoryStore()))
+    response=client.patch('/v1/agent/profile',json={'preferred_language':'en-AU'})
+    assert response.status_code==200 and response.json()['conversation_language']['revision']==2
+    assert saved['conversation_language']['first_reply_locale']=='zh-CN'
+    assert saved['conversation_language']['source']=='explicit'
+    response=client.put('/v1/user/profile',json={'preferred_language':'zh-CN','conversation_language':{'version':1},'name':'Synthetic name'})
+    assert response.status_code==200 and saved['preferred_language']=='en-AU'
+    assert saved['conversation_language']['revision']==2 and saved['name']=='Synthetic name'
+    client.patch('/v1/agent/profile',json={'preferred_language':None})
+    assert saved['conversation_language']['locale']=='zh-CN' and saved['conversation_language']['revision']==3

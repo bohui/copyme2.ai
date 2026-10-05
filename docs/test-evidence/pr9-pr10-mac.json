@@ -1,0 +1,1339 @@
+{
+  "schema_version": 1,
+  "cloud_base": "d11a25389edabfd5e0f5d0e92a74174b0bf7badb",
+  "cloud_tree": "b687763efee2c86bc6043ea166402cd947514a30",
+  "cloud_ordered_parents": [
+    "84366778f50495d065e794a00f16184d16dc4216",
+    "90dee1f2be4f6a83fbc44e779f8d2e91106c6061"
+  ],
+  "branch": "codex/mac-pr9-pr10-validation-20261004",
+  "tested_code_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+  "tested_code_tree": "d3424e73be7ed3f3636b81744e5df5ca302a2926",
+  "source_trees": {
+    "apps": {
+      "cloud_base": "ecbbb7b75630ab1187c2bfaef0b85d5ff8d6a09a",
+      "tested_code": "ecbbb7b75630ab1187c2bfaef0b85d5ff8d6a09a"
+    },
+    "supabase": {
+      "cloud_base": "2e49d91944dcd5341f50a963fcda62fbb92e0dc2",
+      "tested_code": "2e49d91944dcd5341f50a963fcda62fbb92e0dc2"
+    },
+    "skills": {
+      "cloud_base": "1bfa049f95023bcb2424ebb22e568b604e12304f",
+      "tested_code": "1bfa049f95023bcb2424ebb22e568b604e12304f"
+    }
+  },
+  "native_python": {
+    "name": "python-native-confirmation",
+    "command": [
+      "python",
+      "tests/fixtures/browser_network_guard.py",
+      "pytest",
+      "-q",
+      "--junitxml=output/mac-validation/python-native-confirmation.xml"
+    ],
+    "exit_code": 1,
+    "duration_seconds": 269.25,
+    "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+    "local_receipt": "output/mac-validation/python-native-confirmation.json",
+    "log_sha256": "1ae050bca2a675eb681d061d2c4da9d54662307436b8e5ef03c759e230f37451",
+    "xml_sha256": "8313df2414e51eab69be4612734065085712b7cce1738194fcc5faf2580c8e7e",
+    "counts": {
+      "tests": 975,
+      "failures": 5,
+      "errors": 0,
+      "skipped": 4,
+      "passed": 966
+    },
+    "skipped_cases": [
+      {
+        "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[current-message-zh-CN]",
+        "reason": "Opt-in live model evaluation; requires the configured application provider"
+      },
+      {
+        "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[current-message-en-AU]",
+        "reason": "Opt-in live model evaluation; requires the configured application provider"
+      },
+      {
+        "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[earlier-context-zh-CN]",
+        "reason": "Opt-in live model evaluation; requires the configured application provider"
+      },
+      {
+        "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[earlier-context-en-AU]",
+        "reason": "Opt-in live model evaluation; requires the configured application provider"
+      }
+    ],
+    "failed_case_ids": [
+      "tests.test_memoir_lanes_temporal::test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn[timeline]",
+      "tests.test_shared_memory_browser::test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops[extraction-retry-5]",
+      "tests.test_shared_memory_events_postgres::test_genuine_storyline_enrichment_preserves_unrelated_passages_exactly",
+      "tests.test_shared_memory_events_postgres::test_unchanged_checkpoint_advances_coverage_without_new_prose_or_revision",
+      "tests.test_shared_memory_events_postgres::test_bounded_partition_preparation_reuses_successes_after_provider_failure[True]"
+    ],
+    "module_case_counts": {
+      "tests.test_acceptance_core": 6,
+      "tests.test_account_conversation_history": 2,
+      "tests.test_agent_commit_postgres": 6,
+      "tests.test_agent_lock": 2,
+      "tests.test_agent_routes": 16,
+      "tests.test_agent_storage": 7,
+      "tests.test_agent_task_runtime": 6,
+      "tests.test_chapter_entitlements": 1,
+      "tests.test_chapter_tools": 1,
+      "tests.test_codex_agent": 74,
+      "tests.test_codex_lease_failures": 5,
+      "tests.test_codex_worker": 26,
+      "tests.test_collection_routes": 10,
+      "tests.test_container_verifier": 1,
+      "tests.test_conversation_language": 22,
+      "tests.test_conversation_locale_browser": 2,
+      "tests.test_conversation_scroll_browser": 4,
+      "tests.test_conversation_text": 7,
+      "tests.test_diagnostics": 3,
+      "tests.test_domain_edges": 6,
+      "tests.test_evaluation_cases": 2,
+      "tests.test_family_agent": 2,
+      "tests.test_family_context": 23,
+      "tests.test_family_photos": 14,
+      "tests.test_family_tree_browser": 4,
+      "tests.test_full_acceptance": 55,
+      "tests.test_guest_conversation_transfer": 11,
+      "tests.test_install_codex_skill": 1,
+      "tests.test_integrated_timeline_contracts": 26,
+      "tests.test_interview_followups": 5,
+      "tests.test_interview_workspace_browser": 13,
+      "tests.test_journey": 1,
+      "tests.test_llm_place_photos": 34,
+      "tests.test_media_uploads": 3,
+      "tests.test_memoir_five_case_evaluator": 14,
+      "tests.test_memoir_lanes_temporal": 6,
+      "tests.test_memoir_migration_contract": 3,
+      "tests.test_memoir_model_configuration": 3,
+      "tests.test_memoir_preview": 35,
+      "tests.test_memoir_skill_configuration": 2,
+      "tests.test_memoir_tasks": 5,
+      "tests.test_persistence": 7,
+      "tests.test_photo_progress": 2,
+      "tests.test_photo_worker": 4,
+      "tests.test_place_geocoding": 6,
+      "tests.test_place_groups": 7,
+      "tests.test_place_journey": 42,
+      "tests.test_place_photo_browser": 42,
+      "tests.test_place_photo_pages": 6,
+      "tests.test_place_workspace": 16,
+      "tests.test_preview_jobs": 4,
+      "tests.test_private_draft_broker": 3,
+      "tests.test_private_drafts": 11,
+      "tests.test_private_rounds_postgres": 7,
+      "tests.test_product_namespace": 3,
+      "tests.test_profile_intake": 25,
+      "tests.test_profile_settings": 3,
+      "tests.test_publication": 3,
+      "tests.test_realtime_routes": 22,
+      "tests.test_recall": 22,
+      "tests.test_recall_browser": 7,
+      "tests.test_recall_usage": 2,
+      "tests.test_response_stage_index": 6,
+      "tests.test_runtime_configuration": 5,
+      "tests.test_security_and_lifecycle": 4,
+      "tests.test_shared_memory_browser": 16,
+      "tests.test_shared_memory_events_postgres": 98,
+      "tests.test_spec_contract_routes": 3,
+      "tests.test_spec_invariants": 16,
+      "tests.test_speech": 1,
+      "tests.test_speech_compose_config": 1,
+      "tests.test_speech_integration": 4,
+      "tests.test_stage_readiness": 3,
+      "tests.test_stage_readiness_browser": 2,
+      "tests.test_story_flow": 4,
+      "tests.test_story_payments": 11,
+      "tests.test_task_publisher": 3,
+      "tests.test_task_queue": 8,
+      "tests.test_task_runtime": 5,
+      "tests.test_temporal_dispatch": 1,
+      "tests.test_trajectory_evaluation": 26,
+      "tests.test_truncate_local_data": 4,
+      "tests.test_truncate_scope_contract": 1,
+      "tests.test_turn_stream": 22,
+      "tests.test_web_container_config": 1,
+      "tests.test_worker": 2,
+      "tests.test_workspace_latency": 12,
+      "tests.test_workspace_merge": 3
+    }
+  },
+  "standalone_browser_counts": {
+    "scenarios": 29,
+    "passed": 28,
+    "failed": 0,
+    "unconfirmed": 1,
+    "network_violations": 0
+  },
+  "standalone_browsers": [
+    {
+      "name": "browser_auth_reminder",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_auth_reminder.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 9.64,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_auth_reminder.json",
+      "log_sha256": "6381127cf4d8b127d5cb39f056d304563b1ba1fdd66f2321515024c300334018",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "939d617021e1bb013aac7541e01462b66b4fefabc2d0721a57554ac95dbb7f60"
+    },
+    {
+      "name": "browser_collection_review",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_collection_review.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 8.62,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_collection_review.json",
+      "log_sha256": "05baf846b9843f4da895721f3feeb5c186a7d0e36cea95747de3c57fe7f5052e",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "2817aab0c6086fa00113f35f51afad2a3bb0279786f5b232027b16f3ce86b65e"
+    },
+    {
+      "name": "browser_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033",
+        "--expect-thinking-steps"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 16.15,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_e2e.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "582b80c04b52dcac692a54a549c7a284d7c5eae536e480d6c169e6036979b980"
+    },
+    {
+      "name": "browser_family_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.42,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_family_e2e.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "06ed2d95553708d4802a7e2ce7569e0e039873f2fdab272c0f17d4d327c933eb"
+    },
+    {
+      "name": "browser_family_gate_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_gate_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.37,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_family_gate_e2e.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "81d4e9072079eb69b39b57d04f97facf218ccdf9e44b7021af37315559eec872"
+    },
+    {
+      "name": "browser_family_renderers_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_family_renderers_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.42,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_family_renderers_e2e.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "0363ea1cfe96cec4322b8b90f3309bd7c8befa2c9465abcb24b2a39976d912d9"
+    },
+    {
+      "name": "browser_fast_conversation_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_fast_conversation_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 4.23,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_fast_conversation_e2e.json",
+      "log_sha256": "4d893e8c1d0fa12885093f368c35968058f0e8b3535d1167559ee103a8d3bf81",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "cb9fb233c78855696f163e37416c355cff390974574ef2f3058c89b75ae78afa"
+    },
+    {
+      "name": "browser_first_reply_localization",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_first_reply_localization.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 3.1,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_first_reply_localization.json",
+      "log_sha256": "0e3fd7a6f83695a22d5e8549bdf9f418472ab73d900e3b4ce91a90fd07c749c7",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "763a81bd66d1c0af67c9238d905bde0087431038eac65b2fd734f64fd317822e"
+    },
+    {
+      "name": "browser_localization_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_localization_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 10.96,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_localization_e2e.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "c235e92a274d38a3a2b0285c0c99feac41a462e74aea25fbbfa31af9759589f9"
+    },
+    {
+      "name": "browser_memoir_progressive_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_memoir_progressive_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033",
+        "--locale",
+        "all"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 94.12,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_memoir_progressive_e2e.json",
+      "log_sha256": "87ac2eeb0dfd26220b61f10fd568e00f4aba47e9701c3ca0b422134d5439c798",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "b2d4b455f7ff6a89a556d22086455b81399c1a046179e3f3e6ce70413c483d9f"
+    },
+    {
+      "name": "browser_photo_progress_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_photo_progress_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 4.24,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_photo_progress_e2e.json",
+      "log_sha256": "1f93f6eb0c2de5273a8cc82ce3b76c173ac29f23454b6fc4e6dd57164a459cae",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "e3acf432b33fc098b8c8fdee1dc58dabdb1c12f99d4a7c1bed4e55a5ab7156e5"
+    },
+    {
+      "name": "browser_photo_progress_e2e-blocked",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_photo_progress_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033",
+        "--blocked"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 4.11,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_photo_progress_e2e-blocked.json",
+      "log_sha256": "aa272d2594a5fcf3628be4c36bb57d4168b516c926881e847d7a6a28bc0fa2fa",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "e3acf432b33fc098b8c8fdee1dc58dabdb1c12f99d4a7c1bed4e55a5ab7156e5"
+    },
+    {
+      "name": "browser_place_groups_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_groups_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 10.93,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_place_groups_e2e.json",
+      "log_sha256": "94e135380c7fc27e4a127ef1e108ea5c0dc86ba598fb41a0ed42ae411fb06e9f",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "5f58411f63388b98c7737ce4ec3f3c5f97f8dad340badb6c0ade78e465c1bba8"
+    },
+    {
+      "name": "browser_place_map_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_map_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 9.73,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_place_map_e2e.json",
+      "log_sha256": "012edb086cd444d99699ce49bda397f2842f77eaf6490c02b626a529bdbacf07",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "bc96a5d95d861329493dce390793505463919460658e6d0b98ae762db1884e58"
+    },
+    {
+      "name": "browser_place_map_e2e-gallery",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_map_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033",
+        "--with-gallery"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 10.77,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_place_map_e2e-gallery.json",
+      "log_sha256": "012edb086cd444d99699ce49bda397f2842f77eaf6490c02b626a529bdbacf07",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "bc96a5d95d861329493dce390793505463919460658e6d0b98ae762db1884e58"
+    },
+    {
+      "name": "browser_place_photo_pagination",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_photo_pagination.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 8.63,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_place_photo_pagination.json",
+      "log_sha256": "2dbb66ca52d5cfd3f12cca424187f6062ec93bf4434336eff4ac6ae41091149f",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "4eca0be49a010ba79eeb8d5d531111cc454ca2c6ddbd3a67f67fe767656d71b9"
+    },
+    {
+      "name": "browser_place_photos_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_photos_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 3.91,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_place_photos_e2e.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "1f5757278f2d83f9bcfc46a895dea2508caf8dd324996944c396ba68e26c1081"
+    },
+    {
+      "name": "browser_place_preview_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_place_preview_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 7.78,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_place_preview_e2e.json",
+      "log_sha256": "2ce282de39e1316b89e31a6423f5915f0fa7a8ea148ec41b9264fff96ac90de2",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "d5ffc947ead26e55d2411e4b296244302be91732346b582e740bfed776d9a341"
+    },
+    {
+      "name": "browser_profile_history",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_profile_history.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.48,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_profile_history.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "c832257724394e43dc039329107074e11b0b37d2bfa191855d89539de68e4ccf"
+    },
+    {
+      "name": "browser_profile_settings",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_profile_settings.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 3.08,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_profile_settings.json",
+      "log_sha256": "df6f4be82450c5a32581c8cffb2df0eda88cd05a3a0f938b7d1e5308baad46eb",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "a3ac51fa031203eb137107d6db88f16f40a3800db8eab37fe86fc9af90209efb"
+    },
+    {
+      "name": "browser_smoke",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_smoke.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.65,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_smoke.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "3f2f3062ab22770a8b47cd0fae23e810e966d3ae8d0a452960dc3fe048e25fe5"
+    },
+    {
+      "name": "browser_start_flow",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_start_flow.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 4.97,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_start_flow.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "beeaf1277580b1ee6bd0f1448243c5e95bbb43d60e0f5e8ebf2cb59902a2349d"
+    },
+    {
+      "name": "browser_streaming_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_streaming_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 4.29,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_streaming_e2e.json",
+      "log_sha256": "d1ca023c95cc1f66b710d8ab60ada813911761c299ca33c392e933f27071fd19",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "8dfb642674459d0c9146f4b988326cf609d535bced002d7d97ae4b21c13f9a6f"
+    },
+    {
+      "name": "browser_ten_round_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_ten_round_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033",
+        "--locale",
+        "all"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 30.61,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_ten_round_e2e.json",
+      "log_sha256": "ae988f6e3240eaf0d36c7d5b0190733143ff987096de463e42a1aa37adb6d49a",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "e76f46821aad6c3e9a7c9ee8ab0c6fbe60f25766a9248be9d456179728561e57"
+    },
+    {
+      "name": "browser_thirty_round_e2e",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_thirty_round_e2e.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 53.77,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_thirty_round_e2e.json",
+      "log_sha256": "558c202b77cc3ba1903ce660e24b476804232cf272d344b66e6580820535cf06",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "06e73b55c0aa8c858ee76d4ddb9eb75eb9f79adf78b85bd29b8e7ec20b07c06e"
+    },
+    {
+      "name": "browser_voice_controls",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_voice_controls.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.54,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_voice_controls.json",
+      "log_sha256": "11406aec3f111aebefbebbd9d9bb398b74ac4e55c5261c84cc88d18c7b0682f8",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "253b137095e7c8bc1cb7b4f88ca2483378ad21f304abb07eec475b2aa60ac144"
+    },
+    {
+      "name": "browser_workspace_gate",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_workspace_gate.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.37,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_workspace_gate.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "90e5e036dfee4edcc3384f575d845c786e6ad02211b7d49e1040822682bb1c80"
+    },
+    {
+      "name": "browser_workspace_image_lifecycle",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_workspace_image_lifecycle.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": null,
+      "runner_exit_code": 1,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "result": "unconfirmed: runner Git HEAD lookup aborted with SIGABRT before saving receipt",
+      "local_supervisor_log": "output/mac-validation/browser_workspace_image_lifecycle-supervisor.log",
+      "supervisor_log_sha256": "cc638edbb947887f88089c755a18e86a2fa248ad22436e29bf7c52605cb98b67",
+      "prior_pass_receipt_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "prior_receipt_is_not_this_attempt": true,
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "6d602a27ff7d02bd72b936c51c807851ff3899e3e833f3d00c8409880f88f2a7"
+    },
+    {
+      "name": "browser_workspace_responsive",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "tests/browser_workspace_responsive.py",
+        "--base-url",
+        "http://127.0.0.1:52033"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 16.71,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/browser_workspace_responsive.json",
+      "log_sha256": "3072d94c64ce6d6606eb00de28a761b414b7644397dc04e34c06ca36f5e4968d",
+      "network": {
+        "allowed_origins": [
+          "http://127.0.0.1:52032",
+          "http://127.0.0.1:52033"
+        ],
+        "synthetic_profile_fixture": true,
+        "synthetic_photo_lookup_fixture": true,
+        "blocked": []
+      },
+      "test_source_sha256": "c8ddfcc841b236d2366b40812d45e875c81bb6ecb23b7a91ee9a86e4ff8ad576"
+    }
+  ],
+  "other_checks": [
+    {
+      "name": "js-all-confirmation",
+      "command": [
+        "node",
+        "--test",
+        "skills/memoir-composer/tests/composer.test.mjs",
+        "skills/memoir-composer/tests/progressive_e2e.test.mjs",
+        "tests/js/auth-reminder.test.mjs",
+        "tests/js/auth-session-menu.test.mjs",
+        "tests/js/chat-layout.test.mjs",
+        "tests/js/conversation-locale.test.mjs",
+        "tests/js/dates.test.mjs",
+        "tests/js/family-tree.test.mjs",
+        "tests/js/guest-conversation-transfer.test.mjs",
+        "tests/js/i18n-config.test.mjs",
+        "tests/js/i18n-fallback.test.mjs",
+        "tests/js/interview-project-restore.test.mjs",
+        "tests/js/live-trace.test.mjs",
+        "tests/js/memoir-workspace.test.mjs",
+        "tests/js/place-groups.test.mjs",
+        "tests/js/place-history.test.mjs",
+        "tests/js/place-photo-fallback.test.mjs",
+        "tests/js/place-photo-pagination.test.mjs",
+        "tests/js/place-photo-period.test.mjs",
+        "tests/js/recall-preview-progress.test.mjs",
+        "tests/js/stream-latency.test.mjs",
+        "tests/js/timeline-uncertainty.test.mjs",
+        "tests/js/workspace-visibility.test.mjs"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.56,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/js-all-confirmation.json",
+      "log_sha256": "e5fd1011570c4105b353b374743279f71876a76f009631bef5319f058dec0c8d",
+      "counts": {
+        "tests": 173,
+        "pass": 173,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "python-compile-final",
+      "command": [
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "apps",
+        "scripts",
+        "tests"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.86,
+      "base_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "local_receipt": "output/mac-validation/python-compile-final.json",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "localization-catalog-final",
+      "command": [
+        "python",
+        "scripts/check_localization_catalog.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.08,
+      "base_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "local_receipt": "output/mac-validation/localization-catalog-final.json",
+      "log_sha256": "a2bc43dbff07d9d89bc638f017fd1c9e5c2a29e227d8c9e521bd6f9340d64f77"
+    },
+    {
+      "name": "localization-icu-final",
+      "command": [
+        "node",
+        "apps/web/scripts/check_localization_icu.mjs"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.06,
+      "base_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "local_receipt": "output/mac-validation/localization-icu-final.json",
+      "log_sha256": "515963c276678fd507134c4998619d40c025ecda80f136411204e7b107f87c6e"
+    },
+    {
+      "name": "spec-routes-final",
+      "command": [
+        "python",
+        "scripts/audit_spec_routes.py"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.92,
+      "base_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "local_receipt": "output/mac-validation/spec-routes-final.json",
+      "log_sha256": "2a6730c7cfdcacc031d97ddd5362d60e80250a8256b3fc60ad4d78d8ca9fa5d0"
+    },
+    {
+      "name": "production-build-isolated-api",
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/web",
+        "run",
+        "build"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.19,
+      "base_head": "23a44d314c0c604397182176dfa9c88adef65f0b",
+      "local_receipt": "output/mac-validation/production-build-isolated-api.json",
+      "log_sha256": "72d922093da34c0960805de96e99ace95d3b06ac0fb85602c5345fc4becd0ed3"
+    }
+  ],
+  "earlier_attempts": [
+    {
+      "name": "focused-base",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_integrated_timeline_contracts.py",
+        "tests/test_codex_agent.py",
+        "tests/test_codex_worker.py",
+        "tests/test_profile_intake.py",
+        "tests/test_family_agent.py",
+        "tests/test_memoir_five_case_evaluator.py",
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_turn_stream.py",
+        "tests/test_memoir_skill_configuration.py",
+        "--junitxml=output/mac-validation/focused-base.xml"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.32,
+      "base_head": "d11a25389edabfd5e0f5d0e92a74174b0bf7badb",
+      "local_receipt": "output/mac-validation/focused-base.json",
+      "log_sha256": "6446549c16927b2e8cc3f4421505d08a6f8a51aefaddc1acf53bec13a5268d52",
+      "xml_sha256": "762575dde1f78bb9bf3223ed0dbc2fa9ea378891427a7827ca8e7fd42b0272a1",
+      "counts": {
+        "tests": 217,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 217
+      },
+      "skipped_cases": [],
+      "failed_case_ids": []
+    },
+    {
+      "name": "postgres-native",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_agent_commit_postgres.py",
+        "tests/test_private_rounds_postgres.py",
+        "tests/test_shared_memory_events_postgres.py",
+        "--junitxml=output/mac-validation/postgres-native.xml"
+      ],
+      "exit_code": 1,
+      "duration_seconds": 183.6,
+      "base_head": "d11a25389edabfd5e0f5d0e92a74174b0bf7badb",
+      "local_receipt": "output/mac-validation/postgres-native.json",
+      "log_sha256": "24bd7f5665e5fd9ddf4d0e07a0cc640b003a203e34dbfca2fcb110de53c3e572",
+      "xml_sha256": "08f345f0ba7f4cb570c8de61336bb3b28a13386861311b6065a95a3b97f6f1e6",
+      "counts": {
+        "tests": 110,
+        "failures": 3,
+        "errors": 34,
+        "skipped": 0,
+        "passed": 73
+      },
+      "skipped_cases": [],
+      "failed_case_ids": [
+        "tests.test_shared_memory_events_postgres::test_genuine_storyline_enrichment_preserves_unrelated_passages_exactly",
+        "tests.test_shared_memory_events_postgres::test_proposal_only_evidence_changes_remove_the_proposal_and_fence_older_workers[tag]",
+        "tests.test_shared_memory_events_postgres::test_saved_legacy_composer_cache_is_imported_with_stable_event_and_section_references[storyline-memory_preview]"
+      ]
+    },
+    {
+      "name": "postgres-all-final",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_agent_commit_postgres.py",
+        "tests/test_private_rounds_postgres.py",
+        "tests/test_guest_conversation_transfer.py",
+        "tests/test_recall_usage.py",
+        "tests/test_shared_memory_events_postgres.py",
+        "--junitxml=output/mac-validation/postgres-all-final.xml"
+      ],
+      "exit_code": 1,
+      "duration_seconds": 42.09,
+      "base_head": "23a44d314c0c604397182176dfa9c88adef65f0b",
+      "local_receipt": "output/mac-validation/postgres-all-final.json",
+      "log_sha256": "caa8a4d7166cb8cf14b865e24c95363b531b428fbcf12579dfff3c82a9693c4b",
+      "xml_sha256": "4da2ad59a1c96a7f40f131f91c8ddecb11bb77db1eaf1ee0ca5e4f6c3d472068",
+      "counts": {
+        "tests": 124,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 123
+      },
+      "skipped_cases": [],
+      "failed_case_ids": [
+        "tests.test_shared_memory_events_postgres::test_recomposed_storylines_hide_changed_evidence_and_reuse_only_surviving_passages[withdraw]"
+      ]
+    },
+    {
+      "name": "postgres-protected-draft-recheck",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_shared_memory_events_postgres.py::test_protected_draft_keeps_its_bytes_and_saves_enrichment_as_a_revision_bound_proposal",
+        "--junitxml=output/mac-validation/postgres-protected-draft-recheck.xml"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 4.41,
+      "base_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "local_receipt": "output/mac-validation/postgres-protected-draft-recheck.json",
+      "log_sha256": "3cb903983e31d7e01c04b147ee8122cf524623922ad760c06b5a35e6e2075794",
+      "xml_sha256": "1648520fe4579ff1fae349993da9126e71b3b5ebc1964fe4f87f5e1e1507e4cf",
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 1
+      },
+      "skipped_cases": [],
+      "failed_case_ids": []
+    },
+    {
+      "name": "python-native-full-final",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "pytest",
+        "-q",
+        "--junitxml=output/mac-validation/python-native-full-final.xml"
+      ],
+      "exit_code": 1,
+      "duration_seconds": 272.4,
+      "base_head": "866e4341f2ccd961f9ccae85ec413ef0542dedd8",
+      "local_receipt": "output/mac-validation/python-native-full-final.json",
+      "log_sha256": "bb48b4a313a1d1a7f5cc2c6f7f8008916836ce91144c7ad4d5a6c590600573bd",
+      "xml_sha256": "327c693d4b1145107df8b1514cf4048097c093d3e5947fead39acb2584366932",
+      "counts": {
+        "tests": 975,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 4,
+        "passed": 970
+      },
+      "skipped_cases": [
+        {
+          "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[current-message-zh-CN]",
+          "reason": "Opt-in live model evaluation; requires the configured application provider"
+        },
+        {
+          "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[current-message-en-AU]",
+          "reason": "Opt-in live model evaluation; requires the configured application provider"
+        },
+        {
+          "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[earlier-context-zh-CN]",
+          "reason": "Opt-in live model evaluation; requires the configured application provider"
+        },
+        {
+          "id": "tests.test_interview_followups::test_live_followup_builds_on_the_known_catch[earlier-context-en-AU]",
+          "reason": "Opt-in live model evaluation; requires the configured application provider"
+        }
+      ],
+      "failed_case_ids": [
+        "tests.test_shared_memory_events_postgres::test_protected_draft_keeps_its_bytes_and_saves_enrichment_as_a_revision_bound_proposal"
+      ]
+    },
+    {
+      "name": "native-failure-boundaries-recheck",
+      "command": [
+        "python",
+        "tests/fixtures/browser_network_guard.py",
+        "pytest",
+        "-q",
+        "tests/test_memoir_lanes_temporal.py::test_real_temporal_worker_interruption_recovers_failed_range_without_new_turn[timeline]",
+        "tests/test_shared_memory_browser.py::test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops[extraction-retry-5]",
+        "tests/test_shared_memory_events_postgres.py::test_genuine_storyline_enrichment_preserves_unrelated_passages_exactly",
+        "tests/test_shared_memory_events_postgres.py::test_unchanged_checkpoint_advances_coverage_without_new_prose_or_revision",
+        "tests/test_shared_memory_events_postgres.py::test_bounded_partition_preparation_reuses_successes_after_provider_failure[True]",
+        "--junitxml=output/mac-validation/native-failure-boundaries-recheck.xml"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 16.5,
+      "base_head": "4529258ad0f5a88e5c5fc019789c8f6f69f756ff",
+      "local_receipt": "output/mac-validation/native-failure-boundaries-recheck.json",
+      "log_sha256": "401e9ebf6f095e2907f35e916d2bfb1345f26eb3c52871afe51e31eec78589f4",
+      "xml_sha256": "b0526e576ca65cbcfaa900558287488c31581a71df66255a0b67b000ca02f5cc",
+      "counts": {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 5
+      },
+      "skipped_cases": [],
+      "failed_case_ids": []
+    }
+  ],
+  "earlier_browser_batch": {
+    "scenarios": 29,
+    "passed": 26,
+    "failed": 3,
+    "failures": [
+      "browser_place_photo_pagination",
+      "browser_thirty_round_e2e",
+      "browser_workspace_responsive"
+    ],
+    "local_receipt": "output/mac-validation/browser-scripts-final-first-batch.json"
+  },
+  "host_resource_failure": {
+    "errno": 23,
+    "symbol": "ENFILE",
+    "observed_at": "os.pipe() during the third controlled composer subprocess launch",
+    "affected_attempt": "python-native-full-final",
+    "targeted_unchanged_recheck": "postgres-protected-draft-recheck",
+    "unknown_cleanup_or_host_settings_changes": false
+  },
+  "postgres_fixture": {
+    "image": "docker.io/library/postgres:18.3",
+    "index_digest": "sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db",
+    "uuid_named": true,
+    "tcp_enabled": false,
+    "published_ports": [],
+    "shared_mounts": []
+  },
+  "proxy_audit": {
+    "prior_memoir_profile_GET_404": 5,
+    "prior_memoir_projects_POST_404": 5,
+    "successful_project_or_model_effect_evidenced": false,
+    "attribution": "inferred from namespace, counts and ordering; records lack request timestamps/IDs",
+    "shared_service_writes_restarts_or_additional_probes": false
+  },
+  "preserved_checkouts": {
+    "/Users/bohuihan/memoir": {
+      "unchanged": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "before": {
+        "status_sha256": "ce1a5fb5090eed3eff8739e45e25df44cc48c1485962dc97baa0eba70fb13f14",
+        "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0",
+        "head": "c6a990aa499eb63fe1d6407e4082462200598c0d"
+      },
+      "after": {
+        "head": "c6a990aa499eb63fe1d6407e4082462200598c0d",
+        "status_sha256": "ce1a5fb5090eed3eff8739e45e25df44cc48c1485962dc97baa0eba70fb13f14",
+        "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0"
+      }
+    },
+    "/tmp/memoir-issue2-integration": {
+      "unchanged": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "before": {
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061"
+      },
+      "after": {
+        "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "/tmp/memoir-issue6": {
+      "unchanged": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "-z"
+      ],
+      "before": {
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "head": "84366778f50495d065e794a00f16184d16dc4216"
+      },
+      "after": {
+        "head": "84366778f50495d065e794a00f16184d16dc4216",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "cleanup": {
+    "owned_services": [
+      {
+        "name": "api",
+        "pid": 50295,
+        "pgid": 50295,
+        "port": 52032,
+        "signal": "SIGTERM",
+        "stopped": true,
+        "listener_present": false
+      },
+      {
+        "name": "web",
+        "pid": 50332,
+        "pgid": 50332,
+        "port": 52033,
+        "signal": "SIGTERM",
+        "stopped": true,
+        "listener_present": false
+      }
+    ],
+    "postgres_fixture_containers_remaining": 0,
+    "temporal_contexts_exited": true,
+    "unknown_processes_or_IPC_removed": false,
+    "worktree_retained": true
+  },
+  "remaining_gate": [
+    "Reliable whole-suite native completion; two full attempts failed",
+    "Confirm the image-lifecycle scenario after its Mac receipt lookup aborted",
+    "Independent cloud review of the final published head",
+    "Live provider/source-claim pilot and five separate 50-round datasets",
+    "Durable Langfuse ClickHouse DateTime64 readback and available judge configuration"
+  ]
+}

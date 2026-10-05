@@ -75,5 +75,23 @@ def resolve_place_groups(places):
             pin = None
         records.append({'index': index, 'city_key': _key(city), 'city': city, 'pin': pin,
                         'pin_status': 'READY' if pin else 'UNRESOLVED'})
+    # A coarse city mention can omit the state that a later mention supplies.
+    # Complete it only when the same country/name has one unambiguous full path;
+    # conflicting regional names remain separate. Source places and pins stay intact.
+    for record in records:
+        city = record['city']
+        path = [_label(label) for label in _path(city)]
+        if city['granularity'] != 'city' or len(path) != 2:
+            continue
+        matches = {}
+        for candidate in records:
+            full = candidate['city']
+            full_path = [_label(label) for label in _path(full)]
+            if (full['granularity'] == 'city' and len(full_path) > 2
+                    and full_path[0] == path[0] and full_path[-1] == path[-1]):
+                matches[_key(full)] = full
+        if len(matches) == 1:
+            record['city_key'], full = next(iter(matches.items()))
+            record['city'] = deepcopy(full)
     return {'schema_version': 1, 'skills': ['memoir-place-groups'], 'places': records,
             'status': 'READY' if all(record['pin'] for record in records) else 'PARTIAL'}

@@ -42,7 +42,7 @@ Do not conflate composition with publication. Formal composition creates a whole
 
 ## 3. Chapter planning before drafting
 
-Create an event table with canonical event IDs, personal evidence, approximate timing, place/person associations and media references. Resolve duplicate events, not just identical sentences. Repeated discussions of the same factory job should enrich one event rather than look like five jobs.
+Read the shared MemoryEvent table with canonical IDs, original evidence, approximate timing, person associations and media references. Event reconciliation belongs to the author-timeline lane. Composer records discrepancies for review rather than deduplicating or retagging the index. Repeated discussions enrich the same canonical event only when its source-backed identity is established.
 
 Build a chronological order from explicit dates and before/after relationships. Overlapping uncertain intervals do not imply a precise order. Keep that uncertainty in period labels; choose a readable provisional sequence with a review note rather than invent dates. Any ordering cycle becomes a review issue.
 

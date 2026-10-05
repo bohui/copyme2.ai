@@ -7,10 +7,11 @@ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',
 
 test('life-stage labels do not suppress the automatic photo request', async () => {
   for (const when of ['青年时期', '婴儿时期', 'young adulthood', undefined]) {
-    const entry = {place: '承德', hierarchy: ['Earth', '中国', '河北', '承德']};
+    const entry = {place: '承德', hierarchy: ['Earth', '中国', '河北', '承德'], latitude: 40.98, longitude: 117.94};
     const requests = [];
     const saved = [];
-    const item = {asset_id: 'crawl4ai-one', image_url: 'https://images.example/one.jpg', allowed_actions: {embed: true}};
+    const item = {asset_id: 'crawl4ai-one', image_url: 'https://images.example/one.jpg', allowed_actions: {embed: true},
+      date_expression: new Date().toISOString().slice(0, 10), latitude: 40.98, longitude: 117.94};
     const context = vm.createContext({
       state: {project: {id: 'project'}, placeJourney: entry}, URLSearchParams, workspaceUpdateQueue: Promise.resolve(),
       URL, window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
@@ -20,7 +21,7 @@ test('life-stage labels do not suppress the automatic photo request', async () =
       placeHistoryKey: place => place.place,
       saveProfileUpdates: async updates => saved.push(updates), render: () => {},
     });
-    for (const name of ['photoSearchPeriod', 'mergePlacePictures', 'loadPlacePictures']) {
+    for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
       vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
     }
     await context.loadPlacePictures(entry, 'project');

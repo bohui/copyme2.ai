@@ -10,8 +10,10 @@ from apps.api.trajectory_evaluation import (
     EVALUATION_RUBRIC_VERSION,
     LangfusePublisher,
     MemoirEvaluationRunner,
+    OpenAICompatibleJudge,
     TrajectoryRecorder,
     build_judge_input,
+    build_judge_prompt,
     comparison_matrix,
     evaluate_trajectory,
     load_judge_calibration,
@@ -64,6 +66,96 @@ def test_recorder_adds_pre_action_context_normalized_actions_and_reports_overflo
     }
     scores = evaluate_trajectory(recorder.payload(), expected={"max_steps": 1})
     assert next(score for score in scores if score["name"] == "step_budget")["value"] == 0
+
+
+def test_recorder_preserves_external_worker_linkage_and_tool_arguments():
+    recorder = TrajectoryRecorder({"run_id": "run-1", "case_id": "case-1"})
+    recorder.append_external([
+        {
+            "step_id": "worker-step-0007",
+            "sequence": 7,
+            "phase": "codex.turn",
+            "action": "tool.call",
+            "tool_name": "memory.search",
+            "tool_arguments": {"query": "Hobart", "limit": 3},
+            "observation": {
+                "id": "worker-observation-7",
+                "parent_id": "worker-observation-root",
+                "trace_id": "worker-trace-1",
+                "span_id": "worker-span-7",
+            },
+            "output": {"items": [{"id": "memory-1"}]},
+        },
+    ], source="codex-worker")
+
+    step = recorder.payload()["steps"][0]
+    assert step["external_step_id"] == "worker-step-0007"
+    assert step["observation_id"] == "worker-observation-7"
+    assert step["parent_observation_id"] == "worker-observation-root"
+    assert step["trace_id"] == "worker-trace-1"
+    assert step["span_id"] == "worker-span-7"
+    assert step["tool_name"] == "memory.search"
+    assert step["normalized_action"]["arguments"] == {"limit": 3, "query": "Hobart"}
+    assert step["output"] == {"items": [{"id": "memory-1"}]}
+
+
+def test_external_event_id_is_not_promoted_to_observation_linkage():
+    recorder = TrajectoryRecorder()
+    recorder.append_external([
+        {
+            "id": "worker-event-1",
+            "action": "worker.completed",
+            "output": {"ok": True},
+        },
+    ], source="codex-worker")
+
+    step = recorder.payload()["steps"][0]
+    assert step.get("external_step_id") is None
+    assert "observation_id" not in step
+
+
+def test_protocol_tool_events_normalize_tool_name_and_arguments():
+    recorder = TrajectoryRecorder()
+    recorder.record_protocol({
+        "method": "item/completed",
+        "params": {
+            "item": {
+                "type": "dynamicToolCall",
+                "tool": "memory.search",
+                "arguments": {"query": "Hobart", "limit": 2},
+            },
+        },
+    }, phase="codex.turn")
+
+    step = recorder.payload()["steps"][0]
+    assert step["normalized_action"] == {
+        "name": "item/completed",
+        "category": "tool",
+        "tool_name": "memory.search",
+        "arguments": {"limit": 2, "query": "Hobart"},
+    }
+
+
+def test_deterministic_evaluator_can_require_worker_observation_linkage():
+    recorder = TrajectoryRecorder()
+    recorder.append_external([
+        {
+            "step_id": "worker-step-1",
+            "phase": "codex",
+            "action": "tool.call",
+            "tool_name": "search",
+            "tool_arguments": {"query": "Hobart"},
+            "observation_id": "worker-observation-1",
+            "parent_observation_id": "worker-root",
+        },
+    ], source="codex-worker")
+    recorder.finish("done")
+
+    scores = evaluate_trajectory(
+        recorder.payload(),
+        expected={"require_observation_linkage": True},
+    )
+    assert next(score for score in scores if score["name"] == "observation_linkage")["value"] == 1
 
 
 def test_provider_payload_minimizes_storyteller_text_and_identifiers():
@@ -174,6 +266,44 @@ def test_judge_input_contains_ordered_steps_and_terminal_state():
     assert "final_response_quality" in judge_input["rubric"]
 
 
+def test_openai_compatible_judge_uses_template_and_records_safe_usage(monkeypatch):
+    async def run():
+        def handle(request):
+            payload = json.loads(request.content)
+            assert "custom evaluator instructions" in payload["messages"][1]["content"]
+            assert payload["max_tokens"] == 1200
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [{"message": {"content": json.dumps({
+                        "status": "scored",
+                        "scores": {category: 1 for category in (
+                            "tool_appropriateness", "evidence_use", "recovery", "repetition",
+                            "stopping", "instruction_adherence", "final_response_quality",
+                        )},
+                        "comments": {},
+                        "evidence": ["step-0001"],
+                    })}}],
+                    "usage": {"prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20},
+                },
+            )
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        monkeypatch.setattr("apps.api.trajectory_evaluation.httpx.AsyncClient", lambda **kwargs: client)
+        judge = OpenAICompatibleJudge(
+            base_url="http://judge",
+            model="configured-model",
+            instructions="custom evaluator instructions",
+        )
+        result = await judge({"ordered_steps": [{"step_id": "step-0001"}]})
+        assert result["status"] == "scored"
+        assert judge.calls == 1
+        assert judge.last_call["usage"]["total_tokens"] == 20
+        await client.aclose()
+
+    asyncio.run(run())
+
+
 def test_judge_calibration_requires_explicit_human_review():
     example = {
         "case_id": "place-cue-grounded",
@@ -208,6 +338,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "case_id": "case-1",
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
+                "request_id": "diag-test-1",
             }
             connection.events.append({
                 "method": "item/completed",
@@ -231,6 +362,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "case_id": "case-1",
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
+                "request_id": "diag-test-1",
             },
         ) == "done"
 
@@ -269,6 +401,198 @@ class _LangfuseDouble:
 
     def flush(self):
         self.flushed = True
+
+
+class _UnauthenticatedLangfuseDouble:
+    def auth_check(self):
+        return False
+
+
+def test_langfuse_publisher_fails_closed_when_auth_check_fails():
+    with pytest.raises(RuntimeError, match="authentication check failed"):
+        LangfusePublisher(_UnauthenticatedLangfuseDouble())
+
+
+class _TreeObservation:
+    def __init__(self, observation_id, trace_id="trace-tree"):
+        self.id = observation_id
+        self.trace_id = trace_id
+        self.updated = []
+        self.ended = False
+
+    def update(self, **kwargs):
+        self.updated.append(kwargs)
+
+    def end(self):
+        self.ended = True
+
+
+class _TreeLangfuseDouble:
+    def __init__(self):
+        self.root = _TreeObservation("root-observation")
+        self.children = []
+        self.scores = []
+        self.flushed = False
+
+    def start_as_current_observation(self, **kwargs):
+        self.root.start_kwargs = kwargs
+        return self.root
+
+    def start_observation(self, **kwargs):
+        child = _TreeObservation(f"child-{len(self.children) + 1}")
+        self.children.append((kwargs, child))
+        return child
+
+    def create_score(self, **kwargs):
+        self.scores.append(kwargs)
+
+    def flush(self):
+        self.flushed = True
+
+
+def test_langfuse_publisher_creates_step_observations_and_targets_step_scores():
+    client = _TreeLangfuseDouble()
+
+    async def task(case, correlation):
+        recorder = TrajectoryRecorder(correlation)
+        recorder.record(
+            "codex",
+            "tool.call",
+            input={"name": "memory.search", "arguments": {"query": "private story"}},
+            output={"count": 1},
+        )
+        recorder.finish("done")
+        return {"trajectory": recorder.payload()}
+
+    def evaluator(_trajectory, *, expected):
+        return [
+            {"name": "step_quality", "value": 1, "step_id": "step-0001"},
+            {"name": "run_quality", "value": 1},
+        ]
+
+    runner = MemoirEvaluationRunner(task, publisher=LangfusePublisher(client), evaluator=evaluator)
+    result = asyncio.run(runner.run_case({"id": "case-1", "input": {"text": "hello"}}, run_id="run-1"))
+
+    assert len(client.children) == 1
+    child_kwargs, child = client.children[0]
+    assert child_kwargs["name"] == "tool.call"
+    assert child_kwargs["metadata"]["trajectory_step_id"] == "step-0001"
+    assert child_kwargs["input"]["normalized_action"]["tool_name"] == "memory.search"
+    assert "private story" not in json.dumps(child_kwargs)
+    assert child.ended
+    assert {score["observation_id"] for score in client.scores} == {"child-1", "root-observation"}
+    assert result["langfuse"]["step_observations"] == {"step-0001": "child-1"}
+    assert client.flushed
+
+
+def test_langfuse_scores_use_worker_trace_pair_and_round_identity():
+    client = _LangfuseDouble()
+    publisher = LangfusePublisher(client)
+    trajectory = {
+        "schema_version": "memoir-trajectory/1",
+        "steps": [{
+            "step_id": "step-0001",
+            "sequence": 1,
+            "phase": "codex",
+            "action": "tool.call",
+            "observation_id": "worker-observation-1",
+            "trace_id": "worker-trace-1",
+            "output": {"ok": True},
+        }],
+        "final": {"status": "completed", "response": "done"},
+    }
+
+    for round_id in ("001", "002"):
+        with publisher.case(
+            name=f"round-{round_id}",
+            task={"case_id": "case-1", "round": round_id},
+            correlation={"run_id": "run-1", "case_id": "case-1", "round_id": round_id},
+        ) as sink:
+            sink.publish(trajectory, [{"name": "step_quality", "value": 1, "step_id": "step-0001"}])
+
+    assert [score["trace_id"] for score in client.scores] == ["worker-trace-1", "worker-trace-1"]
+    assert [score["observation_id"] for score in client.scores] == ["worker-observation-1", "worker-observation-1"]
+    assert client.scores[0]["score_id"] != client.scores[1]["score_id"]
+
+
+def test_langfuse_publisher_supports_final_flush_after_case_scope():
+    client = _LangfuseDouble()
+    client.flushed = False
+
+    LangfusePublisher(client).flush()
+
+    assert client.flushed
+
+
+def test_protocol_item_lifecycle_pair_counts_one_successful_tool_call():
+    recorder = TrajectoryRecorder()
+    for method in ("item/started", "item/completed"):
+        recorder.record_protocol({
+            "method": method,
+            "params": {
+                "item": {
+                    "id": "item-1",
+                    "type": "mcpToolCall",
+                    "tool": "memory.search",
+                    "arguments": {"query": "Hobart"},
+                },
+            },
+        }, phase="codex.turn")
+    recorder.finish("done")
+
+    scores = evaluate_trajectory(recorder.payload(), expected={"max_repeated_success": 1})
+    assert next(score for score in scores if score["name"] == "repetition_control")["value"] == 1
+
+
+def test_reasoning_protocol_items_are_filtered_before_trajectory_export():
+    recorder = TrajectoryRecorder()
+    recorder.record_protocol({
+        "method": "item/completed",
+        "params": {
+            "item": {
+                "id": "reasoning-1",
+                "type": "reasoning",
+                "summary": "private chain of thought",
+                "content": [{"text": "private hidden reasoning"}],
+            },
+        },
+    }, phase="codex.turn")
+
+    payload = recorder.payload()
+    encoded = json.dumps(payload)
+    assert "private chain of thought" not in encoded
+    assert "private hidden reasoning" not in encoded
+    assert "private chain of thought" not in json.dumps(minimize_for_langfuse(payload))
+    item = payload["steps"][0]["output"]["params"]["item"]
+    assert item["type"] == "reasoning"
+    assert item["summary"] == {"redacted": "private-reasoning"}
+
+
+def test_reasoning_delta_notifications_are_filtered_before_recording_and_minimization():
+    recorder = TrajectoryRecorder()
+    private_values = []
+    for method in ("item/reasoning/summaryTextDelta", "item/reasoning/textDelta"):
+        private_value = f"private {method} content"
+        private_values.append(private_value)
+        recorder.record_protocol({
+            "method": method,
+            "params": {
+                "delta": {
+                    "text": private_value,
+                    "nested": [{"summary": private_value}],
+                },
+                "itemId": "reasoning-1",
+            },
+        }, phase="codex.turn")
+
+    payload = recorder.payload()
+    encoded = json.dumps(payload)
+    minimized = json.dumps(minimize_for_langfuse(payload))
+    for private_value in private_values:
+        assert private_value not in encoded
+        assert private_value not in minimized
+    for step in payload["steps"]:
+        assert step["output"]["params"]["delta"] == {"redacted": "private-reasoning"}
 
 
 def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
@@ -335,6 +659,26 @@ def test_runner_can_add_a_semantic_judge_and_compare_variants():
     assert all(result["correlation"]["evaluator_version"] == EVALUATION_RUBRIC_VERSION for result in results)
 
 
+def test_unavailable_judge_is_separate_from_deterministic_acceptance_evidence():
+    async def unavailable(_judge_input):
+        raise httpx.ConnectError("judge unavailable")
+
+    async def task(case, correlation):
+        recorder = TrajectoryRecorder(correlation)
+        recorder.record("application", "memory.search")
+        recorder.finish("done")
+        return {"trajectory": recorder.payload()}
+
+    result = asyncio.run(MemoirEvaluationRunner(task, judges=[unavailable]).run_case({"id": "case-1"}, run_id="run-1"))
+
+    assert result["judge_evidence"]["status"] == "unavailable"
+    assert result["judge_evidence"]["acceptance_role"] == "advisory"
+    assert result["judge_evidence"]["judges"][0]["status"] == "unavailable"
+    assert result["acceptance"]["status"] == "unavailable"
+    assert result["acceptance"]["deterministic_status"] == "pass"
+    assert result["failure_evidence"] == []
+
+
 def test_worker_turn_adds_evaluation_envelope_only_when_requested(monkeypatch):
     async def run():
         captured = {}
@@ -385,7 +729,10 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
             return []
 
         def profile(self):
-            return {'preferred_language': 'en-AU'}
+            return getattr(self, 'saved_profile', {'preferred_language': 'en-AU'})
+
+        def save_profile(self, profile):
+            self.saved_profile = dict(profile)
 
         def place_journey(self):
             return None
@@ -402,6 +749,7 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
 
     async def run():
         captured = {}
+        supplied = TrajectoryRecorder({"run_id": "run-1", "case_id": "case-1"})
 
         def handle(request):
             captured.update(json.loads(request.content))
@@ -423,9 +771,19 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
             Storage(),
             "hello",
             evaluation={"run_id": "run-1", "case_id": "case-1"},
+            evaluation_context={
+                "enabled_skills": ["memoir-memory-context"],
+                "available_tools": ["memory.search"],
+            },
+            trajectory=supplied,
         )
         assert result["trajectory"]["correlation"] == {"run_id": "run-1", "case_id": "case-1"}
         assert result["trajectory"]["final"]["status"] == "completed"
         assert captured["evaluation"] == {"run_id": "run-1", "case_id": "case-1"}
+        assert result["trajectory"]["context"]["task"] == "hello"
+        assert result["trajectory"]["context"]["project_id"] is None
+        assert result["trajectory"]["context"]["model"] == runtime.model
+        assert result["trajectory"]["context"]["enabled_skills"] == ["memoir-memory-context"]
+        assert sum(step["action"] == "turn.received" for step in result["trajectory"]["steps"]) == 1
 
     asyncio.run(run())

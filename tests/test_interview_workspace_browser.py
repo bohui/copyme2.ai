@@ -5,6 +5,7 @@ MEMOIR_BROWSER_URL=http://localhost:3011 python3 -m pytest tests/test_interview_
 """
 import json
 import os
+import re
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
@@ -22,6 +23,13 @@ def interview():
         # a new real anonymous Supabase account for every regression scenario.
         page.route("**/api/v1/memoir/agent/config", lambda route: route.fulfill(
             content_type="application/json", body='{"auth_mode":"test","show_thinking_steps":false}'))
+        profile = {'preferred_language': 'en-AU'}
+        def private_profile(route):
+            if route.request.method == 'PATCH':
+                profile.update(route.request.post_data_json)
+            route.fulfill(json=profile)
+        page.route('**/api/v1/memoir/agent/profile', private_profile)
+        page.route('**/api/v1/memoir/user/profile', private_profile)
         page.route("**/api/v1/memoir/story/state", lambda route: route.fulfill(
             content_type="application/json", body='{"family_features_enabled":false}'))
         page.route("**/place-photos?**", lambda route: route.fulfill(content_type="application/json", body='{"items":[]}'))
@@ -67,7 +75,7 @@ def interview():
 
 def test_narrow_conversation_heading_leaves_room_for_history(interview):
     heading = interview.get_by_role("heading", name="Let’s remember together.")
-    assert heading.evaluate("el => parseFloat(getComputedStyle(el).fontSize)") <= 30
+    expect(heading).to_have_css('font-size', re.compile(r'(?:[12]?\d(?:\.\d+)?|30(?:\.0+)?)px'))
 
 
 def test_refresh_collapses_chat_history_until_expanded(interview):
@@ -94,7 +102,7 @@ def test_workspace_navigation_preserves_chat_reading_position(interview):
     scroll = interview.locator("#chat-scroll")
     scroll.evaluate("el => { el.style.scrollBehavior = 'auto'; el.scrollTop = 100; }")
     before = scroll.evaluate("el => el.scrollTop")
-    interview.get_by_role("button", name="Toddler Not explored yet", exact=True).click()
+    interview.get_by_role("button", name=re.compile(r'^Toddler:')).click()
     interview.wait_for_timeout(500)
     assert abs(scroll.evaluate("el => el.scrollTop") - before) < 2
 
@@ -143,15 +151,15 @@ def test_places_follow_stage_and_survive_new_places(interview):
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible()
     history.get_by_role("button", name="Sydney", exact=False).click()
     expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
-    page.get_by_role("button", name="Childhood", exact=True).click()
+    page.get_by_role("button", name=re.compile(r'^Childhood:')).click()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible()
-    page.get_by_role("button", name="Young adulthood", exact=True).click()
+    page.get_by_role("button", name=re.compile(r'^Young adulthood:')).click()
     expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
     page.reload()
     expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible(timeout=20000)
     # Hydration restores the saved place's stage; use the stage selector to
     # verify that places in both stages survived the reload.
-    page.get_by_role("button", name="Childhood", exact=True).click()
+    page.get_by_role("button", name=re.compile(r'^Childhood:')).click()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible()
     expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(
@@ -169,14 +177,17 @@ def test_places_follow_stage_and_survive_new_places(interview):
     expect(page.get_by_role("navigation", name="Place history").get_by_role("button")).to_have_count(2)
     page.reload()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible(timeout=20000)
-    expect(page.get_by_role("button", name="Childhood", exact=True)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("button", name="Young adulthood", exact=True).click()
+    expect(page.get_by_role("button", name=re.compile(r'^Childhood:'))).to_have_attribute("aria-pressed", "true")
+    page.get_by_role("button", name=re.compile(r'^Young adulthood:')).click()
     expect(page.get_by_role("heading", name="Sydney", exact=True)).to_be_visible()
 
 
-def test_storyteller_can_choose_timeline_artwork(interview):
-    interview.get_by_role("button", name="Open profile menu").click()
-    interview.get_by_label("Timeline artwork").select_option("female")
+def test_storyteller_artwork_preference_updates_timeline(interview):
+    interview.route('**/api/v1/memoir/agent/turn', lambda route: route.fulfill(json={
+        'reply': 'I have updated the illustrations.',
+        'profile_updates': {'avatar_style': 'female'}}))
+    interview.get_by_role('textbox', name='Your message').fill('Please use female illustrations for my timeline.')
+    interview.get_by_role('button', name='Send message').click()
     expect(interview.locator(".life-stage-figure img").first).to_have_attribute("src", "/static/timeline_avatar_baby_female.png")
 
 
@@ -186,13 +197,15 @@ def test_place_photos_arrive_without_interrupting_reply_or_draft(interview):
         "asset_id": "photo-sydney", "kind": "image", "title": "Sydney street",
         "image_url": "/static/timeline_avatar_child_female.png", "source_url": "https://commons.wikimedia.org/",
         "attribution": "Example photographer", "license": "CC BY 4.0", "date_expression": "1985",
+        "latitude": -33.8688, "longitude": 151.2093,
         "allowed_actions": {"embed": True}}]})))
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What do you remember about the day you arrived? " * 12,
         "profile_updates": {"story_focus": {"life_stage": "young_adulthood"}},
-        "place_journey": {"place": "Sydney", "hierarchy": ["Earth", "Australia", "Sydney"], "granularity": "city"},
+        "place_journey": {"place": "Sydney", "hierarchy": ["Earth", "Australia", "Sydney"], "granularity": "city",
+                          "period": "1980s", "latitude": -33.8688, "longitude": 151.2093},
         "place_journey_change": {"changed": True}})))
-    page.get_by_role("textbox", name="Your message").fill("I moved to Sydney as a young adult.")
+    page.get_by_role("textbox", name="Your message").fill("I moved to Sydney as a young adult in the 1980s.")
     page.get_by_role("button", name="Send message").click()
     expect(page.get_by_role("img", name="Sydney street")).to_be_visible(timeout=20000)
     expect(page.locator(".message-streaming")).to_have_count(0)

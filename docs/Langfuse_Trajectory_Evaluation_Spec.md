@@ -119,9 +119,11 @@ run through ordinary local or CI commands.
 - Normalize observed events into an ordered trajectory. Each step contains a
   stable step identifier, phase, pre-action context, action kind, tool name and
   arguments when applicable, result or error, timing, and the observation
-  identifier. The sequence also records application validation, persistence,
-  publication, artifact, and terminal events. Results and errors are retained;
-  tool names alone are insufficient for recovery evaluation.
+  identifier. External worker steps retain their original step ID, trace/span
+  IDs, parent observation, and normalized arguments when the API assembles the
+  application trajectory. The sequence also records application validation,
+  persistence, publication, artifact, and terminal events. Results and errors
+  are retained; tool names alone are insufficient for recovery evaluation.
 - Capture events at the Codex protocol and application boundaries. The worker
   records observable model/tool lifecycle events, while the application records
   authorization, marker validation, state commits, and task outcomes. The
@@ -135,7 +137,9 @@ run through ordinary local or CI commands.
   observations for run evidence, experiment comparisons for dataset-level
   analysis, and scores for run-level and step-level results. Give each score a
   stable idempotency key derived from the run, evaluator version, and target
-  step.
+  step. The five-case runner publishes one isolated root observation per round;
+  a worker-provided observation ID is used as the step-score target, otherwise
+  the publisher creates a child span under the root when supported by the SDK.
 - Define deterministic evaluators for skill manifest/version, allowed tools,
   argument schemas, marker syntax and grounding, entitlement enforcement,
   source/project ownership, maximum steps and retries, stop status, artifact
@@ -144,7 +148,10 @@ run through ordinary local or CI commands.
   unnecessary repetition, stopping behavior, instruction adherence, and final
   response quality. Judges must grade each decision against the pre-action
   context and allow multiple safe paths. Rubrics are versioned and calibrated
-  against manually reviewed examples before being used as gates.
+  against manually reviewed examples before being used as gates. The local
+  runner records judge status and usage separately from deterministic
+  acceptance evidence: an unavailable or unconfigured judge is unavailable,
+  not a pass, and judge scores remain advisory.
 - Keep runtime controls in the application and worker: authorization, tool
   allowlists, cancellation, timeouts, iteration/retry budgets, and safe failure
   behavior are enforced inline. Langfuse evaluation is asynchronous and never

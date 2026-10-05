@@ -1,0 +1,195 @@
+{
+  "schema_version": "memoir-langfuse-readonly-diagnosis/1",
+  "checked_at_utc": "2026-10-05T09:39:10+00:00",
+  "task_documentation_head": "2c8d4b7db27aea09b1a4f03203df436e1f3b926b",
+  "requested_project_id_sha256": "6fe33f224e32d97189be05c78a25e714ef3739de6c109451621ac684a5b33e41",
+  "project_exists_in_postgres": true,
+  "query_controls": {
+    "clickhouse_client_readonly": 1,
+    "max_execution_seconds": 10,
+    "max_threads": 1,
+    "postgres_transactions": "BEGIN READ ONLY; SELECT only; COMMIT",
+    "credential_values_printed_or_transferred": false
+  },
+  "clickhouse": {
+    "version": "26.9.8.3",
+    "image_reference": "docker.io/clickhouse/clickhouse-server:latest",
+    "server_clock_sample": "2026-10-05 09:22:58.533",
+    "numeric_datetime_raw_value_default": "0",
+    "compatibility_default": "",
+    "project_counts_final": {
+      "traces": 0,
+      "observations": 0,
+      "scores": 3750
+    },
+    "events_full": {
+      "all_rows": 0,
+      "requested_project_rows": 0
+    },
+    "staging_rows": {
+      "observations_batch_staging": 0,
+      "observations_pid_tid_sorting": 0
+    },
+    "score_trace_links": {
+      "nonempty_trace_ids": 3750,
+      "distinct_trace_ids": 411
+    },
+    "score_source": "API",
+    "score_timestamp_and_created_at_range": {
+      "minimum": "9999-12-31 23:59:59.000",
+      "maximum": "9999-12-31 23:59:59.000",
+      "visible_september_2026_through_october_5": 0
+    },
+    "analytics_view_counts": {
+      "analytics_traces": 0,
+      "analytics_observations": 0,
+      "analytics_scores": 0
+    }
+  },
+  "postgres_project_counts": {
+    "evaluators": 0,
+    "evaluation_rules": 0,
+    "job_configurations": 0,
+    "job_executions": 0,
+    "eval_templates": 0
+  },
+  "historical_query_errors": [
+    {
+      "code": 407,
+      "count": 2334,
+      "first_error_utc": "2026-10-04 03:42:22",
+      "last_error_utc": "2026-10-04 14:52:16",
+      "latest_statement_prefix": "INSERT INTO events_full",
+      "format": "JSONEachRow",
+      "summary": "Numeric value is out of range for DateTime64 while reading start_time; WaitForAsyncInsert; DECIMAL_OVERFLOW"
+    },
+    {
+      "code": 76,
+      "count": 2,
+      "first_and_last_error_utc": "2026-10-04 13:44:32",
+      "summary": "Cannot open ClickHouse insert file; errno 23; too many open files in system"
+    }
+  ],
+  "readonly_probes": [
+    {
+      "name": "millisecond_json_without_compatibility",
+      "query": "SELECT toString(JSONExtract('{\"timestamp\":1791115200000}','timestamp','DateTime64(3)')) AS parsed_timestamp,toString(fromUnixTimestamp64Milli(1791115200000)) AS intended_timestamp FORMAT JSONEachRow",
+      "exit_code": 0,
+      "parsed_timestamp": "9999-12-31 23:59:59.000",
+      "intended_timestamp": "2026-10-04 12:00:00.000"
+    },
+    {
+      "name": "microsecond_json_without_compatibility",
+      "query": "SELECT JSONExtract('{\"start_time\":1791115200000000}','start_time','DateTime64(6)') AS parsed_start_time FORMAT JSONEachRow",
+      "exit_code": 0,
+      "parsed_start_time": "1970-01-01 00:00:00.000000",
+      "limit": "JSONExtract returns its default for invalid parsing; the historical INSERT overflow was not reproduced with a new INSERT"
+    },
+    {
+      "name": "query_local_compatibility_only",
+      "query": "SELECT toString(JSONExtract('{\"timestamp\":1791115200000}','timestamp','DateTime64(3)')) AS score_timestamp,toString(JSONExtract('{\"start_time\":1791115200000000}','start_time','DateTime64(6)')) AS event_start_time SETTINGS input_format_read_datetime_number_as_raw_value=1 FORMAT JSONEachRow",
+      "client_readonly": 2,
+      "exit_code": 0,
+      "score_timestamp": "2026-10-04 12:00:00.000",
+      "event_start_time": "2026-10-04 12:00:00.000000",
+      "persistent_settings_changed": false
+    },
+    {
+      "name": "format_table_function_numeric_and_iso_attempts",
+      "count": 2,
+      "client_readonly": 1,
+      "exit_code": 164,
+      "status": "denied_by_server_readonly_guard",
+      "limit": "Not counted as successful checks; used JSONExtract SELECT probes instead"
+    }
+  ],
+  "deployed_code_readonly_evidence": {
+    "container": "llm-provider-langfuse-worker-1",
+    "ingestion_module": "/app/worker/dist/services/IngestionService/index.js",
+    "microsecond_function": "new Date(timestamp).getTime() * 1000",
+    "millisecond_function": "new Date(timestamp).getTime()",
+    "writer_module": "/app/worker/dist/services/ClickhouseWriter/index.js",
+    "insert_format": "JSONEachRow",
+    "inspected_compatibility_rules_cover_numeric_datetime_units": false
+  },
+  "bounded_logs": {
+    "web_worker_clickhouse_first_window_last_lines": 180,
+    "web_worker_expanded_window_last_lines": 2500,
+    "no_DateTime64_match_in_those_stdio_windows": true,
+    "limit": "Database query_log established historical overflow; absence from a recent stdio window does not disprove it. Historical invalid-auth messages were present; temporary unauthenticated browser requests caused expected UNAUTHORIZED messages."
+  },
+  "browser": {
+    "origin": "http://127.0.0.1:3001",
+    "requested_tabs": [
+      "traces",
+      "evals"
+    ],
+    "fresh_browser_context": true,
+    "final_path": "/auth/sign-in",
+    "title": "Sign in | Langfuse",
+    "user_current_session_and_filters_inspected": false,
+    "third_party_requests_blocked": true,
+    "screenshots_local_only": [
+      "output/mac-validation/langfuse-readonly/traces.png",
+      "output/mac-validation/langfuse-readonly/evals.png"
+    ]
+  },
+  "conclusion": {
+    "trace_absence": "Verified in legacy and events_full storage; not explained by page filters or another project",
+    "scores_hidden": "Numeric millisecond timestamps decoded as seconds and saturated at year 9999; read-only reproduction matched",
+    "empty_evaluator_records": "Verified absent; API scores do not create automatic evaluation jobs",
+    "timestamp_compatibility_fix": "Query-local raw-value setting decoded both units; durable ingestion validation not performed"
+  },
+  "primary_sources": [
+    "https://clickhouse.com/docs/reference/data-types/datetime64",
+    "https://github.com/langfuse/langfuse/blob/main/docker-compose.yml",
+    "https://clickhouse.com/docs/concepts/features/configuration/settings/settings-profiles",
+    "https://clickhouse.com/docs/concepts/features/configuration/server-config/configuration-files"
+  ],
+  "approval_review_block": {
+    "action": "Retrieve and parse complete container environments to report tracing/judge names/status",
+    "reason": "Complete environment values could contain secrets; only names/status were authorized",
+    "action_retried_indirectly": false,
+    "diagnostics_continued": "Supported read-only database clients and static deployed code"
+  },
+  "changes_and_cleanup": {
+    "live_provider_requests": 0,
+    "judge_requests": 0,
+    "photo_search_requests": 0,
+    "new_telemetry_writes": 0,
+    "database_mutations": 0,
+    "persistent_settings_changed": false,
+    "shared_restart_or_migration": false,
+    "credentials_created_copied_to_files_or_reported": false,
+    "temporary_browser_closed": true,
+    "containers_started_or_stopped": 0
+  },
+  "proposed_smallest_fix": {
+    "scope": "Existing Langfuse ingestion database user/client only",
+    "setting": "input_format_read_datetime_number_as_raw_value=1",
+    "requires_shared_configuration_approval": true,
+    "prerequisite": "Verify active source of user/client settings before editing; preserve rollback; stop before an unapproved restart or wider change",
+    "historical_rows_recovery_included": false,
+    "canary_after_approval": "One synthetic root, one child, one numeric score; zero provider calls; exact ID API/storage/browser readback",
+    "profile": "New langfuse_numeric_datetime XML profile inheriting default, applied only to existing langfuse user",
+    "proposed_container_fragment": "users.d/zz-langfuse-numeric-datetime.xml",
+    "rollback": "Remove only the new fragment; previous raw-value setting is zero",
+    "persistent_deployment_scope": "A durable user-config declaration is needed across container recreation; any required recreation/restart must be separately approved"
+  },
+  "active_configuration_metadata": {
+    "insertion_user": "langfuse",
+    "matching_historical_failed_insertions": 2334,
+    "user_storage": "users_xml",
+    "inherited_profile": "default",
+    "container_user_config_files": [
+      "default-user.xml"
+    ],
+    "deployment_source_file": "/Users/bohuihan/llm_provider/compose.langfuse.yaml",
+    "deployment_source_sha256": "60277536232f70d7678211b6fd0e8ac15e338e9e6c94ded07d19a1e6ccfe6db3",
+    "configured_mount_types": [
+      "ClickHouse data",
+      "ClickHouse logs"
+    ],
+    "user_configuration_mount_present": false
+  }
+}

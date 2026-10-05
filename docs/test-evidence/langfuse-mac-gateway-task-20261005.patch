@@ -1,0 +1,95 @@
+--- a/compose.langfuse.yaml
++++ b/compose.langfuse.yaml
+@@ -100,6 +100,9 @@
+     volumes:
+       - ${LANGFUSE_DATA_ROOT:-/Volumes/clawhome/container_migration}/llm_provider-langfuse-clickhouse-data:/var/lib/clickhouse:Z
+       - ${LANGFUSE_DATA_ROOT:-/Volumes/clawhome/container_migration}/llm_provider-langfuse-clickhouse-logs:/var/log/clickhouse-server:Z
++      # Preserve Langfuse numeric timestamp units on ClickHouse 26.8+.
++      - ./config/langfuse-clickhouse-users/zz-langfuse-numeric-datetime.xml:/etc/clickhouse-server/users.d/zz-langfuse-numeric-datetime.xml:ro
++      - ./config/langfuse-clickhouse-server/zz-langfuse-local-startup.xml:/etc/clickhouse-server/config.d/zz-langfuse-local-startup.xml:ro
+     ports:
+       - "${LANGFUSE_CLICKHOUSE_HTTP_PORT:-8124}:8123"
+       - "${LANGFUSE_CLICKHOUSE_TCP_PORT:-19001}:9000"
+--- a/tests/test_observability_versions.py
++++ b/tests/test_observability_versions.py
+@@ -3,6 +3,7 @@
+
+ import re
+ import unittest
++import xml.etree.ElementTree as ET
+ from pathlib import Path
+
+
+@@ -82,5 +83,45 @@
+         )
+
+
++class LangfuseClickhouseConfigTests(unittest.TestCase):
++    def test_ingestion_profile_preserves_raw_numeric_timestamp_units(self):
++        fragment = "config/langfuse-clickhouse-users/zz-langfuse-numeric-datetime.xml"
++        config = ET.parse(PROJECT_ROOT / fragment).getroot()
++        self.assertEqual(config.tag, "clickhouse")
++        self.assertEqual({node.tag for node in config}, {"profiles", "users"})
++        profiles = config.find("profiles")
++        self.assertEqual([node.tag for node in profiles], ["langfuse_numeric_datetime"])
++        profile = profiles.find("langfuse_numeric_datetime")
++        self.assertEqual(profile.findtext("profile"), "default")
++        self.assertEqual(profile.findtext("input_format_read_datetime_number_as_raw_value"), "1")
++        self.assertEqual(len(profile), 2)
++        users = config.find("users")
++        self.assertEqual([node.tag for node in users], ["langfuse"])
++        self.assertEqual(len(users.find("langfuse")), 1)
++        assignment = users.find("langfuse/profile")
++        self.assertEqual(assignment.text, "langfuse_numeric_datetime")
++        self.assertEqual(assignment.get("replace"), "replace")
++        compose = (PROJECT_ROOT / "compose.langfuse.yaml").read_text()
++        clickhouse = compose.split("  langfuse-clickhouse:\n", 1)[1].split("\n  langfuse-minio:", 1)[0]
++        self.assertIn(f"./{fragment}:/etc/clickhouse-server/users.d/zz-langfuse-numeric-datetime.xml:ro", clickhouse)
++
++
++    def test_local_table_loaders_limit_open_file_pressure(self):
++        fragment = "config/langfuse-clickhouse-server/zz-langfuse-local-startup.xml"
++        config = ET.parse(PROJECT_ROOT / fragment).getroot()
++        self.assertEqual(config.tag, "clickhouse")
++        self.assertEqual({node.tag for node in config}, {
++            "tables_loader_background_pool_size", "tables_loader_foreground_pool_size",
++            "max_active_parts_loading_thread_pool_size", "max_outdated_parts_loading_thread_pool_size"
++        })
++        self.assertEqual(config.findtext("tables_loader_background_pool_size"), "1")
++        self.assertEqual(config.findtext("tables_loader_foreground_pool_size"), "1")
++        self.assertEqual(config.findtext("max_active_parts_loading_thread_pool_size"), "1")
++        self.assertEqual(config.findtext("max_outdated_parts_loading_thread_pool_size"), "1")
++        compose = (PROJECT_ROOT / "compose.langfuse.yaml").read_text()
++        clickhouse = compose.split("  langfuse-clickhouse:\n", 1)[1].split("\n  langfuse-minio:", 1)[0]
++        self.assertIn(f"./{fragment}:/etc/clickhouse-server/config.d/zz-langfuse-local-startup.xml:ro", clickhouse)
++
++
+ if __name__ == "__main__":
+     unittest.main()
+--- /dev/null
++++ b/config/langfuse-clickhouse-users/zz-langfuse-numeric-datetime.xml
+@@ -0,0 +1,13 @@
++<clickhouse>
++  <!-- Langfuse emits DateTime64 JSON integers in millisecond/microsecond ticks.
++       ClickHouse 26.8+ otherwise interprets these integers as Unix seconds. -->
++  <profiles>
++    <langfuse_numeric_datetime>
++      <profile>default</profile>
++      <input_format_read_datetime_number_as_raw_value>1</input_format_read_datetime_number_as_raw_value>
++    </langfuse_numeric_datetime>
++  </profiles>
++  <users>
++    <langfuse><profile replace="replace">langfuse_numeric_datetime</profile></langfuse>
++  </users>
++</clickhouse>
+--- /dev/null
++++ b/config/langfuse-clickhouse-server/zz-langfuse-local-startup.xml
+@@ -0,0 +1,8 @@
++<clickhouse>
++  <!-- Keep table/part loading sequential on the development Mac's shared
++       filesystem; wide internal metric tables can exhaust host file handles. -->
++  <tables_loader_background_pool_size>1</tables_loader_background_pool_size>
++  <tables_loader_foreground_pool_size>1</tables_loader_foreground_pool_size>
++  <max_active_parts_loading_thread_pool_size>1</max_active_parts_loading_thread_pool_size>
++  <max_outdated_parts_loading_thread_pool_size>1</max_outdated_parts_loading_thread_pool_size>
++</clickhouse>
