@@ -1,5 +1,12 @@
 # PR9 + PR10 sanitized cloud test handoff
 
+Current integrated native acceptance is recorded in
+[the PR8/PR9/PR10 handoff](pr8-pr9-pr10-mac-validation.md) at code head
+`c1f5e296d6f2dd921c5474dc7c613abc1968b8fc`: 1,194 passed, four live-only skips,
+zero failures/errors, and all 29 standalone browsers passed. The historical
+setup and credential-name guidance below remain available for cloud replay and
+the separately approved live phase.
+
 Continue from branch `codex/mac-pr9-pr10-validation-20261004`. Mac validation
 was published at `741dc3797bf9e0ef5d7ee51c2977f9c011e92bf8`; its tested code
 head is `4529258ad0f5a88e5c5fc019789c8f6f69f756ff`. The later focused repair

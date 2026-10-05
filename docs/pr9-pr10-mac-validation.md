@@ -1,5 +1,10 @@
 # PR9 + PR10 Mac integration validation
 
+This historical report is superseded for current native acceptance by
+[the PR8/PR9/PR10 report](pr8-pr9-pr10-mac-validation.md), which records
+1,194 passing cases, four live-only skips and zero failures/errors on the final
+integrated code head. Earlier receipts below remain historical evidence.
+
 This is the native/offline handoff for cloud review. Live provider evaluation,
 the new source-claim pilot, and the five separate 50-round datasets remain a
 later phase coordinated by the parent session.
