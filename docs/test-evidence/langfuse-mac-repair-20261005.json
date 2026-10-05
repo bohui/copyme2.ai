@@ -475,7 +475,7 @@
       "kern.maxfilesperproc": "131072"
     }
   },
-  "last_updated_at": "2026-10-05T11:07:06.032260+00:00",
+  "last_updated_at": "2026-10-05T11:19:29.902579+00:00",
   "final_health_and_limits": {
     "checked_at": "2026-10-05T11:06:28.265959+00:00",
     "health": {
@@ -501,5 +501,320 @@
   "gateway_patch_reverse_check": {
     "exit_code": 0,
     "normalization": "Five empty context lines omit their space marker; git apply accepts the patch and the artifact has no trailing whitespace."
+  },
+  "gateway_patch_provenance": {
+    "checked_at": "2026-10-05T11:16:16.052909+00:00",
+    "repository": "/Users/bohuihan/llm_provider",
+    "head": "bacd5ed11dc4521c480e97cb7834c68712981883",
+    "baseline_kind": "pre-task dirty working files, not clean HEAD",
+    "pre_task_status_sha256": "748c32a1758335ac1ebbc04d4c92750d96598ec9392c0bf8f274f9c06c0650bd",
+    "task_patch_sha256": "03516fbaead13b76f39705debc8ec8d623e08b04a856b1b55c9cb6605f2aff58",
+    "modified_files": {
+      "compose.langfuse.yaml": {
+        "pre_task_working_sha256": "60277536232f70d7678211b6fd0e8ac15e338e9e6c94ded07d19a1e6ccfe6db3",
+        "head_file_sha256": "81b03f5541e5370e948c1c67a0154c3a65dc624ddd308675e2d28e3bccfbcd38",
+        "pre_task_was_dirty": true,
+        "current_working_sha256": "5d1c286313b865d68919fd4813b684ad56e6b12013063f31c57bb16df9c5725a"
+      },
+      "tests/test_observability_versions.py": {
+        "pre_task_working_sha256": "1cc0fb48698d253d7088d6dabc4d9724947903a902c06925390f3d26d891798f",
+        "head_file_sha256": "20f47269ca1a82045dc3ee91568fbed0effc40bd88d9bbc9f033548ed49eed57",
+        "pre_task_was_dirty": true,
+        "current_working_sha256": "137d10ea4c46f197ea628ccbb00edfab18d3a13a940370ce813b2d778ee3cb06"
+      }
+    },
+    "created_files": {
+      "config/langfuse-clickhouse-users/zz-langfuse-numeric-datetime.xml": {
+        "pre_task": "absent",
+        "current_working_sha256": "e7dcf824818f8e82f364bf7eab32568f3e49765855c9c34e74878fb5cb1798e8"
+      },
+      "config/langfuse-clickhouse-server/zz-langfuse-local-startup.xml": {
+        "pre_task": "absent",
+        "current_working_sha256": "121510c3cf25be61a7770af1f5ce41d1c27caa2eef2d5d3409f97565694549b9"
+      }
+    },
+    "unrelated_files_preserved": {
+      "Dockerfile.langfuse-minio": {
+        "baseline_sha256": null,
+        "current_sha256": null,
+        "matches": true
+      },
+      "Dockerfile.langfuse-redis": {
+        "baseline_sha256": null,
+        "current_sha256": null,
+        "matches": true
+      },
+      "Makefile": {
+        "baseline_sha256": "00e0decf1767562d54ddd775cd7ca9d2a28e37f6f28082a03d7e0033c0621510",
+        "current_sha256": "00e0decf1767562d54ddd775cd7ca9d2a28e37f6f28082a03d7e0033c0621510",
+        "matches": true
+      },
+      "README.md": {
+        "baseline_sha256": "8a9ccc999242063fb2ef1e6cf3cb26e2e88f2588e8e5481e144afe2e63b6a4ea",
+        "current_sha256": "8a9ccc999242063fb2ef1e6cf3cb26e2e88f2588e8e5481e144afe2e63b6a4ea",
+        "matches": true
+      },
+      "structured_output_hook.py": {
+        "baseline_sha256": "523b0db524f7bbc41b2ee9bb4ecc6ea7a17448bff8883a03175e67444989dddf",
+        "current_sha256": "523b0db524f7bbc41b2ee9bb4ecc6ea7a17448bff8883a03175e67444989dddf",
+        "matches": true
+      },
+      "tests/test_makefile_startup.py": {
+        "baseline_sha256": "751c91eed0d21173bc2ac3b329bc2664ac85ee856bdaedd54a3daf832a208ec3",
+        "current_sha256": "751c91eed0d21173bc2ac3b329bc2664ac85ee856bdaedd54a3daf832a208ec3",
+        "matches": true
+      },
+      "tests/test_structured_output_hook.py": {
+        "baseline_sha256": "4f241f70e8399409d63a6833f400b50c532c437426f3d0d2282122458244e34e",
+        "current_sha256": "4f241f70e8399409d63a6833f400b50c532c437426f3d0d2282122458244e34e",
+        "matches": true
+      }
+    },
+    "current_worktree_reverse_apply_check": "passed; checked without changing gateway files",
+    "isolated_patch_round_trip": {
+      "checked_at": "2026-10-05T11:20:23.609498+00:00",
+      "reverse_exactly_matches_both_pre_task_snapshots": true,
+      "reverse_removes_only_two_new_fragments": true,
+      "forward_exactly_matches_all_four_current_files": true,
+      "temporary_copy_cleaned": true,
+      "shared_gateway_mutated": false
+    }
+  },
+  "reconciliation": {
+    "api_readback": {
+      "checked_at": "2026-10-05T11:16:26.423423+00:00",
+      "observations_status": 200,
+      "scores_status": 200,
+      "root_filter_status": 200,
+      "root_filter_ids": [
+        "edce02d9071ea188"
+      ],
+      "observations": [
+        {
+          "id": "f5de9464f6d47a01",
+          "traceId": "f8316b85df420c4f0f17367985dbb22c",
+          "projectId": "cmut9t75w00071z02n8bdv7it",
+          "parentObservationId": "edce02d9071ea188",
+          "name": null,
+          "type": "SPAN",
+          "providedName": null,
+          "isRootObservation": null,
+          "rootObservationId": null,
+          "startTime": "2026-10-05T10:46:46.310Z",
+          "endTime": "2026-10-05T10:46:46.310Z",
+          "input": "{\"synthetic\": \"child linkage check\"}",
+          "output": "{\"synthetic\": \"completed\"}",
+          "metadata": {
+            "synthetic": true,
+            "purpose": "timestamp_ingestion_canary",
+            "run_id": "memoir-mac-langfuse-canary-22635bf4-38eb-4b8c-9696-18e58fdef299"
+          }
+        },
+        {
+          "id": "edce02d9071ea188",
+          "traceId": "f8316b85df420c4f0f17367985dbb22c",
+          "projectId": "cmut9t75w00071z02n8bdv7it",
+          "parentObservationId": "bc7351e6fa105b6a",
+          "name": null,
+          "type": "AGENT",
+          "providedName": null,
+          "isRootObservation": null,
+          "rootObservationId": null,
+          "startTime": "2026-10-05T10:46:46.309Z",
+          "endTime": "2026-10-05T10:46:46.310Z",
+          "input": "{\"synthetic\": \"local tracing ingestion check\"}",
+          "output": "{\"synthetic\": \"completed\"}",
+          "metadata": {
+            "synthetic": true,
+            "purpose": "timestamp_ingestion_canary",
+            "run_id": "memoir-mac-langfuse-canary-22635bf4-38eb-4b8c-9696-18e58fdef299"
+          }
+        }
+      ],
+      "scores": [
+        {
+          "id": "37a2aace-2cdb-4b14-a345-19149ba7df9c",
+          "projectId": "cmut9t75w00071z02n8bdv7it",
+          "name": "mac.timestamp_canary",
+          "value": 1,
+          "source": "API",
+          "dataType": "NUMERIC",
+          "timestamp": "2026-10-05T10:46:46.311Z",
+          "createdAt": "2026-10-05T10:46:47.373Z",
+          "subject": {
+            "kind": "observation",
+            "id": "edce02d9071ea188",
+            "traceId": "f8316b85df420c4f0f17367985dbb22c"
+          },
+          "comment": "Synthetic ingestion check; not model quality",
+          "metadata": {
+            "synthetic": true,
+            "purpose": "timestamp_ingestion_canary",
+            "run_id": "memoir-mac-langfuse-canary-22635bf4-38eb-4b8c-9696-18e58fdef299"
+          }
+        }
+      ],
+      "checks": {
+        "exact_two_observations": true,
+        "correct_parent_linkage": true,
+        "correct_trace_and_project": true,
+        "correct_score": true,
+        "correct_score_linkage": true,
+        "current_timestamps": true
+      },
+      "passed": true,
+      "network_destinations": [
+        [
+          "127.0.0.1",
+          3001
+        ]
+      ]
+    },
+    "service_and_database_readback": {
+      "checked_at": "2026-10-05T11:17:54.165086+00:00",
+      "database": {
+        "events": {
+          "http_status": 200,
+          "rows": [
+            {
+              "project_id": "cmut9t75w00071z02n8bdv7it",
+              "trace_id": "f8316b85df420c4f0f17367985dbb22c",
+              "span_id": "edce02d9071ea188",
+              "parent_span_id": "bc7351e6fa105b6a",
+              "is_app_root": true,
+              "name": "memoir-mac-langfuse-canary-22635bf4-38eb-4b8c-9696-18e58fdef299",
+              "type": "AGENT",
+              "start_time": "2026-10-05 10:46:46.309000",
+              "end_time": "2026-10-05 10:46:46.310000",
+              "created_at": "2026-10-05 10:46:46.675000"
+            },
+            {
+              "project_id": "cmut9t75w00071z02n8bdv7it",
+              "trace_id": "f8316b85df420c4f0f17367985dbb22c",
+              "span_id": "f5de9464f6d47a01",
+              "parent_span_id": "edce02d9071ea188",
+              "is_app_root": false,
+              "name": "memoir-mac-langfuse-canary-child",
+              "type": "SPAN",
+              "start_time": "2026-10-05 10:46:46.310000",
+              "end_time": "2026-10-05 10:46:46.310000",
+              "created_at": "2026-10-05 10:46:46.674000"
+            }
+          ]
+        },
+        "score": {
+          "http_status": 200,
+          "rows": [
+            {
+              "id": "37a2aace-2cdb-4b14-a345-19149ba7df9c",
+              "project_id": "cmut9t75w00071z02n8bdv7it",
+              "trace_id": "f8316b85df420c4f0f17367985dbb22c",
+              "observation_id": "edce02d9071ea188",
+              "name": "mac.timestamp_canary",
+              "source": "API",
+              "value": 1,
+              "data_type": "NUMERIC",
+              "timestamp": "2026-10-05 10:46:46.311",
+              "created_at": "2026-10-05 10:46:47.373"
+            }
+          ]
+        },
+        "historical_bad_scores": {
+          "http_status": 200,
+          "rows": [
+            {
+              "rows": 3750,
+              "full_row_fingerprint": 10146712981589141912
+            }
+          ]
+        },
+        "ingestion_setting": {
+          "http_status": 200,
+          "rows": [
+            {
+              "user": "langfuse",
+              "version": "26.9.8.3",
+              "raw_value_setting": "1"
+            }
+          ]
+        },
+        "new_overflow_errors": {
+          "http_status": 200,
+          "rows": [
+            {
+              "rows": 0
+            }
+          ]
+        }
+      },
+      "health": {
+        "clickhouse": {
+          "http_status": 200,
+          "healthy": true
+        },
+        "langfuse_web": {
+          "http_status": 200,
+          "healthy": true
+        },
+        "langfuse_worker": {
+          "http_status": 200,
+          "healthy": true
+        }
+      },
+      "host_limits": {
+        "kern.num_files": "173135",
+        "kern.maxfiles": "262144",
+        "kern.maxfilesperproc": "131072"
+      },
+      "container_statuses": [
+        {
+          "id": "llm-provider-langfuse-redis-1",
+          "status": "running"
+        },
+        {
+          "id": "llm-provider-langfuse-web-1",
+          "status": "running"
+        },
+        {
+          "id": "llm-provider-langfuse-clickhouse-1",
+          "status": "running"
+        },
+        {
+          "id": "llm-provider-langfuse-db-1",
+          "status": "running"
+        },
+        {
+          "id": "llm-provider-langfuse-worker-1",
+          "status": "running"
+        },
+        {
+          "id": "llm-provider-langfuse-minio-1",
+          "status": "running"
+        }
+      ],
+      "readonly_mode": 2,
+      "network_destinations": [
+        [
+          "127.0.0.1",
+          3001
+        ],
+        [
+          "127.0.0.1",
+          3030
+        ],
+        [
+          "127.0.0.1",
+          8124
+        ]
+      ],
+      "all_checks_passed": true
+    },
+    "pr11_description_verified_before_correction": {
+      "head": "fb0dcb8ae7fc9fcc5a73564b0cfa1e3e1e3535a4",
+      "repair_readback_completed": true,
+      "remains_draft": true
+    },
+    "host_settings_changed": false,
+    "host_rollback_warning": "The approved temporary caps reset at reboot. Recorded usage 173135 exceeds the old 122880 system cap; do not lower it under this workload. Reboot without addressing capacity/workload can reintroduce startup exhaustion."
   }
 }

@@ -15,6 +15,31 @@ patch remains a cloud task. The gateway checkout is still on
 `bacd5ed11dc4521c480e97cb7834c68712981883`; no gateway commit, deployment,
 provider routing change or production migration was performed.
 
+### Gateway patch provenance
+
+The published patch's SHA-256 is
+`03516fbaead13b76f39705debc8ec8d623e08b04a856b1b55c9cb6605f2aff58`.
+Its baseline is the **pre-task dirty working files**, not clean gateway HEAD.
+Both `compose.langfuse.yaml` and `tests/test_observability_versions.py` already
+differed from `bacd5ed11` before this task. Their captured baseline hashes match
+the initial inventory. The patch adds only the two read-only mounts, the test
+class/import and the two new XML fragments; all other existing edits remain.
+
+| Gateway file | Pre-task working SHA-256 | Current working SHA-256 |
+| --- | --- | --- |
+| `compose.langfuse.yaml` | `60277536232f70d7678211b6fd0e8ac15e338e9e6c94ded07d19a1e6ccfe6db3` | `5d1c286313b865d68919fd4813b684ad56e6b12013063f31c57bb16df9c5725a` |
+| `tests/test_observability_versions.py` | `1cc0fb48698d253d7088d6dabc4d9724947903a902c06925390f3d26d891798f` | `137d10ea4c46f197ea628ccbb00edfab18d3a13a940370ce813b2d778ee3cb06` |
+
+The JSON provenance also records both clean-HEAD file hashes, new-fragment
+hashes and seven preserved unrelated-file states. `git apply --check --reverse`
+passes against the current gateway files without modifying them. A round trip
+in a disposable four-file copy restores both exact pre-task snapshots and
+removes the two new fragments; applying forward reproduces all four current
+files byte for byte. That copy was removed. No unrelated
+gateway work is included or committed. Five blank patch-context lines were
+normalized to omit their space markers; Git accepts that format, which also
+passes the evidence commit's whitespace check.
+
 ## Applied configuration
 
 ClickHouse remains **26.9.8.3**, with the existing cached image. Langfuse web
@@ -60,17 +85,21 @@ administrator password into chat, arguments, logs or files:
 sudo sysctl kern.maxfiles=262144 kern.maxfilesperproc=131072
 ```
 
-Previous values were `122880` and `61440`. The final recorded read at
-**11:06:28 UTC** was:
+Previous values were `122880` and `61440`. The latest recorded read at
+**11:17:54 UTC** was:
 
 ```text
-kern.num_files: 170012
+kern.num_files: 173135
 kern.maxfiles: 262144
 kern.maxfilesperproc: 131072
 ```
 
 These kernel caps reset at reboot. No LaunchDaemon or other persistent host
-configuration was installed. Per-process resource limits can still be lower;
+configuration was installed. Current usage exceeds the old system cap;
+**do not restore that lower cap under this workload**. A reboot resets the
+caps and can bring startup exhaustion back unless capacity/workload is addressed.
+No additional host change was requested or performed during reconciliation.
+Per-process resource limits can still be lower;
 [Apple's resource-limit implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_resource.c)
 enforces both the process limit and the kernel per-process cap.
 
@@ -118,6 +147,12 @@ The V4 `isRootObservation=true` API filter returns exactly the root ID, and
 ClickHouse `is_app_root` is true for the root and false for the child. The
 canary oracle checks those explicit root markers alongside the physical
 child-parent association.
+
+Read-only reconciliation on 2026-10-05 repeated exact-ID API checks at
+**11:16:26 UTC**, and database/settings/health checks at **11:17:54 UTC**.
+The same two observations and one score passed again, all six services were
+running, all three health endpoints returned `200`, and the actual ingestion
+user still had compatibility setting `1`. These checks published no telemetry.
 
 The old year-9999 score rows remain **3750**, with the same full logical-row
 fingerprint before and after:

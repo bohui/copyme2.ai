@@ -110,8 +110,10 @@ the final whole-suite run with assertions intact.
 Passive final-run file-table samples ranged from 108,562 to 122,678 of 122,880
 slots. Host PostgreSQL's SysV constraint was avoided with supported disposable
 UUID AppleContainer `postgres:18.3` fixtures: no shared mounts/published ports,
-TCP disabled, `container exec psql`, exact cleanup. No host limits/settings,
-unknown IPC or unrelated processes were changed. Task API PID 33360 and Next
+TCP disabled, `container exec psql`, exact cleanup. During the native/offline
+phase, no host limits/settings, unknown IPC or unrelated processes were changed.
+The separately approved Langfuse follow-up increased temporary file caps, as
+recorded in the repair report. Task API PID 33360 and Next
 PID 33398 were stopped after checking session/port ownership; both ports closed
 and zero task PostgreSQL containers remain. Original dirty checkout and older
 Issue2/Issue6 HEAD, NUL-delimited status and tracked-diff fingerprints match.
@@ -130,15 +132,25 @@ created.
 No new live pilot or five separate 50-round run was made. Baseline `d67f390`
 remains 205 pass / 8 fail / 37 unavailable of 250; affected `28acda14` remains
 152 pass / 5 fail / 43 unavailable of 200. Diagnostic pilots are not acceptance.
-Read-only Mac diagnosis on 2026-10-05 found zero trace/event rows, 3,750 API
+Initial read-only Mac diagnosis on 2026-10-05 found zero trace/event rows, 3,750 API
 scores with year-9999 timestamps, and zero configured evaluator/job records in
 the requested Langfuse project. ClickHouse 26.9.8.3 interprets Langfuse's numeric
 millisecond/microsecond timestamps as seconds; historical inserts failed with
 DateTime64 overflow. A query-local compatibility setting correctly decoded
-both units. Persistent repair, telemetry canary and durable API/browser
-readback remain pending approval. See the [live acceptance plan](pr8-pr9-pr10-mac-live-plan.md)
-and its sanitized [database evidence](test-evidence/langfuse-mac-readonly-20261005.json).
-Cloud review, approved provider/judge setup and budget, and durable readback
-precede the live phase; missing judge configuration must not be invented.
+both units. The user subsequently approved the local configuration repair,
+Langfuse restart and temporary host caps; all are complete. The one synthetic
+root, child span and numeric score passed fresh API and database readback
+again at 11:16 and 11:17 UTC. The 3,750 historical bad-timestamp scores retain
+their original full logical-row fingerprint. Browser confirmation remains
+unverified. See the [repair report and rollback](langfuse-mac-timestamp-repair-20261005.md),
+[current sanitized evidence](test-evidence/langfuse-mac-repair-20261005.json),
+and [live acceptance plan](pr8-pr9-pr10-mac-live-plan.md); the earlier
+[read-only diagnosis](test-evidence/langfuse-mac-readonly-20261005.json) is a historical snapshot.
+The temporary caps reset at reboot. Current usage (173,135 files) exceeds the
+old system cap (122,880); do not lower the cap under this workload. Rebooting
+without addressing that capacity can reintroduce startup failures.
+Cloud review, browser confirmation, the reviewed canonical live harness and
+approved provider/judge setup and budget precede the live phase; missing judge
+configuration must not be invented.
 The [cloud setup handoff](pr9-pr10-cloud-test-setup.md)
 contains reproducible commands and credential names without secret values.
