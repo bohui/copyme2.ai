@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Run the reusable five-case Memoir evaluation.
 
-The default live path uses the configured private-worker/provider boundary.
+Unmetered live execution is blocked until the canonical launcher and verified
+upstream accounting are available; read-only preflight remains available.
 ``--mode fixture`` uses the same ``CodexRuntime`` orchestration and isolated
 storage boundary with a deterministic worker response.  Fixture output is
 explicitly marked ``mock_only`` and is never a live-model quality result.
@@ -79,7 +80,7 @@ EXPECTED_PATH = ROOT / "tests/evaluation/memoir_five_case_expected.json"
 TRUTH_PATH = ROOT / "tests/evaluation/memoir_five_case_truth.json"
 CALIBRATION_PATH = ROOT / "tests/evaluation/memoir_five_case_judge_calibration.json"
 JUDGE_PROMPT_PATH = ROOT / "tests/evaluation/memoir_five_case_judge_prompt.md"
-RUNNER_VERSION = "memoir-five-case-runner/4"
+RUNNER_VERSION = "memoir-five-case-runner/5"
 EXECUTION_MODES = {"fixture", "live", "pilot"}
 DEFAULT_PROVIDER = "http://127.0.0.1:4000/v1"
 DEFAULT_MODEL = "gpt-5.6-luna-pooled"
@@ -1453,6 +1454,26 @@ async def main_async(args: argparse.Namespace) -> int:
     if errors:
         print(json.dumps({"status": "invalid_dataset", "errors": errors}, ensure_ascii=False, indent=2))
         return 2
+    if args.mode == "live" and not args.preflight_only:
+        # This legacy adapter cannot meter the app-server's upstream model
+        # calls. Neither skipping health preflight nor regrade/resume flags
+        # supply verified accounting; regrade can fall through to a new turn
+        # when a saved round is missing. Stop before environment/auth loading.
+        run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
+        blocked = {
+            "status": "blocked", "mode": "live", "run_id": run_id, "runner_version": RUNNER_VERSION,
+            "blockers": ["verified_provider_accounting_unavailable"],
+            "provider_requests_started": 0, "private_worker_requests_started": 0,
+            "message": "Live execution requires the reviewed canonical launcher and verified upstream request/token/spend enforcement. --skip-preflight, resume and regrade do not bypass this gate; --preflight-only remains read-only.",
+        }
+        run_dir = Path(args.output_root) / run_id
+        existed = run_dir.exists()
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_json(run_dir / ("blocked-live-attempt-" + uuid4().hex + ".json"), blocked)
+        if not existed:
+            write_json(run_dir / "summary.json", blocked)
+        print(json.dumps(blocked, ensure_ascii=False, indent=2))
+        return 3
     env_file = parse_env_file(Path(args.env_file))
     if args.provider_url is None:
         args.provider_url = provider_config(env_file)["base_url"]
