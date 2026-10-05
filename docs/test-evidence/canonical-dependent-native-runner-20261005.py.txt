@@ -1,0 +1,155 @@
+"""Sequential native dependencies with task-only frontend and exact cleanup."""
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+
+ROOT = Path.cwd().resolve()
+sys.path.insert(0, str(ROOT))
+from scripts.run_isolated_check import offline_environment, stop_owned
+OUT = ROOT / 'output/mac-validation/canonical-native/dependent-10d8de5-02'
+OUT.mkdir()
+DATA = OUT / 'task-data'
+DATA.mkdir()
+(DATA / 'home').mkdir()
+ENV = offline_environment(ROOT)
+REAL_CONTAINER = shutil.which('container', path=ENV['PATH'])
+assert REAL_CONTAINER
+BIN = OUT / 'bin'
+BIN.mkdir()
+JOURNAL = OUT / 'postgres-owned.jsonl'
+wrapper = BIN / 'container'
+wrapper.write_text(f'''#!{sys.executable}
+import json, os, pathlib, re, sys
+args = sys.argv[1:]
+name = args[args.index('--name')+1] if '--name' in args else next((x for x in args if re.fullmatch(r'memoir-issue6-pg-[0-9a-f]{{12}}', x)), None)
+if name:
+    with pathlib.Path({str(JOURNAL)!r}).open('a') as stream:
+        stream.write(json.dumps({{'action':args[0], 'container':name}})+'\\n')
+os.execv({REAL_CONTAINER!r}, [{REAL_CONTAINER!r}, *args])
+''')
+wrapper.chmod(0o755)
+ENV['PATH'] = str(BIN) + ':' + ENV['PATH']
+
+
+def free_port():
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        return sock.getsockname()[1]
+
+
+api_port, web_port = free_port(), free_port()
+ENV.update(MEMORY_SPARK_API_ORIGIN=f'http://127.0.0.1:{api_port}',
+    MEMOIR_BROWSER_URL=f'http://127.0.0.1:{web_port}',
+    MEMOIR_TEST_URL=f'http://127.0.0.1:{web_port}/memoir',
+    MEMOIR_TEST_POSTGRES_BACKEND='apple-container',
+    MEMORY_SPARK_DATABASE=str(DATA / 'api.sqlite'))
+api_env = dict(ENV, MEMORY_SPARK_TASK_DB=str(DATA / 'tasks.sqlite'), HOME=str(DATA / 'home'), CODEX_HOME=str(DATA / 'home/codex'),
+    MEMORY_SPARK_CODEX_HOME=str(DATA / 'worker-homes'),
+    MEMORY_SPARK_CODEX_BIN='/usr/bin/false',
+    MEMORY_SPARK_LLM_BASE_URL='http://127.0.0.1:0/v1',
+    MEMORY_SPARK_LLM_API_KEY='synthetic-only')
+services = []
+receipt = {'head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+    'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),
+    'real_model_calls':0, 'services':[], 'cleanup':{}}
+assert receipt['head'] == '10d8de585ac95dbc0bf94d04c79bb6a81b2800bb'
+
+
+def save():
+    (OUT / 'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+
+
+def start(name, command, cwd, port, environment):
+    with (OUT / (name + '.log')).open('w') as logfile:
+        process = subprocess.Popen(command,cwd=cwd,env=environment,
+            stdout=logfile,stderr=subprocess.STDOUT,start_new_session=True)
+    services.append((name, process))
+    receipt['services'].append({'name':name,'pid':process.pid,'port':port,'command':command})
+    save()
+    until = time.monotonic() + 40
+    while time.monotonic() < until:
+        if process.poll() is not None:
+            raise RuntimeError(name + ' exited')
+        try:
+            with socket.create_connection(('127.0.0.1',port),timeout=.2):
+                return
+        except OSError:
+            time.sleep(.1)
+    raise TimeoutError(name + ' startup')
+
+
+def check(name, seconds, command):
+    result = subprocess.run([sys.executable,'scripts/run_isolated_check.py',
+        '--output-dir',str(OUT),'--name',name,'--timeout',str(seconds),'--',*command],
+        cwd=ROOT,env=ENV,timeout=seconds+30)
+    receipt[name] = {'exit_code':result.returncode}
+    save()
+    if result.returncode:
+        raise RuntimeError(name + ' failed')
+
+
+try:
+    start('api',[sys.executable,'-m','uvicorn','apps.api.main:app',
+        '--host','127.0.0.1','--port',str(api_port)],ROOT,api_port,api_env)
+    check('production-build-10d8de5-02',300,['npm','--prefix','apps/web','run','build'])
+    manifest = json.loads((ROOT / 'apps/web/.next/routes-manifest.json').read_text())
+    rewrites = manifest['rewrites']
+    rules = rewrites if isinstance(rewrites,list) else sum(rewrites.values(),[])
+    api_rules = [rule for rule in rules if rule['source'].startswith('/api/v1/memoir')]
+    assert len(api_rules)==2 and all(rule['destination'].startswith(
+        ENV['MEMORY_SPARK_API_ORIGIN']+'/api/v1/memoir') for rule in api_rules)
+    node = str(ROOT / 'output/mac-validation/node-runtime/node_modules/.bin/node')
+    start('web',[node,'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1',
+        '--port',str(web_port)],ROOT / 'apps/web',web_port,ENV)
+    with urllib.request.urlopen(ENV['MEMOIR_BROWSER_URL']+'/api/v1/memoir/agent/config',timeout=5) as response:
+        config = json.load(response)
+    assert config['auth_mode']=='test'
+    receipt['proxy_verification']={'api_rules':api_rules,'auth_mode':config['auth_mode']}
+    save()
+    check('dependent-native-browser-10d8de5-02',600,[sys.executable,
+        'tests/fixtures/browser_network_guard.py','pytest','-q',
+        '--junitxml='+str(OUT/'tests.xml'),'--basetemp='+str(OUT/'pytest-receipts'),
+        'tests/test_private_rounds_postgres.py','tests/test_guest_conversation_transfer.py',
+        'tests/test_recall_usage.py','tests/test_shared_memory_events_postgres.py',
+        'tests/test_memoir_lanes_temporal.py','tests/test_shared_memory_browser.py'])
+    receipt['status']='completed'
+except BaseException as error:
+    receipt['status']='incomplete'
+    receipt['error_class']=type(error).__name__
+    raise
+finally:
+    for name, process in reversed(services):
+        try:
+            receipt['cleanup'][name]=stop_owned(process)
+        except Exception as error:
+            receipt['cleanup'][name]={'error_class':type(error).__name__,'group_gone':False}
+    rows=[json.loads(line) for line in JOURNAL.read_text().splitlines()] if JOURNAL.exists() else []
+    names=sorted({row['container'] for row in rows if row['action']=='run'})
+    receipt['cleanup']['postgres']=[]
+    for name in names:
+        assert re.fullmatch(r'memoir-issue6-pg-[0-9a-f]{12}', name)
+        result=subprocess.run([REAL_CONTAINER,'inspect',name],capture_output=True,text=True,timeout=15)
+        absent=result.returncode!=0 and f'container not found: {name}' in result.stderr.lower()
+        reconciliation=False
+        if not absent:
+            reconciliation=True
+            subprocess.run([REAL_CONTAINER,'stop',name],capture_output=True,timeout=15)
+            result=subprocess.run([REAL_CONTAINER,'inspect',name],capture_output=True,text=True,timeout=15)
+            absent=result.returncode!=0 and f'container not found: {name}' in result.stderr.lower()
+        receipt['cleanup']['postgres'].append({'container':name,'not_found_verified':absent,'reconciliation_needed':reconciliation})
+    closed=all(item.get('group_gone') for item in (receipt['cleanup'].get('api',{}),receipt['cleanup'].get('web',{}))) and all(row['not_found_verified'] for row in receipt['cleanup']['postgres'])
+    if closed:
+        shutil.rmtree(DATA)
+        receipt['cleanup']['workspace_removed']=True
+    else:
+        receipt['status']='incomplete'
+        receipt['cleanup']['workspace_removed']=False
+    save()
+    print(json.dumps(receipt,indent=2),flush=True)
