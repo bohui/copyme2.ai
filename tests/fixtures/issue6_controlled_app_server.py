@@ -92,7 +92,7 @@ def composer_reply(params):
         'input_snapshot_id': plan['input_snapshot_id'], 'input_fingerprint': plan['input_fingerprint'],
         'expected_manuscript_revision': plan['expected_manuscript_revision'], 'kind': plan['kind'], 'status': 'draft',
         'title': control.get('title','Starting school'), 'title_source_refs': refs, 'counter': plan['counter'],
-        'source_summary': [{'id': 'school-summary', 'text': 'Started school around 1964.',
+        'source_summary': [{'id': 'school-summary', 'text': control.get('summary', 'Started school around 1964.'),
             'source_refs': refs, 'event_ids': ids, 'uncertainty': ['approximate date']}],
         'outline': [{'chapter_id': chapter_id, 'order': 0, 'title': control.get('title','Starting school'),
             'period_ids': periods, 'event_ids': ids, 'status': 'planned' if storyline else 'draft',

@@ -910,10 +910,10 @@ def ui_place_group_observation(storage: CaseStorage, *, prior_place_count: int, 
     if len(accepted_places) <= prior_place_count:
         return {"executed": True, "called": False, "output_ok": True, "status": "mock_only" if execution_mode == "fixture" else "pass", "comment": "No accepted place arrived in this round."}
     try:
-        result = resolve_place_groups(accepted_places)
+        result = resolve_place_groups(accepted_places, allow_provider=execution_mode == "live")
         pins = [record.get("pin") for record in result.get("places", [])]
         independent = all(pin is None or pin.get("place") for pin in pins)
-        return {"executed": True, "called": True, "output_ok": bool(len(result.get("places", [])) == len(accepted_places) and independent), "status": "mock_only" if execution_mode == "fixture" else "pass", "group_status": result.get("status"), "place_count": len(result.get("places", [])), "pin_independence": independent, "source_place_count": len(accepted_places), "comment": "Production grouping function exercised from accepted application state; no model call."}
+        return {"executed": True, "called": True, "output_ok": bool(len(result.get("places", [])) == len(accepted_places) and independent), "status": "mock_only" if execution_mode == "fixture" else "pass", "group_status": result.get("status"), "place_count": len(result.get("places", [])), "pin_independence": independent, "source_place_count": len(accepted_places), "geocoding_allowed": execution_mode == "live", "comment": "Production grouping function exercised from accepted application state; external geocoding is disabled for fixture execution." if execution_mode == "fixture" else "Production grouping function exercised from accepted application state."}
     except Exception as error:
         return {"executed": True, "called": True, "output_ok": False, "status": "fail", "error_type": type(error).__name__}
 

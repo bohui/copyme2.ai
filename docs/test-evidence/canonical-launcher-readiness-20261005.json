@@ -1,0 +1,142 @@
+{
+  "schema_version": "memoir-canonical-launcher-readiness/1",
+  "base_head": "5ccedc75e33b349571aec485ded0c546f1a24704",
+  "branch": "codex/canonical-launcher-offline-20261005",
+  "main": "602bf77f50f6a6d4a88e7f2a1bf886dff2c65914",
+  "pr16_head_unchanged": "5ccedc75e33b349571aec485ded0c546f1a24704",
+  "validation": {
+    "focused": {
+      "passed": 67,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "deselected": 2,
+      "warning_count": 1,
+      "receipt": "output/mac-validation/canonical-launcher/canonical-launcher-light-final.json"
+    },
+    "final_cli_metadata": {
+      "passed": 7,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "receipt": "output/mac-validation/canonical-launcher/canonical-cli-final-02.json",
+      "overlaps_focused": true
+    },
+    "native_existing_cases": "2 deferred by explicit resource window; not new passes",
+    "new_native_launcher_test": "not executed; not a skip/pass",
+    "broad_suite": "not repeated"
+  },
+  "contracts": {
+    "fixture_geocoding": "forbidden per call, including restored places and configured synthetic credentials",
+    "legacy_live_gate": "retained",
+    "canonical_memory_events_and_source_claims": "unchanged",
+    "provider_timeout": "tested cancellation and retained uncertain reservations",
+    "worker_timeout": "tested cancellation and post-deadline rejection",
+    "native_launcher": "wired; full native validation pending",
+    "model_token_accounting": "zero real model tokens in controlled fixture; no live accounting guarantee"
+  },
+  "provider": {
+    "narrator_model": "gpt-5.6-luna-pooled",
+    "narrator_effort": "max",
+    "composer_model": "legal2ai-luna-low",
+    "composer_effort": "low",
+    "upstream": "openai/gpt-5.6-luna",
+    "billing_route": "ChatGPT subscription account pool",
+    "configured_litellm_token_cost": 0,
+    "free_or_unlimited_usage_verified": false,
+    "read_only_models": "both configured aliases present on application route and localhost gateway",
+    "read_only_spend_logs": "successful; no rows for aliases in queried 2026-10-05 window",
+    "read_only_sidecar_usage": "successful; token/credit metadata present; freshness and run-specific accounting remain unverified",
+    "image_digest": "sha256:ba5598aaa70f7acf74a958139037604621ec2582a7fb5fe1e870f08bece807d6",
+    "running_service_image_matches_tracked_pin": true,
+    "output_cap": "v1.24.0 drops max_output_tokens during Responses forwarding and max_tokens/max_completion_tokens during chat conversion",
+    "upstream_attempt_count": "unverified; internal sidecar retries/failover can differ from worker/gateway request count",
+    "live_execution": "blocked",
+    "source": "https://github.com/Soju06/codex-lb/blob/v1.24.0/app/core/openai/requests.py#L795-L805",
+    "pinned_public_source_sha256": {
+      "app_core_openai_requests.py": "dc62d5bb6dfb8361cefe6827b8f92b50fecba13ea6a4312dba8d8941ced53dee",
+      "app_core_openai_chat_requests.py": "a080400c224a55f004e879820be6df08474197ae32a8d53acf9241609ddcf567"
+    }
+  },
+  "browser": {
+    "chrome_running": true,
+    "installed": true,
+    "extension_installed_and_enabled": true,
+    "native_host_check_exit_code": 0,
+    "callable_browser_or_node_repl_tools": 0,
+    "embedded_browser_binding": "not exposed in this coding session",
+    "authenticated_ui": "not verified",
+    "required_action": "Enable the Chrome/Browser plugin for this coding session while keeping the signed-in Langfuse traces tab open; no new login requested."
+  },
+  "live_budget_proposals": {
+    "status": "not approved; not currently enforceable on the configured route",
+    "pilot": {
+      "scope": "8 source-claim/veto inputs across two locales plus 4 ephemeral follow-ups; diagnostic only",
+      "max_actual_upstream_attempts": 80,
+      "max_input_tokens": 400000,
+      "max_output_tokens": 80000,
+      "max_output_tokens_per_request": 1000,
+      "max_seconds": 2400,
+      "concurrency": 1,
+      "judge_calls": 0,
+      "photo_calls": 0,
+      "geocoding_calls": 0
+    },
+    "full_conversation_and_composition": {
+      "scope": "five separate 50-round datasets; 50 draft checkpoints; all role, retry, failover and compaction requests count",
+      "max_actual_upstream_attempts": 2000,
+      "max_input_tokens": 40000000,
+      "max_output_tokens": 4000000,
+      "max_output_tokens_per_request": 4096,
+      "max_seconds": 10800,
+      "concurrency": 1,
+      "judge_calls": 0,
+      "photo_calls": 0,
+      "geocoding_calls": 0,
+      "all_seven_skill_live_acceptance": false
+    },
+    "additional_gates": [
+      "verified wire/provider caps and true upstream attempt accounting",
+      "fresh quota headroom and actual subscription usage contract",
+      "independent cloud review and native window validation",
+      "accepted judge configuration/calibration and separately bounded photo/geocoding work before complete acceptance"
+    ],
+    "dollar_spend": "unknown; configured zero and API-equivalent prices do not establish actual subscription billing"
+  },
+  "actions": {
+    "model_calls": 0,
+    "judge_calls": 0,
+    "photo_calls": 0,
+    "real_geocoding_calls": 0,
+    "langfuse_publications": 0,
+    "new_native_resources": 0,
+    "shared_service_restarts": 0,
+    "persistent_host_changes": 0,
+    "credentials_created_or_copied": 0,
+    "prs_merged": 0
+  },
+  "preservation": {
+    "original": {
+      "head": "c6a990aa499eb63fe1d6407e4082462200598c0d",
+      "status_sha256": "ea89f389506d7dae23199a2de098cc9aa3ca73ee308a783d724b596d7dc23d85",
+      "diff_sha256": "4c1205697b189c3b32e9db07d0c952a330c87be448786f56cf93ac8422d12ec0",
+      "head_unchanged": true,
+      "tracked_diff_unchanged": true,
+      "only_status_addition_is_untracked_package_metadata": false
+    },
+    "issue2": {
+      "head": "90dee1f2be4f6a83fbc44e779f8d2e91106c6061",
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "head_unchanged": true,
+      "tracked_diff_unchanged": true
+    },
+    "issue6": {
+      "head": "84366778f50495d065e794a00f16184d16dc4216",
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "head_unchanged": true,
+      "tracked_diff_unchanged": true
+    }
+  }
+}

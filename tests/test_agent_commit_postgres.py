@@ -1,5 +1,6 @@
 """Run fencing/atomicity checks on a disposable local PostgreSQL, never Supabase."""
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -93,7 +94,9 @@ def database():
     with tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir='/tmp') as directory:
         data = str(Path(directory) / 'data')
         if container_backend:
-            pg_container_name = 'memoir-issue6-pg-' + uuid4().hex[:12]
+            pg_container_name = os.getenv('MEMOIR_TEST_POSTGRES_CONTAINER_NAME') or 'memoir-issue6-pg-' + uuid4().hex[:12]
+            if not re.fullmatch(r'memoir-issue6-pg-[0-9a-f]{12}', pg_container_name):
+                raise ValueError('A task-owned UUID PostgreSQL container name is required')
             subprocess.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
                 '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
                 'postgres:18.3', 'postgres', '-c', 'listen_addresses='], check=True, capture_output=True)
