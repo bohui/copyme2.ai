@@ -6,6 +6,7 @@ import pytest
 from scripts.memoir_five_case_evaluator import (
     SKILLS,
     aggregate_case,
+    build_langfuse_round_scores,
     evaluate_round,
     merge_ui_skill_observations,
 )
@@ -92,3 +93,68 @@ def test_browser_receipt_cannot_clear_other_failures_or_provider_gaps(remaining_
         {}, case, execution_mode="live",
     )
     assert merged[0]["overall"] == ("fail" if remaining_gap == "state_failure" else "unavailable")
+
+
+def _receipt_grade(skill, contract, receipt, *, entrypoint="evaluate", mode="live"):
+    case = {**CASE}
+    result = deepcopy(RESULT)
+    if contract == "required":
+        if skill == "memoir-place-groups":
+            case["place_rounds"] = {"1": ["Hobart"]}
+            result["trace"].append({"skill": "memoir-place-journey"})
+            result["place_journeys"] = [{"place": "Hobart"}]
+        elif skill == "place-photo-research":
+            case["photo_rounds"] = {"1": "current_day"}
+        else:
+            case["composer_rounds"] = {"1": "review_only"}
+    elif contract == "must_not_call":
+        case["negative_rounds"] = [1]
+    if entrypoint == "merge":
+        prior = evaluate_round({}, case, 1, result, execution_mode=mode)
+        return merge_ui_skill_observations([prior], {1: {skill: receipt}}, {}, case, execution_mode=mode)[0]
+    observations = {"composer_observation": receipt} if skill == "memoir-composer" else {"ui_observations": {skill: receipt}}
+    return evaluate_round({}, case, 1, result, execution_mode=mode, **observations)
+
+
+@pytest.mark.parametrize("skill,entrypoint", [
+    ("memoir-place-groups", "evaluate"), ("memoir-place-groups", "merge"),
+    ("place-photo-research", "evaluate"), ("place-photo-research", "merge"),
+    ("memoir-composer", "evaluate"),
+])
+@pytest.mark.parametrize("contract", ["required", "must_not_call"])
+@pytest.mark.parametrize("status", ["not_run", "unknown", "mock_only", None, "running", {"invalid": True}])
+def test_explicit_nonlive_receipt_status_cannot_certify_live_success(skill, entrypoint, contract, status):
+    called = contract == "required"
+    receipt = {"status": status, "executed": True, "called": called, "invoked": called, "output_ok": True}
+    grade = _receipt_grade(skill, contract, receipt, entrypoint=entrypoint)
+    assert grade["skill_grades"][skill]["status"] in {"unavailable", "not_run"}
+    assert grade["overall"] == "unavailable"
+    scores = build_langfuse_round_scores(grade)
+    assert not any(score["name"].startswith(f"skill.{skill}.") for score in scores)
+
+
+@pytest.mark.parametrize("skill", ["memoir-place-groups", "place-photo-research", "memoir-composer"])
+@pytest.mark.parametrize("contract", ["required", "must_not_call", "not_applicable"])
+@pytest.mark.parametrize("status", ["not_run", "unknown", "mock_only"])
+def test_explicit_receipt_failures_and_optional_semantics_remain_separate(skill, contract, status):
+    receipt = {"status": status, "executed": True, "called": True, "invoked": True, "output_ok": True}
+    grade = _receipt_grade(skill, contract, receipt)
+    if contract == "not_applicable":
+        assert grade["skill_grades"][skill]["status"] == "not_applicable"
+        assert grade["overall"] == "pass"
+    else:
+        assert grade["skill_grades"][skill]["status"] in {"unavailable", "not_run"}
+
+
+@pytest.mark.parametrize("skill", ["memoir-place-groups", "place-photo-research", "memoir-composer"])
+@pytest.mark.parametrize("contract", ["required", "must_not_call"])
+@pytest.mark.parametrize("receipt_status,mode,expected", [("omitted", "live", "pass"), ("pass", "live", "pass"), ("mock_only", "fixture", "mock_only"), ("fail", "live", "fail")])
+def test_valid_legacy_and_terminal_receipt_statuses_keep_their_meaning(skill, contract, receipt_status, mode, expected):
+    called = contract == "required"
+    receipt = {"executed": True, "called": called, "invoked": called, "output_ok": True}
+    if receipt_status != "omitted":
+        receipt["status"] = receipt_status
+    grade = _receipt_grade(skill, contract, receipt, mode=mode)
+    assert grade["skill_grades"][skill]["status"] == expected
+    assert grade["skill_grades"][skill]["invocation"] == "pass"
+    assert grade["overall"] == expected

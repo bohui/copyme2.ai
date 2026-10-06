@@ -241,6 +241,38 @@ def _profile_stage(result: Mapping[str, Any], state: Mapping[str, Any] | None) -
     return None
 
 
+def _receipt_status_grade(
+    observation: Mapping[str, Any],
+    expected_status: str,
+    *,
+    execution_mode: str,
+    call_field: str,
+) -> dict[str, Any] | None:
+    """Explicit unavailable/non-live evidence cannot be rescued by booleans.
+
+    Legacy receipts omitted status; preserve that protocol while rejecting an
+    explicit unknown status, including null. Fixture receipts never certify a
+    live run. A declared failure remains a failure even with positive flags.
+    """
+    if "status" not in observation:
+        return None
+    status = observation["status"]
+    if status == "pass" or (status == "mock_only" and execution_mode == "fixture"):
+        return None
+    if status == "fail":
+        called = bool(observation.get(call_field))
+        invocation_ok = called if expected_status == "required" else not called
+        return {
+            "status": "fail", "invocation": "pass" if invocation_ok else "fail", "output": "fail",
+            "comment": observation.get("comment") or "The receipt reports a failed observation.",
+        }
+    unavailable = "not_run" if status == "not_run" else "unavailable"
+    return {
+        "status": unavailable, "invocation": unavailable, "output": unavailable,
+        "comment": observation.get("comment") or "The explicit receipt status does not establish completed execution in this mode.",
+    }
+
+
 def _skill_grade(
     skill: str,
     expected_status: str,
@@ -258,8 +290,11 @@ def _skill_grade(
         return {"status": "not_applicable", "invocation": "not_applicable", "output": "not_applicable", "comment": "The round does not require this skill."}
     if skill in UI_SKILLS:
         ui_observation = ui_observation or {}
-        if ui_observation.get("status") in {"blocked", "unavailable"}:
-            return {"status": "unavailable", "invocation": "unavailable", "output": "unavailable", "comment": ui_observation.get("comment")}
+        receipt_grade = _receipt_status_grade(
+            ui_observation, expected_status, execution_mode=execution_mode, call_field="called",
+        )
+        if receipt_grade is not None:
+            return receipt_grade
         if not ui_observation.get("executed"):
             if expected_status == "must_not_call":
                 return {"status": "mock_only" if execution_mode == "fixture" else "pass", "invocation": "pass", "output": "pass", "comment": "No UI action was required and no UI execution was recorded."}
@@ -268,8 +303,11 @@ def _skill_grade(
         observed_output = bool(ui_observation.get("output_ok"))
     elif skill == "memoir-composer":
         composer_observation = composer_observation or {}
-        if composer_observation.get("status") in {"blocked", "unavailable"}:
-            return {"status": "unavailable", "invocation": "unavailable", "output": "unavailable", "comment": composer_observation.get("comment")}
+        receipt_grade = _receipt_status_grade(
+            composer_observation, expected_status, execution_mode=execution_mode, call_field="invoked",
+        )
+        if receipt_grade is not None:
+            return receipt_grade
         observed_call = bool(composer_observation.get("invoked"))
         observed_output = bool(composer_observation.get("output_ok"))
     else:

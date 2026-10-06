@@ -38,10 +38,10 @@ budget, or original input/truth/expected dataset was changed.
   failures and two passing guard cases on the base evaluator
 - [State-gap guard red output](../test-evidence/issue13/state-gap-red.log): the
   first merge-status fix was prevented from clearing unavailable state
-- Focused final check: `160 passed, 4 skipped`; the four skipped tests are the
+- Initial implementation focused check: `160 passed, 4 skipped`; the four skipped tests are the
   intentionally opt-in configured-provider interview cases
 - [Focused output](../test-evidence/issue13/focused-green.log)
-- Full isolated offline suite: `1086 passed, 183 skipped, 1 warning`;
+- Initial implementation full isolated offline suite: `1086 passed, 183 skipped, 1 warning`;
   [raw output](../test-evidence/issue13/full-offline-green.log). Browser, local
   PostgreSQL, live-provider and other explicitly gated checks remain skipped
 - An earlier run with inherited proxy settings stopped 26 checks at missing
@@ -116,3 +116,36 @@ runtime readback. This audit does not claim otherwise.
 The new evaluator correction evidence is separate from the earlier life-stage
 oracle correction. Acceptance of these changes requires independent review;
 no previous raw artifact is rewritten or reclassified as a live quality pass.
+
+
+## Independent review correction: receipt status provenance
+
+Review of `be0b9ef95ef57b999f99b5a458b776733c3d1b61` reproduced six
+fail-open cases: a required UI receipt explicitly marked `not_run`, `unknown`,
+or `mock_only` could certify a live pass when its boolean fields were true.
+Both initial evaluation and browser-receipt merging were affected.
+
+The correction checks explicit receipt status before using those booleans for
+required or negative contracts. Nonterminal/unknown/null/malformed statuses
+remain unavailable; `not_run` remains not run; `mock_only` is accepted only in
+fixture mode. Explicit failed receipts remain failed, with invocation and
+output grading kept separate. Optional receipts remain `not_applicable`.
+Legacy receipts with no status field and valid live `pass` receipts retain
+compatibility. The same validation now protects composer receipts, which had
+the identical fail-open condition.
+
+- [Expanded test-first summary](../test-evidence/issue13/receipt-status-red-summary.log):
+  84 failed, 37 passed on the reviewed head
+- [Focused correction run](../test-evidence/issue13/receipt-status-focused-green.log):
+  271 passed, 4 live-provider cases skipped
+- The reviewer's six exact public-entry-point reproductions now pass
+- These checks use synthetic receipts only; no live requests were made
+
+The independent full-suite run on the earlier head is retained separately:
+[1085 passed, 183 skipped, 1 warning, 1 failure](../test-evidence/issue13/independent-be0b9ef-full.log).
+The failure was in the unchanged
+`test_failed_postgres_startup_and_stop_cannot_report_no_allocation_or_closed`.
+Its [isolated rerun passed](../test-evidence/issue13/independent-be0b9ef-lifecycle-rerun.log).
+The rerun does not change that aggregate run into a pass. This is distinct
+from the implementation's earlier full-suite pass; independent review and
+exact-head verification of the correction remain separate gates.
