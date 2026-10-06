@@ -28,3 +28,14 @@ Langfuse publish is claimed by this local report.
 ## Limitation
 
 The checked-in sensitive-copy manifest marks human/native-speaker review as required; automated checks do not claim that external bilingual sign-off has occurred.
+
+## 6 October 2026 acceptance audit
+
+See [the issue #1 acceptance audit](issue-1-acceptance-audit.md) for the current
+27-story trace and unresolved product decisions. A malformed browser locale
+previously caused an HTTP 500; locale negotiation now ignores malformed tags
+and invalid quality values without losing valid following preferences. The
+sensitive-copy manifest has grown from 10 to 77 existing messages, all still
+pending human review. Current catalogue validation covers 541 messages.
+The audit distinguishes actual cloud HTTP/unit/build passes from browser and
+human-review gates that remain open.

@@ -17,13 +17,25 @@ export function isUiLocale(value) {
 function browserLocalePreferences(acceptLanguage = "") {
   return acceptLanguage
     .split(",")
-    .map((part, index) => {
+    .flatMap((part, index) => {
       const [rawLocale, ...parameters] = part.trim().split(";");
-      const quality = parameters.find((parameter) => parameter.trim().startsWith("q="));
-      const weight = quality ? Number(quality.trim().slice(2)) : 1;
-      return { locale: rawLocale, weight: Number.isFinite(weight) ? weight : 0, index };
+      // HTTP quality values are in [0, 1], with at most three decimal places.
+      // Invalid or repeated values must not outrank a valid browser preference.
+      if (parameters.length > 1) return [];
+      const quality = parameters[0]?.trim().match(/^q\s*=\s*(0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/i);
+      if (parameters.length && !quality) return [];
+      const weight = quality ? Number(quality[1]) : 1;
+      if (weight === 0 || rawLocale.trim() === "*") return [];
+      try {
+        // intl-localematcher canonicalizes its entire input list and throws if
+        // any tag is malformed. Discard only that tag, preserving valid choices.
+        const [locale] = Intl.getCanonicalLocales(rawLocale.trim());
+        return locale ? [{ locale, weight, index }] : [];
+      } catch (error) {
+        if (error instanceof RangeError) return [];
+        throw error;
+      }
     })
-    .filter(({ locale, weight }) => locale && locale !== "*" && weight > 0)
     .sort((left, right) => right.weight - left.weight || left.index - right.index)
     .map(({ locale }) => locale);
 }
