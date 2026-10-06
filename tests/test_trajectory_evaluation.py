@@ -413,6 +413,34 @@ def test_langfuse_publisher_fails_closed_when_auth_check_fails():
         LangfusePublisher(_UnauthenticatedLangfuseDouble())
 
 
+@pytest.mark.parametrize("accepted_before_error", [False, True])
+def test_langfuse_score_type_error_never_retries_without_replay_identity(accepted_before_error):
+    class FailingScoreClient(_LangfuseDouble):
+        def create_score(self, **kwargs):
+            if kwargs.get("score_id"):
+                if accepted_before_error:
+                    self.scores.append(kwargs)
+                raise TypeError("synthetic score failure")
+            # Models an SDK that generates a new ID when no score ID is given.
+            self.scores.append({**kwargs, "score_id": "generated-score"})
+
+    client = FailingScoreClient()
+    publisher = LangfusePublisher(client)
+    with publisher.case(
+        name="synthetic-replay",
+        task={"synthetic": True},
+        correlation={"run_id": "replay-run", "case_id": "replay-case"},
+    ) as sink:
+        with pytest.raises(TypeError, match="synthetic score failure"):
+            sink.publish(
+                {"started_at": "2026-10-05T23:59:59Z", "steps": [], "final": {"status": "completed"}},
+                [{"name": "synthetic_replay", "value": 1}],
+            )
+
+    assert len(client.scores) == int(accepted_before_error)
+    assert all(score["score_id"] != "generated-score" for score in client.scores)
+
+
 class _TreeObservation:
     def __init__(self, observation_id, trace_id="trace-tree"):
         self.id = observation_id
@@ -490,6 +518,7 @@ def test_langfuse_scores_use_worker_trace_pair_and_round_identity():
     publisher = LangfusePublisher(client)
     trajectory = {
         "schema_version": "memoir-trajectory/1",
+        "started_at": "2026-10-05T23:59:59Z",
         "steps": [{
             "step_id": "step-0001",
             "sequence": 1,
@@ -522,6 +551,78 @@ def test_langfuse_publisher_supports_final_flush_after_case_scope():
     LangfusePublisher(client).flush()
 
     assert client.flushed
+
+
+def test_langfuse_score_replay_preserves_run_and_worker_step_identity():
+    client = _LangfuseDouble()
+    publisher = LangfusePublisher(client)
+    trajectory = {
+        "started_at": "2026-10-05T23:59:59Z",
+        "steps": [{
+            "step_id": "step-0001",
+            "trace_id": "worker-trace",
+            "observation_id": "worker-observation",
+        }],
+        "final": {"status": "completed"},
+    }
+    scores = [
+        {"name": "run_quality", "value": 1},
+        {"name": "step_quality", "value": 1, "step_id": "step-0001"},
+    ]
+
+    for _ in range(3):
+        with publisher.case(
+            name="synthetic-replay",
+            task={"synthetic": True},
+            correlation={"run_id": "replay-run", "case_id": "replay-case", "round_id": "001"},
+        ) as sink:
+            sink.publish(trajectory, scores)
+
+    run_scores = [score for score in client.scores if score["name"] == "run_quality"]
+    step_scores = [score for score in client.scores if score["name"] == "step_quality"]
+    assert len(run_scores) == len(step_scores) == 3
+    assert len({score["score_id"] for score in run_scores}) == 1
+    assert len({score["score_id"] for score in step_scores}) == 1
+    assert run_scores[0]["score_id"] != step_scores[0]["score_id"]
+    assert all(score["trace_id"] == "trace-123" for score in run_scores)
+    assert all(score["observation_id"] == "observation-123" for score in run_scores)
+    assert all(score["trace_id"] == "worker-trace" for score in step_scores)
+    assert all(score["observation_id"] == "worker-observation" for score in step_scores)
+
+
+def test_langfuse_score_replay_keeps_original_recorded_utc_date():
+    client = _LangfuseDouble()
+    publisher = LangfusePublisher(client)
+    # This recorded local date is Oct 6; its original UTC date is Oct 5.
+    trajectory = {"started_at": "2026-10-06T00:30:00+10:00", "steps": []}
+    for _ in range(2):
+        with publisher.case(
+            name="synthetic-replay",
+            task={"synthetic": True},
+            correlation={"run_id": "replay-run", "case_id": "replay-case"},
+        ) as sink:
+            sink.publish(trajectory, [{"name": "synthetic_replay", "value": 1}])
+
+    assert [score["timestamp"].isoformat() for score in client.scores] == [
+        "2026-10-05T14:30:00+00:00", "2026-10-05T14:30:00+00:00",
+    ]
+
+
+@pytest.mark.parametrize("started_at", [None, "invalid", "2026-10-05T23:59:59"])
+def test_langfuse_scores_refuse_unrecorded_or_timezone_free_dates(started_at):
+    client = _LangfuseDouble()
+    publisher = LangfusePublisher(client)
+    with publisher.case(
+        name="synthetic-replay",
+        task={"synthetic": True},
+        correlation={"run_id": "replay-run", "case_id": "replay-case"},
+    ) as sink:
+        with pytest.raises(ValueError, match="timezone-aware trajectory started_at"):
+            sink.publish(
+                {"started_at": started_at, "steps": []},
+                [{"name": "synthetic_replay", "value": 1}],
+            )
+    assert client.scores == []
 
 
 def test_protocol_item_lifecycle_pair_counts_one_successful_tool_call():
