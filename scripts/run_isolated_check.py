@@ -50,6 +50,12 @@ def stop_owned(process):
         except ProcessLookupError:
             pass
         deadline = time.monotonic() + 5
+        # Reap the owned leader before probing a group it may have just left.
+        # Keep the same grace deadline for any surviving descendants.
+        try:
+            process.wait(timeout=max(0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            pass
         while time.monotonic() < deadline:
             process.poll()  # Reap our immediate child without losing its group.
             if not group_exists():
