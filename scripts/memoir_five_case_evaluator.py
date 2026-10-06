@@ -252,6 +252,10 @@ def _skill_grade(
     ui_observation: Mapping[str, Any] | None = None,
     composer_observation: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if expected_status == "not_applicable":
+        # Optional skills do not acquire a required browser/provider gate.
+        # Raw observations remain in the run artifact, outside contract rates.
+        return {"status": "not_applicable", "invocation": "not_applicable", "output": "not_applicable", "comment": "The round does not require this skill."}
     if skill in UI_SKILLS:
         ui_observation = ui_observation or {}
         if ui_observation.get("status") in {"blocked", "unavailable"}:
@@ -295,6 +299,27 @@ def _skill_grade(
             return {"status": "fail", "invocation": "fail", "output": "fail", "comment": f"Unnecessary {skill} invocation was observable."}
         return {"status": "mock_only" if execution_mode == "fixture" else "pass", "invocation": "pass", "output": "pass", "comment": f"No unnecessary {skill} invocation was observable."}
     return {"status": "not_applicable", "invocation": "not_applicable", "output": "not_applicable", "comment": "The round does not require this skill."}
+
+
+def _round_status(
+    skill_grades: Mapping[str, Mapping[str, Any]],
+    state_checks: Mapping[str, Mapping[str, Any]],
+    *,
+    execution_mode: str,
+    evidence_status: str | None = None,
+) -> str:
+    """Combine the current evidence after initial grading or a browser receipt."""
+    statuses = [grade.get("status") for grade in skill_grades.values()]
+    statuses.extend(check.get("status") for check in state_checks.values())
+    if "fail" in statuses:
+        return "fail"
+    if evidence_status == "unavailable":
+        return "unavailable"
+    if execution_mode == "fixture":
+        return "mock_only"
+    if any(status in {"unavailable", "not_run"} for status in statuses):
+        return "unavailable"
+    return "pass"
 
 
 def evaluate_round(
@@ -343,17 +368,7 @@ def evaluate_round(
             "actual": actual_places,
             "status": "pass" if set(expected["places"]).issubset(set(actual_places)) else "fail",
         }
-    statuses = [grade["status"] for grade in skill_grades.values()]
-    hard_fail = any(status == "fail" for status in statuses) or any(check["status"] == "fail" for check in state_checks.values())
-    unavailable = any(status in {"unavailable", "not_run"} for status in statuses)
-    if hard_fail:
-        overall = "fail"
-    elif execution_mode == "fixture":
-        overall = "mock_only"
-    elif unavailable:
-        overall = "unavailable"
-    else:
-        overall = "pass"
+    overall = _round_status(skill_grades, state_checks, execution_mode=execution_mode)
     return {
         "round": round_number,
         "expected": expected,
@@ -411,8 +426,8 @@ def aggregate_case(
             "required_output_pass": required_output_pass,
             "must_not_call_invocation_pass": negative_invocation_pass,
             "must_not_call_output_pass": negative_output_pass,
-            "invocation_pass": sum(1 for grade in grades if grade.get("invocation") == "pass"),
-            "output_pass": sum(1 for grade in grades if grade.get("output") == "pass"),
+            "invocation_pass": required_invocation_pass + negative_invocation_pass,
+            "output_pass": required_output_pass + negative_output_pass,
             "failures": sum(1 for grade in grades if grade.get("status") == "fail"),
             "unavailable": sum(1 for grade in grades if grade.get("status") in {"unavailable", "not_run"}),
             "mock_only": sum(1 for grade in grades if grade.get("status") == "mock_only"),
@@ -552,8 +567,10 @@ def merge_ui_skill_observations(
                     execution_mode=execution_mode,
                     ui_observation=ui[skill],
                 )
-        if any(item.get("status") == "fail" for item in grade["skill_grades"].values()):
-            grade["overall"] = "fail"
+        grade["overall"] = _round_status(
+            grade["skill_grades"], grade.get("state_checks", {}),
+            execution_mode=execution_mode, evidence_status=grade.get("evidence_status"),
+        )
         merged.append(grade)
     return merged
 
