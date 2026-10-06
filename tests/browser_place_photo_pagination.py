@@ -70,6 +70,8 @@ def main():
         assert before_append > 0, 'Fixture must scroll before append preservation is exercised'
         retry.click()
         expect(gallery.locator('figure')).to_have_count(20, timeout=15000)
+        # Persistence finishes with a gallery replacement after the new photos paint.
+        expect(retry).to_be_enabled(timeout=15000)
         after_append = page.evaluate("document.querySelector('.workspace-media-gallery .place-pictures').scrollTop")
         assert abs(after_append - before_append) < 2, f'Appending changed scroll from {before_append} to {after_append}'
         gallery.evaluate('(node) => { node.scrollTop = node.scrollHeight; }')
