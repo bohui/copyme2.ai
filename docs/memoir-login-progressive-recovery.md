@@ -32,6 +32,9 @@ the recovery repairs, and the separately approved provider configuration.
 - Preserve a verbatim original date anchor during event extraction. Do not
   synthesize a period expression from separate quotations. Preparation must
   copy canonical evidence without adding inferred attribution or offsets.
+- Draft with the exact canonical evidence spans, leave image metadata empty
+  when no assets exist, and preserve the narrator's meaning without adding
+  sensory details, emotions or lyrical conclusions unsupported by testimony.
 
 These follow [Issue #6](https://github.com/bohui/copyme2.ai/issues/6): canonical
 events drive five-round private checkpoints, one active run owns each lane,
@@ -74,10 +77,20 @@ preparation calls returned in approximately 7–18 seconds; a further private
 replay identified inferred attribution, which the preparation prompt now
 explicitly forbids.
 
-The next draft failed canonical span validation because it cited whole sources
-instead of the event-approved ranges. The drafting instructions now require
-the exact supplied canonical references and offsets. The first live checkpoint
-is still being validated; a ready saved draft has not yet been observed.
+Draft retries exposed whole-source citations instead of event-approved spans,
+an unresolved source and nonempty image metadata on prose. A later candidate
+passed schema and canonical-evidence validation, but editorial review found
+unsupported embellishment and a paraphrase that changed the recollection's
+meaning. It correctly remained unready. The drafting instructions now make
+these evidence and empty-metadata requirements explicit.
+
+During this verification the user intentionally reset the local containers/
+volumes and Supabase application data, then asked to skip the old data check.
+A read-only check found zero sources,
+events, lanes, checkpoints and manuscripts for the original project. The final
+drafting instructions therefore have not been verified on that live history,
+and no ready saved sample was observed before the reset. The code and fixture
+verification remain reviewable.
 
 ## Verification
 
@@ -94,6 +107,8 @@ is still being validated; a ready saved draft has not yet been observed.
   Eligible saved-sample responses took 7.3 ms and 3.8 ms in those fixtures.
 - The production frontend build passed. API/frontend and internal worker
   connectivity returned HTTP 200 after the local stack was recreated together.
+- After the final drafting-instruction change, 74 preview, canonical-provenance
+  and lane-logging checks passed.
 
 The fixture timings verify immediate saved-draft retrieval, not live model
 generation latency. This incident required a first catch-up run because no
