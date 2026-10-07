@@ -212,6 +212,8 @@ def conversation_attachments(authorization: str | None = Header(default=None)):
                         for memory_id in (item.get('workspace', {}).get('memory_id_map') or {}).values()}
         messages = []
         created_at = None
+        resume_candidates = [(item.get('created_at') or '', item['project_id'])
+                             for item in items if item.get('project_id')]
         for memory in service.all_memories():
             if memory.get('kind') != 'agent' or str(memory.get('id')) in imported_ids:
                 continue
@@ -221,6 +223,8 @@ def conversation_attachments(authorization: str | None = Header(default=None)):
             question, separator, reply = content.removeprefix('Storyteller: ').partition('\nMemory Spark: ')
             if not separator:
                 continue
+            if memory.get('project_id'):
+                resume_candidates.append((memory.get('created_at') or '', memory['project_id']))
             messages.extend([{'role': 'user', 'text': original_conversation_text(question)},
                              {'role': 'assistant', 'text': reply}])
             created_at = memory.get('created_at')
@@ -228,7 +232,8 @@ def conversation_attachments(authorization: str | None = Header(default=None)):
             items.append({'id': 'account-conversation', 'project_id': 'account-conversation',
                           'messages': messages, 'workspace': {}, 'created_at': created_at})
         items.sort(key=lambda item: item.get('created_at') or '', reverse=True)
-        return {'items': items}
+        resume_project_id = max(resume_candidates)[1] if resume_candidates else None
+        return {'items': items, 'resume_project_id': resume_project_id}
     finally:
         service.client.close()
 

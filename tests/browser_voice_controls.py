@@ -45,13 +45,19 @@ const currentUiLocale = () => 'en-AU';
 const translateWith = (key, values = {}) => Object.entries(values).reduce((text, [name, value]) => text.replaceAll('{' + name + '}', String(value)), translate(key));
 const MEMOIR_ROUTES = {home: '/memoir'};
 ''' + source + '''
-Object.defineProperty(window, 'speechSynthesis', {value: {cancel() {}}});
+window.browserSpeeches = [];
+Object.defineProperty(window, 'speechSynthesis', {value: {cancel() {}, speak(utterance) {
+  browserSpeeches.push(utterance.text); utterance.onend?.();
+}}});
 window.testState = state;
 window.recorders = [];
 window.tracks = [];
 window.uploads = 0;
 window.turns = 0;
 window.playbacks = 0;
+window.spokenRequests = [];
+window.speakers = [];
+window.notifications = [];
 window.mediaRequests = [];
 api = async (path, options = {}) => {
   mediaRequests.push({path, body: options.body ? JSON.parse(options.body) : null});
@@ -74,7 +80,7 @@ window.MediaRecorder = class {
   }); }
 };
 render = () => { document.querySelector('#app').innerHTML = `<main class="chat-main"><header class="chat-heading"><h1>Your story</h1></header><div class="chat-scroll"><p>Tell me about an afternoon you remember.</p></div>${chatComposer()}</main>`; bindViewActions(); };
-toast = () => {};
+toast = message => notifications.push(message);
 window.micLevel = 128;
 window.audioContexts = [];
 window.AudioContext = class {
@@ -95,9 +101,15 @@ storyApi = async (path, options) => {
     if (window.failTranscription) throw new Error('Speech unavailable');
     return {text: 'An afternoon by the sea.', source: {language: 'en'}};
   }
+  if (path === '/v1/story/question-audio') {
+    const speech = JSON.parse(options.body);
+    spokenRequests.push(speech);
+    if (window.failSynthesis) throw Object.assign(new Error('Speech unavailable'), {status: 503});
+    return {voice: speech.language === 'zh-CN' ? 'coral' : 'marin'};
+  }
   return {url: 'test-audio'};
 };
-playGeneratedAudio = async () => { playbacks++; };
+playGeneratedAudio = async generated => { playbacks++; speakers.push(generated.voice); };
         state.project = {id: 'test'};
 render();
 ''')
@@ -198,6 +210,18 @@ render();
         page.get_by_role('button', name='Send message').click()
         page.wait_for_function('turns === 4 && playbacks === 1 && testState.voiceModeStatus === "listening"')
         page.screenshot(path=str(ROOT / 'output/playwright/voice-composer.png'))
+        # A failed spoken reply stays in text, then relistens without switching voices.
+        page.evaluate('failSynthesis = true')
+        page.get_by_role('button', name='Send message').click()
+        page.wait_for_function('turns === 5 && testState.voiceModeStatus === "listening" && !testState.loading')
+        assert page.evaluate('playbacks') == 1
+        assert page.evaluate('browserSpeeches') == []
+        assert page.evaluate('notifications.at(-1)') == 'Voice playback is unavailable.'
+        page.evaluate('failSynthesis = false')
+        page.get_by_role('button', name='Send message').click()
+        page.wait_for_function('turns === 6 && playbacks === 2 && testState.voiceModeStatus === "listening"')
+        assert page.evaluate('speakers') == ['marin', 'marin']
+        assert page.evaluate('spokenRequests.every(request => !request.voice && !request.instructions)')
         page.get_by_role('button', name='End voice conversation').click()
         expect(page.locator('.voice-orb')).to_have_count(0)
         assert page.evaluate('tracks.every(track => track.stopped)')
@@ -226,7 +250,7 @@ render();
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), page.evaluate('[...document.querySelectorAll("*")].filter(e => e.getBoundingClientRect().right > innerWidth).map(e => [e.tagName, e.className, e.getBoundingClientRect().right])')
         assert not errors, errors
         browser.close()
-        print('Voice controls passed: cancel, stop/review, draft preservation, explicit send, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout.')
+        print('Voice controls passed: cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout.')
 
 
 if __name__ == '__main__':

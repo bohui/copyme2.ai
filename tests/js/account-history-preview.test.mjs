@@ -161,3 +161,68 @@ test('saved conversation hydration preserves matching local skill progress', asy
  assert.equal(reply.trace,trace);
  assert.equal(reply.traceMode,'live');
 });
+
+test('opening an interview after login restores account turns before sample admission', async () => {
+  const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, chat: [], loading: false };
+  let previewHistory;
+  const context = vm.createContext({ state, PLACE_JOURNEY_PROJECT_STORAGE_KEY: 'places',
+    MEMOIR_ROUTES: { interview: '/memoir/interview' }, stopVoiceMode() {},
+    conversationLanguage: () => 'zh-CN', currentUiLocale: () => 'zh-CN',
+    localStorage: { setItem() {}, removeItem() {} },
+    api: async path => path === '/v1/projects' ? { id: 'new-project', profile: {} } : {},
+    storyApi: async path => path === '/v1/user/profile' ? {} : { items: [
+      { id: 'saved', messages: [{ role: 'user', text: 'My saved childhood' }] }] },
+    navigateTo() {}, refreshProject: async () => {},
+    refreshFamilyEntitlement: async () => { previewHistory = [...state.chat]; },
+    startCodexConversation: async () => { if (!state.chat.length) state.chat.push({ role: 'assistant', text: 'Opening' }); },
+    cleanAssistantText: text => text, persistChatHistory() {}, setLoading() {}, toast() {},
+  });
+  load(context, 'hydrateAccountHistory');
+  load(context, 'startMemoirStory');
+  await context.startMemoirStory();
+  assert.ok(state.chat.some(message => message.text === 'My saved childhood'));
+  assert.ok(previewHistory.some(message => message.text === 'My saved childhood'));
+});
+
+test('continuing a signed-in interview uses its saved project for progressive samples', async () => {
+  const state = { supabase: { user: { id: 'owner', is_anonymous: false }, accessToken: 'session' }, chat: [], loading: false };
+  const context = vm.createContext({ state, PLACE_JOURNEY_PROJECT_STORAGE_KEY: 'places',
+    MEMOIR_ROUTES: { interview: '/memoir/interview' }, stopVoiceMode() {},
+    conversationLanguage: () => 'zh-CN', currentUiLocale: () => 'zh-CN',
+    localStorage: { setItem() {}, removeItem() {} },
+    api: async (path, options) => {
+      if (path !== '/v1/projects') return {};
+      assert.equal(JSON.parse(options.body).restore_project_id, 'saved-project');
+      assert.equal(options.headers.Authorization, 'Bearer session');
+      return { id: 'saved-project', profile: {} };
+    },
+    storyApi: async path => path === '/v1/user/profile' ? {} : {
+      resume_project_id: 'saved-project', items: [{ id: 'saved', messages: [{ role: 'user', text: 'My saved childhood' }] }] },
+    navigateTo() {}, refreshProject: async () => {}, refreshFamilyEntitlement: async () => {},
+    startCodexConversation: async () => {}, cleanAssistantText: text => text, persistChatHistory() {},
+    setLoading() {}, toast() {},
+  });
+  load(context, 'hydrateAccountHistory');
+  load(context, 'startMemoirStory');
+  await context.startMemoirStory();
+  assert.equal(state.project?.id, 'saved-project');
+  assert.ok(state.chat.some(message => message.text === 'My saved childhood'));
+});
+
+test('an account switch during interview recovery discards the prior account history', async () => {
+  const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, chat: [], loading: false };
+  let created = false;
+  const context = vm.createContext({ state, stopVoiceMode() {}, conversationLanguage: () => 'en-AU',
+    storyApi: async () => {
+      state.supabase.user = { id: 'another-owner', is_anonymous: false };
+      return { resume_project_id: 'private-project', items: [{ messages: [{ role: 'user', text: 'Private memory' }] }] };
+    },
+    api: async () => { created = true; return {}; },
+    setLoading() {}, toast() {},
+  });
+  load(context, 'startMemoirStory');
+  await context.startMemoirStory();
+  assert.equal(created, false);
+  assert.equal(state.chat.length, 0);
+  assert.equal(state.loading, false);
+});

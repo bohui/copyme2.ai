@@ -23,7 +23,9 @@ def test_history_includes_saved_oauth_account_turns_and_attached_transcripts(mon
     ]
     monkeypatch.setattr(supabase_routes, 'storage', lambda auth: storage)
     monkeypatch.setattr(supabase_routes, '_queue_if_configured', lambda: None)
-    items = supabase_routes.conversation_attachments('Bearer owner-session')['items']
+    result = supabase_routes.conversation_attachments('Bearer owner-session')
+    assert result['resume_project_id'] == 'guest-project'
+    items = result['items']
     messages = [message for item in items for message in item['messages']]
     assert {'role': 'user', 'text': 'My previous history'} in messages
     assert {'role': 'assistant', 'text': 'Tell me more.'} in messages

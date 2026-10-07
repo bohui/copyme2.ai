@@ -96,6 +96,10 @@ Memoir's UI supports `en-AU` and `zh-CN` catalogues through `next-intl`. The lan
 
 To enable server-side voice, set `OPENAI_API_KEY` in `.env`. The API uses `gpt-4o-mini-transcribe` for recordings and `gpt-4o-mini-tts` for spoken questions by default; override them with `MEMORY_SPARK_STT_MODEL` and `MEMORY_SPARK_TTS_MODEL`. Keep the key server-side. If it is unset or speech is unavailable, typed answers and browser read-aloud remain available.
 
+Voice conversations choose Mira's character from the interview language, independently of the interface language. Chinese (`zh-CN`) defaults to `coral` with a warm female voice and natural Mandarin delivery at 1.1× speed; English (`en-AU`) defaults to `marin` with relaxed conversational Australian English. Each language keeps its configured voice across turns. If generation or playback fails, the reply remains in the chat with a voice-unavailable notice; the next turn uses the same configured character. Separate read-aloud controls are hidden during voice conversations so browser voices cannot interrupt Mira.
+
+Set `MEMORY_SPARK_TTS_VOICE_ZH_CN` or `MEMORY_SPARK_TTS_VOICE_EN_AU` to choose different built-in voices, and optionally set the matching `MEMORY_SPARK_TTS_INSTRUCTIONS_*` to customize delivery. Blank instructions use the localized defaults. Additional locales can use the same `MEMORY_SPARK_TTS_VOICE_<LOCALE>` and `MEMORY_SPARK_TTS_INSTRUCTIONS_<LOCALE>` convention (for example `FR_FR`); add those variables to the API service environment in `compose.yml` when running containers. Audio caches include the resolved voice, delivery and speed, so changing a character does not reuse old audio. Built-in voices are [optimized for English](https://developers.openai.com/api/docs/guides/text-to-speech), so Mandarin delivery still needs listening review.
+
 The authenticated Realtime/WebRTC backend is available at `POST /api/v1/memoir/realtime/calls`. It exchanges a browser SDP offer for an SDP answer using the server-only OpenAI key, loads the signed-in user's existing private context, and configures Mira's spoken interview with interruption support. `MEMORY_SPARK_REALTIME_MODEL` defaults to `gpt-realtime-2.1`; `MEMORY_SPARK_REALTIME_VOICE` defaults to `marin`. This is a backend integration point: the current recording UI has **not** been switched to WebRTC, and this endpoint does not persist new voice turns. See [the frontend handoff and API contract](docs/Realtime_WebRTC.md).
 
 ## Story packages and Stripe
@@ -175,9 +179,15 @@ The API uses the user's Supabase bearer token for RLS-protected story and Codex-
 
 Memoir interviews default to the ChatGPT subscription pool through LiteLLM's
 `gpt-5.6-luna-pooled` route, backed by `codex-lb`, with
-`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Preview and private memoir composition
-use `legal2ai-luna-low` with low reasoning by default, so drafting does not
-inherit the interview's slower max setting. Set
+`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Canonical event extraction, preview,
+and private memoir composition use `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`, which
+defaults to `memoir-luna-low`. The provider must configure this alias with a
+dedicated same-model codex-lb key enforcing low reasoning; an alias alone
+cannot override the shared upstream key's max policy. Set
+`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` to control canonical event
+extraction separately; it defaults to `low` for background checkpoints. The
+Temporal worker also needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to dispatch
+and commit those shared memoir lanes. Set
 `MEMORY_SPARK_LLM_BASE_URL` to the provider network's current gateway on port
 4000; the LiteLLM gateway and `codex-lb` must both be running. Keep the Memoir
 consumer key in `MEMORY_SPARK_LLM_API_KEY` authorized for both model routes; the

@@ -8,6 +8,7 @@ import json
 import os
 import logging
 import sqlite3
+import time
 
 import httpx
 
@@ -58,6 +59,7 @@ class MemoryEventWorker:
         self.worker_transport = worker_transport
 
     async def execute_lane(self, lane_id):
+        started = time.monotonic()
         run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '300'))
         job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
         if not job:
@@ -96,7 +98,14 @@ class MemoryEventWorker:
                     proposed = json.loads(response.json()['reply'])
                 events = validate_extraction(proposed, job['context_sources'], job['events'])
                 return await self.broker.rpc('finish_memoir_timeline', p_lane_id=lane_id, p_token=job['token'], p_events=events)
-        except (ValueError, TimeoutError, httpx.HTTPError, RuntimeError):
+        except (ValueError, TimeoutError, httpx.HTTPError, RuntimeError) as failure:
+            # Exception messages and response bodies can contain private story
+            # text or credentials. Keep dispatch/provider failures diagnosable.
+            logging.getLogger(__name__).warning(
+                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d',
+                lane_id, job['skill'], type(failure).__name__,
+                failure.response.status_code if isinstance(failure, httpx.HTTPStatusError) else None,
+                int((time.monotonic() - started) * 1000))
             return await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
                 p_error='MEMOIR_UNAVAILABLE', p_retryable=True)
         finally:
