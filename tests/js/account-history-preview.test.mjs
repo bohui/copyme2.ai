@@ -7,6 +7,9 @@ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',
 const openingMessages = ['en-AU', 'zh-CN'].map(locale => JSON.parse(fs.readFileSync(
   new URL(`../../apps/web/messages/${locale}.json`, import.meta.url), 'utf8')).Memoir.conversation.opening);
 function load(context, name) {
+  if (['boot', 'startMemoirStory'].includes(name)) {
+    for (const helper of ['savedProjectStorageKey', 'readBrowserValue', 'saveBrowserValue', 'savedProjectId', 'rememberProject']) load(context, helper);
+  }
   if (name === 'ensureRecallPreview') {
     context.AbortController = AbortController;
     context.clearTimeout ||= () => {};

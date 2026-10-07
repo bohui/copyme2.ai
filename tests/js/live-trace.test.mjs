@@ -166,7 +166,7 @@ test('completed skill progress survives saving and restoring the local chat', ()
  const context=vm.createContext({state,CHAT_HISTORY_STORAGE_PREFIX:'chat:',assistantMessageSequence:0,
    sessionStorage:{setItem:(key,value)=>{saved=value;},getItem:()=>saved},cleanAssistantText:text=>text,
  });
- for(const name of ['chatHistoryStorageKey','persistChatHistory','restoreChatHistory']) vm.runInContext(extract(name),context);
+ for(const name of ['chatHistoryStorageKey','readBrowserValue','saveBrowserValue','persistChatHistory','restoreChatHistory']) vm.runInContext(extract(name),context);
  context.persistChatHistory();
  const restored=context.restoreChatHistory('p');
  assert.deepEqual(JSON.parse(JSON.stringify(restored[0].trace)),trace);

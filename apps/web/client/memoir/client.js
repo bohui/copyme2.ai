@@ -18,6 +18,8 @@ const state = {
   accountId: null,
   csrfToken: "",
   project: null,
+  projectPrincipalId: null,
+  projectRecoveryBlocked: null,
   session: null,
   memories: [],
   sources: [],
@@ -105,7 +107,7 @@ const state = {
 const guestTransfer = createGuestConversationTransfer({
   getAuth: () => state.supabase,
   getConversation: () => ({
-    project_id: state.project?.id || localStorage.getItem("memory-spark-project") || "guest-conversation",
+    project_id: state.project?.id || savedProjectId() || "guest-conversation",
     messages: state.chat.filter(message => ["user", "assistant"].includes(message.role) && message.text)
       .map(message => ({ role: message.role, text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text) })),
     workspace_profile: profile(),
@@ -264,7 +266,7 @@ async function api(path, options = {}) {
   const { onPhotoPage, ...requestOptions } = options;
   const method = (options.method || "GET").toUpperCase();
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  if (state.project?.requires_supabase_auth && state.supabase?.accessToken && !headers.Authorization
+  if (state.supabase?.accessToken && !headers.Authorization
       && path !== '/v1/projects' && !path.startsWith('/v1/auth/')) {
     headers.Authorization = `Bearer ${state.supabase.accessToken}`;
   }
@@ -320,19 +322,50 @@ function readCookie(name) {
 }
 
 function chatHistoryStorageKey(projectId = state.project?.id) {
-  return projectId ? `${CHAT_HISTORY_STORAGE_PREFIX}${projectId}` : "";
+  const ownerId = state.supabase?.user?.id;
+  return projectId ? `${CHAT_HISTORY_STORAGE_PREFIX}${ownerId ? `${encodeURIComponent(ownerId)}:` : ""}${projectId}` : "";
+}
+
+function savedProjectStorageKey() {
+  const ownerId = state.supabase?.user?.id;
+  return `memory-spark-project${ownerId ? `:${encodeURIComponent(ownerId)}` : ""}`;
+}
+
+function readBrowserValue(key) {
+  for (const storage of [() => localStorage, () => sessionStorage]) {
+    try {
+      const value = storage().getItem(key);
+      if (typeof value === "string") return value;
+    } catch { /* Try the tab cache when durable storage is unavailable. */ }
+  }
+  return null;
+}
+
+function saveBrowserValue(key, value) {
+  for (const storage of [() => localStorage, () => sessionStorage]) {
+    try { storage().setItem(key, value); } catch { /* The in-memory conversation remains usable. */ }
+  }
+}
+
+function savedProjectId() {
+  // A legacy pointer is only a recovery candidate. Authorize it before reading its history.
+  return readBrowserValue(savedProjectStorageKey()) || readBrowserValue("memory-spark-project");
+}
+
+function rememberProject(projectId) {
+  saveBrowserValue(savedProjectStorageKey(), projectId);
 }
 
 function persistChatHistory() {
+  if (state.projectPrincipalId && state.projectPrincipalId !== state.supabase?.user?.id) return;
   const key = chatHistoryStorageKey();
   if (!key) return;
   try {
-    if (!state.chat.length) {
-      sessionStorage.removeItem(key);
-      return;
-    }
+    if (!state.chat.length) return;
     const messages = state.chat.filter((message) => message.text || message.error).map((message) => {
+      message.cacheId ||= globalThis.crypto?.randomUUID?.() || `message-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const saved = {
+        cacheId: message.cacheId,
         id: message.id,
         role: message.role,
         text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text || ""),
@@ -348,9 +381,20 @@ function persistChatHistory() {
       }
       return saved;
     });
-    sessionStorage.setItem(key, JSON.stringify(messages));
+    let previous = [];
+    try {
+      const value = JSON.parse(readBrowserValue(key) || "[]");
+      if (Array.isArray(value)) previous = value.filter(message => typeof message?.cacheId === "string");
+    } catch { /* Keep the current transcript when an old cache is malformed. */ }
+    const positions = new Map(previous.map((message, index) => [message.cacheId, index]));
+    for (const message of messages) {
+      const index = positions.get(message.cacheId);
+      if (index === undefined) previous.push(message);
+      else if (!(previous[index].text?.startsWith(message.text) && previous[index].text.length > message.text.length)) previous[index] = message;
+    }
+    saveBrowserValue(key, JSON.stringify(previous));
   } catch {
-    // The conversation remains usable when session storage is unavailable or full.
+    // The conversation remains usable when browser storage is unavailable or full.
   }
 }
 
@@ -358,7 +402,8 @@ function restoreChatHistory(projectId) {
   const key = chatHistoryStorageKey(projectId);
   if (!key) return [];
   try {
-    const saved = JSON.parse(sessionStorage.getItem(key) || "[]");
+    const saved = JSON.parse(readBrowserValue(key)
+      || sessionStorage.getItem(`${CHAT_HISTORY_STORAGE_PREFIX}${projectId}`) || "[]");
     if (!Array.isArray(saved)) return [];
     const messages = saved
       .filter((message) => ["user", "assistant"].includes(message?.role) && typeof message.text === "string")
@@ -370,6 +415,7 @@ function restoreChatHistory(projectId) {
           ? { name: message.action.name, label: message.action.label }
           : undefined;
         return {
+          cacheId: typeof message.cacheId === "string" ? message.cacheId : undefined,
           id: typeof message.id === "string" ? message.id : undefined,
           role: message.role,
           text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
@@ -544,9 +590,20 @@ function syncSupabaseSession(session) {
   state.supabaseSession = session || null;
   if (!state.supabase) return;
   const previousUser = state.supabase.user;
+  const principalChanged = Boolean(previousUser?.id && previousUser.id !== session?.user?.id);
+  if (principalChanged && state.project) persistChatHistory();
   state.supabase.accessToken = session?.access_token || null;
   state.supabase.refreshToken = session?.refresh_token || null;
   state.supabase.user = session?.user || null;
+  if (principalChanged) {
+    // Keep the previous principal's durable cache, and let boot authorize the
+    // next principal before any project or transcript can be shown again.
+    state.project = null;
+    state.projectPrincipalId = null;
+    state.chat = [];
+    globalThis.document?.querySelector("#app")?.replaceChildren();
+    globalThis.location?.reload();
+  }
   authReminder.tick();
   const user = state.supabase.user;
   if (previousUser?.id !== user?.id || previousUser?.is_anonymous !== user?.is_anonymous
@@ -1968,7 +2025,7 @@ async function reviewCollection() {
 async function signOut() {
   closeProfileMenu();
   try {
-    const previousProjectId = state.project?.id;
+    persistChatHistory();
     if (state.supabase?.client) {
       const { error } = await state.supabase.client.auth.signOut();
       if (error) throw new Error(translate("Errors.logoutFailed"));
@@ -1979,6 +2036,7 @@ async function signOut() {
     state.accountId = null;
     state.csrfToken = "";
     state.project = null;
+    state.projectPrincipalId = null;
     state.session = null;
     state.memories = [];
     state.sources = [];
@@ -2026,11 +2084,9 @@ async function signOut() {
     state.audioPlayer = null;
     state.recognition = null;
     try {
-      localStorage.removeItem("memory-spark-project");
       localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY);
       localStorage.removeItem("memory-spark-story-started");
       sessionStorage.removeItem("memory-spark-supabase-session");
-      if (previousProjectId) sessionStorage.removeItem(chatHistoryStorageKey(previousProjectId));
     } catch { /* private browsing or storage restrictions */ }
     navigateTo(MEMOIR_ROUTES.home, true);
     await boot();
@@ -2184,7 +2240,7 @@ function renderStoryFlow() {
   $("#app").innerHTML = `
     <div class="story-shell conversation-only">
       <header class="story-topbar">
-        <a class="brand" href="/memoir" data-action="story-flow-home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${escapeHtml(translate("Memoir.story.brand"))}</span></a>
+        <div class="brand"><a href="/" data-action="story-flow-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${escapeHtml(translate("Memoir.story.brand"))}</a></div>
         <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("savedWithSupabase")}</span></div>${profileMenu()}</div>
       </header>
       <main class="chat-main story-flow-main" aria-label="${t("mainLabel")}">
@@ -2197,23 +2253,7 @@ function renderStoryFlow() {
 }
 
 function bindStoryFlowActions() {
-  $("[data-action='story-flow-home']")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    state.story = null;
-    state.familyEntitlement = null;
-    state.familyFeaturesEnabled = false;
-    state.familyContext = null;
-    state.storyAnswers = [];
-    state.storyChapter = null;
-    state.storyRecording = false;
-    state.storyAudioBase64 = "";
-    state.storyTranscript = "";
-    state.storyAudioFilename = "story-round.webm";
-    state.storyAudioMimeType = "audio/webm";
-    state.checkout = null;
-    localStorage.removeItem("memory-spark-story-started");
-    navigateTo(MEMOIR_ROUTES.home, true);
-  });
+  $("[data-action='story-flow-home']")?.addEventListener("click", () => persistChatHistory());
   $("#story-round-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     submitStoryRound();
@@ -2410,7 +2450,9 @@ async function generateFullMemoir() {
 }
 
 function render() {
-  if (!state.project) { conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding(); }
+  if (!state.project || currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) {
+    conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding();
+  }
   renderStory();
 }
 
@@ -2451,7 +2493,7 @@ function renderPlatformLanding() {
         </section>
       </main>
     </div>`;
-  $("[data-action='open-memoir']")?.addEventListener("click", () => startStory("self"));
+  $("[data-action='open-memoir']")?.addEventListener("click", () => navigateTo(MEMOIR_ROUTES.home));
 }
 
 function renderMemoirLanding() {
@@ -2459,7 +2501,7 @@ function renderMemoirLanding() {
   $("#app").innerHTML = `
     <div class="landing">
       <header class="landing-header">
-        <a class="brand" href="/memoir" aria-label="${t("brand")} home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <div class="brand"><a href="/" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
         <div class="landing-language" data-language-switcher-slot></div>
       </header>
       <main class="landing-main">
@@ -2499,6 +2541,20 @@ async function startMemoirStory(mode = "self") {
     stopVoiceMode({ silent: true });
     if (state.authPromise) await state.authPromise;
     if (state.loading) return;
+    if (mode === "self" && state.projectRecoveryBlocked) {
+      toast(translate("AuthReminder.historyError"));
+      return;
+    }
+    if (mode === "self" && state.supabase?.user
+        && state.project?.mode === "self" && state.projectPrincipalId === state.supabase.user.id) {
+      persistChatHistory();
+      state.chat = restoreChatHistory(state.project.id);
+      state.freshAnonymousSession = false;
+      state.chatHistoryCollapsed = false;
+      navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`);
+      await startCodexConversation({ resume: true });
+      return;
+    }
     state.loading = true;
     const ownerId = state.supabase?.user?.id;
     const language = conversationLanguage();
@@ -2507,17 +2563,18 @@ async function startMemoirStory(mode = "self") {
     if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
     const restoreProjectId = mode === "self" ? accountHistory?.resume_project_id : null;
     const project = await api("/v1/projects", { method: "POST",
-      ...(restoreProjectId ? { headers: { Authorization: `Bearer ${state.supabase.accessToken}` } } : {}),
+      ...(state.supabase?.accessToken ? { headers: { Authorization: `Bearer ${state.supabase.accessToken}` } } : {}),
       body: JSON.stringify({ mode, language, ...(restoreProjectId ? { restore_project_id: restoreProjectId } : {}) }) });
     if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
     state.project = project;
+    state.projectPrincipalId = ownerId;
     state.recallPreview = null;
     if (state.supabase?.user && !state.supabase.user.is_anonymous) {
       const savedProfile = await storyApi("/v1/user/profile");
       if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
       state.project.profile = { ...state.project.profile, ...savedProfile };
     }
-    localStorage.setItem("memory-spark-project", state.project.id);
+    rememberProject(state.project.id);
     state.chat = [];
     if (accountHistory) await hydrateAccountHistory(accountHistory);
     state.chatHistoryCollapsed = false;
@@ -2533,7 +2590,7 @@ async function startMemoirStory(mode = "self") {
     state.compositionStage = 0;
     state.lifeStage = "childhood";
     state.story = null;
-    localStorage.removeItem("memory-spark-story-started");
+    try { localStorage.removeItem("memory-spark-story-started"); } catch { /* Browser storage is optional. */ }
     state.loading = false;
     navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`, true);
 
@@ -2648,6 +2705,7 @@ async function hydrateAccountHistory(history = null) {
       matching.trace = message.trace;
       matching.traceMode = message.traceMode;
     } else if (!matching) messages.push(message);
+    if (matching && message.cacheId) matching.cacheId = message.cacheId;
   }
   state.chat = normalizeHistoryOpening(messages);
   persistChatHistory();
@@ -2688,7 +2746,7 @@ function renderStory() {
   $("#app").innerHTML = `
     <div class="story-shell ${shellClass}">
       <header class="story-topbar">
-        <a class="brand" href="#" data-action="story-home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <div class="brand"><a href="/" data-action="story-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
         <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("voiceAvailable")}</span></div>${profileMenu()}</div>
       </header>
       <div class="conversation-layout">
@@ -3878,7 +3936,11 @@ function bindViewActions() {
   });
   $("#chat-attachments")?.addEventListener("change", event => selectAttachments(Array.from(event.target.files || [])));
   $("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
-  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.chatHistoryCollapsed = false; state.workspaceTab = "memoir"; cancelDictation(); render(); });
+  $("[data-action='story-home']")?.addEventListener("click", () => {
+    persistChatHistory();
+    stopVoiceMode({ silent: true });
+    cancelDictation();
+  });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
   $("#chat-input")?.addEventListener("input", (event) => {
     if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
@@ -4607,21 +4669,36 @@ async function boot() {
     // The old five-round entry point was client-only state. Clear it so a
     // refresh always returns to the persistent Codex conversation instead of
     // reopening a fixed question card.
-    localStorage.removeItem("memory-spark-story-started");
+    try { localStorage.removeItem("memory-spark-story-started"); } catch { /* Browser storage is optional. */ }
     // The interview URL identifies this page's project. The shared cache can
     // point at an older project or one opened in another tab.
     const interviewPrefix = `${MEMOIR_ROUTES.interview}/`;
     const routeProject = currentPath().startsWith(interviewPrefix)
       ? currentPath().slice(interviewPrefix.length).split("/")[0] : null;
-    const saved = routeProject || localStorage.getItem("memory-spark-project");
+    const cachedProject = savedProjectId();
+    const saved = routeProject || cachedProject;
     if (saved) {
       try {
+        const ownerId = state.supabase?.user?.id;
         state.project = { id: saved };
+        state.session = null;
+        state.codexReady = false;
+        state.codexStarting = false;
+        state.placeJourney = null;
+        state.workspaceUnlocked = false;
+        state.compositionStage = 0;
+        state.workspaceCollapsed = false;
+        state.memories = []; state.sources = []; state.chapters = [];
+        state.people = []; state.relationships = []; state.timeline = [];
         state.freshAnonymousSession = false;
-        state.chat = restoreChatHistory(saved);
+        state.chat = [];
         state.chatHistoryCollapsed = true;
         await refreshProject();
-        localStorage.setItem("memory-spark-project", saved);
+        if (state.project?.id !== saved || state.supabase?.user?.id !== ownerId) return;
+        state.projectRecoveryBlocked = null;
+        state.projectPrincipalId = state.supabase?.user?.id;
+        state.chat = restoreChatHistory(saved);
+        rememberProject(saved);
         try { await hydrateAccountHistory(); }
         catch { toast(translate("AuthReminder.historyError")); }
         await syncProfileUiLocale();
@@ -4633,7 +4710,11 @@ async function boot() {
         await startCodexConversation({ resume: true });
         return;
       }
-      catch { localStorage.removeItem("memory-spark-project"); state.project = null; }
+      catch {
+        // Preserve an unavailable saved interview rather than silently making a replacement.
+        state.projectRecoveryBlocked = cachedProject === saved ? saved : null;
+        state.project = null; state.projectPrincipalId = null; state.chat = [];
+      }
     }
     if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
@@ -4644,7 +4725,16 @@ async function boot() {
   }
 }
 
-window.addEventListener("popstate", () => render());
+window.addEventListener("popstate", () => {
+  const prefix = `${MEMOIR_ROUTES.interview}/`;
+  const projectId = currentPath().startsWith(prefix) ? currentPath().slice(prefix.length).split("/")[0] : null;
+  if (projectId && projectId !== state.project?.id) {
+    persistChatHistory();
+    $("#app").innerHTML = `<div class="loading">${escapeHtml(translate("Common.loading"))}</div>`;
+    void boot();
+  } else render();
+});
+window.addEventListener("pagehide", () => persistChatHistory());
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
   render();

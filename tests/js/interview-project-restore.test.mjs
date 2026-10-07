@@ -31,7 +31,7 @@ async function restore(path, cached, available) {
       throw Object.assign(new Error('Project not found'), { status: 404 });
     },
   });
-  for (const name of ['preserveConversationLocale', 'refreshProject', 'boot']) {
+  for (const name of ['savedProjectStorageKey', 'readBrowserValue', 'saveBrowserValue', 'savedProjectId', 'rememberProject', 'preserveConversationLocale', 'refreshProject', 'boot']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   await context.boot();
