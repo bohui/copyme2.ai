@@ -1,0 +1,15 @@
+{
+  "name": "issue2-final-offline",
+  "command": [
+    "../memoir-issue-1/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q"
+  ],
+  "exit_code": 0,
+  "base_head": "291622826cdfb776e946dcd92b65d2fdaf4923ad",
+  "tree": "1b5ab8687053bd18e8dbf44609430a60a2917918",
+  "status": "completed",
+  "child_returncode": 0,
+  "duration_seconds": 127.3
+}

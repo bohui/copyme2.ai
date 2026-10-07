@@ -1,0 +1,24 @@
+{
+  "base_commit": "291622826cdfb776e946dcd92b65d2fdaf4923ad",
+  "evidence_mode": "offline_controlled_provider",
+  "model_calls": 0,
+  "full_offline": {
+    "passed": 1076,
+    "skipped": 183,
+    "warnings": 1,
+    "failures": 0,
+    "errors": 0
+  },
+  "focused": {
+    "passed": 36,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "source_sha256": {
+    "apps/api/trajectory_evaluation.py": "84fc213c481a5fab2475b6997506c183405475f0eb936919ce6a4c5c2eb459f4",
+    "scripts/run_langfuse_evaluation.py": "625c9105d1b9ea9df614fa55191ed725ace74f4accd8e727a7136ffd7d657702",
+    "tests/test_langfuse_evaluation_cli.py": "313c03465accb740374bb9cc15339e263d795742a2ed2388679bcdcc8bc60619"
+  },
+  "receipt_tree_note": "The isolated-check receipt records the unchanged base HEAD/tree; these source hashes identify the proposed code actually tested."
+}

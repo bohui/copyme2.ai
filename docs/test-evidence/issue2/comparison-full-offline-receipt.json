@@ -1,0 +1,15 @@
+{
+  "name": "issue2-comparison-full-offline",
+  "command": [
+    "../memoir-issue-1/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q"
+  ],
+  "exit_code": 0,
+  "base_head": "2686a12538933b5ac586107bc037f8397dbec591",
+  "tree": "38e3a111eeeeab73c7bd2c22625e9160690b8f4c",
+  "status": "completed",
+  "child_returncode": 0,
+  "duration_seconds": 130.85
+}

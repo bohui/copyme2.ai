@@ -1,0 +1,58 @@
+FFF.                                                                     [100%]
+=================================== FAILURES ===================================
+__ test_task_exception_preserves_completed_siblings_and_failed_case[False-1] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-141/test_task_exception_preserves_0')
+fail_first = False, concurrency = 1
+
+    @pytest.mark.parametrize('fail_first,concurrency', [(False, 1), (True, 1), (False, 2)])
+    def test_task_exception_preserves_completed_siblings_and_failed_case(tmp_path, fail_first, concurrency):
+        completed, output, failure_dir = _run_cli(tmp_path,
+            fail_first=fail_first, concurrency=concurrency)
+        assert completed.returncode == 1, completed.stderr
+>       assert output.is_file(), 'A failed case must not discard the other case results'
+E       AssertionError: A failed case must not discard the other case results
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-agent/pytest-141/test_task_exception_preserves_0/results.json').is_file
+
+tests/test_langfuse_evaluation_cli.py:47: AssertionError
+___ test_task_exception_preserves_completed_siblings_and_failed_case[True-1] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-141/test_task_exception_preserves_1')
+fail_first = True, concurrency = 1
+
+    @pytest.mark.parametrize('fail_first,concurrency', [(False, 1), (True, 1), (False, 2)])
+    def test_task_exception_preserves_completed_siblings_and_failed_case(tmp_path, fail_first, concurrency):
+        completed, output, failure_dir = _run_cli(tmp_path,
+            fail_first=fail_first, concurrency=concurrency)
+        assert completed.returncode == 1, completed.stderr
+>       assert output.is_file(), 'A failed case must not discard the other case results'
+E       AssertionError: A failed case must not discard the other case results
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-agent/pytest-141/test_task_exception_preserves_1/results.json').is_file
+
+tests/test_langfuse_evaluation_cli.py:47: AssertionError
+__ test_task_exception_preserves_completed_siblings_and_failed_case[False-2] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-141/test_task_exception_preserves_2')
+fail_first = False, concurrency = 2
+
+    @pytest.mark.parametrize('fail_first,concurrency', [(False, 1), (True, 1), (False, 2)])
+    def test_task_exception_preserves_completed_siblings_and_failed_case(tmp_path, fail_first, concurrency):
+        completed, output, failure_dir = _run_cli(tmp_path,
+            fail_first=fail_first, concurrency=concurrency)
+        assert completed.returncode == 1, completed.stderr
+>       assert output.is_file(), 'A failed case must not discard the other case results'
+E       AssertionError: A failed case must not discard the other case results
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-agent/pytest-141/test_task_exception_preserves_2/results.json').is_file
+
+tests/test_langfuse_evaluation_cli.py:47: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_langfuse_evaluation_cli.py::test_task_exception_preserves_completed_siblings_and_failed_case[False-1]
+FAILED tests/test_langfuse_evaluation_cli.py::test_task_exception_preserves_completed_siblings_and_failed_case[True-1]
+FAILED tests/test_langfuse_evaluation_cli.py::test_task_exception_preserves_completed_siblings_and_failed_case[False-2]
+3 failed, 1 passed in 1.48s
