@@ -997,11 +997,11 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
-    && entry.photo_search_policy === "place-fallback-gps-time-v7";
+    && entry.photo_search_policy === "place-fallback-gps-time-v8";
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
-        && entry.photo_search_policy === "place-fallback-gps-time-v7" && entry.photo_search_at > 0))) return;
+        && entry.photo_search_policy === "place-fallback-gps-time-v8" && entry.photo_search_at > 0))) return;
   state.photoRequests ||= new Map();
   const requestKey = photoRequestKey(entry, projectId);
   if (state.photoRequests.get(requestKey)?.loading) return;
@@ -1049,7 +1049,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
           && (latest.photo_search_place || latest.place) === searchPlace
-          && latest.photo_search_policy === "place-fallback-gps-time-v7" ? latest.pictures || [] : [], result.items)
+          && latest.photo_search_policy === "place-fallback-gps-time-v8" ? latest.pictures || [] : [], result.items)
           .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
           ...(resultCenter ? {photo_search_latitude: resultCenter.latitude, photo_search_longitude: resultCenter.longitude} : {}),
@@ -1058,7 +1058,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_at: result.searching ? 0 : Date.now(),
           photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
           photo_search_complete: !result.searching,
-          photo_search_policy: "place-fallback-gps-time-v7" };
+          photo_search_policy: "place-fallback-gps-time-v8" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;

@@ -481,6 +481,9 @@ def _crawl4ai_location_matches(text: str, place: str) -> bool:
         pattern = re.escape(term.casefold())
         if term.isascii():
             pattern = r"(?<!\w)" + pattern + r"(?!\w)"
+        else:
+            # A vessel named after a city does not establish its location.
+            pattern += r"(?![号號])"
         return bool(re.search(pattern, haystack))
     return bool(required) and all(any(matches(term) for term in group) for group in required)
 

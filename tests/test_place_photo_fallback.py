@@ -112,6 +112,32 @@ def test_provider_failure_is_not_an_empty_search(monkeypatch):
         cache.close()
 
 
+def test_missing_search_center_marks_source_described_photos_as_gps_fallback(monkeypatch):
+    monkeypatch.setattr(pages, 'search_place_photos', lambda *args, **kwargs: [picture('no-gps')])
+    cache = pages.PhotoPages()
+    try:
+        result = cache.page('owner', 'Chengde', '1983年', None)
+        assert result['items'][0]['search_fallback'] == 'gps'
+        assert result['search_center'] is None
+    finally:
+        cache.close()
+
+
+def test_gps_fallback_rechecks_cached_place_evidence_for_a_named_subject(monkeypatch):
+    class Repository:
+        def load(self, place, period):
+            return {'complete': True, 'items': [
+                picture('city', title='承德市街景', location_evidence='河北承德市街景'),
+                picture('ship', title='升級中的承德號巡防艦', location_evidence='升級中的承德號巡防艦'),
+            ]}
+    cache = pages.PhotoPages(repository=Repository())
+    try:
+        result = cache.page('owner', '承德市', '1983年', None, **CENTER)
+        assert [item['asset_id'] for item in result['items']] == ['city']
+    finally:
+        cache.close()
+
+
 def test_broader_discovery_keeps_place_rights_and_future_date_checks(monkeypatch):
     monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
     monkeypatch.delenv('GOOGLE_CSE_ID', raising=False)

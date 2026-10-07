@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException
 
-from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, filter_place_photos, search_place_photos
+from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _location_matches, filter_place_photos, search_place_photos
 
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
@@ -29,6 +29,10 @@ class PhotoPages:
         self.pool.shutdown(wait=False, cancel_futures=True)
 
     def _search(self, job, place, period, *, refresh=False):
+        def accepted(items, search_period):
+            return filter_place_photos([item for item in items
+                if not item.get('location_evidence')
+                or _location_matches(item['location_evidence'], place)], search_period)
         def save(complete):
             if not self.repository:
                 return
@@ -45,7 +49,7 @@ class PhotoPages:
         def publish(items):
             with self.lock:
                 # Arrival order stays stable even when later catalogues finish.
-                job['items'] = filter_place_photos(job['items'] + items,
+                job['items'] = accepted(job['items'] + items,
                     ANY_PHOTO_DATE if job['time_relaxed'] else period)[:150]
                 job['revision'] += 1
             if items:
@@ -56,7 +60,7 @@ class PhotoPages:
             if cached is not None:
                 with self.lock:
                     job.update(time_relaxed=bool(cached.get('time_relaxed')),
-                               items=filter_place_photos(cached['items'], ANY_PHOTO_DATE
+                               items=accepted(cached['items'], ANY_PHOTO_DATE
                                    if cached.get('time_relaxed') else period),
                                failures=cached.get('failures', []))
                     job['revision'] += 1
@@ -145,7 +149,7 @@ class PhotoPages:
 
     def _matches(self, job, snapshot):
         period, center = snapshot['period'], snapshot['center']
-        matches = filter_place_photos(job['items'], period, center)
+        matches = filter_place_photos(job['items'], period, center) if center else []
         fallback = 'none'
         # Wait for all strict candidates before exposing a relaxed tier. This
         # keeps progressive batches and cursor offsets on one stable tier.
