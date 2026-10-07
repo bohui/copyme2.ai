@@ -48,3 +48,28 @@ test('real matcher negotiates supported preferences after unsupported languages'
   assert.equal(resolveUiLocale({ acceptLanguage: 'en-US,en;q=0.8', matchLocale }), 'en-AU');
   assert.equal(resolveUiLocale({ cookieLocale: 'zh-CN', acceptLanguage: 'invalid_locale', matchLocale }), 'zh-CN');
 });
+
+for (const [acceptLanguage, expected] of [
+  ['en-US;q=1,zh-CN;q=0.1', 'en-AU'],
+  ['en-GB;q=0.9,zh-CN;q=0.8', 'en-AU'],
+  ['zh-CN;q=0.1,en-NZ;q=0.9', 'en-AU'],
+  ['zh-TW;q=1,en-AU;q=0.1', 'zh-CN'],
+  ['zh-SG;q=0.9,en-AU;q=0.8', 'zh-CN'],
+  ['fr-FR;q=1,en-US;q=0.8,zh-CN;q=0.1', 'en-AU'],
+  ['fr-FR;q=1,zh-SG;q=0.8,en-AU;q=0.1', 'zh-CN'],
+  ['en-US,zh-CN', 'en-AU'],
+  ['zh-TW,en-AU', 'zh-CN'],
+]) {
+  test(`browser priority precedes best-fit distance: ${acceptLanguage}`, () => {
+    assert.equal(resolveUiLocale({ acceptLanguage, matchLocale }), expected);
+  });
+}
+
+test('weighted regional choices retain cookie priority and strict quality validation', () => {
+  assert.equal(resolveUiLocale({ cookieLocale: 'zh-CN', acceptLanguage: 'en-US;q=1,zh-CN;q=0.1', matchLocale }), 'zh-CN');
+  assert.equal(resolveUiLocale({ cookieLocale: 'en-AU', acceptLanguage: 'zh-SG;q=1,en-AU;q=0.1', matchLocale }), 'en-AU');
+  for (const quality of ['0', '.9', '1.1', 'NaN', '1;q=0']) {
+    assert.equal(resolveUiLocale({ acceptLanguage: `en-US;q=${quality},zh-CN;q=0.1`, matchLocale }), 'zh-CN');
+  }
+  assert.equal(resolveUiLocale({ acceptLanguage: 'invalid_locale;q=1,fr-FR;q=0.9,zh-SG;q=0.8,en-AU;q=0.1', matchLocale }), 'zh-CN');
+});
