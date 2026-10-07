@@ -14,10 +14,6 @@ def test_api_service_receives_speech_provider_configuration() -> None:
         "OPENAI_BASE_URL": "${OPENAI_BASE_URL:-https://api.openai.com/v1}",
         "MEMORY_SPARK_STT_MODEL": "${MEMORY_SPARK_STT_MODEL:-gpt-4o-mini-transcribe}",
         "MEMORY_SPARK_TTS_MODEL": "${MEMORY_SPARK_TTS_MODEL:-gpt-4o-mini-tts}",
-        "MEMORY_SPARK_TTS_VOICE_EN_AU": "${MEMORY_SPARK_TTS_VOICE_EN_AU:-marin}",
-        "MEMORY_SPARK_TTS_VOICE_ZH_CN": "${MEMORY_SPARK_TTS_VOICE_ZH_CN:-coral}",
-        "MEMORY_SPARK_TTS_INSTRUCTIONS_EN_AU": "${MEMORY_SPARK_TTS_INSTRUCTIONS_EN_AU:-}",
-        "MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN": "${MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN:-}",
     }
 
     for name, value in expected.items():

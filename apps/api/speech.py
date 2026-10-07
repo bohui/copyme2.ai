@@ -3,54 +3,9 @@
 from __future__ import annotations
 
 import os
-import re
 from typing import Any
 
 import httpx
-
-
-_STABLE_DELIVERY = (
-    "Speak as Mira, a patient oral-history interviewer. Keep one consistent vocal "
-    "identity, natural pitch and timbre throughout. Read the supplied text faithfully. "
-    "Read quotations in your own voice without imitating other speakers. "
-)
-_SPEECH_CHARACTERS = {
-    "zh-cn": {
-        "voice": "coral",
-        "speed": 1.1,
-        "instructions": (
-            "你是 Mira，一位亲切、熟悉的访谈者。使用温柔、自然的成年女性声音，"
-            "说流利地道的普通话，像和熟悉的人轻松聊天。声调连贯，轻声和变调自然，"
-            "按语意停顿，不要逐字拖长；语速从容但不刻意放慢，避免播音腔和机械的朗读感。"
-            "保持同一种音色和自然音高，遇到英文名字时自然发音，随后顺畅回到普通话。"
-            "忠实读出提供的文字，不增删内容；引用别人的话时也保持自己的声音，不模仿其他角色。"
-        ),
-    },
-    "en-au": {
-        "voice": "marin",
-        "instructions": _STABLE_DELIVERY + (
-            "Use warm, relaxed, conversational Australian English, as if talking with "
-            "someone familiar. Use natural sentence stress and pauses, with an easy "
-            "pace rather than an exaggerated slow reading or a formal announcer delivery."
-        ),
-    },
-}
-
-
-def speech_character(language: str | None, *, voice: str | None = None,
-                     instructions: str | None = None) -> dict[str, Any]:
-    """Choose server-owned voice and delivery defaults for an interview locale."""
-    locale = str(language or "en-AU").strip().replace("_", "-").lower()
-    locale = {"zh": "zh-cn", "en": "en-au"}.get(locale, locale)
-    suffix = re.sub(r"[^A-Z0-9]", "_", locale.upper())
-    default = _SPEECH_CHARACTERS.get(locale, {
-        "voice": "marin", "instructions": _STABLE_DELIVERY + "Speak naturally in the language of the supplied text.",
-    })
-    return {
-        "voice": (voice or "").strip() or os.getenv(f"MEMORY_SPARK_TTS_VOICE_{suffix}", "").strip() or default["voice"],
-        "instructions": (instructions or "").strip() or os.getenv(f"MEMORY_SPARK_TTS_INSTRUCTIONS_{suffix}", "").strip() or default["instructions"],
-        "speed": default.get("speed", 1.0),
-    }
 
 
 class SpeechUnavailable(Exception):
@@ -133,15 +88,14 @@ class OpenAISpeechService:
 
     def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
         model = str(options.get("model") or self.tts_model)
-        character = speech_character(options.get("language"), voice=options.get("voice"),
-                                     instructions=options.get("instructions"))
         payload: dict[str, Any] = {
             "model": model,
             "input": text,
-            **character,
-            "speed": float(options.get("speed") or character["speed"]),
+            "voice": str(options.get("voice") or "marin"),
             "response_format": str(options.get("output_format") or "mp3"),
         }
+        if options.get("instructions"):
+            payload["instructions"] = str(options["instructions"])
         try:
             response = self._client.post("/audio/speech", json=payload)
         except httpx.HTTPError as exc:
