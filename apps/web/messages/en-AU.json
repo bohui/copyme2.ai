@@ -404,6 +404,7 @@
       "contextReadiness": "{stage}: {percent}% context readiness, {words} word equivalents. More details are always welcome.",
       "privateDraftBlocked": "Your memories are saved. The private draft is waiting; you can retry.",
       "privateDraftSaved": "Private draft saved after round {round}.",
+      "privateDraftUpdating": "Your private draft is updating in the background.",
       "readSavedDraft": "Read saved private draft",
       "retryPrivateDraft": "Retry draft update",
       "relationship": {

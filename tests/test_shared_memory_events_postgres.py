@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope='module')
 def event_database(private_database):
-    for path in sorted((ROOT / 'supabase/migrations').glob('20261004*.sql')):
+    for path in sorted((ROOT / 'supabase/migrations').glob('*.sql')):
+        if path.name < '202610040001_shared_memory_events.sql':
+            continue
         private_database(path.read_text())
     return private_database
 
@@ -659,6 +661,104 @@ def test_unchanged_checkpoint_advances_coverage_without_new_prose_or_revision(sq
     assert after['revision'] == before['revision']
     calls = [json.loads(line)['phase'] for line in (tmp_path / 'calls.jsonl').read_text().splitlines()]
     assert calls == ['prepare_start', 'prepare_end', 'draft', 'review']
+
+
+def test_repeated_extraction_of_unchanged_event_advances_coverage_without_rewriting(sql, tmp_path, monkeypatch):
+    import httpx
+    from apps.api.memory_event_worker import MemoirLaneBroker, MemoryEventWorker
+    from memoir_postgres_workflow import PostgresRest
+
+    sources, lanes = five_rounds(sql)
+    composer = lanes['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, composer)['status'] == 'saved'
+    client = story_client(sql)
+    headers = {'Authorization': 'Bearer synthetic-author'}
+    before = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    event = rpc(sql, 'read_user_memory_events', "'project'")['events'][0]
+    add_rounds(sql, 6, 10)
+    proposal = {'existing_id': event['id'], 'expected_revision': event['revision'],
+                'kind': event['kind'], 'title': event['title'], 'source_refs': event['source_refs']}
+
+    async def process():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql, OWNER, service=True).handle)) as db:
+            broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic', client=db)
+            await broker.drain_once()
+            provider = httpx.MockTransport(lambda request: httpx.Response(200, json={
+                'reply': json.dumps({'events': [proposal]})}))
+            worker = MemoryEventWorker(broker, worker_url='http://controlled-provider.invalid',
+                                       worker_secret='synthetic', worker_transport=provider)
+            assert (await worker.execute_lane(lanes['timeline_lane_id']))['status'] == 'saved'
+    asyncio.run(process())
+    view = rpc(sql, 'read_user_memory_events', "'project'")
+    assert view['events'] == [event]
+    assert view['processing'] == {'extracted_through': 10, 'pending_inputs': 0}
+    deliver_latest(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, composer,
+                                  prose='Unchanged prose must survive.')['status'] == 'saved'
+    after = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    assert after['covered_round'] == 10 and after['revision'] == before['revision']
+    assert after['preview'] == before['preview'] and after['sections'] == before['sections']
+    calls = [json.loads(line)['phase'] for line in (tmp_path / 'calls.jsonl').read_text().splitlines()]
+    assert calls == ['prepare_start', 'prepare_end', 'draft', 'review']
+
+
+def test_checkpoint_without_personal_events_finishes_collecting_without_retrying(sql, tmp_path, monkeypatch):
+    from test_agent_commit_postgres import OLD
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    extract(sql, add_rounds(sql, 1, 5), [])
+    lane = deliver_latest(sql)['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status'] == 'saved'
+    saved = story_client(sql).get('/v1/story/private-draft?project_id=project',
+                                 headers={'Authorization': 'Bearer synthetic-author'}).json()
+    assert saved['status'] == 'collecting' and saved['preview'] is None
+    assert saved['covered_round'] == 5 and saved['milestone'] == 5
+    assert saved['revision'] == 0 and saved['sections'] == []
+    assert not saved['updating'] and saved['error'] is None
+    assert saved['progress']['composition']['state'] == 'finished'
+    assert not (tmp_path / 'calls.jsonl').exists()
+    later = add_rounds(sql, 6, 6, 'I started school around 1964.') + add_rounds(sql, 7, 10)
+    extract(sql, later, [{'kind': 'event', 'title': 'Started school', 'source_refs': [
+        {'source_id': later[0]['id'], 'version': 1, 'quote': later[0]['text']}]}])
+    assert deliver_latest(sql)['composer_lane_id'] == lane
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status'] == 'saved'
+    ready = story_client(sql).get('/v1/story/private-draft?project_id=project',
+                                 headers={'Authorization': 'Bearer synthetic-author'}).json()
+    assert ready['status'] == 'ready' and ready['covered_round'] == 10 and ready['revision'] == 1
+    assert ready['preview']['text'] == 'I started school around 1964.'
+
+
+def test_withdrawing_all_event_evidence_settles_without_restoring_prose(sql, tmp_path, monkeypatch):
+    sources, lanes = five_rounds(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+    client = story_client(sql)
+    headers = {'Authorization': 'Bearer synthetic-author'}
+    before = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    rpc(sql, 'change_user_narrator_source', f"'project','{sources[0]['id']}',1,'withdraw',null")
+    assert client.get('/v1/story/private-draft?project_id=project', headers=headers).json()['preview'] is None
+    deliver_latest(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+    after = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    assert after['status'] == 'collecting' and after['preview'] is None and after['sections'] == []
+    assert after['revision'] == before['revision'] and after['covered_round'] == 5
+    assert not after['updating'] and after['error'] is None
+    calls = [json.loads(line)['phase'] for line in (tmp_path / 'calls.jsonl').read_text().splitlines()]
+    assert calls == ['prepare_start', 'prepare_end', 'draft', 'review']
+
+
+def test_empty_completion_cannot_discard_supported_canonical_prose(sql, tmp_path, monkeypatch):
+    sources, lanes = five_rounds(sql)
+    lane = lanes['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status'] == 'saved'
+    before = rpc(sql, 'read_user_memoir_draft', "'project'")
+    extract(sql, add_rounds(sql, 6, 10), [])
+    deliver_latest(sql)
+    job = service_rpc(sql, 'claim_memoir_lane', f"'{lane}',300")
+    result = service_rpc(sql, 'finish_memoir_composer',
+                         f"'{lane}','{job['token']}',1,'{{\"status\":\"insufficient_context\",\"preview\":null}}'::jsonb")
+    assert result['status'] == 'rejected'
+    after = rpc(sql, 'read_user_memoir_draft', "'project'")
+    assert after['preview'] == before['preview'] and after['sections'] == before['sections']
+    assert after['revision'] == before['revision'] and after['covered_round'] == 5
 
 
 @pytest.mark.parametrize('action', ['edit', 'withdraw'])
