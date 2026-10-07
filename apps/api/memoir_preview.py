@@ -607,6 +607,20 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
             from .canonical_composer import restore_unchanged_sections
             draft = restore_unchanged_sections(request, draft)
         validation = await skill_operation('validate', request, draft)
+        if validation.get('ok') and request.get('context', {}).get('canonical_event_index'):
+            from .canonical_composer import canonical_evidence_errors
+            evidence_errors = canonical_evidence_errors(request, draft)
+            if evidence_errors:
+                validation['ok'] = False
+                validation.setdefault('errors', []).extend(evidence_errors)
+            invalidated = set(request['context'].get('projection_invalidated_chapter_ids', []))
+            carried = invalidated.intersection(draft.get('carry_forward_chapter_ids', []))
+            if carried:
+                validation['ok'] = False
+                validation.setdefault('errors', []).extend(
+                    {'code': 'STALE_CANONICAL_PROJECTION', 'at': chapter_id,
+                     'message': 'Replace this chapter using current canonical evidence; its prior projection cannot be carried forward.'}
+                    for chapter_id in sorted(carried))
         if not validation.get('ok'):
             logger.info('memoir_preview validation_failed codes=%s',
                         sorted({error.get('code', 'UNKNOWN') for error in validation.get('errors', [])}))

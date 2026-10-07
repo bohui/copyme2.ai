@@ -32,6 +32,54 @@ def section_event_ids(block, chapter, request):
     return ids or chapter['event_ids']
 
 
+def canonical_evidence_errors(request, draft):
+    """Validate actual prose evidence, regardless of how old text is reused."""
+    events = {event['id']: event['source_refs'] for event in request['events']}
+    sources = {(source['id'], str(source['version'])): source['text'] for source in request['sources']}
+    errors = []
+
+    def supported(ref, event_ids):
+        key = (ref['source_id'], str(ref['version']))
+        text = sources.get(key)
+        if text is None:
+            return False
+        # Omitting offsets cites the whole source, not any convenient matching
+        # occurrence. It cannot widen a narrow authorised canonical reference.
+        start, end = ref.get('char_start', 0), ref.get('char_end', len(text))
+        ranges = sorted((evidence['char_start'], evidence['char_end'])
+            for event_id in event_ids for evidence in events.get(event_id, [])
+            if (evidence['source_id'], str(evidence['version'])) == key)
+        cursor = start
+        for lower, upper in ranges:
+            if lower > cursor:
+                break
+            cursor = max(cursor, upper)
+            if cursor >= end:
+                return True
+        return False
+
+    def inspect(value, event_ids, path):
+        if isinstance(value, dict):
+            scoped = value.get('event_ids', event_ids)
+            for field in ('source_refs', 'title_source_refs'):
+                if any(not supported(ref, scoped) for ref in value.get(field, [])):
+                    errors.append({'code': 'NONCANONICAL_EVIDENCE_SPAN', 'at': path + '.' + field,
+                        'message': 'Cite spans covered by the current canonical event evidence, not another occurrence or the whole source.'})
+            for key, child in value.items():
+                if key not in {'source_refs', 'title_source_refs'}:
+                    inspect(child, scoped, path + '.' + key)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                inspect(child, event_ids, f'{path}.{index}')
+
+    inspect(draft, list(events), 'draft')
+    carried = set(draft['carry_forward_chapter_ids'])
+    for prior in request['prior_state']['chapters']:
+        if prior['chapter']['id'] in carried:
+            inspect(prior['chapter'], list(events), 'carried.' + prior['chapter']['id'])
+    return errors
+
+
 def restore_unchanged_sections(request, draft):
     """Restore stored bytes before validation, evidence review and rendering."""
     preserved = request.get('context', {}).get('preserved_sections', [])
@@ -100,11 +148,29 @@ def composer_request(job):
             if not source or str(ref['version']) != source['version']:
                 continue
             quote = ref.get('quote', '')
-            start = source['text'].find(quote) if quote else -1
-            if start < 0:
+            if not quote:
                 continue
+            start, end = ref.get('char_start'), ref.get('char_end')
+            if start is not None or end is not None:
+                # Canonical spans identify the authorised occurrence when the
+                # original contains repeated words. Never rebind them to the
+                # first match, which may belong to another or vetoed event.
+                if (not isinstance(start, int) or not isinstance(end, int)
+                        or start < 0 or end <= start):
+                    continue
+                # Earlier Python/SQL validation allowed an oversized suffix
+                # end because slicing clamps. Preserve its proven start and
+                # quote, but emit a bounded span for the composer contract.
+                end = min(end, len(source['text']))
+                if start >= end or source['text'][start:end] != quote:
+                    continue
+            else:
+                start = source['text'].find(quote)
+                if start < 0:
+                    continue
+                end = start + len(quote)
             values.append({'source_id': source['id'], 'version': source['version'],
-                           'char_start': start, 'char_end': start + len(quote)})
+                           'char_start': start, 'char_end': end})
         return values
     events, periods = [], []
     for stage in (*LIFE_STAGES, 'unplaced'):
@@ -161,9 +227,19 @@ def composer_request(job):
 
 async def compose_shared_snapshot(job, worker):
     request = composer_request(job)
-    config = fingerprint({'locale': job['locale'], 'skill': 'shared-composer-1',
+    config = fingerprint({'locale': job['locale'], 'skill': 'shared-composer-2',
         'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
         'policy': request['policy']})
+    if job.get('previous') and job['previous'].get('content_config') != config:
+        # Changing the projection invalidates carried chapters as well as
+        # cached bundles. Require a reviewed replacement instead of blessing
+        # stale evidence as v2, including a model's carry-forward shortcut.
+        request['context']['dirty_event_ids'] = list(dict.fromkeys([
+            *request['context']['dirty_event_ids'], *(e['id'] for e in request['events'])]))
+        request['context']['affected_source_ids'] = list(dict.fromkeys(
+            ref['source_id'] for event in request['events'] for ref in event['source_refs']))
+        request['context']['projection_invalidated_chapter_ids'] = [
+            prior['chapter']['id'] for prior in request['prior_state']['chapters']]
     if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config:
         bundle = copy.deepcopy(job['previous'])
         bundle['unchanged'] = True
