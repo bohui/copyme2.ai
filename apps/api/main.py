@@ -2257,11 +2257,17 @@ def create_app(
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
                      cursor: str | None = Query(default=None, max_length=160),
+                     refresh: bool = Query(default=False),
+                     latitude: float | None = Query(default=None, ge=-90, le=90),
+                     longitude: float | None = Query(default=None, ge=-180, le=180),
                      x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         _project(memory, project_id, _account_id(x_account_id))
+        if (latitude is None) != (longitude is None):
+            raise HTTPException(status_code=422, detail="Both photo search coordinates are required")
         try:
             from .place_photo_transport import photo_response
             return await photo_response(photo_pages, project_id, place, period, cursor,
+                                        refresh=refresh, latitude=latitude, longitude=longitude,
                                         stream='application/x-ndjson' in request.headers.get('accept', ''))
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}

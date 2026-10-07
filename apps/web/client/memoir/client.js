@@ -997,11 +997,11 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
-    && entry.photo_search_policy === "place-radius20-years10-v5";
+    && entry.photo_search_policy === "place-radius20-period-v6";
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
-        && entry.photo_search_policy === "place-radius20-years10-v5" && entry.photo_search_at > 0))) return;
+        && entry.photo_search_policy === "place-radius20-period-v6" && entry.photo_search_at > 0))) return;
   state.photoRequests ||= new Map();
   const requestKey = photoRequestKey(entry, projectId);
   if (state.photoRequests.get(requestKey)?.loading) return;
@@ -1049,7 +1049,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
           && (latest.photo_search_place || latest.place) === searchPlace
-          && latest.photo_search_policy === "place-radius20-years10-v5" ? latest.pictures || [] : [], result.items)
+          && latest.photo_search_policy === "place-radius20-period-v6" ? latest.pictures || [] : [], result.items)
           .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
           ...(resultCenter ? {photo_search_latitude: resultCenter.latitude, photo_search_longitude: resultCenter.longitude} : {}),
@@ -1058,7 +1058,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_at: result.searching ? 0 : Date.now(),
           photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
           photo_search_complete: !result.searching,
-          photo_search_policy: "place-radius20-years10-v5" };
+          photo_search_policy: "place-radius20-period-v6" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;
@@ -1181,14 +1181,18 @@ function photoMatchesScope(picture, entry, focus = null) {
   const isoDate = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
   if (Math.max(...years) > Number(today.slice(0, 4)) || (isoDate && (isoDate > today
       || !Number.isFinite(Date.parse(isoDate)) || new Date(isoDate).toISOString().slice(0, 10) !== isoDate))) return false;
-  const bounds = value => {
+  const bounds = (value, expandBareYear = false) => {
     const years = Array.from(value.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
     if (!years.length) return null;
-    return /(?:18|19|20)\d0\s*(?:s|年代)/i.test(value) ? [years[0], years[0] + 9] : [Math.min(...years), Math.max(...years)];
+    return /(?:18|19|20)\d0\s*(?:s|年代)/i.test(value)
+      || (expandBareYear && /^\s*(?:18|19|20)\d{2}\s*$/.test(value))
+      ? [years[0], years[0] + 9] : [Math.min(...years), Math.max(...years)];
   };
-  const requested = bounds(period), captured = bounds(expression);
+  const requested = bounds(period, true), captured = bounds(expression);
   if (requested) {
-    if (captured[0] < requested[0] - 10 || captured[1] > requested[1] + 10) return false;
+    const yearOnly = /^\s*(?:(?:about|around|circa|approximately|ca\.?|c\.)\s+|(?:大约|约|大概)\s*)?(?:18|19|20)\d{2}\s*年?\s*(?:左右|前后|前後)?\s*$/i.test(period);
+    const tolerance = requested[0] === requested[1] && yearOnly ? 10 : 0;
+    if (captured[0] < requested[0] - tolerance || captured[1] > requested[1] + tolerance) return false;
   } else {
     const recent = new Date(`${today}T00:00:00Z`);
     const day = recent.getUTCDate();

@@ -1,13 +1,16 @@
 """Photo discovery acceptance tests; only external HTTP and DNS are faked."""
 import io
+import hashlib
 import http.client as http_client
 import json
 import socket
 from urllib import request as http
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
+from PIL import Image
 
 from apps.api import place_photo_browser as browser
 from apps.api import place_photos as photos
@@ -44,6 +47,13 @@ def search_world(monkeypatch):
         return io.BytesIO(json.dumps(value).encode())
 
     def source_page(self, url, max_bytes, hosts, **kwargs):
+        if url not in world['pages'] and urlsplit(url).path.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+            # Fingerprinting now fetches the discovered public image as well
+            # as its source page. Keep that HTTP boundary fully synthetic.
+            encoded = io.BytesIO()
+            color = tuple(hashlib.sha256(url.encode()).digest()[:3])
+            Image.new('RGB', (8, 8), color).save(encoded, format='PNG')
+            return 200, url, {'content-type': 'image/png'}, encoded.getvalue()
         value = world['pages'][url]
         if isinstance(value, Exception):
             raise value

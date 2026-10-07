@@ -2,10 +2,11 @@
 import hashlib
 import html
 import http.client
+import math
 import os
 import re
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import zip_longest
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 from zoneinfo import ZoneInfo
@@ -15,6 +16,9 @@ import httpx
 MAX_RESULTS = 10
 DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
+PHOTO_RADIUS_KM = 20
+PHOTO_YEAR_TOLERANCE = 10
+PHOTO_SEARCH_POLICY = 'place-radius20-period-v6'
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
 GOOGLE_CSE_MAX_PAGES = 10
@@ -75,12 +79,41 @@ def _is_historical_period(period: str) -> bool:
     return (period or '').strip().casefold() in HISTORICAL_PERIODS
 
 
-def _date_matches(date: str, period: str) -> bool:
+def _photo_period_bounds(period: str) -> tuple[int, int] | None:
     bounds = _period_bounds(period)
+    tolerance = _photo_year_tolerance(period)
+    return (bounds[0] - tolerance, bounds[1] + tolerance) if bounds else None
+
+
+def _photo_year_tolerance(period: str) -> int:
+    bounds = _period_bounds(period)
+    # Bare years retain their documented ten-year window; explicit ranges
+    # and decades remain authoritative. Recognize year-only cues positively;
+    # calendar dates and named months must not gain the nearby-year allowance.
+    year_only = re.fullmatch(
+        r'\s*(?:(?:about|around|circa|approximately|ca\.?|c\.)\s+|(?:大约|约|大概)\s*)?'
+        r'(?:18|19|20)\d{2}\s*年?\s*(?:左右|前后|前後)?\s*', period, re.I)
+    return PHOTO_YEAR_TOLERANCE if bounds and bounds[0] == bounds[1] and year_only else 0
+
+
+def _date_matches(date: str, period: str, *, tolerance: int | None = None) -> bool:
+    bounds = _period_bounds(period)
+    if tolerance is None:
+        tolerance = _photo_year_tolerance(period)
     years = _years(date)
     # Unresolved periods/dates must not silently turn into unrestricted results.
     if not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I):
         return False
+    today = datetime.now(ZoneInfo('Australia/Sydney')).date()
+    if max(years) > today.year:
+        return False
+    iso_date = re.fullmatch(r'(\d{4}-\d{2}-\d{2})(?:[T ].*)?', date.strip())
+    if iso_date:
+        try:
+            if datetime.fromisoformat(iso_date[1]).date() > today:
+                return False
+        except ValueError:
+            return False
     if not period.strip():
         from .place_photo_browser import _research
         current = _research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
@@ -113,11 +146,54 @@ def _date_matches(date: str, period: str) -> bool:
     # A source caption containing only "1985" is an observed year, not a
     # request to expand another ten-year window.
     scene = _period_bounds(date, expand_bare_year=False)
-    return bool(scene and bounds[0] <= scene[0] <= scene[1] <= bounds[1])
+    return bool(scene and bounds[0] - tolerance <= scene[0] <= scene[1] <= bounds[1] + tolerance)
+
+
+def _coordinates(record: dict) -> dict | None:
+    if not isinstance(record, dict):
+        return None
+    latitude = record.get('latitude', record.get('lat', record.get('GPSLatitude')))
+    longitude = record.get('longitude', record.get('lng', record.get('lon', record.get('GPSLongitude'))))
+    if latitude is not None and longitude is not None and not isinstance(latitude, bool) and not isinstance(longitude, bool):
+        try:
+            latitude, longitude = float(latitude), float(longitude)
+            if math.isfinite(latitude) and math.isfinite(longitude) and -90 <= latitude <= 90 and -180 <= longitude <= 180:
+                return {'latitude': latitude, 'longitude': longitude}
+        except (ValueError, TypeError):
+            pass
+    for key in ('geo', 'contentLocation', 'location', 'spatialCoverage'):
+        point = _coordinates(record.get(key))
+        if point:
+            return point
+    return None
+
+
+def _distance_km(first: dict, second: dict) -> float:
+    lat1, lat2 = map(math.radians, (first['latitude'], second['latitude']))
+    delta_lat = lat2 - lat1
+    delta_lon = math.radians(second['longitude'] - first['longitude'])
+    haversine = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    return 6371.0088 * 2 * math.asin(math.sqrt(min(1, max(0, haversine))))
+
+
+def filter_place_photos(items: list[dict], period: str, center: dict | None = None) -> list[dict]:
+    accepted = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if not _date_matches(item.get('date_expression', ''), period):
+            continue
+        if re.search(r'upload|publication|published|modified|visual_guess', item.get('date_basis', ''), re.I):
+            continue
+        point = _coordinates(item)
+        if center is not None and (point is None or _distance_km(center, point) > PHOTO_RADIUS_KM):
+            continue
+        accepted.append(item)
+    return _deduplicate(accepted)
 
 
 def _search_queries(place: str, period: str) -> list[str]:
-    bounds = _period_bounds(period)
+    bounds = _photo_period_bounds(period)
     queries = []
     for term in _place_terms(place):
         clean = ' '.join(term.replace('"', ' ').split())
@@ -200,6 +276,7 @@ def _commons(place: str, period: str) -> list[dict]:
                 'location_evidence': caption, 'attribution': value('Artist'), 'license': license_name,
                 'license_url': value('LicenseUrl'), 'date_expression': date,
                 'original_url': info.get('url', image), 'content_hash': info.get('sha1', ''),
+                **(_coordinates({'GPSLatitude': value('GPSLatitude'), 'GPSLongitude': value('GPSLongitude')}) or {}),
                 'allowed_actions': {'embed': True, 'download': False, 'print': False},
             })
         if len(_deduplicate(items)) >= MAX_RESULTS:
@@ -210,7 +287,7 @@ def _commons(place: str, period: str) -> list[dict]:
 def _loc(place: str, period: str) -> list[dict]:
     """Only item-level photographic records with an explicit reuse statement."""
     params = {'fo': 'json', 'q': place, 'c': SEARCH_LIMIT, 'fa': 'online-format:image'}
-    bounds = _period_bounds(period)
+    bounds = _photo_period_bounds(period)
     if bounds:
         params['dates'] = f'{bounds[0]}/{bounds[1]}'
     data = _get('https://www.loc.gov/photos/', params)
@@ -267,6 +344,7 @@ def _loc(place: str, period: str) -> list[dict]:
             'title': title, 'image_url': images[-1], 'source_url': source, 'location': place,
             'location_evidence': caption, 'attribution': _text(record.get('contributor')) or 'Library of Congress',
             'license': rights, 'license_url': source, 'date_expression': date,
+            **(_coordinates(item) or _coordinates(record) or {}),
             'allowed_actions': {'embed': True, 'download': False, 'print': False},
         })
     return items
@@ -342,8 +420,12 @@ def _google_creator(item: dict) -> str:
 def _google_query(place: str, period: str, *, include_decade: bool = False) -> str:
     from .place_photo_browser import _research
     location_query = _research()._crawl4ai_place_query(place)
-    bounds = _period_bounds(period)
+    bounds = _photo_period_bounds(period)
     if not bounds:
+        if not period.strip():
+            current = _research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
+            years = range(int(current['start'][:4]), int(current['end'][:4]) + 1)
+            return location_query + ' (' + ' OR '.join(str(year) for year in years) + ')'
         return location_query
     fallback = _decade_fallback(period) if include_decade else None
     if fallback:
@@ -432,6 +514,8 @@ def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[di
                 'location_evidence': caption, 'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
                 'license': license_name, 'license_url': license_url,
                 'date_expression': scene_date[0], 'date_basis': f'Google {scene_date[1]}',
+                **next((point for records in (result.get('pagemap') or {}).values() if isinstance(records, list)
+                        for record in records if (point := _coordinates(record))), {}),
                 'allowed_actions': {'embed': True, 'download': False, 'print': False},
             })
         unique = _deduplicate(items)
@@ -483,10 +567,10 @@ def _flickr(place: str, period: str) -> list[dict]:
             allowed[str(licence['id'])] = licence
     if not allowed:
         return []
-    bounds = _period_bounds(period)
+    bounds = _photo_period_bounds(period)
     params = {'per_page': 100, 'sort': 'relevance', 'media': 'photos', 'content_types': '0',
               'safe_search': 1, 'license': ','.join(allowed),
-              'extras': 'description,license,date_taken,owner_name,tags,media,url_z,url_c'}
+              'extras': 'description,license,date_taken,owner_name,tags,media,geo,url_z,url_c'}
     if bounds:
         params.update(min_taken_date=f'{bounds[0]}-01-01 00:00:00',
                       max_taken_date=f'{bounds[1]}-12-31 23:59:59')
@@ -536,6 +620,7 @@ def _flickr(place: str, period: str) -> list[dict]:
                     'attribution': _text(photo.get('ownername')) or owner,
                     'license': licence['name'], 'license_url': licence['url'],
                     'date_expression': date, 'date_basis': 'Flickr date taken',
+                    **((_coordinates(photo) if str(photo.get('accuracy', '0')) != '0' else None) or {}),
                     'allowed_actions': {'embed': True, 'download': False, 'print': False},
                 })
             if len(_deduplicate(items)) >= MAX_RESULTS:
@@ -546,6 +631,8 @@ def _flickr(place: str, period: str) -> list[dict]:
 
 
 def _canonical_image(url: str) -> str:
+    if not url:
+        return ''
     parsed = urlparse(unquote(url))
     host = (parsed.hostname or '').lower()
     path = parsed.path
@@ -559,25 +646,71 @@ def _canonical_image(url: str) -> str:
     return urlunparse(('https', host, path, '', urlencode(params), ''))
 
 
+def _wikimedia_file(url: str) -> str | None:
+    parsed = urlparse(unquote(url))
+    host = parsed.hostname or ''
+    if host == 'upload.wikimedia.org':
+        path = parsed.path.replace('/thumb/', '/', 1)
+        if '/thumb/' in parsed.path:
+            path = path.rsplit('/', 1)[0]
+        filename = path.rsplit('/', 1)[-1]
+        filename = re.sub(r'^\d{14}!', '', filename)
+    elif host == 'commons.wikimedia.org' or host.endswith('.wikipedia.org'):
+        match = re.search(r'/(?:Special:(?:FilePath|Redirect/file)/|(?:File|文件|檔案):)(.+)$', parsed.path, re.I)
+        filename = match[1] if match else dict(parse_qsl(parsed.query)).get('title', '')
+        filename = re.sub(r'^(?:File|文件|檔案):', '', filename, flags=re.I)
+    else:
+        return None
+    if not re.search(r'\.(?:jpe?g|png|webp|gif|tiff?)$', filename, re.I):
+        return None
+    return filename.replace('_', ' ').strip()
+
+
 def _deduplicate(items: list[dict]) -> list[dict]:
-    unique, seen = [], set()
+    unique, seen = [], {}
     for item in items:
-        original = _canonical_image(item.get('original_url') or item['image_url'])
+        original = _canonical_image(item.get('original_url') or item.get('image_url', ''))
         # A crawled article can contain several distinct photographs. Its
         # source-page URL alone must not collapse the whole article to one.
-        source_key = (item['source_url'], original) if item.get('memory_reference_only') else item['source_url']
-        source = urlparse(item['source_url'])
+        source_url = item.get('source_url', '')
+        source_key = (source_url, original) if item.get('memory_reference_only') else source_url
+        source = urlparse(source_url)
         flickr_id = re.fullmatch(r'/photos/[^/]+/(\d+)/?', source.path)
         if source.hostname in {'www.flickr.com', 'flickr.com'} and flickr_id:
             source_key = ('flickr', flickr_id[1])
-        keys = {('asset', item['asset_id']), ('source', source_key), ('image', original),
-                ('image', _canonical_image(item['image_url']))}
+        keys = {('asset', item.get('asset_id')), ('source', source_key), ('image', original),
+                ('image', _canonical_image(item.get('image_url', '')))}
+        keys = {key for key in keys if key[1]}
+        for value in (item.get('original_url'), item.get('image_url')):
+            filename = _wikimedia_file(value or '')
+            if filename:
+                keys.add(('wikimedia', filename))
         if item.get('content_hash'):
             keys.add(('hash', item['content_hash']))
-        if seen.intersection(keys):
+        fingerprint = item.get('perceptual_hash', '')
+        similar = next((index for index, other in enumerate(unique) if
+            re.fullmatch(r'[0-9a-f]{16}', fingerprint) and
+            re.fullmatch(r'[0-9a-f]{16}', other.get('perceptual_hash', ''))
+            and (int(fingerprint, 16) ^ int(other['perceptual_hash'], 16)).bit_count() <= 6
+            ), None)
+        matches = {seen[key] for key in keys if key in seen}
+        if matches or similar is not None:
+            index = min(matches) if matches else similar
+            exact_images = {seen[key] for key in keys if key in seen
+                            and (key[0] in {'asset', 'image', 'hash', 'wikimedia'}
+                                 or (key[0] == 'source' and isinstance(key[1], tuple)
+                                     and key[1][0] == 'flickr'))}
+            for match in exact_images:
+                if _coordinates(unique[match]) is None and _coordinates(item) is not None:
+                    # Keep the whole source-backed candidate, including its
+                    # provenance. Similar-looking scenes do not confer GPS.
+                    unique[match] = item
+            for key in keys:
+                seen.setdefault(key, index)
             continue
+        index = len(unique)
         unique.append(item)
-        seen.update(keys)
+        seen.update((key, index) for key in keys)
     return unique
 
 
@@ -605,12 +738,10 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
     if _configured_env('MEMORY_SPARK_PHOTO_WEB_SEARCH').lower() in {'1', 'true', 'yes'}:
         providers.insert(0, ('llm_web_search', _llm_web_search))
     def run(provider):
-        # The combined browser query already discovers the containing decade.
-        scope = (_decade_fallback(period) or period) if provider is _google_browser else period
         def matching(found):
             return [item for item in found
                     if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
-                    and _date_matches(item.get('date_expression', ''), scope)]
+                    and _date_matches(item.get('date_expression', ''), period)]
         def publish(found):
             accepted = matching(found)
             if accepted and on_items:
@@ -618,7 +749,21 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
         if on_items and provider in (_google_browser, _flickr_browser):
             found = provider(place, period, on_items=publish)
         else:
-            found = provider(place, period)
+            found = matching(provider(place, period))
+            if provider not in (_google_browser, _flickr_browser):
+                from .place_photo_fingerprints import image_fingerprint
+                def fingerprint(item):
+                    return {**item, **image_fingerprint(item['image_url'])}
+                with ThreadPoolExecutor(max_workers=4) as images:
+                    if on_items:
+                        pending = [images.submit(fingerprint, item) for item in found]
+                        found = []
+                        for completed in as_completed(pending):
+                            found.append(completed.result())
+                            if len(found) == 1 or len(found) % 4 == 0:
+                                publish(found)
+                    else:
+                        found = list(images.map(fingerprint, found))
         publish(found)
         return matching(found)
 
@@ -630,8 +775,8 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
             except (http.client.HTTPException, httpx.HTTPError, ValueError, KeyError, TypeError) as error:
                 errors.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
                               else [{'provider': name, 'reason': photo_failure_reason(error)}])
-    exact = [item for item in items if _date_matches(item.get('date_expression', ''), period)]
-    broader = [item for item in items if not _date_matches(item.get('date_expression', ''), period)]
+    exact = [item for item in items if _date_matches(item.get('date_expression', ''), period, tolerance=0)]
+    broader = [item for item in items if not _date_matches(item.get('date_expression', ''), period, tolerance=0)]
     mixed = _deduplicate(_mix_sources(exact) + _mix_sources(broader))
     # A successful empty catalogue cannot establish no-match for blocked sources.
     if not mixed and errors:
@@ -643,9 +788,10 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
     fallback = _decade_fallback(period)
     def label(items):
         return [{**item, 'requested_period': period,
-                 'matched_period': period if _date_matches(item.get('date_expression', ''), period) else fallback,
-                 'period_match': 'requested' if _date_matches(item.get('date_expression', ''), period) else 'decade'}
-                for item in items]
+                 'matched_period': period if _date_matches(item.get('date_expression', ''), period, tolerance=0) else fallback,
+                 'period_match': 'requested' if _date_matches(item.get('date_expression', ''), period, tolerance=0) else
+                    'decade' if fallback and _date_matches(item.get('date_expression', ''), fallback, tolerance=0) else 'nearby'}
+                for item in items if _date_matches(item.get('date_expression', ''), period)]
 
     def run(search_period, search_limit):
         progress = {'on_items': lambda items: on_items(label(items))} if on_items else {}
@@ -661,7 +807,7 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
         requested = []
         failures.extend(error.failures)
     broader = []
-    if fallback and sum(_date_matches(item.get('date_expression', ''), period) for item in requested) < MAX_RESULTS:
+    if fallback and sum(_date_matches(item.get('date_expression', ''), period, tolerance=0) for item in requested) < MAX_RESULTS:
         try:
             broader = run(fallback, None)
         except PhotoResearchUnavailable as error:
@@ -669,11 +815,8 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             pass  # A wider search must not erase exact-year results.
     exact, decade = [], []
-    for item in requested + broader:
-        matches_requested = _date_matches(item.get('date_expression', ''), period)
-        labelled = {**item, 'requested_period': period,
-                    'matched_period': period if matches_requested else fallback,
-                    'period_match': 'requested' if matches_requested else 'decade'}
+    for labelled in label(requested + broader):
+        matches_requested = labelled['period_match'] == 'requested'
         (exact if matches_requested else decade).append(labelled)
     mixed = _deduplicate(_mix_sources(exact) + _mix_sources(decade))
     if not mixed and failures:

@@ -14,6 +14,7 @@ from apps.api import place_photos as photos
 
 def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence=None):
     record = {'@type': 'Photograph', 'name': f'{place} street', 'dateCreated': date,
+              'contentLocation': {'geo': {'latitude': 40.98, 'longitude': 117.94}},
               'contentUrl': f'https://live.staticflickr.com/1/{index}.jpg',
               'creator': {'name': 'Photographer'}}
     if licence:
@@ -56,11 +57,36 @@ def test_alias_source_photos_still_require_the_memory_capture_period():
     source = 'https://www.flickr.com/photos/author/1/'
     assert browser._source_items(photo_html(place='Chengde Mountain Resort'), source, place, '1983年')
     assert not browser._source_items(photo_html(place='Beijing Summer Palace'), source, place, '1983年')
-    assert not browser._source_items(photo_html(place='Chengde Mountain Resort', date='1993-01-01'), source, place, '1983年')
+    assert not browser._source_items(photo_html(place='Chengde Mountain Resort', date='1994-01-01'), source, place, '1983年')
+
+
+@pytest.mark.parametrize('period,date', [('1980s', '1983-10-01'), ('', '2025-11-03')])
+def test_google_source_extracts_item_capture_dates_without_dating_the_whole_page(period, date):
+    page = ('<title>Chengde Mountain Resort photo collection</title>'
+            f'<figure><img src="https://archive.example/scene.jpg" alt="Chengde Mountain Resort {date}">'
+            f'<figcaption>Chengde Mountain Resort, photographed on {date}</figcaption></figure>')
+    items = browser._source_items(page, 'https://archive.example/chengde', '离宫, 承德市', period)
+    assert len(items) == 1, 'image-specific capture metadata was discarded because the page title has no date'
+
+
+@pytest.mark.parametrize('capture_date,expected', [('3 November 2025', True), ('3 November 1983', False), ('', False)])
+def test_mediawiki_uses_file_capture_date_and_original_not_upload_history(capture_date, expected):
+    page = ('<title>File:Chengde Mountain Resort courtyard.jpg</title>'
+            '<meta property="og:image" content="https://upload.wikimedia.org/preview.jpg">'
+            '<a href="https://upload.wikimedia.org/original.jpg">Original file</a>'
+            f'<table><tr><td id="fileinfotpl_date">Date</td><td>{capture_date}</td></tr></table>'
+            '<table class="filehistory"><tr><td>Uploaded on 2025-11-03</td></tr></table>')
+    items = browser._source_items(page, 'https://commons.wikimedia.org/wiki/File:Chengde_courtyard.jpg',
+                                  '离宫, 承德市', '')
+    assert bool(items) is expected
+    if expected:
+        assert items[0]['image_url'] == 'https://upload.wikimedia.org/original.jpg'
+        assert items[0]['date_expression'] == '2025-11-03'
 
 
 @pytest.fixture
 def fake_crawler(monkeypatch):
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     pages, calls, hooks = {}, [], {}
     class Config:
         def __init__(self, **kwargs):
@@ -112,7 +138,7 @@ def test_missing_keys_select_both_browser_providers_and_reach_endpoint(monkeypat
     headers = {'X-Account-Id': 'browser-owner'}
     project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()
     result = client.get(f"/v1/projects/{project['id']}/place-photos", headers=headers,
-                        params={'place': 'Chengde', 'period': '1980s'}).json()
+                        params={'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}).json()
     assert result['status'] == 'PARTIAL' and len(result['items']) == 2
     assert sorted(calls) == [('flickr', 'Chengde', '1980s'), ('google', 'Chengde', '1980s')]
     assert all(item['allowed_actions']['embed'] for item in result['items'])
@@ -134,7 +160,7 @@ def test_cse_url_and_id_have_same_query_without_page_date_filter(monkeypatch):
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
     query = parse_qs(urlsplit(browser._search_url('google', '承德', '1980')).query)
-    assert query['cx'] == ['engine'] and query['q'] == [photos._google_query('承德', '1980')]
+    assert query['cx'] == ['engine'] and query['q'] == [photos._google_query('承德', '1980', include_decade=True)]
     assert 'sort' not in query
     monkeypatch.setenv('GOOGLE_CSE_URL', 'https://cse.google.com/cse?cx=url-engine&page=9')
     query = parse_qs(urlsplit(browser._search_url('google', '承德', '')).query)
@@ -152,11 +178,15 @@ def test_google_or_query_is_one_search_and_preserves_place_and_period(monkeypatc
     query = parse_qs(urlsplit(url).query)['q'][0]
     assert browser._discovery_queries('google', place, period, url) == [(url, False)]
     if place == '承德':
-        assert query == '("承德" OR "Chengde") (1980 OR 1981 OR 1982 OR 1983 OR 1984 OR 1985 OR 1986 OR 1987 OR 1988 OR 1989)'
+        years = ' OR '.join(str(year) for year in range(1980, 1990))
+        assert query == f'("承德" OR "Chengde") ({years})'
     elif place == 'Chengde':
-        assert query == '("Chengde" OR "承德")'
+        current = browser._research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
+        years = ' OR '.join(str(year) for year in range(int(current['start'][:4]), int(current['end'][:4]) + 1))
+        assert query == f'("Chengde" OR "承德") ({years})'
     else:
-        assert query == '("Chengdu") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")'
+        years = ' OR '.join(f'"{year}"' for year in range(1973, 1994))
+        assert query == f'("Chengdu") ({years} OR "80年代" OR "80s" OR "1980年代" OR "1980s")'
 
 
 def test_cse_reads_originals_deduplicates_and_checks_source_robots(fake_crawler):
@@ -224,7 +254,7 @@ def test_source_and_later_search_failures_preserve_collected_photos(fake_crawler
 def test_source_dates_places_licences_and_cse_previews_are_not_inferred():
     source = 'https://www.flickr.com/photos/author/1/'
     assert not browser._source_items(photo_html(place='Chengdu'), source, 'Chengde', '1980s')
-    assert not browser._source_items(photo_html(date='1990-01-01'), source, 'Chengde', '1980s')
+    assert not browser._source_items(photo_html(date='2000-01-01'), source, 'Chengde', '1980s')
     assert not browser._source_items(photo_html(licence='https://creativecommons.org/licenses/by-nc/2.0/'),
                                      source, 'Chengde', '1980s')
     html = '<title>Chengde street</title><meta property="og:image" content="https://encrypted-tbn0.gstatic.com/a">'
@@ -248,7 +278,7 @@ def test_bilingual_queries_and_album_share_budgets_without_overlapping_browsers(
     monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
     queries = browser._discovery_queries('google', '承德', '1983年', browser._search_url('google', '承德', '1983年'))
     assert [parse_qs(urlsplit(url).query)['q'][0] for url, _ in queries] == [
-        '("承德" OR "Chengde") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")']
+        photos._google_query('承德', '1983年', include_decade=True)]
     calls = []
     active = 0
     peak = 0
@@ -300,7 +330,7 @@ def test_album_location_does_not_inherit_album_date(fake_crawler):
     pages[first] = photo_html(place='Willow trees')
     pages[second] = photo_html(2, place='Lake', date='1984-05-01')
     exact = asyncio.run(browser._browse_query('flickr', '承德', '1983年', album, album=True, page_budget=1))
-    assert len(exact) == 1 and exact[0]['date_expression'] == '1983-10-01'
+    assert sorted(item['date_expression'] for item in exact) == ['1983-10-01', '1984-05-01']
     decade = asyncio.run(browser._browse_query('flickr', '承德', '1980s', album, album=True, page_budget=1))
     assert len(decade) == 2
     assert all(config.check_robots_txt for _, config in calls)
@@ -495,7 +525,7 @@ def test_combined_google_search_returns_exact_then_decade_without_second_query(m
         items = browser._source_items(photo_html(2, date='1986-05-01'),
                                       'https://www.flickr.com/photos/author/2/', place, '1980s')
         items += browser._source_items(photo_html(1), 'https://www.flickr.com/photos/author/1/', place, '1980s')
-        items += [{**items[0], 'asset_id': 'wrong-decade', 'date_expression': '1993'}]
+        items += [{**items[0], 'asset_id': 'wrong-period', 'date_expression': '1994'}]
         if kwargs.get('on_items'):
             kwargs['on_items'](items)
         return items
@@ -507,19 +537,19 @@ def test_combined_google_search_returns_exact_then_decade_without_second_query(m
     assert [item['period_match'] for item in items] == ['requested', 'decade']
     assert items[1]['matched_period'] == '1980s'
     assert any(item['period_match'] == 'decade' for item in streamed)
-    assert all(item['date_expression'] != '1993' for item in items + streamed)
+    assert all(item['date_expression'] != '1994' for item in items + streamed)
 
 
-def test_combined_google_source_inspection_accepts_only_the_containing_decade(fake_crawler):
+def test_combined_google_source_inspection_accepts_only_the_ten_year_tolerance(fake_crawler):
     pages, calls, _ = fake_crawler
     search = 'https://cse.google.com/cse?cx=engine'
-    sources = [f'https://www.flickr.com/photos/author/{i}/' for i in range(1, 4)]
+    sources = [f'https://www.flickr.com/photos/author/{i}/' for i in range(1, 6)]
     pages[search] = cse_html(sources)
-    for index, date in enumerate(('1983-10-01', '1986-05-01', '1993-01-01'), 1):
+    for index, date in enumerate(('1972-01-01', '1973-01-01', '1983-10-01', '1993-01-01', '1994-01-01'), 1):
         pages[sources[index - 1]] = photo_html(index, date=date)
     items = asyncio.run(browser._browse_query('google', 'Chengde', '1983年', search,
                                              page_budget=1))
-    assert sorted(item['date_expression'] for item in items) == ['1983-10-01', '1986-05-01']
+    assert sorted(item['date_expression'] for item in items) == ['1973-01-01', '1983-10-01', '1993-01-01']
 
 
 def test_blocked_combined_google_query_is_not_repeated_for_decade_fallback(monkeypatch):

@@ -1,5 +1,16 @@
 // Geographic identity is independent of the memories attached to it.
 const normalize = value => String(value || '').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+const genericPlaces = new Set([
+  '家属院', '市区', '城区', '老家', '故乡', '家乡', '村里', '镇上', '河边', '山里',
+  '学校', '医院', '车站', '小区', '附近', '这里', '那里',
+  'home', 'hometown', 'my hometown', 'city', 'the city', 'town', 'suburb', 'village',
+  'the old river town', 'school compound', 'residential compound', 'family compound',
+]);
+const detailedPlace = /(?:医院|学校|大学|学院|中学|小学|车站|火车站|家属院|小区|大厦|大楼|街|路|巷)(?:\d+号)?$|\b(?:hospital|school|university|college|station|street|road|lane|avenue|building|compound)\b(?:\s+\d+)?$/i;
+const isCoarseLabel = label => !genericPlaces.has(normalize(label)) && !detailedPlace.test(label);
+export const isCoarsePlace = place => Boolean(place?.place
+  && ['country', 'region', 'city', 'suburb'].includes(place.granularity)
+  && isCoarseLabel(place.place) && (place.hierarchy || []).slice(1).every(isCoarseLabel));
 const LIFE_STAGE_ORDER = new Map([
   ['baby', 0],
   ['toddler', 1],
@@ -49,6 +60,7 @@ export function sortPlacesChronologically(places) {
 export function mergePlaces(entries) {
   const merged = new Map();
   for (const entry of entries) {
+    if (!isCoarsePlace(entry)) continue;
     const key = placeHistoryKey(entry);
     const previous = merged.get(key) || {};
     const pictures = new Map([...(previous.pictures || []), ...(entry.pictures || [])].map(picture => [picture.asset_id || picture.id || picture.source_url || JSON.stringify(picture), picture]));
