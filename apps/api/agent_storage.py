@@ -269,6 +269,58 @@ class UserStorage:
             'user_id':f'eq.{self.user_id}', 'limit':'1'}).json()
         return rows[0] if rows else None
 
+    def narrator_source_by_id(self, project_id, source_id):
+        rows = self.request('GET', '/rest/v1/user_narrator_source', params={
+            'select': 'id,project_id,version,sequence,text,kind,status,language,created_at',
+            'user_id': f'eq.{self.user_id}', 'project_id': f'eq.{project_id}',
+            'id': f'eq.{UUID(source_id)}', 'limit': '1',
+        }).json()
+        return rows[0] if rows else None
+
+    def narrator_source_by_turn(self, project_id, client_turn_id):
+        rows = self.narrator_sources_by_turns(project_id, [client_turn_id])
+        return rows[0] if rows else None
+
+    def narrator_sources_by_turns(self, project_id, client_turn_ids):
+        if not client_turn_ids:
+            return []
+        ids = ','.join(str(UUID(value)) for value in client_turn_ids)
+        return self.request('GET', '/rest/v1/user_narrator_source', params={
+            'select': 'id,client_turn_id,sequence,version,text,kind,language,status,processing_status',
+            'user_id': f'eq.{self.user_id}', 'project_id': f'eq.{project_id}',
+            'client_turn_id': f'in.({ids})', 'limit': str(len(client_turn_ids)),
+        }).json()
+
+    def completed_round_by_turn(self, project_id, client_turn_id):
+        rows = self.request('GET', '/rest/v1/user_completed_round', params={
+            'select': 'ordinal,memory_id', 'user_id': f'eq.{self.user_id}',
+            'project_id': f'eq.{project_id}', 'turn_id': f'eq.{UUID(client_turn_id)}', 'limit': '1',
+        }).json()
+        return rows[0] if rows else None
+
+    def memoir_projects(self, limit=51, after_project_id=None):
+        params = {'select': 'project_id,source_sequence,event_sequence,policy_epoch',
+                  'user_id': f'eq.{self.user_id}', 'order': 'project_id.asc', 'limit': str(limit)}
+        if after_project_id is not None:
+            params['project_id'] = f'gt.{after_project_id}'
+        return self.request('GET', '/rest/v1/user_memoir_project', params=params).json()
+
+    def memoir_project(self, project_id):
+        rows = self.request('GET', '/rest/v1/user_memoir_project', params={
+            'select': 'project_id,source_sequence,event_sequence,policy_epoch',
+            'user_id': f'eq.{self.user_id}', 'project_id': f'eq.{project_id}', 'limit': '1',
+        }).json()
+        return rows[0] if rows else None
+
+    def project_conversation_page(self, project_id, limit=51, boundary=None):
+        params = {'select': 'id,client_turn_id,kind,content,source_sequence,created_at',
+                  'user_id': f'eq.{self.user_id}', 'project_id': f'eq.{project_id}',
+                  'kind': 'in.(agent,agent_greeting)', 'order': 'created_at.desc,id.desc', 'limit': str(limit)}
+        if boundary is not None:
+            created_at, memory_id = boundary
+            params['or'] = f'(created_at.lt.{created_at},and(created_at.eq.{created_at},id.lt.{memory_id}))'
+        return self.request('GET', '/rest/v1/user_memory', params=params).json()
+
     def accept_narrator_source(self, project_id, client_turn_id, text, *, kind='narrator_chat', language='en-AU'):
         """Commit original evidence and its durable intent before reply delivery."""
         return self.request('POST', '/rest/v1/rpc/accept_user_narrator_source', json={

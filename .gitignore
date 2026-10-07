@@ -31,3 +31,13 @@ CONTEXT.md
 *.zip
 # Machine-specific Cloudflare paths; credentials stay in ~/.cloudflared/.
 infra/cloudflare/config.yml
+
+# Native development builds and local evidence
+node_modules/
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/.env*
+!apps/mobile/.env.example
+docs/mobile/evidence/

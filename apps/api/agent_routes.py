@@ -14,6 +14,7 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .agent_routes_support import authenticated_storage
 from .codex_runtime import CodexRuntime
+from .conversation_recovery import PROJECT_ID_PATTERN, TurnReceipt, turn_receipt
 from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
 from .place_journey import normalize_persisted_place_journey
@@ -152,6 +153,57 @@ async def place_journey(authorization: str | None = Header(default=None)):
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     finally:
         await asyncio.to_thread(storage.client.close)
+
+
+@router.get('/places/{project_id}/photos')
+async def project_place_photos(project_id: str, request: Request,
+                              place: str = Query(min_length=1, max_length=120),
+                              period: str = Query(default='', max_length=160),
+                              cursor: str | None = Query(default=None, max_length=160),
+                              refresh: bool = Query(default=False),
+                              latitude: float | None = Query(default=None, ge=-90, le=90),
+                              longitude: float | None = Query(default=None, ge=-180, le=180),
+                              authorization: str | None = Header(default=None)):
+    """Bearer-authenticated adapter over the existing shared photo pipeline."""
+    if valid_family_project_id(project_id) is None:
+        raise HTTPException(422, 'Invalid project id')
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(422, 'Both photo search coordinates are required')
+    storage = await asyncio.to_thread(authenticated_storage, authorization)
+    try:
+        project = await asyncio.to_thread(storage.memoir_project, project_id)
+        if project is None:
+            raise HTTPException(404, 'Project not found')
+        # Project IDs are only unique inside an owner. Never scope a cursor by
+        # project alone, even though public discovery jobs themselves are shared.
+        owner = f'{storage.user_id}:{project_id}'
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(503, 'Project verification temporarily unavailable',
+                            headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
+    finally:
+        await asyncio.to_thread(storage.client.close)
+    try:
+        from .place_photo_transport import photo_response
+        return await photo_response(request.app.state.memoir_photo_pages, owner, place, period, cursor,
+            refresh=refresh, latitude=latitude, longitude=longitude,
+            stream='application/x-ndjson' in request.headers.get('accept', ''))
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        return {'items': [], 'status': 'UNAVAILABLE'}
+
+
+@router.get('/turns/{client_turn_id}', response_model=TurnReceipt)
+def read_turn_receipt(client_turn_id: UUID,
+                      project_id: str = Query(..., pattern=PROJECT_ID_PATTERN),
+                      authorization: str | None = Header(default=None)):
+    """Reconcile a lost response without admitting or generating another turn."""
+    storage = authenticated_storage(authorization)
+    try:
+        return turn_receipt(storage, project_id, str(client_turn_id))
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(503, 'Conversation receipt temporarily unavailable',
+                            headers={'X-Error-Code': 'TURN_RECEIPT_UNAVAILABLE'}) from None
+    finally:
+        storage.client.close()
 
 
 @router.post('/greeting')
