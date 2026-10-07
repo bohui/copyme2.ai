@@ -72,3 +72,24 @@ PostgreSQL backend. Existing story coverage remains mapped in
 These results establish controlled end-to-end application behavior. Live model
 semantic quality, CI and production rollout are separate acceptance steps. No
 production migration, deployment or shared-service restart was performed.
+
+## PR 31 independent review repair
+
+Source review found that a repeated temporal proposal for an already conflicted
+event appended another account before the no-op comparison. A real PostgreSQL RPC
+regression first reproduced both saved-summary and recorded-account echoes as
+revision changes (two failures before the fix). The final regression also drives
+the actual timeline worker with controlled external provider replies: all four
+RPC/worker variants fail against the unchanged `ac6eb6b` implementation.
+
+The replacement RPC now retains the unresolved temporal state when the full
+temporal proposal, including its evidence basis, matches the saved summary or an
+existing account. It still validates all retained evidence and any added links.
+Fresh attributed evidence with the same year remains a distinct account and
+advances the event revision; an explicit author correction still resolves it.
+
+The four replay variants and two new-attribution/correction variants pass on the
+repair (six passes, zero skips/errors). The initial sandbox attempt failed during
+container setup and is not counted as a behavioral red. Exact-head follow-up
+validation uses the integration command above, with task-local JUnit receipts;
+the publication report records the tested commit and tree before updating the PR.

@@ -92,11 +92,20 @@ begin
         (current_event.data->'temporal'->>'year_start' is not null and proposal->'temporal'->>'year_start' is not null and
          (current_event.data->'temporal'->>'year_start' is distinct from proposal->'temporal'->>'year_start' or
           current_event.data->'temporal'->>'year_end' is distinct from proposal->'temporal'->>'year_end'))) then
-      event_data:=event_data || pg_catalog.jsonb_build_object('timing_conflict',true,
-        'temporal_accounts',coalesce(current_event.data->'temporal_accounts',pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('temporal',current_event.data->'temporal'))) ||
-          pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('temporal',proposal->'temporal')),
-        'temporal',pg_catalog.jsonb_build_object('expression','unknown','precision','unknown',
-          'basis',coalesce(current_event.data->'temporal'->'basis','[]') || coalesce(proposal->'temporal'->'basis','[]')));
+      -- Replaying the unresolved summary or an existing attributed account
+      -- does not add evidence. Keep the unresolved placement; new basis refs
+      -- (including the same year from another narrator) still append an account.
+      if current_event.data->'temporal' = proposal->'temporal' or exists(
+        select 1 from pg_catalog.jsonb_array_elements(coalesce(current_event.data->'temporal_accounts','[]')) account
+          where account->'temporal' = proposal->'temporal') then
+        event_data:=pg_catalog.jsonb_set(event_data,'{temporal}',current_event.data->'temporal');
+      else
+        event_data:=event_data || pg_catalog.jsonb_build_object('timing_conflict',true,
+          'temporal_accounts',coalesce(current_event.data->'temporal_accounts',pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('temporal',current_event.data->'temporal'))) ||
+            pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('temporal',proposal->'temporal')),
+          'temporal',pg_catalog.jsonb_build_object('expression','unknown','precision','unknown',
+            'basis',coalesce(current_event.data->'temporal'->'basis','[]') || coalesce(proposal->'temporal'->'basis','[]')));
+      end if;
     end if;
     if current_event.data->'user_overrides' ? 'life_stage' then event_stage:=current_event.life_stage; end if;
     if current_event.data->'user_overrides' ? 'temporal' then

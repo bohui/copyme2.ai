@@ -1679,7 +1679,8 @@ def test_withdrawal_preserves_unrelated_immutable_passages_when_rebuilding(sql,t
     assert 'school' not in after['preview']['text'] and after['preview']['text']=='I moved to Sydney in 1986.'
 
 
-def test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author_correction(sql):
+@pytest.mark.parametrize('sister_year', [1966, 1968])
+def test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author_correction(sql, sister_year):
     first=rpc(sql,'accept_user_narrator_source',f"'project','{TURN}','I remember starting school around 1964.'")
     ref={'source_id':first['id'],'version':1,'quote':first['text'],'attribution':'Narrator'}
     event=extract(sql,[first],[{'kind':'event','title':'Started school','source_refs':[ref],
@@ -1691,15 +1692,59 @@ def test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author
     assert saved['temporal']['precision']=='unknown' and saved['temporal'].get('year_start') is None
     assert {a['temporal']['year_start'] for a in saved['temporal_accounts']}=={1964,1966}
     assert {r['attribution'] for r in saved['source_refs']}=={'Narrator','Brother'}
-    third=rpc(sql,'accept_user_narrator_source',"'project','00000000-0000-4000-8000-000000000003','My sister remembers that same school start around 1968.'")
+    third=rpc(sql,'accept_user_narrator_source',f"'project','00000000-0000-4000-8000-000000000003','My sister remembers that same school start around {sister_year}.'")
     third_ref={'source_id':third['id'],'version':1,'quote':third['text'],'attribution':'Sister'}
     disputed=extract(sql,[third],[{'existing_id':event['id'],'expected_revision':2,'kind':'event','title':'Started school',
-        'source_refs':[third_ref],'temporal':{'expression':'around 1968','precision':'approximate','year_start':1968,'year_end':1968,'basis':[third_ref]}}])['events'][0]
+        'source_refs':[third_ref],'temporal':{'expression':f'around {sister_year}','precision':'approximate','year_start':sister_year,'year_end':sister_year,'basis':[third_ref]}}])['events'][0]
     assert disputed['temporal']['precision']=='unknown' and disputed['temporal'].get('year_start') is None
-    assert {a['temporal']['year_start'] for a in disputed['temporal_accounts']}=={1964,1966,1968}
+    assert len(disputed['temporal_accounts'])==3
+    assert {a['temporal']['year_start'] for a in disputed['temporal_accounts']}=={1964,1966,sister_year}
+    assert disputed['temporal_accounts'][-1]['temporal']['basis']==[third_ref]
+    assert {r['attribution'] for r in disputed['source_refs']}=={'Narrator','Brother','Sister'}
     patch={'temporal':{'expression':'1965','precision':'year','year_start':1965,'year_end':1965}}
     resolved=rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',3,{literal(patch)}::jsonb,'Actually, the year was 1965.'")
     assert resolved['temporal']['year_start']==1965 and resolved['timing_conflict'] is False
+
+
+@pytest.mark.parametrize('temporal_echo', ['saved_summary', 'recorded_account'])
+@pytest.mark.parametrize('dispatch', ['rpc', 'worker'])
+def test_acknowledgement_replaying_conflicted_dates_keeps_the_saved_event_unchanged(sql, temporal_echo, dispatch):
+    first = rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}','I remember starting school around 1964.'")
+    ref = {'source_id': first['id'], 'version': 1, 'quote': first['text'], 'attribution': 'Narrator'}
+    event = extract(sql, [first], [{'kind': 'event', 'title': 'Started school', 'source_refs': [ref],
+        'temporal': {'expression': 'around 1964', 'precision': 'approximate',
+                     'year_start': 1964, 'year_end': 1964, 'basis': [ref]}}])['events'][0]
+    later = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000002','My brother remembers that same school start around 1966.'")
+    other = {'source_id': later['id'], 'version': 1, 'quote': later['text'], 'attribution': 'Brother'}
+    saved = extract(sql, [later], [{'existing_id': event['id'], 'expected_revision': event['revision'],
+        'kind': 'event', 'title': 'Started school', 'source_refs': [other],
+        'temporal': {'expression': 'around 1966', 'precision': 'approximate',
+                     'year_start': 1966, 'year_end': 1966, 'basis': [other]}}])['events'][0]
+    assert saved['timing_conflict'] and len(saved['temporal_accounts']) == 2
+    acknowledgement = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000003','Thanks.'")
+    temporal = saved['temporal'] if temporal_echo == 'saved_summary' else saved['temporal_accounts'][1]['temporal']
+    proposal = {'existing_id': saved['id'], 'expected_revision': saved['revision'],
+        'kind': saved['kind'], 'title': saved['title'], 'source_refs': saved['source_refs'], 'temporal': temporal}
+    if dispatch == 'rpc':
+        after = extract(sql, [acknowledgement], [proposal])
+    else:
+        import httpx
+        from apps.api.memory_event_worker import MemoirLaneBroker, MemoryEventWorker
+        from memoir_postgres_workflow import PostgresRest
+        lanes = deliver_latest(sql)
+        async def process():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql, OWNER, service=True).handle)) as db:
+                broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic', client=db)
+                provider = httpx.MockTransport(lambda request: httpx.Response(200, json={
+                    'reply': json.dumps({'events': [proposal]})}))
+                worker = MemoryEventWorker(broker, worker_url='http://controlled-provider.invalid',
+                                          worker_secret='synthetic', worker_transport=provider)
+                assert (await worker.execute_lane(lanes['timeline_lane_id']))['status'] == 'saved'
+        asyncio.run(process())
+        after = rpc(sql, 'read_user_memory_events', "'project'")
+    assert after['events'] == [saved]
+    assert after['processing'] == {'extracted_through': 3, 'pending_inputs': 0}
+    assert after['completed_rounds'] == 0
 
 
 def test_similar_events_ambiguous_matches_and_long_periods_share_originals_without_merging(sql):
