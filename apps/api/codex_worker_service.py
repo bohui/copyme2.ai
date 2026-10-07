@@ -235,7 +235,7 @@ class CodexWorker:
             payload = payload.model_copy(update={'diagnostic_request_id': request_id})
         started = time.perf_counter()
         model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
-                                  if payload.agent_role == 'composer' else self.model)
+                                  if payload.agent_role in {'composer', 'author_timeline'} else self.model)
         log_diagnostic(
             diagnostic_logger,
             'worker_turn_start',
@@ -318,7 +318,7 @@ class CodexWorker:
         uid = self._uid_for(user_id)
         home = self._home(user_id, uid, self._execution_role(payload))
         model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
-                                  if payload.agent_role == 'composer' else self.model)
+                                  if payload.agent_role in {'composer', 'author_timeline'} else self.model)
         correlation = normalise_correlation(payload.evaluation)
         request_id = new_request_id(payload.diagnostic_request_id)
         started = time.perf_counter()
@@ -426,7 +426,9 @@ class CodexWorker:
                     **({'on_event': on_event} if on_event else {}),
                     **({'effort': self.reasoning_effort} if self.reasoning_effort is not None else
                        {'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}
-                       if payload.agent_role == 'composer' else {}),
+                       if payload.agent_role == 'composer' else
+                       {'effort': os.getenv('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'low')}
+                       if payload.agent_role == 'author_timeline' else {}),
                     responsesapi_client_metadata={**correlation, 'request_id': request_id},
                 )
             if trajectory:

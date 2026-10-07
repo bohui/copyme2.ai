@@ -65,3 +65,23 @@ test('routes without an explicit project still restore the saved project', async
   assert.equal(result.state.project?.id, 'project_cached');
   assert.equal(result.resumed, true);
 });
+
+test('a missing local shell is recovered with the original authenticated project ID', async () => {
+  const state = { project: { id: 'project_saved' }, supabase: { user: { id: 'owner' }, accessToken: 'session' } };
+  const context = vm.createContext({ state, preserveConversationLocale: profile => profile,
+    mergePlaces: values => values, refreshStageReadiness() {}, refreshPrivateDraft() {},
+    storyApi: async () => ({}),
+    api: async (path, options) => {
+      if (path === '/v1/projects/project_saved') throw Object.assign(new Error('Lost local shell'), { status: 404 });
+      if (path === '/v1/projects') {
+        assert.equal(JSON.parse(options.body).restore_project_id, 'project_saved');
+        assert.equal(options.headers.Authorization, 'Bearer session');
+        return { id: 'project_saved', profile: {} };
+      }
+      return { active_session: null };
+    },
+  });
+  vm.runInContext(source.match(/async function refreshProject\([^]*?\n\}/)[0], context);
+  await context.refreshProject();
+  assert.equal(state.project.id, 'project_saved');
+});

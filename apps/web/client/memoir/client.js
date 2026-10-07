@@ -2497,15 +2497,26 @@ async function startMemoirStory(mode = "self") {
     if (state.authPromise) await state.authPromise;
     if (state.loading) return;
     state.loading = true;
+    const ownerId = state.supabase?.user?.id;
     const language = conversationLanguage();
-    state.project = await api("/v1/projects", { method: "POST", body: JSON.stringify({ mode, language }) });
+    const accountHistory = state.supabase?.user && !state.supabase.user.is_anonymous
+      ? await storyApi("/v1/user/conversations") : null;
+    if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
+    const restoreProjectId = mode === "self" ? accountHistory?.resume_project_id : null;
+    const project = await api("/v1/projects", { method: "POST",
+      ...(restoreProjectId ? { headers: { Authorization: `Bearer ${state.supabase.accessToken}` } } : {}),
+      body: JSON.stringify({ mode, language, ...(restoreProjectId ? { restore_project_id: restoreProjectId } : {}) }) });
+    if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
+    state.project = project;
     state.recallPreview = null;
     if (state.supabase?.user && !state.supabase.user.is_anonymous) {
       const savedProfile = await storyApi("/v1/user/profile");
+      if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
       state.project.profile = { ...state.project.profile, ...savedProfile };
     }
     localStorage.setItem("memory-spark-project", state.project.id);
     state.chat = [];
+    if (accountHistory) await hydrateAccountHistory(accountHistory);
     state.chatHistoryCollapsed = false;
     state.freshAnonymousSession = Boolean(state.supabase?.user?.is_anonymous);
     state.codexStarting = false;
@@ -2548,7 +2559,15 @@ async function refreshProject() {
   const ownerId = state.supabase?.user?.id;
   state.stageReadiness = {};
   state.privateDraft = null;
-  const base = await api(`/v1/projects/${projectId}`);
+  let base;
+  try {
+    base = await api(`/v1/projects/${projectId}`);
+  } catch (error) {
+    if (error.status !== 404 || !state.supabase?.accessToken) throw error;
+    base = await api("/v1/projects", { method: "POST",
+      headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
+      body: JSON.stringify({ mode: "self", restore_project_id: projectId }) });
+  }
   const journey = await api(`/v1/projects/${projectId}/journey`);
   if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
   state.project = { ...base, ...journey, profile: preserveConversationLocale(base.profile, state.project.profile) };
@@ -2596,11 +2615,11 @@ function normalizeHistoryOpening(messages) {
   return [opening, ...messages.filter(message => !isOpening(message))];
 }
 
-async function hydrateAccountHistory() {
+async function hydrateAccountHistory(history = null) {
   const user = state.supabase?.user;
   const projectId = state.project?.id;
   if (!user || user.is_anonymous || !projectId) return;
-  const { items } = await storyApi("/v1/user/conversations");
+  const { items } = history || await storyApi("/v1/user/conversations");
   if (state.supabase?.user?.id !== user.id || state.project?.id !== projectId) return;
   const messages = [...items].sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""))
     .flatMap(item => item.messages.map((message, index) => ({

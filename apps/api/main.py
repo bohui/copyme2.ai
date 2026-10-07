@@ -38,6 +38,7 @@ class LooseModel(BaseModel):
 
 class ProjectCreate(LooseModel):
     mode: str = "self"
+    restore_project_id: str | None = Field(default=None, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
     # This is an optional conversation preference, not the page locale.
     language: Literal["en-AU", "zh-CN"] | None = None
     birth_year: int | None = None
@@ -1196,10 +1197,28 @@ def create_app(
         return {"revoked": True, "logged_out_at": now_iso()}
 
     @app.post("/v1/projects", status_code=status.HTTP_201_CREATED)
-    def create_project(payload: ProjectCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")) -> dict[str, Any]:
+    def create_project(payload: ProjectCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"), authorization: str | None = Header(default=None)) -> dict[str, Any]:
         actor = _account_id(x_account_id)
+        restored_profile = None
+        if payload.restore_project_id:
+            # Only recreate the local interview adapter after verifying the
+            # original project in the signed-in user's RLS-protected history.
+            service = authenticated_storage(authorization)
+            try:
+                params = {'select': 'project_id', 'user_id': f'eq.{service.user_id}',
+                          'project_id': f'eq.{payload.restore_project_id}', 'limit': '1'}
+                owned = service.request('GET', '/rest/v1/user_memoir_project', params=params).json()
+                if not owned:
+                    owned = service.request('GET', '/rest/v1/user_memory', params=params).json()
+                if not owned:
+                    raise HTTPException(404, 'Saved interview not found')
+                restored_profile = service.profile()
+            finally:
+                service.client.close()
         memory.ensure_account(actor)
         with memory.lock:
+            if payload.restore_project_id in memory.projects:
+                return _project_response(_project(memory, payload.restore_project_id, actor))
             request_hash = sha256_json(payload.model_dump())
             operation_key = f"project-create:{actor}:{idempotency_key}" if idempotency_key else None
             if operation_key:
@@ -1208,7 +1227,7 @@ def create_app(
                     if prior["request_hash"] != request_hash:
                         raise _idempotency_conflict()
                     return deepcopy(prior["response"])
-            project_id = new_id("project")
+            project_id = payload.restore_project_id or new_id("project")
             storyteller = actor if payload.mode == "self" else (payload.storyteller_account_id or new_id("storyteller"))
             storyteller_account = memory.ensure_account(storyteller)
             members = {actor: {"role": "organiser" if payload.mode == "family" else "storyteller", "capabilities": ["manage_project", "purchase"]}}
@@ -1232,6 +1251,8 @@ def create_app(
                 "trial_units_total": trial_units_total, "trial_units_consumed": 0, "trial_units_reserved": 0, "free_chapter_session_count": 0, "paid_units_total": 0, "paid_units_revoked": 0, "paid_units_consumed": 0, "paid_units_reserved": 0, "grants": [],
                 "sessions": {}, "session_ids": [], "memories": {}, "assets": {}, "people": {}, "relationships": [], "timeline": [], "chapters": {}, "chapter_ids": [], "outline_versions": [], "editions": {}, "edition_ids": [], "orders": [], "print_orders": [], "exports": {}, "payment_invitations": {}, "preview_jobs": {}, "idempotency": {}, "events": [], "event_cursor": 0, "composition_stage": 0, "deletion_state": "ACTIVE", "deleted_at": None,
             }
+            if restored_profile is not None:
+                project['profile'].update(restored_profile)
             memory.projects[project_id] = project
         memory.audit("project.created", actor, project_id, mode=payload.mode, home_region=payload.region)
         memory.emit(project, "project.created", mode=payload.mode)

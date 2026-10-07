@@ -50,3 +50,11 @@ def test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness():
     assert "compose build -f $(COMPOSE_FILE) api codex-worker" in recipe
     assert "compose up -f $(COMPOSE_FILE) --no-build --force-recreate" in recipe
     assert "codex-harness" not in recipe
+
+
+def test_temporal_worker_can_dispatch_supabase_memoir_lanes():
+    compose = (Path(__file__).resolve().parents[1] / 'compose.yml').read_text()
+    worker = compose.split('\n  worker:\n', 1)[1].split('\n  temporal:\n', 1)[0]
+    assert 'SUPABASE_URL: ${SUPABASE_URL:-}' in worker
+    assert 'SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}' in worker
+    assert 'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-memoir-luna-low}' in worker

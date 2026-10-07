@@ -175,9 +175,15 @@ The API uses the user's Supabase bearer token for RLS-protected story and Codex-
 
 Memoir interviews default to the ChatGPT subscription pool through LiteLLM's
 `gpt-5.6-luna-pooled` route, backed by `codex-lb`, with
-`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Preview and private memoir composition
-use `legal2ai-luna-low` with low reasoning by default, so drafting does not
-inherit the interview's slower max setting. Set
+`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Canonical event extraction, preview,
+and private memoir composition use `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`, which
+defaults to `memoir-luna-low`. The provider must configure this alias with a
+dedicated same-model codex-lb key enforcing low reasoning; an alias alone
+cannot override the shared upstream key's max policy. Set
+`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` to control canonical event
+extraction separately; it defaults to `low` for background checkpoints. The
+Temporal worker also needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to dispatch
+and commit those shared memoir lanes. Set
 `MEMORY_SPARK_LLM_BASE_URL` to the provider network's current gateway on port
 4000; the LiteLLM gateway and `codex-lb` must both be running. Keep the Memoir
 consumer key in `MEMORY_SPARK_LLM_API_KEY` authorized for both model routes; the

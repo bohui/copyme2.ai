@@ -592,6 +592,10 @@ def build_router(
         saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
         if saved['preview']:
             return {**saved, 'status': 'ready', 'cached': True}
+        if not saved['updating'] and not saved['error']:
+            # The allowance is account-wide, but drafts belong to an interview.
+            # An empty/new project has no job to poll even at the account limit.
+            return {**saved, 'status': 'stale' if saved['status'] == 'stale' else 'insufficient_context'}
         if retry:
             await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'timeline')
             await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'composer')
