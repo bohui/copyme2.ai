@@ -26,6 +26,12 @@ pytestmark = pytest.mark.skipif(
         ("fr-FR,zh-CN;q=0.8,en-AU;q=0.5", "zh-CN"),
         ("en-AU;q=0.4,zh-CN;q=0.9", "zh-CN"),
         ("*", "en-AU"),
+        ("en-US;q=1,zh-CN;q=0.1", "en-AU"),
+        ("zh-TW;q=1,en-AU;q=0.1", "zh-CN"),
+        ("zh-CN;q=0.1,en-GB;q=0.9", "en-AU"),
+        ("fr-FR;q=1,zh-SG;q=0.8,en-AU;q=0.1", "zh-CN"),
+        ("en-US,zh-CN", "en-AU"),
+        ("en-US;q=.9,zh-CN;q=0.1", "zh-CN"),
     ],
 )
 def test_request_locale_has_safe_first_render_and_hydration(accept_language, expected_locale):
