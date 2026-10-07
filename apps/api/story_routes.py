@@ -21,7 +21,8 @@ from pydantic import BaseModel, Field
 from .agent_routes_support import authenticated_storage
 from .agent_storage import UserStorage
 from .family_context import family_features_enabled
-from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService
+from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService, speech_character
+from .conversation_locale import detect_reply_locale
 from .store import MemoryStore, new_id, sha256_json
 from .recall import storage_recall_status
 from .agent_lock import AgentTurnLease, AgentTurnBusyError
@@ -72,8 +73,8 @@ class StoryTranscriptionInput(BaseModel):
 class StorySpeechInput(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
     language: str | None = None
-    voice: str = "marin"
-    instructions: str = "Speak slowly, warmly and clearly with natural pauses."
+    voice: str | None = None
+    instructions: str | None = None
     output_format: str = "mp3"
 
 
@@ -401,12 +402,21 @@ def build_router(
     def story_question_audio(payload: StorySpeechInput, authorization: str | None = Header(default=None)):
         storage = storage_for(authorization)
         try:
-            cache_key = sha256_json({"user_id": storage.user_id, **payload.model_dump()})
+            language = payload.language
+            if not language:
+                profile = storage.profile()
+                saved_language = profile.get("conversation_language") or {}
+                language = (profile.get("preferred_language")
+                            or (saved_language.get("locale") if isinstance(saved_language, dict) else None)
+                            or detect_reply_locale(payload.text) or "en-AU")
+            options = {**payload.model_dump(exclude_none=True), "language": language,
+                       **speech_character(language, voice=payload.voice, instructions=payload.instructions)}
+            cache_key = sha256_json({"user_id": storage.user_id, **options})
             existing = speech_cache.get(cache_key)
             if existing:
                 return JSONResponse(status_code=200, content={**existing, "cached": True})
             try:
-                generated = speech_service.synthesize(**payload.model_dump())
+                generated = speech_service.synthesize(**options)
             except SpeechUnavailable as exc:
                 raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_UNAVAILABLE"}) from exc
             except SpeechProviderError as exc:
@@ -414,7 +424,7 @@ def build_router(
             content = generated.get("content") if isinstance(generated, dict) else None
             if not isinstance(content, bytes) or not content:
                 raise HTTPException(502, "Speech synthesis returned no audio", headers={"X-Error-Code": "EMPTY_SPEECH"})
-            result = {"audio_base64": base64.b64encode(content).decode(), "mime_type": str(generated.get("mime_type") or "audio/mpeg"), "model": generated.get("model"), "voice": generated.get("voice") or payload.voice, "ai_generated": True}
+            result = {"audio_base64": base64.b64encode(content).decode(), "mime_type": str(generated.get("mime_type") or "audio/mpeg"), "model": generated.get("model"), "voice": generated.get("voice") or options["voice"], "ai_generated": True}
             speech_cache[cache_key] = result
             return JSONResponse(status_code=201, content={**result, "cached": False})
         finally:

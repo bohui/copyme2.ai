@@ -91,7 +91,6 @@ const state = {
   voiceModeCancelTurn: false,
   voiceModeTurnId: 0,
   voiceModePlaybackFinish: null,
-  voiceModeSpeechResolve: null,
   voiceMuted: false,
   dictationStatus: "off",
   dictationId: 0,
@@ -2326,7 +2325,7 @@ async function startStoryVoiceRecorder() {
 async function speakStoryQuestion(text) {
   state.storyAudioPlayer?.pause();
   try {
-    const generated = await storyApi("/v1/story/question-audio", { method: "POST", body: JSON.stringify({ text, language: conversationLanguage(), voice: "marin" }) });
+    const generated = await storyApi("/v1/story/question-audio", { method: "POST", body: JSON.stringify({ text, language: conversationLanguage() }) });
     const player = new Audio(URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type)));
     state.storyAudioPlayer = player;
     player.onended = () => URL.revokeObjectURL(player.src);
@@ -3791,9 +3790,10 @@ function renderMessage(message) {
   }
   const streaming = Boolean(message.streaming);
   const visibleText = cleanAssistantText(message.text);
-  const action = !streaming && message.action ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
+  // Older saved conversations may still contain the retired manual-save action.
+  const action = !streaming && message.action && message.action.name !== "save-memory" ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !visibleText);
-  const listen = streaming ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
+  const listen = streaming || state.voiceMode ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
   return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
@@ -3902,7 +3902,6 @@ function bindViewActions() {
   $("#memory-event-edit-form")?.addEventListener("submit",saveMemoryEventEdit);
   const actions = {
     "start-memory": startMemory,
-    "save-memory": completeMemory,
     "finish-chapter": finishChapter,
     "continue-memory": startMemory,
     "voice-input": toggleVoiceInput,
@@ -4041,7 +4040,6 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     if (detectedFirstReplyLanguage) await applyFirstReplyLocalization(detectedFirstReplyLanguage);
     const session = await ensureMemorySession();
     let cues = [];
-    let action = null;
     let fallback = conversationMessage("fallback");
     let instruction = profileIntake
       ? PROFILE_INTAKE_PROMPT
@@ -4061,11 +4059,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
           state.session = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
         }
         cues = state.session.context_cues || [];
-        const remaining = memoryFollowUpsRemaining(state.session);
         fallback = memoryFollowUpPrompt(state.session);
         const memoryInstruction = "Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory. Keep the conversation open unless they ask to pause, stop, or shape a chapter.";
         instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
-        if (remaining === 0 && !profileIntake) action = { name: "save-memory", label: conversationMessage("saveMemory") };
       } catch {
         // The open Codex conversation is the primary path; session state is optional.
         state.session = null;
@@ -4091,7 +4087,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       return;
     }
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
-    await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined, action: result.streamedMessage?.failed ? null : action });
+    await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
     if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
   } catch (error) {
     toast(error.message);
@@ -4100,23 +4096,6 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   render();
   void refreshFamilyContext();
   if (state.voiceMode) window.setTimeout(() => startVoiceModeTurn(), 260);
-}
-
-async function completeMemory() {
-  if (!state.session || state.loading) return;
-  try {
-    state.loading = true;
-    render();
-    const result = await api(`/v1/memory-sessions/${state.session.id}/complete`, { method: "POST", headers: { "Idempotency-Key": `browser-complete-${state.session.id}` }, body: JSON.stringify({ visibility: "private" }) });
-    const decisionResponse = await api(`/v1/projects/${state.project.id}/chapter-decisions`, { method: "POST", body: JSON.stringify({ memory_id: result.memory.id, topic_id: result.memory.topic_id }) });
-    state.chapterDecision = decisionResponse;
-    state.session = null;
-    const decisionText = decisionResponse.free ? conversationMessage("chapterDecisionFree") : decisionResponse.should_start_new_chapter ? translateWith("Memoir.conversation.chapterDecisionNew", { title: decisionResponse.title }) : conversationMessage("chapterDecisionCurrent");
-    await streamAssistantMessage(decisionText, { trace: simulatedLoopTrace(["memory.complete", "chapter.decide"], translate("Memoir.trace.final")), traceMode: "simulated", action: decisionResponse.should_start_new_chapter ? { name: "finish-chapter", label: decisionResponse.free ? conversationMessage("finishFreeChapter") : translateWith("Memoir.conversation.finishChapter", { number: decisionResponse.chapter_number }) } : { name: "start-memory", label: conversationMessage("continueConversation") } });
-    await refreshProject();
-  } catch (error) { toast(error.message); }
-  state.loading = false;
-  render();
 }
 
 async function finishChapter() {
@@ -4143,12 +4122,13 @@ async function reactCue(assetId, reaction) {
 }
 
 async function speakText(text) {
+  if (state.voiceMode) return;
   state.audioPlayer?.pause();
   if (state.session) {
     try {
       const generated = await api(`/v1/memory-sessions/${state.session.id}/question-audio`, {
         method: "POST",
-        body: JSON.stringify({ language: conversationLanguage(), voice: "marin" }),
+        body: JSON.stringify({ language: conversationLanguage() }),
       });
       const response = await fetch(memoirApiPath(generated.audio_url));
       if (!response.ok) throw new Error("Generated audio could not be loaded.");
@@ -4169,24 +4149,6 @@ async function speakText(text) {
   utterance.onend = () => { state.speaking = false; };
   state.speaking = true;
   window.speechSynthesis.speak(utterance);
-}
-
-function speakBrowserText(text) {
-  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return Promise.resolve();
-  window.speechSynthesis.cancel();
-  return new Promise((resolve) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = currentUiLocale();
-    utterance.rate = 0.96;
-    const finish = () => {
-      if (state.voiceModeSpeechResolve === finish) state.voiceModeSpeechResolve = null;
-      resolve();
-    };
-    state.voiceModeSpeechResolve = finish;
-    utterance.onend = finish;
-    utterance.onerror = finish;
-    window.speechSynthesis.speak(utterance);
-  });
 }
 
 function setVoiceOrbLevel(level) {
@@ -4267,18 +4229,13 @@ async function speakVoiceReply(text) {
       body: JSON.stringify({
         text,
         language: conversationLanguage(),
-        voice: "marin",
-        instructions: "Speak slowly, warmly and clearly with natural pauses, as a patient oral-history journalist.",
       }),
     });
     if (state.voiceMode && state.voiceModeTurnId === turnId) await playGeneratedAudio(generated);
   } catch (error) {
     if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
-    if (window.speechSynthesis) {
-      await speakBrowserText(text);
-    } else if (error.status !== 503) {
-      toast(error.message || conversationMessage("voicePlaybackUnavailable"));
-    }
+    // Browser default voices can change Mira's identity between conversation turns.
+    toast(conversationMessage("voicePlaybackUnavailable"));
   }
 }
 
@@ -4307,8 +4264,6 @@ function stopVoiceMode({ silent = false } = {}) {
   state.audioPlayer?.pause();
   state.voiceModePlaybackFinish?.();
   state.voiceModePlaybackFinish = null;
-  if (state.voiceModeSpeechResolve) state.voiceModeSpeechResolve();
-  state.voiceModeSpeechResolve = null;
   window.speechSynthesis?.cancel();
   if (active && !silent) toast(translate("Memoir.storyFlow.voiceEnded"));
   if (active) render();

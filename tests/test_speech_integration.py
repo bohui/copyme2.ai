@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import json
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
@@ -55,6 +57,78 @@ class FakeStoryStorage:
 
     def memories(self):
         return list(reversed(self._memories))
+
+
+@pytest.mark.parametrize("language,voice,delivery", [
+    ("zh-CN", "coral", "普通话"),
+    ("zh_CN", "coral", "普通话"),
+    ("en-AU", "marin", "Australian English"),
+])
+def test_spoken_replies_select_a_character_for_the_conversation_language(language, voice, delivery):
+    speech = FakeSpeechService()
+    storage = FakeStoryStorage()
+    client = TestClient(create_app(MemoryStore(), speech_service=speech,
+                                  story_storage_factory=lambda _authorization: storage))
+    response = client.post("/api/v1/memoir/story/question-audio",
+                           json={"text": "小时候，你最喜欢和谁一起玩？", "language": language},
+                           headers={"Authorization": "Bearer story-token"})
+    assert response.status_code == 201, response.text
+    assert response.json()["voice"] == voice
+    assert speech.synthesis_calls[0]["speed"] == (1.1 if voice == "coral" else 1.0)
+    assert delivery in speech.synthesis_calls[0]["instructions"]
+
+
+def test_spoken_character_uses_saved_interview_language_when_request_omits_it():
+    speech = FakeSpeechService()
+    storage = FakeStoryStorage()
+    storage._profile = {"preferred_language": "zh-CN", "ui_locale": "en-AU"}
+    client = TestClient(create_app(MemoryStore(), speech_service=speech,
+                                  story_storage_factory=lambda _authorization: storage))
+    response = client.post("/v1/story/question-audio", json={"text": "那时候，你住在哪里？"},
+                           headers={"Authorization": "Bearer story-token"})
+    assert response.status_code == 201, response.text
+    assert response.json()["voice"] == "coral"
+    assert speech.synthesis_calls[0]["language"] == "zh-CN"
+    assert "普通话" in speech.synthesis_calls[0]["instructions"]
+
+
+def test_changing_a_localized_character_does_not_reuse_audio_from_the_previous_character(monkeypatch):
+    speech = FakeSpeechService()
+    storage = FakeStoryStorage()
+    client = TestClient(create_app(MemoryStore(), speech_service=speech,
+                                  story_storage_factory=lambda _authorization: storage))
+    request = {"text": "你还记得那条街吗？", "language": "zh-CN"}
+    headers = {"Authorization": "Bearer story-token"}
+    monkeypatch.setenv("MEMORY_SPARK_TTS_VOICE_ZH_CN", "coral")
+    first = client.post("/v1/story/question-audio", json=request, headers=headers)
+    replay = client.post("/v1/story/question-audio", json=request, headers=headers)
+    monkeypatch.setenv("MEMORY_SPARK_TTS_VOICE_ZH_CN", "shimmer")
+    monkeypatch.setenv("MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN", "温柔自然地说普通话。")
+    changed = client.post("/v1/story/question-audio", json=request, headers=headers)
+    assert first.status_code == changed.status_code == 201
+    assert replay.json()["cached"] is True
+    assert changed.json()["voice"] == "shimmer"
+    assert speech.synthesis_calls[-1]["instructions"] == "温柔自然地说普通话。"
+    assert len(speech.synthesis_calls) == 2
+    monkeypatch.setenv("MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN", "轻松亲切地说普通话。")
+    restyled = client.post("/v1/story/question-audio", json=request, headers=headers)
+    assert restyled.status_code == 201
+    assert restyled.json()["voice"] == "shimmer"
+    assert speech.synthesis_calls[-1]["instructions"] == "轻松亲切地说普通话。"
+    assert len(speech.synthesis_calls) == 3
+
+
+def test_a_first_spoken_reply_infers_chinese_from_text_without_using_the_interface_locale():
+    speech = FakeSpeechService()
+    storage = FakeStoryStorage()
+    storage._profile = {"ui_locale": "en-AU"}
+    client = TestClient(create_app(MemoryStore(), speech_service=speech,
+                                  story_storage_factory=lambda _authorization: storage))
+    response = client.post("/v1/story/question-audio", json={"text": "你还记得那条街吗？"},
+                           headers={"Authorization": "Bearer story-token"})
+    assert response.status_code == 201, response.text
+    assert response.json()["voice"] == "coral"
+    assert speech.synthesis_calls[0]["language"] == "zh-CN"
 
 
 def _project_and_session(client: TestClient) -> tuple[dict, dict]:

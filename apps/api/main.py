@@ -28,7 +28,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .agent_routes_support import authenticated_storage
 from .namespaces import rewrite_memoir_path
-from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service
+from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service, speech_character
 from .store import MemoryStore, new_id, now_iso, sha256_bytes, sha256_json
 
 
@@ -1657,11 +1657,12 @@ def create_app(
         data = payload.model_dump(exclude_unset=True)
         text = str(session["question"].get("text") or "").strip()
         language = str(data.get("language") or project.get("profile", {}).get("preferred_language") or "en-AU")
-        voice = str(data.get("voice") or "marin")
-        instructions = str(data.get("instructions") or "Speak slowly, warmly and clearly with natural pauses.")
+        character = speech_character(language, voice=data.get("voice"), instructions=data.get("instructions"))
+        voice, instructions = character["voice"], character["instructions"]
+        speed = character["speed"]
         output_format = str(data.get("output_format") or "mp3")
         model = str(data.get("model") or getattr(selected_speech_service, "tts_model", "gpt-4o-mini-tts"))
-        cache_key = sha256_json({"project_id": project["id"], "text": text, "language": language, "voice": voice, "instructions": instructions, "output_format": output_format, "model": model})
+        cache_key = sha256_json({"project_id": project["id"], "text": text, "language": language, "voice": voice, "instructions": instructions, "speed": speed, "output_format": output_format, "model": model})
         existing = next((asset for asset in memory.speech_assets.values() if asset.get("cache_key") == cache_key), None)
 
         def response_for(asset: dict[str, Any], *, cached: bool, status_code: int) -> Response:
@@ -1673,7 +1674,7 @@ def create_app(
             _project(memory, existing["project_id"], actor)
             return response_for(existing, cached=True, status_code=200)
         try:
-            generated = selected_speech_service.synthesize(text, language=language, voice=voice, instructions=instructions, output_format=output_format, model=model)
+            generated = selected_speech_service.synthesize(text, language=language, voice=voice, instructions=instructions, speed=speed, output_format=output_format, model=model)
         except SpeechUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except SpeechProviderError as exc:
