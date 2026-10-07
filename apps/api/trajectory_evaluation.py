@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import hashlib
 import inspect
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -1754,14 +1755,45 @@ class MemoirEvaluationRunner:
 
         context = self.publisher.case(name="memoir-agent-evaluation", task=case.get("input", case), correlation=correlation) if self.publisher else no_publish()
         with context as sink:
-            result = self.task(case, correlation)
-            if inspect.isawaitable(result):
-                result = await result
-            if not isinstance(result, Mapping):
-                raise TypeError("evaluation task must return a mapping containing trajectory")
-            trajectory = result.get("trajectory")
-            if not isinstance(trajectory, Mapping):
-                raise ValueError("evaluation task returned no normalized trajectory")
+            try:
+                result = self.task(case, correlation)
+                if inspect.isawaitable(result):
+                    result = await result
+                if not isinstance(result, Mapping):
+                    raise TypeError("evaluation task must return a mapping containing trajectory")
+                trajectory = result.get("trajectory")
+                if not isinstance(trajectory, Mapping):
+                    raise ValueError("evaluation task returned no normalized trajectory")
+            except Exception as error:
+                # A callback can fail before it returns any trajectory. Keep a
+                # truthful local outcome without fabricating steps or allowing
+                # gather() to discard the already completed sibling cases.
+                # Exception messages can contain storyteller text or secrets.
+                return {
+                    "case_id": case_id,
+                    "correlation": correlation,
+                    "scores": [],
+                    "result": {"trajectory": None, "error_type": type(error).__name__},
+                    "trajectory_sha256": None,
+                    "failure_evidence": [{
+                        "stage": "task_callback",
+                        "error_type": type(error).__name__,
+                        "comment": "Task did not return a complete normalized trajectory.",
+                    }],
+                    "acceptance": {
+                        "status": "error",
+                        "deterministic_status": "unavailable",
+                        "judge_status": "not_run",
+                        "judge_role": "advisory",
+                    },
+                    "judge_evidence": {
+                        "status": "not_run",
+                        "acceptance_role": "advisory",
+                        "judges": [],
+                        "scores": [],
+                        "advisory_failures": [],
+                    },
+                }
             expected = dict(case)
             if isinstance(case.get("expected"), Mapping):
                 expected.update(case["expected"])
@@ -1849,7 +1881,21 @@ class MemoirEvaluationRunner:
 
 
 def comparison_matrix(results: Iterable[Mapping[str, Any]], *, baseline_variant: str | None = None) -> list[dict[str, Any]]:
-    """Return per-case score deltas against a named model/provider baseline."""
+    """Compare only numeric metrics observed on both non-error results."""
+    def observed_scores(result: Mapping[str, Any]) -> dict[str, float]:
+        return {
+            str(score["name"]): float(score["value"])
+            for score in result.get("scores", [])
+            if isinstance(score, Mapping) and score.get("name")
+            and isinstance(score.get("value"), (int, float))
+            and not isinstance(score.get("value"), bool)
+            and math.isfinite(score["value"])
+        }
+
+    def failed(result: Mapping[str, Any]) -> bool:
+        acceptance = result.get("acceptance")
+        return isinstance(acceptance, Mapping) and acceptance.get("status") == "error"
+
     grouped: dict[str, dict[str, Mapping[str, Any]]] = {}
     for result in results:
         case_id = str(result.get("case_id") or "")
@@ -1862,14 +1908,21 @@ def comparison_matrix(results: Iterable[Mapping[str, Any]], *, baseline_variant:
         baseline = variants.get(baseline_name)
         if not baseline:
             continue
-        baseline_scores = {str(score.get("name")): float(score.get("value", 0)) for score in baseline.get("scores", [])}
+        baseline_scores = observed_scores(baseline)
         for variant, result in variants.items():
-            score_values = {str(score.get("name")): float(score.get("value", 0)) for score in result.get("scores", [])}
+            score_values = observed_scores(result)
+            comparable = set(score_values) & set(baseline_scores)
+            if failed(baseline) or failed(result):
+                comparable.clear()
+            unavailable = sorted((set(score_values) | set(baseline_scores)) - comparable)
+            status = "unavailable" if not comparable else ("partial" if unavailable else "compared")
             rows.append({
                 "case_id": case_id,
                 "variant": variant,
                 "baseline_variant": baseline_name,
                 "scores": score_values,
-                "deltas": {name: value - baseline_scores.get(name, 0.0) for name, value in score_values.items()},
+                "comparison_status": status,
+                "unavailable_metrics": unavailable,
+                "deltas": {name: score_values[name] - baseline_scores[name] for name in sorted(comparable)},
             })
     return rows

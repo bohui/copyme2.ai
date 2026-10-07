@@ -1,0 +1,153 @@
+........ssssss..............................................ss.......... [  5%]
+......s................................................................. [ 11%]
+........................................................................ [ 17%]
+...ssssss............................................................... [ 22%]
+.............ssss....................................................... [ 28%]
+sssssssss..............................sssssssssssssssss................ [ 34%]
+........................................................................ [ 40%]
+...................................................ssssss............... [ 45%]
+........................................................................ [ 51%]
+........................................................................ [ 57%]
+........................................................................ [ 62%]
+........................................................................ [ 68%]
+.......................................sssssss.......................... [ 74%]
+....................................................sssssssss........... [ 80%]
+....ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 85%]
+ssssssssssssssssssssssssssssssssssssssssssssss.......................... [ 91%]
+..ss.................................................................... [ 97%]
+...................................                                      [100%]
+=============================== warnings summary ===============================
+../memoir-issue-1/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /workspace/scratch/4f4ff94b6eb1/memoir-issue-1/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_agent_commit_postgres.py:274: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_agent_commit_postgres.py:284: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_agent_commit_postgres.py:296: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_agent_commit_postgres.py:307: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_agent_commit_postgres.py:317: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_agent_commit_postgres.py:325: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_canonical_evaluation.py:80: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_canonical_native_launcher.py:20: Canonical native launcher requires the supported Apple Container fixture
+SKIPPED [2] tests/test_conversation_locale_browser.py:13: Requires isolated source frontend
+SKIPPED [1] tests/test_conversation_scroll_browser.py:88: Requires isolated source frontend
+SKIPPED [1] tests/test_conversation_scroll_browser.py:109: Requires isolated source frontend
+SKIPPED [1] tests/test_conversation_scroll_browser.py:172: Requires isolated source frontend
+SKIPPED [1] tests/test_conversation_scroll_browser.py:203: Requires isolated source frontend
+SKIPPED [4] tests/test_family_tree_browser.py:24: Requires source frontend
+SKIPPED [1] tests/test_guest_conversation_transfer.py:60: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:77: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:89: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:95: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:107: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:121: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:149: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:167: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_guest_conversation_transfer.py:176: local PostgreSQL tools and a non-root account required
+SKIPPED [4] tests/test_interview_followups.py:52: Opt-in live model evaluation; requires the configured application provider
+SKIPPED [1] tests/test_interview_workspace_browser.py:76: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:81: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:101: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:110: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:129: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:136: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:185: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:194: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:218: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:230: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:239: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:254: Requires an explicitly selected running browser test server
+SKIPPED [1] tests/test_interview_workspace_browser.py:269: Requires an explicitly selected running browser test server
+SKIPPED [2] tests/test_memoir_lanes_temporal.py:21: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_memoir_lanes_temporal.py:103: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_memoir_lanes_temporal.py:142: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_memoir_lanes_temporal.py:231: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:29: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:42: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:53: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:62: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:78: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:89: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_private_rounds_postgres.py:101: local PostgreSQL tools and a non-root account required
+SKIPPED [4] tests/test_recall_browser.py:13: Requires a selected local source frontend
+SKIPPED [1] tests/test_recall_browser.py:132: Requires a selected local source frontend
+SKIPPED [2] tests/test_recall_browser.py:212: Requires a selected local source frontend
+SKIPPED [1] tests/test_recall_usage.py:31: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_recall_usage.py:47: local PostgreSQL tools and a non-root account required
+SKIPPED [6] tests/test_shared_memory_browser.py:23: Requires isolated source frontend
+SKIPPED [2] tests/test_shared_memory_browser.py:139: Requires isolated source frontend
+SKIPPED [8] tests/test_shared_memory_browser.py:250: Requires isolated source frontend
+SKIPPED [6] tests/test_shared_memory_events_postgres.py:53: local PostgreSQL tools and a non-root account required
+SKIPPED [4] tests/test_shared_memory_events_postgres.py:88: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:112: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:140: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:154: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:171: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:181: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:205: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:238: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:258: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:280: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:321: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:366: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:392: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:435: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:540: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:563: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:610: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:626: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:647: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:661: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:696: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:711: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:753: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:784: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:799: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:823: local PostgreSQL tools and a non-root account required
+SKIPPED [4] tests/test_shared_memory_events_postgres.py:884: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:901: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:926: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:949: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:971: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:993: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1023: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1051: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:1080: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1106: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1130: local PostgreSQL tools and a non-root account required
+SKIPPED [4] tests/test_shared_memory_events_postgres.py:1153: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:1185: local PostgreSQL tools and a non-root account required
+SKIPPED [4] tests/test_shared_memory_events_postgres.py:1199: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1251: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1265: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1276: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:1298: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1315: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1330: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1348: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1361: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1378: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1392: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:1407: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1425: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1440: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1459: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_shared_memory_events_postgres.py:1473: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1489: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1506: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1524: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1544: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1567: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1587: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1608: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1621: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1631: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1647: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1691: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1705: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1726: local PostgreSQL tools and a non-root account required
+SKIPPED [1] tests/test_shared_memory_events_postgres.py:1755: local PostgreSQL tools and a non-root account required
+SKIPPED [2] tests/test_stage_readiness_browser.py:12: Requires isolated source frontend
+1076 passed, 183 skipped, 1 warning in 124.89s (0:02:04)

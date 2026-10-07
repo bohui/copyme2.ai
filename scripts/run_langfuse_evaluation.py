@@ -125,7 +125,11 @@ def main() -> int:
         args.output.write_text(encoded + "\n", encoding="utf-8")
     else:
         print(encoded)
-    return 0
+    case_results = results["results"] if isinstance(results, Mapping) else results
+    # Persist/print every available result first, but do not report a successful
+    # command when a callback failed to produce evaluable evidence.
+    return 1 if any(result.get("acceptance", {}).get("status") == "error"
+                    for result in case_results) else 0
 
 
 if __name__ == "__main__":

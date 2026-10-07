@@ -1,0 +1,25 @@
+{
+  "base_commit": "2686a12538933b5ac586107bc037f8397dbec591",
+  "review_finding": "Failed variant baseline must not be replaced with zero-valued metrics",
+  "evidence_mode": "offline_controlled_provider",
+  "model_calls": 0,
+  "full_offline": {
+    "passed": 1081,
+    "skipped": 183,
+    "warnings": 1,
+    "failures": 0,
+    "errors": 0
+  },
+  "focused": {
+    "passed": 41,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "source_sha256": {
+    "apps/api/trajectory_evaluation.py": "7bf7320c036019a4cbfda554bcfa34b3aed79ecad33138ce0ab4080c8e5ee011",
+    "scripts/run_langfuse_evaluation.py": "625c9105d1b9ea9df614fa55191ed725ace74f4accd8e727a7136ffd7d657702",
+    "tests/test_langfuse_evaluation_cli.py": "0fe0a4979d1fd8641d412ba6784110a05a797ceaac7f65720b038ed97ce3212a"
+  },
+  "receipt_tree_note": "The isolated-check receipt records the unchanged base HEAD/tree; these source hashes identify the proposed code actually tested."
+}

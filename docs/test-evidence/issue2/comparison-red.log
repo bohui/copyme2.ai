@@ -1,0 +1,132 @@
+........FFFFF                                                            [100%]
+=================================== FAILURES ===================================
+_ test_asymmetric_variant_failure_never_becomes_zero_score_baseline[baseline] __
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-168/test_asymmetric_variant_failur0')
+failed_variant = 'baseline'
+
+    @pytest.mark.parametrize('failed_variant', ['baseline', 'candidate'])
+    def test_asymmetric_variant_failure_never_becomes_zero_score_baseline(tmp_path, failed_variant):
+        completed, output, failure_dir = _run_cli(tmp_path, concurrency=2,
+            variants=('baseline', 'candidate'), failure_variant=failed_variant)
+        assert completed.returncode == 1, completed.stderr
+        payload = json.loads(output.read_text())
+        results = {result['correlation']['variant']: result for result in payload['results']
+            if result['case_id'] == 'controlled-error'}
+        assert set(results) == {'baseline', 'candidate'}
+        assert results[failed_variant]['acceptance']['status'] == 'error'
+        assert results[failed_variant]['scores'] == []
+        successful_variant = 'candidate' if failed_variant == 'baseline' else 'baseline'
+        assert results[successful_variant]['acceptance']['deterministic_status'] == 'pass'
+        assert json.loads((failure_dir / f'controlled-error-{failed_variant}.json').read_text()) == results[failed_variant]
+        comparisons = {row['variant']: row for row in payload['comparisons']
+            if row['case_id'] == 'controlled-error'}
+        candidate = comparisons['candidate']
+>       assert candidate['deltas'] == {}, 'Missing evidence must never become zero-valued baseline scores'
+E       AssertionError: Missing evidence must never become zero-valued baseline scores
+E       assert {'allowed_too...ty': 1.0, ...} == {}
+E
+E         Left contains 18 more items:
+E         {'allowed_tools': 1.0,
+E          'enabled_skills': 1.0,
+E          'equivalent_valid_path': 1.0,
+E          'execution_quality': 1.0,
+E          'final_response_quality': 1.0,...
+E
+E         ...Full output truncated (14 lines hidden), use '-vv' to show
+
+tests/test_langfuse_evaluation_cli.py:137: AssertionError
+_ test_asymmetric_variant_failure_never_becomes_zero_score_baseline[candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-168/test_asymmetric_variant_failur1')
+failed_variant = 'candidate'
+
+    @pytest.mark.parametrize('failed_variant', ['baseline', 'candidate'])
+    def test_asymmetric_variant_failure_never_becomes_zero_score_baseline(tmp_path, failed_variant):
+        completed, output, failure_dir = _run_cli(tmp_path, concurrency=2,
+            variants=('baseline', 'candidate'), failure_variant=failed_variant)
+        assert completed.returncode == 1, completed.stderr
+        payload = json.loads(output.read_text())
+        results = {result['correlation']['variant']: result for result in payload['results']
+            if result['case_id'] == 'controlled-error'}
+        assert set(results) == {'baseline', 'candidate'}
+        assert results[failed_variant]['acceptance']['status'] == 'error'
+        assert results[failed_variant]['scores'] == []
+        successful_variant = 'candidate' if failed_variant == 'baseline' else 'baseline'
+        assert results[successful_variant]['acceptance']['deterministic_status'] == 'pass'
+        assert json.loads((failure_dir / f'controlled-error-{failed_variant}.json').read_text()) == results[failed_variant]
+        comparisons = {row['variant']: row for row in payload['comparisons']
+            if row['case_id'] == 'controlled-error'}
+        candidate = comparisons['candidate']
+        assert candidate['deltas'] == {}, 'Missing evidence must never become zero-valued baseline scores'
+>       assert candidate['comparison_status'] == 'unavailable'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'comparison_status'
+
+tests/test_langfuse_evaluation_cli.py:138: KeyError
+___ test_partial_comparison_uses_only_metrics_actually_scored_on_both_sides ____
+
+    def test_partial_comparison_uses_only_metrics_actually_scored_on_both_sides():
+        from apps.api.trajectory_evaluation import comparison_matrix
+        results = [
+            {'case_id': 'partial', 'correlation': {'variant': 'baseline'},
+             'scores': [{'name': 'shared', 'value': 0.25},
+                        {'name': 'baseline_only', 'value': 0.75}]},
+            {'case_id': 'partial', 'correlation': {'variant': 'candidate'},
+             'scores': [{'name': 'shared', 'value': 0.75},
+                        {'name': 'candidate_only', 'value': 0.5}]},
+        ]
+        rows = comparison_matrix(results, baseline_variant='baseline')
+        candidate = next(row for row in rows if row['variant'] == 'candidate')
+>       assert candidate['deltas'] == {'shared': 0.5}
+E       AssertionError: assert {'shared': 0....te_only': 0.5} == {'shared': 0.5}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Left contains 1 more item:
+E         {'candidate_only': 0.5}
+E         Use -v to get more diff
+
+tests/test_langfuse_evaluation_cli.py:157: AssertionError
+___________ test_error_receipt_with_partial_scores_is_not_comparable ___________
+
+    def test_error_receipt_with_partial_scores_is_not_comparable():
+        from apps.api.trajectory_evaluation import comparison_matrix
+        results = [
+            {'case_id': 'partial-error', 'correlation': {'variant': 'baseline'},
+             'acceptance': {'status': 'error'}, 'scores': [{'name': 'shared', 'value': 0.0}]},
+            {'case_id': 'partial-error', 'correlation': {'variant': 'candidate'},
+             'scores': [{'name': 'shared', 'value': 1.0}]},
+        ]
+        rows = comparison_matrix(results, baseline_variant='baseline')
+>       assert all(row['deltas'] == {} for row in rows)
+E       assert False
+E        +  where False = all(<generator object test_error_receipt_with_partial_scores_is_not_comparable.<locals>.<genexpr> at 0x7fc33dc986c0>)
+
+tests/test_langfuse_evaluation_cli.py:171: AssertionError
+____ test_comparison_keeps_measured_zero_but_never_supplies_missing_values _____
+
+    def test_comparison_keeps_measured_zero_but_never_supplies_missing_values():
+        from apps.api.trajectory_evaluation import comparison_matrix
+        results = [
+            {'case_id': 'metrics', 'correlation': {'variant': 'baseline'}, 'scores': [
+                {'name': 'measured_zero', 'value': 0.0}, {'name': 'missing_value'}]},
+            {'case_id': 'metrics', 'correlation': {'variant': 'candidate'}, 'scores': [
+                {'name': 'measured_zero', 'value': 0.5}, {'name': 'missing_value', 'value': 1.0}]},
+        ]
+        candidate = comparison_matrix(results, baseline_variant='baseline')[1]
+>       assert candidate['deltas'] == {'measured_zero': 0.5}
+E       AssertionError: assert {'measured_ze...g_value': 1.0} == {'measured_zero': 0.5}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Left contains 1 more item:
+E         {'missing_value': 1.0}
+E         Use -v to get more diff
+
+tests/test_langfuse_evaluation_cli.py:184: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_langfuse_evaluation_cli.py::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[baseline]
+FAILED tests/test_langfuse_evaluation_cli.py::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[candidate]
+FAILED tests/test_langfuse_evaluation_cli.py::test_partial_comparison_uses_only_metrics_actually_scored_on_both_sides
+FAILED tests/test_langfuse_evaluation_cli.py::test_error_receipt_with_partial_scores_is_not_comparable
+FAILED tests/test_langfuse_evaluation_cli.py::test_comparison_keeps_measured_zero_but_never_supplies_missing_values
+5 failed, 8 passed in 4.11s
