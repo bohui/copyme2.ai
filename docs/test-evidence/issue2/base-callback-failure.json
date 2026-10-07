@@ -1,0 +1,11 @@
+{
+  "main_sha": "291622826cdfb776e946dcd92b65d2fdaf4923ad",
+  "mode": "offline_synthetic_provider",
+  "provider_calls": 0,
+  "exit_code": 1,
+  "first_case_finished": true,
+  "cli_results_written": false,
+  "failure_directory_exists": false,
+  "controlled_exception_seen": true,
+  "conclusion": "One task exception aborts the generic runner before completed results or failure receipts are persisted."
+}
