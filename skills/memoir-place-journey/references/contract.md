@@ -46,6 +46,20 @@ The API response from `POST /v1/agent/turn` contains:
 
 When the current extraction explicitly ties a calendar period to a place, its confirmed record also carries `period` for project photo research. Other places in the same turn receive an empty period for current photos; the profile’s date must not date unrelated places. The user-level journey row keeps geographic fields only; project history retains the photo period.
 
+Each confirmed record also carries a server-assigned `life_stage`, using the
+seven supported stages or `null` when the association is unknown. The runtime
+attaches the current extraction's stage to the unique place matched by
+`story_focus.where`. A single-place continuation can retain the response's
+stage when the focus omits `where`; mixed-place turns with missing or ambiguous
+focus locations remain unplaced. For “现在生活在悉尼，但是我出生在承德市”,
+a birth focus in 承德市 assigns `baby` to 承德市 and `null` to 悉尼.
+
+The same per-place assignment appears in the first confirmed workspace event,
+the final event, and the turn response, including place-only events that arrive
+before profile updates. The browser consumes these fields directly and stores
+them in project `memory_places`. The user-level journey row remains geographic;
+model markers and previews supply no stage assignment.
+
 The response and confirmed workspace events also contain `place_journeys`, an
 array of all accepted records from this turn in marker order. It is empty when
 there are no accepted markers or the turn is stale. `place_journey` and

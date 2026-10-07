@@ -51,7 +51,7 @@ def interview():
         journey = {"schema_version": 1, "status": "active", "revision": 1,
                    "place": "Chengde", "hierarchy": ["Earth", "China", "Hebei", "Chengde"],
                    "granularity": "city", "latitude": 40.9515, "longitude": 117.9634,
-                   "duration_ms": 2800}
+                   "duration_ms": 2800, "life_stage": "childhood"}
         page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(
             content_type="application/json", body=json.dumps({
                 "reply": "What do you remember about the streets near your childhood home?",
@@ -140,7 +140,8 @@ def test_places_follow_stage_and_survive_new_places(interview):
             "reply": "What do you remember about arriving there?",
             "profile_updates": {"story_focus": {"life_stage": "young_adulthood"}},
             "place_journey": {"schema_version": 1, "place": "Sydney", "hierarchy": ["Earth", "Australia", "Sydney"],
-                              "granularity": "city", "latitude": -33.8688, "longitude": 151.2093, "revision": 2},
+                              "granularity": "city", "latitude": -33.8688, "longitude": 151.2093, "revision": 2,
+                              "life_stage": "young_adulthood"},
             "place_journey_change": {"changed": True, "revision": 2}})))
     page.get_by_role("textbox", name="Your message").fill("As a young adult I moved to Sydney.")
     page.get_by_role("button", name="Send message").click()
@@ -167,7 +168,8 @@ def test_places_follow_stage_and_survive_new_places(interview):
             "reply": "What else do you remember about Chengde?",
             "profile_updates": {"story_focus": {"life_stage": "childhood"}},
             "place_journey": {"place": "Chengde", "hierarchy": ["Earth", "China", "Hebei", "Chengde"],
-                              "granularity": "city", "latitude": 40.9515, "longitude": 117.9634, "revision": 3},
+                              "granularity": "city", "latitude": 40.9515, "longitude": 117.9634, "revision": 3,
+                              "life_stage": "childhood"},
             "place_journey_change": {"changed": True, "revision": 3}})))
     with page.expect_response(lambda response: response.request.method == "PATCH" and "/projects/" in response.url):
         page.get_by_role("textbox", name="Your message").fill("Back to my childhood in Chengde.")
@@ -203,7 +205,8 @@ def test_place_photos_arrive_without_interrupting_reply_or_draft(interview):
         "reply": "What do you remember about the day you arrived? " * 12,
         "profile_updates": {"story_focus": {"life_stage": "young_adulthood"}},
         "place_journey": {"place": "Sydney", "hierarchy": ["Earth", "Australia", "Sydney"], "granularity": "city",
-                          "period": "1980s", "latitude": -33.8688, "longitude": 151.2093},
+                          "period": "1980s", "latitude": -33.8688, "longitude": 151.2093,
+                          "life_stage": "young_adulthood"},
         "place_journey_change": {"changed": True}})))
     page.get_by_role("textbox", name="Your message").fill("I moved to Sydney as a young adult in the 1980s.")
     page.get_by_role("button", name="Send message").click()
@@ -243,7 +246,8 @@ def test_unmapped_place_does_not_replace_the_workspace(interview):
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What was your new neighbourhood like?",
         "profile_updates": {"story_focus": {"life_stage": "childhood"}},
-        "place_journey": {"place": "Beijing", "hierarchy": ["Earth", "China", "Beijing"], "granularity": "city"},
+        "place_journey": {"place": "Beijing", "hierarchy": ["Earth", "China", "Beijing"], "granularity": "city",
+                          "life_stage": "childhood"},
         "place_journey_change": {"changed": True}})))
     page.get_by_role("textbox", name="Your message").fill("We moved to Beijing when I was a child.")
     page.get_by_role("button", name="Send message").click()

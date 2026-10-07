@@ -136,7 +136,8 @@ def test_restarted_research_keeps_verified_location_enrichment_for_the_same_imag
         finally:
             release.set()
             worker.close()
-        assert result['count'] == (1 if located else 0)
+        assert result['count'] == 1
+        assert result['items'][0]['search_fallback'] == ('none' if located else 'gps')
         if located:
             assert result['items'][0]['latitude'] == 40.98
             assert result['items'][0]['longitude'] == 117.94
@@ -254,7 +255,8 @@ def test_empty_matches_are_reusable_but_provider_errors_are_not_persisted(monkey
         worker = pages.PhotoPages(repository=Repository())
         try: worker.page(owner, '承德', '1980s', None)
         finally: worker.close()
-    assert len(calls) == (2 if fails else 1)
+    assert len(calls) == 2
+    assert [call[1] for call in calls] == (['1980s', '1980s'] if fails else ['1980s', photos.ANY_PHOTO_DATE])
 
 
 def test_global_database_is_server_writable_and_contains_no_user_story_data(database):

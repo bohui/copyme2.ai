@@ -765,8 +765,9 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
             if set(kinds).intersection({"Photograph", "ImageObject"}):
                 url = _crawl4ai_image_url(node.get("contentUrl"))
                 taken = node.get("dateTaken") or node.get("dateCreated")
-                if url and isinstance(taken, str):
-                    capture_metadata[url] = taken
+                if url and (isinstance(taken, str) or request['temporal'].get('mode') == 'any_time'):
+                    if isinstance(taken, str):
+                        capture_metadata[url] = taken
                     images.append({"url": url, "alt": node.get("name", ""), "description": node.get("caption", "")})
             for child in node.values(): visit(child, depth + 1)
     visit(record["json_ld"])
@@ -792,14 +793,16 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
         # Repeated article-title alt text is not an image-specific date assertion.
         assertion = capture_metadata.get(url) or " ".join(value for value in (alt, caption) if value and value != title)
         scene = _crawl4ai_scene_date(assertion, request["temporal"])
-        if scene is None: continue
-        if request.get("as_of"):
+        if scene is None and request['temporal'].get('mode') != 'any_time': continue
+        if request['temporal'].get('mode') == 'any_time' and any(year > date.today().year for year in _crawl4ai_years(assertion)):
+            continue
+        if scene and request.get("as_of"):
             as_of = date.fromisoformat(request["as_of"])
             end = date.fromisoformat(scene["end"])
             if end > as_of: continue
             if request["temporal"]["mode"] == "historical_unspecified" and end >= subtract_months(as_of, request.get("recent_months", 24)):
                 continue
-        if url in capture_metadata: scene["basis"] = "provider_date_taken"
+        if scene and url in capture_metadata: scene["basis"] = "provider_date_taken"
         unique[url] = {"image_url": url, "observed_image_url": observed, "title": (alt or caption or title)[:1000],
                        "scene_date": scene, "source_excerpt": ("Place: " + title + "; Image capture assertion: " + assertion)[:1200]}
     return list(unique.values())
@@ -823,7 +826,8 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     if (endpoint.scheme not in {"http", "https"} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         fail("llm_search_invalid_endpoint")
-    window = (f'{temporal["start"]} through {temporal["end"]}'
+    window = ("any capture period, including undated photographs" if temporal.get('mode') == 'any_time' else
+              f'{temporal["start"]} through {temporal["end"]}'
               if temporal.get("start") else "historical photographs; capture period unspecified")
     prompt = ("Search for original public photograph pages and archive albums for the place "
               + json.dumps(place, ensure_ascii=False) + ". Requested scene capture period: " + window
@@ -1002,7 +1006,7 @@ def _llm_capture_date(value: str, temporal: dict) -> dict | None:
         return None
     if start > end:
         return None
-    if temporal.get("mode") != "historical_unspecified" and (
+    if temporal.get("mode") not in {"historical_unspecified", "any_time"} and (
             not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]):
         return None
     return {"start": start, "end": end, "precision": precision,
@@ -1039,7 +1043,7 @@ def _llm_reconcile_capture_dates(field_records: list[dict[str, str]], temporal: 
     end = min(assertion["end"] for assertion in assertions)
     if start > end:
         return None
-    if temporal.get("mode") != "historical_unspecified" and (
+    if temporal.get("mode") not in {"historical_unspecified", "any_time"} and (
             not temporal.get("start") or not temporal["start"] <= start <= end <= temporal["end"]):
         return None
     precision = next((assertion["precision"] for assertion in assertions
@@ -1097,8 +1101,13 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
             continue
         scene = _llm_reconcile_capture_dates([fields for fields, _ in entries], temporal)
         if not scene:
+            if temporal.get('mode') != 'any_time' or any(
+                    _crawl4ai_years(clause) for fields, _ in entries for value in fields.values()
+                    for clause in _llm_capture_clauses(value)):
+                continue
+        if scene and temporal.get('mode') == 'any_time' and scene['end'] > date.today().isoformat():
             continue
-        if any(not is_caption and fields.keys() & {"dateTaken", "dateCreated"}
+        if scene and any(not is_caption and fields.keys() & {"dateTaken", "dateCreated"}
                for fields, is_caption in entries):
             scene["basis"] = "provider_date_taken"
         _, image_host, image_port = valid_url(image)

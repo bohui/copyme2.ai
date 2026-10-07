@@ -723,10 +723,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           // A newly detected place is an explicit workspace trigger. Reopen the
           // workspace if the storyteller had collapsed it earlier in the turn.
           state.workspaceCollapsed = false;
-          const stage = update.profile_updates?.story_focus?.life_stage;
-          const lifeStage = LIFE_STAGES.some(item => item.id === stage) ? stage : null;
+          // The backend associates each place with its own stage, including
+          // place-only stream events that arrive before the profile update.
           const candidates = (update.place_journeys?.length ? update.place_journeys : [update.place_journey])
-            .map(journey => ({ period: "", ...journey, life_stage: lifeStage }));
+            .map(journey => ({ period: "", life_stage: null, ...journey }));
           const places = mergePlaces([...(profile().memory_places || []), ...candidates]);
           const entries = candidates.map(candidate => places.find(item => placeHistoryKey(item) === placeHistoryKey(candidate)));
           const entry = entries.at(-1);
@@ -997,11 +997,11 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
-    && entry.photo_search_policy === "place-radius20-period-v6";
+    && entry.photo_search_policy === "place-fallback-gps-time-v7";
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
-        && entry.photo_search_policy === "place-radius20-period-v6" && entry.photo_search_at > 0))) return;
+        && entry.photo_search_policy === "place-fallback-gps-time-v7" && entry.photo_search_at > 0))) return;
   state.photoRequests ||= new Map();
   const requestKey = photoRequestKey(entry, projectId);
   if (state.photoRequests.get(requestKey)?.loading) return;
@@ -1045,11 +1045,11 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
         const latestCenter = placePhotoCenter(latest);
         if (center && latestCenter && (center.latitude !== latestCenter.latitude || center.longitude !== latestCenter.longitude)) return;
         const resultCenter = result.search_center || center;
-        const scope = {...latest, ...(resultCenter ? {photo_search_latitude: resultCenter.latitude,
+        const scope = {...latest, photo_search_place: searchPlace, ...(resultCenter ? {photo_search_latitude: resultCenter.latitude,
           photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
           && (latest.photo_search_place || latest.place) === searchPlace
-          && latest.photo_search_policy === "place-radius20-period-v6" ? latest.pictures || [] : [], result.items)
+          && latest.photo_search_policy === "place-fallback-gps-time-v7" ? latest.pictures || [] : [], result.items)
           .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
           ...(resultCenter ? {photo_search_latitude: resultCenter.latitude, photo_search_longitude: resultCenter.longitude} : {}),
@@ -1058,7 +1058,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_at: result.searching ? 0 : Date.now(),
           photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
           photo_search_complete: !result.searching,
-          photo_search_policy: "place-radius20-period-v6" };
+          photo_search_policy: "place-fallback-gps-time-v7" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;
@@ -1173,9 +1173,13 @@ function photoRequestKey(entry, projectId = state.project?.id) {
 
 function photoMatchesScope(picture, entry, focus = null) {
   const period = photoSearchPeriod(entry, focus);
+  const relaxedGps = ["gps", "gps_time"].includes(picture.search_fallback)
+    && picture.requested_period === period
+    && picture.search_place === (entry.photo_search_place || entry.place);
+  const relaxedTime = relaxedGps && picture.search_fallback === "gps_time";
   const expression = picture.date_expression || "";
   const years = Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
-  if (!years.length || /circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后/i.test(expression)
+  if ((!relaxedTime && (!years.length || /circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后/i.test(expression)))
       || /upload|publication|published|modified|visual_guess/i.test(picture.date_basis || "")) return false;
   const today = new Date().toLocaleDateString("en-CA", {timeZone: "Australia/Sydney"});
   const isoDate = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
@@ -1189,11 +1193,11 @@ function photoMatchesScope(picture, entry, focus = null) {
       ? [years[0], years[0] + 9] : [Math.min(...years), Math.max(...years)];
   };
   const requested = bounds(period, true), captured = bounds(expression);
-  if (requested) {
+  if (!relaxedTime && requested) {
     const requestedYears = Array.from(period.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g));
     const tolerance = requested[0] === requested[1] && requestedYears.length === 1 ? 10 : 0;
     if (captured[0] < requested[0] - tolerance || captured[1] > requested[1] + tolerance) return false;
-  } else {
+  } else if (!relaxedTime) {
     const recent = new Date(`${today}T00:00:00Z`);
     const day = recent.getUTCDate();
     recent.setUTCDate(1);
@@ -1205,6 +1209,7 @@ function photoMatchesScope(picture, entry, focus = null) {
     const start = date || `${captured[0]}-01-01`, end = date || `${captured[1]}-12-31`;
     if (start < recent.toISOString().slice(0, 10) || end > today) return false;
   }
+  if (relaxedGps) return true;
   const center = placePhotoCenter(entry);
   const point = placePhotoCenter({latitude: picture.latitude, longitude: picture.longitude});
   if (!center || !point) return false;
@@ -1289,8 +1294,11 @@ function pictureWall(pictures = [], entry = null) {
       ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(picture.title || "")}" loading="lazy" />`
       : `<div class="picture-wall-placeholder ${picture.kind === "video" ? "video-art" : "image-art"}" aria-hidden="true"><span>${picture.kind === "video" ? "▶" : "✦"}</span></div>`;
     const periodNote = picture.period_match === "decade" ? ` · ${t("sameDecadeReference")}`
-      : picture.period_match === "nearby" ? ` · ${t("nearbyPeriodReference")}` : "";
-    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}${periodNote}</small></figcaption></figure>`;
+      : picture.period_match === "nearby" ? ` · ${t("nearbyPeriodReference")}`
+      : picture.period_match === "any_time" ? ` · ${t("otherPeriodReference")}` : "";
+    const locationNote = ["gps", "gps_time"].includes(picture.search_fallback)
+      ? ` · ${t("sourceLocationReference")}` : "";
+    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}${periodNote}${locationNote}</small></figcaption></figure>`;
   }).join("")}${photoPaginationMarkup(entry)}</section>`;
 }
 
@@ -2703,10 +2711,9 @@ function renderStory() {
 }
 
 function workspaceContentAvailable() {
-  // Public cue metadata belongs in the conversation until a current place cue
-  // activates the place journey. Counting it here creates an empty Places /
-  // Pictures workspace and hides the cue cards that should remain inline.
-  return Boolean(workspaceTabs().length || state.privateDraft?.preview || state.privateDraft?.updating || state.privateDraft?.error || placeMapTarget(placeWorkspaceSelection() || state.placeJourney));
+  // Open for the selected place's map or unlocked composition. Draft status
+  // and early family/timeline records cannot activate an empty workspace.
+  return Boolean(composingWorkspaceActive() || placeMapTarget(placeWorkspaceSelection()));
 }
 
 function workspaceHasContent() {
@@ -2771,7 +2778,7 @@ function workspaceDetail() {
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${!composing && (state.placeJourney || state.privateDraft) ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${mediaOverview ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
 }
 
 let privateDraftTimer = null;
@@ -2796,10 +2803,10 @@ async function retryPrivateDraft() {
 
 function privateDraftPreview() {
   const saved=state.privateDraft;
-  if (!saved || !saved.preview && !saved.updating && !saved.error) return "";
+  if (!saved || !saved.preview && (!saved.error || saved.updating)) return "";
   const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
   const preview=saved.preview;
-  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
+  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.error && !saved.updating ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
   return `<section class="private-draft-status"><p>${status}</p>${preview ? `<details><summary>${t('readSavedDraft')}</summary><h3>${escapeHtml(preview.title)}</h3>${formatText(preview.text)}</details>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
 }
 
@@ -2925,7 +2932,7 @@ function workspaceMediaOverview(toggle = "") {
     : request?.error
       ? `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
       : `<p class="workspace-photo-status" role="status">${t(Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
-  const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2><p>${t("picturesIntro")}</p></div>${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
+  const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
   return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
@@ -3333,10 +3340,9 @@ function placesWorkspace() {
 }
 
 function picturesWorkspace() {
-  const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
   const pictures = renderablePictureItems(searchedPictures());
   if (!pictures.length) return "";
-  return `<div class="workspace-scroll"><div class="workspace-intro"><p>${t("picturesIntro")}</p></div>${renderCueCards(pictures)}</div>`;
+  return `<div class="workspace-scroll">${renderCueCards(pictures)}</div>`;
 }
 
 function disposeCesiumPlaceJourney() {

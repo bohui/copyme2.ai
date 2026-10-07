@@ -120,7 +120,7 @@ test('does not activate the workspace without a map target', async () => {
   state: {project: {id: 'project'}, placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
   workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
-  profile: () => ({memory_places: [unknown, mapped]}), workspaceTabs: () => [],
+  profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false,
   workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
  });
  for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'workspaceContentAvailable', 'workspaceHasContent']) {

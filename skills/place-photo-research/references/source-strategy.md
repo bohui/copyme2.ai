@@ -10,7 +10,7 @@ For a memory dated 1983, the app's single Google discovery query can be:
 ("离宫" OR "避暑山庄" OR "Mountain Resort" OR "summer palace" OR "Bishu Shanzhuang") ("承德" OR "Chengde") ("1983" OR "80年代" OR "80s" OR "1980年代" OR "1980s")
 ```
 
-The app labels containing-decade alternatives separately; original photo evidence must still identify the site, city and capture period. The standalone helper keeps its run's resolved temporal window. Broaden names, never silently remove the geographic anchor or replace the requested period with webpage/upload dates. For other places, verify suitable aliases first; add a bounded expansion only after a successful search has no relevant candidates. Prefer one combined query to repeated synonym searches.
+The app labels containing-decade alternatives separately; original photo evidence must still identify the site and city. Follow the ordered empty-result fallbacks in section 2 of `SKILL.md`: GPS/radius first, then capture period only if the GPS-relaxed tier is also empty. Keep the run's requested temporal window as provenance and label out-of-period or undated alternatives separately. Every query retains the geographic anchor; webpage/upload dates never become capture dates. For other places, verify suitable aliases first; add a bounded expansion only after a successful search has no relevant candidates. Prefer one combined query to repeated synonym searches.
 
 For a current-mode request, start with modern place names and a mix of current-year, recent-year and unqualified queries. Example templates:
 

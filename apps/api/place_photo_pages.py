@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException
 
-from .place_photos import MAX_RESULTS, PhotoResearchUnavailable, filter_place_photos, search_place_photos
+from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, filter_place_photos, search_place_photos
 
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
@@ -38,14 +38,15 @@ class PhotoPages:
             with job['persistence_lock']:
                 with self.lock:
                     result = ({'items': deepcopy(job['items']), 'complete': complete,
-                               'failures': deepcopy(job['failures'])}
+                               'failures': deepcopy(job['failures']), 'time_relaxed': job['time_relaxed']}
                               if job['items'] or not job['error'] else None)
                 if result is not None:
                     self.repository.save(place, period, result)
         def publish(items):
             with self.lock:
                 # Arrival order stays stable even when later catalogues finish.
-                job['items'] = filter_place_photos(job['items'] + items, period)[:150]
+                job['items'] = filter_place_photos(job['items'] + items,
+                    ANY_PHOTO_DATE if job['time_relaxed'] else period)[:150]
                 job['revision'] += 1
             if items:
                 save(False)
@@ -54,13 +55,23 @@ class PhotoPages:
             cached = self.repository.load(place, period) if self.repository and not refresh else None
             if cached is not None:
                 with self.lock:
-                    job.update(items=filter_place_photos(cached['items'], period),
+                    job.update(time_relaxed=bool(cached.get('time_relaxed')),
+                               items=filter_place_photos(cached['items'], ANY_PHOTO_DATE
+                                   if cached.get('time_relaxed') else period),
                                failures=cached.get('failures', []))
                     job['revision'] += 1
                 cached_complete = bool(cached.get('complete'))
-                if cached_complete:
+                if cached_complete and (job['items'] or job['time_relaxed']):
                     return
-            publish(search_place_photos(place, period, limit=None, on_items=publish))
+            if not cached_complete:
+                publish(search_place_photos(place, ANY_PHOTO_DATE if job['time_relaxed'] else period,
+                                           limit=None, on_items=publish))
+            # Removing GPS accepts every source-backed locality match in the
+            # dated pool. Only an empty dated pool needs another discovery pass.
+            if not job['items']:
+                cached_complete = False
+                job['time_relaxed'] = True
+                publish(search_place_photos(place, ANY_PHOTO_DATE, limit=None, on_items=publish))
         except Exception as error:
             with self.lock:
                 job['error'] = True
@@ -99,7 +110,7 @@ class PhotoPages:
                 if snapshot is None:
                     raise HTTPException(status_code=410, detail='Photo search expired; start again')
                 if (snapshot['query'] != query or snapshot['owner'] != owner or offset < 0
-                        or offset > len(filter_place_photos(snapshot['job']['items'], period, center))):
+                        or offset > len(self._matches(snapshot['job'], snapshot))):
                     raise HTTPException(status_code=422, detail='Photo cursor does not match this search')
                 return token, snapshot['job'], offset, snapshot
             match = next(((token, snapshot) for token, snapshot in reversed(self.snapshots.items())
@@ -120,20 +131,38 @@ class PhotoPages:
                         raise HTTPException(status_code=503, detail='Photo research is busy; retry shortly')
                     del self.searches[completed]
                 job = {'items': [], 'done': Event(), 'error': False, 'failures': [], 'revision': 0,
+                       'time_relaxed': False,
                        'expires': float('inf'), 'persistence_lock': RLock()}
                 self.searches[search_query] = job
                 self.pool.submit(self._search, job, place, period, refresh=refresh)
             token = secrets.token_urlsafe(18)
             self.snapshots[token] = {'owner': owner, 'query': query, 'job': job,
-                                     'center': center, 'period': period,
+                                     'center': center, 'period': period, 'place': place,
                                      'expires': now + SNAPSHOT_TTL}
             while len(self.snapshots) > MAX_SNAPSHOTS:
                 self.snapshots.popitem(last=False)
             return token, job, 0, self.snapshots[token]
 
+    def _matches(self, job, snapshot):
+        period, center = snapshot['period'], snapshot['center']
+        matches = filter_place_photos(job['items'], period, center)
+        fallback = 'none'
+        # Wait for all strict candidates before exposing a relaxed tier. This
+        # keeps progressive batches and cursor offsets on one stable tier.
+        if not matches and job['done'].is_set():
+            matches = filter_place_photos(job['items'], period)
+            fallback = 'gps'
+            if not matches and job['time_relaxed']:
+                matches = filter_place_photos(job['items'], ANY_PHOTO_DATE)
+                fallback = 'gps_time'
+        return [{**item, 'search_fallback': fallback, 'requested_period': period,
+                 'search_place': snapshot['place'],
+                 **({'period_match': 'any_time'} if fallback == 'gps_time' else {})}
+                for item in matches]
+
     def _page(self, token, job, offset, snapshot):
         with self.lock:
-            matches = filter_place_photos(job['items'], snapshot['period'], snapshot['center'])
+            matches = self._matches(job, snapshot)
             items = deepcopy(matches[offset:offset + MAX_RESULTS])
             count = len(matches)
             searching = not job['done'].is_set()

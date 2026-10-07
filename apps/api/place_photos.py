@@ -18,7 +18,8 @@ DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
 PHOTO_RADIUS_KM = 20
 PHOTO_YEAR_TOLERANCE = 10
-PHOTO_SEARCH_POLICY = 'place-radius20-period-v6'
+PHOTO_SEARCH_POLICY = 'place-fallback-gps-time-v7'
+ANY_PHOTO_DATE = 'any-date'
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
 GOOGLE_CSE_MAX_PAGES = 10
@@ -99,10 +100,11 @@ def _date_matches(date: str, period: str, *, tolerance: int | None = None) -> bo
         tolerance = _photo_year_tolerance(period)
     years = _years(date)
     # Unresolved periods/dates must not silently turn into unrestricted results.
-    if not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I):
+    any_date = period == ANY_PHOTO_DATE
+    if not any_date and (not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I)):
         return False
     today = datetime.now(ZoneInfo('Australia/Sydney')).date()
-    if max(years) > today.year:
+    if years and max(years) > today.year:
         return False
     iso_date = re.fullmatch(r'(\d{4}-\d{2}-\d{2})(?:[T ].*)?', date.strip())
     if iso_date:
@@ -111,6 +113,8 @@ def _date_matches(date: str, period: str, *, tolerance: int | None = None) -> bo
                 return False
         except ValueError:
             return False
+    if any_date:
+        return True
     if not period.strip():
         from .place_photo_browser import _research
         current = _research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
@@ -402,6 +406,8 @@ def _google_date_values(item: dict) -> list[tuple[str, str]]:
 
 def _google_date(item: dict, period: str) -> tuple[str, str] | None:
     for basis, value in _google_date_values(item):
+        if period == ANY_PHOTO_DATE and not _years(value):
+            continue
         if _date_matches(value, period):
             return value, basis
     return None
@@ -499,7 +505,9 @@ def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[di
                 continue
             scene_date = _google_date(result, period)
             if scene_date is None:
-                continue
+                if period != ANY_PHOTO_DATE or any(_years(value) for _, value in _google_date_values(result)):
+                    continue
+                scene_date = ('', 'unknown capture date')
             licence = _google_license(result)
             if not licence:
                 continue
@@ -597,7 +605,7 @@ def _flickr(place: str, period: str) -> list[dict]:
                 caption = ' '.join((_text(photo.get('title')), description, _text(photo.get('tags'))))
                 if (photo.get('media', 'photo') != 'photo' or NON_PHOTO.search(caption)
                         or not _date_matches(date, period)
-                        or str(photo.get('datetakenunknown', '0')) != '0'
+                        or (period != ANY_PHOTO_DATE and str(photo.get('datetakenunknown', '0')) != '0')
                         or (not album and not _location_matches(caption, place))):
                     continue
                 licence = allowed.get(str(photo.get('license')))
@@ -616,7 +624,8 @@ def _flickr(place: str, period: str) -> list[dict]:
                     'location': place, 'location_evidence': caption if not album else f'{place}: verified photographer collection',
                     'attribution': _text(photo.get('ownername')) or owner,
                     'license': licence['name'], 'license_url': licence['url'],
-                    'date_expression': date, 'date_basis': 'Flickr date taken',
+                    'date_expression': date if str(photo.get('datetakenunknown', '0')) == '0' else '',
+                    'date_basis': 'Flickr date taken' if str(photo.get('datetakenunknown', '0')) == '0' else 'Unknown capture date',
                     **((_coordinates(photo) if str(photo.get('accuracy', '0')) != '0' else None) or {}),
                     'allowed_actions': {'embed': True, 'download': False, 'print': False},
                 })
@@ -719,7 +728,7 @@ def _mix_sources(items: list[dict]) -> list[dict]:
 
 def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None,
                    skip_google_browser: bool = False) -> list[dict]:
-    if period.strip() and not _period_bounds(period) and not _is_historical_period(period):
+    if period.strip() and period != ANY_PHOTO_DATE and not _period_bounds(period) and not _is_historical_period(period):
         return []
     items, errors = [], []
     # Independent catalogues overlap their network waits; one failure must not
@@ -770,6 +779,7 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
             except (http.client.HTTPException, httpx.HTTPError, ValueError, KeyError, TypeError) as error:
                 errors.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
                               else [{'provider': name, 'reason': photo_failure_reason(error)}])
+    items = filter_place_photos(items, period)
     exact = [item for item in items if _date_matches(item.get('date_expression', ''), period, tolerance=0)]
     broader = [item for item in items if not _date_matches(item.get('date_expression', ''), period, tolerance=0)]
     mixed = _deduplicate(_mix_sources(exact) + _mix_sources(broader))
@@ -832,7 +842,8 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
     # The app accepts explicit year expressions in addition to standalone
     # skill periods. Preserve its resolved window rather than reinterpreting it.
     bounds = _period_bounds(period)
-    temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01', 'end': f'{bounds[1]}-12-31'}
+    temporal = ({'mode': 'any_time'} if period == ANY_PHOTO_DATE else
+                {'mode': 'historical_range', 'start': f'{bounds[0]}-01-01', 'end': f'{bounds[1]}-12-31'}
                 if bounds else helper.normalize_period(period if _is_historical_period(period) else None, clock))
     try:
         discovery = helper.llm_search(place, temporal)
@@ -845,12 +856,12 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
                 continue
             for image in images:
                 scene = image['scene_date']
-                expression = scene['start']
-                if scene['precision'] == 'month':
+                expression = scene['start'] if scene else ''
+                if scene and scene['precision'] == 'month':
                     expression = scene['start'][:7]
-                elif scene['precision'] == 'year':
+                elif scene and scene['precision'] == 'year':
                     expression = scene['start'][:4]
-                elif scene['precision'] in {'decade', 'range'}:
+                elif scene and scene['precision'] in {'decade', 'range'}:
                     expression = scene['start'][:4] + '-' + scene['end'][:4]
                 items.append({
                     'asset_id': 'llm-' + hashlib.sha256(image['image_url'].encode()).hexdigest()[:24],
@@ -859,7 +870,8 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
                     'image_url': image['image_url'], 'original_url': image['image_url'],
                     'source_url': image['source_page_url'],
                     'date_expression': expression, 'scene_date_range': scene,
-                    'date_basis': 'Source capture metadata', 'attribution': urlparse(image['source_page_url']).hostname,
+                    'date_basis': 'Source capture metadata' if scene else 'Unknown capture date',
+                    'attribution': urlparse(image['source_page_url']).hostname,
                     'license': 'Unknown', 'memory_reference_only': True,
                     'providers': ['llm_web_search'], 'discovery_origins': [origin],
                     'allowed_actions': {'embed': True, 'memory_reference': True, 'download': False,

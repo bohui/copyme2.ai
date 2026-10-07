@@ -212,6 +212,44 @@ test('one turn saves and groups every place while retaining existing photographs
   assert.equal(context.state.selectedPlace, '双桥区');
 });
 
+for (const profileUpdates of [undefined, {story_focus: {where: '悉尼', life_stage: 'midlife'}}]) {
+test(`uses backend place stages with ${profileUpdates ? 'a different profile focus' : 'a place-only stream event'}`, async () => {
+  const sydney = {place: '悉尼', hierarchy: ['Earth', '澳大利亚', '新南威尔士州', '悉尼'], granularity: 'city', life_stage: null};
+  const chengde = {place: '承德市', hierarchy: ['Earth', '中国', '河北省', '承德市'], granularity: 'city', life_stage: 'baby'};
+  let currentProfile = {memory_places: []};
+  let event;
+  const context = vm.createContext({
+    state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: []},
+    LIFE_STAGES: [{id: 'baby'}], appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
+    conversationLanguage: () => 'zh-CN', simulatedLoopTrace: () => [],
+    nextAssistantMessageId: () => 'm', render: () => {}, toast: () => {},
+    profile: () => currentProfile, mergePlaces, placeHistoryKey: entry => entry.place,
+    saveProfileUpdates: async update => { currentProfile = {...currentProfile, ...update}; },
+    resolvePlaceMap: () => {}, loadPlacePictures: () => {}, rememberPlaceJourneyProject: () => {},
+    streamAgentTurn: async (_text, _delta, onEvent) => {
+      event = onEvent;
+      return {reply: '我记下了。', conversation_saved: true};
+    },
+  });
+  context.refreshPrivateDraft = async () => {};
+  vm.runInContext(extract('agentTurn'), context);
+  await context.agentTurn('我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院');
+  await event({type: 'workspace_update', data: {
+    source_sequence: 1,
+    profile_updates: profileUpdates,
+    place_journey: chengde,
+    place_journey_change: {changed: true},
+    place_journeys: [sydney, chengde],
+  }});
+  await new Promise(resolve => setImmediate(resolve));
+  const saved = Object.fromEntries(currentProfile.memory_places.map(place => [place.place, place]));
+  assert.equal(saved['悉尼'].life_stage, null);
+  assert.deepEqual(saved['悉尼'].life_stages, []);
+  assert.equal(saved['承德市'].life_stage, 'baby');
+  assert.deepEqual(saved['承德市'].life_stages, ['baby']);
+});
+}
+
 test('photo workspace exposes discovery even before any eligible result', () => {
   const entry = {place: 'Chengde'};
   const context = vm.createContext({

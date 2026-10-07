@@ -101,10 +101,11 @@ def test_one_conversation_previews_and_persists_every_grounded_place(monkeypatch
         assert result['reply'] == '你还记得一起玩的时光。'
         assert [place['place'] for place in result['place_journeys']] == ['大石庙镇', '双桥区']
         assert [place['place'] for place in storage.saved] == ['大石庙镇', '双桥区']
-        assert result['place_journey'] == {**storage.saved[-1], 'period': ''}
+        assert result['place_journey'] == {**storage.saved[-1], 'period': '', 'life_stage': None}
         updates = [event['data'] for event in events if event['type'] == 'workspace_update'
                    and event['data'].get('place_journeys')]
-        assert updates and all(update['place_journeys'] == [{**p, 'period': ''} for p in storage.saved] for update in updates)
+        assert updates and all(update['place_journeys'] == [
+            {**p, 'period': '', 'life_stage': None} for p in storage.saved] for update in updates)
     asyncio.run(run())
 
 
@@ -273,6 +274,77 @@ def test_birth_period_is_attached_only_to_the_birthplace_in_a_multi_place_turn(m
                    if event['type'] == 'workspace_update' and event['data'].get('place_journeys')]
         assert updates and all(places[0]['period'] == '' and places[1]['period'] == '1983年4月'
                                for places in updates)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('legacy_markers', [False, True])
+@pytest.mark.parametrize('focus_location', ['matching', 'missing', 'ambiguous'])
+@pytest.mark.parametrize('language,text,residence,birthplace,where', [
+    ('zh-CN', '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院',
+     '悉尼', '承德市', '河北省承德市附属医院'),
+    ('en-AU', 'I live in Sydney now, but I was born in Chengde in April 1983.',
+     'Sydney', 'Chengde', 'Chengde'),
+], ids=['zh-CN', 'en-AU'])
+def test_backend_assigns_birth_stage_only_to_birthplace(
+    monkeypatch, legacy_markers, focus_location, language, text, residence, birthplace, where,
+):
+    monkeypatch.delenv('MEMORY_SPARK_TASK_DB', raising=False)
+    places = [{'place': place, 'hierarchy': ['Earth', place], 'granularity': 'city'}
+              for place in (residence, birthplace)]
+    markers = ''.join('[[MEMORY_SPARK_PLACE_JOURNEY]]' + json.dumps(place, ensure_ascii=False)
+                      + '[[/MEMORY_SPARK_PLACE_JOURNEY]]' for place in places)
+    focus = {'life_stage': 'baby'}
+    if focus_location == 'matching':
+        focus['where'] = where
+    elif focus_location == 'ambiguous':
+        focus['where'] = f'{residence}, {birthplace}'
+    markers += '[[MEMORY_SPARK_PROFILE]]' + json.dumps({
+        'story_focus': focus,
+    }, ensure_ascii=False) + '[[/MEMORY_SPARK_PROFILE]]'
+
+    class Storage:
+        user_id = 'place-stage-test'
+        def __init__(self):
+            self.saved = []
+            self.data = {'preferred_language': language}
+        def acquire_agent_turn_lease(self, *args): return True
+        def release_agent_turn_lease(self, *args): return True
+        def renew_agent_turn_lease(self, *args): return True
+        def agent_session(self): return None
+        def memories(self): return []
+        def profile(self): return self.data
+        def save_profile(self, profile): self.data = profile
+        def place_journey(self): return self.saved[-1] if self.saved else None
+        def commit_agent_turn(self, *args, **kwargs): return {'id': 'memory'}
+        def save_place_journey(self, token, journey, **kwargs):
+            record = {**journey, 'status': 'active', 'revision': len(self.saved) + 1,
+                      'source_sequence': kwargs.get('source_sequence', 0),
+                      'updated_at': '2026-10-07T00:00:00Z'}
+            self.saved.append(record)
+            return record
+
+    async def run():
+        storage, events = Storage(), []
+        runtime = CodexRuntime(worker_url='http://test-worker')
+        async def worker(**kwargs):
+            if kwargs.get('agent_role') == 'workspace':
+                return {'thread_id': 'workspace', 'reply': markers, 'artifacts': []}
+            return {'thread_id': 'collector', 'reply': 'Tell me more.'
+                    + (markers if legacy_markers else ''), 'artifacts': [], '_workspace_capable': True}
+        async def emit(event): events.append(event)
+        monkeypatch.setattr(runtime, '_worker_turn', worker)
+        result = await runtime.turn(storage, text, language=language, on_event=emit)
+        assert not [event for event in events if event['type'] == 'workspace_error'], events
+        birth_stage = 'baby' if focus_location == 'matching' else None
+        expected = [(residence, None), (birthplace, birth_stage)]
+        assert [(place['place'], place['life_stage']) for place in result['place_journeys']] == expected
+        assert result['place_journey']['life_stage'] == birth_stage
+        updates = [event['data'] for event in events
+                   if event['type'] == 'workspace_update' and event['data'].get('place_journeys')]
+        assert updates
+        assert all([(place['place'], place['life_stage']) for place in update['place_journeys']]
+                   == expected and update['place_journey']['life_stage'] == birth_stage for update in updates)
 
     asyncio.run(run())
 

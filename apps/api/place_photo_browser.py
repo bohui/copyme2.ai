@@ -86,8 +86,9 @@ def _flickr_cards(source_html: str, base: str) -> list[dict]:
 def _source_items(source_html: str, source_url: str, place: str, period: str,
                   *, location_context: str = '') -> list[dict]:
     """Use source captions and capture metadata; page/upload dates cannot date photos."""
-    from .place_photos import _coordinates, _date_matches, _google_license, _photo_period_bounds, _text
+    from .place_photos import ANY_PHOTO_DATE, _coordinates, _date_matches, _google_license, _photo_period_bounds, _text
     helper = _research()
+    any_date = period == ANY_PHOTO_DATE
     parser = helper.PageParser(source_url)
     parser.feed(source_html)
     page = parser.output()
@@ -137,7 +138,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                     break
                 except ValueError:
                     pass
-    if mediawiki_file and not taken:
+    if mediawiki_file and not taken and not any_date:
         return []
     # A year in the item title/caption is a source assertion; a whole article's
     # publication year and recommendation text are deliberately excluded.
@@ -147,10 +148,14 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         'start': f'{bounds[0]:04d}-01-01' if bounds else '2000-01-01',
         'end': f'{bounds[1]:04d}-12-31' if bounds else '2000-12-31',
     }
+    if any_date:
+        temporal = {'mode': 'any_time'}
+        if taken and not _date_matches(taken, period):
+            return []
     if not period:
         temporal = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
     scene_date = helper._crawl4ai_scene_date(taken or context, temporal)
-    if period and (not scene_date or (taken and not _date_matches(taken, period))):
+    if period and not any_date and (not scene_date or (taken and not _date_matches(taken, period))):
         scene_date = None
     if not period:
         current = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
@@ -181,7 +186,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         original = next((link['url'] for link in page['links']
                          if re.search(r'original file|原始文件', link['text'], re.I)), None)
         primary = original or primary
-    if primary and scene_date:
+    if primary and (scene_date or any_date):
         image_urls.append((primary, title, scene_date))
     is_flickr = urlsplit(source_url).hostname in {'www.flickr.com', 'flickr.com'}
     if not is_flickr and not mediawiki_file:
@@ -190,7 +195,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             {'place': place, 'temporal': temporal},
         )
         image_urls.extend((image['image_url'], image['title'], image['scene_date']) for image in images)
-    elif not primary and scene_date:
+    elif not primary and (scene_date or any_date):
         for image in page['image_candidates']:
             caption = ' '.join((image['alt'], image['figure_text']))
             if (helper.NON_PHOTO.search(caption)
@@ -230,10 +235,11 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             'location': place, 'attribution': attribution or urlsplit(source_url).hostname,
             'location_evidence': location_evidence,
             'date_expression': taken if is_flickr and taken else (
-                image_date['start'] if image_date['start'] == image_date['end'] else
+                '' if image_date is None else image_date['start'] if image_date['start'] == image_date['end'] else
                 image_date['start'][:4] if image_date['start'][:4] == image_date['end'][:4] else
                 image_date['start'][:4] + '-' + image_date['end'][:4]),
-            'scene_date_range': image_date, 'date_basis': 'Source capture metadata or caption',
+            'scene_date_range': image_date,
+            'date_basis': 'Source capture metadata or caption' if image_date else 'Unknown capture date',
             **((point or {}) if observed == primary else {}),
             'license': licence[0] if licence else 'Unknown', 'license_url': licence_url,
             'memory_reference_only': True,

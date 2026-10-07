@@ -464,7 +464,11 @@ Public photo research is persisted globally in Supabase `place_photo_searches`,
 keyed by search-policy version, normalized location and period. Any project requesting that key reuses
 the full saved result set, including after a worker restart. Progressive batches
 are saved independently of the browser; cursors remain bound to the project and
-selected coordinates. Radius filtering happens before pagination. Only the
+selected coordinates. Reference selection happens before pagination: use all
+filters first, remove GPS/radius only for an empty result, then remove the time
+filter only if the GPS-relaxed result is also empty. Source-backed place,
+rights and attribution remain required; fallback photos carry explicit labels
+and preserve their actual dates or date uncertainty. Only the
 trusted photo worker writes the cache with its server-side Supabase credential;
 no memoir text, user ID, project ID, cookies or credentials enter its rows.
 Apply migration `202610020003_place_photo_searches.sql` and configure
@@ -491,7 +495,7 @@ exact-period matches are found. Completed results place exact-period matches
 first; streamed batches keep their arrival order. Wider matches retain their capture dates and show a
 same-decade reference label. The supplied Chengde Flickr album is also a bounded
 discovery source: its title establishes location, never individual capture dates.
-Every result is filtered against the requested locality and capture period (or
+The initial result is filtered against the requested locality and capture period (or
 the explicitly labelled containing-decade fallback);
 without a period, the preceding 24-month current-photo window applies. Page,
 upload and modification dates do not establish capture dates. Results are

@@ -1120,6 +1120,7 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
     assert result["place_journey"] == {
         **storage.saved_place_journey,
         "period": "",
+        "life_stage": "childhood",
         "status": "active",
         "revision": 1,
         "updated_at": "2026-09-26T00:00:00Z",

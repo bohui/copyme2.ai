@@ -19,6 +19,7 @@ from uuid import uuid4
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
 from .recall import recall_status, storage_recall_status
+from .stage_readiness import LIFE_STAGES
 from .agent_storage import UserStorage
 from .conversation_text import original_conversation_text
 from .codex_artifacts import iter_artifacts
@@ -2560,7 +2561,7 @@ class CodexRuntime:
         assigned_stage = (profile_updates or {}).get('story_focus', {}).get('life_stage') or 'unplaced'
         stage_writer = getattr(storage, 'assign_memory_stage', None)
         if assigned_stage and callable(stage_writer):
-            from .stage_readiness import LIFE_STAGES, stage_readiness
+            from .stage_readiness import stage_readiness
             if assigned_stage in (*LIFE_STAGES, 'unplaced'):
                 saved_memory = memory[0] if isinstance(memory, list) and memory else memory
                 if isinstance(saved_memory, dict) and saved_memory.get('id'):
@@ -2642,6 +2643,16 @@ class CodexRuntime:
         place_journey_change = None
         place_journeys = []
         candidates = parsed_place_journeys or ([parsed_place_journey] if parsed_place_journey else [])
+        focus = (profile_updates or {}).get('story_focus') or {}
+        stage = focus.get('life_stage')
+        stage_places = [candidate for candidate in candidates
+                        if place_journey_matches_message(candidate, focus.get('where', ''))]
+        # A response's stage belongs only to its uniquely associated place.
+        # Single-place continuations may omit where; mixed turns stay unplaced
+        # without a unique focus location instead of sharing a global stage.
+        stage_place = stage_places[0] if len(stage_places) == 1 else None
+        if len(candidates) == 1 and not focus.get('where'):
+            stage_place = candidates[0]
         if parsed_place_journey:
             async with self._workspace_lease(storage) as lease:
                 latest_place_journey_reader = getattr(storage, 'place_journey', None)
@@ -2658,11 +2669,11 @@ class CodexRuntime:
                         place_journey, place_journey_change = await self._persist_place_journey(
                             storage, lease, latest_place_journey, candidate, turn_sequence
                         )
-                        focus = (profile_updates or {}).get('story_focus') or {}
                         period = focus.get('when', '')
                         # An explicit empty period prevents a new undated/current
                         # request from inheriting a previous historical photo search.
-                        place_journey = {**place_journey, 'period': ''}
+                        place_journey = {**place_journey, 'period': '',
+                            'life_stage': stage if stage in LIFE_STAGES and candidate is stage_place else None}
                         if (re.search(r'(?:18|19|20)\d{2}', period)
                                 and period in text):
                             # Calendar context belongs only to the place named
