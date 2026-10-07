@@ -61,17 +61,23 @@ class MemoirSkillLane:
         self.notified = True
 
     @workflow.run
-    async def run(self, lane_id: str) -> dict:
+    async def run(self, lane_id: str, single_attempt: bool = False) -> dict:
+        # The isolated canary explicitly opts out of activity redelivery and
+        # workflow-loop retry. Existing production histories retain defaults.
+        if type(single_attempt) is not bool:
+            raise ValueError('single_attempt must be a boolean')
         for _ in range(100):
             self.notified = False
             result = await workflow.execute_activity('memoir.execute_lane', lane_id,
-                start_to_close_timeout=timedelta(minutes=31),
+                start_to_close_timeout=timedelta(seconds=300 if single_attempt else 1860),
                 retry_policy=RetryPolicy(initial_interval=timedelta(seconds=2),
-                    maximum_interval=timedelta(seconds=30), maximum_attempts=3))
+                    maximum_interval=timedelta(seconds=30), maximum_attempts=1 if single_attempt else 3))
             if result['status'] == 'retry_required':
                 return {'status': 'retry_required'}
             if result['status'] in {'saved', 'proposed', 'finished'} and not result.get('pending') and not self.notified:
                 return {'status': 'finished'}
+            if single_attempt:
+                return {'status': 'retry_required'}
             try:
                 await workflow.wait_condition(lambda: self.notified, timeout=timedelta(seconds=5))
             except asyncio.TimeoutError:

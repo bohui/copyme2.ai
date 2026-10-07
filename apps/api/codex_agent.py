@@ -145,6 +145,7 @@ class CodexConnection:
                     'evaluator_version', 'rubric_version', 'judge_rubric_version',
                     'model', 'provider', 'variant',
                     'round_id',
+                    'trace_id', 'observation_id', 'job_id', 'checkpoint_id',
                     'request_id',
                 }
             }

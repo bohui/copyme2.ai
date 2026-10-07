@@ -24,7 +24,8 @@ class CanonicalEvaluationDriver:
         self.task_queue = task_queue
 
     async def run_case(self, *, case_id, project_id, rounds, language,
-                       evidence_mode, settle_timeout=60, progress=None):
+                       evidence_mode, settle_timeout=60, progress=None,
+                       before_round=None, single_attempt=False, live_worker=None):
         """Submit original turns and await durable extraction/draft workflows.
 
         Receipts contain synthetic story bytes. The caller owns fixture setup,
@@ -32,7 +33,11 @@ class CanonicalEvaluationDriver:
         live-model evidence by changing a label.
         """
         if evidence_mode != 'mock_only':
-            raise ValueError('Live evaluation requires a verified provider accounting adapter')
+            from scripts.canary_worker import CanaryWorker
+            if (evidence_mode != 'guarded_live_canary' or not isinstance(live_worker, CanaryWorker)
+                    or not single_attempt or len(rounds) != 5 or not self.task_queue.startswith('canary-')):
+                raise ValueError('Live evaluation requires a verified provider accounting adapter')
+            live_worker.assert_live_ready()
         if (not isinstance(rounds, (list, tuple)) or not 1 <= len(rounds) <= 50
                 or any(not isinstance(text, str) or not text.strip() for text in rounds)):
             raise ValueError('A case requires 1 to 50 nonempty original inputs')
@@ -45,20 +50,35 @@ class CanonicalEvaluationDriver:
         cadence = private_draft_cadence()
         records, checkpoints, workflow_ids = [], [], set()
         for ordinal, text in enumerate(rounds, 1):
-            result = await self.runtime.turn(self.storage, text, project_id=project_id,
-                language=language, client_turn_id=str(uuid4()), include_trajectory=True,
-                conversation_text=text, source_kind='narrator_chat')
+            correlation = before_round(case_id, ordinal) if before_round else None
+            record = {'round': ordinal, 'status': 'started', 'background_settled': False}
+            records.append(record)
+            if progress is not None:
+                await progress({'status': 'running', 'rounds': records, 'checkpoints': checkpoints})
+            try:
+                result = await self.runtime.turn(self.storage, text, project_id=project_id,
+                    language=language, client_turn_id=str(uuid4()), include_trajectory=True,
+                    evaluation=correlation, conversation_text=text, source_kind='narrator_chat')
+            except BaseException as error:
+                record.update(status='failed', error_class=type(error).__name__,
+                              trajectory=getattr(error, 'trajectory', None))
+                if progress is not None:
+                    await progress({'status': 'incomplete', 'rounds': records, 'checkpoints': checkpoints})
+                raise
+            record.update(reply=result.get('reply'), trajectory=result.get('trajectory'),
+                          accepted_source_id=result.get('accepted_source_id'), status='delivered')
             if not result.get('accepted_source_id') or not result.get('reply'):
+                record['status'] = 'failed'
+                if progress is not None:
+                    await progress({'status': 'incomplete', 'rounds': records, 'checkpoints': checkpoints})
                 raise RuntimeError(f'Canonical conversation round {ordinal} was not delivered')
-            records.append({'round': ordinal, 'reply': result['reply'],
-                            'trajectory': result.get('trajectory')})
             if progress is not None:
                 await progress({'status': 'pending_settlement', 'rounds': records,
                                 'checkpoints': checkpoints})
             async with asyncio.timeout(settle_timeout):
                 while True:
                     handles = await dispatch_memoir_lanes_once(
-                        self.temporal_client, self.broker, self.task_queue)
+                        self.temporal_client, self.broker, self.task_queue, single_attempt=single_attempt)
                     workflow_ids.update(h.id for h in handles)
                     outcomes = await asyncio.gather(*(h.result() for h in handles))
                     if any(r.get('status') == 'retry_required' for r in outcomes):
@@ -67,16 +87,22 @@ class CanonicalEvaluationDriver:
                     if view['completed_rounds'] != ordinal:
                         raise RuntimeError('Canonical completed-round count differs from the case')
                     if view['processing']['extracted_through'] < ordinal:
+                        if single_attempt:
+                            raise RuntimeError('Canary extraction did not settle without redelivery')
                         await asyncio.sleep(.05)
                         continue
                     if ordinal % cadence == 0:
                         draft = await asyncio.to_thread(self.storage.saved_memoir_draft, project_id, language)
                         if draft['covered_round'] < ordinal:
+                            if single_attempt:
+                                raise RuntimeError('Canary draft did not settle without redelivery')
                             await asyncio.sleep(.05)
                             continue
                         checkpoints.append({'milestone': ordinal, 'draft': draft})
                     break
             records[-1]['background_settled'] = True
+            records[-1]['status'] = 'completed'
+            records[-1]['canonical_state'] = view
             if progress is not None:
                 await progress({'status': 'running', 'rounds': records,
                                 'checkpoints': checkpoints})

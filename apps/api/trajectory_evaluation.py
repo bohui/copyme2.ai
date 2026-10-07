@@ -231,6 +231,10 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "diagnostic_request_id": "request_id",
         "round_id": "round_id",
         "evaluation_round_id": "round_id",
+        "trace_id": "trace_id",
+        "observation_id": "observation_id",
+        "job_id": "job_id",
+        "checkpoint_id": "checkpoint_id",
     }
     result: dict[str, str] = {}
     for source_key, target_key in aliases.items():
