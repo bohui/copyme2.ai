@@ -1,0 +1,142 @@
+FFFFFFF..                                                                [100%]
+=================================== FAILURES ===================================
+__________ test_optional_skill_evidence_does_not_block_a_round[None] ___________
+
+observation = None
+
+    @pytest.mark.parametrize("observation", [None, {"status": "unavailable"}, {"status": "blocked"}])
+    def test_optional_skill_evidence_does_not_block_a_round(observation):
+        grade = evaluate_round(
+            {}, CASE, 1, RESULT, execution_mode="live",
+            ui_observations={skill: observation for skill in ("memoir-place-groups", "place-photo-research")},
+            composer_observation=observation,
+        )
+        for skill in SKILLS[1:]:
+>           assert grade["skill_grades"][skill]["status"] == "not_applicable"
+E           AssertionError: assert 'not_run' == 'not_applicable'
+E
+E             - not_applicable
+E             + not_run
+
+tests/test_memoir_skill_acceptance.py:27: AssertionError
+______ test_optional_skill_evidence_does_not_block_a_round[observation1] _______
+
+observation = {'status': 'unavailable'}
+
+    @pytest.mark.parametrize("observation", [None, {"status": "unavailable"}, {"status": "blocked"}])
+    def test_optional_skill_evidence_does_not_block_a_round(observation):
+        grade = evaluate_round(
+            {}, CASE, 1, RESULT, execution_mode="live",
+            ui_observations={skill: observation for skill in ("memoir-place-groups", "place-photo-research")},
+            composer_observation=observation,
+        )
+        for skill in SKILLS[1:]:
+>           assert grade["skill_grades"][skill]["status"] == "not_applicable"
+E           AssertionError: assert 'unavailable' == 'not_applicable'
+E
+E             - not_applicable
+E             + unavailable
+
+tests/test_memoir_skill_acceptance.py:27: AssertionError
+______ test_optional_skill_evidence_does_not_block_a_round[observation2] _______
+
+observation = {'status': 'blocked'}
+
+    @pytest.mark.parametrize("observation", [None, {"status": "unavailable"}, {"status": "blocked"}])
+    def test_optional_skill_evidence_does_not_block_a_round(observation):
+        grade = evaluate_round(
+            {}, CASE, 1, RESULT, execution_mode="live",
+            ui_observations={skill: observation for skill in ("memoir-place-groups", "place-photo-research")},
+            composer_observation=observation,
+        )
+        for skill in SKILLS[1:]:
+>           assert grade["skill_grades"][skill]["status"] == "not_applicable"
+E           AssertionError: assert 'unavailable' == 'not_applicable'
+E
+E             - not_applicable
+E             + unavailable
+
+tests/test_memoir_skill_acceptance.py:27: AssertionError
+______________ test_optional_passes_do_not_inflate_contract_rates ______________
+
+    def test_optional_passes_do_not_inflate_contract_rates():
+        grades = []
+        for number, contract in enumerate(("required", "must_not_call", "not_applicable"), start=1):
+            grades.append({
+                "round": number,
+                "expected": {"skill_status": {skill: contract for skill in SKILLS}},
+                # Be robust to older captured reports that recorded optional passes.
+                "skill_grades": {skill: {"status": "pass", "invocation": "pass", "output": "pass"} for skill in SKILLS},
+                "overall": "pass",
+            })
+        summary = aggregate_case("optional-skill-probe", grades, execution_mode="live")
+        for coverage in summary["skill_coverage"].values():
+            assert coverage["contract_rounds"] == 2
+>           assert coverage["invocation_pass"] == 2
+E           assert 3 == 2
+
+tests/test_memoir_skill_acceptance.py:44: AssertionError
+___________ test_browser_receipt_recomputes_round_status[live-pass] ____________
+
+execution_mode = 'live', expected_status = 'pass'
+
+    @pytest.mark.parametrize("execution_mode, expected_status", [("live", "pass"), ("fixture", "mock_only")])
+    def test_browser_receipt_recomputes_round_status(execution_mode, expected_status):
+        case, grade = _required_ui_grade()
+        assert grade["overall"] == "unavailable"
+        merged = merge_ui_skill_observations(
+            [grade], {1: {"memoir-place-groups": {"executed": True, "called": True, "output_ok": True}}},
+            {}, case, execution_mode=execution_mode,
+        )
+>       assert merged[0]["overall"] == expected_status
+E       AssertionError: assert 'unavailable' == 'pass'
+E
+E         - pass
+E         + unavailable
+
+tests/test_memoir_skill_acceptance.py:65: AssertionError
+_______ test_browser_receipt_recomputes_round_status[fixture-mock_only] ________
+
+execution_mode = 'fixture', expected_status = 'mock_only'
+
+    @pytest.mark.parametrize("execution_mode, expected_status", [("live", "pass"), ("fixture", "mock_only")])
+    def test_browser_receipt_recomputes_round_status(execution_mode, expected_status):
+        case, grade = _required_ui_grade()
+        assert grade["overall"] == "unavailable"
+        merged = merge_ui_skill_observations(
+            [grade], {1: {"memoir-place-groups": {"executed": True, "called": True, "output_ok": True}}},
+            {}, case, execution_mode=execution_mode,
+        )
+>       assert merged[0]["overall"] == expected_status
+E       AssertionError: assert 'unavailable' == 'mock_only'
+E
+E         - mock_only
+E         + unavailable
+
+tests/test_memoir_skill_acceptance.py:65: AssertionError
+_____ test_unavailable_browser_receipt_invalidates_previous_protocol_pass ______
+
+    def test_unavailable_browser_receipt_invalidates_previous_protocol_pass():
+        case, grade = _required_ui_grade()
+        grade["overall"] = "pass"
+        grade["skill_grades"]["memoir-place-groups"] = {"status": "pass", "invocation": "pass", "output": "pass"}
+        merged = merge_ui_skill_observations(
+            [grade], {1: {"memoir-place-groups": {"status": "unavailable", "comment": "Browser receipt is missing."}}},
+            {}, case, execution_mode="live",
+        )
+>       assert merged[0]["overall"] == "unavailable"
+E       AssertionError: assert 'pass' == 'unavailable'
+E
+E         - unavailable
+E         + pass
+
+tests/test_memoir_skill_acceptance.py:76: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_memoir_skill_acceptance.py::test_optional_skill_evidence_does_not_block_a_round[None]
+FAILED tests/test_memoir_skill_acceptance.py::test_optional_skill_evidence_does_not_block_a_round[observation1]
+FAILED tests/test_memoir_skill_acceptance.py::test_optional_skill_evidence_does_not_block_a_round[observation2]
+FAILED tests/test_memoir_skill_acceptance.py::test_optional_passes_do_not_inflate_contract_rates
+FAILED tests/test_memoir_skill_acceptance.py::test_browser_receipt_recomputes_round_status[live-pass]
+FAILED tests/test_memoir_skill_acceptance.py::test_browser_receipt_recomputes_round_status[fixture-mock_only]
+FAILED tests/test_memoir_skill_acceptance.py::test_unavailable_browser_receipt_invalidates_previous_protocol_pass
+7 failed, 2 passed in 0.07s
