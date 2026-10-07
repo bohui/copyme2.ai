@@ -1,0 +1,45 @@
+{
+  "name": "memoir-native-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/mobile",
+    "packages/*"
+  ],
+  "scripts": {
+    "test:mobile": "node --import tsx --test tests/mobile-domain/*.test.ts tests/mobile/*.test.ts",
+    "typecheck:mobile": "tsc --noEmit -p apps/mobile/tsconfig.json && tsc --noEmit -p tests/mobile-ui/tsconfig.json && tsc --noEmit -p tests/mobile-integration/tsconfig.json",
+    "lint:mobile": "eslint apps/mobile packages tests/mobile tests/mobile-domain tests/mobile-ui tests/mobile-integration",
+    "check:mobile": "npm run test:mobile && npm run typecheck:mobile && npm run lint:mobile && npm run test:mobile-ui && npm run check:mobile:contracts && npm run test:mobile-integration && npm run check:mobile:native-config",
+    "build:mobile": "npm --workspace @memoir/mobile run export",
+    "test:mobile-ui": "jest --config apps/mobile/jest.config.cjs --runInBand",
+    "check:mobile:contracts": "python scripts/check_mobile_openapi.py",
+    "test:mobile-integration": "jest --config apps/mobile/jest.integration.config.cjs --runInBand",
+    "check:mobile:native-config": "node scripts/check_mobile_native_config.mjs"
+  },
+  "devDependencies": {
+    "@react-native/jest-preset": "^0.86.3",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.9.9",
+    "react-test-renderer": "19.2.3",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.0.0",
+    "xcode": "3.0.1"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "overrides": {
+    "xcode@3.0.1": {
+      "uuid": "11.1.1"
+    }
+  }
+}

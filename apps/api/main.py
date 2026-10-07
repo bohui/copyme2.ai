@@ -2252,6 +2252,7 @@ def create_app(
 
     from .place_photo_pages import PhotoPages
     photo_pages = PhotoPages()
+    app.state.memoir_photo_pages = photo_pages
 
     @app.get("/v1/projects/{project_id}/place-photos")
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),

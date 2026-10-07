@@ -1,13 +1,16 @@
 """Authenticated Supabase API boundary, separate from prototype demo accounts."""
 import os
 from typing import Literal
+from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
 from .conversation_text import original_conversation_text
+from .conversation_recovery import (PROJECT_ID_PATTERN, ConversationHistory, ProjectList,
+    NarratorSourceDetail, conversation_history, narrator_source_detail, project_snapshot)
 
 router = APIRouter(prefix='/v1/user', tags=['Supabase user data'])
 
@@ -77,11 +80,17 @@ def prepare_conversation_transfer(payload: GuestConversationTransfer,
         if not service.is_anonymous:
             raise HTTPException(403, 'Guest session required')
         _wait_for_deliveries(service)
-        return _transfer(service, 'prepare_guest_conversation_transfer', {
+        result = _transfer(service, 'prepare_guest_conversation_transfer', {
             'p_token': payload.token, 'p_project_id': payload.project_id,
             'p_messages': [message.model_dump() for message in payload.messages],
             'p_workspace_profile': payload.workspace_profile, 'p_ui_locale': payload.ui_locale,
         })
+        if result.get('prepared') is True:
+            # The checked-in prepare RPC creates/refreshes a one-hour capability.
+            # This is a client retention cap, not proof a later attach is valid;
+            # expiry/claim/revocation remain authoritative in the attach RPC.
+            return {**result, 'expires_in': 3600}
+        return result
     finally:
         service.client.close()
 
@@ -108,6 +117,74 @@ def attach_conversation_transfer(payload: WorkspaceMergeToken,
                 raise HTTPException(503, 'Workspace merge incomplete; retry this transfer') from None
         result.pop('storage_objects', None)
         return result
+    finally:
+        service.client.close()
+
+
+@router.get('/projects', response_model=ProjectList)
+def read_projects(limit: int = Query(default=50, ge=1, le=100),
+                  after_project_id: str | None = Query(default=None, pattern=PROJECT_ID_PATTERN),
+                  authorization: str | None = Header(default=None)):
+    """Discover canonical projects created by durable source acceptance."""
+    service = storage(authorization)
+    try:
+        rows = service.memoir_projects(limit + 1, after_project_id)
+        return ProjectList(items=[project_snapshot(row) for row in rows[:limit]],
+            next_after_project_id=rows[limit - 1]['project_id'] if len(rows) > limit else None)
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(503, 'Project history temporarily unavailable',
+                            headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
+    finally:
+        service.client.close()
+
+
+@router.get('/projects/{project_id}/sources/{source_id}', response_model=NarratorSourceDetail)
+def read_project_source(project_id: str, source_id: UUID,
+                        expected_version: str | None = Query(default=None, pattern=r'^[1-9][0-9]{0,18}$'),
+                        authorization: str | None = Header(default=None)):
+    """Inspect an owned citation without requiring a Family timeline entitlement."""
+    from .family_context import valid_family_project_id
+    if valid_family_project_id(project_id) is None:
+        raise HTTPException(422, 'Invalid project id')
+    service = storage(authorization)
+    try:
+        # The source FK and RLS bind it to an existing canonical owner/project.
+        source = service.narrator_source_by_id(project_id, str(source_id))
+        if source is None:
+            raise HTTPException(404, 'Source not found')
+        if source['status'] == 'withdrawn':
+            raise HTTPException(410, 'This source has been withdrawn',
+                                headers={'X-Error-Code': 'SOURCE_WITHDRAWN'})
+        if expected_version is not None and expected_version != str(source['version']):
+            raise HTTPException(409, 'The cited source has changed; refresh the draft or source reference',
+                                headers={'X-Error-Code': 'SOURCE_REVISION_CONFLICT'})
+        return narrator_source_detail(source)
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(503, 'Source temporarily unavailable',
+                            headers={'X-Error-Code': 'SOURCE_UNAVAILABLE'}) from None
+    finally:
+        service.client.close()
+
+
+@router.get('/projects/{project_id}/history', response_model=ConversationHistory)
+def read_project_history(project_id: str,
+                         limit: int = Query(default=50, ge=1, le=100),
+                         cursor: str | None = Query(default=None, max_length=1024),
+                         authorization: str | None = Header(default=None)):
+    from .family_context import valid_family_project_id
+    if valid_family_project_id(project_id) is None:
+        raise HTTPException(422, 'Invalid project id')
+    service = storage(authorization)
+    try:
+        return conversation_history(service, project_id, limit, cursor)
+    except ValueError:
+        raise HTTPException(422, 'Invalid or differently scoped conversation cursor',
+                            headers={'X-Error-Code': 'INVALID_HISTORY_CURSOR'}) from None
+    except LookupError:
+        raise HTTPException(404, 'Project not found') from None
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        raise HTTPException(503, 'Project history temporarily unavailable',
+                            headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
     finally:
         service.client.close()
 
