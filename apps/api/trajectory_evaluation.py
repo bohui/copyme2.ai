@@ -1677,6 +1677,16 @@ class _LangfuseCase:
             return
         run_id = self.correlation.get("run_id", trace_id)
         for score in scores:
+            # Langfuse replaces a score only when its ID, name and UTC date
+            # match. Replay the retained trajectory's recorded time, rather
+            # than assigning the publication day's timestamp on each retry.
+            try:
+                score_timestamp = datetime.fromisoformat(str(trajectory.get("started_at") or ""))
+                if score_timestamp.tzinfo is None or score_timestamp.utcoffset() is None:
+                    raise ValueError("Missing timezone")
+                score_timestamp = score_timestamp.astimezone(timezone.utc)
+            except (ValueError, OverflowError) as error:
+                raise ValueError("Langfuse scores require a timezone-aware trajectory started_at") from error
             name = str(score.get("name") or "trajectory_quality")
             step_id = str(score.get("step_id") or "run")
             evaluator_version = self.correlation.get("evaluator_version", "trajectory-rubric/1")
@@ -1692,6 +1702,7 @@ class _LangfuseCase:
             )
             kwargs = {
                 "score_id": score_id,
+                "timestamp": score_timestamp,
                 "name": name,
                 "value": float(score.get("value", 0)),
                 "trace_id": score_trace_id,
@@ -1699,11 +1710,10 @@ class _LangfuseCase:
                 "data_type": "NUMERIC",
                 "comment": str(score.get("comment") or ""),
             }
-            try:
-                self.client.create_score(**kwargs)
-            except TypeError:  # pragma: no cover - compatibility with older test doubles
-                kwargs.pop("score_id", None)
-                self.client.create_score(**kwargs)
+            # Keep the replay identity on every publication. An SDK error may
+            # occur after accepting the score; retrying without its ID can
+            # create a second logical score and conceal the original failure.
+            self.client.create_score(**kwargs)
         flush = getattr(self.client, "flush", None)
         if callable(flush):
             flush()
