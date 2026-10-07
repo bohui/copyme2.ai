@@ -264,6 +264,10 @@ async function api(path, options = {}) {
   const { onPhotoPage, ...requestOptions } = options;
   const method = (options.method || "GET").toUpperCase();
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (state.project?.requires_supabase_auth && state.supabase?.accessToken && !headers.Authorization
+      && path !== '/v1/projects' && !path.startsWith('/v1/auth/')) {
+    headers.Authorization = `Bearer ${state.supabase.accessToken}`;
+  }
   if (!path.startsWith("/v1/auth/") && method !== "GET" && method !== "HEAD") {
     headers["X-CSRF-Token"] = state.csrfToken || readCookie("memory_spark_csrf");
   }
@@ -2562,12 +2566,15 @@ async function refreshProject() {
   try {
     base = await api(`/v1/projects/${projectId}`);
   } catch (error) {
-    if (error.status !== 404 || !state.supabase?.accessToken) throw error;
+    if (![401, 404].includes(error.status) || !state.supabase?.accessToken) throw error;
     base = await api("/v1/projects", { method: "POST",
       headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
       body: JSON.stringify({ mode: "self", restore_project_id: projectId }) });
   }
-  const journey = await api(`/v1/projects/${projectId}/journey`);
+  if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+  const journey = await api(`/v1/projects/${projectId}/journey`, base.requires_supabase_auth ? {
+    headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
+  } : {});
   if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
   state.project = { ...base, ...journey, profile: preserveConversationLocale(base.profile, state.project.profile) };
   if (state.supabase?.accessToken) {

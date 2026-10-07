@@ -699,8 +699,14 @@
       "StorySpeechInput": {
         "properties": {
           "instructions": {
-            "default": "Speak slowly, warmly and clearly with natural pauses.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "language": {
             "anyOf": [
@@ -722,8 +728,14 @@
             "type": "string"
           },
           "voice": {
-            "default": "marin",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

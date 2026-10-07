@@ -19,7 +19,8 @@ def test_authenticated_history_recovers_original_project_shell_after_restart(mon
         assert response.status_code == 201
         assert response.json()['id'] == 'project_saved'
         assert response.json()['profile']['name'] == 'Saved narrator'
-        assert client.get('/v1/projects/project_saved').status_code == 200
+        assert client.get('/v1/projects/project_saved').status_code == 401
+        assert client.get('/v1/projects/project_saved', headers={'Authorization': 'Bearer saved-session'}).status_code == 200
         repeated = client.post('/v1/projects', headers={'Authorization': 'Bearer saved-session'},
                                json={'restore_project_id': 'project_saved'})
         assert repeated.json()['id'] == 'project_saved'

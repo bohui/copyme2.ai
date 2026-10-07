@@ -66,22 +66,24 @@ test('routes without an explicit project still restore the saved project', async
   assert.equal(result.resumed, true);
 });
 
-test('a missing local shell is recovered with the original authenticated project ID', async () => {
+for (const status of [401, 404]) test(`a cached interview with status ${status} recovers the verified project`, async () => {
   const state = { project: { id: 'project_saved' }, supabase: { user: { id: 'owner' }, accessToken: 'session' } };
   const context = vm.createContext({ state, preserveConversationLocale: profile => profile,
     mergePlaces: values => values, refreshStageReadiness() {}, refreshPrivateDraft() {},
     storyApi: async () => ({}),
     api: async (path, options) => {
-      if (path === '/v1/projects/project_saved') throw Object.assign(new Error('Lost local shell'), { status: 404 });
+      if (path === '/v1/projects/project_saved') throw Object.assign(new Error('Shell needs recovery'), { status });
       if (path === '/v1/projects') {
         assert.equal(JSON.parse(options.body).restore_project_id, 'project_saved');
         assert.equal(options.headers.Authorization, 'Bearer session');
-        return { id: 'project_saved', profile: {} };
+        return { id: 'project_saved', profile: {}, requires_supabase_auth: true };
       }
+      assert.equal(options.headers.Authorization, 'Bearer session');
       return { active_session: null };
     },
   });
   vm.runInContext(source.match(/async function refreshProject\([^]*?\n\}/)[0], context);
   await context.refreshProject();
   assert.equal(state.project.id, 'project_saved');
+  assert.equal(state.project.requires_supabase_auth, true);
 });

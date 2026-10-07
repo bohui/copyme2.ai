@@ -115,3 +115,38 @@ generation latency. This incident required a first catch-up run because no
 earlier five-round checkpoint had been dispatched. Future accepted inputs use
 the existing progressive lane and saved eligible drafts remain readable during
 updates.
+
+## Review repairs on main
+
+After PR #27 was merged, independent review reproduced private-profile access
+through the local account header and failure to resume attachment-only legacy
+history. The user requested these repairs directly on main, preserving the
+merged voice work and without further live/provider/data-reset actions.
+
+- Recovery uses the verified Supabase principal for ownership and restricts
+  restored interviews to that storyteller. Recovered self interviews enforce
+  that identity on project and indirect resource access, including audio,
+  order and supplier-update routes. Valid audio-share tokens and verified payer
+  access retain their existing contracts.
+- Every explicitly bearer-created adapter retains its authentication contract.
+  Family adapters allow verified members; recovery itself still requires exact
+  immutable owner equality when a local ID already exists. Unbound local ID
+  collisions fail without copying a private profile or overwriting local work.
+- Creation replay cannot bypass identity through the idempotency cache. Request
+  identities are isolated between concurrent requests and prototype cookies
+  cannot replace Supabase authentication.
+- Owned conversation attachments are accepted as legacy recovery evidence.
+  The frontend sends the current session for protected adapters, recovers an
+  authenticated cached link, and avoids carrying that token into fresh adapter
+  creation or prototype authentication requests.
+- The mobile OpenAPI snapshot now matches the already-merged voice DTOs, whose
+  optional voice/instructions fields permit null and use configured defaults.
+
+Verification: the first ownership suite reproduced 18 failures before the
+repair. The final ownership/recovery suite passed 39 checks; 182 broader API,
+acceptance, security, speech and mobile-contract checks passed, as did all 160
+JavaScript checks and the production frontend build. Browser recovery covers
+both saved links and the landing page for canonical memories and legacy
+attachments, without forwarding synthetic credentials on behalf of the UI.
+These checks use fixtures and do not assert restored live history or provider
+generation latency after the intentional reset.

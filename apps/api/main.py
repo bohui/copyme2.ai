@@ -13,6 +13,7 @@ import os
 import re
 import zipfile
 from copy import deepcopy
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
@@ -359,7 +360,29 @@ def _paginate(items: list[Any], cursor: str | None, limit: int) -> dict[str, Any
     }
 
 
+_request_principal: ContextVar[dict[str, Any] | None] = ContextVar('memoir_request_principal', default=None)
+
+
+def _verified_account_id() -> str:
+    principal = _request_principal.get()
+    if not principal or not principal['authorization']:
+        raise HTTPException(401, 'Supabase sign-in required')
+    if principal.get('user_id') is None:
+        service = authenticated_storage(principal['authorization'])
+        try:
+            principal['user_id'] = service.user_id
+        finally:
+            service.client.close()
+    return principal['user_id']
+
+
 def _account_id(header: str | None) -> str:
+    principal = _request_principal.get()
+    if principal and principal['authorization']:
+        actor = _verified_account_id()
+        if header and header != actor:
+            raise _unauthorised()
+        return actor
     return header or "demo-storyteller"
 
 
@@ -393,10 +416,26 @@ def _not_found(label: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{label} not found")
 
 
+def _require_project_identity(project: dict[str, Any]) -> None:
+    if project.get('supabase_owner_id'):
+        _verified_account_id()
+
+
+def _require_project_access(project: dict[str, Any]) -> None:
+    owner = project.get('supabase_owner_id')
+    if owner:
+        actor = _verified_account_id()
+        # Recovery is self-only. Explicitly created family projects retain
+        # their membership contract, with verified identities for each member.
+        if actor != owner and not (project['mode'] == 'family' and actor in project['members']):
+            raise _unauthorised()
+
+
 def _project(store: MemoryStore, project_id: str, actor: str, allow_deleted: bool = False) -> dict[str, Any]:
     project = store.projects.get(project_id)
     if not project:
         raise _not_found("Project")
+    _require_project_access(project)
     if project.get("deleted_at") and not allow_deleted:
         raise HTTPException(status_code=410, detail="Project deletion is in progress")
     if actor not in project["members"] and actor != project.get("storyteller_id"):
@@ -486,6 +525,7 @@ def _entitlement_response(project: dict[str, Any]) -> dict[str, Any]:
 
 
 def _project_response(project: dict[str, Any]) -> dict[str, Any]:
+    _require_project_access(project)
     entitlements = _entitlement_response(project)
     approved_chapters = [chapter for chapter in project.get("chapters", {}).values() if chapter.get("status") == "APPROVED"]
     try:
@@ -498,6 +538,7 @@ def _project_response(project: dict[str, Any]) -> dict[str, Any]:
         "policy_epoch": project.get("policy_epoch", 1),
         "mode": project["mode"],
         "owner_id": project["owner_id"],
+        "requires_supabase_auth": bool(project.get('supabase_owner_id')),
         "storyteller_id": project["storyteller_id"],
         "home_region": project["home_region"],
         "profile": deepcopy(project["profile"]),
@@ -979,6 +1020,7 @@ def create_app(
             # process remains the single in-process writer; worker-side
             # mutations use its explicit transaction context.
             memory.reload()
+        principal_token = _request_principal.set({'authorization': request.headers.get('Authorization')})
         try:
             session_token = request.cookies.get("memory_spark_session")
             session = memory.auth_sessions.get(_token_hash(session_token)) if session_token else None
@@ -988,6 +1030,7 @@ def create_app(
                 and not session.get("revoked_at")
                 and datetime.fromisoformat(session["expires_at"]) > datetime.now(timezone.utc)
                 and not request.headers.get("X-Account-Id")
+                and not request.headers.get('Authorization')
             )
             if cookie_authenticated:
                 if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not request.url.path.startswith("/v1/auth/"):
@@ -1026,6 +1069,7 @@ def create_app(
                 memory.rollback_request()
             raise
         finally:
+            _request_principal.reset(principal_token)
             if database_transaction:
                 request_transaction_lock.release()
 
@@ -1205,11 +1249,15 @@ def create_app(
             # original project in the signed-in user's RLS-protected history.
             service = authenticated_storage(authorization)
             try:
+                if payload.mode != 'self' or payload.storyteller_account_id not in {None, service.user_id}:
+                    raise HTTPException(422, 'Recovered interviews belong to the signed-in storyteller')
                 params = {'select': 'project_id', 'user_id': f'eq.{service.user_id}',
                           'project_id': f'eq.{payload.restore_project_id}', 'limit': '1'}
                 owned = service.request('GET', '/rest/v1/user_memoir_project', params=params).json()
                 if not owned:
                     owned = service.request('GET', '/rest/v1/user_memory', params=params).json()
+                if not owned:
+                    owned = service.request('GET', '/rest/v1/user_conversation_attachment', params=params).json()
                 if not owned:
                     raise HTTPException(404, 'Saved interview not found')
                 restored_profile = service.profile()
@@ -1218,6 +1266,11 @@ def create_app(
         memory.ensure_account(actor)
         with memory.lock:
             if payload.restore_project_id in memory.projects:
+                existing = memory.projects[payload.restore_project_id]
+                if not existing.get('supabase_owner_id'):
+                    raise HTTPException(409, 'Saved interview conflicts with an existing local project')
+                if existing['supabase_owner_id'] != actor:
+                    raise _unauthorised()
                 return _project_response(_project(memory, payload.restore_project_id, actor))
             request_hash = sha256_json(payload.model_dump())
             operation_key = f"project-create:{actor}:{idempotency_key}" if idempotency_key else None
@@ -1226,6 +1279,9 @@ def create_app(
                 if prior:
                     if prior["request_hash"] != request_hash:
                         raise _idempotency_conflict()
+                    cached = prior['response']
+                    if cached.get('requires_supabase_auth') and _verified_account_id() != cached['owner_id']:
+                        raise _unauthorised()
                     return deepcopy(prior["response"])
             project_id = payload.restore_project_id or new_id("project")
             storyteller = actor if payload.mode == "self" else (payload.storyteller_account_id or new_id("storyteller"))
@@ -1251,6 +1307,8 @@ def create_app(
                 "trial_units_total": trial_units_total, "trial_units_consumed": 0, "trial_units_reserved": 0, "free_chapter_session_count": 0, "paid_units_total": 0, "paid_units_revoked": 0, "paid_units_consumed": 0, "paid_units_reserved": 0, "grants": [],
                 "sessions": {}, "session_ids": [], "memories": {}, "assets": {}, "people": {}, "relationships": [], "timeline": [], "chapters": {}, "chapter_ids": [], "outline_versions": [], "editions": {}, "edition_ids": [], "orders": [], "print_orders": [], "exports": {}, "payment_invitations": {}, "preview_jobs": {}, "idempotency": {}, "events": [], "event_cursor": 0, "composition_stage": 0, "deletion_state": "ACTIVE", "deleted_at": None,
             }
+            if _request_principal.get()['authorization']:
+                project['supabase_owner_id'] = actor
             if restored_profile is not None:
                 project['profile'].update(restored_profile)
             memory.projects[project_id] = project
@@ -1396,6 +1454,10 @@ def create_app(
         project = memory.projects.get(invitation["project_id"])
         if not project:
             raise _not_found("Project")
+        if project['mode'] == 'family':
+            _require_project_identity(project)
+        else:
+            _require_project_access(project)
         project["members"][actor] = {"role": invitation["intended_role"], "capabilities": invitation["capability_set"]}
         invitation["redeemed_at"] = now_iso()
         memory.audit("invitation.accepted", actor, project["id"], invitation_id=invitation["id"])
@@ -2822,6 +2884,10 @@ def create_app(
     @app.post("/v1/projects/{project_id}/checkout", status_code=status.HTTP_201_CREATED)
     def create_checkout(project_id: str, payload: CheckoutCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")) -> dict[str, Any]:
         payer = _account_id(x_account_id)
+        target = memory.projects.get(project_id)
+        if not target:
+            raise _not_found("Project")
+        _require_project_identity(target)
         request_hash = sha256_json(payload.model_dump())
         operation_key = f"checkout:{payer}:{project_id}:{idempotency_key}" if idempotency_key else None
         if operation_key:
@@ -2830,9 +2896,6 @@ def create_app(
                 if prior["request_hash"] != request_hash:
                     raise _idempotency_conflict()
                 return deepcopy(prior["response"])
-        target = memory.projects.get(project_id)
-        if not target:
-            raise _not_found("Project")
         if payer not in target["members"] and payload.beneficiary_project_id not in {None, project_id}:
             raise _unauthorised()
         project = target if payer in target["members"] or payload.beneficiary_project_id == project_id else _project(memory, project_id, payer)
@@ -2840,6 +2903,7 @@ def create_app(
             beneficiary = memory.projects.get(payload.beneficiary_project_id)
             if not beneficiary:
                 raise _not_found("Beneficiary project")
+            _require_project_identity(beneficiary)
             project = beneficiary
         plan = memory.plans.get(payload.plan_key)
         if not plan or plan["status"] != "live" or plan["processing_region"] != project["home_region"]:
@@ -2881,6 +2945,8 @@ def create_app(
             raise _not_found("Order")
         actor = _account_id(x_account_id)
         project = memory.projects.get(order["beneficiary_project_id"])
+        if project:
+            _require_project_identity(project)
         if actor != order["payer_account_id"] and (not project or actor not in project["members"]):
             raise _unauthorised()
         return deepcopy(order)
@@ -3066,6 +3132,8 @@ def create_app(
             raise HTTPException(status_code=410, detail="Audio access has been revoked")
         actor = _account_id(x_account_id)
         token_grant = next((grant for grant in link.get("grants", {}).values() if token and hmac.compare_digest(grant["token_hash"], hashlib.sha256(token.encode()).hexdigest()) and datetime.fromisoformat(grant["expires_at"]) > datetime.now(timezone.utc) and not grant["revoked"]), None)
+        if not token_grant:
+            _require_project_access(project)
         if actor not in project["members"] and not token_grant:
             raise _unauthorised()
         return {"allowed": True, "playback_url": f"/v1/audio-links/{opaque_id}/playback", "expires_in_seconds": 300, "grant_id": token_grant["id"] if token_grant else None, "printed_code_recall": "Printed copies cannot be technically recalled"}
@@ -3076,6 +3144,7 @@ def create_app(
         if not found:
             raise _not_found("Audio link")
         project, link = found
+        _require_project_access(project)
         actor = _account_id(x_account_id)
         if actor not in {project["owner_id"], project["storyteller_id"]}:
             raise _unauthorised()
@@ -3093,6 +3162,7 @@ def create_app(
         if not found:
             raise _not_found("Audio link")
         project, link = found
+        _require_project_access(project)
         actor = _account_id(x_account_id)
         if actor not in {project["owner_id"], project["storyteller_id"]}:
             raise _unauthorised()
@@ -3110,6 +3180,7 @@ def create_app(
         if not found:
             raise _not_found("Audio link")
         project, link = found
+        _require_project_access(project)
         actor = _account_id(x_account_id)
         if actor not in {project["storyteller_id"], project["owner_id"]}:
             raise _unauthorised()
@@ -3216,6 +3287,8 @@ def create_app(
         project = memory.projects.get(order["project_id"])
         if not project:
             raise _not_found("Project")
+        if not _is_operator(actor, None):
+            _require_project_access(project)
         if actor not in project["members"] and not _is_operator(actor, None):
             raise _unauthorised()
         proof = order.get("proof")

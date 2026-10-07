@@ -16,7 +16,8 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 
 
 @pytest.mark.parametrize('entry', ['saved-link', 'landing'])
-def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch, entry):
+@pytest.mark.parametrize('history_kind', ['memory', 'attachment'])
+def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch, entry, history_kind):
     project_id = 'project_saved'
     profile = {'name': 'Fixture narrator', 'preferred_language': 'en-AU'}
     storage = Mock(spec=UserStorage)
@@ -31,13 +32,23 @@ def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch,
         'content': 'Storyteller: My saved childhood\nMemory Spark: Tell me about the garden.',
     }]
     storage.request.side_effect = lambda method, path, **_: Mock(json=lambda:
-        [{'project_id': project_id}] if path == '/rest/v1/user_memoir_project' else [])
+        [{'project_id': project_id}] if path == '/rest/v1/user_memoir_project' and history_kind == 'memory' else
+        [{'id': 'legacy-attachment', 'project_id': project_id, 'created_at': '2026-10-07', 'workspace': {},
+          'messages': [{'role': 'user', 'text': 'My saved childhood'},
+                       {'role': 'assistant', 'text': 'Tell me about the garden.'}]}]
+        if path == '/rest/v1/user_conversation_attachment' and history_kind == 'attachment' else [])
+    if history_kind == 'attachment':
+        storage.all_memories.return_value = []
     storage.saved_memoir_draft.return_value = {
         'status': 'ready', 'preview': {'kind': 'sample_storyline', 'title': 'My reviewed sample',
                                       'text': 'A familiar garden from my childhood.'},
         'revision': 2, 'covered_round': 10, 'updating': True, 'error': None,
     }
-    monkeypatch.setattr(main, 'authenticated_storage', lambda _: storage)
+    def authenticated(authorization):
+        if authorization != 'Bearer fixture-session':
+            raise main.HTTPException(401, 'Missing fixture session')
+        return storage
+    monkeypatch.setattr(main, 'authenticated_storage', authenticated)
     monkeypatch.setattr(supabase_routes, 'storage', lambda _: storage)
     monkeypatch.setattr(supabase_routes, '_queue_if_configured', lambda: None)
     store = MemoryStore()
@@ -61,7 +72,8 @@ def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch,
             if endpoint == '/projects' or endpoint.startswith('/projects/') or endpoint in ('/user/conversations', '/story/preview'):
                 started = time.monotonic()
                 response = client.request(route.request.method, '/v1' + path,
-                    headers={'Authorization': 'Bearer fixture-session', 'Content-Type': 'application/json'},
+                    headers={key: value for key, value in route.request.headers.items()
+                             if key in {'authorization', 'content-type'}},
                     content=route.request.post_data or None)
                 requests.append((route.request.method, endpoint, response.status_code))
                 if endpoint == '/story/preview':
