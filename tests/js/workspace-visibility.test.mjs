@@ -31,6 +31,7 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
     bindViewActions() {}, bindProfileMenu() {}, disposeCesiumPlaceJourney() {}, initCesiumPlaceJourney() {},
     initFamilyVisualizations() {}, bindPhotoPagination() {}, resizeChatInput() {}, persistChatHistory() {},
     authReminder: {mount() {}}, render() {},
+    mapPhotoAlbums: {sync() {}},
     ...dependencies,
   });
   for (const name of ['composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',

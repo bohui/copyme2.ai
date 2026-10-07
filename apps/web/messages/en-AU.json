@@ -313,6 +313,8 @@
       "places": "Places",
       "placesSubtitle": "Where memory begins",
       "pictures": "Pictures",
+      "openPhotoAlbum": "Open {count} reference photographs of {place}",
+      "closePhotoAlbum": "Close photo album",
       "picturesSubtitle": "Searched references",
       "delivery": "Delivery",
       "deliverySubtitle": "Your memoir options",

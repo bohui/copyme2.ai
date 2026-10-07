@@ -313,6 +313,8 @@
       "places": "地点",
       "placesSubtitle": "回忆开始的地方",
       "pictures": "照片",
+      "openPhotoAlbum": "查看{place}的{count}张参考照片",
+      "closePhotoAlbum": "关闭相册",
       "picturesSubtitle": "搜索到的参考资料",
       "delivery": "交付",
       "deliverySubtitle": "您的回忆录选项",
