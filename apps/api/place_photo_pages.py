@@ -78,7 +78,7 @@ class PhotoPages:
                 job['failures'] = error.failures if isinstance(error, PhotoResearchUnavailable) else []
         finally:
             if not cached_complete:
-                save(True)
+                save(not job['error'])
             with self.lock:
                 job['revision'] += 1
                 job['done'].set()

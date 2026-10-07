@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_browser_receipt_cannot_clear_other_failures_or_provider_gaps[state_unavailable] _
+
+remaining_gap = 'state_unavailable'
+
+    @pytest.mark.parametrize("remaining_gap", ["state_failure", "provider_unavailable", "state_unavailable"])
+    def test_browser_receipt_cannot_clear_other_failures_or_provider_gaps(remaining_gap):
+        case, grade = _required_ui_grade()
+        grade = deepcopy(grade)
+        if remaining_gap == "state_failure":
+            grade["state_checks"]["visible_markers_stripped"]["status"] = "fail"
+            grade["overall"] = "fail"
+        elif remaining_gap == "provider_unavailable":
+            grade["evidence_status"] = "unavailable"
+        else:
+            grade["state_checks"]["visible_markers_stripped"]["status"] = "unavailable"
+        merged = merge_ui_skill_observations(
+            [grade], {1: {"memoir-place-groups": {"executed": True, "called": True, "output_ok": True}}},
+            {}, case, execution_mode="live",
+        )
+>       assert merged[0]["overall"] == ("fail" if remaining_gap == "state_failure" else "unavailable")
+E       AssertionError: assert 'pass' == 'unavailable'
+E
+E         - unavailable
+E         + pass
+
+tests/test_memoir_skill_acceptance.py:94: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_memoir_skill_acceptance.py::test_browser_receipt_cannot_clear_other_failures_or_provider_gaps[state_unavailable]
+1 failed, 9 deselected in 0.05s

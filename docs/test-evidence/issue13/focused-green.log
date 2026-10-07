@@ -1,0 +1,6 @@
+...........................................................ssss......... [ 43%]
+........................................................................ [ 87%]
+....................                                                     [100%]
+=========================== short test summary info ============================
+SKIPPED [4] tests/test_interview_followups.py:52: Opt-in live model evaluation; requires the configured application provider
+160 passed, 4 skipped in 1.17s
