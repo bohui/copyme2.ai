@@ -432,6 +432,44 @@ def test_existing_composer_worker_uses_shared_event_ids_and_originals_without_re
     assert [json.loads(line)['phase'] for line in calls.read_text().splitlines()] == ['prepare_start', 'prepare_end', 'draft', 'review']
 
 
+@pytest.mark.parametrize('quote,veto,title', [
+    ('I bought a house in 1980.', 'Please do not add this event to my timeline.', 'My home'),
+    ('我在1980年买了一栋房子。', '请不要把这个事件加入我的时间线。', '我的家'),
+])
+@pytest.mark.parametrize('oversized_end', [False, True])
+def test_saved_draft_keeps_canonical_span_after_a_repeated_vetoed_quote(sql, tmp_path, monkeypatch, quote, veto, title, oversized_end):
+    from apps.api.memory_events import validate_extraction
+    from test_agent_commit_postgres import OLD
+
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    prefix = quote + ' ' + veto + ' '
+    original = add_rounds(sql, 1, 1, prefix + quote)[0]
+    sources = [original, *add_rounds(sql, 2, 5)]
+    ref = {'source_id': original['id'], 'version': 1, 'quote': quote,
+           'char_start': len(prefix), 'char_end': 999 if oversized_end else len(original['text'])}
+    proposals = validate_extraction({'events': [
+        {'kind': 'event', 'title': title, 'source_refs': [ref]}
+    ]}, sources, [])
+    assert len(proposals) == 1
+    event = extract(sql, sources, proposals)['events'][0]
+    assert event['source_refs'] == [ref]
+    lane = deliver_latest(sql)['composer_lane_id']
+    result = run_controlled_composer(sql, tmp_path, monkeypatch, lane, prose=quote,
+        control_options={'title': title, 'summary': quote})
+    assert result['status'] == 'saved'
+    response = story_client(sql).get('/v1/story/private-draft?project_id=project',
+        headers={'Authorization': 'Bearer synthetic-author'})
+    assert response.status_code == 200
+    saved = response.json()
+    assert saved['status'] == 'ready' and saved['covered_round'] == 5
+    assert saved['preview']['text'] == quote
+    durable = rpc(sql, 'read_user_memoir_draft', "'project', 'en-AU'")
+    passage = next(section for section in durable['sections'] if 'block' in section)
+    assert passage['event_ids'] == [event['id']]
+    assert passage['source_refs'] == [{'source_id': original['id'], 'version': '1',
+        'char_start': len(prefix), 'char_end': len(original['text'])}]
+
+
 @pytest.mark.parametrize('failure',['blocking_review','word_ceiling'])
 def test_an_unreviewed_or_oversized_canonical_candidate_never_becomes_a_ready_saved_draft(sql,tmp_path,monkeypatch,failure):
     sources,lanes=five_rounds(sql)
