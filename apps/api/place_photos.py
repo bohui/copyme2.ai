@@ -18,7 +18,7 @@ DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
 PHOTO_RADIUS_KM = 20
 PHOTO_YEAR_TOLERANCE = 10
-PHOTO_SEARCH_POLICY = 'place-radius20-years10-v5'
+PHOTO_SEARCH_POLICY = 'place-radius20-period-v6'
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
 GOOGLE_CSE_MAX_PAGES = 10
@@ -81,11 +81,22 @@ def _is_historical_period(period: str) -> bool:
 
 def _photo_period_bounds(period: str) -> tuple[int, int] | None:
     bounds = _period_bounds(period)
-    return (bounds[0] - PHOTO_YEAR_TOLERANCE, bounds[1] + PHOTO_YEAR_TOLERANCE) if bounds else None
+    tolerance = _photo_year_tolerance(period)
+    return (bounds[0] - tolerance, bounds[1] + tolerance) if bounds else None
 
 
-def _date_matches(date: str, period: str, *, tolerance: int = PHOTO_YEAR_TOLERANCE) -> bool:
+def _photo_year_tolerance(period: str) -> int:
     bounds = _period_bounds(period)
+    # Bare years retain their documented ten-year window; explicit ranges
+    # and decades remain authoritative. A single qualified year cue keeps
+    # the nearby-year reference allowance without widening those contracts.
+    return PHOTO_YEAR_TOLERANCE if bounds and bounds[0] == bounds[1] and len(_years(period)) == 1 else 0
+
+
+def _date_matches(date: str, period: str, *, tolerance: int | None = None) -> bool:
+    bounds = _period_bounds(period)
+    if tolerance is None:
+        tolerance = _photo_year_tolerance(period)
     years = _years(date)
     # Unresolved periods/dates must not silently turn into unrestricted results.
     if not years or re.search(r'circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后', date, re.I):
@@ -653,7 +664,7 @@ def _wikimedia_file(url: str) -> str | None:
 
 
 def _deduplicate(items: list[dict]) -> list[dict]:
-    unique, seen = [], set()
+    unique, seen = [], {}
     for item in items:
         original = _canonical_image(item.get('original_url') or item.get('image_url', ''))
         # A crawled article can contain several distinct photographs. Its
@@ -674,15 +685,27 @@ def _deduplicate(items: list[dict]) -> list[dict]:
         if item.get('content_hash'):
             keys.add(('hash', item['content_hash']))
         fingerprint = item.get('perceptual_hash', '')
-        similar = (re.fullmatch(r'[0-9a-f]{16}', fingerprint) and any(
+        similar = next((index for index, other in enumerate(unique) if
+            re.fullmatch(r'[0-9a-f]{16}', fingerprint) and
             re.fullmatch(r'[0-9a-f]{16}', other.get('perceptual_hash', ''))
             and (int(fingerprint, 16) ^ int(other['perceptual_hash'], 16)).bit_count() <= 6
-            for other in unique))
-        if seen.intersection(keys) or similar:
-            seen.update(keys)
+            ), None)
+        matches = {seen[key] for key in keys if key in seen}
+        if matches or similar is not None:
+            index = min(matches) if matches else similar
+            exact_images = {seen[key] for key in keys if key in seen
+                            and key[0] in {'asset', 'image', 'hash', 'wikimedia'}}
+            for match in exact_images:
+                if _coordinates(unique[match]) is None and _coordinates(item) is not None:
+                    # Keep the whole source-backed candidate, including its
+                    # provenance. Similar-looking scenes do not confer GPS.
+                    unique[match] = item
+            for key in keys:
+                seen.setdefault(key, index)
             continue
+        index = len(unique)
         unique.append(item)
-        seen.update(keys)
+        seen.update((key, index) for key in keys)
     return unique
 
 

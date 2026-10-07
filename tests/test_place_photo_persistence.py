@@ -1,13 +1,180 @@
 import json
+import asyncio
+import time
 from copy import deepcopy
 from pathlib import Path
+from threading import Event
 
 import httpx
 import pytest
 
 from apps.api import place_photo_pages as pages
+from apps.api import place_photo_transport as transport
 from apps.api.place_photo_repository import PhotoRepository, search_key
 from test_agent_commit_postgres import database, as_user, OWNER
+from test_llm_place_photos import search_world
+from test_place_workspace import google_result
+
+
+@pytest.mark.parametrize('blocked_operation', ['load', 'save'])
+def test_slow_persistence_keeps_async_streams_and_other_searches_responsive(
+        monkeypatch, search_world, blocked_operation):
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL', raising=False)
+    entered, release = Event(), Event()
+    rows = {}
+    cold_key = search_key('Chengde', '1983年')
+    blocking = False
+
+    def server(request):
+        if request.method == 'POST':
+            record = json.loads(request.content)
+            if blocking and blocked_operation == 'save' and record['search_key'] == cold_key:
+                entered.set()
+                release.wait(2)
+            rows[record['search_key']] = record
+            return httpx.Response(201)
+        key = request.url.params['search_key'].removeprefix('eq.')
+        if blocking and blocked_operation == 'load' and key == cold_key:
+            entered.set()
+            release.wait(2)
+        return httpx.Response(200, json=[{'result': rows[key]['result']}] if key in rows else [])
+
+    repository = PhotoRepository('https://example.supabase.co', 'server-secret',
+                                 transport=httpx.MockTransport(server))
+    cached = {'complete': True, 'items': [{'asset_id': 'cached', 'date_expression': '1983',
+              'image_url': 'https://images.example/street.jpg',
+              'source_url': 'https://archive.example/photo'}]}
+    repository.save('Chengde', '1980s', cached)
+    if blocked_operation == 'load':
+        repository.save('Chengde', '1983年', cached)
+    worker = pages.PhotoPages(repository=repository)
+    worker.page('hot-user', 'Chengde', '1980s', None)
+    blocking = True
+
+    async def check():
+        cold = None
+        try:
+            start = time.monotonic()
+            cold = await transport.photo_response(worker, 'cold-user', 'Chengde', '1983年', None,
+                                                  stream=True)
+            assert await asyncio.to_thread(entered.wait, 1)
+            hot = await transport.photo_response(worker, 'hot-user', 'Chengde', '1980s', None,
+                                                 stream=True)
+            frames = [json.loads(frame) async for frame in hot.body_iterator]
+            await asyncio.sleep(0.01)
+            assert time.monotonic() - start < 0.5, 'persistence blocked unrelated async work'
+            assert not release.is_set()
+            assert frames[-1]['items'][0]['asset_id'] == 'cached'
+        finally:
+            release.set()
+            if cold is not None:
+                frames = [json.loads(frame) async for frame in cold.body_iterator]
+                assert frames[-1]['items'][0]['image_url'] == 'https://images.example/street.jpg'
+
+    try:
+        asyncio.run(check())
+    finally:
+        release.set()
+        worker.close()
+
+
+@pytest.mark.parametrize('located', [False, True])
+def test_restarted_research_keeps_verified_location_enrichment_for_the_same_image(
+        monkeypatch, search_world, located):
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'fixture-key')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'fixture-engine')
+    candidate = google_result(1)
+    candidate['link'] = 'https://images.example/shared.jpg'
+    if not located:
+        candidate['pagemap']['imageobject'] = []
+    discovered, release = Event(), Event()
+
+    def catalog(request_url, **kwargs):
+        if 'customsearch.googleapis.com' in request_url:
+            discovered.set()
+            assert release.wait(2)
+        value = {'items': [candidate]} if 'customsearch.googleapis.com' in request_url else {}
+        return httpx.Response(200, json=value, request=httpx.Request('GET', request_url))
+
+    monkeypatch.setattr(httpx, 'get', catalog)
+    rows = {}
+
+    def server(request):
+        if request.method == 'POST':
+            record = json.loads(request.content)
+            rows[record['search_key']] = record
+            return httpx.Response(201)
+        key = request.url.params['search_key'].removeprefix('eq.')
+        return httpx.Response(200, json=[{'result': rows[key]['result']}] if key in rows else [])
+
+    repository = PhotoRepository('https://example.supabase.co', 'server-secret',
+                                 transport=httpx.MockTransport(server))
+    repository.save('Chengde', '1980s', {'complete': False, 'items': [{
+        'asset_id': 'location-unknown', 'date_expression': '1983',
+        'image_url': 'https://images.example/shared.jpg',
+        'source_url': 'https://archive.example/earlier'}]})
+    center = {'latitude': 40.98, 'longitude': 117.94}
+    for owner in ('first-user', 'after-another-restart'):
+        worker = pages.PhotoPages(repository=repository)
+        async def streamed_result():
+            stream = worker.stream(owner, 'Chengde', '1980s', None, **center)
+            try:
+                first = json.loads(await anext(stream))
+                if owner == 'first-user':
+                    assert await asyncio.to_thread(discovered.wait, 1)
+                    seeded = json.loads(await asyncio.wait_for(anext(stream), 1))
+                    assert seeded['searching'] and seeded['count'] == 0
+                    release.set()
+                frames = [json.loads(frame) async for frame in stream]
+                return frames[-1] if frames else first
+            finally:
+                release.set()
+                await stream.aclose()
+        try:
+            result = asyncio.run(streamed_result())
+        finally:
+            release.set()
+            worker.close()
+        assert result['count'] == (1 if located else 0)
+        if located:
+            assert result['items'][0]['latitude'] == 40.98
+            assert result['items'][0]['longitude'] == 117.94
+            assert result['items'][0]['source_url'] == candidate['image']['contextLink']
+
+
+def test_restarted_worker_resumes_incomplete_research_without_losing_cached_photos(search_world):
+    _, world = search_world
+    rows = {}
+
+    def server(request):
+        if request.method == 'POST':
+            record = json.loads(request.content)
+            rows[record['search_key']] = record
+            return httpx.Response(201)
+        key = request.url.params['search_key'].removeprefix('eq.')
+        return httpx.Response(200, json=[{'result': rows[key]['result']}] if key in rows else [])
+
+    def repository():
+        return PhotoRepository('https://example.supabase.co', 'server-secret',
+                               transport=httpx.MockTransport(server))
+
+    cached_photo = {'asset_id': 'before-restart', 'date_expression': '1983',
+                    'image_url': 'https://images.example/cached.jpg',
+                    'source_url': 'https://archive.example/cached'}
+    repository().save('Chengde', '1980s', {'items': [cached_photo], 'complete': False})
+    worker = pages.PhotoPages(repository=repository())
+    try:
+        result = worker.page('new-user', 'Chengde', '1980s', None)
+    finally:
+        worker.close()
+
+    assert result['count'] == 2
+    assert result['items'][0]['asset_id'] == 'before-restart'
+    assert result['items'][1]['image_url'] == 'https://images.example/street.jpg'
+    assert not result['searching']
+    assert len(world['calls']) == 1
+    assert rows[search_key('Chengde', '1980s')]['result']['complete']
 
 
 def test_global_results_survive_worker_restart_and_paginate_for_another_user(monkeypatch):

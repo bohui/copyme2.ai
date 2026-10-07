@@ -8,6 +8,17 @@ from apps.api.store import MemoryStore
 def no_live_browser_search(monkeypatch):
     # Catalogue unit tests never launch real browsers or query external sites.
     monkeypatch.setattr('apps.api.place_photo_browser.crawl_place_photos', lambda *args, **kwargs: [])
+    # The catalogues now verify image identities through a separate HTTP
+    # fetcher; serve those bytes at the same external test boundary.
+    import hashlib
+    from io import BytesIO
+    from PIL import Image
+    from apps.api.place_photo_browser import _research
+    def image_bytes(self, url, *args, **kwargs):
+        data = BytesIO()
+        Image.new('RGB', (8, 8), tuple(hashlib.sha256(url.encode()).digest()[:3])).save(data, format='PNG')
+        return 200, url, {'content-type': 'image/png'}, data.getvalue()
+    monkeypatch.setattr(_research().Fetcher, 'fetch', image_bytes)
 
 
 def test_project_retains_places_with_their_stages_and_picture_references():

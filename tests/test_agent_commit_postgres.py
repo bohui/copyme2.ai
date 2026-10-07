@@ -175,8 +175,11 @@ class ContainerSql:
 
 
 @pytest.fixture(scope='module')
-def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None):
+def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None,
+             legacy_schema=True, postgres_image='postgres:18.3'):
     commands = ProcessDeadline(deadline, cancellation)
+    if postgres_image not in {'postgres:18.3', 'postgres:17.6'}:
+        raise ValueError('Only the supported stock PostgreSQL fixture images are allowed')
     container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container'
     if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
@@ -194,7 +197,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                         on_allocation()
                 commands.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
                     '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
-                    'postgres:18.3', 'postgres', '-c', 'listen_addresses='], check=True)
+                    postgres_image, 'postgres', '-c', 'listen_addresses='], check=True)
                 if allocation is not None:
                     allocation['created'] = True
                     if on_allocation is not None:
@@ -242,10 +245,11 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 create function storage.foldername(text) returns text[] language sql as
                   $$select string_to_array($1, '/')$$;
             ''')
-            root = Path(__file__).resolve().parents[1] / 'supabase' / 'legacy-migrations'
-            for name in ('202609230001_user_agent_storage.sql', '202609230002_agent_sessions.sql',
-                         '202609250002_agent_turn_leases.sql', '202609250004_fenced_agent_turn_commit.sql'):
-                sql((root / name).read_text())
+            if legacy_schema:
+                root = Path(__file__).resolve().parents[1] / 'supabase' / 'legacy-migrations'
+                for name in ('202609230001_user_agent_storage.sql', '202609230002_agent_sessions.sql',
+                             '202609250002_agent_turn_leases.sql', '202609250004_fenced_agent_turn_commit.sql'):
+                    sql((root / name).read_text())
             sql(f"insert into auth.users values ('{OWNER}'), ('{OTHER}');")
             yield sql
         finally:

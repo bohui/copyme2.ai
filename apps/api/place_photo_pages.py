@@ -28,27 +28,47 @@ class PhotoPages:
     def close(self):
         self.pool.shutdown(wait=False, cancel_futures=True)
 
-    def _search(self, job, place, period):
+    def _search(self, job, place, period, *, refresh=False):
         def save(complete):
-            if self.repository and (job['items'] or not job['error']):
-                self.repository.save(place, period, {'items': deepcopy(job['items']),
-                    'complete': complete, 'failures': deepcopy(job['failures'])})
+            if not self.repository:
+                return
+            # Serialize this job's writes, taking the newest snapshot only
+            # after acquiring its persistence lock. Network waits never hold
+            # the shared search lock or delay another project's delivery.
+            with job['persistence_lock']:
+                with self.lock:
+                    result = ({'items': deepcopy(job['items']), 'complete': complete,
+                               'failures': deepcopy(job['failures'])}
+                              if job['items'] or not job['error'] else None)
+                if result is not None:
+                    self.repository.save(place, period, result)
         def publish(items):
             with self.lock:
                 # Arrival order stays stable even when later catalogues finish.
                 job['items'] = filter_place_photos(job['items'] + items, period)[:150]
                 job['revision'] += 1
-                if items:
-                    save(False)
+            if items:
+                save(False)
+        cached_complete = False
         try:
+            cached = self.repository.load(place, period) if self.repository and not refresh else None
+            if cached is not None:
+                with self.lock:
+                    job.update(items=filter_place_photos(cached['items'], period),
+                               failures=cached.get('failures', []))
+                    job['revision'] += 1
+                cached_complete = bool(cached.get('complete'))
+                if cached_complete:
+                    return
             publish(search_place_photos(place, period, limit=None, on_items=publish))
         except Exception as error:
             with self.lock:
                 job['error'] = True
                 job['failures'] = error.failures if isinstance(error, PhotoResearchUnavailable) else []
         finally:
-            with self.lock:
+            if not cached_complete:
                 save(True)
+            with self.lock:
                 job['revision'] += 1
                 job['done'].set()
                 job['expires'] = time.monotonic() + (0 if job['error'] and not job['items'] else SNAPSHOT_TTL)
@@ -100,17 +120,9 @@ class PhotoPages:
                         raise HTTPException(status_code=503, detail='Photo research is busy; retry shortly')
                     del self.searches[completed]
                 job = {'items': [], 'done': Event(), 'error': False, 'failures': [], 'revision': 0,
-                       'expires': float('inf')}
-                cached = self.repository.load(place, period) if self.repository and not refresh else None
-                if cached is not None:
-                    items = filter_place_photos(cached['items'], period)
-                    if items or (cached.get('complete') and not cached['items']):
-                        job.update(items=items, failures=cached.get('failures', []),
-                                   expires=now + SNAPSHOT_TTL)
-                        job['done'].set()
+                       'expires': float('inf'), 'persistence_lock': RLock()}
                 self.searches[search_query] = job
-                if not job['done'].is_set():
-                    self.pool.submit(self._search, job, place, period)
+                self.pool.submit(self._search, job, place, period, refresh=refresh)
             token = secrets.token_urlsafe(18)
             self.snapshots[token] = {'owner': owner, 'query': query, 'job': job,
                                      'center': center, 'period': period,

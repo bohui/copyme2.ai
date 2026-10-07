@@ -6,6 +6,8 @@ Research checked 2026-09-29. Recommendation: prioritize Flickr's documented sear
 
 [Chengde 承德 1983, by kattebelletje](https://www.flickr.com/photos/kattebelletje/albums/72157614775600805/) reports **115 photographs**. The photographer describes an October 1983 visit and notes that some pictures were taken by their mother in May 1984. Both dates satisfy a request beginning with the bare year **1980**, which resolves to **1980–1989**. Use an explicit `1980–1980` range when an exact calendar year is intended.
 
+The app and browser share these period bounds: bare `1980` and `1980s` both cover 1980–1989, and explicit ranges remain exact. A qualified single-year cue such as `1983年` allows source-dated references within ten years on either side. Capture expressions containing a bare year describe that observed year; they do not open another ten-year window. An absent request period retains the current two-year default. Cache policy `place-radius20-period-v6` separates these results from the earlier uniformly widened policy.
+
 The following individual source pages were opened; each displays a capture date in October 1983 separately from its March 2009 upload date:
 
 | Photo | Source |

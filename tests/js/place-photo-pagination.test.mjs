@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 const center = {latitude: 40.98, longitude: 117.94};
-const scope = {photo_search_policy: 'place-radius20-years10-v5', photo_search_latitude: center.latitude,
+const scope = {photo_search_policy: 'place-radius20-period-v6', photo_search_latitude: center.latitude,
   photo_search_longitude: center.longitude};
 const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
   date_expression: '1983', ...center});
@@ -42,7 +42,7 @@ test('refresh restores persisted photos without searching after the old cache ex
   let calls = 0;
   const saved = {place: 'Chengde', period: '1980s', photo_search_period: '1980s',
     photo_search_place: 'Chengde', photo_search_at: Date.now() - 86400000,
-    photo_search_policy: 'place-radius20-years10-v5', photo_next_cursor: null, pictures: [picture('saved')]};
+    photo_search_policy: 'place-radius20-period-v6', photo_next_cursor: null, pictures: [picture('saved')]};
   const h = harness(saved, async () => { calls++; return {items: [], next_cursor: null}; });
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 0, 'history restoration unnecessarily triggered photo discovery');
@@ -137,7 +137,7 @@ test('a different period never reuses old cursors or appends wrong-period photos
   const calls = [];
   const h = harness({place: 'Chengde', period: '1990s', photo_search_period: '1980s',
     photo_next_cursor: 'old:10', pictures: [picture('old')]}, async url => {
-    calls.push(url); return {items: [picture('new')], next_cursor: null};
+    calls.push(url); return {items: [{...picture('new'), date_expression: '1993'}], next_cursor: null};
   });
   await h.context.loadPlacePictures(h.entry(), 'project', {more: true});
   assert.equal(calls.length, 0);
@@ -170,7 +170,7 @@ test('older empty searches are retried under the radius and year policy', async 
   await h.context.loadPlacePictures(h.entry(), 'project');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 1);
-  assert.equal(h.entry().photo_search_policy, 'place-radius20-years10-v5');
+  assert.equal(h.entry().photo_search_policy, 'place-radius20-period-v6');
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {

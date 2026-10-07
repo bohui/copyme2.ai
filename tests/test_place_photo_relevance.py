@@ -2,6 +2,9 @@ from fastapi.testclient import TestClient
 from io import BytesIO
 import math
 import random
+import json
+import subprocess
+from pathlib import Path
 from threading import Event
 
 from PIL import Image
@@ -12,6 +15,62 @@ from apps.api import place_photo_pages as pages
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
 from apps.api.place_photo_fingerprints import fingerprint_bytes
+from test_llm_place_photos import search_world
+from test_place_workspace import photo_page
+
+
+@pytest.mark.parametrize('period,expected_years', [
+    ('1980', [1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989]),
+    ('1980s', [1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989]),
+    ('1980-1980', [1980]),
+    ('1983年', [1973, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1993]),
+])
+def test_counted_paginated_photos_remain_visible_when_saved_in_the_browser(
+        monkeypatch, search_world, period, expected_years):
+    import httpx
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
+    years = [1972, 1973, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988,
+             1989, 1990, 1993, 1994, 1999]
+    catalog = {str(year): photo_page(year, date=str(year)) for year in years}
+
+    def get(url, **kwargs):
+        value = {'query': {'pages': catalog}} if 'commons' in url else {}
+        return httpx.Response(200, json=value, request=httpx.Request('GET', url))
+
+    monkeypatch.setattr(httpx, 'get', get)
+    center = {'latitude': 40.98, 'longitude': 117.94}
+    with TestClient(create_app(MemoryStore())) as client:
+        headers = {'X-Account-Id': 'photo-owner'}
+        project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()
+        url = f"/v1/projects/{project['id']}/place-photos"
+        params = {'place': 'Chengde', 'period': period, **center}
+        items = []
+        while True:
+            response = client.get(url, headers=headers, params=params)
+            assert response.status_code == 200
+            result = response.json()
+            assert result['count'] == len(expected_years)
+            items.extend(result['items'])
+            if not result['next_cursor']:
+                break
+            params['cursor'] = result['next_cursor']
+    assert sorted(int(item['date_expression']) for item in items) == expected_years
+    program = r'''
+const fs = require('node:fs'), vm = require('node:vm');
+const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+const source = fs.readFileSync('apps/web/client/memoir/client.js', 'utf8');
+const context = vm.createContext({});
+for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoMatchesScope']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+}
+const visible = input.items.filter(item => context.photoMatchesScope(item, input.entry));
+process.stdout.write(JSON.stringify(visible.map(item => item.asset_id)));
+'''
+    browser = subprocess.run(['node', '-e', program], cwd=Path(__file__).resolve().parents[1],
+        input=json.dumps({'items': items, 'entry': {'place': 'Chengde', 'period': period,
+                         'photo_search_complete': True, 'pictures': items, **center}}),
+        text=True, capture_output=True, check=True)
+    assert set(json.loads(browser.stdout)) == {item['asset_id'] for item in items}
 
 
 def picture(identifier, **fields):

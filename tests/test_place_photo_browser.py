@@ -178,7 +178,7 @@ def test_google_or_query_is_one_search_and_preserves_place_and_period(monkeypatc
     query = parse_qs(urlsplit(url).query)['q'][0]
     assert browser._discovery_queries('google', place, period, url) == [(url, False)]
     if place == '承德':
-        years = ' OR '.join(str(year) for year in range(1970, 2000))
+        years = ' OR '.join(str(year) for year in range(1980, 1990))
         assert query == f'("承德" OR "Chengde") ({years})'
     elif place == 'Chengde':
         current = browser._research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
