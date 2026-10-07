@@ -30,6 +30,8 @@ def attachment_database(database):
     database((Path(__file__).resolve().parents[1] / 'supabase/legacy-migrations/'
               '202609300001_guest_conversation_attachments.sql').read_text())
     database((root / '202609300002_guest_workspace_merge.sql').read_text())
+    database((Path(__file__).resolve().parents[1] / 'supabase/migrations/'
+              '202610020001_guest_transfer_storage_owner.sql').read_text())
     database(f"insert into auth.users(id) values ('{THIRD}');")
     return database
 
@@ -92,6 +94,22 @@ def test_reply_in_progress_blocks_preparation(sql):
     assert sql('select count(*) from public.guest_conversation_transfer;').stdout.strip() == '0'
 
 
+def test_prepare_with_supabase_storage_owner_id_column(sql):
+    # Supabase Storage has an owner_id column absent from the old fixture.
+    # It must not shadow the function's authenticated owner_id variable.
+    sql('alter table storage.objects add column owner_id text;')
+    try:
+        sql(f"insert into storage.objects(bucket_id, name, owner_id) values "
+            f"('memory-spark', '{OWNER}/attachment/guest.txt', '{OTHER}'), "
+            f"('memory-spark', '{OTHER}/attachment/other.txt', '{OWNER}');")
+        result = json.loads(sql(as_user(prepare())).stdout.splitlines()[-1])
+        assert result == {'prepared': True}
+        objects = json.loads(sql("select workspace->'storage_objects' from public.guest_conversation_transfer;").stdout)
+        assert [item['name'] for item in objects] == [f'{OWNER}/attachment/guest.txt']
+    finally:
+        sql('alter table storage.objects drop column owner_id;')
+
+
 def test_attachment_failure_rolls_back_memories_and_claim(sql):
     sql(as_user(prepare()))
     sql("alter table public.user_memory add constraint test_attachment_failure check (content <> 'Storyteller: Guest memory') not valid;")
@@ -116,6 +134,22 @@ def test_merge_carries_profile_language_places_and_photos(sql):
     assert profile['birth_place'] == 'Anshan'
     assert profile['preferred_language'] == 'zh-CN'
     assert profile['memory_places'][0]['pictures'][0]['id'] == 'photo-1'
+
+
+@pytest.mark.parametrize('target_explicit', [False, True])
+def test_guest_locale_provenance_survives_transfer_and_retry(sql, target_explicit):
+    from apps.api.conversation_locale import FIELD, record, explicit_profile
+    guest = {'preferred_language':'zh-CN', FIELD:record('zh-CN', source='first_reply', detected='zh-CN', first_reply_id='guest-first')}
+    target = explicit_profile({'preferred_language':'en-AU', FIELD:record('en-AU', source='first_reply', detected='en-AU', first_reply_id='target-first')}, 'en-AU') if target_explicit else {}
+    sql(f"insert into public.user_profile(user_id,profile) values ('{OWNER}','{json.dumps(guest)}'), ('{OTHER}','{json.dumps(target)}');")
+    sql(as_user(prepare()))
+    sql(as_user(attach(), OTHER))
+    expected = target if target_explicit else guest
+    for _ in range(2):
+        profile = json.loads(sql(f"select profile from public.user_profile where user_id='{OTHER}';").stdout)
+        assert profile['preferred_language'] == expected['preferred_language']
+        assert profile[FIELD] == expected[FIELD]
+        sql(as_user(attach(), OTHER))
 
 
 def test_files_memory_citations_family_context_and_map_are_preserved(sql):

@@ -38,3 +38,21 @@ def test_conversation_history_requires_authentication(monkeypatch):
     monkeypatch.setenv('SUPABASE_PUBLISHABLE_KEY', 'public-key')
     client = TestClient(create_app(MemoryStore()))
     assert client.get('/v1/user/conversations').status_code == 401
+
+
+def test_history_returns_original_message_without_profile_instructions(monkeypatch):
+    storage = Mock()
+    storage.user_id = 'owner'
+    storage.request.return_value.json.return_value = []
+    original = '我叫小林\n我小时候住在北京。'
+    storage.all_memories.return_value = [{
+        'id': 'first', 'kind': 'agent', 'created_at': '2026-09-28',
+        'content': "Storyteller: The storyteller said: " + original +
+                   "\nThis is the storyteller's first answer to the shared profile-intake opening. "
+                   "Extract only explicit facts\nMemory Spark: 你记得那里的什么？",
+    }]
+    monkeypatch.setattr(supabase_routes, 'storage', lambda auth: storage)
+    monkeypatch.setattr(supabase_routes, '_queue_if_configured', lambda: None)
+    messages = supabase_routes.conversation_attachments('Bearer owner-session')['items'][0]['messages']
+    assert messages == [{'role': 'user', 'text': original},
+                        {'role': 'assistant', 'text': '你记得那里的什么？'}]

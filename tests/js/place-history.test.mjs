@@ -3,6 +3,18 @@ import assert from 'node:assert/strict';
 import {mergePlaces, placeHistoryKey, mapTarget} from '../../apps/web/client/memoir/places.mjs';
 const city = {place:'承德', hierarchy:['Earth','中国','河北','承德'], granularity:'city', latitude:40.97, longitude:117.93};
 const suburb = {place:'大石庙镇', hierarchy:[...city.hierarchy,'大石庙镇'], granularity:'suburb'};
+test('restored history excludes generic and detailed places even when labelled suburb', () => {
+ const places = mergePlaces([city, suburb,
+  {...suburb, place:'家属院'}, {...suburb, place:'承德师范学校'},
+  {...suburb, place:'Chatswood station'}, {...suburb, place:'附属医院', granularity:'landmark'},
+  {...city, hierarchy:[...city.hierarchy, '家属院']},
+ ]);
+ assert.deepEqual(places.map(place => place.place), ['承德','大石庙镇']);
+});
+test('named suburbs are retained when an institution word is part of their name', () => {
+ const places = mergePlaces(['College Park','Road Town'].map(place => ({place,hierarchy:['Earth',place],granularity:'suburb'})));
+ assert.deepEqual(places.map(place => place.place), ['College Park','Road Town']);
+});
 test('merges stage duplicates, retains pictures and all stages', () => {
  const places = mergePlaces([{...suburb, life_stage:'childhood', pictures:[{asset_id:'a'}]}, {...suburb}, {...suburb, life_stage:'adolescence', pictures:[{asset_id:'b'}]}]);
  assert.equal(places.length, 1);
@@ -105,7 +117,8 @@ test('does not activate the workspace without a map target', async () => {
  const unknown = {place: 'Somewhere unknown', hierarchy: ['Earth', 'Somewhere unknown'], granularity: 'city'};
  const mapped = {place: 'Hobart', hierarchy: ['Earth', 'Australia', 'Hobart'], granularity: 'city', latitude: -42.88, longitude: 147.33};
  const context = vm.createContext({
-  state: {placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
+  state: {project: {id: 'project'}, placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
+  workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
   profile: () => ({memory_places: [unknown, mapped]}), workspaceTabs: () => [],
   workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},

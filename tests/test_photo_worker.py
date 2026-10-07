@@ -22,13 +22,14 @@ def test_worker_warms_once_authenticates_and_supports_both_response_formats(monk
     def search(place, period, **kwargs):
         searches.append((place, period))
         item = {'asset_id': 'one', 'image_url': 'https://images.example/one.jpg',
-                'source_url': 'https://archive.example/one'}
+                'source_url': 'https://archive.example/one', 'date_expression': '1983',
+                'latitude': 40.98, 'longitude': 117.94}
         kwargs['on_items']([item])
         return [item]
     monkeypatch.setattr(pages, 'search_place_photos', search)
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_SECRET', 'test-secret')
     app = create_photo_worker(browser_factory=Browser)
-    payload = {'owner': 'alice', 'place': 'Chengde', 'period': '1980s'}
+    payload = {'owner': 'alice', 'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}
     with TestClient(app) as client:
         assert client.get('/health').status_code == 200
         assert client.post('/internal/photos', json=payload).status_code == 401
@@ -46,7 +47,8 @@ def test_worker_warms_once_authenticates_and_supports_both_response_formats(monk
     assert len(closes) == 1
 
 
-def test_api_forwards_photo_batches_without_buffering_and_closes_connection(monkeypatch):
+@pytest.mark.parametrize('center', [{}, {'latitude': 40.98, 'longitude': 117.94}])
+def test_api_forwards_photo_batches_without_buffering_and_closes_connection(monkeypatch, center):
     original = httpx.AsyncClient
     release = asyncio.Event()
     closed = []
@@ -59,14 +61,14 @@ def test_api_forwards_photo_batches_without_buffering_and_closes_connection(monk
             closed.append(True)
     def handle(request):
         assert request.headers['x-photo-worker-secret'] == 'test-secret'
-        assert json.loads(request.content) == {'owner': 'alice', 'place': 'Chengde', 'period': '1980s', 'cursor': None}
+        assert json.loads(request.content) == {'owner': 'alice', 'place': 'Chengde', 'period': '1980s', 'cursor': None, **center}
         return httpx.Response(200, headers={'Content-Type': 'application/x-ndjson'}, stream=Chunks())
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_URL', 'http://worker:8767')
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_SECRET', 'test-secret')
     monkeypatch.setattr(transport.httpx, 'AsyncClient', lambda **kwargs:
                         original(transport=httpx.MockTransport(handle), **kwargs))
     async def check():
-        response = await transport.photo_response(None, 'alice', 'Chengde', '1980s', None, stream=True)
+        response = await transport.photo_response(None, 'alice', 'Chengde', '1980s', None, stream=True, **center)
         reader = response.body_iterator
         early = await asyncio.wait_for(anext(reader), 1)
         assert json.loads(early)['items'][0]['asset_id'] == 'early'

@@ -10,9 +10,15 @@ from apps.api.main import create_app
 from apps.api.store import MemoryStore
 
 
+@pytest.fixture(autouse=True)
+def no_live_image_fetches(monkeypatch):
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+
+
 def picture(index, host='archive.example', **fields):
     return {'asset_id': f'{host}-{index}', 'title': 'Chengde street', 'location': 'Chengde',
             'date_expression': '1983', 'image_url': f'https://images.{host}/{index}.jpg',
+            'latitude': 40.98, 'longitude': 117.94,
             'source_url': f'https://{host}/{index}', 'allowed_actions': {'embed': True}, **fields}
 
 
@@ -24,7 +30,7 @@ def test_pool_filters_place_period_and_interleaves_original_sources(monkeypatch)
     monkeypatch.setattr(photos, '_google_browser', lambda *args: [picture(i, 'archive.example') for i in range(20)])
     monkeypatch.setattr(photos, '_commons', lambda *args: [picture(i, 'commons.wikimedia.org') for i in range(20)])
     monkeypatch.setattr(photos, '_loc', lambda *args: [picture(1, 'loc.gov'),
-        picture(2, 'loc.gov', title='Chengdu street'), picture(3, 'loc.gov', date_expression='1990'),
+        picture(2, 'loc.gov', title='Chengdu street'), picture(3, 'loc.gov', date_expression='2000'),
         picture(4, 'loc.gov', date_expression='')])
     result = photos.search_place_photos('Chengde', '1980s')
     assert [item['source_url'].split('/')[2] for item in result[:4]] == [
@@ -102,7 +108,7 @@ def test_endpoint_pages_retain_authorization_and_do_not_repeat_discovery(monkeyp
     headers = {'X-Account-Id': 'owner'}
     project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()
     url = f"/v1/projects/{project['id']}/place-photos"
-    params = {'place': 'Chengde', 'period': '1980s'}
+    params = {'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}
     first = client.get(url, headers=headers, params=params).json()
     second = client.get(url, headers=headers, params={**params, 'cursor': first['next_cursor']}).json()
     assert len(first['items']) == len(second['items']) == 10 and first['count'] == 21

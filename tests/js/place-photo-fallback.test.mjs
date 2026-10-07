@@ -6,12 +6,14 @@ import {groupPlaces, mergePlaces, placeHistoryKey, matchesPlaceStage} from '../.
 
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 const photo = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
-  source_url: `https://sources.example/${id}`, title: id, date_expression: '1989', latitude: 40.98, longitude: 117.94,
-  attribution: 'Original photographer', allowed_actions: {embed: true}});
+  source_url: `https://sources.example/${id}`, title: id, date_expression: '1989',
+  latitude: 40.98, longitude: 117.94, attribution: 'Original photographer', allowed_actions: {embed: true}});
 const city = {place: '承德', hierarchy: ['Earth', '中国', '河北', '承德'], granularity: 'city',
-  latitude: 40.98, longitude: 117.94, photo_search_period: '1989年', pictures: [photo('city-photo')]};
+  latitude: 40.98, longitude: 117.94,
+  photo_search_period: '1989年', pictures: [photo('city-photo')]};
 const town = {place: '大石庙镇', hierarchy: [...city.hierarchy, '大石庙镇'], granularity: 'suburb',
-  latitude: 40.98, longitude: 117.94, period: '1989年', pictures: []};
+  latitude: 40.96, longitude: 117.94,
+  period: '1989年', pictures: []};
 const otherCity = {place: 'Sydney', hierarchy: ['Earth', 'Australia', 'Sydney'], granularity: 'city',
   pictures: [photo('other-city-photo')]};
 

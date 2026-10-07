@@ -19,16 +19,24 @@ def main():
         return {'asset_id': f'photo-{index}', 'kind': 'image', 'title': f'Chengde street {index}',
                 'image_url': f'/static/timeline_avatar_child_female.png?photo={index}',
                 'source_url': f'https://{host}/photos/{index}', 'date_expression': '1983',
-                'latitude': 40.9515, 'longitude': 117.9634,
+                'latitude': journey['latitude'], 'longitude': journey['longitude'],
                 'allowed_actions': {'embed': True}}
 
     def photos(route):
         params = parse_qs(urlsplit(route.request.url).query, keep_blank_values=True)
         assert params['period'] == ['1980s'], params
+        assert params['latitude'] == [str(journey['latitude'])], params
+        assert params['longitude'] == [str(journey['longitude'])], params
         cursor = params.get('cursor', [None])[0]
         requests.append(cursor)
         if cursor is None:
             items, next_cursor = [picture(i) for i in range(1, 11)], 'page2'
+            items += [
+                {**picture(1), 'asset_id': 'resized-copy', 'image_url': picture(1)['image_url'] + '&width=120&utm_source=test'},
+                {**picture(30), 'title': 'Distant photo', 'latitude': journey['latitude'] + 1},
+                {**picture(31), 'title': 'Wrong-period photo', 'date_expression': '2025'},
+                {**picture(32), 'title': 'Unknown-location photo', 'latitude': None, 'longitude': None},
+            ]
         elif len(requests) == 2:
             route.fulfill(json={'status': 'UNAVAILABLE', 'items': []})
             return
@@ -59,6 +67,7 @@ def main():
         expect(gallery.locator('figure')).to_have_count(10, timeout=30000)
         expect(page.locator('.assistant-message .message-text').last).to_have_text('What do you remember about Chengde?')
         expect(page.locator('.message-streaming')).to_have_count(0, timeout=15000)
+        assert not any(title in gallery.inner_text() for title in ('Distant photo', 'Wrong-period photo', 'Unknown-location photo'))
         gallery.evaluate('(node) => { node.scrollTop = node.scrollHeight; }')
         retry = page.locator('[data-photo-more]')
         expect(retry).to_have_text('Try loading more photos again', timeout=15000)
@@ -81,7 +90,7 @@ def main():
         assert len(set(gallery.locator('img').evaluate_all('(nodes) => nodes.map(node => node.src)'))) == 23
         assert not errors, errors
         browser.close()
-    print('PASS: scroll pagination, append/deduplication, scroll preservation, retry and exhaustion')
+    print('PASS: strict distance/year filters, resized duplicates, scroll pagination, retry and exhaustion')
 
 
 if __name__ == '__main__':

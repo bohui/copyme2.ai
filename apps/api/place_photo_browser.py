@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import time
 from threading import BoundedSemaphore
-from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 from .place_photos import PhotoResearchUnavailable, photo_failure_reason
@@ -86,7 +86,7 @@ def _flickr_cards(source_html: str, base: str) -> list[dict]:
 def _source_items(source_html: str, source_url: str, place: str, period: str,
                   *, location_context: str = '') -> list[dict]:
     """Use source captions and capture metadata; page/upload dates cannot date photos."""
-    from .place_photos import _date_matches, _google_license, _period_bounds, _text
+    from .place_photos import _coordinates, _date_matches, _google_license, _photo_period_bounds, _text
     helper = _research()
     parser = helper.PageParser(source_url)
     parser.feed(source_html)
@@ -108,7 +108,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                 objects.extend(item.get('@graph', [item]))
     photo = next((item for item in objects if isinstance(item, dict)
                   and item.get('@type') in ('Photograph', 'ImageObject')), {})
-    taken = _text(photo.get('dateCreated'))
+    taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
     if not taken:
         # Flickr exposes this separate from its "Uploaded on" timestamp.
         match = re.search(r'Taken on\s+([A-Za-z]+\s+\d{1,2},?\s+(?:18|19|20)\d{2})', page['text_excerpt'], re.I)
@@ -118,17 +118,40 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             if meta.get(key):
                 taken = meta[key]
                 break
+    source_host = urlsplit(source_url).hostname or ''
+    source_path = unquote(urlsplit(source_url).path)
+    source_title = parse_qs(urlsplit(source_url).query).get('title', [''])[0]
+    mediawiki_file = ((source_host == 'commons.wikimedia.org' or source_host.endswith('.wikipedia.org'))
+                     and bool(re.search(r'/(?:File|文件|檔案):|^(?:File|文件|檔案):', source_path + '\n' + source_title, re.I | re.M)))
+    if not taken and mediawiki_file:
+        # MediaWiki's file-description Date field is separate from upload and
+        # file-history timestamps. Read only that explicit image metadata cell.
+        match = re.search(r'<td\b[^>]*\bid=["\']fileinfotpl_date["\'][^>]*>.*?</td>\s*<td\b[^>]*>(.*?)</td>',
+                          source_html, re.I | re.S)
+        if match:
+            day = re.search(r'\bdatetime=["\']([^"\']+)', match[1], re.I)
+            taken = day[1] if day else _text(match[1]).split(',')[0].strip()
+            for format in ('%d %B %Y', '%d %b %Y', '%Y年%m月%d日'):
+                try:
+                    taken = datetime.strptime(taken, format).date().isoformat()
+                    break
+                except ValueError:
+                    pass
+    if mediawiki_file and not taken:
+        return []
     # A year in the item title/caption is a source assertion; a whole article's
     # publication year and recommendation text are deliberately excluded.
-    bounds = _period_bounds(period)
+    bounds = _photo_period_bounds(period)
     temporal = {
         'mode': 'historical_range',
         'start': f'{bounds[0]:04d}-01-01' if bounds else '2000-01-01',
         'end': f'{bounds[1]:04d}-12-31' if bounds else '2000-12-31',
     }
+    if not period:
+        temporal = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
     scene_date = helper._crawl4ai_scene_date(taken or context, temporal)
     if period and (not scene_date or (taken and not _date_matches(taken, period))):
-        return []
+        scene_date = None
     if not period:
         current = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
         years = helper._crawl4ai_years(taken or context)
@@ -146,8 +169,6 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                     pass
             if current['start'] <= start and end <= current['end']:
                 scene_date = {'start': start, 'end': end}
-        if not scene_date:
-            return []
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
     licence_url = _text(photo.get('license') or meta.get('license'))
@@ -156,22 +177,44 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         return []
     image_urls = []
     primary = photo.get('contentUrl') or meta.get('og:image')
-    if primary:
+    if mediawiki_file:
+        original = next((link['url'] for link in page['links']
+                         if re.search(r'original file|原始文件', link['text'], re.I)), None)
+        primary = original or primary
+    if primary and scene_date:
         image_urls.append((primary, title, scene_date))
     is_flickr = urlsplit(source_url).hostname in {'www.flickr.com', 'flickr.com'}
-    if period and not is_flickr:
+    if not is_flickr and not mediawiki_file:
         images = helper._crawl4ai_source_images(
             {'url': source_url, 'html': source_html}, {'title': title, 'text': context},
             {'place': place, 'temporal': temporal},
         )
         image_urls.extend((image['image_url'], image['title'], image['scene_date']) for image in images)
-    elif not primary:
+    elif not primary and scene_date:
         for image in page['image_candidates']:
             caption = ' '.join((image['alt'], image['figure_text']))
             if (helper.NON_PHOTO.search(caption)
                     or not helper._crawl4ai_location_matches(caption, place)):
                 continue
             image_urls.extend((url, caption, scene_date) for url in image['candidate_urls'])
+    point = _coordinates(photo)
+    if point is None:
+        point = _coordinates({'latitude': meta.get('place:location:latitude') or meta.get('geo:lat'),
+                              'longitude': meta.get('place:location:longitude') or meta.get('geo:long')})
+    if point is None:
+        position = meta.get('geo.position') or meta.get('ICBM') or ''
+        values = re.fullmatch(r'\s*(-?\d+(?:\.\d+)?)\s*[;,]\s*(-?\d+(?:\.\d+)?)\s*', position)
+        if not values and mediawiki_file:
+            values = re.search(r'class=["\'][^"\']*geo(?:-decimal)?[^"\']*["\'][^>]*>\s*(-?\d+(?:\.\d+)?)\s*[;,]\s*(-?\d+(?:\.\d+)?)', source_html, re.I)
+        if values:
+            point = _coordinates({'latitude': values[1], 'longitude': values[2]})
+    if point is None and mediawiki_file:
+        values = re.search(r'params=(\d+(?:\.\d+)?)(?:_(\d+(?:\.\d+)?))?(?:_(\d+(?:\.\d+)?))?_([NS])_(\d+(?:\.\d+)?)(?:_(\d+(?:\.\d+)?))?(?:_(\d+(?:\.\d+)?))?_([EW])(?:_|[&"\'])', unquote(source_html), re.I)
+        if values:
+            latitude = sum(float(values[i] or 0) / divisor for i, divisor in ((1, 1), (2, 60), (3, 3600)))
+            longitude = sum(float(values[i] or 0) / divisor for i, divisor in ((5, 1), (6, 60), (7, 3600)))
+            point = _coordinates({'latitude': latitude * (-1 if values[4].upper() == 'S' else 1),
+                                  'longitude': longitude * (-1 if values[8].upper() == 'W' else 1)})
     items = []
     for observed, caption, image_date in image_urls:
         image = helper._crawl4ai_image_url(observed)
@@ -186,8 +229,12 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             'source_url': source_url, 'image_url': image, 'original_url': image,
             'location': place, 'attribution': attribution or urlsplit(source_url).hostname,
             'location_evidence': location_evidence,
-            'date_expression': taken or image_date['start'][:4],
+            'date_expression': taken if is_flickr and taken else (
+                image_date['start'] if image_date['start'] == image_date['end'] else
+                image_date['start'][:4] if image_date['start'][:4] == image_date['end'][:4] else
+                image_date['start'][:4] + '-' + image_date['end'][:4]),
             'scene_date_range': image_date, 'date_basis': 'Source capture metadata or caption',
+            **((point or {}) if observed == primary else {}),
             'license': licence[0] if licence else 'Unknown', 'license_url': licence_url,
             'memory_reference_only': True,
             'allowed_actions': {'embed': True, 'memory_reference': True, 'download': False,
@@ -201,9 +248,9 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                         source_budget: int = MAX_SOURCE_PAGES, album: bool = False,
                         crawler=None, source_slots=None, on_items=None) -> list[dict]:
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
-    from .place_photos import _decade_fallback, _deduplicate
+    from .place_photos import _deduplicate
     helper = _research()
-    source_period = (_decade_fallback(period) or period) if provider == 'google' else period
+    source_period = period
     seen_sources, items = set(), []
     checked_hosts = {}
     deadline = time.monotonic() + timeout - min(10, timeout / 4)
@@ -308,8 +355,14 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                             check_robots_txt=True, delay_before_return_html=0.2,
                         )), timeout=min(15, max(0.1, deadline - time.monotonic())))
                         if detail.success:
-                            return _source_items(detail.html or '', source, place, source_period,
-                                                 location_context=album_context)
+                            found = _source_items(detail.html or '', source, place, source_period,
+                                                  location_context=album_context)
+                            from .place_photo_fingerprints import image_fingerprint
+                            for item in found:
+                                if time.monotonic() >= deadline:
+                                    break
+                                item.update(await asyncio.to_thread(image_fingerprint, item['image_url']))
+                            return found
                         source_errors.append(_crawl_failure(detail))
                     except Exception as error:
                         logger.info('%s photo source unavailable: %s', provider, type(error).__name__)

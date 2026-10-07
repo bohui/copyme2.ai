@@ -4,15 +4,14 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const center = {latitude: 40.98, longitude: 117.94};
+const scope = {photo_search_policy: 'place-radius20-years10-v5', photo_search_latitude: center.latitude,
+  photo_search_longitude: center.longitude};
 const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
-  date_expression: '1983', latitude: 40.98, longitude: 117.94});
+  date_expression: '1983', ...center});
 
 function harness(entry, api) {
-  Object.assign(entry, {period: '1980s', latitude: 40.98, longitude: 117.94, ...entry});
-  if (entry.photo_next_cursor) Object.assign(entry, {
-    photo_search_policy: 'place-radius20-years10-v5',
-    photo_search_latitude: 40.98, photo_search_longitude: 117.94,
-  });
+  Object.assign(entry, {period: '1980s', ...center, ...scope, ...entry});
   let saved = {memory_places: [entry]};
   const state = {project: {id: 'project'}, placeJourney: entry};
   const context = vm.createContext({state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
@@ -37,6 +36,17 @@ test('landmark search keeps its geographic parent and memory period', async () =
   assert.equal(query.get('place'), '离宫, 承德市');
   assert.equal(query.get('period'), '1983年');
   assert.equal(h.entry().place, '离宫');
+});
+
+test('refresh restores persisted photos without searching after the old cache expires', async () => {
+  let calls = 0;
+  const saved = {place: 'Chengde', period: '1980s', photo_search_period: '1980s',
+    photo_search_place: 'Chengde', photo_search_at: Date.now() - 86400000,
+    photo_search_policy: 'place-radius20-years10-v5', photo_next_cursor: null, pictures: [picture('saved')]};
+  const h = harness(saved, async () => { calls++; return {items: [], next_cursor: null}; });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls, 0, 'history restoration unnecessarily triggered photo discovery');
+  assert.equal(h.entry().pictures[0].asset_id, 'saved');
 });
 
 test('a newly contextualized place retires the old cursor and accumulates arriving photos', async () => {
@@ -76,7 +86,7 @@ test('appends pages, deduplicates overlaps and stops at exhaustion', async () =>
 test('photo results wait for workspace writes and preserve a newer place', async () => {
   let release;
   const pendingWrite = new Promise(resolve => { release = resolve; });
-  const h = harness({place: 'Chengde'}, async () => ({items: [picture('a')], status: 'READY'}));
+  const h = harness({place: 'Chengde', period: '1983年'}, async () => ({items: [picture('a')], status: 'READY'}));
   h.context.workspaceUpdateQueue = pendingWrite;
   const photos = h.context.loadPlacePictures(h.entry(), 'project');
   await new Promise(resolve => setImmediate(resolve));
@@ -150,9 +160,10 @@ test('rendering without a gallery does not dereference a missing element', () =>
   assert.doesNotThrow(() => vm.runInContext(block, context));
 });
 
-test('older empty searches are retried under the bilingual search policy', async () => {
+test('older empty searches are retried under the radius and year policy', async () => {
   let calls = 0;
   const h = harness({place: 'Chengde', period: '1983年', photo_search_period: '1983年',
+    photo_search_policy: 'place-aliases-v4',
     photo_search_at: Date.now(), photo_next_cursor: null, pictures: []}, async () => {
     calls++; return {items: [picture('a')], next_cursor: null};
   });
@@ -166,7 +177,7 @@ test('decade matches are labelled and a zero-image wall stays hidden', () => {
   const context = vm.createContext({escapeHtml: value => value, translate: key => key,
     placeHistoryKey: item => item.place, referenceUrl: value => value,
     formatDateExpression: value => value, currentUiLocale: () => 'en-AU',
-    photoPaginationMarkup: () => ''});
+    photoPaginationMarkup: () => '', URL, window: {location: {origin: 'http://localhost'}}});
   for (const name of ['mergePlacePictures', 'pictureWall']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
   }
@@ -242,4 +253,35 @@ test('old cached empty results are rechecked and blocked sources remain retryabl
   assert.equal(Array.from(h.state.photoRequests.values())[0].failures[0].reason, 'verification_required');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 2, 'failed search was cached as a completed no-match');
+});
+
+test('a changed coordinate starts a separate request and rejects the older response', async () => {
+  const calls = [];
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const h = harness({place: 'Chengde', period: '1983年'}, async url => {
+    calls.push(new URL(url, 'http://localhost').searchParams);
+    if (calls.length === 1) return await pending;
+    return {items: [{...picture('new-center'), latitude: 41.5}], next_cursor: null};
+  });
+  const first = h.context.loadPlacePictures(h.entry(), 'project');
+  await new Promise(resolve => setImmediate(resolve));
+  await h.context.saveProfileUpdates({memory_places: [{...h.entry(), latitude: 41.5}]});
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].get('latitude'), '40.98');
+  assert.equal(calls[1].get('latitude'), '41.5');
+  release({items: [picture('old-center')], next_cursor: null});
+  await first;
+  assert.deepEqual(Array.from(h.entry().pictures, item => item.asset_id), ['new-center']);
+});
+
+test('legacy cached photos are refreshed under the strict scope policy', async () => {
+  let calls = 0;
+  const h = harness({place: 'Chengde', period: '1983年', photo_search_period: '1983年',
+    photo_search_policy: 'place-aliases-v4', photo_search_complete: true, pictures: [picture('legacy')]},
+    async () => { calls++; return {items: [picture('verified')], next_cursor: null}; });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls, 1);
+  assert.deepEqual(Array.from(h.entry().pictures, item => item.asset_id), ['verified']);
 });
