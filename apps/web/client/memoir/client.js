@@ -2,7 +2,7 @@ import { createAuthReminder } from "./auth-reminder.js";
 import { linkSocialIdentity } from "./social-auth.mjs";
 import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
 import { openAttachedConversations, retryConversationTransfer } from "./conversation-attachments.js";
-import { mergePlaces, placeHistoryKey, mapTarget, matchesPlaceStage, groupPlaces, groupMapPins, groupMapFrame } from "./places.mjs";
+import { mergePlaces, placeHistoryKey, mapTarget, matchesPlaceStage, groupPlaces, groupMapPins, groupMapFrame, specificPlaceChoices } from "./places.mjs";
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { openCollectionReview } from "./collection.js";
@@ -3406,9 +3406,9 @@ function workspacePlaceGroups(places) {
 }
 
 function groupChoices(groups) {
-  return groups.map(group => ({...group.city,
+  return specificPlaceChoices(groups.map(group => ({...group.city,
     group_members: group.members.map(placeHistoryKey),
-    life_stages: [...new Set(group.members.flatMap(member => member.life_stages || [member.life_stage]).filter(Boolean))]}));
+    life_stages: [...new Set(group.members.flatMap(member => member.life_stages || [member.life_stage]).filter(Boolean))]})));
 }
 
 function resolvePlaceGroups(journey) {

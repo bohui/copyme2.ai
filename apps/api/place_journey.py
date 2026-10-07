@@ -183,6 +183,60 @@ def place_journey_matches_message(journey: Any, message: str) -> bool:
     return len(words) > 1 and " ".join(words[1:]) in normalized_message
 
 
+def grounded_place_journeys(journeys: list[dict[str, Any]], message: str) -> list[dict[str, Any]]:
+    """Keep independent cues, not broad qualifiers of another accepted place."""
+    if place_journey_message_is_ambiguous(message):
+        return []
+    candidates = [place for place in journeys if place_journey_matches_message(place, message)]
+
+    def path(place):
+        labels = list(place['hierarchy'][1:])
+        if not labels or _normalize_for_match(labels[-1]) != _normalize_for_match(place['place']):
+            labels.append(place['place'])
+        return labels
+
+    def identity(label):
+        return _normalize_for_match(label).removesuffix('省').removesuffix('市')
+
+    def label_pattern(label):
+        label = unicodedata.normalize('NFKC', label).casefold()
+        # Latin labels need word boundaries; Chinese locality labels can join.
+        return (r'(?<![a-z0-9])' if re.match('[a-z0-9]', label) else '') + re.escape(label) + (
+            r'(?![a-z0-9])' if re.search('[a-z0-9]$', label) else '')
+
+    paths = [path(place) for place in candidates]
+    selected = []
+    # Recognise joined locality names, not narrative transitions or sentences.
+    separator = r'(?:[ \t,，·]|的|(?<!\w)(?:in|of)(?!\w))*'
+    for parent, ancestor in zip(candidates, paths):
+        if parent['granularity'] not in {'country', 'region'}:
+            selected.append(parent)
+            continue
+        remaining = unicodedata.normalize('NFKC', message).casefold()
+        def remove_locality(match):
+            tail = remaining[match.end():].lstrip(' \t')
+            # A comma can start another memory: "Chengde, Hebei was where
+            # I worked" is not an address. Keep uncertain continuations.
+            if ',' in match.group() and not re.match(
+                r'(?:$|[.,;!?。！？；\n]|(?:in|on|at|during|since|until|around|from)\s+(?:\d|[a-z]+\s+\d))', tail
+            ):
+                return match.group()
+            return ' '
+        for child, descendant in zip(candidates, paths):
+            if (len(ancestor) >= len(descendant)
+                    or any(identity(left) != identity(right)
+                           for left, right in zip(ancestor, descendant))):
+                continue
+            labels = [parent['place'], *descendant[len(ancestor):-1], child['place']]
+            for locality in (labels, [parent['place'], child['place']]):
+                for order in (locality, list(reversed(locality))):
+                    remaining = re.sub(separator.join(map(label_pattern, order)), remove_locality, remaining)
+        # A second standalone mention makes the broad place a distinct cue.
+        if place_journey_matches_message(parent, remaining):
+            selected.append(parent)
+    return selected
+
+
 def place_journey_message_is_ambiguous(message: str) -> bool:
     """Reject mapping when the storyteller explicitly withholds place identity."""
     if not isinstance(message, str) or not message.strip():

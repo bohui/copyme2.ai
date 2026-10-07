@@ -7,6 +7,7 @@ from apps.api.codex_runtime import build_system_prompt
 from apps.api.place_journey import (
     extract_place_journey,
     extract_place_journeys,
+    grounded_place_journeys,
     normalize_persisted_place_journey,
     place_journey_message_is_ambiguous,
     place_journey_matches_message,
@@ -25,6 +26,59 @@ def test_chinese_place_markers_normalize_earth_and_preserve_both_named_cities():
     assert [journey['place'] for journey in journeys] == ['悉尼', '承德市']
     assert all(journey['hierarchy'][0] == 'Earth' for journey in journeys)
     assert all(place_journey_matches_message(journey, message) for journey in journeys)
+
+
+@pytest.mark.parametrize('message,independent', [
+    ('我出生在河北省承德市附属医院。', False),
+    ('我出生在河北省的承德市。', False),
+    ('我出生在承德市，后来在河北省工作。', True),
+    ('我后来住在河北省，承德市是我的出生地。', True),
+    ('我住在河北省。承德市是我的出生地。', True),
+    ('我记得河北省\n承德市', True),
+])
+def test_only_qualified_chinese_province_mentions_are_redundant(message, independent):
+    province = {'place': '河北省', 'hierarchy': ['Earth', '中国', '河北省'], 'granularity': 'region'}
+    city = {'place': '承德市', 'hierarchy': ['Earth', '中国', '河北', '承德市'], 'granularity': 'city'}
+    selected = grounded_place_journeys([province, city], message)
+    assert [place['place'] for place in selected] == (['河北省', '承德市'] if independent else ['承德市'])
+    assert city['hierarchy'] == ['Earth', '中国', '河北', '承德市']
+
+
+@pytest.mark.parametrize('message,independent', [
+    ('I was born in Chengde, Hebei.', False),
+    ('I was born in Chengde in Hebei.', False),
+    ('I was born in Chengde, Hebei in April 1983.', False),
+    ('I worked across Hebei, then moved to Chengde.', True),
+    ('I was born in Chengde, Hebei was where I later worked.', True),
+    ('I travelled across Hebei. Chengde was my birthplace.', True),
+])
+def test_only_qualified_english_province_mentions_are_redundant(message, independent):
+    province = {'place': 'Hebei', 'hierarchy': ['Earth', 'China', 'Hebei'], 'granularity': 'region'}
+    city = {'place': 'Chengde', 'hierarchy': ['Earth', 'China', 'Hebei', 'Chengde'], 'granularity': 'city'}
+    selected = grounded_place_journeys([province, city], message)
+    assert [place['place'] for place in selected] == (['Hebei', 'Chengde'] if independent else ['Chengde'])
+
+
+def test_country_and_province_qualifiers_do_not_create_extra_records():
+    country = {'place': '中国', 'hierarchy': ['Earth', '中国'], 'granularity': 'country'}
+    province = {'place': '河北省', 'hierarchy': [*country['hierarchy'], '河北省'], 'granularity': 'region'}
+    city = {'place': '承德市', 'hierarchy': [*province['hierarchy'], '承德市'], 'granularity': 'city'}
+    assert grounded_place_journeys([country, province, city], '我出生在中国河北省承德市。') == [city]
+    assert grounded_place_journeys([country, province, city], '我出生在承德市，河北省，中国。') == [city]
+
+
+def test_keeps_standalone_provinces_and_independent_cities_and_suburbs():
+    province = {'place': '河北省', 'hierarchy': ['Earth', '中国', '河北省'], 'granularity': 'region'}
+    city = {'place': '承德市', 'hierarchy': [*province['hierarchy'], '承德市'], 'granularity': 'city'}
+    suburb = {'place': '双桥区', 'hierarchy': [*city['hierarchy'], '双桥区'], 'granularity': 'suburb'}
+    assert grounded_place_journeys([province, city], '我记得河北省。') == [province]
+    assert grounded_place_journeys([city, suburb], '我出生在承德市双桥区。') == [city, suburb]
+
+
+def test_an_unrelated_hierarchy_cannot_remove_a_province_cue():
+    province = {'place': '河北省', 'hierarchy': ['Earth', 'Other country', '河北省'], 'granularity': 'region'}
+    city = {'place': '承德市', 'hierarchy': ['Earth', '中国', '河北省', '承德市'], 'granularity': 'city'}
+    assert grounded_place_journeys([province, city], '河北省承德市') == [province, city]
 
 
 @pytest.mark.parametrize('place,granularity', [

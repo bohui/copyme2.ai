@@ -76,9 +76,9 @@ def _flickr_cards(source_html: str, base: str) -> list[dict]:
         url = urlsplit(link['url'])
         if url.hostname not in {'www.flickr.com', 'flickr.com'}:
             continue
-        match = re.fullmatch(r'/photos/[^/]+/\d+/?', url.path)
+        match = re.fullmatch(r'(/photos/[^/]+/\d+)(?:/in/[^/]+)?/?', url.path)
         if match:
-            source = 'https://www.flickr.com' + url.path.rstrip('/') + '/'
+            source = 'https://www.flickr.com' + match[1] + '/'
             cards[source] = {'source_url': source, 'title': link['text']}
     return list(cards.values())
 
@@ -96,8 +96,20 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
     title = meta.get('og:title') or page['title']
     description = meta.get('og:description') or meta.get('description') or ''
     context = ' '.join((title, description))
+    is_flickr = urlsplit(source_url).hostname in {'www.flickr.com', 'flickr.com'}
+    item_location = ''
+    flickr_item = re.match(r'/photos/([^/]+)/\d+(?:/|$)', urlsplit(source_url).path) if is_flickr else None
+    if flickr_item:
+        owner = flickr_item[1]
+        # These links describe this photo. Album years and tags may establish
+        # place, but never supply capture dates or unrelated page context.
+        item_location = ' '.join(link['text'] for link in page['links']
+            if urlsplit(link['url']).hostname in {'www.flickr.com', 'flickr.com'}
+            and (urlsplit(link['url']).path.startswith('/photos/tags/')
+                 or re.fullmatch(r'/photos/' + re.escape(owner) + r'/albums/\d+/?',
+                                 urlsplit(link['url']).path)))
     # An unrelated item on a relevant search page is still unrelated.
-    location_evidence = ' '.join((context, location_context)).strip()
+    location_evidence = ' '.join((context, item_location, location_context)).strip()
     if not helper._crawl4ai_location_matches(location_evidence, place):
         return []
 
@@ -112,7 +124,8 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
     taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
     if not taken:
         # Flickr exposes this separate from its "Uploaded on" timestamp.
-        match = re.search(r'Taken on\s+([A-Za-z]+\s+\d{1,2},?\s+(?:18|19|20)\d{2})', page['text_excerpt'], re.I)
+        match = re.search(r'Taken (?:on|in)\s+((?:[A-Za-z]+\s+(?:\d{1,2},?\s+)?)?(?:18|19|20)\d{2})',
+                          page['text_excerpt'], re.I)
         taken = match.group(1) if match else ''
     if not taken:
         for key in ('dateTaken', 'date_taken', 'exif:DateTimeOriginal'):
@@ -177,6 +190,10 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
     licence_url = _text(photo.get('license') or meta.get('license'))
+    if not licence_url and is_flickr:
+        licence_url = next((link['url'] for link in page['links']
+            if urlsplit(link['url']).hostname == 'creativecommons.org'
+            and urlsplit(link['url']).path.startswith('/licenses/')), '')
     licence = _google_license({'license': licence_url})
     if licence_url and not licence:
         return []
@@ -188,7 +205,6 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         primary = original or primary
     if primary and (scene_date or any_date):
         image_urls.append((primary, title, scene_date))
-    is_flickr = urlsplit(source_url).hostname in {'www.flickr.com', 'flickr.com'}
     if not is_flickr and not mediawiki_file:
         images = helper._crawl4ai_source_images(
             {'url': source_url, 'html': source_html}, {'title': title, 'text': context},

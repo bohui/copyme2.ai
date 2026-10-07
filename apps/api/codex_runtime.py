@@ -43,6 +43,7 @@ from .place_journey import (
     MAX_MARKER_CHARS,
     extract_place_journey,
     extract_place_journeys,
+    grounded_place_journeys,
     normalize_persisted_place_journey,
     place_journey_message_is_ambiguous,
     place_journey_matches_message,
@@ -1529,23 +1530,20 @@ class CodexRuntime:
         return sequence
 
     @asynccontextmanager
-    async def _workspace_lease(self, storage, *, timeout=120):
-        """Wait for a short write lease instead of dropping enrichment."""
+    async def _storage_lease(self, storage, *, timeout=120):
+        """Wait within a bounded budget for conversation/workspace writes."""
         deadline = asyncio.get_running_loop().time() + timeout
-        while True:
-            lease = AgentTurnLease(storage)
-            try:
-                await lease.__aenter__()
-            except AgentTurnBusyError:
-                if asyncio.get_running_loop().time() >= deadline:
-                    raise
-                await asyncio.sleep(0.1)
-                continue
-            try:
+        async with AsyncExitStack() as scope:
+            while True:
+                try:
+                    lease = await scope.enter_async_context(AgentTurnLease(storage))
+                except AgentTurnBusyError:
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise
+                    await asyncio.sleep(0.1)
+                    continue
                 yield lease
-            finally:
-                await lease.__aexit__(None, None, None)
-            return
+                return
 
     async def turn(self, storage: UserStorage, text: str, project_id: str | None = None,
                    language: str = "en-AU", on_delta=None,
@@ -1611,7 +1609,10 @@ class CodexRuntime:
         async with AsyncExitStack() as preparation_scope, AsyncExitStack() as turn_scope:
             await turn_scope.enter_async_context(self._lock(user_id))
             turn_sequence = self._next_turn_sequence(user_id)
-            lease = await turn_scope.enter_async_context(AgentTurnLease(storage))
+            # A saved reply enables the next message while optional workspace
+            # writes still use this same database lease. Allow those short
+            # writes to settle instead of failing the new reply at acceptance.
+            lease = await turn_scope.enter_async_context(self._storage_lease(storage, timeout=5))
             recall_access = None
             if callable(getattr(storage, 'recall_rounds_completed', None)):
                 entitlement = await lease.io(storage.story_entitlement)
@@ -1849,9 +1850,7 @@ class CodexRuntime:
                 reply, parsed_profile_updates = extract_profile_updates(reply)
                 reply, task_requests = extract_task_requests(reply)
                 reply, parsed_place_journeys = extract_place_journeys(reply)
-                parsed_place_journeys = [candidate for candidate in parsed_place_journeys
-                                         if (not place_journey_message_is_ambiguous(text)
-                                             and place_journey_matches_message(candidate, text))]
+                parsed_place_journeys = grounded_place_journeys(parsed_place_journeys, text)
                 parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
                 if _family_tree_marker_is_explicitly_disclaimed(text):
                     reply = _remove_marker_block(
@@ -2215,6 +2214,19 @@ class CodexRuntime:
         text = original_conversation_text(text)
         marker_buffer = ''
         previewed_places = set()
+        preview_candidates = []
+        async def preview_places(*, final=False):
+            if not on_place:
+                return
+            for candidate in grounded_place_journeys(preview_candidates, text):
+                # A broad marker may qualify a city marker that arrives later.
+                # Detailed places still preview immediately during streaming.
+                if not final and candidate['granularity'] in {'country', 'region'}:
+                    continue
+                key = json.dumps([candidate['place'], candidate['hierarchy'], candidate['granularity']], ensure_ascii=False)
+                if key not in previewed_places:
+                    previewed_places.add(key)
+                    await on_place(candidate)
         async def capture_place(delta):
             nonlocal marker_buffer
             marker_buffer += delta
@@ -2235,11 +2247,9 @@ class CodexRuntime:
                     return
                 _, candidate = extract_place_journey(marker_buffer[:end + len(PLACE_MARKER_END)])
                 marker_buffer = marker_buffer[end + len(PLACE_MARKER_END):]
-                if candidate and on_place and not place_journey_message_is_ambiguous(text):
-                    key = json.dumps([candidate['place'], candidate['hierarchy'], candidate['granularity']], ensure_ascii=False)
-                    if key not in previewed_places:
-                        previewed_places.add(key)
-                        await on_place(candidate)
+                if candidate and on_place:
+                    preview_candidates.append(candidate)
+                    await preview_places()
         async with self._workspace_lock(user_id):
             task_sources = self._task_sources(memories) if project_id else []
             if self.worker_url:
@@ -2400,7 +2410,9 @@ class CodexRuntime:
                 reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
+                    preview_candidates.clear()
                     await capture_place(reply)
+                    await preview_places(final=True)
                 if result.get('_artifact_task') is not None:
                     await result['_artifact_task']
                 return reply
@@ -2443,7 +2455,9 @@ class CodexRuntime:
                 reply = _sanitize_author_timeline_markers(reply, text)
                 if on_place:
                     marker_buffer = ''
+                    preview_candidates.clear()
                     await capture_place(reply)
+                    await preview_places(final=True)
                 return reply
 
     @staticmethod
@@ -2528,9 +2542,7 @@ class CodexRuntime:
             _ignored_visible, extracted_profile_updates = extract_profile_updates(enrichment_reply)
             _ignored_visible, task_requests = extract_task_requests(_ignored_visible)
             _ignored_visible, parsed_place_journeys = extract_place_journeys(_ignored_visible)
-            parsed_place_journeys = [candidate for candidate in parsed_place_journeys
-                                     if (not place_journey_message_is_ambiguous(text)
-                                         and place_journey_matches_message(candidate, text))]
+            parsed_place_journeys = grounded_place_journeys(parsed_place_journeys, text)
             parsed_place_journey = parsed_place_journeys[-1] if parsed_place_journeys else None
             _ignored_visible, parsed_family_updates = extract_family_skill_updates(_ignored_visible)
             parsed_family_context, family_skills = combine_family_skill_updates(parsed_family_updates)
@@ -2642,7 +2654,9 @@ class CodexRuntime:
         place_journey = current_place_journey
         place_journey_change = None
         place_journeys = []
-        candidates = parsed_place_journeys or ([parsed_place_journey] if parsed_place_journey else [])
+        candidates = grounded_place_journeys(
+            parsed_place_journeys or ([parsed_place_journey] if parsed_place_journey else []), text)
+        parsed_place_journey = candidates[-1] if candidates else None
         focus = (profile_updates or {}).get('story_focus') or {}
         stage = focus.get('life_stage')
         stage_places = [candidate for candidate in candidates
@@ -2654,7 +2668,7 @@ class CodexRuntime:
         if len(candidates) == 1 and not focus.get('where'):
             stage_place = candidates[0]
         if parsed_place_journey:
-            async with self._workspace_lease(storage) as lease:
+            async with self._storage_lease(storage) as lease:
                 latest_place_journey_reader = getattr(storage, 'place_journey', None)
                 latest_place_journey = current_place_journey
                 if callable(latest_place_journey_reader):
@@ -2707,7 +2721,7 @@ class CodexRuntime:
             })
 
         if profile_updates:
-            async with self._workspace_lease(storage) as lease:
+            async with self._storage_lease(storage) as lease:
                 latest_profile_reader = getattr(storage, 'profile', None)
                 latest_profile = profile
                 if callable(latest_profile_reader):
@@ -2753,7 +2767,7 @@ class CodexRuntime:
         source_paths = []
         if deferred_artifacts or deferred_home is not None:
             try:
-                async with self._workspace_lease(storage) as lease:
+                async with self._storage_lease(storage) as lease:
                     if deferred_artifacts:
                         source_paths = await lease.io(
                             self._save_worker_artifacts,

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {groupPlaces, groupMapPins, groupMapFrame, mergePlaces, placeHistoryKey} from '../../apps/web/client/memoir/places.mjs';
+import {groupPlaces, groupMapPins, groupMapFrame, mergePlaces, placeHistoryKey, specificPlaceChoices} from '../../apps/web/client/memoir/places.mjs';
 
 const city = {place:'承德', hierarchy:['Earth','中国','河北','承德'], granularity:'city', latitude:40.97, longitude:117.93};
 const district = {place:'双桥区', hierarchy:[...city.hierarchy,'双桥区'], granularity:'suburb', latitude:40.93, longitude:117.96, pictures:[{asset_id:'district'}]};
@@ -46,6 +46,40 @@ test('provider-confirmed city membership works without a city ancestor', () => {
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 const extract = name => source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0];
 
+test('city choices omit a containing province while preserving source history', () => {
+  const chengde = {...city, place: '承德市', hierarchy: ['Earth', '中国', '河北省', '承德市'], life_stage: 'baby'};
+  const hebei = {place: '河北省', hierarchy: ['Earth', '中国', '河北省'], granularity: 'region'};
+  const sydney = {place: '悉尼', hierarchy: ['Earth', '澳大利亚', '悉尼'], granularity: 'city'};
+  const history = mergePlaces([chengde, sydney, hebei]);
+  const context = vm.createContext({
+    escapeHtml: String, translate: key => key, lifeStageText: stage => stage, placeHistoryKey, specificPlaceChoices,
+  });
+  for (const name of ['groupChoices', 'placeHistoryChoices']) vm.runInContext(extract(name), context);
+  const choices = context.groupChoices(groupPlaces(history));
+  assert.deepEqual(Array.from(choices, place => place.place), ['承德市', '悉尼']);
+  const markup = context.placeHistoryChoices(choices, chengde);
+  assert.doesNotMatch(markup, /<span>河北省<\/span>/);
+  assert.match(markup, /中国 · 河北省 · baby/);
+  assert.equal(history.length, 3);
+});
+
+test('broad place choices remain when no descendant is known in the current list', () => {
+  const region = {place: '河北省', hierarchy: ['Earth', '中国', '河北省'], granularity: 'region'};
+  const country = {place: '澳大利亚', hierarchy: ['Earth', '澳大利亚'], granularity: 'country'};
+  assert.deepEqual(specificPlaceChoices([region, country]), [region, country]);
+  assert.deepEqual(specificPlaceChoices([region]), [region]);
+});
+
+test('ancestor choices use normalized full paths, not names or nearby coordinates', () => {
+  const country = {place: 'China', hierarchy: ['Earth', 'China'], granularity: 'country'};
+  const region = {place: '河北省', hierarchy: ['Earth', '中国', '河北省'], granularity: 'region'};
+  const otherRegion = {...region, hierarchy: ['Earth', 'Other country', '河北省']};
+  const provinceNamedCity = {...region, granularity: 'city'};
+  const child = {...district, place: '双桥区', hierarchy: ['Earth', '中国', '河北', '承德', '双桥区']};
+  assert.deepEqual(specificPlaceChoices([country, region, city, child, otherRegion, provinceNamedCity]),
+    [city, child, otherRegion, provinceNamedCity]);
+});
+
 test('background checks prioritise each new mention and ignore superseded corrections', async () => {
   const calls = [];
   let renders = 0;
@@ -84,7 +118,7 @@ test('map markup shows city choices and independent pending pin labels', () => {
   const context = vm.createContext({
     escapeHtml: value => String(value).replaceAll('"', '&quot;'), translate: key => key,
     translateWith: key => key, currentUiLocale: () => 'zh-CN',
-    placeHistoryKey, groupMapFrame, placeMapTarget: place => place,
+    placeHistoryKey, groupMapFrame, specificPlaceChoices, placeMapTarget: place => place,
     placeMapUrl: () => '', lifeStageText: () => '',
   });
   for (const name of ['placeJourneyMarkup', 'groupChoices', 'placeHistoryChoices']) vm.runInContext(extract(name), context);

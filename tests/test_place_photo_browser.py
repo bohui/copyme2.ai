@@ -48,6 +48,46 @@ def test_palace_alias_matches_require_the_landmark_and_city(caption, expected):
     assert browser._research()._crawl4ai_location_matches(caption, '离宫, 承德市') is expected
 
 
+@pytest.mark.parametrize('period', ['1980s', '1980年代', '1980-1989'])
+def test_decade_discovery_includes_the_local_keyword_used_by_source_pages(period):
+    query = photos._google_query('承德市', period, include_decade=True)
+    for term in ('80年代', '80s', '1980年代', '1980s'):
+        assert f'"{term}"' in query
+    assert '1980' in query and '1989' in query
+
+
+def test_flickr_context_links_are_canonical_photo_discovery_leads():
+    page = ('<a href="/photos/kattebelletje/3330975589/in/photostream/">National Day</a>'
+            '<a href="/photos/kattebelletje/3330975589/in/album-72157614775600805/">Same photo</a>'
+            '<a href="/photos/kattebelletje/albums/72157614775600805/">Album</a>')
+    cards = browser._flickr_cards(page, 'https://www.flickr.com/search/')
+    assert len(cards) == 1
+    assert cards[0]['source_url'] == 'https://www.flickr.com/photos/kattebelletje/3330975589/'
+
+
+def test_flickr_source_reads_item_tags_album_and_capture_date_without_using_upload_date():
+    # Rendered Flickr fields, with an eligible licence so location/date parsing
+    # is tested separately from the linked photographer's noncommercial rights.
+    page = ('<title>National Day, October 1, 1983</title>'
+            '<meta property="og:description" content="903">'
+            '<meta property="og:image" content="https://live.staticflickr.com/1/street.jpg">'
+            '<p>Uploaded on March 5, 2009 Taken in October 1983</p>'
+            '<a href="/photos/kattebelletje/albums/72157614775600805">Chengde 承德 1983</a>'
+            '<a href="/photos/tags/承德">承德</a>'
+            '<a href="/photos/tags/避暑山庄">避暑山庄</a>'
+            '<a href="https://creativecommons.org/licenses/by/2.0/deed.en">Some rights reserved</a>')
+    source = 'https://www.flickr.com/photos/kattebelletje/3330975589/'
+    found = browser._source_items(page, source, '离宫, 承德市', '1980s')
+    assert len(found) == 1
+    assert found[0]['date_expression'] == 'October 1983'
+    assert '承德' in found[0]['location_evidence']
+    assert found[0]['license_url'] == 'https://creativecommons.org/licenses/by/2.0/deed.en'
+    assert not browser._source_items(page.replace('/by/2.0/', '/by-nc/2.0/'), source, '离宫, 承德市', '1980s')
+    assert not browser._source_items(page, source, 'Chengdu', '1980s')
+    undated = page.replace('National Day, October 1, 1983', 'National Day').replace('Taken in October 1983', '')
+    assert not browser._source_items(undated, source, '离宫, 承德市', '1980s')
+
+
 def test_generic_palace_name_without_chengde_context_is_not_reinterpreted():
     assert '避暑山庄' not in photos._google_query('离宫, 北京', '1983年')
 
@@ -178,8 +218,9 @@ def test_google_or_query_is_one_search_and_preserves_place_and_period(monkeypatc
     query = parse_qs(urlsplit(url).query)['q'][0]
     assert browser._discovery_queries('google', place, period, url) == [(url, False)]
     if place == '承德':
-        years = ' OR '.join(str(year) for year in range(1980, 1990))
-        assert query == f'("承德" OR "Chengde") ({years})'
+        assert query.startswith('("承德" OR "Chengde") (')
+        assert all(f'"{year}"' in query for year in range(1980, 1990))
+        assert '"80年代"' in query
     elif place == 'Chengde':
         current = browser._research().normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
         years = ' OR '.join(str(year) for year in range(int(current['start'][:4]), int(current['end'][:4]) + 1))

@@ -98,6 +98,20 @@ const groupLabel = value => {
 const groupPath = place => path(place).map(groupLabel);
 export const cityGroupKey = place => JSON.stringify(groupPath(place));
 
+// Broad places still own their saved history, but a known descendant already
+// supplies their geographic context in the map navigation.
+export function specificPlaceChoices(places) {
+  return places.filter(place => {
+    if (!['country', 'region'].includes(place.granularity)) return true;
+    const ancestor = groupPath(place);
+    return !places.some(other => {
+      const descendant = groupPath(other);
+      return ancestor.length < descendant.length
+        && ancestor.every((label, index) => descendant[index] === label);
+    });
+  });
+}
+
 export function groupPlaces(places) {
   const cities = places.filter(place => place.granularity === 'city');
   const groups = new Map();

@@ -1,7 +1,14 @@
 """Incremental turn transport; cancellation retains ownership of the turn task."""
 import asyncio
 import json
+import logging
 import anyio
+
+from .diagnostics import (configure_diagnostic_logger, failure_class,
+                          log_diagnostic, new_request_id)
+
+
+diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.turn_stream'))
 
 
 class VisibleText:
@@ -38,14 +45,26 @@ class VisibleText:
 
 async def turn_events(run, cleanup=None):
     queue = asyncio.Queue(maxsize=64)
+    request_id = new_request_id()
+    stage = 'acceptance'
+    saved_boundary = False
 
     async def emit_text(text):
         if text:
             await queue.put({'type': 'text_delta', 'text': text})
 
     async def emit_event(event):
+        nonlocal request_id, stage, saved_boundary
         if not isinstance(event, dict) or not event.get('type'):
             raise ValueError('Invalid turn stream event')
+        if event.get('turn_id'):
+            request_id = new_request_id(event['turn_id'])
+        if event['type'] == 'progress':
+            candidate = (event.get('data') or {}).get('id')
+            if candidate in {'context', 'language', 'reply', 'save', 'workspace'}:
+                stage = candidate
+        if event['type'] == 'conversation_saved':
+            saved_boundary = True
         await queue.put(event)
 
     class Emitter:
@@ -60,6 +79,15 @@ async def turn_events(run, cleanup=None):
             result = await run(Emitter())
             await queue.put({'type': 'result', 'data': result})
         except Exception as error:
+            status_code = getattr(getattr(error, 'response', None), 'status_code',
+                                  getattr(error, 'status_code', None))
+            log_diagnostic(
+                diagnostic_logger, 'turn_stream_failed', request_id,
+                component='memoir.turn_stream', status='failed', call_type=stage,
+                failure_class=failure_class(error, status_code=status_code),
+                error_code=type(error).__name__, http_status=status_code,
+                terminal_event='conversation_saved' if saved_boundary else None,
+            )
             # Never expose provider credentials, private artifacts or raw exceptions.
             event = {'type': 'error', 'message': 'The response could not be completed or saved. Please try again.'}
             partial_trajectory = getattr(error, 'trajectory', None)

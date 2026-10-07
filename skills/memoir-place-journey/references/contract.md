@@ -12,6 +12,15 @@ The model appends one line per distinct clear place, in first-mention order, in 
 
 `apps/api/place_journey.py` extracts every marker, parses JSON, validates each schema and bounds, deduplicates geographic identities, and returns the visible reply with all markers removed. The parser normalizes Chinese `地球` to canonical `Earth`. Accepted precision is country, region, city or named suburb/town; landmarks, premises and generic labels are rejected even if mislabelled as a suburb. Invalid and unterminated markers are dropped rather than shown to the storyteller; a bad marker does not discard later valid markers. Each accepted place must independently match the current storyteller message. The single-place extraction helper remains available for compatibility.
 
+Before persistence, the runtime also normalizes qualified place cues against the
+current message. A `country` or `region` marker that only qualifies an accepted
+descendant (河北省承德市 or Chengde, Hebei) stays in that descendant's hierarchy,
+not as another record. A separate occurrence or narrative cue retains the broad
+record; standalone provinces and independent city/suburb records remain valid.
+Uncertain relationships are preserved rather than guessed. This rule applies to
+both legacy collector markers and dedicated workspace extraction, and therefore
+to saved records, confirmed workspace events, and the final API response.
+
 The validated marker is persisted by the authenticated agent storage boundary in
 the RLS-protected `user_place_journey` table. There is one current record per
 storyteller; accepted places are persisted in order, and the last one remains
@@ -64,8 +73,11 @@ The response and confirmed workspace events also contain `place_journeys`, an
 array of all accepted records from this turn in marker order. It is empty when
 there are no accepted markers or the turn is stale. `place_journey` and
 `place_journey_change` remain the last record and its change for existing clients.
-Streaming extraction emits a `place_preview` for each complete grounded marker
-without waiting for the remaining markers or the visible conversation to finish.
+Streaming extraction emits a `place_preview` for each complete grounded city or
+suburb marker without waiting for the remaining markers or the visible reply to
+finish. Country and region previews wait for the complete extraction so the same
+normalization can exclude a broad qualifier,
+even when its marker arrives before the descendant's. Previews never persist data.
 
 `place_journey` is the latest persisted record, even when the current turn did
 not emit a marker. It is `null` when the storyteller has no saved place. The

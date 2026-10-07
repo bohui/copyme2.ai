@@ -123,6 +123,45 @@ def test_failure_after_partial_text_is_not_a_success():
     asyncio.run(run())
 
 
+def test_stream_failure_records_stage_and_status_without_private_exception(monkeypatch):
+    from apps.api import turn_stream
+    from apps.api import diagnostics
+
+    records = []
+    original_log = diagnostics.log_diagnostic
+
+    def capture(logger, event, request_id, **fields):
+        class Sink:
+            def info(self, template, body):
+                records.append(json.loads(body))
+        original_log(Sink(), event, request_id, **fields)
+
+    monkeypatch.setattr(turn_stream, 'log_diagnostic', capture)
+
+    async def run():
+        async def turn(emit):
+            await emit.event({'type': 'progress', 'turn_id': 'diag-save-1',
+                              'data': {'id': 'save', 'status': 'running'}})
+            response = httpx.Response(503, request=httpx.Request(
+                'POST', 'https://private.example/rpc?token=private-credential'))
+            raise httpx.HTTPStatusError('private storyteller text and credential',
+                                        request=response.request, response=response)
+
+        events = [json.loads(line) async for line in turn_events(turn)]
+        assert events[-1]['type'] == 'error'
+        assert events[-1]['message'] == 'The response could not be completed or saved. Please try again.'
+        assert 'private' not in json.dumps(events)
+
+    asyncio.run(run())
+    assert records == [{
+        'event': 'turn_stream_failed', 'request_id': 'diag-save-1',
+        'component': 'memoir.turn_stream', 'status': 'failed',
+        'call_type': 'save', 'failure_class': 'upstream_unavailable',
+        'error_code': 'HTTPStatusError', 'http_status': 503,
+    }]
+    assert 'private' not in json.dumps(records)
+
+
 def test_failure_stream_preserves_a_redacted_partial_trajectory_receipt():
     async def run():
         async def turn(emit):

@@ -434,6 +434,9 @@ def _google_query(place: str, period: str, *, include_decade: bool = False) -> s
             return location_query + ' (' + ' OR '.join(str(year) for year in years) + ')'
         return location_query
     fallback = _decade_fallback(period) if include_decade else None
+    if not fallback and bounds[0] % 10 == 0 and bounds[1] == bounds[0] + 9:
+        # A decade's local name is a query synonym, not a wider time filter.
+        fallback = f'{bounds[0]}s'
     if fallback:
         decade = int(fallback[:4])
         terms = [str(year) for year in range(bounds[0], bounds[1] + 1)]
