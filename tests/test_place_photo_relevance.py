@@ -30,6 +30,11 @@ from test_place_workspace import photo_page
     ('2030-01-01', []),
     ('1983-10', [1983]),
     ('1983年4月', [1983]),
+    ('October 1983', [1983]),
+    ('1983年十月', [1983]),
+    ('October 2030', []),
+    ('around 1983', [1973, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1993]),
+    ('约1983年左右', [1973, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1993]),
 ])
 def test_counted_paginated_photos_remain_visible_when_saved_in_the_browser(
         monkeypatch, search_world, period, expected_years):
@@ -72,13 +77,18 @@ for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoMatchesScope'
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
 }
 const visible = input.items.filter(item => context.photoMatchesScope(item, input.entry));
-process.stdout.write(JSON.stringify(visible.map(item => item.asset_id)));
+const cached = input.cached.filter(item => context.photoMatchesScope(item, input.entry));
+process.stdout.write(JSON.stringify({api: visible.map(item => item.asset_id),
+  cached: cached.map(item => Number(item.date_expression.slice(0, 4)))}));
 '''
+    cached = [picture(str(year), date_expression=f'{year}-01-01', **center) for year in years]
     browser = subprocess.run(['node', '-e', program], cwd=Path(__file__).resolve().parents[1],
-        input=json.dumps({'items': items, 'entry': {'place': 'Chengde', 'period': period,
+        input=json.dumps({'items': items, 'cached': cached, 'entry': {'place': 'Chengde', 'period': period,
                          'photo_search_complete': True, 'pictures': items, **center}}),
         text=True, capture_output=True, check=True)
-    assert set(json.loads(browser.stdout)) == {item['asset_id'] for item in items}
+    visible = json.loads(browser.stdout)
+    assert set(visible['api']) == {item['asset_id'] for item in items}
+    assert sorted(visible['cached']) == expected_years
 
 
 def picture(identifier, **fields):

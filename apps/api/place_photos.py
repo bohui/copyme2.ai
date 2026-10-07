@@ -88,12 +88,12 @@ def _photo_period_bounds(period: str) -> tuple[int, int] | None:
 def _photo_year_tolerance(period: str) -> int:
     bounds = _period_bounds(period)
     # Bare years retain their documented ten-year window; explicit ranges
-    # and decades remain authoritative. A single qualified year cue keeps
-    # the nearby-year reference allowance without widening those contracts.
-    # Additional month/day numbers retain the requested year bounds.
-    remaining_precision = re.sub(r'(?<!\d)((?:18|19|20)\d{2})(?!\d)', '', period)
-    return PHOTO_YEAR_TOLERANCE if (bounds and bounds[0] == bounds[1] and len(_years(period)) == 1
-                                   and not re.search(r'\d', remaining_precision)) else 0
+    # and decades remain authoritative. Recognize year-only cues positively;
+    # calendar dates and named months must not gain the nearby-year allowance.
+    year_only = re.fullmatch(
+        r'\s*(?:(?:about|around|circa|approximately|ca\.?|c\.)\s+|(?:大约|约|大概)\s*)?'
+        r'(?:18|19|20)\d{2}\s*年?\s*(?:左右|前后|前後)?\s*', period, re.I)
+    return PHOTO_YEAR_TOLERANCE if bounds and bounds[0] == bounds[1] and year_only else 0
 
 
 def _date_matches(date: str, period: str, *, tolerance: int | None = None) -> bool:

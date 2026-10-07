@@ -1190,10 +1190,8 @@ function photoMatchesScope(picture, entry, focus = null) {
   };
   const requested = bounds(period, true), captured = bounds(expression);
   if (requested) {
-    const requestedYears = Array.from(period.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g));
-    const remainingPrecision = period.replace(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g, "");
-    const tolerance = requested[0] === requested[1] && requestedYears.length === 1
-      && !/\d/.test(remainingPrecision) ? 10 : 0;
+    const yearOnly = /^\s*(?:(?:about|around|circa|approximately|ca\.?|c\.)\s+|(?:大约|约|大概)\s*)?(?:18|19|20)\d{2}\s*年?\s*(?:左右|前后|前後)?\s*$/i.test(period);
+    const tolerance = requested[0] === requested[1] && yearOnly ? 10 : 0;
     if (captured[0] < requested[0] - tolerance || captured[1] > requested[1] + tolerance) return false;
   } else {
     const recent = new Date(`${today}T00:00:00Z`);
