@@ -127,6 +127,7 @@ def test_model_policy_preserved_and_immutable(tmp_path):
     readback = a.plan; readback['cases'][0]['owner_id'] = 'changed'
     assert a.plan['cases'][0]['owner_id'] != 'changed'
     assert a.receipt()['budget']['proposed_limits']['maximum_actual_requests'] == 600
+    assert a.receipt()['executing_source_verified'] is False
     routes = a.receipt()['dispatch']['scope']['roles']
     assert routes['collector']['reasoning'] == 'max'
     assert routes['composer_draft']['reasoning'] == 'low'
@@ -404,4 +405,57 @@ def test_closed_fixture_rejects_callbacks_and_endpoint_network_fallback(tmp_path
             await a.handle_async_request(httpx.Request('POST','https://example.invalid/internal/codex/turn',json=payload(a)))
         await a.finish()
         assert a.receipt()['dispatch']['send_reservations']==0
+    asyncio.run(scenario())
+
+
+def test_finite_float_trajectory_survives_repeated_completed_progress(tmp_path):
+    from test_single_fifty_campaign import receipt_for
+    async def scenario():
+        a=create(tmp_path); a.before_round(a.plan['cases'][0]['case_id'],1)
+        record=receipt_for(a.plan)['cases'][0]['rounds'][0]
+        record['trajectory']={'steps':[{'output':{'latitude':-33.8688,'duration':.01}}]}
+        value={'status':'running','rounds':[record],'checkpoints':[]}
+        await a.observe_progress(value)
+        await a.observe_progress(deepcopy(value))
+        await a.finish()
+        assert a.receipt()['stop_reason'] is None
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('number',[float('nan'),float('inf'),float('-inf')])
+def test_nonfinite_trajectory_is_rejected_immediately(tmp_path,number):
+    from test_single_fifty_campaign import receipt_for
+    async def scenario():
+        a=create(tmp_path); a.before_round(a.plan['cases'][0]['case_id'],1)
+        record=receipt_for(a.plan)['cases'][0]['rounds'][0]; record['trajectory']={'duration':number}
+        with pytest.raises(api().CampaignStopped):
+            await a.observe_progress({'status':'running','rounds':[record],'checkpoints':[]})
+        await a.finish()
+    asyncio.run(scenario())
+
+
+def test_parallel_preparations_serialize_through_one_shared_ledger(tmp_path):
+    async def scenario():
+        a=create(tmp_path,replies=fixture(3,delay=.01)); a.before_round(a.plan['cases'][0]['case_id'],1); a._round=5
+        with a.background_job(round_number=5,job_id='composer-five'):
+            results=await asyncio.gather(*(post(a,payload(a,'composer',composer_phase='prepare',
+                preparation_id=hashlib.sha256(str(i).encode()).hexdigest())) for i in range(3)))
+        assert all(r.status_code==200 for r in results)
+        await a.finish(); r=a.receipt()['dispatch']
+        assert r['worker_requests']==r['completed_sends']==3 and r['unsettled_requests']==0
+    asyncio.run(scenario())
+
+
+def test_cancelled_queue_wait_never_reserves_second_worker(tmp_path):
+    async def scenario():
+        a=create(tmp_path,replies=fixture(2,delay=5)); a.before_round(a.plan['cases'][0]['case_id'],1)
+        first=asyncio.create_task(post(a,payload(a)))
+        while a.receipt()['dispatch']['synthetic_contacts_started']==0: await asyncio.sleep(0)
+        second=asyncio.create_task(post(a,payload(a,'workspace',family_enabled=False)))
+        await asyncio.sleep(.01); second.cancel()
+        with pytest.raises(asyncio.CancelledError): await second
+        await a.finish()
+        await asyncio.gather(first,return_exceptions=True)
+        assert a.receipt()['dispatch']['worker_requests']==1
+        assert a.receipt()['dispatch']['unsettled_requests']==1
     asyncio.run(scenario())

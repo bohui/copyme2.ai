@@ -16,7 +16,9 @@ immutable proposed caps and declared role policy. It cannot load authentication,
 connect a socket, accept a provider callback, or switch to a live transport.
 Only `http://campaign.synthetic.invalid/internal/codex/turn` is accepted, entirely
 inside its `httpx.AsyncBaseTransport` implementation. Every fixture continuation
-reserves a send slot before a synthetic contact and completion. Reusable HTTP
+reserves a send slot before a synthetic contact and completion. Concurrent
+preparation calls queue behind one bounded worker lock; a canceled queued call
+reserves no worker/send slot and fences the campaign. Reusable HTTP
 clients borrow the transport; the campaign owner calls `finish()` once.
 
 The production callback shapes are preserved:
@@ -47,11 +49,14 @@ dependencies. No native Temporal server, database, provider or account is used.
 
 ## Failure and receipt meaning
 
-Source/case/input/trace mismatches, unsupported stages, duplicate logical workers,
+Declared case/input/trace mismatches, unsupported stages, duplicate logical workers,
 wrong models, unbound background work, cap exhaustion, malformed checkpoints,
 unknown usage, quota errors and deadlines stop the campaign. Original input bytes
-are checked against the pinned dataset. Progress cannot rewrite completed source
-readbacks, skip rounds, or replace integer counters with floats or booleans.
+are checked against the pinned dataset. Source revision/tree/hash fields are
+immutable declarations, not verification of the executing checkout; the receipt
+explicitly keeps `executing_source_verified: false`. Progress cannot rewrite completed source
+readbacks, skip rounds, or replace integer counters with floats or booleans. Unchanged
+finite float trajectory metadata is preserved; nonfinite JSON is rejected.
 A complete result also requires completed collector, broad workspace and canonical
 extraction worker evidence for every round; readback JSON alone is insufficient.
 

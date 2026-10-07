@@ -119,6 +119,20 @@ def _fixtures(replies):
     return deepcopy(replies)
 
 
+def _same_record(left, right):
+    # Canonical trajectories may contain coordinates/durations. The budget
+    # literal comparator intentionally forbids floats and is unsuitable here.
+    if type(left) is not type(right): return False
+    if type(left) is dict:
+        return (all(type(k) is str for k in left) and all(type(k) is str for k in right)
+            and left.keys()==right.keys() and all(_same_record(left[k],right[k]) for k in left))
+    if type(left) is list:
+        return len(left)==len(right) and all(_same_record(a,b) for a,b in zip(left,right))
+    if type(left) is float:
+        return math.isfinite(left) and math.isfinite(right) and left==right
+    return type(left) in (str,int,bool,type(None)) and left==right
+
+
 class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
     """One immutable proposal, ledger and fixture stream for all worker roles.
 
@@ -141,6 +155,7 @@ class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
         self._plan, self._fixtures = pinned, fixtures
         self._ledger = CampaignDispatchBudget.create(reservation_root=reservation_root, proposal=proposal, scope=scope)
         self._round = self._fixture_index = 0
+        self._worker_lock = asyncio.Lock()
         self._progress = {'rounds':[], 'checkpoints':[], 'status':'not_run'}
         self._job = ContextVar('synthetic_campaign_job', default=None)
         self._attempt = ContextVar('synthetic_campaign_attempt', default=None)
@@ -216,7 +231,7 @@ class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
 
     async def observe_progress(self, value):
         self._open()
-        if type(value) is not dict or type(value.get('rounds')) is not list or type(value.get('checkpoints')) is not list:
+        if type(value) is not dict or not _same_record(value,value) or type(value.get('rounds')) is not list or type(value.get('checkpoints')) is not list:
             self._reject('progress_invalid')
         old = self._progress
         self._progress = deepcopy(value)
@@ -227,7 +242,7 @@ class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
                     or any(r.get('round') != n for n,r in enumerate(records,1))
                     or any(r.get('status') != 'completed' for r in records[:-1])
                     or set(assessment['errors']) - _EXPECTED_INCOMPLETE
-                    or any(not _same_json_literal(r, records[n]) for n,r in enumerate(old['rounds']) if r.get('status')=='completed')):
+                    or any(not _same_record(r, records[n]) for n,r in enumerate(old['rounds']) if r.get('status')=='completed')):
                 self._reject('canonical_progress_invalid')
         except (KeyError, TypeError, ValueError, IndexError):
             self._reject('canonical_progress_invalid')
@@ -271,6 +286,18 @@ class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
                 'input_tokens':send.input_tokens,'output_tokens':send.output_tokens}
 
     async def handle_async_request(self, request):
+        self._open()
+        round_at_entry = self._round
+        async def serialized():
+            async with self._worker_lock:
+                self._open()
+                if self._round != round_at_entry: self._reject('queued_round_stale')
+                return await self._exchange_request(request)
+        # Normal composer preparation is concurrent. Queue distinct workers,
+        # but reserve/count only after acquiring the single shared worker slot.
+        return await self._bounded(serialized(), self._ledger.deadline)
+
+    async def _exchange_request(self, request):
         self._open()
         try:
             if str(request.url) != SYNTHETIC_ORIGIN+'/internal/codex/turn' or request.method != 'POST':
@@ -374,8 +401,8 @@ class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
             'cases':[self._case_receipt()], 'budget':deepcopy(self._plan['budget']),
             'dispatch':dispatch, 'provider_requests_started':None, 'live_ready':False,
             'live_execution_authorized':False, 'acceptance_status':'not_established',
-            'native_durable_checkpoints_verified':False, 'native_account_and_role_binding_verified':False,
-            'cleanup':{'synthetic_tasks_finished':self._closed and not self._pending_at_close and not self._tasks,
+            'executing_source_verified':False, 'native_durable_checkpoints_verified':False, 'native_account_and_role_binding_verified':False,
+            'cleanup':{'synthetic_tasks_finished':self._closed and not self._pending_at_close and not any(not t.done() for t in self._tasks),
                 'journal_closed':dispatch['cleanup']['closed'],'native_cleanup_verified':False},
             'coverage':{'canonical_driver':'synthetic_dependencies_only','postgres_temporal':'not_run',
                 'browser_login_recovery':'not_run','normal_free_20_round_gate':'separate_required_test',
