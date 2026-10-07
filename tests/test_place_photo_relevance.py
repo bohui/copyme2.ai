@@ -3,6 +3,7 @@ from io import BytesIO
 import math
 import random
 import json
+import re
 import subprocess
 from pathlib import Path
 from threading import Event
@@ -24,14 +25,21 @@ from test_place_workspace import photo_page
     ('1980s', [1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989]),
     ('1980-1980', [1980]),
     ('1983年', [1973, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1993]),
+    ('1983-10-01', [1983]),
+    ('1983-10-01/1983-10-31', [1983]),
+    ('2030-01-01', []),
+    ('1983-10', [1983]),
+    ('1983年4月', [1983]),
 ])
 def test_counted_paginated_photos_remain_visible_when_saved_in_the_browser(
         monkeypatch, search_world, period, expected_years):
     import httpx
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
     years = [1972, 1973, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988,
-             1989, 1990, 1993, 1994, 1999]
-    catalog = {str(year): photo_page(year, date=str(year)) for year in years}
+             1989, 1990, 1993, 1994, 1999, 2025]
+    iso_day = bool(re.search(r'\d{4}-\d{2}-\d{2}', period))
+    suffix = '-01-01' if period.startswith('2030-') else '-10-01'
+    catalog = {str(year): photo_page(year, date=str(year) + (suffix if iso_day else '')) for year in years}
 
     def get(url, **kwargs):
         value = {'query': {'pages': catalog}} if 'commons' in url else {}
@@ -54,7 +62,7 @@ def test_counted_paginated_photos_remain_visible_when_saved_in_the_browser(
             if not result['next_cursor']:
                 break
             params['cursor'] = result['next_cursor']
-    assert sorted(int(item['date_expression']) for item in items) == expected_years
+    assert sorted(int(item['date_expression'][:4]) for item in items) == expected_years
     program = r'''
 const fs = require('node:fs'), vm = require('node:vm');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));

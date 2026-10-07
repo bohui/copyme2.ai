@@ -4,6 +4,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from threading import Event
+from urllib.error import URLError
 
 import httpx
 import pytest
@@ -14,6 +15,38 @@ from apps.api.place_photo_repository import PhotoRepository, search_key
 from test_agent_commit_postgres import database, as_user, OWNER
 from test_llm_place_photos import search_world
 from test_place_workspace import google_result
+
+
+def test_failed_resumed_research_keeps_seeded_photos_and_retries_after_restart(search_world):
+    _, world = search_world
+    world['response'] = URLError(TimeoutError('Synthetic provider timeout'))
+    rows = {}
+
+    def server(request):
+        if request.method == 'POST':
+            record = json.loads(request.content)
+            rows[record['search_key']] = record
+            return httpx.Response(201)
+        key = request.url.params['search_key'].removeprefix('eq.')
+        return httpx.Response(200, json=[{'result': rows[key]['result']}] if key in rows else [])
+
+    repository = PhotoRepository('https://example.supabase.co', 'server-secret',
+                                 transport=httpx.MockTransport(server))
+    repository.save('Chengde', '1980s', {'complete': False, 'items': [{
+        'asset_id': 'seeded', 'date_expression': '1983',
+        'image_url': 'https://images.example/seeded.jpg',
+        'source_url': 'https://archive.example/seeded'}]})
+    for owner in ('after-first-restart', 'after-second-restart'):
+        worker = pages.PhotoPages(repository=repository)
+        try:
+            result = worker.page(owner, 'Chengde', '1980s', None)
+        finally:
+            worker.close()
+        assert result['items'][0]['asset_id'] == 'seeded'
+        assert result['status'] == 'PARTIAL'
+        assert result['failures']
+        assert not result['searching']
+    assert len(world['calls']) == 2
 
 
 @pytest.mark.parametrize('blocked_operation', ['load', 'save'])
@@ -79,13 +112,21 @@ def test_slow_persistence_keeps_async_streams_and_other_searches_responsive(
 
 
 @pytest.mark.parametrize('located', [False, True])
+@pytest.mark.parametrize('exact_identity', ['image', 'flickr'])
 def test_restarted_research_keeps_verified_location_enrichment_for_the_same_image(
-        monkeypatch, search_world, located):
+        monkeypatch, search_world, located, exact_identity):
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
     monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'fixture-key')
     monkeypatch.setenv('GOOGLE_CSE_ID', 'fixture-engine')
     candidate = google_result(1)
     candidate['link'] = 'https://images.example/shared.jpg'
+    cached_image = candidate['link']
+    cached_source = 'https://archive.example/earlier'
+    if exact_identity == 'flickr':
+        cached_image = 'https://live.staticflickr.com/12/456_thumbnailsecret_z.jpg'
+        cached_source = 'https://www.flickr.com/photos/123@N01/456/'
+        candidate['link'] = 'https://live.staticflickr.com/12/456_originalsecret_o.jpg'
+        candidate['image']['contextLink'] = 'https://www.flickr.com/photos/author/456/'
     if not located:
         candidate['pagemap']['imageobject'] = []
     discovered, release = Event(), Event()
@@ -112,8 +153,7 @@ def test_restarted_research_keeps_verified_location_enrichment_for_the_same_imag
                                  transport=httpx.MockTransport(server))
     repository.save('Chengde', '1980s', {'complete': False, 'items': [{
         'asset_id': 'location-unknown', 'date_expression': '1983',
-        'image_url': 'https://images.example/shared.jpg',
-        'source_url': 'https://archive.example/earlier'}]})
+        'image_url': cached_image, 'source_url': cached_source}]})
     center = {'latitude': 40.98, 'longitude': 117.94}
     for owner in ('first-user', 'after-another-restart'):
         worker = pages.PhotoPages(repository=repository)

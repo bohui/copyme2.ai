@@ -1191,7 +1191,9 @@ function photoMatchesScope(picture, entry, focus = null) {
   const requested = bounds(period, true), captured = bounds(expression);
   if (requested) {
     const requestedYears = Array.from(period.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g));
-    const tolerance = requested[0] === requested[1] && requestedYears.length === 1 ? 10 : 0;
+    const remainingPrecision = period.replace(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g, "");
+    const tolerance = requested[0] === requested[1] && requestedYears.length === 1
+      && !/\d/.test(remainingPrecision) ? 10 : 0;
     if (captured[0] < requested[0] - tolerance || captured[1] > requested[1] + tolerance) return false;
   } else {
     const recent = new Date(`${today}T00:00:00Z`);

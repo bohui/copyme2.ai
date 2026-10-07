@@ -90,7 +90,10 @@ def _photo_year_tolerance(period: str) -> int:
     # Bare years retain their documented ten-year window; explicit ranges
     # and decades remain authoritative. A single qualified year cue keeps
     # the nearby-year reference allowance without widening those contracts.
-    return PHOTO_YEAR_TOLERANCE if bounds and bounds[0] == bounds[1] and len(_years(period)) == 1 else 0
+    # Additional month/day numbers retain the requested year bounds.
+    remaining_precision = re.sub(r'(?<!\d)((?:18|19|20)\d{2})(?!\d)', '', period)
+    return PHOTO_YEAR_TOLERANCE if (bounds and bounds[0] == bounds[1] and len(_years(period)) == 1
+                                   and not re.search(r'\d', remaining_precision)) else 0
 
 
 def _date_matches(date: str, period: str, *, tolerance: int | None = None) -> bool:
@@ -694,7 +697,9 @@ def _deduplicate(items: list[dict]) -> list[dict]:
         if matches or similar is not None:
             index = min(matches) if matches else similar
             exact_images = {seen[key] for key in keys if key in seen
-                            and key[0] in {'asset', 'image', 'hash', 'wikimedia'}}
+                            and (key[0] in {'asset', 'image', 'hash', 'wikimedia'}
+                                 or (key[0] == 'source' and isinstance(key[1], tuple)
+                                     and key[1][0] == 'flickr'))}
             for match in exact_images:
                 if _coordinates(unique[match]) is None and _coordinates(item) is not None:
                     # Keep the whole source-backed candidate, including its
