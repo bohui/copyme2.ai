@@ -22,6 +22,12 @@ pytestmark = pytest.mark.skipif(
         ("fr-FR,zh-CN;q=0.8,en-AU;q=0.5", "zh-CN"),
         ("en-AU;q=0.4,zh-CN;q=0.9", "zh-CN"),
         ("*", "en-AU"),
+        ("en-US;q=1,zh-CN;q=0.1", "en-AU"),
+        ("zh-TW;q=1,en-AU;q=0.1", "zh-CN"),
+        ("zh-CN;q=0.1,en-GB;q=0.9", "en-AU"),
+        ("fr-FR;q=1,zh-SG;q=0.8,en-AU;q=0.1", "zh-CN"),
+        ("en-US,zh-CN", "en-AU"),
+        ("en-US;q=.9,zh-CN;q=0.1", "zh-CN"),
     ],
 )
 def test_server_locale_negotiation(accept_language, expected_locale):
@@ -33,11 +39,16 @@ def test_server_locale_negotiation(accept_language, expected_locale):
     assert f'<html lang="{expected_locale}"' in response.text
 
 
-@pytest.mark.parametrize("cookie_locale,expected_locale", [("zh-CN", "zh-CN"), ("invalid_locale", "en-AU")])
-def test_cookie_allowlist_precedes_malformed_browser_header(cookie_locale, expected_locale):
+@pytest.mark.parametrize("cookie_locale,accept_language,expected_locale", [
+    ("zh-CN", "invalid_locale", "zh-CN"),
+    ("invalid_locale", "invalid_locale", "en-AU"),
+    ("en-AU", "zh-TW;q=1,en-AU;q=0.1", "en-AU"),
+    ("zh-CN", "en-US;q=1,zh-CN;q=0.1", "zh-CN"),
+])
+def test_cookie_allowlist_precedes_browser_negotiation(cookie_locale, accept_language, expected_locale):
     response = httpx.get(
         os.environ["MEMOIR_BROWSER_URL"] + "/memoir",
-        headers={"Accept-Language": "invalid_locale"},
+        headers={"Accept-Language": accept_language},
         cookies={"copyme2_ui_locale": cookie_locale}, timeout=30, trust_env=False,
     )
     assert response.status_code == 200

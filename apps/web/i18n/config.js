@@ -43,5 +43,13 @@ function browserLocalePreferences(acceptLanguage = "") {
 export function resolveUiLocale({ cookieLocale, acceptLanguage, matchLocale }) {
   if (isUiLocale(cookieLocale)) return cookieLocale;
   const requested = browserLocalePreferences(acceptLanguage);
-  return matchLocale(requested, locales, defaultLocale);
+  for (const locale of requested) {
+    // Best-fit distance across a whole list can let a lower-priority exact
+    // match beat a preferred regional variant. Match one preference at a time
+    // so HTTP quality order wins while retaining the existing regional mapping.
+    // "und" distinguishes no match from a genuine match to the English pack.
+    const matched = matchLocale([locale], locales, "und");
+    if (isUiLocale(matched)) return matched;
+  }
+  return defaultLocale;
 }
