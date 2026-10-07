@@ -147,19 +147,32 @@ class CampaignDispatchBudget:
         self._last_time = now
         self._deadline = now + proposal['proposed_limits']['wall_seconds']
         self._fd = None
-        path = root / (pinned['run_id'] + '.jsonl')
         try:
-            self._fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-        except FileExistsError:
-            raise BudgetStopped('reservation_exists') from None
-        try:
-            self._write('created', scope=self._scope, proposed_limits=proposal['proposed_limits'],
-                worker_stage_limits=proposal['worker_stage_limits'], evidence_mode='synthetic',
-                actual_provider_requests=None, live_execution_authorized=False, restart_allowed=False)
+            directory_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            try:
+                try:
+                    self._fd = os.open(pinned['run_id'] + '.jsonl',
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        0o600, dir_fd=directory_fd)
+                except FileExistsError:
+                    raise BudgetStopped('reservation_exists') from None
+                self._write('created', scope=self._scope, proposed_limits=proposal['proposed_limits'],
+                    worker_stage_limits=proposal['worker_stage_limits'], evidence_mode='synthetic',
+                    actual_provider_requests=None, live_execution_authorized=False, restart_allowed=False)
+                # File fsync does not persist the new name in its parent directory.
+                try:
+                    os.fsync(directory_fd)
+                except BaseException as error:
+                    self._journal_failure(error)
+            finally:
+                os.close(directory_fd)
         except BaseException:
-            os.close(self._fd)
-            self._fd = None
-            self._closed = True
+            try:
+                if self._fd is not None:
+                    os.close(self._fd)
+            finally:
+                self._fd = None
+                self._closed = True
             raise
         return self
 
@@ -187,10 +200,17 @@ class CampaignDispatchBudget:
                     raise OSError('Journal write unavailable')
                 offset += written
             os.fsync(self._fd)
-        except (OSError, TypeError, ValueError):
-            self._journal_durable = False
-            self._stop_reason = self._stop_reason or 'journal_unavailable'
+        except BaseException as error:
+            self._journal_failure(error)
+
+    def _journal_failure(self, error):
+        self._journal_durable = False
+        self._stop_reason = self._stop_reason or 'journal_unavailable'
+        if isinstance(error, Exception):
             raise BudgetStopped('journal_unavailable') from None
+        # Preserve cancellation/interruption, but never allow a caller that
+        # catches it to continue using an uncertain journal.
+        raise error
 
     def _fence(self, reason):
         if not self._stop_reason:

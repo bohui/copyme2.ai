@@ -90,9 +90,12 @@ accept only fixed content-free reasons such as `quota`, `provider_error`,
 exception messages are neither accepted as evidence nor written to the journal.
 
 The journal uses exclusive non-following creation, private new-file mode,
-complete writes, and fsync before returning reservation tickets. Write/fsync
-failure is sticky, prevents later reservations, and never releases a consumed
-slot. Separate processes cannot acquire the same reservation. Forked copies
+complete writes, and fsync before returning reservation tickets. Creation also
+fsyncs the registry directory before returning so the new reservation name is
+durable. Write/fsync failure, including cancellation or interruption, is sticky,
+prevents later reservations, and never releases a consumed slot. Cancellation
+and interruption are re-raised after the fence is set. Separate processes cannot
+acquire the same reservation. Forked copies
 cannot operate the parent's ledger; threaded transitions are serialized.
 
 `close()` does not await, cancel, drain, or verify any application or transport

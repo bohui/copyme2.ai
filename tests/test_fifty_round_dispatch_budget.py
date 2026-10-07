@@ -400,3 +400,48 @@ def test_journal_failure_during_close_still_closes_descriptor_and_fences(tmp_pat
     assert ledger.receipt()['cleanup'] == {'closed': True, 'active_finished': True, 'journal_durable': False}
     with pytest.raises(OSError): os.fstat(fd)
     with pytest.raises(api().BudgetStopped): worker(ledger)
+
+
+@pytest.mark.parametrize('interruption', ['keyboard', 'cancelled', 'generator_exit'])
+def test_journal_interruptions_are_sticky_and_preserve_cancellation(tmp_path, clock, monkeypatch, interruption):
+    import asyncio
+    ledger = create(tmp_path); ticket = worker(ledger); send = reserve(ledger, ticket)
+    error = {'keyboard': KeyboardInterrupt, 'cancelled': asyncio.CancelledError,
+        'generator_exit': GeneratorExit}[interruption]
+    fsync = os.fsync
+    def interrupted(fd): raise error()
+    monkeypatch.setattr(api().os, 'fsync', interrupted)
+    with pytest.raises(error): ledger.mark_started(send)
+    monkeypatch.setattr(api().os, 'fsync', fsync)
+    receipt = ledger.receipt()
+    assert receipt['cleanup']['journal_durable'] is False
+    assert receipt['stop_reason'] == 'journal_unavailable'
+    assert receipt['send_reservations'] == receipt['unsettled_requests'] == 1
+    with pytest.raises(api().BudgetStopped): ledger.settle(send, completion())
+    with pytest.raises(api().BudgetStopped): reserve(ledger, ticket, 2)
+    ledger.close()
+
+
+def test_creation_syncs_the_registry_directory_before_returning(tmp_path, monkeypatch):
+    import stat
+    kinds = []
+    fsync = os.fsync
+    def observed(fd):
+        kinds.append('directory' if stat.S_ISDIR(os.fstat(fd).st_mode) else 'file')
+        fsync(fd)
+    monkeypatch.setattr(api().os, 'fsync', observed)
+    ledger = create(tmp_path)
+    assert kinds == ['file', 'directory']
+    ledger.close()
+
+
+def test_registry_directory_sync_failure_blocks_creation_and_reuse(tmp_path, monkeypatch):
+    import stat
+    fsync = os.fsync
+    def broken_directory(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode): raise OSError('synthetic directory failure')
+        fsync(fd)
+    monkeypatch.setattr(api().os, 'fsync', broken_directory)
+    with pytest.raises(api().BudgetStopped, match='journal_unavailable'): create(tmp_path)
+    monkeypatch.setattr(api().os, 'fsync', fsync)
+    with pytest.raises(api().BudgetStopped, match='reservation_exists'): create(tmp_path)
