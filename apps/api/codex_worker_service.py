@@ -96,7 +96,8 @@ class WorkerTurnInput(BaseModel):
 class CodexWorker:
     """Run Codex outside the API container and under a user-specific UID."""
 
-    def __init__(self, *, home_root=None, legacy_root=None, command=None, base_url=None, model=None, timeout=None):
+    def __init__(self, *, home_root=None, legacy_root=None, command=None, base_url=None, model=None,
+                 timeout=None, api_key=None, reasoning_effort=None):
         self.home_root = Path(home_root or os.getenv(
             "MEMORY_SPARK_CODEX_HOME", "var/codex-worker-users"
         ))
@@ -112,7 +113,8 @@ class CodexWorker:
             "MEMORY_SPARK_LLM_BASE_URL", "http://127.0.0.1:4000/v1"
         )
         self.model = model or os.getenv("MEMORY_SPARK_LLM_MODEL", "gpt-5.6-luna-pooled")
-        self.api_key = os.getenv("MEMORY_SPARK_LLM_API_KEY", "")
+        self.api_key = api_key if api_key is not None else os.getenv("MEMORY_SPARK_LLM_API_KEY", "")
+        self.reasoning_effort = reasoning_effort
         # Bound the whole execution, not each protocol request separately.
         # Collector/workspace budgets stay below their conversation leases;
         # composer phases use the separate private-draft budget below.
@@ -422,7 +424,8 @@ class CodexWorker:
                        {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
-                    **({'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}
+                    **({'effort': self.reasoning_effort} if self.reasoning_effort is not None else
+                       {'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}
                        if payload.agent_role == 'composer' else {}),
                     responsesapi_client_metadata={**correlation, 'request_id': request_id},
                 )

@@ -29,16 +29,26 @@ async def execute_memoir_lane(lane_id: str) -> dict:
         await broker.client.aclose()
 
 
-async def dispatch_memoir_lanes_once(client, broker, task_queue):
+async def dispatch_memoir_lanes_once(client, broker, task_queue, *, single_attempt=False):
+    if type(single_attempt) is not bool or (single_attempt and not task_queue.startswith('canary-')):
+        raise ValueError('Single-attempt execution requires a task-owned canary queue')
     lane_ids = await broker.drain_once()
     lane_ids.extend(await broker.rpc('pending_memoir_lanes', p_limit=100))
     handles = []
     for lane_id in dict.fromkeys(lane_ids):
-        handles.append(await client.start_workflow(MemoirSkillLane.run, lane_id,
+        handle = await client.start_workflow(MemoirSkillLane.run,
+            args=[lane_id, True] if single_attempt else [lane_id],
             id='memoir-lane:' + lane_id, task_queue=task_queue,
             id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
             id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
-            start_signal='notify', start_signal_args=[0]))
+            start_signal='notify', start_signal_args=[0])
+        handles.append(handle)
+        # The canary broker returns timeline before composer. Await each lane
+        # so a composer cannot consume its sole attempt before extraction.
+        if single_attempt:
+            outcome = await handle.result()
+            if outcome.get('status') != 'finished':
+                raise RuntimeError('Canary lane did not settle on its first attempt')
     return handles
 
 
