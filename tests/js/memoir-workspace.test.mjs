@@ -116,11 +116,31 @@ test('the existing developer flag shows early checkpoint previews', () => {
   assert.equal(context.workspaceTabs().length, 0);
 });
 
+test('paid Family storytellers retain their selected Family and Timeline tabs at round 20 before composition', () => {
+  for (const compositionStage of [0, 1, 2]) {
+    for (const tab of ['family', 'timeline']) {
+      const context = setup({compositionStage, workspaceTab:tab, privateDraft:savedDraft,
+        people:[{id:'author'}], timeline:[{id:'birth'}],
+        recallStatus:{rounds_completed:19, free_rounds:20, paid:true, payment_required:false}});
+      assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['family', 'timeline']);
+      context.state.recallStatus.rounds_completed = 20;
+      assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['family', 'timeline', 'memoir']);
+      assert.equal(context.activeWorkspaceTab(), tab);
+      const markup = context.workspaceDetail();
+      assert.equal((markup.match(/data-workspace-tab=/g) || []).length, 3);
+      assert.ok(markup.includes(`${tab} view`));
+      assert.doesNotMatch(markup, /private-draft-status|童年草稿/);
+      context.state.workspaceTab = 'memoir';
+      assert.match(context.workspaceDetail(), /童年草稿/);
+    }
+  }
+});
+
 test('finishing free rounds reveals the draft only in Chapters regardless of payment', () => {
   for (const paid of [false, true]) {
     const context = setup({privateDraft:savedDraft, placeJourney:null,
       recallStatus:{rounds_completed:20, free_rounds:20, paid, payment_required:!paid}});
-    assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['memoir']);
+    assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['family', 'timeline', 'memoir']);
     assert.equal(context.privateDraftPreview(), '');
     const markup = context.workspaceDetail();
     assert.match(markup, /data-workspace-tab="memoir"/);
@@ -146,6 +166,14 @@ test('draft release follows the configured server limit and rejects incomplete u
     context.state.recallStatus = recallStatus;
     assert.equal(context.freeRecallFinished(), false);
     assert.equal(context.privateDraftPreview({inChapters:true}), '');
+  }
+});
+
+test('paid storytellers without Family entitlement keep Chapters alone', () => {
+  for (const compositionStage of [2, 3]) {
+    const context = setup({compositionStage, familyFeaturesEnabled:false,
+      recallStatus:{rounds_completed:20, free_rounds:20, paid:true, payment_required:false}});
+    assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['memoir']);
   }
 });
 

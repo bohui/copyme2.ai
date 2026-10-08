@@ -11,6 +11,72 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+@pytest.mark.parametrize('family_enabled', [False, True])
+def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, family_enabled):
+    copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())['Memoir']['workspace']
+    project = {'id': 'entitlement-round-limit', 'revision': 1, 'mode': 'self',
+               'composition_stage': 2, 'workspace_unlocked': False,
+               'profile': {'preferred_language': locale}}
+
+    def api(route):
+        endpoint = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+        data = {'items': []}
+        if endpoint == '/agent/config':
+            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public',
+                    'auth_mode': 'supabase', 'show_thinking_steps': False}
+        elif endpoint in ('/agent/profile', '/user/profile'):
+            data = project['profile']
+        elif endpoint == '/projects/entitlement-round-limit':
+            data = project
+        elif endpoint == '/projects/entitlement-round-limit/journey':
+            data = {'active_session': None}
+        elif endpoint == '/story/state':
+            data = {'family_features_enabled': family_enabled,
+                    'payment_features': ['family_tree', 'timeline'] if family_enabled else [],
+                    'recall_status': {'rounds_completed': 20, 'free_rounds': 20,
+                                      'paid': True, 'payment_required': False}}
+        elif endpoint == '/agent/family-context':
+            data = {'family_features_enabled': family_enabled, 'family_context': {
+                'project_id': project['id'], 'revision': 1, 'people': [], 'relationships': [], 'timeline': []}}
+        elif endpoint == '/story/events':
+            data = {'events': []}
+        elif endpoint == '/story/private-draft':
+            data = {'covered_round': 20, 'preview': {'title': 'Saved memoir draft', 'text': 'Saved memories.'}}
+        route.fulfill(json=data)
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        context = browser.new_context(viewport={'width': 1440, 'height': 900})
+        base = os.environ['MEMOIR_BROWSER_URL']
+        context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
+                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
+        context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base) else route.abort())
+        page = context.new_page()
+        user = {'id': 'paid-storyteller', 'is_anonymous': False, 'user_metadata': {'ui_locale': locale}}
+        auth_script = f"""window.supabase = {{createClient: () => ({{auth: {{
+          getSession: async () => ({{data: {{session: {{access_token: 'token', user: {json.dumps(user)}}}}}}}),
+          getUser: async () => ({{data: {{user: {json.dumps(user)}}}}}),
+          onAuthStateChange: () => ({{}}), updateUser: async () => ({{}})
+        }}}})}};"""
+        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
+            content_type='text/javascript', body=auth_script))
+        page.route('**/api/v1/memoir/**', api)
+        page.goto(base + '/memoir/interview/' + project['id'], wait_until='networkidle')
+        tabs = page.locator('[data-workspace-tab]')
+        expected = ['family', 'timeline', 'memoir'] if family_enabled else ['memoir']
+        expect(tabs).to_have_count(len(expected))
+        for tab in expected:
+            button = page.locator(f'[data-workspace-tab="{tab}"]')
+            expect(button).to_have_text(copy['chapters' if tab == 'memoir' else tab])
+            button.click()
+            expect(button).to_have_attribute('aria-current', 'page')
+            expect(page.locator('.private-draft-status')).to_have_count(1 if tab == 'memoir' else 0)
+        page.reload(wait_until='networkidle')
+        expect(tabs).to_have_count(len(expected))
+        browser.close()
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 @pytest.mark.parametrize('anonymous', [False, True])
 @pytest.mark.parametrize('show_developer_steps', [False, True])
 def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, show_developer_steps):

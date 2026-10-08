@@ -3339,9 +3339,9 @@ function composingWorkspaceActive() {
 function workspaceTabs() {
   const t = (key) => translate(`Memoir.workspace.${key}`);
   const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
-  return composingWorkspaceActive() ? [...premium, ["memoir", t("chapters")]]
-    : freeRecallFinished() ? [["memoir", t("chapters")]]
-      : premium.filter(([key]) => key === "timeline" ? state.timeline.length : state.people.length);
+  return composingWorkspaceActive() || freeRecallFinished()
+    ? [...premium, ["memoir", t("chapters")]]
+    : premium.filter(([key]) => key === "timeline" ? state.timeline.length : state.people.length);
 }
 
 function activeWorkspaceTab() {
