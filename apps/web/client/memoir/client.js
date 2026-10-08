@@ -3105,7 +3105,7 @@ function workspaceDetail() {
     : "";
   const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
   const composing = composingWorkspaceActive();
-  const mediaOverview = composing || (active === "memoir" && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
+  const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`

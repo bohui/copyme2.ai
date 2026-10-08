@@ -205,3 +205,16 @@ test('completed recall keeps location and photo cues until composition unlock', 
     assert.match(context.workspaceDetail(), /童年草稿/);
   }
 });
+
+
+test('recall views without a saved place do not add empty location panes', () => {
+  for (const workspaceTab of ['family', 'timeline', 'memoir']) {
+    const context = setup({workspaceTab, placeJourney:null, privateDraft:savedDraft,
+      recallStatus:{rounds_completed:20, free_rounds:20, paid:true}});
+    const markup = context.workspaceDetail();
+    assert.match(markup, /data-workspace-tab/);
+    assert.doesNotMatch(markup, /workspace-media-overview|has-recall-views/);
+    if (workspaceTab === 'memoir') assert.match(markup, /童年草稿/);
+    else assert.doesNotMatch(markup, /童年草稿/);
+  }
+});
