@@ -47,6 +47,8 @@ const state = {
   selectedMemoirChapter: null,
   selectedFamilyPerson: null,
   familyPhotoTask: null,
+  photoMemoryTask: null,
+  photoFavoritesOpen: false,
   workspaceUnlocked: false,
   compositionStage: 0,
   workspaceCollapsed: false,
@@ -111,8 +113,9 @@ const mapPhotoAlbums = createMapPhotoAlbums({
   getProjectId: () => state.project?.id,
   getAlbum: mapPhotoAlbum,
   getAlbums: mapPhotoAlbumsForScene,
-  renderAlbum: album => pictureWall(album.pictures, album.entry) || mapPhotoAlbumStatus(album.entry),
+  renderAlbum: album => favoritePhotoWall() + (pictureWall(album.pictures, album.entry) || mapPhotoAlbumStatus(album.entry)),
   bindAlbum: (content, album) => {
+    bindPhotoMemoryActions(content);
     content.querySelector("[data-photo-more]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {more:true}));
     content.querySelector("[data-photo-retry]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {force:true}));
   },
@@ -300,6 +303,8 @@ function invalidateProjectNavigation() {
   state.conversationStreams?.clear();
   state.photoRequests?.clear();
   state.pendingConversationTurn = null;
+  state.photoMemoryTask = null;
+  state.photoFavoritesOpen = false;
   state.loading = false;
   state.codexStarting = false;
   if (state.voiceMode || state.voiceModeRecorder || state.voiceModeStream) stopVoiceMode({ silent: true });
@@ -1492,8 +1497,94 @@ function pictureWall(pictures = [], entry = null) {
       : picture.period_match === "any_time" ? ` · ${t("otherPeriodReference")}` : "";
     const locationNote = ["gps", "gps_time"].includes(picture.search_fallback)
       ? ` · ${t("sourceLocationReference")}` : "";
-    return `<figure><div class="picture-wall-media">${media}</div><figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}${periodNote}${locationNote}</small></figcaption></figure>`;
+    const controls = photoMemoryControls(picture, entry, media, Boolean(src));
+    return `<figure>${controls.media}<figcaption>${sourceLink}<small>${escapeHtml(sceneDate)} · ${escapeHtml(detail)}${periodNote}${locationNote}</small>${controls.favorite}</figcaption></figure>`;
   }).join("")}${photoPaginationMarkup(entry)}</section>`;
+}
+
+function photoMemoryState() {
+  return profile().photo_memories?.[state.project?.id] || {favorites: [], selected: null};
+}
+
+function photoMemoryControls(picture, entry, media, selectable) {
+  if (!selectable) return {media: `<div class="picture-wall-media">${media}</div>`, favorite: ""};
+  const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const photo = Object.fromEntries(["image_url", "original_url", "source_url", "asset_id", "title", "attribution", "date_expression"]
+    .map(key => [key, picture[key] || ""]));
+  photo.place = picture.place || picture.reference_place || entry?.place || "";
+  photo.period = picture.period || (entry ? photoSearchPeriod(entry, profile().story_focus) : "");
+  const key = photo.original_url || photo.image_url;
+  const saved = photoMemoryState();
+  const favorite = saved.favorites.some(item => item.key === key);
+  const selected = saved.selected === key;
+  const disabled = state.loading || state.photoMemoryTask ? "disabled" : "";
+  const attrs = `data-photo-reference="${escapeHtml(JSON.stringify(photo))}" data-photo-key="${escapeHtml(key)}"`;
+  return {
+    media: `<button type="button" class="picture-wall-media photo-memory-select ${selected ? "is-selected" : ""}" data-photo-memory="select" ${attrs} aria-pressed="${selected}" aria-label="${t("recallFromPhoto")}: ${escapeHtml(photo.title)}" ${disabled}>${media}<span class="photo-memory-hint">${t(selected ? "photoSelected" : "recallFromPhoto")}</span></button>`,
+    favorite: `<button type="button" class="photo-favorite ${favorite ? "is-favorite" : ""}" data-photo-memory="${favorite ? "unfavorite" : "favorite"}" ${attrs} aria-pressed="${favorite}" aria-label="${t(favorite ? "removePhotoFavorite" : "favoritePhoto")}: ${escapeHtml(photo.title)}" ${disabled}><span aria-hidden="true">${favorite ? "★" : "☆"}</span> ${t(favorite ? "photoFavorited" : "favoritePhoto")}</button>`,
+  };
+}
+
+function favoritePhotoWall() {
+  const favorites = photoMemoryState().favorites;
+  if (!favorites.length) return "";
+  return `<details class="photo-favorites" ${state.photoFavoritesOpen ? "open" : ""}><summary>${escapeHtml(translateWith("Memoir.workspace.favoritePhotos", {count:favorites.length}))}</summary>${pictureWall(favorites.map(photo => ({...photo, allowed_actions:{embed:true}})))}</details>`;
+}
+
+function selectedPhotoCue() {
+  const saved = photoMemoryState();
+  const photo = saved.favorites.find(item => item.key === saved.selected);
+  if (!photo) return "";
+  const src = referenceUrl(photo.image_url);
+  return `<div class="selected-photo-cue" role="status">${src ? `<img src="${escapeHtml(src)}" alt="" />` : ""}<div><strong>${escapeHtml(translate("Memoir.workspace.photoSelected"))}</strong><span>${escapeHtml(photo.title || photo.place)}</span><small>${escapeHtml(translate("Memoir.workspace.photoQuestionCue"))}</small></div><button type="button" class="text-button" data-photo-memory="clear" aria-label="${escapeHtml(translate("Memoir.workspace.clearPhotoCue"))}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>×</button></div>`;
+}
+
+function bindPhotoMemoryActions(root = document) {
+  const scope = captureProjectScope();
+  for (const details of root.querySelectorAll(".photo-favorites")) {
+    if (details.photoMemoryBound) continue;
+    details.photoMemoryBound = true;
+    details.addEventListener("toggle", () => {
+      if (details.isConnected && isCurrentProjectScope(scope)) state.photoFavoritesOpen = details.open;
+    });
+  }
+  for (const button of root.querySelectorAll("[data-photo-memory]")) {
+    if (button.photoMemoryBound) continue;
+    button.photoMemoryBound = true;
+    button.addEventListener("click", () => {
+      const photo = button.dataset.photoReference ? JSON.parse(button.dataset.photoReference) : null;
+      void savePhotoMemory(button.dataset.photoMemory, photo);
+    });
+  }
+}
+
+async function savePhotoMemory(action, photo = null) {
+  if (!state.project || state.loading || state.photoMemoryTask) return;
+  const scope = captureProjectScope();
+  const task = {};
+  task.done = new Promise(resolve => { task.finish = resolve; });
+  state.photoMemoryTask = task;
+  render();
+  try {
+    const saved = await api(`/v1/projects/${scope.projectId}/photo-memories`, {
+      method:"PUT", body:JSON.stringify({action, ...(photo ? {photo} : {})}),
+    });
+    if (!isCurrentProjectScope(scope)) return;
+    state.project.profile = {...profile(), photo_memories:{...(profile().photo_memories || {}), [scope.projectId]:saved}};
+  } catch (error) {
+    if (isCurrentProjectScope(scope)) toast(translate(`Memoir.workspace.${error.status === 409 ? "photoSaveBusy" : "photoSaveError"}`));
+  } finally {
+    if (state.photoMemoryTask === task) state.photoMemoryTask = null;
+    task.finish();
+    if (isCurrentProjectScope(scope)) {
+      render();
+      const key = photo?.original_url || photo?.image_url;
+      const root = document.querySelector(".map-photo-album-viewer[open]") || document;
+      [...root.querySelectorAll("[data-photo-memory]")].find(button => button.dataset.photoKey === key
+        && (action === "select" ? button.dataset.photoMemory === "select"
+          : ["favorite", "unfavorite"].includes(button.dataset.photoMemory)))?.focus({preventScroll:true});
+    }
+  }
 }
 
 function placePictures(pictures = []) {
@@ -2028,7 +2119,8 @@ async function saveProfileUpdates(updates, expectedProjectId = null, { force = f
       });
       if (!isCurrentProjectScope(scope)) return;
       if (state.project?.id === project.id) state.project = { ...state.project, ...saved,
-        profile: { ...saved.profile, ...(state.project.profile?.conversation_language ? {
+        profile: { ...saved.profile, ...(state.project.profile?.photo_memories ? {
+          photo_memories:state.project.profile.photo_memories} : {}), ...(state.project.profile?.conversation_language ? {
           preferred_language:state.project.profile.preferred_language, conversation_language:state.project.profile.conversation_language} : {}) } };
       return;
     } catch (error) {
@@ -2039,7 +2131,8 @@ async function saveProfileUpdates(updates, expectedProjectId = null, { force = f
         const latest = await api(`/v1/projects/${project.id}`);
         if (!isCurrentProjectScope(scope)) return;
         if (state.project?.id === project.id) state.project = { ...state.project, ...latest,
-          profile: preserveConversationLocale(latest.profile, state.project.profile) };
+          profile: { ...preserveConversationLocale(latest.profile, state.project.profile),
+            ...(state.project.profile?.photo_memories ? {photo_memories:state.project.profile.photo_memories} : {}) } };
         continue;
       }
       toast(translateWith("Memoir.conversation.profileSaveError", { error: error.message }));
@@ -2940,6 +3033,7 @@ function renderStory() {
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
   bindPhotoPagination();
+  bindPhotoMemoryActions();
   const scroll = $("#chat-scroll");
   if (draft !== undefined && $("#chat-input")) {
     $("#chat-input").value = draft;
@@ -3186,7 +3280,7 @@ function workspaceMediaOverview(toggle = "") {
     : request?.error
       ? `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
       : `<p class="workspace-photo-status" role="status">${t(Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
-  const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
+  const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${favoritePhotoWall()}${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
   return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
@@ -4051,7 +4145,7 @@ function chatComposer() {
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${composerAttachments()}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${selectedPhotoCue()}${composerAttachments()}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
 }
 
 function renderMessage(message) {
@@ -4252,6 +4346,7 @@ async function beginMemoryConversation(renderNow = true) {
 }
 
 async function startMemory() {
+  if (state.photoMemoryTask) return;
   const scope = captureProjectScope();
   if (state.recallStatus?.payment_required) return;
   if (state.loading) return;
@@ -4272,8 +4367,12 @@ async function startMemory() {
 
 async function sendChatMessage({ voiceTurn = false } = {}) {
   const scope = captureProjectScope();
+  if (voiceTurn && state.photoMemoryTask) {
+    await state.photoMemoryTask.done;
+    if (!isCurrentProjectScope(scope) || !state.voiceMode) return;
+  }
   if (state.recallStatus?.payment_required) return;
-  if (state.loading || state.dictationStatus !== "off") return;
+  if (state.loading || state.photoMemoryTask || state.dictationStatus !== "off") return;
   if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
   if (state.voiceMode && state.voiceModeRecorder && !voiceTurn) {
     if (state.voiceModeRecorder.state !== "inactive") {
@@ -4714,7 +4813,7 @@ function toggleVoiceInput() {
     stopVoiceMode();
     return;
   }
-  if (state.loading || state.dictationStatus !== "off") return;
+  if (state.loading || state.photoMemoryTask || state.dictationStatus !== "off") return;
   state.voiceMode = true;
   state.voiceModeStatus = "listening";
   state.voiceModeCancelTurn = false;

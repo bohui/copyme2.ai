@@ -29,6 +29,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .agent_routes_support import authenticated_storage
 from .namespaces import rewrite_memoir_path
+from .photo_memories import PhotoMemoryInput, update_photo_memory
 from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service, speech_character
 from .store import MemoryStore, new_id, now_iso, sha256_bytes, sha256_json
 
@@ -2358,6 +2359,37 @@ def create_app(
     from .place_photo_pages import PhotoPages
     photo_pages = PhotoPages()
     app.state.memoir_photo_pages = photo_pages
+
+    @app.put("/v1/projects/{project_id}/photo-memories")
+    async def save_photo_memory(project_id: str, payload: PhotoMemoryInput,
+                                authorization: str | None = Header(default=None),
+                                x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
+        project = _project(memory, project_id, _account_id(x_account_id))
+        actor = _account_id(x_account_id)
+        if actor not in {project['owner_id'], project['storyteller_id']}:
+            raise _unauthorised()
+        if project.get('supabase_owner_id'):
+            from .agent_lock import AgentTurnBusyError, AgentTurnLease
+            service = await asyncio.to_thread(authenticated_storage, authorization)
+            try:
+                async with AgentTurnLease(service) as lease:
+                    profile = await lease.io(service.profile)
+                    updated, photo_state = update_photo_memory(profile, project_id, payload)
+                    await lease.check()
+                    await lease.io(service.save_profile, updated)
+                    await lease.check()
+            except AgentTurnBusyError:
+                raise HTTPException(409, 'Please wait for the current reply before saving a photo.') from None
+            except (httpx.HTTPStatusError, httpx.RequestError):
+                raise HTTPException(503, 'Photo favourites could not be saved') from None
+            finally:
+                await asyncio.to_thread(service.client.close)
+        else:
+            updated, photo_state = update_photo_memory(project['profile'], project_id, payload)
+        # Update the project adapter only after authoritative persistence succeeds.
+        project = _project(memory, project_id, actor)
+        project['profile']['photo_memories'] = updated['photo_memories']
+        return photo_state
 
     @app.get("/v1/projects/{project_id}/place-photos")
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),

@@ -258,7 +258,7 @@ test('photo workspace exposes discovery even before any eligible result', () => 
     placeMapTarget: () => ({}), profile: () => ({memory_places: [entry]}), mergePlaces: items => items,
     placeHistoryChoices: () => '', placeJourneyMarkup: () => '<div>map</div>',
     workspacePlaceGroups: () => [{city: entry, members: [entry]}], groupChoices: () => [entry],
-    renderablePictureItems: items => items, workspacePictureItems: () => [], pictureWall: () => '',
+    renderablePictureItems: items => items, workspacePictureItems: () => [], pictureWall: () => '', favoritePhotoWall: () => '',
     placeHistoryKey: item => item.place, photoSearchPeriod: () => '',
     photoRequestKey: () => JSON.stringify(['p', 'Chengde', '', null, null]),
   });

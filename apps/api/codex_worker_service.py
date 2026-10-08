@@ -358,6 +358,7 @@ class CodexWorker:
             instructions = build_conversation_system_prompt(
                 context,
                 payload.profile,
+                project_id=payload.project_id,
                 place_journey=payload.place_journey,
                 family_context=payload.family_context,
                 language=language,

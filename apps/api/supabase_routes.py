@@ -248,7 +248,7 @@ async def save_profile(payload: dict, authorization: str | None = Header(default
             # Generic workspace writes may be delayed snapshots. Explicit
             # language changes belong to the dedicated profile-settings route.
             merged = {**current, **payload}
-            for key in ('preferred_language', 'conversation_language'):
+            for key in ('preferred_language', 'conversation_language', 'photo_memories'):
                 if key in current:
                     merged[key] = current[key]
                 else:
