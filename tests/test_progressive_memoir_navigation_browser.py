@@ -8,6 +8,7 @@ import os
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
+from browser_optional_fonts import control_optional_fonts
 
 from test_shared_memory_events_postgres import (
     database, attachment_database, private_database, event_database, sql,
@@ -116,6 +117,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
           }}
         """)
         page = context.new_page()
+        control_optional_fonts(page)
         page.on("pageerror", lambda error: errors.append(str(error)))
         interview = base + "/memoir/interview/project"
         page.goto(interview, wait_until="networkidle")
