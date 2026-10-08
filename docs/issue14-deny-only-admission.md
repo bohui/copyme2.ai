@@ -88,6 +88,9 @@ The existing fifty-round source-pin test already failed on the original main's
 composer digest. This delta additionally changes three source-pinned app files,
 so the old derivation must remain unavailable until separately coordinated
 review. No source pin or historical canary limit is silently changed here.
+The later [versioned source audit](issue14-versioned-source-contract.md) now checks
+historical integrity and the separately reviewed current inactive payload. It
+does not replace the old derivation or remove its campaign source-drift blocker.
 
 Receipts always say deny-only, `live_ready=false`,
 `actual_provider_requests=null`, and

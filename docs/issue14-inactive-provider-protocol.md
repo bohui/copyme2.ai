@@ -170,3 +170,7 @@ That held baseline pin is not silently updated in this change.
 The later deny-only hook delta also changes the three application files named in
 the existing derivation pins. Those pins must continue to report source drift;
 they cannot be refreshed to imply provider capability or live authorization.
+The subsequent [versioned source-integrity gate](issue14-versioned-source-contract.md)
+preserves those exact historical pins and verifies them against immutable original
+Git objects. A separate current-source audit checks the reviewed inactive payload;
+the existing test requires both, while the old campaign remains blocked on drift.
