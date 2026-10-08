@@ -12,7 +12,7 @@ const picture = fields => ({asset_id: 'reference', title: 'Chengde street',
   search_fallback: 'gps', allowed_actions: {embed: true}, ...fields});
 
 function harness() {
-  const context = vm.createContext({URL, window: {location: {origin: 'http://localhost'}},
+  const context = vm.createContext({state: {project: {id:'p'}}, URL, window: {location: {origin: 'http://localhost'}},
     profile: () => ({story_focus: {when: '1983年'}}),
     placeHistoryKey: place => place.place, searchedPictures: () => [],
     escapeHtml: value => String(value), translate: key => key,
@@ -20,7 +20,7 @@ function harness() {
     photoPaginationMarkup: () => '',
   });
   for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoMatchesScope',
-    'mergePlacePictures', 'renderablePictureItems', 'workspacePictureItems', 'referenceUrl', 'pictureWall']) {
+    'mergePlacePictures', 'renderablePictureItems', 'workspacePictureItems', 'referenceUrl', 'photoMemoryState', 'photoMemoryControls', 'pictureWall']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   return context;

@@ -29,7 +29,7 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
     isFreshAnonymousSession: () => true, profileMenu: () => '', renderMessage: () => '',
     placeJourneySurface: () => '', recallPackagePrompt: () => '', chatComposer: () => '',
     bindViewActions() {}, bindProfileMenu() {}, disposeCesiumPlaceJourney() {}, initCesiumPlaceJourney() {},
-    initFamilyVisualizations() {}, bindPhotoPagination() {}, resizeChatInput() {}, persistChatHistory() {},
+    initFamilyVisualizations() {}, bindPhotoPagination() {}, bindPhotoMemoryActions() {}, resizeChatInput() {}, persistChatHistory() {},
     authReminder: {mount() {}}, render() {},
     mapPhotoAlbums: {sync() {}},
     ...dependencies,

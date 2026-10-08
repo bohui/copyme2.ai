@@ -465,7 +465,17 @@
       "saveEventTags": "Save correction",
       "cancelEventEdit": "Cancel",
       "eventRevisionConflict": "This memory changed. Reload it and try your correction again.",
-      "eventCorrectionUnavailable": "The correction could not be saved. Check the remembered date and try again."
+      "eventCorrectionUnavailable": "The correction could not be saved. Check the remembered date and try again.",
+      "recallFromPhoto": "This brings back a memory",
+      "photoSelected": "Photo selected",
+      "favoritePhoto": "Favourite photo",
+      "removePhotoFavorite": "Remove favourite photo",
+      "photoFavorited": "Favourited",
+      "favoritePhotos": "Favourite photos ({count})",
+      "photoQuestionCue": "Your next question can draw on this photo.",
+      "clearPhotoCue": "Stop using this photo as a memory cue",
+      "photoSaveBusy": "Please wait for the current reply to finish, then choose the photo again.",
+      "photoSaveError": "Could not save this photo. Please try again."
     },
     "storyFlow": {
       "roundProgress": "Memory recall · {current}",

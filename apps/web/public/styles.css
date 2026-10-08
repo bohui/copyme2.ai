@@ -851,6 +851,22 @@ h3 { line-height: 1.1; }
   border-radius: 8px;
   background: var(--paper-deep);
 }
+.photo-memory-select { position: relative; display: block; padding: 0; border: 2px solid transparent; cursor: pointer; }
+.photo-memory-select.is-selected { border-color: var(--green-dark); }
+.photo-memory-select:focus-visible, .photo-favorite:focus-visible { outline: 3px solid var(--green-dark); outline-offset: 3px; }
+.photo-memory-select:disabled, .photo-favorite:disabled { cursor: wait; opacity: .7; }
+.photo-memory-hint { position: absolute; bottom: 0; left: 0; right: 0; padding: 7px; background: rgba(21,55,46,.87); color: white; font-size: 11px; }
+.photo-favorite { min-height: 44px; padding: 4px 3px; border: 0; background: transparent; color: var(--green-dark); text-align: left; cursor: pointer; font: inherit; }
+.photo-favorite span { font-size: 20px; vertical-align: middle; }
+.photo-favorite.is-favorite span { color: #956920; }
+.photo-favorites { margin-bottom: 12px; }
+.photo-favorites summary { min-height: 44px; padding: 10px 3px; color: var(--green-dark); cursor: pointer; }
+.selected-photo-cue { display: flex; gap: 10px; align-items: center; padding: 8px 12px; margin-bottom: 8px; border: 1px solid var(--green-dark); border-radius: 12px; font-size: 12px; }
+.selected-photo-cue img { width: 48px; height: 48px; object-fit: cover; border-radius: 5px; }
+.selected-photo-cue div { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.selected-photo-cue span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selected-photo-cue small { color: var(--muted); }
+.selected-photo-cue button { min-width: 44px; min-height: 44px; font-size: 24px; }
 .place-pictures figure:nth-child(3n + 1) .picture-wall-media { height: 184px; }
 .place-pictures figure:nth-child(3n + 2) .picture-wall-media { height: 126px; }
 .place-pictures img {

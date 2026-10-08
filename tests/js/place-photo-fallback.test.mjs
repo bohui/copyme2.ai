@@ -36,7 +36,7 @@ function harness(api, entries = [city, town, otherCity]) {
   });
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures',
     'renderablePictureItems', 'workspacePictureItems', 'photoPaginationMarkup',
-    'pictureWall', 'workspaceMediaOverview', 'placesWorkspace']) {
+    'photoMemoryState', 'photoMemoryControls', 'favoritePhotoWall', 'pictureWall', 'workspaceMediaOverview', 'placesWorkspace']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   return {context, state, profile: () => saved,

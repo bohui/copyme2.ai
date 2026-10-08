@@ -465,7 +465,17 @@
       "saveEventTags": "保存更正",
       "cancelEventEdit": "取消",
       "eventRevisionConflict": "这段记忆已更新。请重新查看后再次更正。",
-      "eventCorrectionUnavailable": "未能保存更正。请核对记忆中的日期后重试。"
+      "eventCorrectionUnavailable": "未能保存更正。请核对记忆中的日期后重试。",
+      "recallFromPhoto": "这张照片勾起了回忆",
+      "photoSelected": "已选中照片",
+      "favoritePhoto": "收藏照片",
+      "removePhotoFavorite": "取消收藏照片",
+      "photoFavorited": "已收藏",
+      "favoritePhotos": "收藏的照片（{count}）",
+      "photoQuestionCue": "接下来的问题可以围绕这张照片展开。",
+      "clearPhotoCue": "不再用这张照片唤起回忆",
+      "photoSaveBusy": "请等当前回复结束后，再次选择这张照片。",
+      "photoSaveError": "未能保存这张照片，请重试。"
     },
     "storyFlow": {
       "roundProgress": "回忆中 · {current}",

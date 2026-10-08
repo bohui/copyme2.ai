@@ -174,11 +174,11 @@ test('older empty searches are retried under the radius and year policy', async 
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {
-  const context = vm.createContext({escapeHtml: value => value, translate: key => key,
+  const context = vm.createContext({state: {project: {id:'p'}}, profile: () => ({}), escapeHtml: value => value, translate: key => key,
     placeHistoryKey: item => item.place, referenceUrl: value => value,
     formatDateExpression: value => value, currentUiLocale: () => 'en-AU',
     photoPaginationMarkup: () => '', URL, window: {location: {origin: 'http://localhost'}}});
-  for (const name of ['mergePlacePictures', 'pictureWall']) {
+  for (const name of ['mergePlacePictures', 'photoMemoryState', 'photoMemoryControls', 'pictureWall']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   assert.equal(context.pictureWall([]), '');
