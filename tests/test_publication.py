@@ -7,10 +7,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import _artifact_bytes, create_app
+from synthetic_staff_auth import authenticated_staff, staff_headers
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(monkeypatch) -> TestClient:
+    authenticated_staff(monkeypatch)
     return TestClient(create_app())
 
 
@@ -181,17 +183,17 @@ def test_print_proof_change_invalidates_approval_and_supplier_gets_only_final_fi
     )
     assert changed.status_code == 200
     assert changed.json()["status"] == "REQUIRES_REVISION"
-    blocked = client.post(f"/v1/print-orders/{order['id']}/submit", json={}, headers={"X-Account-Id": "ops-1"})
+    blocked = client.post(f"/v1/print-orders/{order['id']}/submit", json={}, headers=staff_headers("ops-1"))
     assert blocked.status_code == 409
 
     client.post(f"/v1/print-orders/{order['id']}/proofs", json={"manifest_hash": "manifest-b"}, headers={"X-Account-Id": "storyteller-1"})
     client.post(f"/v1/print-orders/{order['id']}/proof-approvals", json={"manifest_hash": "manifest-b"}, headers={"X-Account-Id": "storyteller-1"})
-    package = client.get(f"/v1/print-orders/{order['id']}/supplier-package", headers={"X-Account-Id": "ops-1"})
+    package = client.get(f"/v1/print-orders/{order['id']}/supplier-package", headers=staff_headers("ops-1"))
     assert package.status_code == 200
     assert package.json()["raw_audio_included"] is False
     assert package.json()["source_transcripts_included"] is False
-    submitted = client.post(f"/v1/print-orders/{order['id']}/submit", json={"ack_lost": True}, headers={"X-Account-Id": "ops-1"})
+    submitted = client.post(f"/v1/print-orders/{order['id']}/submit", json={"ack_lost": True}, headers=staff_headers("ops-1"))
     assert submitted.status_code == 200
     assert submitted.json()["status"] == "SUBMISSION_UNKNOWN"
-    duplicate = client.post(f"/v1/print-orders/{order['id']}/submit", json={}, headers={"X-Account-Id": "ops-1"})
+    duplicate = client.post(f"/v1/print-orders/{order['id']}/submit", json={}, headers=staff_headers("ops-1"))
     assert duplicate.status_code == 409

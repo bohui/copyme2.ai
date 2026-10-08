@@ -4,10 +4,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
+from synthetic_staff_auth import authenticated_staff, staff_headers
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(monkeypatch) -> TestClient:
+    authenticated_staff(monkeypatch)
     return TestClient(create_app())
 
 
@@ -61,7 +63,7 @@ def test_context_search_uses_coarse_inputs_and_rejects_prompt_injection(client: 
 
 def test_operator_view_contains_job_metadata_without_story_text(client: TestClient) -> None:
     project, _ = project_with_memory(client)
-    jobs = client.get("/v1/ops/jobs", headers={"X-Account-Id": "ops-1"})
+    jobs = client.get("/v1/ops/jobs", headers=staff_headers("ops-1"))
     assert jobs.status_code == 200
     assert all("result" not in job and "snapshot" not in job for job in jobs.json()["items"])
     denied = client.get("/v1/ops/jobs", headers={"X-Account-Id": "owner-1"})

@@ -2,7 +2,17 @@
 
 Runtime base: `a0223bc32b6d76f442ee8372176ebc7271851abc`, tree `6ba4b1aed8f6f7ce29a7a35e72c2d32412477140`. Read full current issue and zero comments. All 56 stories and all 20 Testing Decisions remain requirements.
 
-This branch adds acceptance coverage. Application, migrations, skill instructions and entitlement policy are unchanged. The original Issue 6 acceptance document remains historical; this map uses actual current selectors. Final exact-head receipts are reported with the PR, and live semantics remain unavailable.
+This branch adds acceptance coverage and repairs an ownership bypass found during the required cross-account check. The persistence implementation is already present in the runtime base through merged PR31/32/33; this branch does not rewrite their migrations. Skill instructions and entitlement policy are unchanged. The original Issue 6 acceptance document remains historical; this map uses actual current selectors. Final exact-head receipts are reported with the PR, and live semantics remain unavailable.
+
+## Ownership repair and synthetic authentication boundary
+
+The protected-project HTTP regression reproduced a different-account caller cancelling an owner's private job by supplying `X-Role: operator`. A second regression reproduced a caller reading scoped support metadata using only the grant recipient's account header. Both were behavioral red before the corresponding repair. Existing `ops`/`operator` account prefixes also authorized supplier updates without verified ownership, so the regression matrix covers private print-proof invalidation as well as job list/retry/cancel.
+
+Staff privileges now require the identity returned by the existing authenticated storage boundary and server-owned `app_metadata.roles`. Only an all-string role list is accepted. Caller-controlled role/account headers, user-editable metadata and unverified bearer claims cannot grant privileges. Verified operator/admin identities retain staff actions; verified finance identities can read job metadata and audit records but cannot mutate jobs, providers, grants or print fulfillment. Scoped support metadata requires the verified grant recipient and retains project, capability, revocation and expiry checks.
+
+Job list/retry/cancel responses use a metadata allowlist. They omit original snapshots, generated results, raw error payloads and unknown provider diagnostics. Owners retain their existing private job response and authorized progression. Legacy positive staff tests now provide explicit synthetic verified sessions with a fixed fixture-owned role registry; they do not recreate prefix authorization or introduce a production test bypass. No live accounts, role assignments, credentials, authentication settings or access configuration were changed. Existing staff accounts without a verified server-owned role fail closed and require the owner's separately authorized configuration decision.
+
+The red/green receipts are `ownership-forged-role`, `ownership-private-snapshot`, `ownership-operator-metadata`, `ownership-finance-capability`, and `ownership-support-recipient`. The compatibility run before updating legacy identity fixtures recorded 137 passes and 15 failures among 152 cases; those failures showed positive staff scenarios still sending unauthenticated prototype headers. Final candidate receipts report the verified-identity fixture results separately. The authentication service is controlled in these tests; this is application enforcement of the ownership contract, not a live OAuth/MFA audit.
 
 ## Stories
 
@@ -104,7 +114,15 @@ MEMOIR_TEST_POSTGRES_BACKEND=apple-container python3 -m pytest -q \
 
 Run the four browser files `test_shared_memory_browser.py`, `test_navigation_history_browser.py`, `test_phone_map_albums_browser.py`, and `test_progressive_memoir_navigation_browser.py` with `MEMOIR_BROWSER_URL` pointing to a task-owned loopback frontend and the same PostgreSQL backend. Confirm HTTP readiness, drain frontend stdout/stderr, and reap its complete owned process group after every run. The generic with_server helper stops only its shell; a retained Next child held the development lock during this audit. Shared servers must never be stopped to repair that task-only failure.
 
-New API cases submit fifteen authenticated turns in each locale, preserve typed/dictated source language and exact spans, drive actual timeline/composer workers, and read canonical drafts at5/10/15. Other owner/project inputs must leave the saved scope unchanged. New browser cases verify bilingual draft readback, map albums, landing reentry, album Back and a fresh tab after clearing tab storage. History is seeded only on the first visit; subsequent navigation cannot recreate it from a fixture or mocked history response.
+New API cases submit fifteen authenticated turns in each locale, preserve typed/dictated source language and exact spans, drive actual timeline/composer workers, and read canonical drafts at 5/10/15. Other owner/project inputs must leave the saved scope unchanged. New browser cases verify bilingual draft readback, map albums, landing reentry, album Back and a fresh tab after clearing tab storage. History is seeded only on the first visit; subsequent navigation cannot recreate it from a fixture or mocked history response.
+
+Run the affected ownership and existing positive staff scenarios through their public HTTP seam:
+
+```sh
+python3 -m pytest -q tests/test_recovered_project_ownership.py \
+  tests/test_security_and_lifecycle.py tests/test_publication.py \
+  tests/test_spec_invariants.py tests/test_full_acceptance.py tests/test_domain_edges.py
+```
 
 ## Evidence limits and retained failures
 

@@ -7,15 +7,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
+from synthetic_staff_auth import authenticated_staff, staff_headers
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(monkeypatch) -> TestClient:
+    authenticated_staff(monkeypatch)
     return TestClient(create_app())
 
 
 def h(account: str, **extra: str) -> dict[str, str]:
-    return {"X-Account-Id": account, **extra}
+    return staff_headers(account, **extra)
 
 
 def make_approved_edition(client: TestClient, account: str = "owner") -> tuple[dict, dict]:

@@ -431,7 +431,14 @@
       "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
       "live_semantic_status": "not required for this persistence contract",
       "additional_selectors": [
-        "tests/test_progressive_memoir_workflow_postgres.py::test_authenticated_story_saves_scoped_canonical_drafts_at_rounds_five_ten_and_fifteen"
+        "tests/test_progressive_memoir_workflow_postgres.py::test_authenticated_story_saves_scoped_canonical_drafts_at_rounds_five_ten_and_fifteen",
+        "tests/test_recovered_project_ownership.py::test_forged_operator_identity_cannot_read_or_mutate_recovered_jobs",
+        "tests/test_recovered_project_ownership.py::test_operator_prefixes_and_forged_roles_cannot_invalidate_private_print_proof",
+        "tests/test_recovered_project_ownership.py::test_verified_operator_job_actions_return_only_metadata",
+        "tests/test_recovered_project_ownership.py::test_finance_identity_can_read_job_metadata_but_cannot_cancel_owner_work",
+        "tests/test_recovered_project_ownership.py::test_scoped_support_metadata_requires_the_verified_grant_recipient",
+        "tests/test_recovered_project_ownership.py::test_user_editable_or_malformed_roles_cannot_authorize_operator_actions",
+        "tests/test_recovered_project_ownership.py::test_unverified_bearer_cannot_supply_operator_claims"
       ]
     },
     {
@@ -805,7 +812,14 @@
   },
   "new_test_seams": [
     "authenticated /v1/agent/turn plus /v1/story/private-draft, canonical RPC reads and actual workers",
-    "source frontend with real PostgreSQL/private-draft router and composer, durable browser cache, landing reentry and map album Back"
+    "source frontend with real PostgreSQL/private-draft router and composer, durable browser cache, landing reentry and map album Back",
+    "protected-project HTTP ownership, staff job metadata/actions and scoped support grants with controlled external verified identities"
   ],
+  "implementation_scope": {
+    "persistence_base": "Merged PR31/32/33 on a0223bc; no migration rewrite",
+    "ownership_repair": "Require verified server-owned staff roles and support-grant recipient identity; restrict finance to metadata reads; allowlist staff job responses",
+    "live_access_configuration_changed": false,
+    "semantic_acceptance_complete": false
+  },
   "verification_note": "No prior PR31 counts are treated as latest-main acceptance. Exact receipts accompany the review head. Live semantics remain unverified."
 }

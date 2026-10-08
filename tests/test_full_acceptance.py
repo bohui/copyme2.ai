@@ -10,15 +10,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
+from synthetic_staff_auth import authenticated_staff, staff_headers
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(monkeypatch) -> TestClient:
+    authenticated_staff(monkeypatch)
     return TestClient(create_app())
 
 
 def headers(account: str) -> dict[str, str]:
-    return {"X-Account-Id": account}
+    return staff_headers(account)
 
 
 def create_project(client: TestClient, account: str = "storyteller", **payload: object) -> dict:
