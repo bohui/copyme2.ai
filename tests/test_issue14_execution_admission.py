@@ -336,3 +336,38 @@ def test_closed_and_tampered_owned_policy_remain_denied():
         with pytest.raises(AdmissionDenied, match='admission_closed'):
             require_issue14_admission(closed, run_id=closed.run_id,
                 source_revision=REVISION, role='collector')
+
+
+def test_dedicated_worker_publication_denied_before_task_store_contact(app_modules, tmp_path, monkeypatch):
+    _, _, module = app_modules
+    worker = module.CodexWorker(home_root=tmp_path / 'publication-worker', api_key='',
+        command=['synthetic-codex'], base_url='http://127.0.0.1:9', issue14_admission=policy())
+    monkeypatch.setattr(module, 'worker', worker)
+    monkeypatch.setattr(module, '_require_worker_secret', lambda value: None)
+    original_getenv = os.getenv
+    original_client_init = httpx.AsyncClient.__init__
+    def fixture_client_init(self, *args, **kwargs):
+        kwargs['trust_env'] = False
+        original_client_init(self, *args, **kwargs)
+    monkeypatch.setattr(httpx.AsyncClient, '__init__', fixture_client_init)
+    async def check():
+        async with counted_endpoint() as (endpoint, contacts):
+            reads = []
+            def fixture_env(name, default=None):
+                if name == 'MEMORY_SPARK_TASK_STORE_URL':
+                    reads.append(name)
+                    return endpoint
+                return original_getenv(name, default)
+            monkeypatch.setattr(os, 'getenv', fixture_env)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=module.app),
+                    base_url='http://fixture-worker') as session:
+                response = await session.post('/internal/tasks', json={
+                    'user_id': str(uuid4()), 'project_id': 'synthetic-project',
+                    'task': {'kind': 'BuildSourceExport',
+                        'sources': [{'id': 'synthetic-source', 'content': 'synthetic'}]}},
+                    headers={'X-Codex-Worker-Secret': 'synthetic'})
+            assert response.status_code == 403
+            assert response.headers['x-error-code'] == 'ISSUE14_ADMISSION_DENIED'
+            assert reads == []
+            assert contacts == []
+    asyncio.run(check())

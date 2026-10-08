@@ -33,6 +33,8 @@ The only edited existing application files are:
   and native execution. Its HTTP turn route checks before starting either JSON
   or streaming tasks and returns terminal 403 with
   `X-Error-Code: ISSUE14_ADMISSION_DENIED` for opted-in refusal.
+  Direct `/internal/tasks` publication also refuses before reading task-store
+  configuration or contacting that service; it cannot bypass `runtime.publish_task`.
 
 All three policies are explicit trusted constructor arguments; no deployed worker
 is reconfigured here. The existing global worker keeps its default None. No
@@ -75,6 +77,8 @@ have been globally disabled.
 - Collector, workspace, language, extraction, organiser and each composer phase
   refuse before home/config/provider probe/native execution.
 - Dedicated worker JSON and streaming requests fail before a turn task starts.
+- Direct dedicated-worker task publication produces zero task-store configuration
+  reads and zero contacts to an independently counted disposable sink.
 - A judge factory is never created by the new launcher; the existing general judge
   class and judge CLI remain unmodified and outside this enforcement claim.
 - Ordinary runtime HTTP request shape, native stdio and worker behavior remain

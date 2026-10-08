@@ -510,6 +510,11 @@ async def publish_task(payload: PublishTaskInput, x_codex_worker_secret: str | N
     # Called only after the API authorises the sources and commits the turn.
     # No task volume is mounted here: tenant runtimes cannot reach its contents.
     _require_worker_secret(x_codex_worker_secret)
+    try:
+        check_issue14_dispatch(getattr(worker, '_issue14_admission', None), role='organiser')
+    except AdmissionDenied:
+        raise HTTPException(status_code=403, detail='Issue 14 evaluation admission denied',
+            headers={'X-Error-Code': 'ISSUE14_ADMISSION_DENIED'}) from None
     target = os.getenv('MEMORY_SPARK_TASK_STORE_URL', '').rstrip('/')
     if not target:
         raise HTTPException(503, 'Task persistence is not configured')
