@@ -18,6 +18,7 @@ from test_shared_memory_events_postgres import (
 )
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
+UPDATING_COPY = 'Your private draft is updating in the background.'
 
 
 @pytest.mark.parametrize('checkpoint', [5, 10])
@@ -80,7 +81,7 @@ def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tm
         page.goto(base+'/memoir/interview/project')
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
         status = page.locator('.private-draft-status')
-        expect(status).to_contain_text(copy['privateDraftUpdating'])
+        expect(status).to_contain_text(UPDATING_COPY)
         page.clock.pause_at(page.evaluate('Date.now()/1000')+1)
         if checkpoint == 10:
             expect(status).to_contain_text(copy['privateDraftSaved'].replace('{round}','5'))
@@ -261,7 +262,9 @@ def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_pa
     entitlement = {'status':'paid','plan_key':'family_memoir_v1','family_tree':True,'timeline':True,'stripe_price_id':'synthetic-price'}
     client = story_client(sql, entitlement=entitlement)
     copy = json.loads((ROOT/'apps/web/messages/en-AU.json').read_text())['Memoir']['workspace']
-    project = {'id':'project','revision':1,'profile':{'preferred_language':'en-AU'},'mode':'self','workspace_unlocked':False}
+    # Tag editing uses the existing activated workspace; early draft status
+    # alone does not open an otherwise empty workspace.
+    project = {'id':'project','revision':1,'profile':{'preferred_language':'en-AU'},'mode':'self','workspace_unlocked':True}
     concurrent_edit = []
     def api(route):
         path = route.request.url.split('/api/v1/memoir')[-1]

@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope='module')
 def event_database(private_database):
-    for path in sorted((ROOT / 'supabase/migrations').glob('20261004*.sql')):
+    for path in sorted((ROOT / 'supabase/migrations').glob('*.sql')):
+        if path.name < '202610040001_shared_memory_events.sql':
+            continue
         private_database(path.read_text())
     return private_database
 
@@ -661,6 +663,104 @@ def test_unchanged_checkpoint_advances_coverage_without_new_prose_or_revision(sq
     assert calls == ['prepare_start', 'prepare_end', 'draft', 'review']
 
 
+def test_repeated_extraction_of_unchanged_event_advances_coverage_without_rewriting(sql, tmp_path, monkeypatch):
+    import httpx
+    from apps.api.memory_event_worker import MemoirLaneBroker, MemoryEventWorker
+    from memoir_postgres_workflow import PostgresRest
+
+    sources, lanes = five_rounds(sql)
+    composer = lanes['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, composer)['status'] == 'saved'
+    client = story_client(sql)
+    headers = {'Authorization': 'Bearer synthetic-author'}
+    before = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    event = rpc(sql, 'read_user_memory_events', "'project'")['events'][0]
+    add_rounds(sql, 6, 10)
+    proposal = {'existing_id': event['id'], 'expected_revision': event['revision'],
+                'kind': event['kind'], 'title': event['title'], 'source_refs': event['source_refs']}
+
+    async def process():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql, OWNER, service=True).handle)) as db:
+            broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic', client=db)
+            await broker.drain_once()
+            provider = httpx.MockTransport(lambda request: httpx.Response(200, json={
+                'reply': json.dumps({'events': [proposal]})}))
+            worker = MemoryEventWorker(broker, worker_url='http://controlled-provider.invalid',
+                                       worker_secret='synthetic', worker_transport=provider)
+            assert (await worker.execute_lane(lanes['timeline_lane_id']))['status'] == 'saved'
+    asyncio.run(process())
+    view = rpc(sql, 'read_user_memory_events', "'project'")
+    assert view['events'] == [event]
+    assert view['processing'] == {'extracted_through': 10, 'pending_inputs': 0}
+    deliver_latest(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, composer,
+                                  prose='Unchanged prose must survive.')['status'] == 'saved'
+    after = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    assert after['covered_round'] == 10 and after['revision'] == before['revision']
+    assert after['preview'] == before['preview'] and after['sections'] == before['sections']
+    calls = [json.loads(line)['phase'] for line in (tmp_path / 'calls.jsonl').read_text().splitlines()]
+    assert calls == ['prepare_start', 'prepare_end', 'draft', 'review']
+
+
+def test_checkpoint_without_personal_events_finishes_collecting_without_retrying(sql, tmp_path, monkeypatch):
+    from test_agent_commit_postgres import OLD
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    extract(sql, add_rounds(sql, 1, 5), [])
+    lane = deliver_latest(sql)['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status'] == 'saved'
+    saved = story_client(sql).get('/v1/story/private-draft?project_id=project',
+                                 headers={'Authorization': 'Bearer synthetic-author'}).json()
+    assert saved['status'] == 'collecting' and saved['preview'] is None
+    assert saved['covered_round'] == 5 and saved['milestone'] == 5
+    assert saved['revision'] == 0 and saved['sections'] == []
+    assert not saved['updating'] and saved['error'] is None
+    assert saved['progress']['composition']['state'] == 'finished'
+    assert not (tmp_path / 'calls.jsonl').exists()
+    later = add_rounds(sql, 6, 6, 'I started school around 1964.') + add_rounds(sql, 7, 10)
+    extract(sql, later, [{'kind': 'event', 'title': 'Started school', 'source_refs': [
+        {'source_id': later[0]['id'], 'version': 1, 'quote': later[0]['text']}]}])
+    assert deliver_latest(sql)['composer_lane_id'] == lane
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status'] == 'saved'
+    ready = story_client(sql).get('/v1/story/private-draft?project_id=project',
+                                 headers={'Authorization': 'Bearer synthetic-author'}).json()
+    assert ready['status'] == 'ready' and ready['covered_round'] == 10 and ready['revision'] == 1
+    assert ready['preview']['text'] == 'I started school around 1964.'
+
+
+def test_withdrawing_all_event_evidence_settles_without_restoring_prose(sql, tmp_path, monkeypatch):
+    sources, lanes = five_rounds(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+    client = story_client(sql)
+    headers = {'Authorization': 'Bearer synthetic-author'}
+    before = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    rpc(sql, 'change_user_narrator_source', f"'project','{sources[0]['id']}',1,'withdraw',null")
+    assert client.get('/v1/story/private-draft?project_id=project', headers=headers).json()['preview'] is None
+    deliver_latest(sql)
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lanes['composer_lane_id'])['status'] == 'saved'
+    after = client.get('/v1/story/private-draft?project_id=project', headers=headers).json()
+    assert after['status'] == 'collecting' and after['preview'] is None and after['sections'] == []
+    assert after['revision'] == before['revision'] and after['covered_round'] == 5
+    assert not after['updating'] and after['error'] is None
+    calls = [json.loads(line)['phase'] for line in (tmp_path / 'calls.jsonl').read_text().splitlines()]
+    assert calls == ['prepare_start', 'prepare_end', 'draft', 'review']
+
+
+def test_empty_completion_cannot_discard_supported_canonical_prose(sql, tmp_path, monkeypatch):
+    sources, lanes = five_rounds(sql)
+    lane = lanes['composer_lane_id']
+    assert run_controlled_composer(sql, tmp_path, monkeypatch, lane)['status'] == 'saved'
+    before = rpc(sql, 'read_user_memoir_draft', "'project'")
+    extract(sql, add_rounds(sql, 6, 10), [])
+    deliver_latest(sql)
+    job = service_rpc(sql, 'claim_memoir_lane', f"'{lane}',300")
+    result = service_rpc(sql, 'finish_memoir_composer',
+                         f"'{lane}','{job['token']}',1,'{{\"status\":\"insufficient_context\",\"preview\":null}}'::jsonb")
+    assert result['status'] == 'rejected'
+    after = rpc(sql, 'read_user_memoir_draft', "'project'")
+    assert after['preview'] == before['preview'] and after['sections'] == before['sections']
+    assert after['revision'] == before['revision'] and after['covered_round'] == 5
+
+
 @pytest.mark.parametrize('action', ['edit', 'withdraw'])
 def test_source_changes_immediately_hide_dependent_drafts_and_reject_late_output(sql, tmp_path, monkeypatch, action):
     sources, lanes = five_rounds(sql)
@@ -1109,7 +1209,9 @@ def test_legacy_migration_preserves_ids_original_evidence_and_private_flags_on_r
     # The existing ledger recognises this completed narrator/reply pair. The
     # migration must preserve its one round, never manufacture another.
     assert before['completed_rounds'] == 1
-    for path in sorted((ROOT/'supabase/migrations').glob('20261004*.sql')):
+    for path in sorted((ROOT/'supabase/migrations').glob('*.sql')):
+        if path.name < '202610040001_shared_memory_events.sql':
+            continue
         sql(path.read_text())
     rpc(sql, 'migrate_user_memory_events', "'project'")
     assert rpc(sql, 'read_user_memory_events', "'project'") == before
@@ -1579,7 +1681,8 @@ def test_withdrawal_preserves_unrelated_immutable_passages_when_rebuilding(sql,t
     assert 'school' not in after['preview']['text'] and after['preview']['text']=='I moved to Sydney in 1986.'
 
 
-def test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author_correction(sql):
+@pytest.mark.parametrize('sister_year', [1966, 1968])
+def test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author_correction(sql, sister_year):
     first=rpc(sql,'accept_user_narrator_source',f"'project','{TURN}','I remember starting school around 1964.'")
     ref={'source_id':first['id'],'version':1,'quote':first['text'],'attribution':'Narrator'}
     event=extract(sql,[first],[{'kind':'event','title':'Started school','source_refs':[ref],
@@ -1591,15 +1694,59 @@ def test_conflicting_attributed_dates_remain_unresolved_until_an_explicit_author
     assert saved['temporal']['precision']=='unknown' and saved['temporal'].get('year_start') is None
     assert {a['temporal']['year_start'] for a in saved['temporal_accounts']}=={1964,1966}
     assert {r['attribution'] for r in saved['source_refs']}=={'Narrator','Brother'}
-    third=rpc(sql,'accept_user_narrator_source',"'project','00000000-0000-4000-8000-000000000003','My sister remembers that same school start around 1968.'")
+    third=rpc(sql,'accept_user_narrator_source',f"'project','00000000-0000-4000-8000-000000000003','My sister remembers that same school start around {sister_year}.'")
     third_ref={'source_id':third['id'],'version':1,'quote':third['text'],'attribution':'Sister'}
     disputed=extract(sql,[third],[{'existing_id':event['id'],'expected_revision':2,'kind':'event','title':'Started school',
-        'source_refs':[third_ref],'temporal':{'expression':'around 1968','precision':'approximate','year_start':1968,'year_end':1968,'basis':[third_ref]}}])['events'][0]
+        'source_refs':[third_ref],'temporal':{'expression':f'around {sister_year}','precision':'approximate','year_start':sister_year,'year_end':sister_year,'basis':[third_ref]}}])['events'][0]
     assert disputed['temporal']['precision']=='unknown' and disputed['temporal'].get('year_start') is None
-    assert {a['temporal']['year_start'] for a in disputed['temporal_accounts']}=={1964,1966,1968}
+    assert len(disputed['temporal_accounts'])==3
+    assert {a['temporal']['year_start'] for a in disputed['temporal_accounts']}=={1964,1966,sister_year}
+    assert disputed['temporal_accounts'][-1]['temporal']['basis']==[third_ref]
+    assert {r['attribution'] for r in disputed['source_refs']}=={'Narrator','Brother','Sister'}
     patch={'temporal':{'expression':'1965','precision':'year','year_start':1965,'year_end':1965}}
     resolved=rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',3,{literal(patch)}::jsonb,'Actually, the year was 1965.'")
     assert resolved['temporal']['year_start']==1965 and resolved['timing_conflict'] is False
+
+
+@pytest.mark.parametrize('temporal_echo', ['saved_summary', 'recorded_account'])
+@pytest.mark.parametrize('dispatch', ['rpc', 'worker'])
+def test_acknowledgement_replaying_conflicted_dates_keeps_the_saved_event_unchanged(sql, temporal_echo, dispatch):
+    first = rpc(sql, 'accept_user_narrator_source', f"'project','{TURN}','I remember starting school around 1964.'")
+    ref = {'source_id': first['id'], 'version': 1, 'quote': first['text'], 'attribution': 'Narrator'}
+    event = extract(sql, [first], [{'kind': 'event', 'title': 'Started school', 'source_refs': [ref],
+        'temporal': {'expression': 'around 1964', 'precision': 'approximate',
+                     'year_start': 1964, 'year_end': 1964, 'basis': [ref]}}])['events'][0]
+    later = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000002','My brother remembers that same school start around 1966.'")
+    other = {'source_id': later['id'], 'version': 1, 'quote': later['text'], 'attribution': 'Brother'}
+    saved = extract(sql, [later], [{'existing_id': event['id'], 'expected_revision': event['revision'],
+        'kind': 'event', 'title': 'Started school', 'source_refs': [other],
+        'temporal': {'expression': 'around 1966', 'precision': 'approximate',
+                     'year_start': 1966, 'year_end': 1966, 'basis': [other]}}])['events'][0]
+    assert saved['timing_conflict'] and len(saved['temporal_accounts']) == 2
+    acknowledgement = rpc(sql, 'accept_user_narrator_source', "'project','00000000-0000-4000-8000-000000000003','Thanks.'")
+    temporal = saved['temporal'] if temporal_echo == 'saved_summary' else saved['temporal_accounts'][1]['temporal']
+    proposal = {'existing_id': saved['id'], 'expected_revision': saved['revision'],
+        'kind': saved['kind'], 'title': saved['title'], 'source_refs': saved['source_refs'], 'temporal': temporal}
+    if dispatch == 'rpc':
+        after = extract(sql, [acknowledgement], [proposal])
+    else:
+        import httpx
+        from apps.api.memory_event_worker import MemoirLaneBroker, MemoryEventWorker
+        from memoir_postgres_workflow import PostgresRest
+        lanes = deliver_latest(sql)
+        async def process():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql, OWNER, service=True).handle)) as db:
+                broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic', client=db)
+                provider = httpx.MockTransport(lambda request: httpx.Response(200, json={
+                    'reply': json.dumps({'events': [proposal]})}))
+                worker = MemoryEventWorker(broker, worker_url='http://controlled-provider.invalid',
+                                          worker_secret='synthetic', worker_transport=provider)
+                assert (await worker.execute_lane(lanes['timeline_lane_id']))['status'] == 'saved'
+        asyncio.run(process())
+        after = rpc(sql, 'read_user_memory_events', "'project'")
+    assert after['events'] == [saved]
+    assert after['processing'] == {'extracted_through': 3, 'pending_inputs': 0}
+    assert after['completed_rounds'] == 0
 
 
 def test_similar_events_ambiguous_matches_and_long_periods_share_originals_without_merging(sql):

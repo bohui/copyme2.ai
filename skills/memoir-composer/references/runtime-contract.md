@@ -111,6 +111,14 @@ This is **not** a recurring ChatGPT task, and the package does not schedule jobs
 
 Five completed project rounds, the twenty-round free allowance, and completion of the storytelling journey are separate boundaries. Purchasing a package alone does not mean storytelling is finished. The user may request composition before using every paid session, then continue supplying memories afterwards.
 
+An `insufficient_context` result settles the private checkpoint when no active
+canonical event has surviving original evidence. The backend rechecks that
+condition and ownership before advancing coverage. The workspace continues
+collecting memories without a drafting call, invented prose, or a provider retry.
+If withdrawal removes all supported material, the same outcome withholds the old
+prose while preserving its manuscript revision. Later supported events make a new
+checkpoint eligible through the normal lane.
+
 ## 5. Persistence, resumability and concurrency
 
 Recommended run states:
