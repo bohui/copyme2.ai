@@ -140,11 +140,17 @@ def test_outputs_are_independent_and_assessment_does_not_mutate_inputs():
 
 
 def test_audit_source_pins_match_this_reviewed_derivation():
-    import hashlib
-    from scripts.fifty_round_budget_contract import DERIVATION_FILE_SHA256
+    # V1 is an immutable historical derivation, not a hash lock on all future
+    # checkouts. Keep this existing gate strict: validate its original Git
+    # objects AND the separately reviewed current inactive source contract.
+    from scripts.issue14_source_contract import audit_source_contract
     root = Path(__file__).resolve().parents[1]
-    assert all(hashlib.sha256((root / name).read_bytes()).hexdigest() == expected
-        for name, expected in DERIVATION_FILE_SHA256.items())
+    report = audit_source_contract(root)
+    assert report['historical_derivation_integrity_verified'] is True
+    assert report['current_source_matches_reviewed_snapshot'] is True
+    assert report['source_gate_passed'] is True
+    assert report['live_execution_authorized'] is False
+    assert report['provider_capability_verified'] is False
 
 
 def test_contract_module_is_standard_library_only_without_runtime_or_dispatch_imports():

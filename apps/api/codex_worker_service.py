@@ -23,6 +23,10 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
+from .issue14_execution_admission import (
+    AdmissionDenied, check_issue14_dispatch, issue14_connection_options,
+    validate_optional_issue14_admission,
+)
 from .codex_artifacts import iter_artifacts
 from .codex_runtime import (
     LANGUAGE_INTAKE_SCHEMA,
@@ -97,7 +101,8 @@ class CodexWorker:
     """Run Codex outside the API container and under a user-specific UID."""
 
     def __init__(self, *, home_root=None, legacy_root=None, command=None, base_url=None, model=None,
-                 timeout=None, api_key=None, reasoning_effort=None):
+                 timeout=None, api_key=None, reasoning_effort=None, issue14_admission=None):
+        self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.home_root = Path(home_root or os.getenv(
             "MEMORY_SPARK_CODEX_HOME", "var/codex-worker-users"
         ))
@@ -229,6 +234,8 @@ class CodexWorker:
         ]
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
+            correlation=payload.evaluation)
         user_id = str(payload.user_id)
         request_id = new_request_id(payload.diagnostic_request_id)
         if payload.diagnostic_request_id != request_id:
@@ -294,6 +301,7 @@ class CodexWorker:
             raise
 
     async def _ensure_composer_provider(self):
+        check_issue14_dispatch(self._issue14_admission, role='composer')
         # Codex internally retries connection failures. Reject an unreachable
         # endpoint before starting that loop, without sending source data.
         endpoint = urlsplit(self.base_url)
@@ -314,6 +322,8 @@ class CodexWorker:
         return payload.agent_role
 
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
+            correlation=payload.evaluation)
         user_id = str(payload.user_id)
         uid = self._uid_for(user_id)
         home = self._home(user_id, uid, self._execution_role(payload))
@@ -394,6 +404,7 @@ class CodexWorker:
                 provider_env=environment,
                 timeout=self._execution_timeout(payload.agent_role, payload.composer_phase),
                 trajectory=trajectory,
+                **issue14_connection_options(self._issue14_admission),
             ) as connection:
                 if payload.thread_id and payload.agent_role == 'collector' and not self._refresh_collector_thread(payload):
                     result = await connection.request("thread/resume", {
@@ -499,6 +510,11 @@ async def publish_task(payload: PublishTaskInput, x_codex_worker_secret: str | N
     # Called only after the API authorises the sources and commits the turn.
     # No task volume is mounted here: tenant runtimes cannot reach its contents.
     _require_worker_secret(x_codex_worker_secret)
+    try:
+        check_issue14_dispatch(getattr(worker, '_issue14_admission', None), role='organiser')
+    except AdmissionDenied:
+        raise HTTPException(status_code=403, detail='Issue 14 evaluation admission denied',
+            headers={'X-Error-Code': 'ISSUE14_ADMISSION_DENIED'}) from None
     target = os.getenv('MEMORY_SPARK_TASK_STORE_URL', '').rstrip('/')
     if not target:
         raise HTTPException(503, 'Task persistence is not configured')
@@ -529,6 +545,12 @@ async def turn(payload: WorkerTurnInput, request: Request,
                x_codex_worker_secret: str | None = Header(default=None),
                x_memoir_request_id: str | None = Header(default=None)):
     _require_worker_secret(x_codex_worker_secret)
+    try:
+        check_issue14_dispatch(getattr(worker, '_issue14_admission', None),
+            role=payload.agent_role, correlation=payload.evaluation)
+    except AdmissionDenied:
+        raise HTTPException(status_code=403, detail='Issue 14 evaluation admission denied',
+            headers={'X-Error-Code': 'ISSUE14_ADMISSION_DENIED'}) from None
     request_id = new_request_id(x_memoir_request_id or payload.diagnostic_request_id)
     if payload.diagnostic_request_id != request_id:
         payload = payload.model_copy(update={'diagnostic_request_id': request_id})

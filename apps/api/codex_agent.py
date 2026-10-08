@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .diagnostics import configure_diagnostic_logger, elapsed_ms, log_diagnostic, new_request_id
 from .trajectory_evaluation import normalise_correlation, protocol_request_evidence
+from .issue14_execution_admission import check_issue14_dispatch, validate_optional_issue14_admission
 
 
 diagnostic_logger = logging.getLogger("memoir.appserver.diagnostics")
@@ -16,7 +17,9 @@ configure_diagnostic_logger(diagnostic_logger)
 
 
 class CodexConnection:
-    def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None):
+    def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None,
+                 issue14_admission=None):
+        self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.command = command
         # Codex uses this value for both cwd and HOME/CODEX_HOME.  Resolve it
         # once so a relative runtime root cannot become a nested path from the
@@ -29,6 +32,7 @@ class CodexConnection:
         self.trajectory = trajectory
 
     async def __aenter__(self):
+        check_issue14_dispatch(self._issue14_admission, role='native')
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         env = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT', 'TMPDIR') if key in os.environ}
         env.update(self.provider_env)
@@ -77,6 +81,7 @@ class CodexConnection:
             await self.process.wait()
 
     async def send(self, message):
+        check_issue14_dispatch(self._issue14_admission, role='native')
         self.process.stdin.write((json.dumps(message) + '\n').encode())
         await self.process.stdin.drain()
 
@@ -87,6 +92,7 @@ class CodexConnection:
         return json.loads(line)
 
     async def request(self, method, params):
+        check_issue14_dispatch(self._issue14_admission, role='native')
         self.sequence += 1
         request_id = self.sequence
         if self.trajectory:
@@ -120,6 +126,8 @@ class CodexConnection:
 
     async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None,
                    output_schema=None, on_event=None, effort=None):
+        check_issue14_dispatch(self._issue14_admission, role='native',
+            correlation=responsesapi_client_metadata)
         self.events.clear()
         started = time.perf_counter()
         params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}],
