@@ -4,8 +4,12 @@ This is a controlled-protocol prerequisite, not completion of [issue 14](https:/
 There is no live mode, environment-variable override, new endpoint/model/account selection,
 credential lookup, application hook, judge activation, or launcher change.
 
-Reviewed source baseline: `050a664ceadeaeacedd9ac4c38448db494fcf1a4`, tree
+Original reviewed source baseline: `050a664ceadeaeacedd9ac4c38448db494fcf1a4`, tree
 `69484aadec3da6c8c0fd688d360bc58bd9b2d1ce`.
+Reconciled with main `3010bb4c90f6a8b5dc51af482704193a6f7a04b2`, tree
+`40103f5432b315d64c77b21f9975a0a0db57340a`, after PR 35 merged. The four
+issue 6 evaluator/dataset/test/report files and the frontend button change are
+preserved byte-for-byte from main. The provider-budget diff remains four new files.
 
 ## Added contract
 

@@ -2648,7 +2648,7 @@ function renderPlatformLanding() {
         </section>
       </main>
     </div>`;
-  $("[data-action='open-memoir']")?.addEventListener("click", () => navigateTo(MEMOIR_ROUTES.home));
+  $("[data-action='open-memoir']")?.addEventListener("click", () => startStory("self"));
 }
 
 function renderMemoirLanding() {
