@@ -184,7 +184,7 @@ def test_collector_repairs_unsupported_context_before_saving_once(
             project_id='project', client_turn_id=str(uuid4()), on_delta=on_delta, on_event=on_event))
 
     if repair_result != 'valid':
-        with pytest.raises(ValueError):
+        with pytest.raises(RuntimeError, match='please retry the accepted turn'):
             turn()
         assert len(calls) == 2
         assert storage.rounds == 0 and storage.saved_plan is None
@@ -202,3 +202,69 @@ def test_collector_repairs_unsupported_context_before_saving_once(
     assert result['reply'].count(corrected['acknowledgement']) == 1
     assert result['reply'].count('？') == 1
     assert len([e for e in events if e['type'] == 'conversation_saved']) == 1
+
+
+@pytest.mark.parametrize('accept', ['application/json', 'application/x-ndjson'])
+@pytest.mark.parametrize('correction', ['invalid_context', 'malformed_json', 'invalid_schema', 'changed_acknowledgement'])
+def test_local_collector_invalid_correction_returns_controlled_retry_response(tmp_path, monkeypatch, accept, correction):
+    from unittest.mock import Mock
+    from fastapi.testclient import TestClient
+    from apps.api import agent_routes
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+
+    invalid = proposal()
+    invalid['plan']['candidates'][0]['context']['year'] = 1983
+    repaired = proposal()
+    if correction == 'invalid_context':
+        repaired = invalid
+    elif correction == 'invalid_schema':
+        repaired['private_artifact'] = 'private-collector-output'
+    elif correction == 'changed_acknowledgement':
+        repaired['acknowledgement'] = 'A different acknowledgement.'
+    raw_correction = ('{"private":"private-collector-output"' if correction == 'malformed_json'
+                      else json.dumps(repaired, ensure_ascii=False))
+    calls = []
+
+    class Connection:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def request(self, method, params): return {'thread': {'id': 'thread-1'}}
+        async def turn(self, thread, prompt, **kwargs):
+            calls.append(prompt)
+            raw = json.dumps(invalid, ensure_ascii=False) if len(calls) == 1 else raw_correction
+            if kwargs.get('on_delta'):
+                await kwargs['on_delta'](raw)
+            return raw
+
+    storage = Storage()
+    storage.client = Mock()
+    runtime, _ = harness(monkeypatch, storage)
+    runtime.worker_url = None
+    monkeypatch.setattr(runtime, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_runtime.CodexConnection', Connection)
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda authorization: storage)
+    monkeypatch.setattr(agent_routes, 'runtime', runtime)
+    response = TestClient(create_app(MemoryStore()), raise_server_exceptions=False).post(
+        '/api/v1/memoir/agent/turn',
+        json={'text': CONTEXT['source']['text'], 'project_id': 'project', 'client_turn_id': str(uuid4())},
+        headers={'Authorization': 'Bearer test-token', 'Accept': accept})
+
+    if accept == 'application/json':
+        assert response.status_code == 502, response.text
+        assert response.json()['detail'] == (
+            'Codex agent failed: The interview response could not be validated; please retry the accepted turn')
+        assert response.json()['error']['retryable'] is True
+        assert response.json()['error']['request_id'] == response.headers['X-Request-ID']
+    else:
+        assert response.status_code == 200
+        events = [json.loads(line) for line in response.text.splitlines()]
+        assert events[-1] == {'type': 'error', 'message':
+            'The response could not be completed or saved. Please try again.'}
+        assert not any(e['type'] in {'conversation_saved', 'result'} for e in events)
+    assert 'private-collector-output' not in response.text
+    assert len(calls) == 2
+    assert storage.rounds == 0 and storage.saved_plan is None and storage.memory is None
+    assert storage.turn['source'] == CONTEXT['source']
+    storage.client.close.assert_called_once_with()

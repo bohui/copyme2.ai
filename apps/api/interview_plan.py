@@ -240,9 +240,14 @@ async def run_collector_turn(connection, thread_id, prompt, *, interview_context
         schema['properties']['acknowledgement']['enum'] = [acknowledgement]
         retry_options['output_schema'] = schema
     repaired = await connection.turn(thread_id, correction, **retry_options)
-    result = validate_collector_result(repaired, interview_context)
-    if acknowledgement and result['acknowledgement'] != acknowledgement:
-        raise ValueError('Correction cannot replace the streamed acknowledgement')
+    try:
+        result = validate_collector_result(repaired, interview_context)
+        if acknowledgement and result['acknowledgement'] != acknowledgement:
+            raise ValueError('Correction cannot replace the streamed acknowledgement')
+    except (ValueError, TypeError, KeyError):
+        # Match the runtime's controlled retry contract. Raw schema errors may
+        # contain private model output and must not escape through the HTTP API.
+        raise RuntimeError('The interview response could not be validated; please retry the accepted turn') from None
     return repaired
 
 
