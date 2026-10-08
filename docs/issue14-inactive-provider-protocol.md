@@ -10,6 +10,9 @@ Reconciled with main `3010bb4c90f6a8b5dc51af482704193a6f7a04b2`, tree
 `40103f5432b315d64c77b21f9975a0a0db57340a`, after PR 35 merged. The four
 issue 6 evaluator/dataset/test/report files and the frontend button change are
 preserved byte-for-byte from main. The provider-budget diff remains four new files.
+Subsequent reconciliation preserves main `c72f9953b012a57202e17e1cfe50da59ee49fba8`
+(tree `61abc083d7c17c377aab7e59da46d5d12c335be6`), including its four disjoint
+frontend/guest-transfer/test changes, without modifying those upstream files.
 
 ## Added contract
 

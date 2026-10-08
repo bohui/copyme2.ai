@@ -35,11 +35,12 @@ def navigation_browser(monkeypatch, request):
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': 'zh-CN', 'url': base},
                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         script = """const fixtureSession=()=>{const id=localStorage.getItem('fixture-principal')||'guest';return {
-          access_token:'fixture-'+id,user:{id,is_anonymous:id==='guest'}}};
+          access_token:'fixture-'+id,refresh_token:'fixture-refresh-'+id,user:{id,is_anonymous:id==='guest'}}};
         window.fixtureSetPrincipal=id=>{localStorage.setItem('fixture-principal',id);window.fixtureAuthChanged?.('SIGNED_IN',fixtureSession())};
         window.supabase={createClient:()=>({auth:{
           getSession:async()=>({data:{session:fixtureSession()}}),
           getUser:async()=>({data:{user:fixtureSession().user}}),
+          signInWithOAuth:async options=>{window.fixtureOauth=options;return {}},
           onAuthStateChange:callback=>{window.fixtureAuthChanged=callback;return {}}
         }})};"""
         context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
@@ -101,17 +102,33 @@ def capture(page, name):
     page.screenshot(path=str(directory / f'{name}.png'))
 
 
-def test_logo_and_memoir_entry_reach_their_landing_pages(navigation_browser):
+def test_logo_returns_home_and_begin_resumes_interview(navigation_browser):
     page, _, _, _, viewport, _ = navigation_browser
-    start_conversation(page)
+    interview_url = start_conversation(page)
     capture(page, f'{os.getenv("NAV_CAPTURE_PHASE", "after")}-{viewport}-interview')
     page.locator('.story-topbar .brand-mark').click()
     expect(page).to_have_url(os.environ['MEMOIR_BROWSER_URL'] + '/')
     expect(page.locator('.platform-landing')).to_be_visible()
     capture(page, f'{os.getenv("NAV_CAPTURE_PHASE", "after")}-{viewport}-logo-destination')
     page.locator('[data-action="open-memoir"]').click()
-    expect(page).to_have_url(os.environ['MEMOIR_BROWSER_URL'] + '/memoir')
-    expect(page.locator('.hero-actions')).to_be_visible()
+    expect(page).to_have_url(interview_url)
+    expect(page.locator('#chat-input')).to_be_visible()
+
+
+@pytest.mark.parametrize('provider', ['google', 'facebook'])
+def test_login_returns_to_project_started_from_homepage(navigation_browser, provider):
+    page, _, store, _, _, _ = navigation_browser
+    page.goto(os.environ['MEMOIR_BROWSER_URL'] + '/', wait_until='networkidle')
+    page.locator('[data-action="open-memoir"]').click()
+    expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
+    project_url = os.environ['MEMOIR_BROWSER_URL'] + '/memoir/interview/' + next(iter(store.projects))
+    expect(page).to_have_url(project_url)
+    page.locator('[data-profile-trigger]').click()
+    page.locator('[data-profile-action="login"]').click()
+    page.locator(f'[data-provider="{provider}"]').click()
+    page.wait_for_function('Boolean(window.fixtureOauth)')
+    assert page.evaluate('fixtureOauth.provider') == provider
+    assert page.evaluate('fixtureOauth.options.redirectTo') == project_url
 
 
 @pytest.mark.parametrize('principal', ['guest', 'other'], ids=['anonymous', 'account'])
