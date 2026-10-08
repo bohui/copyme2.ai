@@ -856,8 +856,9 @@
                   "expression": "age 12",
                   "precision": "age",
                   "year_start": 1958,
-                  "year_end": 1958
-                }
+                  "year_end": 1959
+                },
+                "uncertainty_required": true
               }
             ],
             "forbidden_inferences": [
@@ -909,8 +910,9 @@
                   "expression": "十二岁",
                   "precision": "age",
                   "year_start": 1958,
-                  "year_end": 1958
-                }
+                  "year_end": 1959
+                },
+                "uncertainty_required": true
               }
             ],
             "forbidden_inferences": [
@@ -1036,6 +1038,7 @@
                 "kind": "period",
                 "evidence_anchor": "community workshop",
                 "life_stage": "midlife",
+                "date_expression_alternatives": ["1972", "1982"],
                 "temporal": {
                   "expression": "1972 to 1982",
                   "precision": "range",
@@ -1079,6 +1082,7 @@
                 "kind": "period",
                 "evidence_anchor": "社区工坊",
                 "life_stage": "midlife",
+                "date_expression_alternatives": ["1972年", "1982年"],
                 "temporal": {
                   "expression": "1972年至1982年",
                   "precision": "range",

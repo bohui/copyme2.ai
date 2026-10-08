@@ -12,7 +12,11 @@ from apps.api.memory_events import validate_extraction
 
 def _matches_placement(event, gold):
     anchor = gold.get("evidence_anchor", "")
-    quotes = [ref.get("quote", "") for ref in event.get("source_refs", [])]
+    # Event, stage and timing citations have separate roles in the public
+    # proposal contract. A date identity anchor may live only in timing basis.
+    refs = [*event.get("source_refs", []), *(event.get("stage_evidence") or []),
+            *((event.get("temporal") or {}).get("basis") or [])]
+    quotes = [ref.get("quote", "") for ref in refs]
     if anchor and not any(anchor in quote for quote in quotes):
         return False
     if event.get("kind") != gold["kind"]:
@@ -29,8 +33,10 @@ def _matches_placement(event, gold):
         if key == "expression":
             # Both "1958" and "in 1958" preserve the source date. The exact
             # year/precision checks and original-evidence validation still apply.
-            if not isinstance(actual, str) or not re.search(
-                    r"(?<!\d)" + re.escape(value) + r"(?!\d)", actual):
+            expressions = [value, *gold.get("date_expression_alternatives", [])]
+            if not isinstance(actual, str) or not any(re.search(
+                    r"(?<!\d)" + re.escape(expression) + r"(?!\d)", actual)
+                    for expression in expressions):
                 return False
         elif actual != value:
             return False
@@ -68,11 +74,13 @@ def score_events(inputs, output, expected_output):
         }
     sources = [*inputs.get("context_sources", []), *inputs.get("sources", [])]
     try:
-        validate_extraction(output, sources, inputs.get("saved_events", []))
+        # Score the same normalized, retained proposals the application can
+        # persist. Syntactically valid recording-vetoed proposals are withheld.
+        events = validate_extraction(output, sources, inputs.get("saved_events", []))
         valid = True
     except (ValueError, TypeError, KeyError):
+        events = None
         valid = False
-    events = output.get("events") if isinstance(output, dict) else None
     gold = expected_output["events"]
     placement = bool(valid and isinstance(events, list) and _placements_match(events, gold))
     return {
