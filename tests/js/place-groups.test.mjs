@@ -119,7 +119,7 @@ test('map markup shows city choices and independent pending pin labels', () => {
     escapeHtml: value => String(value).replaceAll('"', '&quot;'), translate: key => key,
     translateWith: key => key, currentUiLocale: () => 'zh-CN',
     placeHistoryKey, groupMapFrame, specificPlaceChoices, placeMapTarget: place => place,
-    placeMapUrl: () => '', lifeStageText: () => '',
+    lifeStageText: () => '',
   });
   for (const name of ['placeJourneyMarkup', 'groupChoices', 'placeHistoryChoices']) vm.runInContext(extract(name), context);
   assert.equal(context.placeHistoryChoices(context.groupChoices(groups), district), '');
@@ -129,5 +129,6 @@ test('map markup shows city choices and independent pending pin labels', () => {
   assert.match(markup, /双桥区/);
   assert.match(markup, /大石庙镇/);
   assert.match(markup, /pinUnresolved/);
+  assert.doesNotMatch(markup, /place-journey-toolbar|place-journey-status|place-map-link|approximate|exploreMap/);
   assert.doesNotMatch(markup, /data-place-choice=/);
 });

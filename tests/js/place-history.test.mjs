@@ -94,19 +94,18 @@ test('renders the place history navigation in chronological order', async () => 
  assert.ok(markup.indexOf('>Chengde<') < markup.indexOf('>Sydney<'));
 });
 
-test('renderer keeps detailed title and labels parent map coordinates', async () => {
+test('renderer keeps detailed title and parent map coordinates without a footer', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
  const context=vm.createContext({mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
- for (const name of ['placeMapTarget','placeMapUrl','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
+ for (const name of ['placeMapTarget','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
  const markup=context.placeJourneyMarkup(suburb);
  assert.match(markup,/<h2>大石庙镇<\/h2>/);
  assert.match(markup,/data-cesium-place="承德"/);
  assert.match(markup,/data-cesium-latitude="40.97"/);
- assert.equal(context.placeMapUrl({latitude: 40.97, longitude: 117.93}), 'https://www.google.com/maps/search/?api=1&query=40.97%2C117.93');
  assert.doesNotMatch(markup,/openstreetmap/);
- assert.match(markup,/parentMap 承德/);
+ assert.doesNotMatch(markup,/place-journey-toolbar|place-journey-status|place-map-link|parentMap|exploreMap/);
  assert.match(markup,/data-cesium-pins="\[\]"/);
  assert.doesNotMatch(markup,/placeNote/);
 });

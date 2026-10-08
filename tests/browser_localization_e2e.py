@@ -7,6 +7,22 @@ import re
 from playwright.sync_api import expect, sync_playwright
 
 
+def local_browser_context(browser, *, locale):
+    context = browser.new_context(locale=locale)
+
+    def demo_project_request(route):
+        headers = {key: value for key, value in route.request.headers.items() if key != "authorization"}
+        route.continue_(headers={**headers, "x-account-id": "demo-storyteller"})
+
+    # Use the isolated API's demo principal, as in the workspace browser tests.
+    context.route("**/api/v1/memoir/projects**", demo_project_request)
+    context.route("**/api/v1/memoir/memory-sessions/**", demo_project_request)
+    context.route("**/api/v1/memoir/agent/profile", lambda route: route.fulfill(json={}))
+    context.route("**/api/v1/memoir/user/profile", lambda route: route.fulfill(json={}))
+    context.route("**/place-photos?**", lambda route: route.fulfill(json={"items": []}))
+    return context
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Memoir localization browser contract.")
     parser.add_argument("--base-url", default="http://127.0.0.1:3010")
@@ -14,7 +30,7 @@ def main() -> None:
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(locale="en-AU")
+        page = local_browser_context(browser, locale="en-AU").new_page()
 
         agent_requests = []
 
@@ -82,7 +98,10 @@ def main() -> None:
         expect(page.get_by_text("Tell me whatever part of that afternoon is still with you.")).to_be_visible(timeout=15000)
         expect(page.get_by_role("complementary", name="地点 工作区")).to_be_visible()
         expect(page.get_by_role("heading", name="地点")).to_be_visible()
-        expect(page.get_by_text("地点的大致范围", exact=True)).to_be_visible()
+        expect(page.locator(".cesium-place-journey")).to_be_visible()
+        expect(page.locator(".place-journey-toolbar")).to_have_count(0)
+        expect(page.get_by_text("地点的大致范围", exact=True)).to_have_count(0)
+        expect(page.get_by_role("link", name="在 Google 地图中探索")).to_have_count(0)
         assert project_requests, "Expected the UI to create a Memoir project"
         assert project_requests[-1].post_data_json.get("language") is None
         assert agent_requests, "Expected the UI to create a localized Codex turn"
@@ -96,21 +115,21 @@ def main() -> None:
         expect(page.get_by_role("menuitem", name="个人资料", exact=True)).to_be_visible()
         assert "Memoir." not in page.locator("body").inner_text(), "A raw translation key leaked into the story shell"
 
-        browser_locale_context = browser.new_context(locale="zh-CN")
+        browser_locale_context = local_browser_context(browser, locale="zh-CN")
         browser_locale_page = browser_locale_context.new_page()
         browser_locale_page.goto(f"{args.base_url}/memoir", wait_until="networkidle")
         expect(browser_locale_page.get_by_role("heading", name="用自己的话，讲述自己的人生")).to_be_visible()
         expect(browser_locale_page.get_by_role("combobox", name="语言")).to_have_value("zh-CN")
         browser_locale_context.close()
 
-        unsupported_locale_context = browser.new_context(locale="fr-FR")
+        unsupported_locale_context = local_browser_context(browser, locale="fr-FR")
         unsupported_locale_page = unsupported_locale_context.new_page()
         unsupported_locale_page.goto(f"{args.base_url}/memoir", wait_until="networkidle")
         expect(unsupported_locale_page.get_by_role("heading", name="Start with a conversation.")).to_be_visible()
         expect(unsupported_locale_page.get_by_role("combobox", name="Language")).to_have_value("en-AU")
         unsupported_locale_context.close()
 
-        error_context = browser.new_context(locale="zh-CN")
+        error_context = local_browser_context(browser, locale="zh-CN")
         error_page = error_context.new_page()
         error_page.route(
             "**/api/v1/memoir/projects",
@@ -132,7 +151,7 @@ def main() -> None:
         assert "provider secret leaked" not in error_page.locator("body").inner_text()
         error_context.close()
 
-        voice_context = browser.new_context(locale="en-AU")
+        voice_context = local_browser_context(browser, locale="en-AU")
         voice_page = voice_context.new_page()
         voice_page.add_init_script(
             """
