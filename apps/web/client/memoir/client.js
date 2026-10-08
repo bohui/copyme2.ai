@@ -3096,7 +3096,7 @@ function renderStory() {
 
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const storyText = (key, values = {}) => escapeHtml(translateWith(`Memoir.story.${key}`, values));
-  const unlocked = state.workspaceUnlocked || state.project.workspace_unlocked || state.compositionStage >= 3;
+  const unlocked = composingWorkspaceActive() || freeRecallFinished();
   const workspaceVisible = workspaceIsVisible();
   const workspaceAvailable = workspaceHasContent();
   const contextOnly = workspaceVisible && !unlocked;
@@ -3167,8 +3167,8 @@ function renderStory() {
 
 function workspaceContentAvailable() {
   // A place trigger opens its workspace independently of map/photo readiness.
-  // Draft status and early family/timeline records do not activate it.
-  return Boolean(composingWorkspaceActive() || state.placeJourney);
+  // Completed free recall also opens Chapters; early draft status does not.
+  return Boolean(composingWorkspaceActive() || freeRecallFinished() || state.placeJourney);
 }
 
 function workspaceHasContent() {
@@ -3205,12 +3205,12 @@ function workspaceDetail() {
     : "";
   const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
   const composing = composingWorkspaceActive();
-  const mediaOverview = composing ? "" : workspaceMediaOverview(toggle);
+  const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${mediaOverview ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${mediaOverview ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
 }
 
 let privateDraftTimer = null;
@@ -3234,7 +3234,8 @@ async function retryPrivateDraft() {
   await refreshPrivateDraft();
 }
 
-function privateDraftPreview() {
+function privateDraftPreview({ inChapters = false } = {}) {
+  if (!state.showThinkingSteps && !(inChapters && freeRecallFinished())) return "";
   const saved=state.privateDraft;
   if (!saved || !saved.preview && !saved.error &&
       (!saved.updating || !saved.progress?.composition?.target_milestone)) return "";
@@ -3398,6 +3399,12 @@ function mapPhotoAlbumStatus(entry) {
   return `<p class="workspace-photo-status" role="status">${t(entry.photo_search_complete || Object.hasOwn(entry, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
 }
 
+function freeRecallFinished() {
+  const completed = state.recallStatus?.rounds_completed;
+  const limit = state.recallStatus?.free_rounds;
+  return Number.isInteger(completed) && Number.isInteger(limit) && limit > 0 && completed >= limit;
+}
+
 function composingWorkspaceActive() {
   return Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked || state.compositionStage >= 3);
 }
@@ -3405,7 +3412,8 @@ function composingWorkspaceActive() {
 function workspaceTabs() {
   const t = (key) => translate(`Memoir.workspace.${key}`);
   const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
-  return composingWorkspaceActive() ? [...premium, ["memoir", t("memoir")]]
+  return composingWorkspaceActive() || freeRecallFinished()
+    ? [...premium, ["memoir", t("chapters")]]
     : [];
 }
 
@@ -3478,6 +3486,7 @@ function selectLifeStage(stageId, focus = false) {
   if (!LIFE_STAGES.some((stage) => stage.id === stageId)) return;
   state.lifeStage = stageId;
   state.selectedPlace = null;
+  conversationScroll.pause();
   render();
   if (focus) document.querySelector(`[data-life-stage-tab="${stageId}"]`)?.focus({ preventScroll: true });
 }
@@ -3530,14 +3539,15 @@ function memoirWorkspace() {
   let selected = chapters.findIndex((chapter, index) => memoirChapterKey(chapter, index) === state.selectedMemoirChapter);
   if (selected < 0) selected = 0;
   const chapter = chapters[selected];
-  if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div><div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>${privateDraftPreview()}</div>`;
+  const draftPreview = privateDraftPreview({ inChapters: true });
+  if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div>${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
   state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
   const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
   const pagination = `<nav class="chapter-pagination" aria-label="${t("chapterPagination")}">${button(Math.max(0, selected - 1), t("previousChapter"), selected === 0)}<div class="chapter-page-numbers">${chapters.map((item, index) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(item, index))}" aria-current="${index === selected ? "page" : "false"}" aria-label="${t("chapterPage", { number: item.chapter_number || index + 1, title: item.title || "" })}" title="${escapeHtml(item.title || "")}">${item.chapter_number || index + 1}</button>`).join("")}</div>${button(Math.min(chapters.length - 1, selected + 1), t("nextChapter"), selected === chapters.length - 1)}</nav>`;
   const sourceIds = chapterSourceIds(chapter);
   const blocks = Array.isArray(chapter.blocks) ? chapter.blocks.map(chapterBlockMarkup).join("") : "";
   const body = blocks || (chapter.text ? `<div class="chapter-body-block">${formatText(chapter.text)}</div>` : `<p>${t("chapterContentPending")}</p>`);
-  return `<div class="workspace-scroll memoir-workspace"><div class="workspace-intro"><h2>${t("memoir")}</h2><p>${t("chapterPosition", { current: selected + 1, total: chapters.length })}</p></div>${pagination}<article class="workspace-card chapter-card" data-chapter-id="${escapeHtml(chapter.id || `chapter-${selected + 1}`)}"><div class="card-topline"><span class="tag">${t("chapter")} ${chapter.chapter_number || selected + 1}</span></div><h3>${escapeHtml(chapter.title || `${t("chapter")} ${selected + 1}`)}</h3><div class="chapter-body">${body}</div>${sourceIds.length ? `<div class="source-pills">${sourcePills(sourceIds)}</div>` : ""}</article>${referencesWorkspace()}${privateDraftPreview()}</div>`;
+  return `<div class="workspace-scroll memoir-workspace"><div class="workspace-intro"><h2>${t("memoir")}</h2><p>${t("chapterPosition", { current: selected + 1, total: chapters.length })}</p></div>${pagination}<article class="workspace-card chapter-card" data-chapter-id="${escapeHtml(chapter.id || `chapter-${selected + 1}`)}"><div class="card-topline"><span class="tag">${t("chapter")} ${chapter.chapter_number || selected + 1}</span></div><h3>${escapeHtml(chapter.title || `${t("chapter")} ${selected + 1}`)}</h3><div class="chapter-body">${body}</div>${sourceIds.length ? `<div class="source-pills">${sourcePills(sourceIds)}</div>` : ""}</article>${referencesWorkspace()}${draftPreview}</div>`;
 }
 
 function familyWorkspace() {

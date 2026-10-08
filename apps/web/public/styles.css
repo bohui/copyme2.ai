@@ -1215,3 +1215,19 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .response-photo-card small, .response-photo-card p { font-size: 12px; color: var(--muted); margin: 0; }
 .response-photo-card a { min-height: 44px; display: flex; align-items: center; }
 .retry-interview-turn { min-height: 44px; margin-bottom: 8px; }
+
+/* Recall views share the workspace with location cues until composition.
+   Give both panes independent room and scrolling on narrow interview screens. */
+@media (max-width: 760px) {
+  .story-shell:has(#chat-scroll) .workspace-detail.has-recall-views:has(.workspace-media-overview) {
+    flex-basis: 70%;
+    max-height: 70%;
+  }
+  .story-shell:has(#chat-scroll) .workspace-detail.has-recall-views > .workspace-scroll {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+}

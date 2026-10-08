@@ -298,7 +298,7 @@ does not offer this cache-preservation guarantee; use it only for an intentional
 full schema reset. Use
 `ENV_FILE=path/to/.env` to load a different file.
 
-High-level Codex activity is hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary while private model reasoning remains hidden.
+High-level Codex activity and early private-draft previews are hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary and private-draft checkpoints while private model reasoning remains hidden. With the flag off, the saved draft appears only in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
 ### Langfuse trajectory evaluation
 
@@ -443,6 +443,30 @@ make memoir-progressive-test
 python3 scripts/run_acceptance_evidence.py
 python3 scripts/audit_spec_routes.py
 ```
+
+For the recall/workspace browser acceptance suite, use a task-owned production
+frontend against a fresh test-mode API rather than a development HMR session.
+With that isolated API already running at `http://127.0.0.1:18042`:
+
+```bash
+MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:18042 npm --prefix apps/web run build
+MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:18042 npm --prefix apps/web run start -- --hostname 127.0.0.1 --port 13042
+```
+
+In another terminal, run the actual source UI and controlled service boundaries:
+
+```bash
+MEMOIR_BROWSER_URL=http://127.0.0.1:13042 python3 -m pytest -q \
+  tests/test_recall_browser.py tests/test_interview_workspace_browser.py \
+  tests/test_progressive_memoir_navigation_browser.py
+```
+
+The saved-draft navigation cases require their disposable PostgreSQL fixtures;
+never point them at live storyteller storage. Optional font CSS is controlled
+on every test page, including fresh tabs; dedicated startup regressions keep it
+pending. Production build/start removes the development-only HMR dependency
+without disabling browser network security. Keep failed development-run evidence
+separate from production acceptance results.
 
 `make memoir-progressive-test` runs the deterministic composer validator and
 renderer against ten distinct sample lives (five in China and five in
