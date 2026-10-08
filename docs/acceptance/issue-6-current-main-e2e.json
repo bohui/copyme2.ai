@@ -479,9 +479,10 @@
       "scenario": "S27",
       "file": "tests/test_shared_memory_events_postgres.py",
       "selector": "test_an_acceptance_outbox_failure_rolls_back_original_evidence_and_replay_remains_unique",
-      "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
+      "controlled_status": "Background invariant regression coverage retained; exact final-head receipt required; standalone operator experience deferred",
       "live_semantic_status": "not required for this persistence contract",
-      "additional_selectors": []
+      "additional_selectors": [],
+      "operator_experience_status": "Temporarily deferred by owner on 2026-10-08; not completed or an ordinary-user acceptance blocker"
     },
     {
       "story": 46,
@@ -489,9 +490,10 @@
       "scenario": "S28",
       "file": "tests/test_shared_memory_events_postgres.py",
       "selector": "test_bounded_partition_preparation_reuses_successes_after_provider_failure",
-      "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
+      "controlled_status": "Background invariant regression coverage retained; exact final-head receipt required; standalone operator experience deferred",
       "live_semantic_status": "not required for this persistence contract",
-      "additional_selectors": []
+      "additional_selectors": [],
+      "operator_experience_status": "Temporarily deferred by owner on 2026-10-08; not completed or an ordinary-user acceptance blocker"
     },
     {
       "story": 47,
@@ -499,9 +501,10 @@
       "scenario": "S11",
       "file": "tests/test_shared_memory_events_postgres.py",
       "selector": "test_authenticated_chat_completes_while_independent_partition_preparations_are_held",
-      "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
+      "controlled_status": "Background invariant regression coverage retained; exact final-head receipt required; standalone operator experience deferred",
       "live_semantic_status": "not required for this persistence contract",
-      "additional_selectors": []
+      "additional_selectors": [],
+      "operator_experience_status": "Temporarily deferred by owner on 2026-10-08; not completed or an ordinary-user acceptance blocker"
     },
     {
       "story": 48,
@@ -509,9 +512,10 @@
       "scenario": "S29",
       "file": "tests/test_shared_memory_events_postgres.py",
       "selector": "test_withdrawal_prunes_only_the_owners_legacy_execution_cache_before_outbox_acknowledgement",
-      "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
+      "controlled_status": "Background invariant regression coverage retained; exact final-head receipt required; standalone operator experience deferred",
       "live_semantic_status": "not required for this persistence contract",
-      "additional_selectors": []
+      "additional_selectors": [],
+      "operator_experience_status": "Temporarily deferred by owner on 2026-10-08; not completed or an ordinary-user acceptance blocker"
     },
     {
       "story": 49,
@@ -579,9 +583,10 @@
       "scenario": "S34",
       "file": "tests/test_memoir_lanes_temporal.py",
       "selector": "test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry",
-      "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
+      "controlled_status": "Background invariant regression coverage retained; exact final-head receipt required; standalone operator experience deferred",
       "live_semantic_status": "not required for this persistence contract",
-      "additional_selectors": []
+      "additional_selectors": [],
+      "operator_experience_status": "Temporarily deferred by owner on 2026-10-08; not completed or an ordinary-user acceptance blocker"
     },
     {
       "story": 56,
@@ -589,9 +594,10 @@
       "scenario": "S35",
       "file": "tests/test_shared_memory_events_postgres.py",
       "selector": "test_failed_and_timed_out_timeline_ranges_remain_pending_and_late_worker_is_fenced",
-      "controlled_status": "Reproducible controlled coverage; exact final-head receipt required",
+      "controlled_status": "Background invariant regression coverage retained; exact final-head receipt required; standalone operator experience deferred",
       "live_semantic_status": "not required for this persistence contract",
-      "additional_selectors": []
+      "additional_selectors": [],
+      "operator_experience_status": "Temporarily deferred by owner on 2026-10-08; not completed or an ordinary-user acceptance blocker"
     }
   ],
   "testing_decisions": [
@@ -819,7 +825,25 @@
     "persistence_base": "Merged PR31/32/33 on a0223bc; no migration rewrite",
     "ownership_repair": "Require verified server-owned staff roles and support-grant recipient identity; restrict finance to metadata reads; allowlist staff job responses",
     "live_access_configuration_changed": false,
-    "semantic_acceptance_complete": false
+    "semantic_acceptance_complete": false,
+    "operator_product_scope": "Temporarily deferred by owner; inherited compatibility and fail-closed ownership guards only"
   },
-  "verification_note": "No prior PR31 counts are treated as latest-main acceptance. Exact receipts accompany the review head. Live semantics remain unverified."
+  "verification_note": "No prior PR31 counts are treated as latest-main acceptance. Exact receipts accompany the review head. Live semantics remain unverified.",
+  "owner_scope_decision": {
+    "date": "2026-10-08",
+    "direction": "Temporarily defer standalone operator requirements and experiences; focus Issue 6 on normal-user progressive persistence and E2E acceptance",
+    "deferred_operator_experience_stories": [
+      45,
+      46,
+      47,
+      48,
+      55,
+      56
+    ],
+    "ordinary_narrator_requires_operator_role": false,
+    "underlying_background_safety_invariants_retained": true,
+    "inherited_compatibility": "Existing job administration, print/supplier and scoped support grants remain infrastructure with minimum verified-identity and private-response guards",
+    "new_operator_role_ui_onboarding_or_role_assignment": false,
+    "deferral_allows_cross_user_access": false
+  }
 }

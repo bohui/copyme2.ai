@@ -1,5 +1,7 @@
 # Issue 6 live semantic plan — proposal, execution blocked
 
+Owner scope clarification on 2026-10-08: standalone operator requirements and experiences are temporarily deferred. This proposal covers normal-user progressive persistence only. It requires no operator account, staff role, onboarding or operational product workflow. Existing ownership and entitlement boundaries still apply; deferral does not authorize role assignments or cross-user access.
+
 Base inspected: a0223bc32b6d76f442ee8372176ebc7271851abc,
 tree 6ba4b1aed8f6f7ce29a7a35e72c2d32412477140. Any resulting fix needs
 independent cloud review and a new exact-head admission check.
