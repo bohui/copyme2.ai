@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {mergePlaces, placeHistoryKey} from '../../apps/web/client/memoir/places.mjs';
 
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 const center = {latitude: 40.98, longitude: 117.94};
@@ -10,7 +11,7 @@ const scope = {photo_search_policy: 'place-fallback-gps-time-v8', photo_search_l
 const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
   date_expression: '1983', ...center});
 
-function harness(entry, api) {
+function harness(entry, api, dependencies = {}) {
   Object.assign(entry, {period: '1980s', ...center, ...scope, ...entry});
   let saved = {memory_places: [entry]};
   const state = {project: {id: 'project'}, placeJourney: entry};
@@ -18,6 +19,7 @@ function harness(entry, api) {
     window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
     profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {},
     saveProfileUpdates: async updates => { saved = {...saved, ...updates}; },
+    ...dependencies,
   });
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
@@ -47,6 +49,42 @@ test('refresh restores persisted photos without searching after the old cache ex
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 0, 'history restoration unnecessarily triggered photo discovery');
   assert.equal(h.entry().pictures[0].asset_id, 'saved');
+});
+
+for (const refresh of [false, true]) {
+for (const fallback of [false, true]) {
+test(`a repeated city alias preserves saved ${fallback ? 'GPS/time fallback ' : ''}photos${refresh ? ' through refreshed discovery' : ' without another lookup'}`, async () => {
+  let calls = 0;
+  const saved = {place: '承德市', hierarchy: ['Earth', '中国', '河北省', '承德市'],
+    granularity: 'city', life_stage: 'childhood', ...center, ...scope, period: '1980s',
+    photo_search_period: '1980s', photo_search_place: '承德市',
+    photo_search_complete: true, pictures: [{...picture('saved'), ...(fallback ? {
+      date_expression: '1970', search_fallback: 'gps_time', requested_period: '1980s', search_place: '承德市',
+    } : {})}]};
+  const alias = {place: '承德', hierarchy: ['Earth', '中国', '河北', '承德'],
+    granularity: 'city', life_stage: 'young_adulthood'};
+  const entry = mergePlaces([saved, alias])[0];
+  const h = harness(entry, async () => { calls++; return {status: 'NO_MATCH', items: []}; }, {placeHistoryKey});
+  await h.context.loadPlacePictures(h.entry(), 'project', {force: refresh});
+  assert.equal(calls, Number(refresh), 'an alias alone must not invalidate cached discovery');
+  assert.deepEqual(Array.from(h.entry().pictures, item => item.asset_id), ['saved']);
+  assert.deepEqual(Array.from(h.entry().life_stages), ['childhood', 'young_adulthood']);
+  assert.equal(h.entry().latitude, center.latitude);
+});
+}
+}
+
+test('a real geography or period change invalidates the alias photo cache', async () => {
+  for (const changed of [{photo_search_place: '承德县'}, {photo_search_period: '1970s'}]) {
+    let calls = 0;
+    const h = harness({place: '承德', hierarchy: ['Earth', '中国', '河北', '承德'],
+      granularity: 'city', photo_search_period: '1980s', photo_search_place: '承德市',
+      photo_search_complete: true, pictures: [picture('outdated')], ...changed},
+      async () => { calls++; return {status: 'NO_MATCH', items: []}; }, {placeHistoryKey});
+    await h.context.loadPlacePictures(h.entry(), 'project');
+    assert.equal(calls, 1);
+    assert.equal(h.entry().pictures.length, 0, 'photos from a different search scope must be retired');
+  }
 });
 
 test('a newly contextualized place retires the old cursor and accumulates arriving photos', async () => {

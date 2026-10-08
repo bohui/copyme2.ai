@@ -1189,7 +1189,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const parent = ["suburb", "landmark"].includes(entry.granularity) ? parents.at(-1) : "";
   const searchPlace = parent && !entry.place.includes(parent) ? `${entry.place}, ${parent}` : entry.place;
   const center = placePhotoCenter(entry);
-  const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
+  const samePlace = placeHistoryKey({place: entry.photo_search_place || entry.place}) === placeHistoryKey({place: searchPlace});
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
     && entry.photo_search_policy === "place-fallback-gps-time-v8";
@@ -1244,7 +1244,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
         const scope = {...latest, photo_search_place: searchPlace, ...(resultCenter ? {photo_search_latitude: resultCenter.latitude,
           photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
-          && (latest.photo_search_place || latest.place) === searchPlace
+          && placeHistoryKey({place: latest.photo_search_place || latest.place}) === placeHistoryKey({place: searchPlace})
           && latest.photo_search_policy === "place-fallback-gps-time-v8" ? latest.pictures || [] : [], result.items)
           .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
@@ -1374,7 +1374,7 @@ function photoMatchesScope(picture, entry, focus = null) {
   const period = photoSearchPeriod(entry, focus);
   const relaxedGps = ["gps", "gps_time"].includes(picture.search_fallback)
     && picture.requested_period === period
-    && picture.search_place === (entry.photo_search_place || entry.place);
+    && placeHistoryKey({place: picture.search_place}) === placeHistoryKey({place: entry.photo_search_place || entry.place});
   const relaxedTime = relaxedGps && picture.search_fallback === "gps_time";
   const expression = picture.date_expression || "";
   const years = Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
@@ -3072,15 +3072,16 @@ function workspaceContentAvailable() {
 }
 
 function workspaceHasContent() {
-  // Once activated, keep this project's workspace available through later
-  // lookups, empty stage selections, and composition updates.
+  // Confirmed activation survives later lookups and empty selections. A
+  // streamed preview is visible provisionally so a failed turn can roll back.
   const projectId = state.project?.id || null;
   if (workspaceVisibility.projectId !== projectId) {
     workspaceVisibility.projectId = projectId;
     workspaceVisibility.stable = false;
   }
-  if (workspaceContentAvailable()) workspaceVisibility.stable = true;
-  return workspaceVisibility.stable;
+  const available = workspaceContentAvailable();
+  if (available && (!state.placeJourney?.preview || composingWorkspaceActive())) workspaceVisibility.stable = true;
+  return workspaceVisibility.stable || available;
 }
 
 function workspaceDetail() {

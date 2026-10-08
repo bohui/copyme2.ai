@@ -335,3 +335,40 @@ def test_places_without_a_map_keep_workspace_controls_and_later_composition(inte
     expect(page.locator("[data-workspace-tab='memoir']")).to_be_visible()
     expect(page.locator(".workspace-media-overview")).to_have_count(0)
     expect(page.get_by_role("textbox", name="Your message")).to_be_visible()
+
+
+def test_city_alias_keeps_saved_photos_without_repeating_discovery(interview):
+    page = interview
+    searches = []
+    def photos(route):
+        searches.append(route.request.url)
+        route.fulfill(json={"status": "READY", "items": [{
+            "asset_id": "chengde-saved", "title": "Chengde reference",
+            "image_url": "/static/timeline_avatar_child_female.png",
+            "date_expression": "1983", "latitude": 40.9517, "longitude": 117.9632,
+            "allowed_actions": {"embed": True}}], "next_cursor": None})
+    page.route("**/place-photos?**", photos)
+    turn = {"reply": "What do you remember about the city?",
+        "place_journey": {"place": "承德市", "hierarchy": ["Earth", "中国", "河北省", "承德市"],
+            "granularity": "city", "latitude": 40.9517, "longitude": 117.9632,
+            "period": "1980s", "life_stage": "childhood", "revision": 2},
+        "place_journey_change": {"changed": True}}
+    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(json=turn))
+    page.get_by_role("textbox", name="Your message").fill("I remember 承德市 in the 1980s.")
+    page.get_by_role("button", name="Send message").click()
+    expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible(timeout=20000)
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
+    page.wait_for_load_state("networkidle")
+    assert len(searches) == 1
+
+    turn["place_journey"] = {"place": "承德", "hierarchy": ["Earth", "中国", "河北", "承德"],
+        "granularity": "city", "period": "1980s", "life_stage": "young_adulthood", "revision": 3}
+    page.get_by_role("textbox", name="Your message").fill("I returned to 承德 in the 1980s.")
+    page.get_by_role("button", name="Send message").click()
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
+    expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible()
+    page.wait_for_load_state("networkidle")
+    assert len(searches) == 1, "a city suffix alias must reuse saved photo discovery"
+    page.reload()
+    expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible(timeout=20000)
+    assert len(searches) == 1

@@ -168,6 +168,9 @@ the browser uses the same rule when merging restored history. Original source
 labels remain available, and existing coordinates, photos and life stages survive
 a repeat mention that omits coordinates. County, district and town suffixes are
 not interchangeable with a city, and different containing regions stay distinct.
+Photo discovery uses the same suffix equivalence for its saved search label and
+GPS/time fallback provenance, while changes in geography, period or coordinates
+continue to invalidate a search scope.
 
 The existing extraction call includes compact geographic hints from the latest
 saved journey and up to 50 available profile history entries, without photo
@@ -184,11 +187,14 @@ hierarchy from detailed place toward country. An unavailable provider still allo
 saved parent coordinates. Parent coordinates belong only to `target`, never to
 the child's persisted coordinates. No match leaves the hierarchy visible.
 
-After an explicit location trigger, the project workspace stays available through
+After a confirmed explicit location trigger, the project workspace stays available through
 unresolved maps, pending photos and private draft checkpoints. Before composition
 unlock it retains location and photo panes; after unlock it uses the enabled
 composition tabs. Manual collapse remains available. A fifth-round private draft
 checkpoint alone does not unlock composition tabs or hide the media workspace.
+A streamed preview can show the workspace provisionally. If its turn fails before
+confirmation, visibility returns to the previous state; an already confirmed
+workspace remains available.
 
 The default geocoder is Google Geocoding, with cached queries and serialized
 requests. Set the server-only `GOOGLE_MAPS_GEOCODING_API_KEY` and, when a
