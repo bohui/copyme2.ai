@@ -19,7 +19,7 @@ function harness(entry, api) {
     profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {},
     saveProfileUpdates: async updates => { saved = {...saved, ...updates}; },
   });
-  for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   return {context, state, entry: () => saved.memory_places[0]};

@@ -6,14 +6,14 @@ import vm from 'node:vm';
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 
 test('successful OAuth updates the visible guest menu without another chat turn', () => {
-  const state = { supabase: { user: { id: 'guest', is_anonymous: true } } };
+  const state = { chat: [], supabase: { user: { id: 'guest', is_anonymous: true } } };
   let menu = '';
   const context = vm.createContext({
     state, authReminder: { tick() {} }, UI_LOCALES: new Set(),
     refreshProfileMenu() { menu = context.profileMenu(); },
-    profile: () => ({}), escapeHtml: String, translate: key => key,
+    persistChatHistory() {}, profile: () => ({}), escapeHtml: String, translate: key => key,
   });
-  for (const name of ['profileDetails', 'profileMenu', 'syncSupabaseSession']) {
+  for (const name of ['invalidateProjectNavigation', 'profileDetails', 'profileMenu', 'syncSupabaseSession']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   menu = context.profileMenu();

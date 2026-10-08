@@ -19,6 +19,10 @@ const state = {
   accountId: null,
   csrfToken: "",
   project: null,
+  projectPrincipalId: null,
+  projectRecoveryBlocked: null,
+  navigationGeneration: 0,
+  navigationPath: null,
   session: null,
   memories: [],
   sources: [],
@@ -119,7 +123,7 @@ const mapPhotoAlbums = createMapPhotoAlbums({
 const guestTransfer = createGuestConversationTransfer({
   getAuth: () => state.supabase,
   getConversation: () => ({
-    project_id: state.project?.id || localStorage.getItem("memory-spark-project") || "guest-conversation",
+    project_id: state.project?.id || savedProjectId() || "guest-conversation",
     messages: state.chat.filter(message => ["user", "assistant"].includes(message.role) && message.text)
       .map(message => ({ role: message.role, text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text) })),
     workspace_profile: profile(),
@@ -270,15 +274,44 @@ function isMemoirRoute() {
 }
 
 function navigateTo(path, replace = false) {
+  invalidateProjectNavigation();
   window.history[replace ? "replaceState" : "pushState"]({}, "", path);
+  state.navigationPath = currentPath();
   render();
+}
+
+function captureProjectScope() {
+  return { projectId: state.project?.id, ownerId: state.supabase?.user?.id,
+    generation: state.navigationGeneration || 0 };
+}
+
+function isCurrentProjectScope(scope) {
+  return scope.generation === (state.navigationGeneration || 0)
+    && scope.projectId === state.project?.id && scope.ownerId === state.supabase?.user?.id;
+}
+
+function invalidateProjectNavigation() {
+  // Save accepted text before detaching the transport. Aborting a browser
+  // request does not undo a turn already accepted by the server.
+  for (const message of state.chat) if (message.streaming) message.streaming = false;
+  persistChatHistory();
+  state.navigationGeneration = (state.navigationGeneration || 0) + 1;
+  for (const stream of state.conversationStreams || []) stream.abort();
+  state.conversationStreams?.clear();
+  state.photoRequests?.clear();
+  state.pendingConversationTurn = null;
+  state.loading = false;
+  state.codexStarting = false;
+  if (state.voiceMode || state.voiceModeRecorder || state.voiceModeStream) stopVoiceMode({ silent: true });
+  if (state.dictationStatus && state.dictationStatus !== "off") cancelDictation();
+  return state.navigationGeneration;
 }
 
 async function api(path, options = {}) {
   const { onPhotoPage, ...requestOptions } = options;
   const method = (options.method || "GET").toUpperCase();
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  if (state.project?.requires_supabase_auth && state.supabase?.accessToken && !headers.Authorization
+  if (state.supabase?.accessToken && !headers.Authorization
       && path !== '/v1/projects' && !path.startsWith('/v1/auth/')) {
     headers.Authorization = `Bearer ${state.supabase.accessToken}`;
   }
@@ -334,19 +367,96 @@ function readCookie(name) {
 }
 
 function chatHistoryStorageKey(projectId = state.project?.id) {
-  return projectId ? `${CHAT_HISTORY_STORAGE_PREFIX}${projectId}` : "";
+  const ownerId = state.supabase?.user?.id;
+  return projectId ? `${CHAT_HISTORY_STORAGE_PREFIX}${ownerId ? `${encodeURIComponent(ownerId)}:` : ""}${projectId}` : "";
+}
+
+function savedProjectStorageKey() {
+  const ownerId = state.supabase?.user?.id;
+  return `memory-spark-project${ownerId ? `:${encodeURIComponent(ownerId)}` : ""}`;
+}
+
+function readBrowserValues(key) {
+  const values = [];
+  for (const storage of [() => localStorage, () => sessionStorage]) {
+    try {
+      const value = storage().getItem(key);
+      if (typeof value === "string") values.push(value);
+    } catch { /* Try the tab cache when durable storage is unavailable. */ }
+  }
+  return values;
+}
+
+function readBrowserValue(key) {
+  // A successful tab write can be newer than a readable durable value when
+  // storage is full. Another tab can also make the durable pointer newer.
+  let newest = null, updatedAt = -1;
+  for (const value of readBrowserValues(key)) {
+    let timestamp = 0;
+    try { timestamp = Number(JSON.parse(value)?.updatedAt) || 0; } catch { /* Legacy raw pointer. */ }
+    if (timestamp > updatedAt) { newest = value; updatedAt = timestamp; }
+  }
+  return newest;
+}
+
+function mergeChatHistoryCopies(copies) {
+  const messages = [], positions = new Map();
+  for (const copy of copies) {
+    let saved;
+    try { saved = JSON.parse(copy); } catch { continue; }
+    if (!Array.isArray(saved)) continue;
+    const occurrences = new Map();
+    for (const item of saved) {
+      if (!["user", "assistant"].includes(item?.role) || typeof item.text !== "string") continue;
+      const signature = JSON.stringify([item.role, item.text]);
+      const occurrence = occurrences.get(signature) || 0;
+      occurrences.set(signature, occurrence + 1);
+      const message = { ...item, cacheId: item.cacheId || `legacy:${signature}:${occurrence}` };
+      const index = positions.get(message.cacheId);
+      if (index === undefined) {
+        positions.set(message.cacheId, messages.length);
+        messages.push(message);
+      } else if (!(messages[index].text.startsWith(message.text) && messages[index].text.length > message.text.length)
+          && (message.text.startsWith(messages[index].text) && message.text.length > messages[index].text.length
+            || (Number(message.updatedAt) || 0) >= (Number(messages[index].updatedAt) || 0))) {
+        messages[index] = message;
+      }
+    }
+  }
+  return messages;
+}
+
+function saveBrowserValue(key, value) {
+  for (const storage of [() => localStorage, () => sessionStorage]) {
+    try { storage().setItem(key, value); } catch { /* The in-memory conversation remains usable. */ }
+  }
+}
+
+function savedProjectId() {
+  // A legacy pointer is only a recovery candidate. Authorize it before reading its history.
+  const value = readBrowserValue(savedProjectStorageKey()) || readBrowserValue("memory-spark-project");
+  try { return JSON.parse(value)?.projectId || value; } catch { return value; }
+}
+
+function rememberProject(projectId) {
+  const key = savedProjectStorageKey();
+  let updatedAt = Date.now();
+  for (const value of readBrowserValues(key)) {
+    try { updatedAt = Math.max(updatedAt, (Number(JSON.parse(value)?.updatedAt) || 0) + 1); } catch { /* Legacy pointer. */ }
+  }
+  saveBrowserValue(key, JSON.stringify({ projectId, updatedAt }));
 }
 
 function persistChatHistory() {
+  if (state.projectPrincipalId && state.projectPrincipalId !== state.supabase?.user?.id) return;
   const key = chatHistoryStorageKey();
   if (!key) return;
   try {
-    if (!state.chat.length) {
-      sessionStorage.removeItem(key);
-      return;
-    }
+    if (!state.chat.length) return;
     const messages = state.chat.filter((message) => message.text || message.error).map((message) => {
+      message.cacheId ||= globalThis.crypto?.randomUUID?.() || `message-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const saved = {
+        cacheId: message.cacheId,
         id: message.id,
         role: message.role,
         text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text || ""),
@@ -360,11 +470,19 @@ function persistChatHistory() {
       if (message.action && typeof message.action === "object") {
         saved.action = { name: message.action.name, label: message.action.label };
       }
+      const fingerprint = JSON.stringify(saved);
+      // Rendering an unchanged old tab must not make its snapshot newer.
+      if (message.cacheFingerprint && message.cacheFingerprint !== fingerprint) {
+        message.updatedAt = Math.max(Date.now(), (Number(message.updatedAt) || 0) + 1);
+      } else message.updatedAt ||= Date.now();
+      message.cacheFingerprint = fingerprint;
+      saved.updatedAt = message.updatedAt;
       return saved;
     });
-    sessionStorage.setItem(key, JSON.stringify(messages));
+    const previous = mergeChatHistoryCopies([...readBrowserValues(key), JSON.stringify(messages)]);
+    saveBrowserValue(key, JSON.stringify(previous));
   } catch {
-    // The conversation remains usable when session storage is unavailable or full.
+    // The conversation remains usable when browser storage is unavailable or full.
   }
 }
 
@@ -372,8 +490,11 @@ function restoreChatHistory(projectId) {
   const key = chatHistoryStorageKey(projectId);
   if (!key) return [];
   try {
-    const saved = JSON.parse(sessionStorage.getItem(key) || "[]");
-    if (!Array.isArray(saved)) return [];
+    const copies = readBrowserValues(key);
+    if (!copies.length) {
+      try { copies.push(sessionStorage.getItem(`${CHAT_HISTORY_STORAGE_PREFIX}${projectId}`) || "[]"); } catch { /* Optional legacy tab cache. */ }
+    }
+    const saved = mergeChatHistoryCopies(copies);
     const messages = saved
       .filter((message) => ["user", "assistant"].includes(message?.role) && typeof message.text === "string")
       .map((message) => {
@@ -384,6 +505,8 @@ function restoreChatHistory(projectId) {
           ? { name: message.action.name, label: message.action.label }
           : undefined;
         return {
+          cacheId: typeof message.cacheId === "string" ? message.cacheId : undefined,
+          updatedAt: Number(message.updatedAt) || 0,
           id: typeof message.id === "string" ? message.id : undefined,
           role: message.role,
           text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
@@ -460,6 +583,7 @@ async function applyFirstReplyLocalization(locale) {
 }
 
 async function syncProfileUiLocale() {
+  const scope = captureProjectScope();
   if (readCookie(UI_LOCALE_SOURCE_COOKIE) === "fixed" || UI_LOCALES.has(state.supabase?.user?.user_metadata?.ui_locale)) return false;
   let preferredLanguage = state.project?.profile?.preferred_language;
   if (!preferredLanguage && state.supabase?.accessToken) {
@@ -469,7 +593,7 @@ async function syncProfileUiLocale() {
       // The profile endpoint is optional during boot; conversation still works.
     }
   }
-  return applyProfileUiLocale(preferredLanguage);
+  if (isCurrentProjectScope(scope)) return applyProfileUiLocale(preferredLanguage);
 }
 
 function installUiLocaleBridge() {
@@ -558,9 +682,20 @@ function syncSupabaseSession(session) {
   state.supabaseSession = session || null;
   if (!state.supabase) return;
   const previousUser = state.supabase.user;
+  const principalChanged = Boolean(previousUser?.id && previousUser.id !== session?.user?.id);
+  if (principalChanged) invalidateProjectNavigation();
   state.supabase.accessToken = session?.access_token || null;
   state.supabase.refreshToken = session?.refresh_token || null;
   state.supabase.user = session?.user || null;
+  if (principalChanged) {
+    // Keep the previous principal's durable cache, and let boot authorize the
+    // next principal before any project or transcript can be shown again.
+    state.project = null;
+    state.projectPrincipalId = null;
+    state.chat = [];
+    globalThis.document?.querySelector("#app")?.replaceChildren();
+    globalThis.location?.reload();
+  }
   authReminder.tick();
   const user = state.supabase.user;
   if (previousUser?.id !== user?.id || previousUser?.is_anonymous !== user?.is_anonymous
@@ -663,6 +798,11 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
 }
 
 async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat") {
+  const scope = captureProjectScope();
+  const controller = globalThis.AbortController ? new AbortController() : null;
+  const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted;
+  const detached = () => ({ detached: true });
+  let replyFinished = false;
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
@@ -678,7 +818,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   const previousSelection = state.selectedPlace;
   let previewJourney = null;
   const recordProgress = (step) => {
-    if (state.project?.id !== streamProjectId || !step?.id) return;
+    if (!current() || !step?.id) return;
     const index = liveTrace.findIndex(item => item.id === step.id);
     if (index < 0) liveTrace.push(step);
     else if (step.status === "completed" || step.status === "failed") {
@@ -696,6 +836,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   if (state.supabase.google_maps_browser_api_key) void loadCesium().catch(() => {});
   try {
     const applyWorkspace = async (update) => {
+      if (!current()) return;
       if (!update || typeof update !== "object") return;
       if (update.project_id && update.project_id !== streamProjectId) return;
       if (!streamProjectId || state.project?.id !== streamProjectId) return;
@@ -723,6 +864,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       }
       if (update.profile_updates && markCurrent("profile")) {
         await saveProfileUpdates(update.profile_updates, streamProjectId);
+        if (!current()) return;
         if (update.profile_updates.story_focus?.when && state.placeJourney) {
           // Profile and place are separate stream events. Restart discovery
           // for the new period even if the earlier search is still pending.
@@ -748,6 +890,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           const entries = candidates.map(candidate => places.find(item => placeHistoryKey(item) === placeHistoryKey(candidate)));
           const entry = entries.at(-1);
           await saveProfileUpdates({ memory_places: places }, streamProjectId);
+          if (!current()) return;
           state.lifeStage = "all";
           state.selectedPlace = placeHistoryKey(entry);
           rememberPlaceJourneyProject(streamProjectId);
@@ -789,6 +932,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       render();
     };
     const body = await streamAgentTurn(text, async (delta) => {
+      if (!current() || replyFinished) return;
       if (!streamedMessage) {
         streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
         state.chat.push(streamedMessage);
@@ -797,6 +941,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       streamedMessage.text += delta;
       updateStreamingAssistantMessage(streamedMessage);
     }, async (event) => {
+      if (!current()) return;
       if (event.type === "progress") {
         recordProgress(event.data);
       } else if (event.type === "conversation_saved") {
@@ -814,17 +959,21 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         // conversation-ready promise, so the storyteller can send again.
         workspaceUpdateQueue = workspaceUpdateQueue
           .then(() => applyWorkspace(event.data))
-          .catch((error) => toast(error.message));
+          .catch((error) => { if (current()) toast(error.message); });
       }
-    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind);
+    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind, {scope, controller});
+    if (!current()) return detached();
+    replyFinished = true;
     // A saved reply is ready even when an earlier workspace write is pending.
     // Legacy responses still need their bundled workspace applied here.
     if (!body.conversation_saved) {
       workspaceUpdateQueue = workspaceUpdateQueue.then(() => applyWorkspace(body));
       await workspaceUpdateQueue;
+      if (!current()) return detached();
     }
     if (body.profile_updates?.conversation_language && state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
       await applyCommittedConversationLocale(body.profile_updates);
+      if (!current()) return detached();
     }
     if (body.recall_status) state.recallStatus = body.recall_status;
     if (body.reply && state.pendingConversationTurn === requestTurn) state.pendingConversationTurn = null;
@@ -840,6 +989,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     }
     return { blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
+    if (!current()) return detached();
     if (state.project?.id === streamProjectId && state.placeJourney === previewJourney && previewJourney) {
       state.placeJourney = previousJourney;
       state.selectedPlace = previousSelection;
@@ -854,25 +1004,36 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   }
 }
 
-async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined, serverAction = null, sourceKind = "narrator_chat") {
+async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, clientTurnId = undefined, serverAction = null, sourceKind = "narrator_chat", request = {}) {
+  const scope = request.scope || captureProjectScope();
+  const controller = request.controller || (globalThis.AbortController ? new AbortController() : null);
+  const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted;
+  if (controller) (state.conversationStreams ||= new Set()).add(controller);
+  let responseHasStream = false;
+  try {
   const isGreeting = serverAction === "begin" || serverAction === "continue";
   const body = isGreeting
-    ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization }
-    : { text, conversation_text: conversationText, source_kind: sourceKind, client_turn_id: clientTurnId || undefined, project_id: state.project?.id || null, language, first_reply_localization: firstReplyLocalization };
+    ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: scope.projectId || null, language, first_reply_localization: firstReplyLocalization }
+    : { text, conversation_text: conversationText, source_kind: sourceKind, client_turn_id: clientTurnId || undefined, project_id: scope.projectId || null, language, first_reply_localization: firstReplyLocalization };
   const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
       Authorization: `Bearer ${state.supabase.accessToken}`,
       "X-CSRF-Token": state.csrfToken || readCookie("memory_spark_csrf") },
     body: JSON.stringify(body),
+    signal: controller?.signal,
   });
+  if (!current()) throw new Error("Conversation navigation changed");
   if (response.status === 401) {
     state.supabase.accessToken = null;
     throw new Error(translate("Errors.sessionExpired"));
   }
   if (!response.ok) throw new Error(localizedErrorMessage(response.headers.get("X-Error-Code")));
-  if (!response.body) return response.json();
+  if (!response.body) return await response.json();
   const reader = response.body.getReader();
+  responseHasStream = true;
+  const cancelReader = () => { void reader.cancel().catch(() => {}); };
+  controller?.signal.addEventListener("abort", cancelReader, { once: true });
   const decoder = new TextDecoder();
   let buffer = "";
   let result = null;
@@ -916,6 +1077,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
 
   async function consumeBuffer(final = false) {
     while (buffer.trim()) {
+      if (!current()) throw new Error("Conversation navigation changed");
       const end = jsonObjectEnd(buffer);
       if (end === null) {
         if (final) throw new Error("Incomplete streaming response");
@@ -924,7 +1086,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
       const value = buffer.slice(0, end);
       buffer = buffer.slice(end);
       const event = JSON.parse(value);
-      if (event.type === "text_delta") await onDelta(event.text || "");
+      if (event.type === "text_delta" && !ready) await onDelta(event.text || "");
       else if (event.type === "reply_complete") result = { ...(result || {}), ...(event.data || {}) };
       else if (event.type === "conversation_saved") {
         result = { ...(result || {}), ...(event.data || {}) };
@@ -977,6 +1139,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
     try {
     while (true) {
       const { value, done } = await reader.read();
+      if (!current()) throw new Error("Conversation navigation changed");
       buffer += decoder.decode(value, { stream: !done });
       await consumeBuffer(done);
       if (done) break;
@@ -991,19 +1154,29 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
         ready = true;
         rejectReady(error);
       } else {
-        await onEvent({ type: "workspace_error", message: error.message });
+        if (current()) await onEvent({ type: "workspace_error", message: error.message });
       }
     } finally {
+      controller?.signal.removeEventListener("abort", cancelReader);
       await reader.cancel().catch(() => {});
       reader.releaseLock();
+      if (controller) state.conversationStreams?.delete(controller);
     }
   };
   void consumeStream();
-  return readyPromise;
+  // Keep the controller registered until the background workspace tail ends.
+  return await readyPromise;
+  } finally {
+    // The reader owns cleanup once it exists; failed fetches and JSON replies
+    // have no background tail to detach.
+    if (controller && !responseHasStream) state.conversationStreams?.delete(controller);
+  }
 }
 
 async function loadPlacePictures(entry, projectId, { more = false, force = false, onProgress = null } = {}) {
+  const requestScope = captureProjectScope();
   if (!projectId || !entry?.place) return;
+  if (requestScope.projectId !== projectId) return;
   const key = placeHistoryKey(entry);
   entry = (profile().memory_places || []).find(item => placeHistoryKey(item) === key) || entry;
   const period = photoSearchPeriod(entry, profile().story_focus);
@@ -1043,6 +1216,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
     if (more) query.set("cursor", entry.photo_next_cursor);
     let deliveredFinal = false;
     const acceptPage = async (result) => {
+      if (!isCurrentProjectScope(requestScope)) return;
       if (state.project?.id !== projectId) return;
       photoStatus = result.status || "PARTIAL";
       if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
@@ -1053,7 +1227,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       // Discovery overlaps workspace events. Serialize persistence against the
       // latest places, but paint each verified batch before saving it.
       const persist = workspaceUpdateQueue.then(async () => {
-        if (state.project?.id !== projectId) return;
+        if (!isCurrentProjectScope(requestScope)) return;
         const places = [...(profile().memory_places || [])];
         const index = places.findIndex(item => placeHistoryKey(item) === key);
         const latest = index >= 0 ? places[index] : entry;
@@ -1094,6 +1268,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
     try {
       result = await api(`/v1/projects/${projectId}/place-photos?${query}`, options);
     } catch (error) {
+      if (!isCurrentProjectScope(requestScope)) return;
       if (!more || error.status !== 410) throw error;
       query.delete("cursor");
       result = await api(`/v1/projects/${projectId}/place-photos?${query}`, options);
@@ -1101,8 +1276,10 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
     // JSON-only servers and cached responses retain the existing contract.
     if (!deliveredFinal) await acceptPage(result);
   } catch { /* Pictures are optional; retry explicitly without erasing them. */
+    if (!isCurrentProjectScope(requestScope)) return;
     state.photoRequests.set(requestKey, { error: true });
   } finally {
+    if (!isCurrentProjectScope(requestScope)) return;
     state.photoRequests.set(requestKey, {...state.photoRequests.get(requestKey), loading: false});
     const failed = state.photoRequests.get(requestKey)?.error;
     reportProgress(failed ? "failed" : "completed",
@@ -1360,8 +1537,12 @@ function waitForAssistantStream() {
 }
 
 async function streamAssistantMessage(text, metadata = {}) {
-  if (metadata.streamedMessage) {
-    const { streamedMessage, ...details } = metadata;
+  const scope = metadata.scope || captureProjectScope();
+  if (!isCurrentProjectScope(scope)) return null;
+  const { scope: _scope, ...messageMetadata } = metadata;
+  if (messageMetadata.streamedMessage) {
+    const { streamedMessage, ...details } = messageMetadata;
+    if (!state.chat.includes(streamedMessage)) return null;
     Object.assign(streamedMessage, details, { text: cleanAssistantText(String(text || streamedMessage.text)), streaming: false });
     render();
     return streamedMessage;
@@ -1369,7 +1550,7 @@ async function streamAssistantMessage(text, metadata = {}) {
   const value = cleanAssistantText(String(text || ""));
   if (!value) return null;
   const message = {
-    ...metadata,
+    ...messageMetadata,
     id: nextAssistantMessageId(),
     role: "assistant",
     text: "",
@@ -1380,10 +1561,12 @@ async function streamAssistantMessage(text, metadata = {}) {
 
   const characters = Array.from(value);
   for (let index = 0; index < characters.length; index += ASSISTANT_STREAM_CHUNK_SIZE) {
+    if (!isCurrentProjectScope(scope)) return null;
     message.text = characters.slice(0, index + ASSISTANT_STREAM_CHUNK_SIZE).join("");
     updateStreamingAssistantMessage(message);
     if (index + ASSISTANT_STREAM_CHUNK_SIZE < characters.length) await waitForAssistantStream();
   }
+  if (!isCurrentProjectScope(scope)) return null;
   message.text = value;
   message.streaming = false;
   render();
@@ -1391,12 +1574,13 @@ async function streamAssistantMessage(text, metadata = {}) {
 }
 
 async function hydratePlaceJourney() {
+  const scope = captureProjectScope();
   const savedPlaces = mergePlaces(profile().memory_places || []);
   const projectId = state.project?.id;
   if (Array.isArray(profile().memory_places)
       && JSON.stringify(savedPlaces) !== JSON.stringify(profile().memory_places)) {
     await saveProfileUpdates({ memory_places: savedPlaces }, projectId);
-    if (state.project?.id !== projectId) return;
+    if (!isCurrentProjectScope(scope)) return;
   }
   if (Array.isArray(savedPlaces) && savedPlaces.length) {
     // History is ordered by life stage, while the current place follows the
@@ -1415,6 +1599,7 @@ async function hydratePlaceJourney() {
   if (!state.supabase?.accessToken || !placeJourneyIsActivatedForProject()) return;
   try {
     const body = await supabaseApi("/v1/agent/place-journey");
+    if (!isCurrentProjectScope(scope)) return;
     state.placeJourney = body.place_journey || null;
     state.placeJourneyChange = null;
     if (state.placeJourney) {
@@ -1463,15 +1648,15 @@ function applyPersistedFamilyContext(context) {
 
 let memoryEventTimer = null;
 async function refreshFamilyContext() {
+  const scope = captureProjectScope();
   if (!state.familyFeaturesEnabled || !state.project?.id || !state.supabase?.accessToken) return null;
   const projectId = state.project.id;
-  const ownerId = state.supabase.user?.id;
   try {
     const body = await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`);
-    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return null;
+    if (!isCurrentProjectScope(scope)) return null;
     if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
     const snapshot = await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`);
-    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return null;
+    if (!isCurrentProjectScope(scope)) return null;
     if (Array.isArray(snapshot?.events)) {
       state.memoryEventProject = projectId;
       state.timeline = snapshot.events.map(event => ({ ...event,
@@ -1485,7 +1670,7 @@ async function refreshFamilyContext() {
     }
     return body?.family_context || null;
   } catch (failure) {
-    if (failure.status === 403 && state.project?.id === projectId && state.supabase?.user?.id === ownerId) {
+    if (failure.status === 403 && isCurrentProjectScope(scope)) {
       state.familyFeaturesEnabled = false;
       state.timeline = [];
       state.familyContext = null;
@@ -1499,8 +1684,10 @@ async function refreshFamilyContext() {
 }
 
 async function refreshFamilyEntitlement() {
+  const scope = captureProjectScope();
   try {
     const entitlement = await storyApi("/v1/story/state");
+    if (!isCurrentProjectScope(scope)) return false;
     const features = new Set(entitlement.payment_features || []);
     state.familyEntitlement = entitlement;
     state.recallStatus = entitlement.recall_status || null;
@@ -1514,6 +1701,7 @@ async function refreshFamilyEntitlement() {
       await refreshFamilyContext();
     }
   } catch {
+    if (!isCurrentProjectScope(scope)) return false;
     state.familyEntitlement = null;
     state.familyFeaturesEnabled = false;
     state.familyContext = null;
@@ -1714,6 +1902,7 @@ function initFamilyVisualizations() {
 }
 
 async function startCodexConversation({ resume = false } = {}) {
+  const scope = captureProjectScope();
   if (!state.project || state.codexStarting || state.codexReady || state.chat.length) return;
   if (state.recallStatus?.payment_required) return;
   state.codexStarting = true;
@@ -1724,6 +1913,7 @@ async function startCodexConversation({ resume = false } = {}) {
     state.loading = false;
     try {
       await streamAssistantMessage(conversationMessage("opening"), {
+        scope,
         trace: simulatedLoopTrace(
           ["conversation.start", "memory.search"],
           translate("Memoir.trace.opening"),
@@ -1731,6 +1921,7 @@ async function startCodexConversation({ resume = false } = {}) {
         traceMode: "simulated",
       });
     } finally {
+      if (!isCurrentProjectScope(scope)) return;
       state.codexStarting = false;
       state.codexReady = true;
       state.loading = false;
@@ -1744,9 +1935,11 @@ async function startCodexConversation({ resume = false } = {}) {
   const fallback = conversationMessage("resume");
   try {
     // Returning to saved memories is navigation, not a new recall round.
-    const message = await streamAssistantMessage(fallback, { traceMode: "simulated" });
+    const message = await streamAssistantMessage(fallback, { scope, traceMode: "simulated" });
+    if (!isCurrentProjectScope(scope)) return;
     if (message) render();
   } finally {
+    if (!isCurrentProjectScope(scope)) return;
     state.codexStarting = false;
     state.codexReady = true;
     state.loading = false;
@@ -1818,8 +2011,10 @@ function mergeProfileUpdates(updates) {
 }
 
 async function saveProfileUpdates(updates, expectedProjectId = null, { force = false } = {}) {
+  const scope = captureProjectScope();
   if (!updates || !state.project || (expectedProjectId && state.project.id !== expectedProjectId)) return;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (!isCurrentProjectScope(scope)) return;
     if (!state.project || (expectedProjectId && state.project.id !== expectedProjectId)) return;
     const project = state.project;
     const merged = mergeProfileUpdates(updates) || (force ? { ...profile(), ...updates } : null);
@@ -1831,15 +2026,18 @@ async function saveProfileUpdates(updates, expectedProjectId = null, { force = f
         method: "PATCH",
         body: JSON.stringify({ profile: merged, expected_revision: project.revision }),
       });
+      if (!isCurrentProjectScope(scope)) return;
       if (state.project?.id === project.id) state.project = { ...state.project, ...saved,
         profile: { ...saved.profile, ...(state.project.profile?.conversation_language ? {
           preferred_language:state.project.profile.preferred_language, conversation_language:state.project.profile.conversation_language} : {}) } };
       return;
     } catch (error) {
+      if (!isCurrentProjectScope(scope)) return;
       if (error.status === 409 && attempt === 0 && state.project?.id === project.id) {
         // Another serialized workspace update may have advanced the project
         // revision. Reload the base profile and retry the same explicit fields.
         const latest = await api(`/v1/projects/${project.id}`);
+        if (!isCurrentProjectScope(scope)) return;
         if (state.project?.id === project.id) state.project = { ...state.project, ...latest,
           profile: preserveConversationLocale(latest.profile, state.project.profile) };
         continue;
@@ -1982,7 +2180,7 @@ async function reviewCollection() {
 async function signOut() {
   closeProfileMenu();
   try {
-    const previousProjectId = state.project?.id;
+    persistChatHistory();
     if (state.supabase?.client) {
       const { error } = await state.supabase.client.auth.signOut();
       if (error) throw new Error(translate("Errors.logoutFailed"));
@@ -1993,6 +2191,7 @@ async function signOut() {
     state.accountId = null;
     state.csrfToken = "";
     state.project = null;
+    state.projectPrincipalId = null;
     state.session = null;
     state.memories = [];
     state.sources = [];
@@ -2040,11 +2239,9 @@ async function signOut() {
     state.audioPlayer = null;
     state.recognition = null;
     try {
-      localStorage.removeItem("memory-spark-project");
       localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY);
       localStorage.removeItem("memory-spark-story-started");
       sessionStorage.removeItem("memory-spark-supabase-session");
-      if (previousProjectId) sessionStorage.removeItem(chatHistoryStorageKey(previousProjectId));
     } catch { /* private browsing or storage restrictions */ }
     navigateTo(MEMOIR_ROUTES.home, true);
     await boot();
@@ -2198,7 +2395,7 @@ function renderStoryFlow() {
   $("#app").innerHTML = `
     <div class="story-shell conversation-only">
       <header class="story-topbar">
-        <a class="brand" href="/memoir" data-action="story-flow-home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${escapeHtml(translate("Memoir.story.brand"))}</span></a>
+        <div class="brand"><a href="/" data-action="story-flow-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${escapeHtml(translate("Memoir.story.brand"))}</a></div>
         <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("savedWithSupabase")}</span></div>${profileMenu()}</div>
       </header>
       <main class="chat-main story-flow-main" aria-label="${t("mainLabel")}">
@@ -2211,23 +2408,7 @@ function renderStoryFlow() {
 }
 
 function bindStoryFlowActions() {
-  $("[data-action='story-flow-home']")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    state.story = null;
-    state.familyEntitlement = null;
-    state.familyFeaturesEnabled = false;
-    state.familyContext = null;
-    state.storyAnswers = [];
-    state.storyChapter = null;
-    state.storyRecording = false;
-    state.storyAudioBase64 = "";
-    state.storyTranscript = "";
-    state.storyAudioFilename = "story-round.webm";
-    state.storyAudioMimeType = "audio/webm";
-    state.checkout = null;
-    localStorage.removeItem("memory-spark-story-started");
-    navigateTo(MEMOIR_ROUTES.home, true);
-  });
+  $("[data-action='story-flow-home']")?.addEventListener("click", () => persistChatHistory());
   $("#story-round-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     submitStoryRound();
@@ -2424,7 +2605,9 @@ async function generateFullMemoir() {
 }
 
 function render() {
-  if (!state.project) { conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding(); }
+  if (!state.project || currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) {
+    conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding();
+  }
   renderStory();
 }
 
@@ -2465,7 +2648,7 @@ function renderPlatformLanding() {
         </section>
       </main>
     </div>`;
-  $("[data-action='open-memoir']")?.addEventListener("click", () => startStory("self"));
+  $("[data-action='open-memoir']")?.addEventListener("click", () => navigateTo(MEMOIR_ROUTES.home));
 }
 
 function renderMemoirLanding() {
@@ -2473,7 +2656,7 @@ function renderMemoirLanding() {
   $("#app").innerHTML = `
     <div class="landing">
       <header class="landing-header">
-        <a class="brand" href="/memoir" aria-label="${t("brand")} home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <div class="brand"><a href="/" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
         <div class="landing-language" data-language-switcher-slot></div>
       </header>
       <main class="landing-main">
@@ -2509,31 +2692,51 @@ async function startStory(mode = "self") {
 }
 
 async function startMemoirStory(mode = "self") {
+  let generation = state.navigationGeneration || 0;
+  let ownerId = state.supabase?.user?.id;
+  const current = () => generation === (state.navigationGeneration || 0) && ownerId === state.supabase?.user?.id;
   try {
     stopVoiceMode({ silent: true });
     if (state.authPromise) await state.authPromise;
+    if (generation !== (state.navigationGeneration || 0)) return;
+    ownerId = state.supabase?.user?.id;
     if (state.loading) return;
+    if (mode === "self" && state.projectRecoveryBlocked) {
+      toast(translate("AuthReminder.historyError"));
+      return;
+    }
+    if (mode === "self" && state.supabase?.user
+        && state.project?.mode === "self" && state.projectPrincipalId === state.supabase.user.id) {
+      persistChatHistory();
+      state.chat = restoreChatHistory(state.project.id);
+      state.freshAnonymousSession = false;
+      state.chatHistoryCollapsed = false;
+      navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`);
+      await startCodexConversation({ resume: true });
+      return;
+    }
     state.loading = true;
-    const ownerId = state.supabase?.user?.id;
     const language = conversationLanguage();
     const accountHistory = state.supabase?.user && !state.supabase.user.is_anonymous
       ? await storyApi("/v1/user/conversations") : null;
-    if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
+    if (!current()) return;
     const restoreProjectId = mode === "self" ? accountHistory?.resume_project_id : null;
     const project = await api("/v1/projects", { method: "POST",
-      ...(restoreProjectId ? { headers: { Authorization: `Bearer ${state.supabase.accessToken}` } } : {}),
+      ...(state.supabase?.accessToken ? { headers: { Authorization: `Bearer ${state.supabase.accessToken}` } } : {}),
       body: JSON.stringify({ mode, language, ...(restoreProjectId ? { restore_project_id: restoreProjectId } : {}) }) });
-    if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
+    if (!current()) return;
     state.project = project;
+    state.projectPrincipalId = ownerId;
     state.recallPreview = null;
     if (state.supabase?.user && !state.supabase.user.is_anonymous) {
       const savedProfile = await storyApi("/v1/user/profile");
-      if (state.supabase?.user?.id !== ownerId) { state.loading = false; return; }
+      if (!current() || state.project?.id !== project.id) return;
       state.project.profile = { ...state.project.profile, ...savedProfile };
     }
-    localStorage.setItem("memory-spark-project", state.project.id);
+    rememberProject(state.project.id);
     state.chat = [];
     if (accountHistory) await hydrateAccountHistory(accountHistory);
+    if (!current() || state.project?.id !== project.id) return;
     state.chatHistoryCollapsed = false;
     state.freshAnonymousSession = Boolean(state.supabase?.user?.is_anonymous);
     state.codexStarting = false;
@@ -2547,9 +2750,10 @@ async function startMemoirStory(mode = "self") {
     state.compositionStage = 0;
     state.lifeStage = "childhood";
     state.story = null;
-    localStorage.removeItem("memory-spark-story-started");
+    try { localStorage.removeItem("memory-spark-story-started"); } catch { /* Browser storage is optional. */ }
     state.loading = false;
     navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`, true);
+    generation = state.navigationGeneration;
 
     // The opening message is fixed product copy and can stream immediately.
     // Consent and project hydration are independent setup work; keep them out
@@ -2560,11 +2764,12 @@ async function startMemoirStory(mode = "self") {
       refreshProject(),
       refreshFamilyEntitlement(),
     ]).catch((error) => {
-      toast(error.message);
+      if (current()) toast(error.message);
     });
     await startCodexConversation();
     await backgroundSetup;
   } catch (error) {
+    if (!current()) return;
     state.project = null;
     setLoading(false);
     toast(error.message);
@@ -2572,28 +2777,29 @@ async function startMemoirStory(mode = "self") {
 }
 
 async function refreshProject() {
+  const scope = captureProjectScope();
   const projectId = state.project.id;
-  const ownerId = state.supabase?.user?.id;
   state.stageReadiness = {};
   state.privateDraft = null;
   let base;
   try {
     base = await api(`/v1/projects/${projectId}`);
   } catch (error) {
+    if (!isCurrentProjectScope(scope)) return;
     if (![401, 404].includes(error.status) || !state.supabase?.accessToken) throw error;
     base = await api("/v1/projects", { method: "POST",
       headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
       body: JSON.stringify({ mode: "self", restore_project_id: projectId }) });
   }
-  if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+  if (!isCurrentProjectScope(scope)) return;
   const journey = await api(`/v1/projects/${projectId}/journey`, base.requires_supabase_auth ? {
     headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
   } : {});
-  if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+  if (!isCurrentProjectScope(scope)) return;
   state.project = { ...base, ...journey, profile: preserveConversationLocale(base.profile, state.project.profile) };
   if (state.supabase?.accessToken) {
     const savedProfile = await storyApi("/v1/user/profile");
-    if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+    if (!isCurrentProjectScope(scope)) return;
     state.project.profile = preserveConversationLocale({ ...state.project.profile, ...savedProfile,
       memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])]) }, state.project.profile);
   }
@@ -2612,6 +2818,7 @@ async function refreshProject() {
       api(`/v1/projects/${projectId}/relationships`),
       api(`/v1/projects/${projectId}/timeline`),
     ]);
+    if (!isCurrentProjectScope(scope)) return;
     state.memories = memories.items;
     state.sources = sources.items;
     state.chapters = chapters;
@@ -2620,6 +2827,7 @@ async function refreshProject() {
     state.timeline = timeline.items;
     if (state.familyFeaturesEnabled) await refreshFamilyContext();
   }
+  if (!isCurrentProjectScope(scope)) return;
   void refreshStageReadiness();
   void refreshPrivateDraft();
 }
@@ -2636,11 +2844,12 @@ function normalizeHistoryOpening(messages) {
 }
 
 async function hydrateAccountHistory(history = null) {
+  const scope = captureProjectScope();
   const user = state.supabase?.user;
   const projectId = state.project?.id;
   if (!user || user.is_anonymous || !projectId) return;
   const { items } = history || await storyApi("/v1/user/conversations");
-  if (state.supabase?.user?.id !== user.id || state.project?.id !== projectId) return;
+  if (!isCurrentProjectScope(scope)) return;
   const messages = [...items].sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""))
     .flatMap(item => item.messages.map((message, index) => ({
       id: `history-${item.id}-${index}`, role: message.role,
@@ -2662,6 +2871,7 @@ async function hydrateAccountHistory(history = null) {
       matching.trace = message.trace;
       matching.traceMode = message.traceMode;
     } else if (!matching) messages.push(message);
+    if (matching && message.cacheId) matching.cacheId = message.cacheId;
   }
   state.chat = normalizeHistoryOpening(messages);
   persistChatHistory();
@@ -2703,7 +2913,7 @@ function renderStory() {
   $("#app").innerHTML = `
     <div class="story-shell ${shellClass}">
       <header class="story-topbar">
-        <a class="brand" href="#" data-action="story-home"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
+        <div class="brand"><a href="/" data-action="story-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
         <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("voiceAvailable")}</span></div>${profileMenu()}</div>
       </header>
       <div class="conversation-layout">
@@ -2825,12 +3035,13 @@ function workspaceDetail() {
 
 let privateDraftTimer = null;
 async function refreshPrivateDraft() {
+  const scope = captureProjectScope();
   if (privateDraftTimer) clearTimeout(privateDraftTimer);
-  const projectId=state.project?.id, owner=state.supabase?.user?.id;
+  const projectId=state.project?.id;
   if (!projectId || !state.supabase?.accessToken) return;
   try {
     const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(profile().preferred_language || currentUiLocale())}`);
-    if (state.project?.id!==projectId || state.supabase?.user?.id!==owner) return;
+    if (!isCurrentProjectScope(scope)) return;
     state.privateDraft=result;
     render();
     if (result.updating) privateDraftTimer=setTimeout(refreshPrivateDraft,15000);
@@ -3074,12 +3285,12 @@ function lifeStageNavigator() {
 }
 
 async function refreshStageReadiness() {
+  const scope = captureProjectScope();
   const projectId = state.project?.id;
-  const owner = state.supabase?.user?.id;
   if (!projectId || !state.supabase?.accessToken) return;
   try {
     const result = await storyApi(`/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`);
-    if (state.project?.id === projectId && state.supabase?.user?.id === owner) {
+    if (isCurrentProjectScope(scope)) {
       state.stageReadiness = result.stages || {};
       render();
     }
@@ -3931,7 +4142,11 @@ function bindViewActions() {
   });
   $("#chat-attachments")?.addEventListener("change", event => selectAttachments(Array.from(event.target.files || [])));
   $("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
-  $("[data-action='story-home']")?.addEventListener("click", (event) => { event.preventDefault(); stopVoiceMode({ silent: true }); state.chat = []; state.chatHistoryCollapsed = false; state.workspaceTab = "memoir"; cancelDictation(); render(); });
+  $("[data-action='story-home']")?.addEventListener("click", () => {
+    persistChatHistory();
+    stopVoiceMode({ silent: true });
+    cancelDictation();
+  });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
   $("#chat-input")?.addEventListener("input", (event) => {
     if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
@@ -3997,13 +4212,16 @@ function bindViewActions() {
 }
 
 async function ensureMemorySession() {
+  const scope = captureProjectScope();
   if (state.session) return state.session;
   try {
-    state.session = await api(`/v1/projects/${state.project.id}/memory-sessions`, {
+    const session = await api(`/v1/projects/${state.project.id}/memory-sessions`, {
       method: "POST",
       headers: { "Idempotency-Key": `browser-first-memory-${state.project.id}` },
       body: JSON.stringify({ topic_id: "childhood_home" }),
     });
+    if (!isCurrentProjectScope(scope)) return null;
+    state.session = session;
     return state.session;
   } catch {
     // Codex remains usable when the chapter/session adapter is unavailable.
@@ -4012,38 +4230,48 @@ async function ensureMemorySession() {
 }
 
 async function beginMemoryConversation(renderNow = true) {
+  const scope = captureProjectScope();
   if (state.recallStatus?.payment_required) return;
   await ensureMemorySession();
+  if (!isCurrentProjectScope(scope)) return;
   const fallback = conversationMessage("fallback");
   const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "begin");
-  await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
+  if (result.detached || !isCurrentProjectScope(scope)) return;
+  await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
+  if (!isCurrentProjectScope(scope)) return;
   try {
   const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLanguage(), requested_media: ["image"] }) });
+    if (!isCurrentProjectScope(scope)) return;
     if (context.items?.length) {
-      await streamAssistantMessage(conversationMessage("publicContext"), { cues: context.items });
+      await streamAssistantMessage(conversationMessage("publicContext"), { scope, cues: context.items });
     }
   } catch {
     // A context provider can be unavailable; the conversation continues without it.
   }
-  if (renderNow) render();
+  if (renderNow && isCurrentProjectScope(scope)) render();
 }
 
 async function startMemory() {
+  const scope = captureProjectScope();
   if (state.recallStatus?.payment_required) return;
   if (state.loading) return;
   try {
     state.loading = true;
     render();
     await ensureMemorySession();
+    if (!isCurrentProjectScope(scope)) return;
     const fallback = conversationMessage("fallback");
     const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "continue");
-    await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
-  } catch (error) { toast(error.message); }
+    if (result.detached || !isCurrentProjectScope(scope)) return;
+    await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
+  } catch (error) { if (isCurrentProjectScope(scope)) toast(error.message); }
+  if (!isCurrentProjectScope(scope)) return;
   state.loading = false;
   render();
 }
 
 async function sendChatMessage({ voiceTurn = false } = {}) {
+  const scope = captureProjectScope();
   if (state.recallStatus?.payment_required) return;
   if (state.loading || state.dictationStatus !== "off") return;
   if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
@@ -4072,12 +4300,14 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   if (attachments.length) {
     try { await uploadAttachments(attachments); }
     catch (error) {
+      if (!isCurrentProjectScope(scope)) return;
       state.loading = false;
       state.attachmentProgress = error.message;
       if (state.voiceMode) { state.voiceModeStatus = "listening"; queueVoiceModeTurn(); }
       render();
       return;
     }
+    if (!isCurrentProjectScope(scope)) return;
     state.attachments = [];
     state.attachmentRights = false;
     state.attachmentProgress = "";
@@ -4098,7 +4328,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   render();
   try {
     if (detectedFirstReplyLanguage) await applyFirstReplyLocalization(detectedFirstReplyLanguage);
+    if (!isCurrentProjectScope(scope)) return;
     const session = await ensureMemorySession();
+    if (!isCurrentProjectScope(scope)) return;
     let cues = [];
     let fallback = conversationMessage("fallback");
     let instruction = profileIntake
@@ -4109,20 +4341,27 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         const turnType = session.turns?.length ? "follow_up" : "initial";
         const answerOptions = { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) };
         try {
-          state.session = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
+          const answer = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
+          if (!isCurrentProjectScope(scope)) return;
+          state.session = answer;
         } catch (error) {
+          if (!isCurrentProjectScope(scope)) return;
           if (error.code !== "POLICY_EPOCH_CONFLICT") throw error;
           // Consent/project setup is allowed to complete in parallel with the
           // first paint. Resync this still-open session once, then retry the
           // same answer; the Codex conversation remains the primary path.
           await api(`/v1/memory-sessions/${session.id}/resume`, { method: "POST" });
-          state.session = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
+          if (!isCurrentProjectScope(scope)) return;
+          const answer = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
+          if (!isCurrentProjectScope(scope)) return;
+          state.session = answer;
         }
         cues = state.session.context_cues || [];
         fallback = memoryFollowUpPrompt(state.session);
         const memoryInstruction = "Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory. Keep the conversation open unless they ask to pause, stop, or shape a chapter.";
         instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
       } catch {
+        if (!isCurrentProjectScope(scope)) return;
         // The open Codex conversation is the primary path; session state is optional.
         state.session = null;
       }
@@ -4138,6 +4377,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       null,
       sourceKind,
     );
+    if (result.detached || !isCurrentProjectScope(scope)) return;
     if (result.blocked) {
       // Another tab may have used the final free reply. Keep the unsent draft.
       state.chat.pop();
@@ -4147,15 +4387,18 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       return;
     }
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
-    await streamAssistantMessage(result.reply || fallback, { streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
+    await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
+    if (!isCurrentProjectScope(scope)) return;
     if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
   } catch (error) {
+    if (!isCurrentProjectScope(scope)) return;
     toast(error.message);
   }
+  if (!isCurrentProjectScope(scope)) return;
   state.loading = false;
   render();
   void refreshFamilyContext();
-  if (state.voiceMode) window.setTimeout(() => startVoiceModeTurn(), 260);
+  if (state.voiceMode) window.setTimeout(() => { if (isCurrentProjectScope(scope)) startVoiceModeTurn(); }, 260);
 }
 
 async function finishChapter() {
@@ -4638,6 +4881,10 @@ async function addTimeline() {
 }
 
 async function boot() {
+  const generation = invalidateProjectNavigation();
+  const path = currentPath();
+  state.navigationPath = path;
+  const current = () => generation === state.navigationGeneration;
   try {
     const choice = JSON.parse(sessionStorage.getItem("memoir-package-choice") || "null");
     if (FALLBACK_STORY_PLANS.some(plan => plan.plan_key === choice?.plan)) {
@@ -4645,59 +4892,103 @@ async function boot() {
       state.storyBookCount = Math.max(2, Math.min(20, Number(choice.books) || 2));
     }
   } catch { /* Ignore unavailable storage or an invalid saved selection. */ }
-  state.authPromise = ensureAuth();
+  const authPromise = state.authPromise || ensureAuth();
+  state.authPromise = authPromise;
   try {
-    await state.authPromise;
+    await authPromise;
+    if (!current()) return;
     try {
-      if (await guestTransfer.complete()) toast(translate("AuthReminder.mergeSuccess"));
+      const completed = await guestTransfer.complete();
+      if (!current()) return;
+      if (completed) toast(translate("AuthReminder.mergeSuccess"));
     } catch {
+      if (!current()) return;
       retryConversationTransfer(() => guestTransfer.complete(), async () => {
         await guestTransfer.restoreGuest();
         window.location.reload();
       });
     }
     await syncProfileUiLocale();
+    if (!current()) return;
     // The old five-round entry point was client-only state. Clear it so a
     // refresh always returns to the persistent Codex conversation instead of
     // reopening a fixed question card.
-    localStorage.removeItem("memory-spark-story-started");
+    try { localStorage.removeItem("memory-spark-story-started"); } catch { /* Browser storage is optional. */ }
     // The interview URL identifies this page's project. The shared cache can
     // point at an older project or one opened in another tab.
     const interviewPrefix = `${MEMOIR_ROUTES.interview}/`;
-    const routeProject = currentPath().startsWith(interviewPrefix)
-      ? currentPath().slice(interviewPrefix.length).split("/")[0] : null;
-    const saved = routeProject || localStorage.getItem("memory-spark-project");
+    const routeProject = path.startsWith(interviewPrefix)
+      ? path.slice(interviewPrefix.length).split("/")[0] : null;
+    const cachedProject = savedProjectId();
+    const saved = routeProject || cachedProject;
     if (saved) {
       try {
+        const ownerId = state.supabase?.user?.id;
         state.project = { id: saved };
+        state.session = null;
+        state.codexReady = false;
+        state.codexStarting = false;
+        state.placeJourney = null;
+        state.workspaceUnlocked = false;
+        state.compositionStage = 0;
+        state.workspaceCollapsed = false;
+        state.memories = []; state.sources = []; state.chapters = [];
+        state.people = []; state.relationships = []; state.timeline = [];
         state.freshAnonymousSession = false;
-        state.chat = restoreChatHistory(saved);
+        state.chat = [];
         state.chatHistoryCollapsed = true;
         await refreshProject();
-        localStorage.setItem("memory-spark-project", saved);
+        if (!current() || state.project?.id !== saved || state.supabase?.user?.id !== ownerId) return;
+        state.projectRecoveryBlocked = null;
+        state.projectPrincipalId = state.supabase?.user?.id;
+        state.chat = restoreChatHistory(saved);
+        rememberProject(saved);
         try { await hydrateAccountHistory(); }
-        catch { toast(translate("AuthReminder.historyError")); }
+        catch { if (current()) toast(translate("AuthReminder.historyError")); }
+        if (!current()) return;
         await syncProfileUiLocale();
+        if (!current()) return;
         await hydratePlaceJourney();
+        if (!current()) return;
         await refreshFamilyEntitlement();
+        if (!current()) return;
         state.profileIntakePending = !profileHasContext(state.project.profile);
         if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
         render();
         await startCodexConversation({ resume: true });
         return;
       }
-      catch { localStorage.removeItem("memory-spark-project"); state.project = null; }
+      catch {
+        if (!current()) return;
+        // Preserve an unavailable saved interview rather than silently making a replacement.
+        state.projectRecoveryBlocked = cachedProject === saved ? saved : null;
+        state.project = null; state.projectPrincipalId = null; state.chat = [];
+      }
     }
     if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
   } catch (error) {
-    $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
+    if (current()) $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
   } finally {
-    state.authPromise = null;
+    if (current() && state.authPromise === authPromise) state.authPromise = null;
   }
 }
 
-window.addEventListener("popstate", () => render());
+window.addEventListener("popstate", () => {
+  const path = currentPath();
+  // Photo albums own same-URL history entries. Their Back/Forward events
+  // must not cancel the interview's reply or restart project recovery.
+  if (path === state.navigationPath) return;
+  state.navigationPath = path;
+  invalidateProjectNavigation();
+  const prefix = `${MEMOIR_ROUTES.interview}/`;
+  const projectId = currentPath().startsWith(prefix) ? currentPath().slice(prefix.length).split("/")[0] : null;
+  if (projectId) {
+    $("#app").innerHTML = `<div class="loading">${escapeHtml(translate("Common.loading"))}</div>`;
+    void boot();
+  } else render();
+});
+window.addEventListener("pagehide", () => persistChatHistory());
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
   render();

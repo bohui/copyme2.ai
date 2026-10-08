@@ -15,7 +15,7 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
     workspaceTab: 'memoir', placeJourney: {place: 'Chengde'}, privateDraft: null,
     ...overrides,
   };
-  const context = vm.createContext({
+  const context = vm.createContext({ MEMOIR_ROUTES: { home: '/memoir' },
     state, $: selector => selector === '#app' ? app : null, document: {},
     workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
     WORKSPACE_VISIBILITY_DEBOUNCE_MS: 180, setTimeout, clearTimeout,

@@ -7,7 +7,7 @@ function extract(name){
   const start=source.search(new RegExp(`^(?:async )?function ${name}\\(`,'m'));
   assert.ok(start>=0);
   const tail=source.slice(start+1),next=tail.search(/^(?:async )?function /m);
-  return source.slice(start,next<0?undefined:start+1+next);
+  return ['captureProjectScope', 'isCurrentProjectScope'].map(helper => source.match(new RegExp(`function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + source.slice(start,next<0?undefined:start+1+next);
 }
 const record=(locale,revision=1,kind='first_reply')=>({version:1,initialized:true,locale,revision,source:kind});
 function harness(profile){

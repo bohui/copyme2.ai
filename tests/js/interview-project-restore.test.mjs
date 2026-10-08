@@ -20,7 +20,7 @@ async function restore(path, cached, available) {
     syncProfileUiLocale: async () => {}, hydrateAccountHistory: async () => {},
     hydratePlaceJourney: async () => {}, refreshFamilyEntitlement: async () => {},
     refreshStageReadiness: async () => {}, refreshPrivateDraft: async () => {},
-    preserveConversationLocale: profile => profile,
+    persistChatHistory() {}, preserveConversationLocale: profile => profile,
     profileHasContext: () => true, render() {}, renderLanding() {}, toast() {},
     restoreChatHistory: id => { history.push(id); return []; },
     startCodexConversation: async () => { resumed = true; },
@@ -31,7 +31,7 @@ async function restore(path, cached, available) {
       throw Object.assign(new Error('Project not found'), { status: 404 });
     },
   });
-  for (const name of ['preserveConversationLocale', 'refreshProject', 'boot']) {
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'invalidateProjectNavigation', 'readBrowserValues', 'savedProjectStorageKey', 'readBrowserValue', 'saveBrowserValue', 'savedProjectId', 'rememberProject', 'preserveConversationLocale', 'refreshProject', 'boot']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   await context.boot();
@@ -43,7 +43,7 @@ test('refresh restores the URL project despite a stale cached project', async ()
   assert.equal(result.state.project?.id, 'project_url');
   assert.deepEqual(result.requests, ['/v1/projects/project_url', '/v1/projects/project_url/journey']);
   assert.deepEqual(result.history, ['project_url']);
-  assert.equal(result.storage.get('memory-spark-project'), 'project_url');
+  assert.equal(JSON.parse(result.storage.get('memory-spark-project')).projectId, 'project_url');
   assert.equal(result.resumed, true);
 });
 
@@ -82,6 +82,7 @@ for (const status of [401, 404]) test(`a cached interview with status ${status} 
       return { active_session: null };
     },
   });
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\}`))[0], context);
   vm.runInContext(source.match(/async function refreshProject\([^]*?\n\}/)[0], context);
   await context.refreshProject();
   assert.equal(state.project.id, 'project_saved');

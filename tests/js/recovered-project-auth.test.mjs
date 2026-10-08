@@ -26,11 +26,11 @@ for (const method of ['GET', 'PATCH']) {
   });
 }
 
-test('guest adapters retain their existing transport', async () => {
+test('anonymous project recovery sends its verified session before the shell is loaded', async () => {
   const context = vm.createContext({ state: { project: { id: 'guest' }, supabase: { accessToken: 'session' } },
     memoirApiPath: path => path,
     fetch: async (_path, options) => {
-      assert.equal(options.headers.Authorization, undefined);
+      assert.equal(options.headers.Authorization, 'Bearer session');
       return { ok: true, headers: { get: () => '' }, json: async () => ({}) };
     } });
   vm.runInContext(source.match(/async function api\([^]*?\n\}/)[0], context);

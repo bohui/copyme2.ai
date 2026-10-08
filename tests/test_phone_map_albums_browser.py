@@ -329,3 +329,46 @@ def test_workspace_toggle_and_album_back_preserve_project_route(album_page):
     assert page.evaluate('history.state.fixtureRoute')=='phone-map'
     assert page.url==url
     expect(page.locator('#chat-input')).to_be_enabled()
+
+
+def test_album_back_forward_preserves_a_pending_chat_reply(album_page):
+    page, _, _ = album_page
+    interview = page.url
+    page.evaluate("""()=>{const nativeFetch=window.fetch;window.fixtureRecoveries=0;window.fixtureAlbumPops=0;
+      addEventListener('popstate',()=>{window.fixtureAlbumPops++});
+      window.fetch=(url,options)=>{
+        if(String(url).endsWith('/agent/config')) window.fixtureRecoveries++;
+        if(String(url).endsWith('/memory-sessions')) return Promise.resolve(new Response('{}',{status:403}));
+        if(!String(url).endsWith('/agent/turn')) return nativeFetch(url,options);
+        window.fixtureReplySignal=options.signal;
+        return Promise.resolve(new Response(new ReadableStream({start(controller){window.fixtureReplyController=controller;
+          controller.enqueue(new TextEncoder().encode(JSON.stringify({type:'text_delta',text:'Synthetic pending album reply.'})+'\\n'));
+        }}),{headers:{'Content-Type':'application/x-ndjson'}}));
+      };
+    }""")
+    page.locator('#chat-input').fill('Synthetic album navigation memory.')
+    page.locator('#chat-form button[type="submit"]').click()
+    expect(page.get_by_text('Synthetic pending album reply.', exact=True)).to_be_visible()
+    page.locator('.map-photo-album:visible').first.click()
+    dialog = page.locator('.map-photo-album-viewer')
+    expect(dialog).to_be_visible()
+    page.go_back()
+    page.wait_for_function('fixtureAlbumPops === 1')
+    expect(dialog).not_to_be_visible()
+    assert page.evaluate('fixtureReplySignal.aborted') is False
+    assert page.evaluate('fixtureRecoveries') == 0
+    expect(page).to_have_url(interview)
+    page.evaluate("fixtureReplyController.enqueue(new TextEncoder().encode(JSON.stringify({type:'text_delta',text:' Still replying.'})+'\\n'))")
+    expect(page.get_by_text('Synthetic pending album reply. Still replying.', exact=True)).to_be_visible()
+    page.go_forward()
+    page.wait_for_function('fixtureAlbumPops === 2')
+    expect(dialog).to_be_visible()
+    assert page.evaluate('fixtureReplySignal.aborted') is False
+    assert page.evaluate('fixtureRecoveries') == 0
+    page.evaluate("""()=>{fixtureReplyController.enqueue(new TextEncoder().encode(JSON.stringify({type:'result',data:{
+      reply:'Synthetic pending album reply. Still replying.',conversation_saved:true}})+'\\n'));fixtureReplyController.close();}""")
+    expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
+    dialog.locator('[data-close-photo-album]').click()
+    expect(dialog).not_to_be_visible()
+    expect(page.get_by_text('Synthetic album navigation memory.', exact=True)).to_be_visible()
+    expect(page.get_by_text('Synthetic pending album reply. Still replying.', exact=True)).to_be_visible()
