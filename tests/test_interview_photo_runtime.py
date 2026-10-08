@@ -1,0 +1,270 @@
+"""Collector flow contract through the production runtime with controlled models."""
+import asyncio
+from copy import deepcopy
+import json
+from uuid import uuid4
+
+import pytest
+
+from apps.api.agent_storage import UserStorage
+from apps.api.codex_runtime import CodexRuntime
+from test_interview_plan import CONTEXT, proposal
+
+
+class Storage(UserStorage):
+    def __init__(self):
+        self.user_id='11111111-1111-4111-8111-111111111111';self.turn=None;self.memory=None;self.rounds=0;self.saved_plan=None;self.failed_commit=False
+    def acquire_agent_turn_lease(self,*args):return True
+    def renew_agent_turn_lease(self,*args):return True
+    def release_agent_turn_lease(self,*args):return True
+    def agent_turn_by_id(self,*args):return self.memory
+    def accept_interview_turn(self,project_id,turn_id,text,**kwargs):
+        if self.turn is None:
+            self.turn={'source':deepcopy(CONTEXT['source']) if text else None,'photo_context':deepcopy(CONTEXT['photo_context']),
+                       'consumed_photo_key':'https://images.example/one.jpg','consumed_photo_revision':'cue-1','client_turn_id':turn_id,'sequence':1}
+        return deepcopy(self.turn)
+    def interview_context(self,*args):return deepcopy(CONTEXT)
+    def interview_turn_by_id(self,*args):return deepcopy(self.turn)
+    def memory_events(self,*args):return {'sources':deepcopy(CONTEXT['sources']),'events':[]}
+    def agent_session(self):return None
+    def memories(self):return []
+    def profile(self):return {'preferred_language':'zh-CN','conversation_locale':{'locale':'zh-CN'}}
+    def first_narrator_reply(self):return None
+    def save_profile(self,*args,**kwargs):return None
+    def place_journey(self):return None
+    def story_entitlement(self):return None
+    def recall_rounds_completed(self):return self.rounds
+    def save_interview_plan(self,project,turn,plan,associations,lease,**kwargs):
+        self.saved_plan=deepcopy(plan);self.turn.update(plan=deepcopy(plan),**kwargs);return deepcopy(self.turn)
+    def commit_agent_turn(self,lease,thread,text,paths,**kwargs):
+        if self.failed_commit:self.failed_commit=False;raise RuntimeError('controlled lost database response')
+        self.rounds+=int(kwargs.get('user_response',False))
+        self.memory={'id':str(uuid4()),'content':text,'source_sequence':1}
+        return self.memory
+
+
+def harness(monkeypatch,storage):
+    runtime=CodexRuntime(worker_url='http://controlled-worker',worker_secret='synthetic');calls=[]
+    async def worker(**kwargs):
+        calls.append(kwargs)
+        result=proposal()
+        if not kwargs['text']:result['associations']=[]
+        raw=json.dumps(result,ensure_ascii=False)
+        if kwargs.get('on_delta'):
+            for offset in range(0,len(raw),7):await kwargs['on_delta'](raw[offset:offset+7])
+        return {'thread_id':'thread-1','reply':raw,'_workspace_capable':True}
+    async def noop(*args,**kwargs):return None
+    async def workspace(*args,**kwargs):
+        return {'place_journey':None,'place_journey_change':None,'family_context':None,'family_context_update':None,'tasks':[],'task_errors':[],'source_paths':[]}
+    monkeypatch.setattr(runtime,'_worker_turn',worker);monkeypatch.setattr(runtime,'_workspace_extraction',noop)
+    monkeypatch.setattr(runtime,'_enqueue_workspace_intent',noop);monkeypatch.setattr(runtime,'_resume_pending_workspace',noop);monkeypatch.setattr(runtime,'_run_workspace_job',workspace)
+    return runtime,calls
+
+
+def test_accepted_cue_stream_and_saved_private_plan(monkeypatch):
+    storage=Storage();runtime,calls=harness(monkeypatch,storage);events=[];deltas=[]
+    async def on_event(value):events.append(value)
+    async def on_delta(value):deltas.append(value)
+    result=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=str(uuid4()),on_event=on_event,on_delta=on_delta))
+    assert next(e for e in events if e['type']=='source_accepted')['data']['photo_cue']=={'consumed':True,'key':'https://images.example/one.jpg','revision':'cue-1'}
+    assert result['reply']==''.join(deltas)
+    assert result['reply'].count('？')==1 and 'candidates' not in ''.join(deltas)
+    assert storage.saved_plan['chosen_id']=='parents'
+    assert 'plan' not in result and 'associations' not in result
+    assert calls[0]['interview_context']['source']['text']==CONTEXT['source']['text']
+    saved=next(e['data'] for e in events if e['type']=='conversation_saved')
+    assert saved['response_photos']==result['response_photos']
+
+
+def test_retry_after_generated_plan_preserves_same_question_without_model_reexecution(monkeypatch):
+    storage=Storage();runtime,calls=harness(monkeypatch,storage);storage.failed_commit=True;turn=str(uuid4())
+    with pytest.raises(RuntimeError):asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=turn))
+    assert storage.turn.get('reply')
+    result=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=turn))
+    assert len(calls)==1 and storage.rounds==1
+    assert result['reply']==storage.turn['reply']
+
+
+def test_photo_only_does_not_create_narrator_round(monkeypatch):
+    storage=Storage();runtime,calls=harness(monkeypatch,storage)
+    result=asyncio.run(runtime.turn(storage,'',project_id='project',client_turn_id=str(uuid4()),uploaded_photo_ids=[str(uuid4())]))
+    assert result['accepted_source_id'] is None and storage.rounds==0
+    assert result['response_photos']
+
+
+def test_private_collector_contract_is_identical_for_local_and_remote_execution(tmp_path,monkeypatch):
+    from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
+    from apps.api.interview_plan import collector_schema
+    observed=[]
+    class Connection:
+        def __init__(self,*a,**kw):pass
+        async def __aenter__(self):return self
+        async def __aexit__(self,*a):pass
+        async def request(self,method,params):
+            observed.append(params['baseInstructions'])
+            return {'thread':{'id':'local-thread'}}
+        async def turn(self,thread,prompt,**kwargs):
+            assert kwargs['output_schema']==collector_schema()
+            raw=json.dumps(proposal(),ensure_ascii=False)
+            if kwargs.get('on_delta'):await kwargs['on_delta'](raw)
+            return raw
+    monkeypatch.setattr('apps.api.codex_runtime.CodexConnection',Connection)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',Connection)
+    storage=Storage();runtime,_=harness(monkeypatch,storage)
+    runtime.worker_url=None;monkeypatch.setattr(runtime,'_home',lambda *a:tmp_path)
+    result=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=str(uuid4())))
+    worker=CodexWorker(home_root=tmp_path/'worker')
+    monkeypatch.setattr(worker,'_home',lambda *a:tmp_path)
+    monkeypatch.setattr('apps.api.codex_worker_service.iter_artifacts',lambda *a,**kw:[])
+    remote=asyncio.run(worker.turn(WorkerTurnInput(user_id=storage.user_id,project_id='project',text=CONTEXT['source']['text'],
+                  interview_context=CONTEXT,language='zh-CN')))
+    assert json.loads(remote['reply'])==proposal()
+    assert 'candidates' not in result['reply'] and result['reply'].count('？')==1
+    assert all('Private structured interview contract' in prompt for prompt in observed)
+
+
+@pytest.mark.parametrize('execution', ['local', 'worker'])
+@pytest.mark.parametrize('invalid_context', ['year', 'stage_and_event'])
+@pytest.mark.parametrize('repair_result', ['valid', 'invalid_again', 'changed_acknowledgement'])
+def test_collector_repairs_unsupported_context_before_saving_once(
+        tmp_path, monkeypatch, execution, invalid_context, repair_result):
+    from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
+
+    corrected = proposal()
+    invalid = deepcopy(corrected)
+    if invalid_context == 'year':
+        invalid['plan']['candidates'][0]['context']['year'] = 1983
+    else:
+        invalid['plan']['candidates'][0]['context']['life_stage'] = 'childhood'
+        invalid['plan']['candidates'][1]['context']['event_id'] = 'mistyped-event-id'
+    if repair_result == 'invalid_again':
+        corrected = deepcopy(invalid)
+    elif repair_result == 'changed_acknowledgement':
+        corrected['acknowledgement'] = 'A different acknowledgement.'
+    calls = []
+
+    class Connection:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def request(self, method, params): return {'thread': {'id': 'thread-1'}}
+        async def turn(self, thread, prompt, **kwargs):
+            calls.append((prompt, kwargs))
+            raw = json.dumps(invalid if len(calls) == 1 else corrected, ensure_ascii=False)
+            if kwargs.get('on_delta'):
+                await kwargs['on_delta'](raw)
+            return raw
+
+    monkeypatch.setattr('apps.api.codex_runtime.CodexConnection', Connection)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    storage = Storage()
+    runtime, _ = harness(monkeypatch, storage)
+    if execution == 'local':
+        runtime.worker_url = None
+        monkeypatch.setattr(runtime, '_home', lambda *args: tmp_path)
+    else:
+        worker = CodexWorker(home_root=tmp_path / 'worker')
+        monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+        monkeypatch.setattr('apps.api.codex_worker_service.iter_artifacts', lambda *args, **kwargs: [])
+
+        async def remote(**kwargs):
+            result = await worker.turn(WorkerTurnInput(
+                user_id=storage.user_id, project_id='project', text=kwargs['text'],
+                language='zh-CN', interview_context=kwargs['interview_context']),
+                on_delta=kwargs.get('on_delta'))
+            return {**result, '_workspace_capable': True}
+
+        monkeypatch.setattr(runtime, '_worker_turn', remote)
+
+    deltas, events = [], []
+    async def on_delta(value): deltas.append(value)
+    async def on_event(value): events.append(value)
+    def turn():
+        return asyncio.run(runtime.turn(storage, CONTEXT['source']['text'],
+            project_id='project', client_turn_id=str(uuid4()), on_delta=on_delta, on_event=on_event))
+
+    if repair_result != 'valid':
+        with pytest.raises(RuntimeError, match='please retry the accepted turn'):
+            turn()
+        assert len(calls) == 2
+        assert storage.rounds == 0 and storage.saved_plan is None
+        assert deltas == [invalid['acknowledgement']]
+        assert not any(e['type'] == 'conversation_saved' for e in events)
+        return
+    result = turn()
+
+    assert len(calls) == 2
+    assert not calls[1][1].get('on_delta')
+    assert calls[1][1]['output_schema']['properties']['acknowledgement']['enum'] == [invalid['acknowledgement']]
+    assert storage.rounds == 1
+    assert storage.saved_plan == corrected['plan']
+    assert result['reply'] == ''.join(deltas)
+    assert result['reply'].count(corrected['acknowledgement']) == 1
+    assert result['reply'].count('？') == 1
+    assert len([e for e in events if e['type'] == 'conversation_saved']) == 1
+
+
+@pytest.mark.parametrize('accept', ['application/json', 'application/x-ndjson'])
+@pytest.mark.parametrize('correction', ['invalid_context', 'malformed_json', 'invalid_schema', 'changed_acknowledgement'])
+def test_local_collector_invalid_correction_returns_controlled_retry_response(tmp_path, monkeypatch, accept, correction):
+    from unittest.mock import Mock
+    from fastapi.testclient import TestClient
+    from apps.api import agent_routes
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+
+    invalid = proposal()
+    invalid['plan']['candidates'][0]['context']['year'] = 1983
+    repaired = proposal()
+    if correction == 'invalid_context':
+        repaired = invalid
+    elif correction == 'invalid_schema':
+        repaired['private_artifact'] = 'private-collector-output'
+    elif correction == 'changed_acknowledgement':
+        repaired['acknowledgement'] = 'A different acknowledgement.'
+    raw_correction = ('{"private":"private-collector-output"' if correction == 'malformed_json'
+                      else json.dumps(repaired, ensure_ascii=False))
+    calls = []
+
+    class Connection:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def request(self, method, params): return {'thread': {'id': 'thread-1'}}
+        async def turn(self, thread, prompt, **kwargs):
+            calls.append(prompt)
+            raw = json.dumps(invalid, ensure_ascii=False) if len(calls) == 1 else raw_correction
+            if kwargs.get('on_delta'):
+                await kwargs['on_delta'](raw)
+            return raw
+
+    storage = Storage()
+    storage.client = Mock()
+    runtime, _ = harness(monkeypatch, storage)
+    runtime.worker_url = None
+    monkeypatch.setattr(runtime, '_home', lambda *args: tmp_path)
+    monkeypatch.setattr('apps.api.codex_runtime.CodexConnection', Connection)
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda authorization: storage)
+    monkeypatch.setattr(agent_routes, 'runtime', runtime)
+    response = TestClient(create_app(MemoryStore()), raise_server_exceptions=False).post(
+        '/api/v1/memoir/agent/turn',
+        json={'text': CONTEXT['source']['text'], 'project_id': 'project', 'client_turn_id': str(uuid4())},
+        headers={'Authorization': 'Bearer test-token', 'Accept': accept})
+
+    if accept == 'application/json':
+        assert response.status_code == 502, response.text
+        assert response.json()['detail'] == (
+            'Codex agent failed: The interview response could not be validated; please retry the accepted turn')
+        assert response.json()['error']['retryable'] is True
+        assert response.json()['error']['request_id'] == response.headers['X-Request-ID']
+    else:
+        assert response.status_code == 200
+        events = [json.loads(line) for line in response.text.splitlines()]
+        assert events[-1] == {'type': 'error', 'message':
+            'The response could not be completed or saved. Please try again.'}
+        assert not any(e['type'] in {'conversation_saved', 'result'} for e in events)
+    assert 'private-collector-output' not in response.text
+    assert len(calls) == 2
+    assert storage.rounds == 0 and storage.saved_plan is None and storage.memory is None
+    assert storage.turn['source'] == CONTEXT['source']
+    storage.client.close.assert_called_once_with()

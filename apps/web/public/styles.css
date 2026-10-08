@@ -1208,6 +1208,14 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { .map-photo-album.is-loading .map-album-placeholder { animation: none; } }
 
+.response-photo-cards { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.response-photo-card { margin: 0; width: min(240px, 100%); min-width: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.response-photo-card img { display: block; width: 100%; max-height: 180px; object-fit: contain; background: var(--paper); }
+.response-photo-card figcaption { display: grid; gap: 6px; padding: 10px; overflow-wrap: anywhere; }
+.response-photo-card small, .response-photo-card p { font-size: 12px; color: var(--muted); margin: 0; }
+.response-photo-card a { min-height: 44px; display: flex; align-items: center; }
+.retry-interview-turn { min-height: 44px; margin-bottom: 8px; }
+
 /* Recall views share the workspace with location cues until composition.
    Give both panes independent room and scrolling on narrow interview screens. */
 @media (max-width: 760px) {

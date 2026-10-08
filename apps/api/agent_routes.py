@@ -7,7 +7,7 @@ from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
 
@@ -24,10 +24,12 @@ runtime = CodexRuntime()
 
 
 class TurnInput(BaseModel):
-    text: str = Field(min_length=1, max_length=100000)
+    text: str = Field(default="", max_length=100000)
     client_turn_id: UUID | None = None
-    conversation_text: str | None = Field(default=None, min_length=1, max_length=100000)
+    conversation_text: str | None = Field(default=None, max_length=100000)
     source_kind: Literal['narrator_chat', 'narrator_transcript'] = 'narrator_chat'
+    uploaded_photo_ids: list[UUID] = Field(default_factory=list, max_length=5)
+    photo_selection: dict | None = None
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
     # The UI locale is not the interview language.  Omit this when the
     # storyteller has not explicitly chosen a conversation language so the
@@ -37,6 +39,23 @@ class TurnInput(BaseModel):
     # compatibility hint. The server's durable first-reply state decides
     # whether detection is still eligible; this cannot override saved settings.
     first_reply_localization: bool = False
+
+
+    @model_validator(mode='after')
+    def require_narration_or_photo(self):
+        original = self.conversation_text if self.conversation_text is not None else self.text
+        if not original.strip() and not self.uploaded_photo_ids and not self.photo_selection:
+            raise ValueError('Enter an answer or select a photo')
+        if (self.uploaded_photo_ids or self.photo_selection) and not self.project_id:
+            raise ValueError('Photo cues require an interview project')
+        if self.photo_selection is not None:
+            if (set(self.photo_selection) != {'key', 'revision'}
+                or not isinstance(self.photo_selection.get('key'), str)
+                or self.photo_selection.get('revision') is not None and not isinstance(self.photo_selection.get('revision'), str)
+                or not 1 <= len(self.photo_selection['key']) <= 4096
+                or self.photo_selection.get('revision') is not None and not 1 <= len(self.photo_selection['revision']) <= 128):
+                raise ValueError('Invalid photo selection receipt')
+        return self
 
 
 class GreetingInput(BaseModel):
@@ -299,6 +318,10 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
                 'on_delta': emit,
                 'on_event': emit.event,
             }
+            if payload.uploaded_photo_ids:
+                options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
+            if payload.photo_selection is not None:
+                options['photo_selection'] = payload.photo_selection
             if place_hints:
                 options['saved_place_hints'] = place_hints
             if payload.source_kind != 'narrator_chat':
@@ -318,6 +341,10 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
         )
     try:
         options = {'project_id': payload.project_id, 'language': payload.language}
+        if payload.uploaded_photo_ids:
+            options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
+        if payload.photo_selection is not None:
+            options['photo_selection'] = payload.photo_selection
         if place_hints:
             options['saved_place_hints'] = place_hints
         if payload.source_kind != 'narrator_chat':

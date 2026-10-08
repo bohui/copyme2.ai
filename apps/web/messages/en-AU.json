@@ -241,9 +241,15 @@
       "removeAttachment": "Remove attachment",
       "attachmentRights": "I have permission to use these pictures and videos in my memoir.",
       "attachmentRightsRequired": "Confirm that you have permission to use these files before sending.",
-      "attachmentInvalid": "Choose JPG, PNG, HEIC, WebP or GIF pictures up to 25 MB, or MP4, WebM or MOV videos up to 100 MB. Empty files cannot be uploaded.",
+      "attachmentInvalid": "Choose a JPEG, PNG or WebP photo up to 10 MB, or a video up to 100 MB.",
       "uploadingAttachment": "Uploading {name}…",
-      "sharedAttachments": "I shared pictures or videos."
+      "sharedAttachments": "I shared pictures or videos.",
+      "retryTurn": "Retry your last answer",
+      "photoUnavailable": "This photo cannot be loaded right now. You can keep telling your story.",
+      "photoUploadFailed": "Your photo could not be uploaded. Please try again.",
+      "privatePhoto": "Your private photo",
+      "publicPhoto": "Public reference photo",
+      "photoSource": "View source"
     },
     "workspace": {
       "showWorkspace": "Show workspace",

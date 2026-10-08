@@ -12,7 +12,7 @@ import json
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .conversation_text import original_conversation_text
 from .recall import storage_recall_status
@@ -46,6 +46,8 @@ class TurnReceipt(BaseModel):
     # Source extraction is not proof of completed place/family enrichment.
     enrichment_state: Literal['unknown'] = 'unknown'
     recall_status: RecallStatus
+    photo_cue: dict | None = None
+    response_photos: list[dict] = Field(default_factory=list)
 
 
 class ProjectSnapshot(BaseModel):
@@ -94,6 +96,8 @@ class ConversationExchange(BaseModel):
     source_status: Literal['active', 'withdrawn'] | None
     narrator_text: str | None
     reply: str | None
+    photo_cue: dict | None = None
+    response_photos: list[dict] = Field(default_factory=list)
 
 
 class ConversationHistory(BaseModel):
@@ -133,10 +137,14 @@ def turn_receipt(storage, project_id, client_turn_id):
     memory = storage.agent_turn_by_id(project_id, client_turn_id)
     source = storage.narrator_source_by_turn(project_id, client_turn_id)
     completed = storage.completed_round_by_turn(project_id, client_turn_id) if memory else None
+    from .interview_plan import public_interview_fields
+    read_interview = getattr(storage, 'interview_turn_by_id', None)
+    interview = read_interview(project_id, client_turn_id) if callable(read_interview) else None
     narrator, reply = visible_exchange(memory, source)
     return TurnReceipt(
         client_turn_id=client_turn_id, project_id=project_id,
-        state='conversation_saved' if memory else ('source_accepted' if source else 'not_found'),
+        state='conversation_saved' if memory else ('source_accepted' if source or interview else 'not_found'),
+        **public_interview_fields(interview),
         conversation_saved=bool(memory), server_turn_id=memory['id'] if memory else None,
         source_id=source['id'] if source else None,
         source_version=decimal(source['version']) if source else None,
@@ -193,6 +201,9 @@ def conversation_history(storage, project_id, limit, cursor):
     for row in reversed(page):
         source = by_turn.get(row.get('client_turn_id') or row['id'])
         narrator, reply = visible_exchange(row, source)
+        from .interview_plan import public_interview_fields
+        read_interview = getattr(storage, 'interview_turn_by_id', None)
+        interview = read_interview(project_id, row.get('client_turn_id') or row['id']) if callable(read_interview) else None
         items.append(ConversationExchange(
             server_turn_id=row['id'], client_turn_id=row.get('client_turn_id'),
             kind=row['kind'], created_at=row['created_at'],
@@ -201,7 +212,7 @@ def conversation_history(storage, project_id, limit, cursor):
             source_id=source['id'] if source else None,
             source_version=decimal(source['version']) if source else None,
             source_status=source['status'] if source else None,
-            narrator_text=narrator, reply=reply,
+            narrator_text=narrator, reply=reply, **public_interview_fields(interview),
         ))
     # This is a snapshot page, not a change feed. Clients re-fetch on return to
     # foreground; policy_epoch invalidates cached evidence after a correction.
