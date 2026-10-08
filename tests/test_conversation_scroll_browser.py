@@ -200,7 +200,7 @@ def test_mobile_voice_controls_with_synthetic_microphone(conversation_page):
     assert page.evaluate('fixtureMicRequests')==1
 
 
-def test_workspace_stays_reachable_without_page_scroll(conversation_page):
+def test_saved_draft_stays_reachable_without_page_scroll(conversation_page):
     page=conversation_page
     page.route('**/api/v1/memoir/story/private-draft?*',lambda r:r.fulfill(content_type='application/json',body=json.dumps({'milestone':5,'preview':{'title':'Synthetic saved draft','text':'Synthetic draft paragraph. '*200}})))
     page.reload()
@@ -215,9 +215,10 @@ def test_workspace_stays_reachable_without_page_scroll(conversation_page):
         assert metrics(page)['pageHeight']<=height+1
         assert page.locator('.private-draft-status').evaluate('(e)=>e.scrollHeight>e.clientHeight')
         page.locator('.private-draft-status summary').click()
-        page.locator('[data-action="toggle-workspace"]').click()
-        expect(page.locator('#workspace-detail')).to_have_class('workspace-detail is-collapsed')
+        # A draft without an active map stays in the conversation. It must
+        # remain readable without activating an empty map workspace.
+        expect(page.locator('#workspace-detail')).to_have_count(0)
+        expect(page.locator('[data-action="toggle-workspace"]')).to_have_count(0)
         assert metrics(page)['composer']['bottom']<=height+1
-        page.locator('[data-action="toggle-workspace"]').click()
         expect(page.locator('.private-draft-status')).to_be_visible()
     screenshot(page,'after-desktop-workspace')

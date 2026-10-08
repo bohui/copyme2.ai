@@ -9,6 +9,7 @@ import { openCollectionReview } from "./collection.js";
 import { openProfileSettings } from "./profile.js";
 import { formatDateExpression } from "./dates.mjs";
 import { createConversationScroll, installConversationViewport } from "./conversation-scroll.mjs";
+import { createMapPhotoAlbums } from "./map-photo-albums.mjs";
 import englishMessages from "../../messages/en-AU.json";
 import chineseMessages from "../../messages/zh-CN.json";
 
@@ -21,6 +22,7 @@ const state = {
   projectPrincipalId: null,
   projectRecoveryBlocked: null,
   navigationGeneration: 0,
+  navigationPath: null,
   session: null,
   memories: [],
   sources: [],
@@ -104,6 +106,19 @@ const state = {
   supabase: null,
   authPromise: null,
 };
+
+const mapPhotoAlbums = createMapPhotoAlbums({
+  getProjectId: () => state.project?.id,
+  getAlbum: mapPhotoAlbum,
+  getAlbums: mapPhotoAlbumsForScene,
+  renderAlbum: album => pictureWall(album.pictures, album.entry) || mapPhotoAlbumStatus(album.entry),
+  bindAlbum: (content, album) => {
+    content.querySelector("[data-photo-more]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {more:true}));
+    content.querySelector("[data-photo-retry]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {force:true}));
+  },
+  closeLabel: () => translate("Memoir.workspace.closePhotoAlbum"),
+  onOpen: album => void loadPlacePictures(album.entry, state.project?.id),
+});
 
 const guestTransfer = createGuestConversationTransfer({
   getAuth: () => state.supabase,
@@ -261,6 +276,7 @@ function isMemoirRoute() {
 function navigateTo(path, replace = false) {
   invalidateProjectNavigation();
   window.history[replace ? "replaceState" : "pushState"]({}, "", path);
+  state.navigationPath = currentPath();
   render();
 }
 
@@ -2863,6 +2879,7 @@ async function hydrateAccountHistory(history = null) {
 
 function renderStory() {
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
+  const albumFocus = document.activeElement?.dataset?.photoAlbum || document.activeElement?.dataset?.photoMarker;
   const previousScene = $(".place-journey-scene");
   const previousMap = previousScene?.querySelector("[data-cesium-place]");
   const previousScroll = $("#chat-scroll");
@@ -2903,6 +2920,7 @@ function renderStory() {
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
           <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
+          ${!workspaceVisible ? privateDraftPreview() : ""}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
       </div>
@@ -2917,6 +2935,7 @@ function renderStory() {
     disposeCesiumPlaceJourney();
     initCesiumPlaceJourney();
   }
+  mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
   initFamilyVisualizations();
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
@@ -3037,10 +3056,11 @@ async function retryPrivateDraft() {
 
 function privateDraftPreview() {
   const saved=state.privateDraft;
-  if (!saved || !saved.preview && (!saved.error || saved.updating)) return "";
+  if (!saved || !saved.preview && !saved.error &&
+      (!saved.updating || !saved.progress?.composition?.target_milestone)) return "";
   const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
   const preview=saved.preview;
-  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.error && !saved.updating ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
+  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
   return `<section class="private-draft-status"><p>${status}</p>${preview ? `<details><summary>${t('readSavedDraft')}</summary><h3>${escapeHtml(preview.title)}</h3>${formatText(preview.text)}</details>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
 }
 
@@ -3170,6 +3190,37 @@ function workspaceMediaOverview(toggle = "") {
   return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
 
+function mapPhotoAlbumsForScene(scene) {
+  const container = scene.querySelector("[data-cesium-place]");
+  const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
+  const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])]);
+  const group = workspacePlaceGroups(places).find(item => item.key === container?.dataset.placeKey);
+  const entries = group?.members || [placeWorkspaceSelection()].filter(Boolean);
+  return entries.map(entry => mapPhotoAlbum(placeHistoryKey(entry))).filter(Boolean)
+    .map(album => ({...album, pinned:pins.has(album.key)}));
+}
+
+function mapPhotoAlbum(key) {
+  const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])]);
+  const entry = places.find(place => placeHistoryKey(place) === key);
+  if (!entry) return null;
+  const group = workspacePlaceGroups(places).find(item => item.members.some(member => placeHistoryKey(member) === key));
+  const pictures = workspacePictureItems(entry, group);
+  const request = state.photoRequests?.get(photoRequestKey(entry));
+  const status = request?.loading ? "loading" : request?.error ? "error" : pictures.length ? "ready" : "empty";
+  const detail = translate(`Memoir.workspace.${status === "loading" ? "picturesSearching" : status === "error" ? "picturesUnavailable" : "picturesNoMatch"}`);
+  return {key, place:entry.place, entry, pictures, count:pictures.length, status,
+    label: pictures.length ? translateWith("Memoir.workspace.openPhotoAlbum", {place:entry.place,count:pictures.length}) : `${entry.place} · ${detail}`};
+}
+
+function mapPhotoAlbumStatus(entry) {
+  const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+  const request = state.photoRequests?.get(photoRequestKey(entry));
+  if (request?.loading) return `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`;
+  if (request?.error) return `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button type="button" class="button button-secondary" data-photo-retry="${escapeHtml(placeHistoryKey(entry))}">${t("picturesSearchRetry")}</button></div>`;
+  return `<p class="workspace-photo-status" role="status">${t(entry.photo_search_complete || Object.hasOwn(entry, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
+}
+
 function composingWorkspaceActive() {
   return Boolean(state.workspaceUnlocked || state.project?.workspace_unlocked || state.compositionStage >= 3);
 }
@@ -3228,7 +3279,7 @@ function lifeStageNavigator() {
     const color = ["red", "amber", "green"].includes(context.color) ? context.color : "red";
     const description = translateWith("Memoir.workspace.contextReadiness", { stage: label, percent,
       words: Number(context.word_equivalents) || 0 });
-    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(description)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(description)}"><span class="life-stage-readiness readiness-${color}" style="--readiness:${percent}%"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></span></button>`;
+    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(description)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(description)}"><span class="life-stage-readiness readiness-${color}" style="--readiness:${percent}%"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></span><span class="life-stage-label life-stage-mobile-label">${escapeHtml(label)}</span></button>`;
   }).join("");
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div></section>`;
 }
@@ -3547,10 +3598,10 @@ function placeJourneyMarkup(journey, variant = "surface", group = null) {
   const placeType = currentUiLocale() === "zh-CN"
     ? ({ city: "城市", town: "城镇", region: "地区", country: "国家", neighbourhood: "街区" }[journey.granularity] || "地点")
     : (journey.granularity || "place");
-  const pins = target.pins || [];
-  const pinData = group ? ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"` : "";
+  const pins = target.pins || [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}];
+  const pinData = ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
   const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
-  return `<section class="place-journey-card place-journey-${variant}" aria-label="${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${!group && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${!group && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
 }
 
 function placeJourneySurface() {
@@ -3580,6 +3631,7 @@ function picturesWorkspace() {
 }
 
 function disposeCesiumPlaceJourney() {
+  mapPhotoAlbums.dispose();
   if (!cesiumPlaceJourneyViewer) return;
   try {
     if (!cesiumPlaceJourneyViewer.isDestroyed()) cesiumPlaceJourneyViewer.destroy();
@@ -3762,12 +3814,15 @@ function initCesiumPlaceJourney() {
       viewer.screenSpaceEventHandler.setInputAction(event => {
         const picked = viewer.scene.pick(event.position)?.id;
         if (!picked?.id) return;
+        if (mapPhotoAlbums.open(picked.id)) return;
         const member = (profile().memory_places || []).find(place => placeHistoryKey(place) === picked.id);
         if (!member) return;
         state.selectedPlace = picked.id;
         void loadPlacePictures(member, state.project?.id);
         render();
       }, cesium.ScreenSpaceEventType.LEFT_CLICK);
+      mapPhotoAlbums.sync(container.closest(".place-journey-scene"));
+      mapPhotoAlbums.attach(viewer, cesium, pins);
 
       const showFinalRoadMap = () => {
         if (!arrivalComplete || !roadmapReady || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
@@ -4828,6 +4883,7 @@ async function addTimeline() {
 async function boot() {
   const generation = invalidateProjectNavigation();
   const path = currentPath();
+  state.navigationPath = path;
   const current = () => generation === state.navigationGeneration;
   try {
     const choice = JSON.parse(sessionStorage.getItem("memoir-package-choice") || "null");
@@ -4919,6 +4975,11 @@ async function boot() {
 }
 
 window.addEventListener("popstate", () => {
+  const path = currentPath();
+  // Photo albums own same-URL history entries. Their Back/Forward events
+  // must not cancel the interview's reply or restart project recovery.
+  if (path === state.navigationPath) return;
+  state.navigationPath = path;
   invalidateProjectNavigation();
   const prefix = `${MEMOIR_ROUTES.interview}/`;
   const projectId = currentPath().startsWith(prefix) ? currentPath().slice(prefix.length).split("/")[0] : null;

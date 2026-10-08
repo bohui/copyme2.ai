@@ -313,6 +313,8 @@
       "places": "Places",
       "placesSubtitle": "Where memory begins",
       "pictures": "Pictures",
+      "openPhotoAlbum": "Open {count} reference photographs of {place}",
+      "closePhotoAlbum": "Close photo album",
       "picturesSubtitle": "Searched references",
       "delivery": "Delivery",
       "deliverySubtitle": "Your memoir options",
@@ -404,6 +406,7 @@
       "contextReadiness": "{stage}: {percent}% context readiness, {words} word equivalents. More details are always welcome.",
       "privateDraftBlocked": "Your memories are saved. The private draft is waiting; you can retry.",
       "privateDraftSaved": "Private draft saved after round {round}.",
+      "privateDraftUpdating": "Your private draft is updating in the background.",
       "readSavedDraft": "Read saved private draft",
       "retryPrivateDraft": "Retry draft update",
       "relationship": {

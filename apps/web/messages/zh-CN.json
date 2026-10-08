@@ -313,6 +313,8 @@
       "places": "地点",
       "placesSubtitle": "回忆开始的地方",
       "pictures": "照片",
+      "openPhotoAlbum": "查看{place}的{count}张参考照片",
+      "closePhotoAlbum": "关闭相册",
       "picturesSubtitle": "搜索到的参考资料",
       "delivery": "交付",
       "deliverySubtitle": "您的回忆录选项",
@@ -404,6 +406,7 @@
       "contextReadiness": "{stage}：背景资料完整度 {percent}%，折合约 {words} 词。您可以随时补充细节。",
       "privateDraftBlocked": "您的回忆已保存。私人草稿暂未更新，可稍后重试。",
       "privateDraftSaved": "私人草稿已在第 {round} 轮后保存。",
+      "privateDraftUpdating": "您的私人草稿正在后台更新。",
       "readSavedDraft": "阅读已保存的私人草稿",
       "retryPrivateDraft": "重试更新草稿",
       "relationship": {

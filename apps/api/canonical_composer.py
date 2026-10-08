@@ -287,6 +287,8 @@ async def compose_shared_snapshot(job, worker):
     request['context']['prepared_partitions'] = prepared
     bundle = await compose_candidate(request, runtime, storage, job['project_id'], job['locale'],
                                      checkpoint=checkpoint, progress=progress)
+    if bundle['status'] == 'insufficient_context':
+        return bundle
     if bundle['status'] != 'ready':
         raise RuntimeError('No supported composition context')
     bundle['event_manifest'] = job['event_manifest']

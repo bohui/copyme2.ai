@@ -176,3 +176,20 @@ for (const ending of ['final', 'error']) test(`the outer send ${ending} cannot f
   assert.deepEqual(state.chat.map(m => m.text), ['B memory']);
   assert.equal(state.loading, true);
 });
+
+test('same-route photo album Back/Forward keeps the active reply and project recovery intact', () => {
+  const path = '/memoir/interview/a';
+  const state = {navigationPath: path, project: {id: 'a'}, loading: true, chat: [{role: 'user', text: 'A memory'}]};
+  let popstate;
+  const context = vm.createContext({state, currentPath: () => path,
+    MEMOIR_ROUTES: {interview: '/memoir/interview'},
+    window: {addEventListener: (_type, callback) => {popstate = callback;}},
+    invalidateProjectNavigation: () => assert.fail('album history must not detach a reply'),
+    boot: () => assert.fail('album history must not recover the same project'), render: () => assert.fail('the album controller owns its dialog'),
+  });
+  vm.runInContext(source.match(/window.addEventListener\("popstate", \(\) => \{[^]*?\n\}\);/)[0], context);
+  popstate(); // Back closes the album.
+  popstate(); // Forward restores it at the same interview URL.
+  assert.equal(state.loading, true);
+  assert.equal(state.chat[0].text, 'A memory');
+});
