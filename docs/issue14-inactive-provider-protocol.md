@@ -1,0 +1,155 @@
+# Issue 14: inactive provider-budget protocol slice
+
+This is a controlled-protocol prerequisite, not completion of [issue 14](https://github.com/bohui/copyme2.ai/issues/14).
+There is no live mode, environment-variable override, new endpoint/model/account selection,
+credential lookup, application hook, judge activation, or launcher change.
+
+Reviewed source baseline: `050a664ceadeaeacedd9ac4c38448db494fcf1a4`, tree
+`69484aadec3da6c8c0fd688d360bc58bd9b2d1ce`.
+
+## Added contract
+
+- `scripts/issue14_provider_budget.py`: one process-owned, run-wide, write-ahead
+  reservation ledger. All clients/roles in a run must share the same instance.
+- `scripts/issue14_provider_transport.py`: an owned HTTPX transport that validates
+  the final HTTP request, reserves before its private socket transport is invoked,
+  consumes the entire response, and durably settles before returning any bytes.
+- `tests/test_issue14_provider_protocol.py`: real disposable loopback HTTP servers
+  and synthetic identities. Server-side contact counts are independent of ledger
+  counts. They are never presented as real-provider usage.
+
+The constructor rejects live use with `live_provider_unverified`. The only factory
+accepts the exact numeric-loopback route `http://127.0.0.1:<unprivileged-port>/codex/responses`.
+It requires fixed synthetic authorization, account, and model values. There is no
+injected callback, HTTP client, proxy, credential provider, retry strategy, or
+alternate transport. HTTPX connection retries, redirects through the guard,
+environment proxies, HTTP/2, and keepalive reuse are disabled. A redirect response
+is an unresolved failure, so even a caller using `follow_redirects=True` cannot
+follow it. Timeout is cleanup only, never evidence of a spending cap.
+
+## Controlled protocol, not real tokenization or pricing
+
+`synthetic-responses-byte-v1` defines one input token per byte of the complete
+final UTF-8 JSON body. This includes instructions, full message history, function
+definitions, function-call arguments/results, reasoning configuration, and all
+JSON framing. The transport replaces the outgoing body with those exact inspected
+bytes; no builder can append context or strip a cap afterward.
+
+Only the explicitly recognized text/function payload grammar is accepted. Hidden
+server context (`previous_response_id`), photos, audio, remote tools, unknown
+fields, wrong models, missing/changed output caps, duplicate JSON keys and nonfinite
+numbers are rejected before contact. No character-to-token heuristic is claimed
+for any real model.
+
+The fixture server independently enforces `max_output_tokens`, including reasoning.
+The final response must identify the same synthetic model/account and cap. The
+fixture rates are 2 XTS micros/input token and 5 XTS micros/output token. XTS is a
+testing unit here, not a provider price or billing currency approval.
+
+For a final body of B bytes and output cap O, one reservation is:
+
+- 1 request
+- B input tokens
+- O total output tokens
+- O reasoning tokens (all output could be reasoning)
+- 2B + 5O XTS micros
+
+Reasoning is a subset of output and is billed once. The request, input, output,
+reasoning and currency totals are checked atomically before contact. Simultaneous
+requests reserve the full worst case; settled reservations can release only
+verified unused amounts. All limits are explicit immutable integer fixtures.
+No floating-point money arithmetic is used.
+
+## Durability and uncertainty
+
+The ledger exclusively creates `<run UUID>.jsonl` with mode 0600, using an anchored
+directory descriptor and no-follow flags. It fsyncs the creation record and parent
+directory before admitting any send. Each reservation is fsynced before socket
+dispatch. A successful settlement is fsynced before counters are reduced or any
+response is exposed. Short writes are completed; zero writes, failed writes and
+failed fsyncs fence the instance.
+
+Each request UUID is unique within a run; each response UUID can settle once.
+Tickets cannot be forged or reused through the public API. An invalid or missing
+usage field, noninteger/negative/over-bound count, inconsistent total, unsupported
+billing field, duplicate completion, late error, incomplete frame, disconnect,
+timeout, cancellation, or uncertain journal result retains the full reservation
+and stops subsequent dispatch. A failed completion is never returned as success.
+Already-dispatched concurrent requests remain reserved until independently settled;
+stopping a run does not prove that a provider cancelled in-flight computation.
+
+There is deliberately no resume, journal replay/refund, or budget-reset API. Any
+existing run filename, including an empty or partial journal left by a crash,
+blocks a new instance. A process-kill test does this after an actual loopback
+contact. Forked children cannot use the parent's ledger. A different run ID or
+registry directory is a different run and cannot be used to continue an old
+approval. The future coordinator must own that registry/admission policy.
+
+Journals contain safe IDs, source revision, protocol/rate version, role, byte
+length, reservations, validated usage, and fixed failure reasons. They do not
+persist authorization, request/response bodies, testimony, instructions, function
+arguments, raw exceptions, or private reasoning. Receipts always retain
+`live_ready=false`, `actual_provider_requests=null`, and
+`real_provider_token_or_cost_limits_verified=false`.
+
+## Existing routes and held integration work
+
+These paths were inspected but are unchanged:
+
+| Path | Finding / future gate |
+| --- | --- |
+| `scripts/evaluation_budget.py:BudgetedProvider.call` | Callback-only reservation. Forwarding an output limit is not proof of provider enforcement. |
+| `scripts/canary_send_guard.py:CanarySendGuard` | Historical guard is request/SSE accounting; its receipt explicitly reports `token_limits_enforced=false`. Its historical limits are unchanged. |
+| `scripts/canary_gateway_binding.py:GuardedHTTPSession.post` | Actual installed-gateway HTTPX seam after final headers/payload. A future reviewed integration must place the shared budget here or below it and prove no other socket paths bypass it. |
+| `apps/api/codex_runtime.py` | Worker HTTP requests are not provider sends. Composer preparation/draft/review, classification and tool continuations need native correlation and complete per-role coverage. |
+| `apps/api/codex_agent.py` | Native agent/SDK path is outside this adapter's interception. No claim of complete tool-loop coverage. |
+| `apps/api/trajectory_evaluation.py:OpenAICompatibleJudge.__call__` | Direct `AsyncClient.post(.../chat/completions)` at baseline lines 1400–1401 bypasses the shared guard. It must not run under this slice. |
+| `scripts/run_memoir_five_case_semantic_judge.py:judge_one` | Independent `range(retries + 1)` at baseline line 282; CLI defaults to one retry. Every eventual attempt must separately reserve at the actual-send seam. |
+| `scripts/fifty_round_dispatch_budget.py`, `scripts/fifty_round_campaign_adapter.py` | Synthetic bookkeeping/worker adapter remains separate; it is not promoted to provider accounting. |
+
+The new transport denies the `judge` and `photo` roles. This does not disable or
+intercept existing application/judge programs; they remain outside the slice and
+must stay inactive. App hooks, existing guards/bindings, semantic datasets/evaluators,
+and launchers are deliberately untouched pending coordinated ownership and review.
+
+## Remaining release gates
+
+1. Verify the existing authorized provider's exact endpoint/account/wire model,
+   tokenizer and server-side framing/context rules using approved configuration
+   and primary evidence, without credential disclosure or paid discovery calls.
+2. Prove provider-enforced output/reasoning limits on that actual route. An output
+   field forwarded through a subscription gateway is insufficient if stripped or
+   ignored. Fail closed if incompatible; do not switch routes/accounts/models.
+3. Verify pinned billing rates, cache/reasoning/tool charges or an existing hard
+   gateway monetary cap; derive numerical worst-case request/input/output/
+   per-request-output/currency bounds and obtain the specific live approval.
+4. Review and integrate the shared actual-send ledger across every collector,
+   workspace/classification, composer, tool loop, explicit retry and judge path;
+   deny all bypasses, redirects, fallback accounts, websocket and alternate APIs.
+   Bound photo work separately. Preserve a durable run admission fence.
+5. Establish an authorized judge endpoint/model, rubric/version, explicitly named
+   human calibration reviewer/date and accepted examples. Synthetic judgments do
+   not satisfy calibration or semantic release criteria.
+6. Run approved prior/current/no-skill/model-provider comparisons on fixed cases
+   and publish safe usage/cost receipts and outcomes. Obtain independent exact-head
+   cloud review and all applicable acceptance gates before merge.
+
+## Verification
+
+Run the self-contained socket suite from the repository root:
+
+```sh
+python -m pytest -q tests/test_issue14_provider_protocol.py
+```
+
+It uses only synthetic data and local disposable sockets; it does not invoke a
+real provider, judge, Langfuse upload, subscription, deployment or migration.
+The test toolchain available during implementation was Python 3.12, HTTPX 0.28.1,
+pytest 8.4.2. The repository requests newer pytest in its optional test dependencies;
+the installed version is explicitly disclosed rather than claimed as an exact lock.
+
+At the source baseline, `test_audit_source_pins_match_this_reviewed_derivation` in
+`tests/test_fifty_round_budget_contract.py` fails independently: the pinned
+`apps/api/canonical_composer.py` digest is `569b08c45a7aeb9c84b9bd7f32627a174f577a39256d9158d7d239b1a44ca17f`,
+while the exact baseline blob hashes to `be4e1afc91e223a17a47de81ab6cd09de5af825b48547268a80754a8d3b545d2`.
+That held baseline pin is not silently updated in this change.
