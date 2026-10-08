@@ -1,6 +1,6 @@
 ---
 name: memoir-composer
-description: Compose and progressively enrich a source-grounded memoir from chats, memories and photos. Use after free rounds for a sample, after storytelling confirmation for a full draft, or when sources change. Enforce 7000 words per chapter.
+description: Compose a source-grounded memoir from canonical events and original evidence at authorised private checkpoints, after free rounds, after storytelling confirmation, or when dependencies change. Enforce 7000 words per chapter.
 metadata:
   version: "1.0.0"
   product: "CopyMe2 Memoir"

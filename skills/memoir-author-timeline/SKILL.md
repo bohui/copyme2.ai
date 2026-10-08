@@ -23,6 +23,8 @@ inputs, including late details about a much older memory. Use `existing_id` and
 titles, dates and places do not establish identity. Keep recurring experiences
 separate. Ambiguous matches retain scoped `candidate_ids` and unresolved status;
 conflicting accounts retain attribution and uncertainty rather than a winner.
+Propose new or changed events; use unchanged saved facts as context. An
+acknowledgement with no new personal evidence returns an empty event list.
 
 Stages are baby, toddler, childhood, adolescence, young_adulthood, midlife,
 later_life and unplaced. Stage placement requires original `stage_evidence`.

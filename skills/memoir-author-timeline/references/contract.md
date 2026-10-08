@@ -17,6 +17,9 @@ source manifest, quotes/spans, scope, placements, corrections and revisions, the
 commits event revisions, links and processing together. `finish_memoir_timeline`
 also checks the lane's expiring ownership token and total deadline. Empty results
 advance processing; pending gaps cannot be skipped by the extraction cursor.
+Validated proposals that repeat the same saved facts and evidence links also
+advance processing without changing event revisions or the event change sequence.
+New source links remain changes even when their words repeat an earlier account.
 
 Author edits use `correct_user_memory_event`, `change_user_narrator_source` and
 `unlink_user_memory_event_source`, with expected event revision/source version.
