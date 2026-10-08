@@ -12,6 +12,15 @@ PHOTO_ID = '11111111-1111-4111-8111-111111111111'
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9lcAAAAASUVORK5CYII=')
 
 
+PROJECT_STORAGE_INIT = """localStorage.setItem('memory-spark-project:owner',JSON.stringify({projectId:'photos',updatedAt:1}));"""
+PRODUCT_OPENING = json.loads((Path(__file__).resolve().parents[1] / 'apps/web/messages/en-AU.json').read_text())['Memoir']['conversation']['opening']
+CHAT_STORAGE_INIT = """(() => {
+  const key = 'memory-spark-chat-history:owner:photos';
+  if (sessionStorage.getItem(key) !== null || localStorage.getItem(key) !== null) return;
+  sessionStorage.setItem(key, JSON.stringify([{id:'opening',role:'assistant',text:__PRODUCT_OPENING__}]));
+})();"""
+
+
 @pytest.fixture(params=[(1440, 1000), (390, 844)], ids=['desktop', 'phone'])
 def photo_page(request):
     base = os.environ['MEMOIR_BROWSER_URL']
@@ -54,7 +63,7 @@ def photo_page(request):
         context.add_init_script("""window.spoken=[];Object.defineProperty(window,'speechSynthesis',{value:{cancel(){},speak:utterance=>spoken.push(utterance.text)}});
           Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>({getTracks:()=>[{stop(){}}]})}});
           window.MediaRecorder=class extends EventTarget{static isTypeSupported(){return true}constructor(){super();this.state='inactive';this.mimeType='audio/webm'}start(){this.state='recording'}stop(){this.state='inactive';this.dispatchEvent(new MessageEvent('dataavailable',{data:new Blob(['synthetic audio'])}));this.dispatchEvent(new Event('stop'))}};""")
-        context.add_init_script("localStorage.setItem('memory-spark-project:owner',JSON.stringify({projectId:'photos',updatedAt:1}));sessionStorage.setItem('memory-spark-chat-history:owner:photos',JSON.stringify([{id:'opening',role:'assistant',text:'What games did you play?'}]));")
+        context.add_init_script(PROJECT_STORAGE_INIT)
         context.add_init_script("""const nativeFetch=window.fetch;window.sentTurns=[];window.fetch=(url,options)=>{
           if(!String(url).endsWith('/agent/turn'))return nativeFetch(url,options);
           window.sentTurns.push(JSON.parse(options.body));
@@ -62,7 +71,10 @@ def photo_page(request):
           return Promise.resolve(new Response(new ReadableStream({start(controller){window.turnController=controller}}),{headers:{'Content-Type':'application/x-ndjson'}}));};
           window.turnEvent=(type,data)=>turnController.enqueue(new TextEncoder().encode(JSON.stringify({type,data})+'\\n'));
           window.finishTurn=data=>{turnEvent('conversation_saved',{conversation_saved:true,...data});turnController.close()};""")
-        page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
+        context.on('page',lambda new_page:new_page.on('pageerror',lambda error:errors.append(str(error))))
+        page=context.new_page()
+        # Seed only the original page and retain its real cache on reload.
+        page.add_init_script(CHAT_STORAGE_INIT.replace('__PRODUCT_OPENING__',json.dumps(PRODUCT_OPENING)))
         page.goto(base+'/memoir/interview/photos',wait_until='networkidle')
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
         yield page,profile,calls,request.node.callspec.id
@@ -192,8 +204,23 @@ def test_fresh_tab_loads_authorized_canonical_photo_cards_without_local_receipt(
       created_at='2026-10-08T12:00:00Z',source_status='active',source_version='1',
       narrator_text='I remember this private garden.',reply='What did you grow there?',
       response_photos=[dict(photo_id='upload:'+PHOTO_ID,kind='private_upload',title='Your private photo')])]
+    # Tabs share localStorage. Remove only this interview's caches so the
+    # canonical history endpoint is the sole source of the restored exchange.
+    page.evaluate('''() => {
+      for (const storage of [localStorage, sessionStorage]) {
+        storage.removeItem('memory-spark-chat-history:owner:photos');
+        storage.removeItem('memory-spark-pending-turn:owner:photos');
+      }
+    }''')
     fresh=page.context.new_page()
+    fresh.add_init_script('''window.fixtureHistoryBeforeBoot = {
+      durable:localStorage.getItem('memory-spark-chat-history:owner:photos'),
+      tab:sessionStorage.getItem('memory-spark-chat-history:owner:photos'),
+      durableReceipt:localStorage.getItem('memory-spark-pending-turn:owner:photos'),
+      tabReceipt:sessionStorage.getItem('memory-spark-pending-turn:owner:photos')
+    };''')
     fresh.goto(os.environ['MEMOIR_BROWSER_URL']+'/memoir/interview/photos',wait_until='networkidle')
+    assert fresh.evaluate('fixtureHistoryBeforeBoot')==dict(durable=None,tab=None,durableReceipt=None,tabReceipt=None)
     expect(fresh.locator('#chat-input')).to_be_enabled()
     toggle=fresh.locator('[data-action=toggle-chat-history]')
     if toggle.count() and toggle.get_attribute('aria-expanded')=='false':toggle.click()
