@@ -1209,7 +1209,9 @@ def test_legacy_migration_preserves_ids_original_evidence_and_private_flags_on_r
     # The existing ledger recognises this completed narrator/reply pair. The
     # migration must preserve its one round, never manufacture another.
     assert before['completed_rounds'] == 1
-    for path in sorted((ROOT/'supabase/migrations').glob('20261004*.sql')):
+    for path in sorted((ROOT/'supabase/migrations').glob('*.sql')):
+        if path.name < '202610040001_shared_memory_events.sql':
+            continue
         sql(path.read_text())
     rpc(sql, 'migrate_user_memory_events', "'project'")
     assert rpc(sql, 'read_user_memory_events', "'project'") == before

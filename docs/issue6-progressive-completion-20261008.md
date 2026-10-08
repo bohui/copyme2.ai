@@ -93,3 +93,12 @@ repair (six passes, zero skips/errors). The initial sandbox attempt failed durin
 container setup and is not counted as a behavioral red. Exact-head follow-up
 validation uses the integration command above, with task-local JUnit receipts;
 the publication report records the tested commit and tree before updating the PR.
+
+The first broader run recorded 224 passes and four replay failures. Its legacy
+migration replay test reapplied only the October 4 migrations, replacing the
+current RPC for later tests in the same module. Replay now covers the complete
+current migration chain, matching fixture setup; all original identity, evidence,
+privacy and round-count assertions remain. The ordered replay/repeated-account/
+new-attribution group then passed seven checks without skips or errors. The final
+committed head receives a fresh broader run rather than inheriting the failed
+receipt.
