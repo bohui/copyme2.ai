@@ -3386,6 +3386,7 @@ function selectLifeStage(stageId, focus = false) {
   if (!LIFE_STAGES.some((stage) => stage.id === stageId)) return;
   state.lifeStage = stageId;
   state.selectedPlace = null;
+  conversationScroll.pause();
   render();
   if (focus) document.querySelector(`[data-life-stage-tab="${stageId}"]`)?.focus({ preventScroll: true });
 }
