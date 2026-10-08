@@ -274,9 +274,11 @@ def test_unmapped_place_keeps_places_and_photos_available_after_round_five(inter
     expect(page.locator(".place-journey-card")).to_have_count(0)
     expect(page.locator("[data-workspace-tab]")).to_have_count(0)
 
-    page.reload()
+    with page.expect_response(lambda response: "/story/private-draft?" in response.url):
+        page.reload()
     expect(page.get_by_role("heading", name="Beijing", exact=True)).to_be_visible(timeout=20000)
-    expect(page.locator(".private-draft-status")).to_contain_text("round 5")
+    expect(page.locator(".private-draft-status")).to_have_count(0)
+    expect(page.get_by_text("A saved private draft.", exact=True)).to_have_count(0)
     expect(page.locator(".workspace-media-gallery")).to_be_visible()
     history = page.get_by_role("navigation", name="Place history")
     history.get_by_role("button", name="Chengde", exact=False).click()
