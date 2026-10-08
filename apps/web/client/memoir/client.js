@@ -2887,7 +2887,9 @@ async function refreshProject() {
     base = await api(`/v1/projects/${projectId}`);
   } catch (error) {
     if (!isCurrentProjectScope(scope)) return;
-    if (![401, 404].includes(error.status) || !state.supabase?.accessToken) throw error;
+    // A committed guest attachment can still have an adapter under the old
+    // principal. Recovery verifies durable ownership before repairing it.
+    if (![401, 403, 404].includes(error.status) || !state.supabase?.accessToken) throw error;
     base = await api("/v1/projects", { method: "POST",
       headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
       body: JSON.stringify({ mode: "self", restore_project_id: projectId }) });

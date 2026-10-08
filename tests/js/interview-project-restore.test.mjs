@@ -66,7 +66,7 @@ test('routes without an explicit project still restore the saved project', async
   assert.equal(result.resumed, true);
 });
 
-for (const status of [401, 404]) test(`a cached interview with status ${status} recovers the verified project`, async () => {
+for (const status of [401, 403, 404]) test(`a cached interview with status ${status} recovers the verified project`, async () => {
   const state = { project: { id: 'project_saved' }, supabase: { user: { id: 'owner' }, accessToken: 'session' } };
   const context = vm.createContext({ state, preserveConversationLocale: profile => profile,
     mergePlaces: values => values, refreshStageReadiness() {}, refreshPrivateDraft() {},

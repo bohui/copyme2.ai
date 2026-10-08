@@ -3,6 +3,29 @@ from urllib.parse import quote
 from uuid import UUID
 
 
+def transfer_guest_project(store, project_id, guest_id, owner_id):
+    """Rebind only the self interview identified by a verified attachment."""
+    with store.lock:
+        project = store.projects.get(project_id)
+        if not project or project.get('supabase_owner_id') == owner_id:
+            return
+        if (project.get('mode') != 'self'
+                or project.get('supabase_owner_id') != guest_id
+                or project.get('owner_id') != guest_id
+                or project.get('storyteller_id') != guest_id
+                or set(project.get('members', {})) != {guest_id}):
+            raise ValueError('Attached interview conflicts with an existing local project')
+        store.ensure_account(owner_id)
+        project['members'] = {owner_id: project['members'][guest_id]}
+        project['owner_id'] = owner_id
+        project['storyteller_id'] = owner_id
+        project['supabase_owner_id'] = owner_id
+        project['revision'] += 1
+        project['policy_epoch'] += 1
+        store.audit('project.guest_transferred', owner_id, project_id, guest_id=guest_id)
+        store.emit(project, 'project.guest_transferred')
+
+
 def remap_memory_ids(value, mapping):
     if isinstance(value, dict):
         return {key: remap_memory_ids(item, mapping) for key, item in value.items()}

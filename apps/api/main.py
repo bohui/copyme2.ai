@@ -1285,6 +1285,7 @@ def create_app(
     def create_project(payload: ProjectCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"), authorization: str | None = Header(default=None)) -> dict[str, Any]:
         actor = _account_id(x_account_id)
         restored_profile = None
+        transferred_guest_id = None
         if payload.restore_project_id:
             # Only recreate the local interview adapter after verifying the
             # original project in the signed-in user's RLS-protected history.
@@ -1301,6 +1302,19 @@ def create_app(
                     owned = service.request('GET', '/rest/v1/user_conversation_attachment', params=params).json()
                 if not owned:
                     raise HTTPException(404, 'Saved interview not found')
+                existing = memory.projects.get(payload.restore_project_id)
+                guest_id = existing.get('supabase_owner_id') if existing else None
+                if guest_id and guest_id != actor:
+                    # An older attach may have committed durable history while
+                    # leaving this adapter under the guest. Only the RPC-written,
+                    # owner-scoped attachment can authorize that exact handoff.
+                    attachments = service.request('GET', '/rest/v1/user_conversation_attachment',
+                        params={**params, 'select': 'project_id,workspace',
+                                'workspace->>guest_user_id': f'eq.{guest_id}'}).json()
+                    if any(row.get('project_id') == payload.restore_project_id
+                           and isinstance(row.get('workspace'), dict)
+                           and row['workspace'].get('guest_user_id') == guest_id for row in attachments):
+                        transferred_guest_id = guest_id
                 restored_profile = service.profile()
             finally:
                 service.client.close()
@@ -1310,6 +1324,12 @@ def create_app(
                 existing = memory.projects[payload.restore_project_id]
                 if not existing.get('supabase_owner_id'):
                     raise HTTPException(409, 'Saved interview conflicts with an existing local project')
+                if transferred_guest_id:
+                    from .workspace_merge import transfer_guest_project
+                    try:
+                        transfer_guest_project(memory, payload.restore_project_id, transferred_guest_id, actor)
+                    except ValueError:
+                        raise _unauthorised() from None
                 if existing['supabase_owner_id'] != actor:
                     raise _unauthorised()
                 return _project_response(_project(memory, payload.restore_project_id, actor))

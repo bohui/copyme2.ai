@@ -97,6 +97,7 @@ def prepare_conversation_transfer(payload: GuestConversationTransfer,
 
 @router.post('/conversation-transfer/attach')
 def attach_conversation_transfer(payload: WorkspaceMergeToken,
+                                 request: Request,
                                  authorization: str | None = Header(default=None)):
     service = storage(authorization)
     try:
@@ -115,6 +116,13 @@ def attach_conversation_transfer(payload: WorkspaceMergeToken,
                                                result['conversation_id'], result.get('memory_id_map', {}))
             except (httpx.HTTPError, ValueError):
                 raise HTTPException(503, 'Workspace merge incomplete; retry this transfer') from None
+        if result.get('attached') is True and result.get('guest_user_id') and result.get('project_id'):
+            from .workspace_merge import transfer_guest_project
+            try:
+                transfer_guest_project(request.app.state.store, result['project_id'],
+                                       result['guest_user_id'], service.user_id)
+            except ValueError:
+                raise HTTPException(409, 'Attached interview conflicts with an existing local project') from None
         result.pop('storage_objects', None)
         return result
     finally:
