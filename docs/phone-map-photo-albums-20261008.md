@@ -1,6 +1,8 @@
 # Phone map photo albums
 
-Base: `e6c06cafd5ad56f34b31edb8dd5e85dd7e96bc56` (`origin/main`).
+Original base: `e6c06cafd5ad56f34b31edb8dd5e85dd7e96bc56`.
+Integrated main: `c51ef44926f215382af30d116bf52318ceb534ca`
+(tree `976b300755b7d00e70393ae7a18f4dbb0ddc0ac5`, verified PR #31 merge).
 Task branch: `codex/phone-map-photo-albums-20261008`.
 
 ## Behavior
@@ -71,16 +73,16 @@ Commands run from the task worktree:
 node --test tests/js/*.test.mjs
 python3 scripts/check_localization_catalog.py
 MEMOIR_BROWSER_URL=http://127.0.0.1:19492 python3 -m pytest -q tests/test_phone_map_albums_browser.py
-MEMOIR_BROWSER_URL=http://127.0.0.1:19492 python3 -m pytest -q tests/test_conversation_scroll_browser.py -k 'not workspace_stays_reachable_without_page_scroll'
+MEMOIR_BROWSER_URL=http://127.0.0.1:19492 python3 -m pytest -q tests/test_conversation_scroll_browser.py
 cd apps/web && npm run build
 ```
 
 - JavaScript: 176 passed.
-- Localization: 543 messages valid in `en-AU` and `zh-CN`.
-- Phone/map albums: 13 passed. Real Cesium camera, scene projection and picking;
+- Localization: 544 messages valid in `en-AU` and `zh-CN`.
+- Phone/map albums: 14 passed. Real Cesium camera, scene projection and picking;
   synthetic grid imagery, photos, auth and all API responses. No live photo,
   provider or model calls.
-- Existing conversation/keyboard/scrolling cases: 3 passed, 1 deselected.
+- Conversation/keyboard/scrolling and saved-draft cases: 4 passed, no deselection.
 - Production Next.js build: passed with Turbopack after making a private local
   dependency copy. The initial external dependency symlink was rejected by
   Turbopack; no dependency or lockfile changes were needed.
@@ -94,18 +96,32 @@ present-day search defaults, viewport resizing, a retained Cesium viewer and
 the desktop gallery. Existing conversation checks exercise keyboard-height
 changes and streaming scroll behavior.
 
-## Existing failure
+## Landed-main integration
 
-The full combined browser run also includes
-`test_workspace_stays_reachable_without_page_scroll`, which expects a private
-draft with no active map to open the workspace. It fails on both this task and
-a pristine archive of base `e6c06ca`, with the same missing
-`.private-draft-status` assertion. The existing JavaScript workspace tests
-explicitly expect saved drafts without an active map to keep that workspace
-closed. This task leaves the separate progressive-workspace scope unchanged.
+Before PR #31 landed, `test_workspace_stays_reachable_without_page_scroll`
+failed on this task and pristine `e6c06ca` at the missing private-draft status.
+After merging verified main, it reached that status and passed its viewport
+and inner-scrolling assertions, then failed at a nonexistent workspace toggle.
+The test still assumed that a draft without an active map opens a workspace,
+contrary to the existing JavaScript workspace policy. It is now named
+`test_saved_draft_stays_reachable_without_page_scroll` and explicitly asserts
+that the saved draft remains readable inside the conversation while the empty
+map workspace and its toggle remain absent. Its viewport, content expansion,
+inner scrolling and composer reachability assertions are retained. No
+progressive runtime behavior was changed to satisfy the stale assertion.
 
 Baseline reproduction used a separate task-owned frontend on port 19494 and
 the pristine test from that archive. The server helper stopped it afterward.
+
+Verified main merged cleanly at integration commit
+`0eee92c9a068b0559d0e93a60e279600ed4c9bea`, with parents `dc73aae` and
+`c51ef44`. Eleven navigation, account/history, progressive-draft and workspace
+functions are byte-identical to landed main, including `navigateTo`,
+`bindViewActions`, `bindProfileMenu`, `hydrateAccountHistory`,
+`privateDraftPreview` and `workspaceHasContent`. The existing global popstate
+listener is preserved. An additional browser case verifies phone workspace
+collapse/reopen and album Back preserve the project URL, prior history state
+and composer. Unmerged PR #33 was not imported or modified.
 
 ## Evidence and coordination
 
@@ -126,6 +142,13 @@ behavioral failures), `overflow-review-green.txt`, `browser-overflow-final.txt`,
 `js-overflow.txt`, `conversation-overflow.txt`, and `build-overflow.txt`.
 `after-short-phone-overflow.png` captures the compact overflow controls.
 
+Integration receipts: `js-main-integration.txt`,
+`browser-main-integration-final.txt`, `conversation-main-integration-first.txt`
+(stale toggle assertion), `conversation-main-integration-final.txt`,
+`workspace-route-main-integration.txt`, `build-main-integration.txt`, and
+`shared-client-main-audit.json`. All after screenshots are refreshed from the
+integrated branch; the original before screenshot is retained.
+
 Library screenshot saving is blocked: the required current prepared-upload
 helper reports `Library prepare_uploads is not available` on this Mac, before
 creating upload sessions. No Library screenshot IDs were produced.
@@ -136,8 +159,9 @@ Shared `client.js` changes are confined to the album import/controller,
 and Cesium initialization/disposal/marker hooks. The new module owns its album
 history listener; the existing global route listener, logo, home link,
 `navigateTo`, account history and anonymous-history functions are untouched.
-The owned progressive branch at `ac6eb6bb0e531c5fda55809f53a744aeca60a82c`
-was not absorbed or modified.
+The original checkout remains unchanged and clean at
+`ac6eb6bb0e531c5fda55809f53a744aeca60a82c`. The phone branch incorporates the
+reviewed progressive changes through verified landed main only.
 
 Independent cloud review and any required fixes remain pending. No deployment
 or merge is authorized by this result.

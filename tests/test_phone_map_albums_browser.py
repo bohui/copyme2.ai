@@ -306,3 +306,26 @@ def test_city_tray_tap_wins_over_marker_projected_behind_it(album_page):
     actual={'hit':hit,'opened':dialog.locator('h2').inner_text()}
     assert actual=={'hit':{'kind':'album','key':key},'opened':'承德'},actual
     assert dialog.locator('figcaption a').all_text_contents()==[f'承德 fixture {i}' for i in range(3)]
+
+
+def test_workspace_toggle_and_album_back_preserve_project_route(album_page):
+    page,_,_=album_page
+    url=page.url
+    page.evaluate("history.replaceState({...history.state,fixtureRoute:'phone-map'},'',location.href)")
+    page.locator('[data-action="toggle-workspace"]').tap()
+    expect(page.locator('#workspace-detail')).to_have_class('workspace-detail is-collapsed')
+    expect(page.locator('[data-photo-album]:visible')).to_have_count(0)
+    assert page.url==url
+    page.locator('[data-action="toggle-workspace"]').tap()
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible()
+    expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+    page.locator('[data-photo-album]:visible').filter(has_text='承德').tap()
+    expect(page.get_by_role('dialog')).to_be_visible()
+    assert page.evaluate('history.state.fixtureRoute')=='phone-map'
+    assert page.url==url
+    page.go_back()
+    expect(page.get_by_role('dialog')).not_to_be_visible()
+    expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+    assert page.evaluate('history.state.fixtureRoute')=='phone-map'
+    assert page.url==url
+    expect(page.locator('#chat-input')).to_be_enabled()
