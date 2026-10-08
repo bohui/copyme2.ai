@@ -27,7 +27,7 @@ function setup(overrides = {}) {
 }
 
 test('interview keeps place/photo panels without family or payment tabs', () => {
-  const context = setup();
+  const context = setup({people: [{id: 'author'}], timeline: [{id: 'birth'}]});
   assert.equal(context.workspaceTabs().length, 0);
   const markup = context.workspaceDetail();
   assert.match(markup, /workspace-media-overview/);
@@ -122,7 +122,7 @@ test('paid Family storytellers retain their selected Family and Timeline tabs at
       const context = setup({compositionStage, workspaceTab:tab, privateDraft:savedDraft,
         people:[{id:'author'}], timeline:[{id:'birth'}],
         recallStatus:{rounds_completed:19, free_rounds:20, paid:true, payment_required:false}});
-      assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['family', 'timeline']);
+      assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), []);
       context.state.recallStatus.rounds_completed = 20;
       assert.deepEqual(Array.from(context.workspaceTabs(), item => item[0]), ['family', 'timeline', 'memoir']);
       assert.equal(context.activeWorkspaceTab(), tab);
@@ -189,4 +189,18 @@ test('loads every server page rather than stopping at the first chapter collecti
   assert.equal(chapters.length, 101);
   assert.equal(chapters.at(-1).id, 'last');
   assert.equal(calls[1], '/v1/projects/p/chapters?limit=100&cursor=next%20page');
+});
+
+
+test('completed recall keeps location and photo cues until composition unlock', () => {
+  for (const familyFeaturesEnabled of [false, true]) {
+    const context = setup({familyFeaturesEnabled, privateDraft:savedDraft,
+      recallStatus:{rounds_completed:20, free_rounds:20, paid:true}});
+    assert.match(context.workspaceDetail(), /workspace-media-overview/);
+    assert.match(context.workspaceDetail(), /has-recall-chapters/);
+    assert.match(context.workspaceDetail(), /童年草稿/);
+    context.state.compositionStage = 3;
+    assert.doesNotMatch(context.workspaceDetail(), /workspace-media-overview|has-recall-chapters/);
+    assert.match(context.workspaceDetail(), /童年草稿/);
+  }
 });

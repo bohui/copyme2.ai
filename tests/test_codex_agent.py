@@ -877,6 +877,37 @@ def test_repeated_place_advances_its_source_sequence():
     assert change['mentioned'] is True
 
 
+def test_city_alias_keeps_persisted_identity_and_coordinates_for_later_turn():
+    from unittest.mock import AsyncMock, Mock
+
+    current = {
+        'schema_version': 1, 'status': 'active', 'revision': 4,
+        'source_sequence': 1, 'place': '承德市',
+        'updated_at': '2026-10-08T00:00:00Z',
+        'hierarchy': ['Earth', '中国', '河北省', '承德市'],
+        'granularity': 'city', 'duration_ms': 5200,
+        'latitude': 40.9517, 'longitude': 117.9632,
+    }
+    candidate = {'schema_version': 1, 'place': '承德',
+                 'hierarchy': ['Earth', '中国', '河北', '承德'],
+                 'granularity': 'city', 'duration_ms': 5200}
+    storage, lease = Mock(), Mock()
+    async def save(saver, token, payload, **kwargs):
+        return {**payload, 'status': 'active', 'revision': 4,
+                'updated_at': current['updated_at'], 'source_sequence': kwargs['source_sequence']}
+    lease.io = AsyncMock(side_effect=save)
+    persisted, change = asyncio.run(CodexRuntime._persist_place_journey(
+        storage, lease, current, candidate, source_sequence=3,
+    ))
+    assert persisted['place'] == current['place']
+    assert persisted['hierarchy'] == current['hierarchy']
+    assert persisted['latitude'] == current['latitude']
+    assert persisted['source_sequence'] == 3
+    assert change == {'changed': False, 'kind': 'unchanged', 'revision': 4, 'mentioned': True}
+    assert candidate['place'] == '承德'
+    assert 'latitude' not in candidate
+
+
 def test_app_server_initialization_and_errors(tmp_path):
     server = tmp_path / 'server.py'
     server.write_text('''import sys,json

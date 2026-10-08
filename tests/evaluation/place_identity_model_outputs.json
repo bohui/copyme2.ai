@@ -1,0 +1,18 @@
+{
+  "dataset_version": "memoir-place-identity/1",
+  "mode": "live_model",
+  "configured_model": "gpt-5.6-luna-pooled",
+  "evaluated_on": "2026-10-09",
+  "worker_contacts": 8,
+  "gold_correction": "Verified optional 双桥区 administrative parent for 大石庙镇 against the cited district government source; unchanged raw model outputs rescored.",
+  "responses": {
+    "city-short-name": "六七岁以后搬到承德，和爸妈在城里散步，这段记忆很有生活气息。我先记下承德这个大致地点。你们最常走到哪里呢？\n\n[[MEMORY_SPARK_PROFILE]]{\"childhood_place\":\"承德\",\"story_focus\":{\"who\":\"爸妈\",\"where\":\"承德\",\"when\":\"六七岁以后\",\"what\":\"和爸妈在城里散步\",\"life_stage\":\"childhood\"}}[[/MEMORY_SPARK_PROFILE]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"承德\",\"hierarchy\":[\"Earth\",\"中国\",\"河北省\",\"承德\"],\"granularity\":\"city\",\"latitude\":40.9517,\"longitude\":117.9632,\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+    "city-administrative-suffix": "听起来，后来你又回到了承德市。回去时，最先让你注意到的是什么？\n\n[[MEMORY_SPARK_PROFILE]]{\"story_focus\":{\"where\":\"承德市\",\"when\":\"后来\",\"what\":\"又回到了\"}}[[/MEMORY_SPARK_PROFILE]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"承德市\",\"hierarchy\":[\"Earth\",\"中国\",\"河北\",\"承德市\"],\"granularity\":\"city\",\"latitude\":40.9517,\"longitude\":117.9632,\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+    "new-child-of-known-city": "原来，您小时候住在大石庙镇。那时镇上有没有一个您常去、至今还记得的地方？\n\n[[MEMORY_SPARK_PROFILE]]{\"childhood_place\":\"大石庙镇\",\"story_focus\":{\"where\":\"大石庙镇\",\"when\":\"小时候\",\"life_stage\":\"childhood\"}}[[/MEMORY_SPARK_PROFILE]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"大石庙镇\",\"hierarchy\":[\"Earth\",\"中国\",\"河北省\",\"承德市\",\"双桥区\",\"大石庙镇\"],\"granularity\":\"suburb\",\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+    "two-child-places-one-city": "你记得很清楚：先住在大石庙镇，后来搬到了双桥区。搬过去时，最先让你注意到的新环境是什么？\n\n[[MEMORY_SPARK_PROFILE]]{\"story_focus\":{\"where\":\"从大石庙镇搬到双桥区\",\"what\":\"搬家\"}}[[/MEMORY_SPARK_PROFILE]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"大石庙镇\",\"hierarchy\":[\"Earth\",\"中国\",\"河北省\",\"承德市\",\"双桥区\",\"大石庙镇\"],\"granularity\":\"suburb\",\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"双桥区\",\"hierarchy\":[\"Earth\",\"中国\",\"河北省\",\"承德市\",\"双桥区\"],\"granularity\":\"suburb\",\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+    "same-name-different-region": "That sounds like an important move. What do you remember most clearly about your first days in Richmond?\n\n[[MEMORY_SPARK_PROFILE]]{\"story_focus\":{\"where\":\"Richmond in Victoria, Australia\",\"when\":\"later\",\"what\":\"moved there\"}}[[/MEMORY_SPARK_PROFILE]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"Richmond\",\"hierarchy\":[\"Earth\",\"Australia\",\"Victoria\",\"Richmond\"],\"granularity\":\"city\",\"latitude\":-37.82,\"longitude\":144.998,\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+    "county-is-not-city": "原来，后来你们搬到了承德县。搬到那里后，最先让你记住的是哪一处或哪件东西？\n\n[[MEMORY_SPARK_PROFILE]]{\"story_focus\":{\"where\":\"承德县\",\"when\":\"后来\",\"what\":\"搬到了承德县\"}}[[/MEMORY_SPARK_PROFILE]]\n[[MEMORY_SPARK_PLACE_JOURNEY]]{\"schema_version\":1,\"place\":\"承德县\",\"hierarchy\":[\"Earth\",\"中国\",\"河北省\",\"承德市\",\"承德县\"],\"granularity\":\"suburb\",\"duration_ms\":5200}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+    "saved-photo-is-not-a-new-place-cue": "听起来这张老照片很有故事感。你小时候最常玩的是哪一种游戏？\n\n[[MEMORY_SPARK_PROFILE]]{\"story_focus\":{\"life_stage\":\"childhood\",\"what\":\"小时候的游戏\"}}[[/MEMORY_SPARK_PROFILE]]",
+    "explicit-location-uncertainty": "好的，先不定位，也不把它确认成河北的承德。这个线索可以先保留；你还记得那次更像是旅行、办事，还是探亲吗？\n\n[[MEMORY_SPARK_PROFILE]]{\"story_focus\":{\"where\":\"承德\",\"what\":\"去过\"}}[[/MEMORY_SPARK_PROFILE]]"
+  }
+}

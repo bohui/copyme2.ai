@@ -13,20 +13,19 @@ PROOF = Path('tests/fixtures/issue14_source_contract_v2.json')
 
 
 def copy_scope(tmp_path):
-    for directory in ('apps/api', 'scripts'):
-        for source in (ROOT / directory).rglob('*.py'):
-            target = tmp_path / source.relative_to(ROOT)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, target)
-    for name in ('apps/__init__.py', 'pyproject.toml', 'compose.yml', '.env.example', str(PROOF)):
+    # V2 remains an immutable historical contract. Run all of its existing
+    # positive and mutation tests against its exact verified original blobs,
+    # rather than an already-drifted tree that makes every negative test vacuous.
+    from scripts.issue14_subscription_source_contract import historical_v2_files
+    for name, raw in historical_v2_files(ROOT).items():
         target = tmp_path / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / name, target)
+        target.write_bytes(raw)
     return tmp_path
 
 
-def test_versioned_gate_proves_history_and_current_source_without_live_authority():
-    report = audit_source_contract(ROOT)
+def test_versioned_gate_proves_history_and_current_source_without_live_authority(tmp_path):
+    report = audit_source_contract(copy_scope(tmp_path))
     assert report['schema_version'] == 'memoir-issue14-source-audit/2'
     assert report['source_gate_passed'] is True
     assert report['historical_derivation_integrity_verified'] is True

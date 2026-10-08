@@ -7,6 +7,7 @@ import unicodedata
 import httpx
 
 from .place_geocoding import GoogleMapsUnavailable, search_place_details
+from .place_identity import geographic_label
 
 MAX_LOOKUPS = 8
 
@@ -14,7 +15,7 @@ MAX_LOOKUPS = 8
 def _label(value):
     label = unicodedata.normalize('NFKC', str(value)).strip().casefold()
     label = {'chengde': '承德', 'china': '中国', 'hebei': '河北'}.get(label, label)
-    return label[:-1] if label.endswith(('市', '省')) else label
+    return geographic_label(label)
 
 
 def _path(place):

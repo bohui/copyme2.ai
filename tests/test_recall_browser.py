@@ -12,11 +12,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 @pytest.mark.parametrize('family_enabled', [False, True])
-def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, family_enabled):
+@pytest.mark.parametrize('with_place', [False, True])
+def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, family_enabled, with_place):
     copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())['Memoir']['workspace']
     project = {'id': 'entitlement-round-limit', 'revision': 1, 'mode': 'self',
                'composition_stage': 2, 'workspace_unlocked': False,
                'profile': {'preferred_language': locale}}
+    if with_place:
+        project['profile']['memory_places'] = [{'place': 'Chengde',
+            'hierarchy': ['Earth', 'China', 'Hebei', 'Chengde'], 'granularity': 'city',
+            'latitude': 40.9517, 'longitude': 117.9632, 'life_stage': 'childhood'}]
 
     def api(route):
         endpoint = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
@@ -46,7 +51,7 @@ def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, 
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1440, 'height': 900})
+        context = browser.new_context(viewport={'width': 390 if locale == 'zh-CN' else 1440, 'height': 900})
         base = os.environ['MEMOIR_BROWSER_URL']
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
@@ -71,6 +76,17 @@ def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, 
             button.click()
             expect(button).to_have_attribute('aria-current', 'page')
             expect(page.locator('.private-draft-status')).to_have_count(1 if tab == 'memoir' else 0)
+            expect(page.locator('.workspace-media-overview')).to_have_count(1 if with_place else 0)
+            if tab == 'memoir' and with_place:
+                expect(page.locator('.workspace-media-overview')).to_be_visible()
+                panes = page.locator('#workspace-detail').evaluate('''el => {
+                    const area = el.getBoundingClientRect();
+                    return ['.workspace-media-overview', '.workspace-scroll'].map(selector => {
+                        const box = el.querySelector(selector).getBoundingClientRect();
+                        return {height: box.height, inside: box.top >= area.top && box.bottom <= area.bottom + 1};
+                    });
+                }''')
+                assert all(pane['height'] >= 80 and pane['inside'] for pane in panes), panes
         page.reload(wait_until='networkidle')
         expect(tabs).to_have_count(len(expected))
         browser.close()

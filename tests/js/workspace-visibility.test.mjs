@@ -17,12 +17,10 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
   };
   const context = vm.createContext({ MEMOIR_ROUTES: { home: '/memoir' },
     state, $: selector => selector === '#app' ? app : null, document: {},
-    workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
-    WORKSPACE_VISIBILITY_DEBOUNCE_MS: 180, setTimeout, clearTimeout,
+    workspaceVisibility: {projectId: null, stable: false},
     placeWorkspaceSelection: () => state.placeJourney,
     placeMapTarget: place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude) ? place : null,
-    workspaceMediaOverview: () => context.placeMapTarget(state.placeJourney)
-      ? '<section class="workspace-media-overview">map and photo gallery</section>' : '',
+    workspaceMediaOverview: () => '<section class="workspace-media-overview">map and photo gallery</section>',
     lifeStageNavigator: () => '<section class="life-stage-navigator">life stages</section>',
     privateDraftPreview: () => '', familyWorkspace: () => 'family', timelineWorkspace: () => 'timeline',
     memoirWorkspace: () => 'memoir', escapeHtml: String, translate: String, translateWith: String,
@@ -42,42 +40,53 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
   return app.innerHTML;
 }
 
-test('a first location reply keeps the life-stage strip hidden until the map is ready', () => {
+test('a first location trigger opens the place/photo workspace before its map is ready', () => {
   const html = renderedWorkspace({privateDraft: {updating: true}});
-  assert.match(html, /story-shell conversation-only/);
-  assert.doesNotMatch(html, /id="workspace-detail"|life-stage-navigator|workspace-media-overview/);
+  assert.match(html, /story-shell context-visible/);
+  assert.match(html, /id="workspace-detail"/);
+  assert.match(html, /workspace-media-overview/);
+  assert.match(html, /life-stage-navigator/);
 });
 
 test('saved or failed drafts do not open an otherwise unavailable workspace', () => {
   for (const privateDraft of [null, {preview: {title: 'Draft', text: 'Saved memory'}}, {error: 'Draft failed'}]) {
-    const html = renderedWorkspace({privateDraft});
+    const html = renderedWorkspace({privateDraft, placeJourney: null});
     assert.match(html, /story-shell conversation-only/);
     assert.doesNotMatch(html, /id="workspace-detail"|life-stage-navigator/);
   }
 });
 
 test('early family and timeline records do not open a workspace without a map', () => {
-  const html = renderedWorkspace({people: [{id: 'author', name: 'Author'}],
+  const html = renderedWorkspace({placeJourney: null, people: [{id: 'author', name: 'Author'}],
     timeline: [{id: 'birth', title: 'Born in Chengde'}]});
   assert.match(html, /story-shell conversation-only/);
   assert.doesNotMatch(html, /id="workspace-detail"|life-stage-navigator/);
 });
 
-test('an unready selection cannot open the workspace using a different place map', () => {
+test('an unready selection keeps the workspace available without substituting a different map', () => {
   const html = renderedWorkspace({placeJourney: {place: 'Chengde', latitude: 40.95, longitude: 117.96}}, {
     placeWorkspaceSelection: () => null,
     workspaceMediaOverview: () => '',
   });
-  assert.match(html, /story-shell conversation-only/);
-  assert.doesNotMatch(html, /id="workspace-detail"|life-stage-navigator/);
+  assert.match(html, /story-shell context-visible/);
+  assert.match(html, /id="workspace-detail"/);
+  assert.doesNotMatch(html, /life-stage-navigator/);
 });
 
-test('a transient map gap never leaves the life-stage strip on its own', () => {
+test('a map gap retains the place/photo panels alongside the life-stage strip', () => {
   const html = renderedWorkspace({}, {
     workspaceVisibility: {projectId: 'project', stable: true, pending: null, timer: null},
     setTimeout: () => 1,
   });
-  assert.doesNotMatch(html, /life-stage-navigator/);
+  assert.match(html, /workspace-media-overview/);
+  assert.match(html, /life-stage-navigator/);
+});
+
+test('the fifth-round private draft keeps the place/photo view until composition unlocks', () => {
+  const html = renderedWorkspace({privateDraft: {covered_round: 5, preview: {title: 'Draft', text: 'Memory'}}});
+  assert.match(html, /story-shell context-visible/);
+  assert.match(html, /workspace-media-overview/);
+  assert.doesNotMatch(html, /data-workspace-tab/);
 });
 
 test('a ready map opens the place/photo workspace and its life-stage strip', () => {
@@ -109,7 +118,7 @@ test('collapsing a ready workspace also hides the life-stage strip', () => {
   assert.doesNotMatch(html, /workspace-media-overview|life-stage-navigator/);
 });
 
-test('keeps the first place workspace visible through a transient map-target gap', () => {
+test('keeps an activated place workspace visible after the selected map becomes unavailable', () => {
   let target = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
   let rendered = 0;
   let nextTimerId = 0;
@@ -123,7 +132,7 @@ test('keeps the first place workspace visible through a transient map-target gap
   };
   const context = vm.createContext({
     state,
-    workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
+    workspaceVisibility: {projectId: null, stable: false},
     WORKSPACE_VISIBILITY_DEBOUNCE_MS: 180,
     workspaceTabs: () => [],
     composingWorkspaceActive: () => false,
@@ -145,18 +154,26 @@ test('keeps the first place workspace visible through a transient map-target gap
   assert.equal(context.workspaceIsVisible(), true);
   target = null;
   assert.equal(context.workspaceIsVisible(), true);
-  assert.equal(timers.size, 1);
+  for (const callback of [...timers.values()]) callback();
+  assert.equal(context.workspaceIsVisible(), true, 'an activated workspace must not disappear after map resolution changes');
 
   target = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
   assert.equal(context.workspaceIsVisible(), true);
-  assert.equal(timers.size, 0);
-  assert.equal(rendered, 0);
 
   target = null;
   assert.equal(context.workspaceIsVisible(), true);
-  assert.equal(timers.size, 1);
+  for (const callback of [...timers.values()]) callback();
+  assert.equal(context.workspaceIsVisible(), true);
+  assert.equal(rendered, 0);
 
-  timers.values().next().value();
-  assert.equal(rendered, 1);
+  state.placeJourney = null;
+  assert.equal(context.workspaceIsVisible(), true);
+  state.workspaceCollapsed = true;
   assert.equal(context.workspaceIsVisible(), false);
+  assert.equal(context.workspaceHasContent(), true);
+  state.workspaceCollapsed = false;
+  assert.equal(context.workspaceIsVisible(), true);
+
+  state.project = {id: 'another-project'};
+  assert.equal(context.workspaceIsVisible(), false, 'activation belongs to the current project');
 });
