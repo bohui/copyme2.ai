@@ -15,6 +15,7 @@ import inspect
 from uuid import UUID, uuid4
 
 from apps.api.agent_storage import UserStorage
+from apps.api.diagnostics import failure_class
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback
 from scripts.issue14_subscription_transport import SubscriptionStopped
 from scripts.task_runtime import dispatch_memoir_lanes_once
@@ -233,6 +234,7 @@ class SubscriptionProgressiveRunner:
 
     async def _execute(self, receipt):
         session = self._session
+        receipt['execution_stage'] = 'initial_readback'
         storages = {}
         # Validate both projects before dispatching any original narration.
         for case in CASE_IDS:
@@ -253,13 +255,17 @@ class SubscriptionProgressiveRunner:
                 partial['rounds'].append(record)
                 correlation = bridge.before_round(case, ordinal)
                 _require(session.activate_round(case, ordinal) == correlation, 'correlation_mismatch')
+                receipt['execution_stage'] = 'collector_turn'
                 value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
                     language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
                     evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
+                receipt['execution_stage'] = 'runtime_readback'
                 record.update(_runtime_readback(value, correlation), status='delivered')
                 accepted.append(record['accepted_source_id'])
+                receipt['execution_stage'] = 'background_dispatch'
                 handles = await dispatch_memoir_lanes_once(session.temporal_client, session.broker,
                                                          session.task_queue, single_attempt=True)
+                receipt['execution_stage'] = 'background_settlement'
                 for handle in handles:
                     _require(type(handle.id) is str and handle.id, 'lane_incomplete')
                     if handle.id not in partial['workflow_ids']:
@@ -269,29 +275,35 @@ class SubscriptionProgressiveRunner:
                              and outcome.get('pending', False) is False and not outcome.get('error')
                              and not outcome.get('retryable')
                              and _exact_integer(outcome.get('attempt', 1), 1), 'lane_incomplete')
+                receipt['execution_stage'] = 'canonical_readback'
                 view = await _storage_read(storage.memory_events, inputs['project_id'])
                 _canonical_state(view, inputs, accepted)
                 record['canonical_state'] = deepcopy(view)
                 if ordinal in CHECKPOINTS:
+                    receipt['execution_stage'] = 'checkpoint_readback'
                     draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
                     _saved_checkpoint(draft, ordinal, inputs['language'])
                     partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
                 # Extraction may create a bookkeeping outbox row. Drain it while
                 # the same case/round owns the scope; never dispatch a retry.
+                receipt['execution_stage'] = 'background_drain'
                 await session.broker.drain_once()
                 pending = await session.broker.rpc('pending_memoir_lanes', p_limit=100)
                 _require(type(pending) is list and not pending, 'background_incomplete')
                 session.finish_round()
                 record.update(background_settled=True, status='completed')
+                receipt['execution_stage'] = 'progress_receipt'
                 await self._emit(receipt)
             partial['status'] = 'completed'
             partial['workflow_ids'].sort()
+            receipt['execution_stage'] = 'case_observation'
             observation = bridge.observation(partial)
             if observation['output'] is None:
                 partial['status'] = 'incomplete'
             _require(observation['output'] is not None, 'readback_incomplete')
             partial['observation'] = observation
         receipt['status'] = 'completed'
+        receipt['execution_stage'] = 'completed'
 
     async def run(self, *, progress=None):
         _require(progress is None or callable(progress), 'execution_failed')
@@ -308,6 +320,7 @@ class SubscriptionProgressiveRunner:
         receipt = {'schema_version': 'memoir-subscription-progressive-run/1',
             'run_id': session.run.run_id, 'source_revision': session.run.source_revision,
             'evidence_mode': EVIDENCE_MODE, 'status': 'running', 'output': None,
+            'execution_stage': 'runner_start',
             'semantic_acceptance': 'human_review_required', 'live_ready': False,
             'cases': [{**deepcopy(self._plans[case]), 'evidence_mode': EVIDENCE_MODE,
                        'status': 'not_started', 'rounds': [], 'checkpoints': [], 'workflow_ids': [],
@@ -315,7 +328,9 @@ class SubscriptionProgressiveRunner:
                            'issue14_progressive_readback_status': 'unavailable'}}} for case in CASE_IDS],
             'cleanup': {'session_closed': False}}
 
-        def fail(reason):
+        def fail(reason, classification='exception'):
+            receipt.setdefault('failure_stage', receipt['execution_stage'])
+            receipt.setdefault('failure_class', classification)
             receipt.update(status='incomplete', output=None)
             receipt.setdefault('stop_reason', reason)
             for case in receipt['cases']:
@@ -345,16 +360,16 @@ class SubscriptionProgressiveRunner:
                 await asyncio.shield(work)
                 _require(session.run.remaining_seconds() > 0, 'deadline_exceeded')
         except asyncio.CancelledError:
-            fail('cancelled')
+            fail('cancelled', 'cancelled')
         except TimeoutError:
-            fail('deadline_exceeded')
+            fail('deadline_exceeded', 'timeout')
         except SubscriptionRunnerError as error:
-            fail(_error_reason(error))
+            fail(_error_reason(error), 'validation')
         except SubscriptionStopped as error:
             fail({'elapsed_limit': 'deadline_exceeded', 'requests_limit': 'requests_limit'}
                  .get(str(error), 'execution_failed'))
-        except Exception:
-            fail('execution_failed')
+        except Exception as error:
+            fail('execution_failed', failure_class(error))
         finally:
             if work is not None and not work.done():
                 work.cancel()
@@ -385,7 +400,7 @@ class SubscriptionProgressiveRunner:
                 if receipt['status'] == 'completed':
                     _require(accounting.get('stop_reason') in (None, 'closed'), 'requests_stopped')
             except SubscriptionRunnerError as error:
-                fail(_error_reason(error))
+                fail(_error_reason(error), 'validation')
             except Exception:
                 fail('accounting_unavailable')
         if receipt['status'] == 'completed':

@@ -92,7 +92,9 @@ def test_every_role_gets_owned_scope_and_one_shared_client_seam(tmp_path, gatewa
             response = await client.post(self.base_url + '/responses',
                 headers={'Authorization': 'Bearer synthetic-token'}, json={'stream': True,
                     'model': self.model, 'reasoning': {'effort': self.reasoning_effort},
-                    'input': 'synthetic', 'client_metadata': payload.evaluation})
+                    'input': 'synthetic', 'client_metadata': {'x-codex-turn-metadata':
+                        json.dumps({**payload.evaluation, 'session_id':'synthetic-session',
+                            'thread_id':'synthetic-thread', 'turn_id':'synthetic-turn'})}})
             response.raise_for_status()
         return {'reply': 'Controlled', 'trajectory': {'correlation': payload.evaluation}}
     monkeypatch.setattr(CodexWorker, 'turn', controlled_turn)
@@ -116,7 +118,7 @@ def test_every_role_gets_owned_scope_and_one_shared_client_seam(tmp_path, gatewa
                 assert response.status_code == 200
             owned.finish_round()
             assert len(contacts) == 1
-            assert contacts[0]['client_metadata']['run_id'] == owned.run.run_id
+            assert json.loads(contacts[0]['client_metadata']['x-codex-turn-metadata'])['run_id'] == owned.run.run_id
         finally:
             await owned.close()
         with pytest.raises(ValueError):
@@ -237,4 +239,68 @@ def test_real_broker_dispatch_orders_extraction_first_and_rejects_foreign_receip
                 await dispatch_memoir_lanes_once(Client(),broker,'canary-subscription-synthetic',single_attempt=True)
                 assert started==['timeline','composer']
         finally:await raw.client.aclose()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('mutation', ['top_level_only', 'encoded_object', 'missing',
+    'duplicate_key', 'wrong_round', 'wrong_revision', 'foreign_case', 'boolean_id',
+    'non_object', 'non_json', 'nan', 'contradictory_top_level'])
+def test_pinned_codex_metadata_envelope_fails_closed_before_gateway(tmp_path, gateway, monkeypatch, mutation):
+    """Pinned Codex be2951ea encodes IDs in x-codex-turn-metadata JSON.
+
+    This is a real task listener and disposable gateway socket, with synthetic
+    protocol bytes. It is not evidence of a native binary/model evaluation.
+    """
+    from apps.api.codex_worker_service import CodexWorker
+    endpoint, contacts = gateway
+    async def controlled_turn(self, payload, **kwargs):
+        ids = dict(payload.evaluation)
+        metadata = {'x-codex-turn-metadata': json.dumps(ids)}
+        if mutation == 'top_level_only': metadata = ids
+        elif mutation == 'encoded_object': metadata['x-codex-turn-metadata'] = ids
+        elif mutation == 'missing': metadata = {}
+        elif mutation == 'duplicate_key':
+            metadata['x-codex-turn-metadata'] = '{"run_id":"foreign",' + json.dumps(ids)[1:]
+        elif mutation == 'wrong_round': ids['round_id'] = '2'
+        elif mutation == 'wrong_revision': ids['application_revision'] = '0' * 40
+        elif mutation == 'foreign_case': ids['case_id'] = 'chapters.transitions.zh-CN'
+        elif mutation == 'boolean_id': ids['round_id'] = True
+        elif mutation == 'non_object': metadata['x-codex-turn-metadata'] = '[]'
+        elif mutation == 'non_json': metadata['x-codex-turn-metadata'] = 'not-json'
+        elif mutation == 'nan': metadata['x-codex-turn-metadata'] = '{"extra":NaN,' + json.dumps(ids)[1:]
+        elif mutation == 'contradictory_top_level': metadata['run_id'] = 'foreign'
+        if mutation in {'wrong_round', 'wrong_revision', 'foreign_case', 'boolean_id'}:
+            metadata['x-codex-turn-metadata'] = json.dumps(ids)
+        async with httpx.AsyncClient(trust_env=False) as client:
+            response = await client.post(self.base_url + '/responses',
+                headers={'Authorization': 'Bearer synthetic-token'}, json={'stream': True,
+                    'model': self.model, 'reasoning': {'effort': self.reasoning_effort},
+                    'input': 'synthetic private narration', 'client_metadata': metadata})
+        assert response.status_code == 502
+        assert response.text == 'Subscription client request stopped'
+        response.raise_for_status()
+    monkeypatch.setattr(CodexWorker, 'turn', controlled_turn)
+    async def scenario():
+        owned = await session(tmp_path, endpoint)
+        try:
+            case = owned.case_ids[0]; plan = owned.case_plans[case]
+            owned.activate_round(case, 1)
+            async with httpx.AsyncClient(transport=owned.worker_transport,
+                    base_url=owned.worker_url, trust_env=False) as client:
+                with pytest.raises(httpx.HTTPStatusError):
+                    await client.post('/internal/codex/turn', json={'user_id': plan['owner_id'],
+                        'project_id': plan['project_id'], 'language': plan['language'], 'text': 'synthetic'})
+            assert contacts == []
+            assert owned.run.snapshot()['client_requests_started'] == 0
+            assert owned.run.snapshot()['stop_reason'] == 'send_interrupted_or_failed'
+            record = owned.worker_receipts()[0]
+            assert record['status'] == 'failed' and record['failure_class'] == 'http_status'
+            assert record['local_client_requests_seen'] == 1
+            assert record['local_client_last_stage'] == 'client_correlation'
+            assert record['local_client_last_status'] == 'rejected'
+            assert record['local_client_last_failure_class'] == 'exception'
+            assert 'synthetic private narration' not in str(record)
+            assert 'Bearer' not in str(record) and 'synthetic-token' not in str(record)
+        finally:
+            await owned.close()
     asyncio.run(scenario())

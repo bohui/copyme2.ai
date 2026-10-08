@@ -576,3 +576,16 @@ def test_actual_shared_ledger_stop_vocabulary_and_terminal_snapshot(controlled, 
         assert result['stop_reason'] == 'deadline_exceeded'
         assert result['request_accounting']['stop_reason'] == 'elapsed_limit'
         assert not session.calls
+
+
+def test_failure_diagnostics_name_only_the_fixed_stage_and_safe_class(controlled):
+    session = controlled()
+    def fail(_value):
+        raise RuntimeError('private prompt credential exception detail')
+    session.turn_hook = fail
+    result = execute(session)
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['failure_stage'] == 'collector_turn'
+    assert result['failure_class'] == 'runtime_error'
+    assert 'private prompt credential exception detail' not in str(result)
+    assert session.closed

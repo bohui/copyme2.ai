@@ -117,3 +117,32 @@ while v1/v2 tests use verified immutable historical evidence. See
 `issue14-source-contract-v3.md`. A passing source gate is not a native execution
 receipt or semantic acceptance; exact-head review and applicable checks still
 apply before merge and the native resource preflight still applies before a run.
+
+## Pinned Codex metadata compatibility and failure diagnostics
+
+Codex 0.155.1, upstream commit
+`be2951ea34f0d295ed0becf97079f92fa5f6950e`, puts the application correlation
+IDs into the JSON string at `client_metadata["x-codex-turn-metadata"]`.
+They are not top-level `client_metadata` entries. See the pinned
+[implementation](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/responses_metadata.rs#L298-L342)
+and [HTTP protocol test](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/app-server/tests/suite/v2/client_metadata.rs#L116-L128).
+
+The listener decodes that envelope strictly, rejects duplicate JSON keys,
+missing/forged IDs and contradictory top-level IDs, and forwards the original
+bytes unchanged. It does not inject or repair correlation. Valid protocol
+fixtures exercise every role through real disposable loopback sockets; malformed
+envelopes fail before any gateway contact.
+
+The first native attempt on source `38353c70` reached the task-local forwarder
+but recorded zero guarded gateway requests. Its complete packet and precise
+rejection predicate were not retained, so the exact cause of that attempt is
+not retrospectively proven. The top-level metadata assumption is nevertheless
+a deterministic, independently reproduced incompatibility with the pinned CLI.
+The failed receipt remains incomplete and must not be relabelled or resumed.
+
+New receipts record only fixed execution-stage and failure-class labels, plus
+worker terminal state and local request counts/last validation stage. They do
+not persist request headers, exception text, child stderr, private reasoning or
+an extra copy of narration. A local-forwarder rejection remains distinct from a
+counted gateway request. A later run still needs independent exact-source review,
+source gates, the original numerical bounds and fresh native resource preflight.
