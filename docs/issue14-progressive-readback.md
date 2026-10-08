@@ -73,14 +73,14 @@ After this bridge's source review, the user explicitly removed the strict token
 limit requirement for this progressive evaluation. That permits planning a
 **separate subscription evaluation mode** on the existing route; it does not
 change the historical Issue 14 token/currency contracts or make them pass.
-This bridge still contains no executor or live admission path.
+This bridge itself contains no executor or live admission path. The separate
+subscription implementation is documented in `issue14-subscription-evaluation.md`.
 
 The minimal next execution contract must explicitly state:
 
 1. The two fixed 15-turn synthetic cases, checkpoints 5/10/15, a shared request
-   ceiling, absolute run deadline and concurrency bound. The earlier suggestions
-   of 160 attempts, 30 minutes and concurrency 1 remain proposals until the run
-   scope is agreed. No new paid provider/account or credential/security change is
+   ceiling, absolute run deadline and concurrency bound. The user subsequently approved
+   160 client requests, 30 minutes and concurrency 1 for both cases together. No new paid provider/account or credential/security change is
    authorized by removing a token-limit requirement.
 2. The counted boundary. Private worker HTTP requests are not provider requests.
    A dedicated task-only client-to-existing-gateway seam could count Codex sends,
@@ -92,8 +92,9 @@ The minimal next execution contract must explicitly state:
    byte-token/XTS fixture remains synthetic-only. Historical stripped-output-cap
    evidence no longer blocks this separately scoped evaluation merely because
    it cannot prove a strict token ceiling.
-4. An isolated native executor that obtains actual saved workflow outcomes and
-   supplies this bridge's hooks, then a pinned SDK experiment callback. Native
+4. The separate subscription native executor obtains saved workflow outcomes and
+   supplies this bridge's hooks. A pinned SDK experiment-publication callback is
+   still a separate step. Native
    execution and any authenticated Langfuse experiment writes must be coordinated
    through the parent. All four existing rules stay disabled; no judge/photo call
    or semantic score is supplied by this bridge.

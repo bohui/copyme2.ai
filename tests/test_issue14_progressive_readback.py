@@ -102,6 +102,15 @@ def test_correlation_is_bounded_stable_and_isolated():
         b.before_round('wrong-case', 1)
 
 
+def test_subscription_label_does_not_grant_live_or_durable_acceptance():
+    b = bridge()
+    result = outcome(b)
+    result['evidence_mode'] = 'subscription_progressive'
+    evidence = b.capture(result)
+    assert evidence['declared_evidence_mode'] == 'subscription_progressive'
+    assert evidence['live_ready'] is evidence['durability_verified'] is False
+
+
 @pytest.mark.parametrize('mutation', [
     lambda r: r.update(status='incomplete'),
     lambda r: r.update(case_id='wrong'),

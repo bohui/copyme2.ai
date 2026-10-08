@@ -11,11 +11,22 @@ import hashlib
 import json
 from pathlib import Path
 import re
+from uuid import UUID, uuid5
 
 
 DATASET_SHA256 = 'bea8a31f8d4ab0539e2f1c99e08978acbcb4d60ffc25bf36579f04c8a27392c7'
 DATASET_PATH = Path(__file__).resolve().parents[1] / 'tests/evaluation/issue6_semantic_datasets.json'
 CASE_IDS = ('chapters.transitions.en-AU', 'chapters.transitions.zh-CN')
+
+
+def case_plans_for_run(run_id):
+    """Pure synthetic identity plan; imports no app/worker/credential code."""
+    namespace = UUID(run_id)
+    if str(namespace) != run_id:
+        raise ValueError('Canonical run UUID required')
+    return {case_id: {'case_id': case_id, 'owner_id': str(uuid5(namespace, case_id + '/owner')),
+        'project_id': str(uuid5(namespace, case_id + '/project')), 'language': case_id.rsplit('.', 1)[1]}
+        for case_id in CASE_IDS}
 
 
 class ReadbackError(ValueError):
@@ -115,7 +126,7 @@ class ProgressiveReadback:
         case_id, locale = self._case['case_id'], self._case['language']
         _require(result.get('status') == 'completed' and result.get('case_id') == case_id
                  and result.get('project_id') == self._project_id)
-        _require(result.get('evidence_mode') in ('mock_only', 'guarded_live_canary'))
+        _require(result.get('evidence_mode') in ('mock_only', 'guarded_live_canary', 'subscription_progressive'))
         rounds = _list(result.get('rounds'))
         _require(len(rounds) == 15)
         accepted, mappings, states = [], [], {}
