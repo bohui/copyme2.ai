@@ -7,8 +7,9 @@ for the existing local project `memior` (`cmut9t75w00071z02n8bdv7it`).
 
 Status on 2026-10-08: the user explicitly authorized asset publication. The
 export and offline boundary checks are ready. Actual publication and server
-read-back are blocked because the existing project credential file is not
-available in this execution environment. No asset, experiment, trace or score
+read-back are held pending independent re-review and the existing project
+credential-file path, which is unavailable in this execution environment.
+No asset, experiment, trace or score
 has been published by this change. A request for the file path remains pending;
 key values must not be sent in chat, logs or artifacts.
 
@@ -19,7 +20,7 @@ key values must not be sent in chat, logs or artifacts.
 | Synthetic datasets | 4, with 28 items | Reviewed `20261008-v1` fixture and its SHA-256 |
 | Text prompts | 5 | Timeline and composer prepare/index/draft/review instructions, exact application bytes |
 | Managed code evaluators | 4 | One definition per dataset dimension; staged until callback and review |
-| Evaluation rules | 4 | Disabled; each scoped to its dataset, experiment roots and `issue6-synthetic-evaluation` |
+| Evaluation rules | 4 | Disabled; `target=experiment`, each filtered to its own synthetic dataset ID |
 
 Names use `memoir/issue6/20261008-v1/`. Prompts receive only the
 `issue6-evaluation` label. The application still loads its reviewed Git builders.
@@ -39,10 +40,29 @@ unexpected dataset items, unsupported APIs, HTTP errors or unknown outcomes.
 It never updates/deletes existing assets or silently retries a create. An
 explicit resume first reads existing state; matching assets are reused.
 
+The target release is Langfuse **4.21.0**. Evaluator/rule endpoints use
+`/api/public/unstable` and page pagination. Rules assign the evaluator by name
+and type, and read-back verifies the resolved family ID. Code evaluator bodies
+omit the unsupported description field. Datasets and prompts retain their
+`/api/public/v2` endpoints. These contracts are pinned to the official tagged
+[evaluator](https://github.com/langfuse/langfuse/blob/v4.21.0/fern/apis/server/definition/unstable/evaluators.yml)
+and [rule](https://github.com/langfuse/langfuse/blob/v4.21.0/fern/apis/server/definition/unstable/evaluation-rules.yml)
+definitions, rather than the newer installed SDK's evaluator endpoints.
+
+On this release, experiment rules support only the `datasetId` filter. They
+cannot express the proposed environment or experiment-root filters. All rules
+remain disabled. Before any activation, a separately reviewed callback must
+enforce the task environment and experiment-root scope; this publisher does not
+implement or authorize that activation. No broader active evaluation scope is
+introduced by these disabled definitions.
+
 The receipt records dataset item timestamps and the maximum item timestamp for
 the hosted snapshot, dataset/item hashes, prompt versions, evaluator IDs/versions
-and code hashes, and disabled-rule filters. Missing server timestamps remain
-unavailable. HTTP errors omit bodies and authentication. The client uses only
+and code hashes, and disabled-rule filters. A hosted snapshot version is emitted
+only when every item has a valid timezone-aware timestamp; timestamps are
+compared as UTC instants. Missing, partial or malformed timestamps produce null
+and `unavailable_missing_or_invalid_timestamps`. HTTP errors omit bodies and
+authentication, including on short project/item routes. The client uses only
 the fixed loopback origin, with proxies and redirects disabled.
 
 ## Evaluation contract
@@ -57,7 +77,8 @@ A future callback must obtain successful worker completion and exact original
 source-version coverage from the application. The managed definition requires
 those facts and compares receipt input, output, expected output and item
 provenance against the selected experiment. Missing, incomplete or stale
-receipts return TEXT `unavailable`; they cannot earn numeric credit. An actual
+receipts return TEXT `unavailable`; they cannot earn numeric credit. Malformed
+source arrays or entries also remain unavailable without throwing. An actual
 completed empty proposal can earn the applicable code scores. Empty placement
 gold remains `not_applicable`. This metadata is an application attestation, not
 a cryptographic signature, and must never be supplied by the model.
@@ -96,12 +117,24 @@ an export or receipt destination.
 TDD receipts are retained in the task artifact directory for export creation,
 missing-output handling, application receipt propagation, project selection,
 idempotent publication, missing-key handling and credential-file preservation.
-Final focused validation: **30 passed, zero failures/errors/skips**. Of these,
-17 are the existing controlled semantic regressions and 13 exercise publication
+Initial focused validation: **30 passed, zero failures/errors/skips**. Independent
+review then identified the deployed-version mismatch, short-route status crash,
+partial snapshot false pin and malformed-source exceptions. Corrected focused
+validation: **53 passed, zero failures/errors/skips**. Of these,
+17 are the existing controlled semantic regressions and 36 exercise publication
 and the managed function contract. HTTP responses use an explicitly labeled
 external API double; managed code executes through Node locally. These results
 are not server publication, hosted dispatcher, live model or human calibration
-evidence. Real server health was observed as HTTP 200 / Langfuse 4.21.0 only.
+evidence. Read-only unauthenticated native checks observed health HTTP 200 /
+Langfuse 4.21.0, both newer evaluator/rule routes HTTP 404, and both tagged
+unstable routes HTTP 401. The 401 responses prove those routes reach
+authentication; they do not verify authenticated schema or publication.
+
+Review red/green receipts reproduce the route mismatch, a missed page-two
+conflict, both short-route crashes, incomplete/invalid snapshot metadata and
+three malformed-source exceptions. Seven controlled lost-response resume points
+remain covered. Earlier 30-test evidence and its export are retained separately;
+their API contract does not establish compatibility with this release.
 
 Live experiments still require the separately reviewed Issue 14 provider
 binding/accounting and numerical budget, an application/worker callback, native

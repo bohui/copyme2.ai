@@ -75,10 +75,15 @@ def evaluator_definitions():
   };
   const equal = (a, b) => JSON.stringify(stable(a)) === JSON.stringify(stable(b));
   const receipt = observation.metadata?.issue6_application_receipt;
-  const originals = [...(observation.input?.context_sources ?? []), ...(observation.input?.sources ?? [])];
+  if (!receipt || receipt.protocol_version !== 1 || receipt.worker_completed !== true) return unavailable();
+  const sources = observation.input?.sources;
+  const contextSources = observation.input?.context_sources ?? [];
+  if (!Array.isArray(sources) || !Array.isArray(contextSources)) return unavailable();
+  const originals = [...contextSources, ...sources];
+  if (originals.some(s => !s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id ||
+      !Number.isInteger(s.version) || s.version < 1)) return unavailable();
   const coverage = Object.fromEntries(originals.map(s => [s.id, s.version]));
-  if (!receipt || receipt.protocol_version !== 1 || receipt.worker_completed !== true ||
-      !equal(receipt.completed_sources, coverage) || !equal(receipt.item_metadata, item) ||
+  if (!equal(receipt.completed_sources, coverage) || !equal(receipt.item_metadata, item) ||
       !equal(receipt.input, observation.input) || !equal(receipt.output, observation.output) ||
       !equal(receipt.expected_output, experiment.itemExpectedOutput)) return unavailable();
   const scores = names.map(name => {
@@ -92,6 +97,5 @@ def evaluator_definitions():
 }
 '''
         result.append({"name": PREFIX + "evaluators/" + dimension, "type": "code",
-                       "description": "Staged Issue 6 synthetic evaluation. Timeline code scores require exact server-owned application receipts, successful worker completion and original-source coverage. Other semantic judgments require human review. No model judge; proposed rubric is uncalibrated.",
                        "sourceCode": source, "sourceCodeLanguage": "TYPESCRIPT"})
     return result

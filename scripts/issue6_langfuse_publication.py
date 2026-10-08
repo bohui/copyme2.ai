@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 import uuid
@@ -25,6 +27,7 @@ PROJECT_ID = "cmut9t75w00071z02n8bdv7it"
 PROJECT_NAME = "memior"
 PREFIX = "memoir/issue6/20261008-v1/"
 ENVIRONMENT = "issue6-synthetic-evaluation"
+EVALUATION_API = "/api/public/unstable"
 DATASET_PATH = ROOT / "tests/evaluation/issue6_semantic_datasets.json"
 DATASET_SHA256 = "bea8a31f8d4ab0539e2f1c99e08978acbcb4d60ffc25bf36579f04c8a27392c7"
 EVALUATOR_SHA256 = "979560b162713d750a3cd92b0295c635e3611c92ba23bf80d27063b604089d96"
@@ -50,6 +53,19 @@ def sha256(value: bytes) -> str:
 def content_hash(value) -> str:
     return sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                              separators=(",", ":"), allow_nan=False).encode())
+
+
+def _snapshot_version(item_versions):
+    parsed = []
+    for value in item_versions.values():
+        if not isinstance(value, str) or not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)", value):
+            return None
+        try:
+            parsed.append(datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc))
+        except (ValueError, OverflowError):
+            return None
+    return max(parsed).isoformat(timespec="microseconds").replace("+00:00", "Z") if parsed else None
 
 
 def build_manifest():
@@ -130,22 +146,21 @@ class PublicationAPI:
         if absent_ok and response.status_code == 404:
             return None
         if response.status_code not in (200, 201):
-            raise ValueError(f"Langfuse {method} {path.split('/')[4]} failed: HTTP {response.status_code}.")
+            resources = {"projects", "dataset-items", "datasets", "prompts", "evaluators", "evaluation-rules", "health"}
+            label = next((part for part in path.split("/") if part in resources), "API")
+            raise ValueError(f"Langfuse {method} {label} failed: HTTP {response.status_code}.")
         try:
             return response.json()
         except ValueError:
             raise ValueError("Langfuse returned an invalid API response.") from None
 
     def catalog(self, kind, *, dataset_name=None):
-        path = "/api/public/dataset-items" if kind == "dataset-items" else "/api/public/v2/" + kind
-        results, cursor = [], None
+        path = ("/api/public/dataset-items" if kind == "dataset-items" else
+                EVALUATION_API + "/" + kind if kind in ("evaluators", "evaluation-rules") else
+                "/api/public/v2/" + kind)
+        results = []
         for page in range(1, 101):
-            params = {"limit": 100}
-            if kind in ("evaluators", "evaluation-rules"):
-                if cursor:
-                    params["cursor"] = cursor
-            else:
-                params["page"] = page
+            params = {"limit": 100, "page": page}
             if dataset_name is not None:
                 params["datasetName"] = dataset_name
             result = self.request("GET", path, params=params)
@@ -153,14 +168,10 @@ class PublicationAPI:
                 raise ValueError("Langfuse catalog response lacks asset data.")
             results.extend(result["data"])
             meta = result.get("meta") or {}
-            if kind in ("evaluators", "evaluation-rules"):
-                next_cursor = meta.get("cursor")
-                if not next_cursor:
-                    return results
-                if next_cursor == cursor:
-                    raise ValueError("Langfuse catalog did not advance.")
-                cursor = next_cursor
-            elif page >= meta.get("totalPages", 1):
+            total_pages = meta.get("totalPages")
+            if type(total_pages) is not int or total_pages < 0 or meta.get("page", page) != page:
+                raise ValueError("Langfuse catalog returned invalid page metadata.")
+            if page >= total_pages:
                 return results
         raise ValueError("Langfuse catalog exceeds the bounded publication preflight.")
 
@@ -177,20 +188,19 @@ def _named(catalog, name):
     return candidates[0] if candidates else None
 
 
-def _rule(dimension, dataset_id, evaluator_id):
-    return {"name": PREFIX + "rules/" + dimension, "enabled": False, "sampling": 1,
-            "evaluatorAssignments": [{"evaluatorId": evaluator_id}],
+def _rule(dimension, dataset_id, evaluator_name):
+    return {"name": PREFIX + "rules/" + dimension, "target": "experiment", "enabled": False, "sampling": 1,
+            "evaluators": [{"evaluator": {"name": evaluator_name, "type": "code"}}],
             "filter": [
                 {"column": "datasetId", "type": "stringOptions", "operator": "any of", "value": [dataset_id]},
-                {"column": "isExperimentItemRootSpan", "type": "boolean", "operator": "=", "value": True},
-                {"column": "environment", "type": "stringOptions", "operator": "any of", "value": [ENVIRONMENT]},
             ]}
 
 
-def _check_rule(actual, expected):
-    _matching(actual, expected, ("name", "enabled", "sampling", "filter"))
-    assignments = actual.get("evaluatorAssignments", [])
-    if len(assignments) != 1 or assignments[0].get("evaluatorId") != expected["evaluatorAssignments"][0]["evaluatorId"] or assignments[0].get("variableMapping"):
+def _check_rule(actual, expected, evaluator_id):
+    _matching(actual, expected, ("name", "target", "enabled", "sampling", "filter"))
+    assignments = actual.get("evaluators", [])
+    reference = expected["evaluators"][0]["evaluator"]
+    if len(assignments) != 1 or assignments[0].get("evaluator") != {**reference, "id": evaluator_id}:
         raise ValueError("Existing evaluation rule has a conflicting evaluator assignment.")
 
 
@@ -237,8 +247,8 @@ def publish(manifest, client):
         name = evaluator["name"]
         saved = _named(catalogs["evaluators"], name)
         if saved:
-            saved = api.request("GET", "/api/public/v2/evaluators/" + saved["id"])
-            _matching(saved, evaluator, ("name", "type", "sourceCode", "sourceCodeLanguage", "description"))
+            saved = api.request("GET", EVALUATION_API + "/evaluators/" + saved["id"])
+            _matching(saved, evaluator, ("name", "type", "sourceCode", "sourceCodeLanguage"))
         existing_evaluators[name] = saved
     for dataset, evaluator in zip(manifest["datasets"], manifest["evaluators"]):
         name = PREFIX + "rules/" + dataset["dimension"]
@@ -248,7 +258,7 @@ def publish(manifest, client):
             ev = existing_evaluators[evaluator["name"]]
             if not ds or not ev:
                 raise ValueError("Existing evaluation rule refers to unreviewed assets.")
-            _check_rule(saved, _rule(dataset["dimension"], ds["id"], ev["id"]))
+            _check_rule(saved, _rule(dataset["dimension"], ds["id"], ev["name"]), ev["id"])
         existing_rules[name] = saved
 
     receipt = {"project_id": PROJECT_ID, "origin": ORIGIN,
@@ -275,9 +285,10 @@ def publish(manifest, client):
             _matching(read_item, expected_items[read_item["id"]], ("id", "datasetName", "input", "expectedOutput", "metadata", "status"))
         existing_datasets[name] = saved
         item_versions = {item["id"]: item.get("updatedAt") for item in read_items}
-        snapshot = max((version for version in item_versions.values() if version), default=None)
+        snapshot = _snapshot_version(item_versions)
         receipt["datasets"].append({"name": name, "id": saved["id"], "item_count": len(read_items),
                                     "dataset_version": snapshot, "item_versions": item_versions,
+                                    "dataset_version_status": "available" if snapshot else "unavailable_missing_or_invalid_timestamps",
                                     "url": f"{ORIGIN}/project/{PROJECT_ID}/datasets/{saved['id']}"})
     for prompt in manifest["prompts"]:
         name = prompt["name"]
@@ -291,18 +302,19 @@ def publish(manifest, client):
                                    "url": f"{ORIGIN}/project/{PROJECT_ID}/prompts/{quote(name, safe='')}"})
     for evaluator in manifest["evaluators"]:
         name = evaluator["name"]
-        saved = existing_evaluators[name] or api.request("POST", "/api/public/v2/evaluators", body=evaluator)
-        saved = api.request("GET", "/api/public/v2/evaluators/" + saved["id"])
-        _matching(saved, evaluator, ("name", "type", "sourceCode", "sourceCodeLanguage", "description"))
+        saved = existing_evaluators[name] or api.request("POST", EVALUATION_API + "/evaluators", body=evaluator)
+        saved = api.request("GET", EVALUATION_API + "/evaluators/" + saved["id"])
+        _matching(saved, evaluator, ("name", "type", "sourceCode", "sourceCodeLanguage"))
         existing_evaluators[name] = saved
         receipt["evaluators"].append({"name": name, "id": saved["id"], "version": saved["version"],
                                       "source_code_sha256": sha256(evaluator["sourceCode"].encode()),
                                       "status": "staged_callback_and_human_review_pending"})
     for dataset, evaluator in zip(manifest["datasets"], manifest["evaluators"]):
-        rule = _rule(dataset["dimension"], existing_datasets[dataset["name"]]["id"], existing_evaluators[evaluator["name"]]["id"])
-        saved = existing_rules[rule["name"]] or api.request("POST", "/api/public/v2/evaluation-rules", body=rule)
-        saved = api.request("GET", "/api/public/v2/evaluation-rules/" + saved["id"])
-        _check_rule(saved, rule)
+        selected_evaluator = existing_evaluators[evaluator["name"]]
+        rule = _rule(dataset["dimension"], existing_datasets[dataset["name"]]["id"], selected_evaluator["name"])
+        saved = existing_rules[rule["name"]] or api.request("POST", EVALUATION_API + "/evaluation-rules", body=rule)
+        saved = api.request("GET", EVALUATION_API + "/evaluation-rules/" + saved["id"])
+        _check_rule(saved, rule, selected_evaluator["id"])
         receipt["rules"].append({"name": rule["name"], "id": saved["id"], "enabled": saved["enabled"], "filter": saved["filter"]})
     receipt["verified_counts"] = {"datasets": len(receipt["datasets"]),
                                   "items": sum(d["item_count"] for d in receipt["datasets"]),

@@ -108,7 +108,11 @@ def test_publication_rejects_other_project_before_any_asset_write():
 
 
 class LangfuseHTTPBoundary:
-    """In-memory external API double. This is not native Langfuse evidence."""
+    """Controlled v4.21.0 HTTP contract, not native Langfuse evidence.
+
+    Routes and evaluator/rule bodies follow the tagged unstable Fern contracts.
+    This double never executes a hosted evaluator or a model.
+    """
     def __init__(self):
         self.assets = {path: {} for path in ("datasets", "prompts", "evaluators", "evaluation-rules")}
         self.items = {}
@@ -130,17 +134,45 @@ class LangfuseHTTPBoundary:
         if path.startswith("/api/public/dataset-items/"):
             item = self.items.get(path.rsplit("/", 1)[1])
             return httpx.Response(200 if item else 404, json=item or {})
-        assert path.startswith("/api/public/v2/"), "Unexpected public API"
-        kind, _, key = path.removeprefix("/api/public/v2/").partition("/")
+        if path.startswith("/api/public/unstable/"):
+            kind, _, key = path.removeprefix("/api/public/unstable/").partition("/")
+            allowed = {"evaluators", "evaluation-rules"}
+        elif path.startswith("/api/public/v2/"):
+            kind, _, key = path.removeprefix("/api/public/v2/").partition("/")
+            allowed = {"datasets", "prompts"}
+        else:
+            return httpx.Response(404)
+        if kind not in allowed:
+            return httpx.Response(404)
         assets = self.assets[kind]
         if request.method == "GET":
             if not key:
-                return httpx.Response(200, json={"data": list(assets.values()), "meta": {"totalPages": 1}})
+                page = int(request.url.params.get("page", "1"))
+                limit = int(request.url.params.get("limit", "50"))
+                values = list(assets.values())
+                return httpx.Response(200, json={"data": values[(page-1)*limit:page*limit],
+                                               "meta": {"page": page, "limit": limit, "totalItems": len(values),
+                                                        "totalPages": (len(values)+limit-1)//limit}})
             entry = assets.get(key) or next((v for v in assets.values() if v.get("id") == key), None)
             return httpx.Response(200 if entry else 404, json=entry or {})
         assert request.method == "POST", "Publication cannot update or delete existing assets"
         body = json.loads(request.content)
-        entry = {**body, "id": str(len(assets) + 1), "version": 1}
+        if kind == "evaluators" and set(body) != {"name", "type", "sourceCode", "sourceCodeLanguage"}:
+            return httpx.Response(400, json={"code": "invalid_body"})
+        if kind == "evaluation-rules":
+            if set(body) != {"name", "target", "evaluators", "enabled", "sampling", "filter"} or body["target"] != "experiment":
+                return httpx.Response(400, json={"code": "invalid_body"})
+            if any(condition["column"] != "datasetId" for condition in body["filter"]):
+                return httpx.Response(400, json={"code": "invalid_filter_value"})
+            reference = body["evaluators"][0]["evaluator"]
+            if reference["type"] != "code" or set(reference) != {"name", "type"}:
+                return httpx.Response(400, json={"code": "invalid_body"})
+            evaluator = self.assets["evaluators"][reference["name"]]
+            body = {**body, "evaluators": [{"evaluator": {**reference, "id": evaluator["id"]}, "mapping": None}],
+                    "evaluator": {**reference, "id": evaluator["id"]}, "status": "inactive"}
+        earlier = assets.get(body["name"])
+        entry = {**body, "id": earlier["id"] if earlier else kind + "-" + str(self.writes+1),
+                 "version": earlier.get("version", 0)+1 if earlier else 1}
         self.writes += 1
         assets[body["name"]] = entry
         return httpx.Response(200, json=entry)
@@ -200,15 +232,106 @@ def test_conflicting_evaluator_stops_publication_before_even_independent_dataset
     assert boundary.writes == 0
 
 
-def test_uncertain_create_stops_and_explicit_resume_reuses_the_persisted_dataset():
+def test_v421_page_two_conflict_is_found_before_any_asset_write():
+    from scripts.issue6_langfuse_publication import ORIGIN, build_manifest, publish
+    boundary = LangfuseHTTPBoundary()
+    for index in range(100):
+        boundary.assets["evaluators"]["other-" + str(index)] = {"name": "other-" + str(index), "id": str(index)}
+    evaluator = build_manifest()["evaluators"][0]
+    boundary.assets["evaluators"][evaluator["name"]] = {**evaluator, "id": "conflict", "sourceCode": "Conflicting source"}
+    with httpx.Client(base_url=ORIGIN, transport=httpx.MockTransport(boundary)) as client:
+        with pytest.raises(ValueError, match="conflicts"):
+            publish(build_manifest(), client)
+    assert boundary.writes == 0
+
+
+@pytest.mark.parametrize("path", ["/api/public/projects", "/api/public/dataset-items"])
+def test_authentication_errors_remain_sanitized_status_errors_on_short_routes(path):
+    from scripts.issue6_langfuse_publication import ORIGIN, PublicationAPI
+    raw_body = "credential-like-body-must-stay-private"
+    with httpx.Client(base_url=ORIGIN, transport=httpx.MockTransport(
+            lambda request: httpx.Response(401, text=raw_body))) as client:
+        with pytest.raises(ValueError, match="HTTP 401") as failure:
+            PublicationAPI(client).request("GET", path)
+    assert raw_body not in str(failure.value)
+
+
+@pytest.mark.parametrize("timestamps,expected", [
+    (["2026-10-08T08:00:00.000Z"] + [None]*7, None),
+    ([None]*8, None),
+    (["2026-10-08T08:00:00.000Z"]*7 + ["not-a-timestamp"], None),
+    (["2026-10-08T08:00:00.000Z"]*7 + ["2026-10-08T08:01:00"], None),
+    (["2026-10-08T08:00:00.000Z"]*7 + [12345], None),
+    (["2026-10-08T08:00:00.000Z"]*7 + ["2026-10-08T09:01:00.000+01:00"], "2026-10-08T08:01:00.000000Z"),
+])
+def test_dataset_version_requires_complete_valid_snapshot_timestamps(timestamps, expected):
+    from scripts.issue6_langfuse_publication import ORIGIN, build_manifest, publish
+    boundary = LangfuseHTTPBoundary()
+    item_ids = [item["id"] for item in build_manifest()["datasets"][0]["items"]]
+    timestamp_by_id = dict(zip(item_ids, timestamps))
+
+    def timestamps_from_server(request):
+        response = boundary(request)
+        for item_id, item in boundary.items.items():
+            if item_id in timestamp_by_id:
+                item["updatedAt"] = timestamp_by_id[item_id]
+        # A list response is serialized before the mutation above; rebuild it
+        # through the public external boundary so the snapshot includes timestamps.
+        if request.method == "GET":
+            response = boundary(request)
+        return response
+
+    with httpx.Client(base_url=ORIGIN, transport=httpx.MockTransport(timestamps_from_server)) as client:
+        receipt = publish(build_manifest(), client)
+    assert receipt["datasets"][0]["dataset_version"] == expected
+    assert receipt["datasets"][0]["dataset_version_status"] == ("available" if expected else "unavailable_missing_or_invalid_timestamps")
+
+
+@pytest.mark.parametrize("field,sources", [("sources", {}), ("sources", [None]),
+                                          ("context_sources", {}), ("sources", "not-a-source-list")])
+@pytest.mark.parametrize("with_receipt", [False, True])
+def test_malformed_sources_and_missing_or_present_receipts_remain_unavailable(field, sources, with_receipt):
+    from scripts.issue6_langfuse_publication import build_manifest
+    from scripts.issue6_langfuse_evaluators import application_receipt, evaluator_definitions
+    item = build_manifest()["datasets"][0]["items"][0]
+    inputs = {**item["input"], field: sources}
+    metadata = {}
+    if with_receipt:
+        receipt = application_receipt(item["metadata"]["case_id"], {"events": []},
+                                      worker_completed=True, completed_sources={"s1": 1})
+        receipt["input"] = inputs
+        metadata["issue6_application_receipt"] = receipt
+    context = {"observation": {"input": inputs, "output": {"events": []}, "metadata": metadata},
+               "experiment": {"itemExpectedOutput": item["expectedOutput"], "itemMetadata": item["metadata"]}}
+    scores = evaluate_code(evaluator_definitions()[0]["sourceCode"], context)
+    assert all(score["dataType"] == "TEXT" and score["value"] == "unavailable" for score in scores.values())
+
+
+@pytest.mark.parametrize("phase,expected_writes", [
+    ("dataset", 1), ("first_item", 2), ("last_item", 32), ("prompt", 33),
+    ("evaluator", 38), ("rule", 42), ("last_rule", 45),
+])
+def test_uncertain_create_stops_and_explicit_resume_reuses_persisted_assets(phase, expected_writes):
     from scripts.issue6_langfuse_publication import ORIGIN, build_manifest, publish
     boundary = LangfuseHTTPBoundary()
     fail_once = True
+    last_item_id = build_manifest()["datasets"][-1]["items"][-1]["id"]
 
     def lost_response(request):
         nonlocal fail_once
         response = boundary(request)
-        if fail_once and request.method == "POST":
+        body = json.loads(request.content) if request.method == "POST" else {}
+        path = request.url.path
+        matches = {
+            "dataset": path == "/api/public/v2/datasets",
+            "first_item": path == "/api/public/dataset-items",
+            "last_item": path == "/api/public/dataset-items" and body.get("id") == last_item_id,
+            "prompt": path == "/api/public/v2/prompts",
+            "evaluator": path == "/api/public/unstable/evaluators",
+            "rule": path == "/api/public/unstable/evaluation-rules",
+            "last_rule": path == "/api/public/unstable/evaluation-rules" and body.get("name", "").endswith("bilingual-consistency"),
+        }
+        if fail_once and request.method == "POST" and matches[phase]:
             fail_once = False
             raise httpx.ReadTimeout("Controlled lost response", request=request)
         return response
@@ -216,7 +339,7 @@ def test_uncertain_create_stops_and_explicit_resume_reuses_the_persisted_dataset
     with httpx.Client(base_url=ORIGIN, transport=httpx.MockTransport(lost_response)) as client:
         with pytest.raises(ValueError, match="outcome unknown"):
             publish(build_manifest(), client)
-        assert boundary.writes == 1
+        assert boundary.writes == expected_writes
         receipt = publish(build_manifest(), client)
-        assert receipt["verified_counts"]["datasets"] == 4
-        assert len(boundary.assets["datasets"]) == 4
+        assert receipt["verified_counts"] == {"datasets": 4, "items": 28, "prompts": 5, "evaluators": 4, "disabled_rules": 4}
+        assert boundary.writes == 45
