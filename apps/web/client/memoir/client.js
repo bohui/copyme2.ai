@@ -182,8 +182,7 @@ let timelineMountId = 0;
 let assistantMessageSequence = 0;
 let workspaceUpdateQueue = Promise.resolve();
 const appliedWorkspaceSequences = new Map();
-const WORKSPACE_VISIBILITY_DEBOUNCE_MS = 180;
-const workspaceVisibility = { projectId: null, stable: false, pending: null, timer: null };
+const workspaceVisibility = { projectId: null, stable: false };
 const conversationScroll = createConversationScroll();
 
 const ASSISTANT_STREAM_CHUNK_SIZE = 3;
@@ -1190,7 +1189,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const parent = ["suburb", "landmark"].includes(entry.granularity) ? parents.at(-1) : "";
   const searchPlace = parent && !entry.place.includes(parent) ? `${entry.place}, ${parent}` : entry.place;
   const center = placePhotoCenter(entry);
-  const samePlace = (entry.photo_search_place || entry.place) === searchPlace;
+  const samePlace = placeHistoryKey({place: entry.photo_search_place || entry.place}) === placeHistoryKey({place: searchPlace});
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
     && entry.photo_search_policy === "place-fallback-gps-time-v8";
@@ -1245,7 +1244,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
         const scope = {...latest, photo_search_place: searchPlace, ...(resultCenter ? {photo_search_latitude: resultCenter.latitude,
           photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
-          && (latest.photo_search_place || latest.place) === searchPlace
+          && placeHistoryKey({place: latest.photo_search_place || latest.place}) === placeHistoryKey({place: searchPlace})
           && latest.photo_search_policy === "place-fallback-gps-time-v8" ? latest.pictures || [] : [], result.items)
           .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
@@ -1375,7 +1374,7 @@ function photoMatchesScope(picture, entry, focus = null) {
   const period = photoSearchPeriod(entry, focus);
   const relaxedGps = ["gps", "gps_time"].includes(picture.search_fallback)
     && picture.requested_period === period
-    && picture.search_place === (entry.photo_search_place || entry.place);
+    && placeHistoryKey({place: picture.search_place}) === placeHistoryKey({place: entry.photo_search_place || entry.place});
   const relaxedTime = relaxedGps && picture.search_fallback === "gps_time";
   const expression = picture.date_expression || "";
   const years = Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
@@ -3067,45 +3066,22 @@ function renderStory() {
 }
 
 function workspaceContentAvailable() {
-  // Open for the selected place's map or unlocked composition. Draft status
-  // and early family/timeline records cannot activate an empty workspace.
-  return Boolean(composingWorkspaceActive() || placeMapTarget(placeWorkspaceSelection()));
+  // A place trigger opens its workspace independently of map/photo readiness.
+  // Draft status and early family/timeline records do not activate it.
+  return Boolean(composingWorkspaceActive() || state.placeJourney);
 }
 
 function workspaceHasContent() {
-  // Async map, grouping, and photo updates can briefly make the selected
-  // target unavailable. Keep the mounted workspace stable until that gap
-  // persists, otherwise the Cesium flight is destroyed and restarted.
+  // Confirmed activation survives later lookups and empty selections. A
+  // streamed preview is visible provisionally so a failed turn can roll back.
   const projectId = state.project?.id || null;
   if (workspaceVisibility.projectId !== projectId) {
-    if (workspaceVisibility.timer) clearTimeout(workspaceVisibility.timer);
     workspaceVisibility.projectId = projectId;
     workspaceVisibility.stable = false;
-    workspaceVisibility.pending = null;
-    workspaceVisibility.timer = null;
   }
   const available = workspaceContentAvailable();
-  if (available) {
-    if (workspaceVisibility.timer) clearTimeout(workspaceVisibility.timer);
-    workspaceVisibility.stable = true;
-    workspaceVisibility.pending = null;
-    workspaceVisibility.timer = null;
-    return true;
-  }
-  if (!workspaceVisibility.stable) return false;
-  if (workspaceVisibility.pending !== false) {
-    if (workspaceVisibility.timer) clearTimeout(workspaceVisibility.timer);
-    workspaceVisibility.pending = false;
-    workspaceVisibility.timer = setTimeout(() => {
-      workspaceVisibility.timer = null;
-      workspaceVisibility.pending = null;
-      if (workspaceVisibility.projectId !== projectId) return;
-      if (workspaceContentAvailable()) return;
-      workspaceVisibility.stable = false;
-      render();
-    }, WORKSPACE_VISIBILITY_DEBOUNCE_MS);
-  }
-  return true;
+  if (available && (!state.placeJourney?.preview || composingWorkspaceActive())) workspaceVisibility.stable = true;
+  return workspaceVisibility.stable || available;
 }
 
 function workspaceDetail() {
@@ -3207,10 +3183,10 @@ function placeHistoryChoices(places, current) {
   }).join("")}</nav>`;
 }
 
-function placeWorkspaceSelection() {
+function placeWorkspaceSelection({allowUnmapped = false} = {}) {
   if (!state.placeJourney) return null;
   if (state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)) {
-    return placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+    return allowUnmapped || placeMapTarget(state.placeJourney) ? state.placeJourney : null;
   }
   const places = mergePlaces(profile().memory_places || []);
   const matching = state.lifeStage === "all"
@@ -3219,19 +3195,19 @@ function placeWorkspaceSelection() {
   const explicitlySelected = state.selectedPlace
     ? matching.find(item => placeHistoryKey(item) === state.selectedPlace)
     : null;
-  if (explicitlySelected) return placeMapTarget(explicitlySelected) ? explicitlySelected : null;
+  if (explicitlySelected) return allowUnmapped || placeMapTarget(explicitlySelected) ? explicitlySelected : null;
   if (state.selectedPlace) {
     const group = workspacePlaceGroups(matching).find(item => placeHistoryKey(item.city) === state.selectedPlace);
-    const member = group?.members.find(item => placeMapTarget(item));
+    const member = group?.members.find(item => placeMapTarget(item)) || (allowUnmapped ? group?.members.at(-1) : null);
     if (member) return member;
   }
   const current = matching.find(item => placeHistoryKey(item) === placeHistoryKey(state.placeJourney));
-  if (current) return placeMapTarget(current) ? current : null;
+  if (current) return allowUnmapped || placeMapTarget(current) ? current : null;
   const selected = matching.filter((item) => placeMapTarget(item));
   if (selected.length) {
     return selected.at(-1);
   }
-  return placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+  return allowUnmapped || placeMapTarget(state.placeJourney) ? state.placeJourney : null;
 }
 
 function placeMapTarget(journey) {
@@ -3269,27 +3245,24 @@ function workspacePictureItems(place, group = null) {
 
 function workspaceMediaOverview(toggle = "") {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  if (!state.placeJourney) return "";
-  const current = placeWorkspaceSelection();
-  if (!current || !placeMapTarget(current)) return "";
+  const current = placeWorkspaceSelection({allowUnmapped: true});
   const places = mergePlaces(profile().memory_places || []);
   const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
   const groups = workspacePlaceGroups(matching);
-  const activeGroup = groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
-  const photoGroup = state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
-    .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
-  const choices = placeHistoryChoices(groupChoices(groups), current);
-  const map = current
-    ? placeJourneyMarkup(current, "workspace", activeGroup)
-    : `<div class="workspace-empty"><span>◎</span><p>${t("placesEmpty")}</p></div>`;
-  const pictureItems = renderablePictureItems(workspacePictureItems(current, photoGroup));
-  const requestKey = photoRequestKey(current);
+  const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+  const photoGroup = current && (state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
+    .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current))));
+  const choices = current ? placeHistoryChoices(groupChoices(groups), current) : "";
+  const map = (current && placeJourneyMarkup(current, "workspace", activeGroup))
+    || `<div class="workspace-empty" role="status"><span>◎</span>${current ? `<h2>${escapeHtml(current.place)}</h2>` : ""}<p>${t(current ? "pinUnresolved" : "placesEmpty")}</p></div>`;
+  const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
+  const requestKey = current ? photoRequestKey(current) : null;
   const request = state.photoRequests?.get(requestKey);
   const empty = request?.loading
     ? `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`
     : request?.error
       ? `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
-      : `<p class="workspace-photo-status" role="status">${t(Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
+      : `<p class="workspace-photo-status" role="status">${t(current && Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
   const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${favoritePhotoWall()}${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
   return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
 }
@@ -3333,7 +3306,7 @@ function workspaceTabs() {
   const t = (key) => translate(`Memoir.workspace.${key}`);
   const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
   return composingWorkspaceActive() ? [...premium, ["memoir", t("memoir")]]
-    : premium.filter(([key]) => key === "timeline" ? state.timeline.length : state.people.length);
+    : [];
 }
 
 function activeWorkspaceTab() {
@@ -3694,6 +3667,7 @@ function placeJourneyMarkup(journey, variant = "surface", group = null) {
   const title = group?.city || journey;
   const target = group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
   if (!target) return "";
+  const parentFallback = !group && target.place && placeHistoryKey({place: target.place}) !== placeHistoryKey({place: journey.place});
   const mapUrl = placeMapUrl(target);
   const mapLink = mapUrl ? `<a class="place-map-link" href="${escapeHtml(mapUrl)}" target="_blank" rel="noreferrer">${t("exploreMap")} <span aria-hidden="true">↗</span></a>` : "";
   const latitude = Number.isFinite(target?.latitude) ? target.latitude : "";
@@ -3702,10 +3676,10 @@ function placeJourneyMarkup(journey, variant = "surface", group = null) {
   const placeType = currentUiLocale() === "zh-CN"
     ? ({ city: "城市", town: "城镇", region: "地区", country: "国家", neighbourhood: "街区" }[journey.granularity] || "地点")
     : (journey.granularity || "place");
-  const pins = target.pins || [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}];
+  const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
   const pinData = ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
   const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
-  return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${!group && target.place !== journey.place ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${parentFallback ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
 }
 
 function placeJourneySurface() {

@@ -7,6 +7,7 @@ import os
 from threading import Lock
 
 import httpx
+from .place_identity import geographic_label, place_path
 
 _lock = Lock()
 GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
@@ -79,20 +80,17 @@ def search_place_details(query: str):
 
 
 def resolve_place_map(journey: dict, saved_places: list) -> dict:
-    labels = [label for label in journey["hierarchy"] if label.casefold() != "earth"]
-    if not labels or labels[-1] != journey["place"]:
-        labels.append(journey["place"])
+    labels = place_path(journey)
     unavailable = False
     for end in range(len(labels), 0, -1):
         target_path = labels[:end]
+        target_identity = tuple(map(geographic_label, target_path))
         name = target_path[-1]
         candidates = ([journey] if end == len(labels) else []) + saved_places
         for candidate in candidates:
-            candidate_path = [label for label in candidate.get("hierarchy", []) if label.casefold() != "earth"]
-            if not candidate_path or candidate_path[-1] != candidate.get("place"):
-                candidate_path.append(candidate.get("place"))
+            candidate_path = place_path(candidate, normalized=True)
             lat, lon = candidate.get("latitude"), candidate.get("longitude")
-            if candidate_path == target_path and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in (lat, lon)) and -90 <= lat <= 90 and -180 <= lon <= 180:
+            if candidate_path == target_identity and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in (lat, lon)) and -90 <= lat <= 90 and -180 <= lon <= 180:
                 return {"status": "READY", "target": {"place": name, "latitude": lat, "longitude": lon}, "fallback": end < len(labels)}
         if unavailable:
             continue

@@ -1,5 +1,6 @@
 // Geographic identity is independent of the memories attached to it.
 const normalize = value => String(value || '').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+const geographicLabel = value => normalize(value).replace(/([\u3400-\u9fff])[市省]$/, '$1');
 const genericPlaces = new Set([
   '家属院', '市区', '城区', '老家', '故乡', '家乡', '村里', '镇上', '河边', '山里',
   '学校', '医院', '车站', '小区', '附近', '这里', '那里',
@@ -21,8 +22,8 @@ const LIFE_STAGE_ORDER = new Map([
   ['later_life', 6],
 ]);
 const path = place => {
-  const labels = (place.hierarchy || []).filter(label => normalize(label) !== 'earth').map(normalize);
-  if (labels.at(-1) !== normalize(place.place)) labels.push(normalize(place.place));
+  const labels = (place.hierarchy || []).filter(label => !['earth', '地球'].includes(normalize(label))).map(geographicLabel);
+  if (labels.at(-1) !== geographicLabel(place.place)) labels.push(geographicLabel(place.place));
   return labels;
 };
 export const placeHistoryKey = place => JSON.stringify(path(place));
@@ -85,7 +86,7 @@ export function mapTarget(place, places) {
   const labels = path(place);
   return places.filter(other => {
     const ancestor = path(other);
-    return coordinates(other) && ancestor.length < labels.length && ancestor.every((label,index) => labels[index] === label);
+    return coordinates(other) && ancestor.length <= labels.length && ancestor.every((label,index) => labels[index] === label);
   }).sort((a,b) => path(b).length - path(a).length)[0] || null;
 }
 

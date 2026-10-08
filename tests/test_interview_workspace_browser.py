@@ -19,6 +19,13 @@ def interview():
         browser = pw.chromium.launch()
         page = browser.new_page(viewport={"width": 1440, "height": 900})
         page.set_default_timeout(8000)
+        # Product routes use the isolated API's demo principal; the synthetic
+        # browser token belongs only to the mocked authentication boundary.
+        def demo_project_request(route):
+            headers = {key: value for key, value in route.request.headers.items() if key != 'authorization'}
+            route.continue_(headers={**headers, 'x-account-id': 'demo-storyteller'})
+        page.route("**/api/v1/memoir/projects**", demo_project_request)
+        page.route("**/api/v1/memoir/memory-sessions/**", demo_project_request)
         # Authentication and model output are external boundaries. Avoid creating
         # a new real anonymous Supabase account for every regression scenario.
         page.route("**/api/v1/memoir/agent/config", lambda route: route.fulfill(
@@ -59,16 +66,19 @@ def interview():
                 "place_journey": journey,
                 "place_journey_change": {"changed": True, "revision": 1},
             })))
-        page.goto(os.environ.get("MEMOIR_BROWSER_URL", "http://localhost:3011"))
+        page.goto(os.environ.get("MEMOIR_BROWSER_URL", "http://localhost:3011").rstrip('/') + '/memoir',
+                  wait_until="networkidle", timeout=30000)
         page.get_by_role("button", name="Begin my story").click()
         expect(page.locator(".assistant-message .listen-button").first).to_be_visible(timeout=30000)
         expect(page.locator(".message-streaming")).to_have_count(0, timeout=30000)
+        page.wait_for_load_state("networkidle")
         expect(page.get_by_text("Before chapter one", exact=True)).to_have_count(0)
         expect(page.get_by_role("button", name="Hide history", exact=True)).to_have_count(0)
         page.get_by_role("textbox", name="Your message").fill("I grew up in Chengde. " + "I remember the streets and my friends. " * 25)
         page.get_by_role("button", name="Send message").click()
         expect(page.get_by_role("button", name="Collapse workspace")).to_be_visible(timeout=20000)
         expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
+        page.wait_for_load_state("networkidle")
         yield page
         browser.close()
 
@@ -239,20 +249,45 @@ def test_saved_project_places_survive_reload_without_new_place_cue(interview):
     expect(page.get_by_role("button", name="Childhood", exact=False)).to_have_attribute("aria-pressed", "true")
 
 
-def test_unmapped_place_does_not_replace_the_workspace(interview):
+def test_unmapped_place_keeps_places_and_photos_available_after_round_five(interview):
     page = interview
     page.route("**/place-map", lambda route: route.fulfill(
         content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None})))
     page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What was your new neighbourhood like?",
+        "composition_stage": 0,
         "profile_updates": {"story_focus": {"life_stage": "childhood"}},
         "place_journey": {"place": "Beijing", "hierarchy": ["Earth", "China", "Beijing"], "granularity": "city",
-                          "life_stage": "childhood"},
+                          "life_stage": "childhood", "revision": 2},
         "place_journey_change": {"changed": True}})))
     page.get_by_role("textbox", name="Your message").fill("We moved to Beijing when I was a child.")
     page.get_by_role("button", name="Send message").click()
-    expect(page.get_by_role("complementary", name="Places workspace")).to_have_count(0, timeout=20000)
+    expect(page.get_by_role("heading", name="Beijing", exact=True)).to_be_visible(timeout=20000)
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
+    page.route("**/api/v1/memoir/story/private-draft?**", lambda route: route.fulfill(json={
+        "covered_round": 5, "preview": {"title": "Childhood", "text": "A saved private draft."}}))
+    page.wait_for_timeout(250)  # Exceed the former workspace visibility timeout.
+    expect(page.get_by_role("complementary", name="Places workspace")).to_be_visible()
+    expect(page.locator(".workspace-media-map")).to_be_visible()
+    expect(page.locator(".workspace-media-gallery")).to_be_visible()
+    expect(page.get_by_text("Location pending", exact=True)).to_be_visible()
     expect(page.locator(".place-journey-card")).to_have_count(0)
+    expect(page.locator("[data-workspace-tab]")).to_have_count(0)
+
+    page.reload()
+    expect(page.get_by_role("heading", name="Beijing", exact=True)).to_be_visible(timeout=20000)
+    expect(page.locator(".private-draft-status")).to_contain_text("round 5")
+    expect(page.locator(".workspace-media-gallery")).to_be_visible()
+    history = page.get_by_role("navigation", name="Place history")
+    history.get_by_role("button", name="Chengde", exact=False).click()
+    expect(page.locator(".place-journey-card")).to_be_visible()
+    history.get_by_role("button", name="Beijing", exact=False).click()
+    expect(page.get_by_text("Location pending", exact=True)).to_be_visible()
+
+    from pathlib import Path
+    destination = Path("output/playwright/interview-unmapped-workspace-fixed.png")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(destination))
 
 
 def test_conversation_keeps_inviting_memories_after_session_followups(interview):
@@ -270,7 +305,7 @@ def test_conversation_keeps_inviting_memories_after_session_followups(interview)
     assert 'follow-up question' in captured[0]
 
 
-def test_places_without_a_map_do_not_open_workspace(interview):
+def test_places_without_a_map_keep_workspace_controls_and_later_composition(interview):
     page = interview
     page.route("**/place-map", lambda route: route.fulfill(
         content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None})))
@@ -280,5 +315,60 @@ def test_places_without_a_map_do_not_open_workspace(interview):
         "place_journey_change": {"changed": True}})))
     page.get_by_role("textbox", name="Your message").fill("I also remember Hobart.")
     page.get_by_role("button", name="Send message").click()
-    expect(page.get_by_role("complementary", name="Places workspace")).to_have_count(0, timeout=20000)
+    expect(page.get_by_role("heading", name="Hobart", exact=True)).to_be_visible(timeout=20000)
+    expect(page.get_by_role("complementary", name="Places workspace")).to_be_visible()
+    expect(page.locator(".workspace-media-gallery")).to_be_visible()
     expect(page.locator(".place-journey-card")).to_have_count(0)
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
+    page.get_by_role("button", name="Collapse workspace").click()
+    expect(page.locator("#workspace-detail")).to_have_class("workspace-detail is-collapsed")
+    page.get_by_role("button", name="Show workspace").click()
+    expect(page.locator(".workspace-media-gallery")).to_be_visible()
+
+    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(json={
+        "reply": "Your first chapter is ready. What else do you remember?",
+        "composition_stage": 3,
+        "chapters": [{"id": "first-chapter", "chapter_number": 1, "title": "Childhood", "text": "A remembered journey."}]}))
+    page.get_by_role("textbox", name="Your message").fill("There is more I would like to remember.")
+    page.get_by_role("button", name="Send message").click()
+    expect(page.locator(".story-shell.workspace-visible")).to_be_visible(timeout=20000)
+    expect(page.locator("[data-workspace-tab='memoir']")).to_be_visible()
+    expect(page.locator(".workspace-media-overview")).to_have_count(0)
+    expect(page.get_by_role("textbox", name="Your message")).to_be_visible()
+
+
+def test_city_alias_keeps_saved_photos_without_repeating_discovery(interview):
+    page = interview
+    searches = []
+    def photos(route):
+        searches.append(route.request.url)
+        route.fulfill(json={"status": "READY", "items": [{
+            "asset_id": "chengde-saved", "title": "Chengde reference",
+            "image_url": "/static/timeline_avatar_child_female.png",
+            "date_expression": "1983", "latitude": 40.9517, "longitude": 117.9632,
+            "allowed_actions": {"embed": True}}], "next_cursor": None})
+    page.route("**/place-photos?**", photos)
+    turn = {"reply": "What do you remember about the city?",
+        "place_journey": {"place": "承德市", "hierarchy": ["Earth", "中国", "河北省", "承德市"],
+            "granularity": "city", "latitude": 40.9517, "longitude": 117.9632,
+            "period": "1980s", "life_stage": "childhood", "revision": 2},
+        "place_journey_change": {"changed": True}}
+    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(json=turn))
+    page.get_by_role("textbox", name="Your message").fill("I remember 承德市 in the 1980s.")
+    page.get_by_role("button", name="Send message").click()
+    expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible(timeout=20000)
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
+    page.wait_for_load_state("networkidle")
+    assert len(searches) == 1
+
+    turn["place_journey"] = {"place": "承德", "hierarchy": ["Earth", "中国", "河北", "承德"],
+        "granularity": "city", "period": "1980s", "life_stage": "young_adulthood", "revision": 3}
+    page.get_by_role("textbox", name="Your message").fill("I returned to 承德 in the 1980s.")
+    page.get_by_role("button", name="Send message").click()
+    expect(page.get_by_role("button", name="Send message")).to_be_enabled(timeout=20000)
+    expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible()
+    page.wait_for_load_state("networkidle")
+    assert len(searches) == 1, "a city suffix alias must reuse saved photo discovery"
+    page.reload()
+    expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible(timeout=20000)
+    assert len(searches) == 1

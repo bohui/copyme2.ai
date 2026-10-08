@@ -1,0 +1,256 @@
+{
+  "dataset": "memoir-place-identity",
+  "dataset_version": "memoir-place-identity/1",
+  "case_defaults": {
+    "language": "zh-CN",
+    "profile": {},
+    "memories": [],
+    "place_journey": {
+      "place": "承德市",
+      "hierarchy": [
+        "Earth",
+        "中国",
+        "河北省",
+        "承德市"
+      ],
+      "granularity": "city",
+      "latitude": 40.9517,
+      "longitude": 117.9632,
+      "schema_version": 1,
+      "duration_ms": 5200,
+      "status": "active",
+      "revision": 4,
+      "updated_at": "2026-10-08T00:00:00Z",
+      "source_sequence": 1
+    }
+  },
+  "cases": [
+    {
+      "id": "city-short-name",
+      "text": "我六七岁以后搬到承德，常和爸妈在城里散步。",
+      "expected_places": [
+        {
+          "place": "承德",
+          "hierarchy": [
+            "Earth",
+            "中国",
+            "河北",
+            "承德"
+          ],
+          "granularity": "city"
+        }
+      ],
+      "recorded_response": "[[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"承德\", \"hierarchy\": [\"Earth\", \"中国\", \"河北\", \"承德\"], \"granularity\": \"city\"}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+      "reuse_current_coordinates": true
+    },
+    {
+      "id": "city-administrative-suffix",
+      "text": "后来我又回到了承德市。",
+      "expected_places": [
+        {
+          "place": "承德市",
+          "hierarchy": [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市"
+          ],
+          "granularity": "city"
+        }
+      ],
+      "recorded_response": "[[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"承德市\", \"hierarchy\": [\"Earth\", \"中国\", \"河北省\", \"承德市\"], \"granularity\": \"city\"}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+      "place_journey": {
+        "place": "承德",
+        "hierarchy": [
+          "Earth",
+          "中国",
+          "河北",
+          "承德"
+        ],
+        "granularity": "city",
+        "latitude": 40.9517,
+        "longitude": 117.9632,
+        "schema_version": 1,
+        "duration_ms": 5200,
+        "status": "active",
+        "revision": 4,
+        "updated_at": "2026-10-08T00:00:00Z",
+        "source_sequence": 1
+      },
+      "reuse_current_coordinates": true
+    },
+    {
+      "id": "new-child-of-known-city",
+      "text": "我小时候住在大石庙镇。",
+      "expected_places": [
+        {
+          "place": "大石庙镇",
+          "hierarchy": [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市",
+            "大石庙镇"
+          ],
+          "granularity": "suburb"
+        }
+      ],
+      "recorded_response": "[[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"大石庙镇\", \"hierarchy\": [\"Earth\", \"中国\", \"河北省\", \"承德市\", \"大石庙镇\"], \"granularity\": \"suburb\"}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+      "hierarchy_alternatives": {
+        "大石庙镇": [
+          [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市",
+            "双桥区",
+            "大石庙镇"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "two-child-places-one-city",
+      "text": "我先住在大石庙镇，后来搬到了双桥区。",
+      "expected_places": [
+        {
+          "place": "大石庙镇",
+          "hierarchy": [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市",
+            "大石庙镇"
+          ],
+          "granularity": "suburb"
+        },
+        {
+          "place": "双桥区",
+          "hierarchy": [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市",
+            "双桥区"
+          ],
+          "granularity": "suburb"
+        }
+      ],
+      "recorded_response": "[[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"大石庙镇\", \"hierarchy\": [\"Earth\", \"中国\", \"河北省\", \"承德市\", \"大石庙镇\"], \"granularity\": \"suburb\"}[[/MEMORY_SPARK_PLACE_JOURNEY]][[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"双桥区\", \"hierarchy\": [\"Earth\", \"中国\", \"河北省\", \"承德市\", \"双桥区\"], \"granularity\": \"suburb\"}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+      "hierarchy_alternatives": {
+        "大石庙镇": [
+          [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市",
+            "双桥区",
+            "大石庙镇"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "same-name-different-region",
+      "text": "I later moved to Richmond in Victoria, Australia.",
+      "expected_places": [
+        {
+          "place": "Richmond",
+          "hierarchy": [
+            "Earth",
+            "Australia",
+            "Victoria",
+            "Richmond"
+          ],
+          "granularity": "city"
+        }
+      ],
+      "recorded_response": "[[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"Richmond\", \"hierarchy\": [\"Earth\", \"Australia\", \"Victoria\", \"Richmond\"], \"granularity\": \"city\"}[[/MEMORY_SPARK_PLACE_JOURNEY]]",
+      "language": "en-AU",
+      "place_journey": {
+        "place": "Richmond",
+        "hierarchy": [
+          "Earth",
+          "Australia",
+          "New South Wales",
+          "Richmond"
+        ],
+        "granularity": "city",
+        "latitude": -33.6,
+        "longitude": 150.75,
+        "schema_version": 1,
+        "status": "active",
+        "revision": 1,
+        "updated_at": "2026-10-08T00:00:00Z"
+      },
+      "profile": {
+        "memory_places": [
+          {
+            "place": "Richmond",
+            "hierarchy": [
+              "Earth",
+              "Australia",
+              "New South Wales",
+              "Richmond"
+            ],
+            "granularity": "city",
+            "latitude": -33.6,
+            "longitude": 150.75,
+            "schema_version": 1,
+            "status": "active",
+            "revision": 1,
+            "updated_at": "2026-10-08T00:00:00Z"
+          },
+          {
+            "place": "Richmond",
+            "hierarchy": [
+              "Earth",
+              "Australia",
+              "Victoria",
+              "Richmond"
+            ],
+            "granularity": "city",
+            "latitude": -37.82,
+            "longitude": 144.998
+          }
+        ]
+      }
+    },
+    {
+      "id": "county-is-not-city",
+      "text": "后来我们搬到了承德县。",
+      "expected_places": [
+        {
+          "place": "承德县",
+          "hierarchy": [
+            "Earth",
+            "中国",
+            "河北省",
+            "承德市",
+            "承德县"
+          ],
+          "granularity": "suburb"
+        }
+      ],
+      "recorded_response": "[[MEMORY_SPARK_PLACE_JOURNEY]]{\"place\": \"承德县\", \"hierarchy\": [\"Earth\", \"中国\", \"河北省\", \"承德市\", \"承德县\"], \"granularity\": \"suburb\"}[[/MEMORY_SPARK_PLACE_JOURNEY]]"
+    },
+    {
+      "id": "saved-photo-is-not-a-new-place-cue",
+      "text": "这张老照片很好看，先聊聊我小时候的游戏。",
+      "expected_places": [],
+      "recorded_response": ""
+    },
+    {
+      "id": "explicit-location-uncertainty",
+      "text": "我记得去过承德，但不确定是不是河北那个城市，先别定位。",
+      "expected_places": [],
+      "recorded_response": ""
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://www.sqq.gov.cn/art/2018/12/20/art_6485_563080.html",
+      "supports": "大石庙镇 is within 双桥区, 承德市; a town hierarchy may include this containing district."
+    }
+  ]
+}

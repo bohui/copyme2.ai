@@ -161,12 +161,40 @@ existing city group or creates another group. Its contract is in
 `skills/memoir-place-groups/references/contract.md`. Existing histories are normalized on hydration and on
 new place events. Aliases are not guessed or merged across different hierarchies.
 
+Within the same complete hierarchy, the optional Chinese administrative suffixes
+`市` and `省` are normalized for identity: 承德/承德市 and 河北/河北省 match.
+The backend uses this identity for saved-map lookup and repeat-journey updates;
+the browser uses the same rule when merging restored history. Original source
+labels remain available, and existing coordinates, photos and life stages survive
+a repeat mention that omits coordinates. County, district and town suffixes are
+not interchangeable with a city, and different containing regions stay distinct.
+Photo discovery uses the same suffix equivalence for its saved search label and
+GPS/time fallback provenance, while changes in geography, period or coordinates
+continue to invalidate a search scope.
+
+The existing extraction call includes compact geographic hints from the latest
+saved journey and up to 50 available profile history entries, without photo
+metadata. It must still emit a currently mentioned repeat using the current
+message's wording. Deterministic identity matching follows extraction; there is
+no additional model call for administrative-suffix deduplication.
+Multiple currently grounded aliases of the same identity are collapsed before
+persistence, retaining known coordinates and the latest grounded source label.
+
 The place-map endpoint accepts the validated journey contract and returns
 `status`, `target` (place, latitude, longitude, optional attribution), and `fallback`.
 It uses reliable existing coordinates, otherwise searches the full public place
 hierarchy from detailed place toward country. An unavailable provider still allows
 saved parent coordinates. Parent coordinates belong only to `target`, never to
 the child's persisted coordinates. No match leaves the hierarchy visible.
+
+After a confirmed explicit location trigger, the project workspace stays available through
+unresolved maps, pending photos and private draft checkpoints. Before composition
+unlock it retains location and photo panes; after unlock it uses the enabled
+composition tabs. Manual collapse remains available. A fifth-round private draft
+checkpoint alone does not unlock composition tabs or hide the media workspace.
+A streamed preview can show the workspace provisionally. If its turn fails before
+confirmation, visibility returns to the previous state; an already confirmed
+workspace remains available.
 
 The default geocoder is Google Geocoding, with cached queries and serialized
 requests. Set the server-only `GOOGLE_MAPS_GEOCODING_API_KEY` and, when a
