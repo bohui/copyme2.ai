@@ -659,7 +659,6 @@ grant execute on function public.begin_user_interview_photo(text,jsonb,uuid),pub
   public.unlink_user_interview_photo(text,uuid),public.apply_user_memory_events(text,jsonb,jsonb),
   public.prepare_guest_conversation_transfer(text,text,jsonb,jsonb,text),public.attach_guest_conversation(text,boolean) to authenticated;
 grant execute on function public.claim_memoir_lane(uuid,integer) to service_role;
-commit;
 
 -- Canonical source/event revocation may reduce a bundle to independently safe
 -- sections. Keep each surviving event's photo dependency digest through that
@@ -681,3 +680,5 @@ language sql immutable set search_path='' as $$
         where key in(select id from safe_events)),'{}')) else '{}'::jsonb end
 $$;
 revoke all on function public.safe_memoir_reuse(jsonb,text[],uuid) from public,anon,authenticated;
+
+commit;
