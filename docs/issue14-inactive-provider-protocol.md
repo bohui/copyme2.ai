@@ -32,8 +32,10 @@ follow it. Timeout is cleanup only, never evidence of a spending cap.
 `synthetic-responses-byte-v1` defines one input token per byte of the complete
 final UTF-8 JSON body. This includes instructions, full message history, function
 definitions, function-call arguments/results, reasoning configuration, and all
-JSON framing. The transport replaces the outgoing body with those exact inspected
-bytes; no builder can append context or strip a cap afterward.
+JSON framing. The transport constructs a private outgoing request from the pinned
+target, validated header snapshot and exact inspected bytes. It never forwards the
+caller-owned request or extensions; asynchronous body callbacks cannot redirect it,
+change its method/identity/role, append context or strip a cap afterward.
 
 Only the explicitly recognized text/function payload grammar is accepted. Hidden
 server context (`previous_response_id`), photos, audio, remote tools, unknown
@@ -71,7 +73,8 @@ failed fsyncs fence the instance.
 
 Each request UUID is unique within a run; each response UUID can settle once.
 Tickets cannot be forged or reused through the public API. An invalid or missing
-usage field, noninteger/negative/over-bound count, inconsistent total, unsupported
+usage field, noninteger/negative/over-bound count, underreported exact byte-input
+count, inconsistent total, unsupported
 billing field, duplicate completion, late error, incomplete frame, disconnect,
 timeout, cancellation, or uncertain journal result retains the full reservation
 and stops subsequent dispatch. A failed completion is never returned as success.
@@ -144,9 +147,9 @@ python -m pytest -q tests/test_issue14_provider_protocol.py
 
 It uses only synthetic data and local disposable sockets; it does not invoke a
 real provider, judge, Langfuse upload, subscription, deployment or migration.
-The test toolchain available during implementation was Python 3.12, HTTPX 0.28.1,
-pytest 8.4.2. The repository requests newer pytest in its optional test dependencies;
-the installed version is explicitly disclosed rather than claimed as an exact lock.
+The initial test toolchain was Python 3.12, HTTPX 0.28.1, pytest 8.4.2. Final
+verification also uses Python 3.12, HTTPX 0.28.1 and repository-compatible pytest
+9.1.1 from an available isolated review environment.
 
 At the source baseline, `test_audit_source_pins_match_this_reviewed_derivation` in
 `tests/test_fifty_round_budget_contract.py` fails independently: the pinned

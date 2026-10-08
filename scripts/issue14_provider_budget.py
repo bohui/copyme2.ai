@@ -218,7 +218,9 @@ class ProviderBudget:
             entry = self._entry(ticket)
             if (not _uuid(response_id)
                     or not all(_integer(v) for v in (input_tokens, output_tokens, reasoning_tokens))
-                    or input_tokens > entry['reserved']['input_tokens']
+                    # The controlled protocol's complete byte count is exact,
+                    # so under-reporting cannot refund known consumed input.
+                    or input_tokens != entry['reserved']['input_tokens']
                     or output_tokens > entry['reserved']['output_tokens']
                     or reasoning_tokens > output_tokens):
                 self._reject('usage_invalid')

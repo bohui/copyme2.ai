@@ -221,16 +221,18 @@ class ControlledBudgetTransport(httpx.AsyncBaseTransport):
                 if not isinstance(error, Exception):
                     raise error
             raise BudgetStopped('send_interrupted_or_failed') from None
-        # Freeze the exact inspected bytes. No provider/client payload builder
-        # can add hidden instructions or strip output limits after this point.
-        request.stream = httpx.ByteStream(raw)
-        request.extensions['timeout'] = dict.fromkeys(('connect', 'read', 'write', 'pool'), 2)
+        # Do not forward the caller-owned request: its asynchronous body stream
+        # could have mutated its URL, method, headers, or extensions after the
+        # initial checks. Build a private request from only validated snapshots.
+        # No caller transport/trace extension or callback crosses this boundary.
+        outgoing = httpx.Request('POST', self._endpoint, headers=headers, content=raw,
+            extensions={'timeout': dict.fromkeys(('connect', 'read', 'write', 'pool'), 2)})
         ticket = self._ledger.reserve(request_id=headers.get('x-issue14-request-id'),
             role=headers['x-issue14-role'], payload_bytes=len(raw))
         response = None
         try:
             async with asyncio.timeout(5):
-                response = await self._wire.handle_async_request(request)
+                response = await self._wire.handle_async_request(outgoing)
                 if (response.status_code != 200
                         or response.headers.get('content-type', '').split(';')[0].strip() != 'text/event-stream'
                         or response.headers.get('content-encoding', 'identity') != 'identity'):

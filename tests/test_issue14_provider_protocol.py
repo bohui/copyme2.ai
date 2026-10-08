@@ -79,6 +79,9 @@ class Server:
             elif self.mode == 'over_input':
                 response['usage']['input_tokens'] += 1
                 response['usage']['total_tokens'] += 1
+            elif self.mode == 'under_input':
+                response['usage']['input_tokens'] -= 1
+                response['usage']['total_tokens'] -= 1
             elif self.mode == 'over_output':
                 response['usage']['output_tokens'] += 1
                 response['usage']['total_tokens'] += 1
@@ -186,14 +189,20 @@ def test_exhausted_budget_has_zero_contacts(tmp_path, cap, value):
     asyncio.run(check())
 
 
-def test_concurrent_reservations_shared_across_clients(tmp_path):
+@pytest.mark.parametrize('limiting_cap', ['requests', 'input_tokens', 'output_tokens',
+                                        'reasoning_tokens', 'currency_micros'])
+def test_concurrent_reservations_shared_across_clients(tmp_path, limiting_cap):
     async def check():
-        ledger = budget(tmp_path, requests=3)
+        raw = json.dumps(payload(), ensure_ascii=False, separators=(',', ':')).encode()
+        caps = {'requests': 3, 'input_tokens': len(raw) * 3, 'output_tokens': 30,
+                'reasoning_tokens': 30, 'currency_micros': (len(raw) * 2 + 50) * 3}
+        ledger = budget(tmp_path, **{limiting_cap: caps[limiting_cap]})
         async with server() as fixture:
             fixture.mode = 'wait'
             async def send():
                 async with client(ledger, fixture) as session:
-                    return await session.post(fixture.endpoint, json=payload(), headers=headers())
+                    return await session.post(fixture.endpoint, content=raw,
+                        headers={**headers(), 'content-type': 'application/json'})
             tasks = [asyncio.create_task(send()) for _ in range(20)]
             await fixture.arrived.wait()
             for _ in range(100):
@@ -212,7 +221,7 @@ def test_concurrent_reservations_shared_across_clients(tmp_path):
     asyncio.run(check())
 
 
-@pytest.mark.parametrize('mode', ['missing', 'invalid', 'over_input', 'over_output',
+@pytest.mark.parametrize('mode', ['missing', 'invalid', 'over_input', 'under_input', 'over_output',
     'over_reasoning', 'missing_reasoning', 'bad_total', 'wrong_model', 'wrong_account',
     'missing_cap', 'wrong_cap', 'negative', 'float', 'unknown_billing', 'event_error',
     'duplicate', 'late_error', 'trailing', 'disconnect', 'redirect', 'duplicate_key'])
@@ -505,3 +514,85 @@ def test_limits_are_immutable(tmp_path):
     with pytest.raises(AttributeError):
         ledger.limits.requests = 1000
     ledger.close()
+
+
+def test_caller_request_mutation_cannot_change_the_inspected_wire_target(tmp_path):
+    async def check():
+        ledger = budget(tmp_path)
+        raw = json.dumps(payload()).encode()
+        buffering, release = asyncio.Event(), asyncio.Event()
+        class DelayedBody(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                buffering.set()
+                await release.wait()
+                yield raw
+        async with server() as intended, server() as alternate:
+            transport = ControlledBudgetTransport.controlled(ledger=ledger, endpoint=intended.endpoint)
+            original_headers = {**headers(), 'host': intended.endpoint.split('/')[2],
+                'content-type': 'application/json', 'content-length': str(len(raw))}
+            request = httpx.Request('POST', intended.endpoint, stream=DelayedBody(), headers=original_headers)
+            task = asyncio.create_task(transport.handle_async_request(request))
+            await buffering.wait()
+            request.url = httpx.URL(alternate.endpoint)
+            request.headers['host'] = alternate.endpoint.split('/')[2]
+            request.headers['authorization'] = 'Bearer mutated'
+            request.method = 'PUT'
+            request.headers['x-issue14-role'] = 'judge'
+            trace_calls = []
+            async def trace(*args):
+                trace_calls.append(args)
+            request.extensions['trace'] = trace
+            release.set()
+            response = await task
+            assert response.status_code == 200
+            assert len(intended.contacts) == 1
+            assert alternate.contacts == []
+            assert intended.contacts[0]['raw'] == raw
+            assert intended.contacts[0]['headers']['authorization'] == 'Bearer synthetic-token'
+            assert intended.contacts[0]['headers']['x-issue14-role'] == 'collector'
+            assert trace_calls == []
+            await transport.aclose()
+        ledger.close()
+    asyncio.run(check())
+
+
+def test_ledger_rejects_underreported_exact_input_without_refund(tmp_path):
+    ledger = budget(tmp_path, input_tokens=200)
+    ticket = ledger.reserve(request_id=str(uuid4()), role='collector', payload_bytes=200)
+    with pytest.raises(BudgetStopped, match='usage_invalid'):
+        ledger.settle(ticket, response_id=str(uuid4()), input_tokens=0,
+            output_tokens=0, reasoning_tokens=0)
+    receipt = ledger.receipt()
+    assert receipt['accounted']['input_tokens'] == 200
+    assert receipt['accounted']['currency_micros'] == 450
+    assert receipt['unresolved_requests'] == 1
+    with pytest.raises(BudgetStopped):
+        ledger.reserve(request_id=str(uuid4()), role='collector', payload_bytes=200)
+    ledger.close()
+
+
+def test_caller_trace_callback_cannot_strip_wire_output_cap(tmp_path):
+    async def check():
+        ledger = budget(tmp_path)
+        original = json.dumps(payload()).encode()
+        altered = json.dumps(payload(max_output_tokens=900)).encode()
+        calls = []
+        async def trace(name, info):
+            calls.append(name)
+            if name == 'http11.send_request_headers.started':
+                core_request = info['request']
+                core_request.stream = httpx.ByteStream(altered)
+                core_request.headers = [
+                    (key, value) for key, value in core_request.headers
+                    if key.lower() != b'content-length'] + [
+                        (b'content-length', str(len(altered)).encode())]
+        async with server() as fixture, client(ledger, fixture) as session:
+            await session.post(fixture.endpoint, content=original,
+                headers={**headers(), 'content-type': 'application/json'},
+                extensions={'trace': trace})
+            assert len(fixture.contacts) == 1
+            assert fixture.contacts[0]['raw'] == original
+            assert fixture.contacts[0]['body']['max_output_tokens'] == 10
+            assert calls == []
+        ledger.close()
+    asyncio.run(check())
