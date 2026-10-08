@@ -1,8 +1,10 @@
 # Issue 14: inactive provider-budget protocol slice
 
 This is a controlled-protocol prerequisite, not completion of [issue 14](https://github.com/bohui/copyme2.ai/issues/14).
-There is no live mode, environment-variable override, new endpoint/model/account selection,
-credential lookup, application hook, judge activation, or launcher change.
+The protocol slice has no live mode, environment-variable override, new endpoint/model/account
+selection, credential lookup or judge activation. A subsequent additive
+[deny-only admission slice](issue14-deny-only-admission.md) adds opted-in app hooks
+and a new blocked entry point; it does not install this transport on a live route.
 
 Original reviewed source baseline: `050a664ceadeaeacedd9ac4c38448db494fcf1a4`, tree
 `69484aadec3da6c8c0fd688d360bc58bd9b2d1ce`.
@@ -104,23 +106,25 @@ arguments, raw exceptions, or private reasoning. Receipts always retain
 
 ## Existing routes and held integration work
 
-These paths were inspected but are unchanged:
+The existing provider accounting paths remain unchanged. The two application paths
+noted below additionally have optional deny-only hooks, documented separately:
 
 | Path | Finding / future gate |
 | --- | --- |
 | `scripts/evaluation_budget.py:BudgetedProvider.call` | Callback-only reservation. Forwarding an output limit is not proof of provider enforcement. |
 | `scripts/canary_send_guard.py:CanarySendGuard` | Historical guard is request/SSE accounting; its receipt explicitly reports `token_limits_enforced=false`. Its historical limits are unchanged. |
 | `scripts/canary_gateway_binding.py:GuardedHTTPSession.post` | Actual installed-gateway HTTPX seam after final headers/payload. A future reviewed integration must place the shared budget here or below it and prove no other socket paths bypass it. |
-| `apps/api/codex_runtime.py` | Worker HTTP requests are not provider sends. Composer preparation/draft/review, classification and tool continuations need native correlation and complete per-role coverage. |
-| `apps/api/codex_agent.py` | Native agent/SDK path is outside this adapter's interception. No claim of complete tool-loop coverage. |
+| `apps/api/codex_runtime.py` | Optional admission refusal is separate from accounting. Worker HTTP requests are not provider sends. Composer preparation/draft/review, classification and tool continuations still need native correlation and complete accounting coverage. |
+| `apps/api/codex_agent.py` | Optional admission refusal is separate from accounting. Native agent/SDK traffic is outside this transport's interception; no claim of complete tool-loop accounting. |
 | `apps/api/trajectory_evaluation.py:OpenAICompatibleJudge.__call__` | Direct `AsyncClient.post(.../chat/completions)` at baseline lines 1400–1401 bypasses the shared guard. It must not run under this slice. |
 | `scripts/run_memoir_five_case_semantic_judge.py:judge_one` | Independent `range(retries + 1)` at baseline line 282; CLI defaults to one retry. Every eventual attempt must separately reserve at the actual-send seam. |
 | `scripts/fifty_round_dispatch_budget.py`, `scripts/fifty_round_campaign_adapter.py` | Synthetic bookkeeping/worker adapter remains separate; it is not promoted to provider accounting. |
 
 The new transport denies the `judge` and `photo` roles. This does not disable or
 intercept existing application/judge programs; they remain outside the slice and
-must stay inactive. App hooks, existing guards/bindings, semantic datasets/evaluators,
-and launchers are deliberately untouched pending coordinated ownership and review.
+must stay inactive. Existing guards/bindings, semantic datasets/evaluators, and
+existing launchers are untouched. Only the separately documented, explicitly
+opted-in deny-only app hooks and new blocked launcher have been added.
 
 ## Remaining release gates
 
@@ -163,3 +167,6 @@ At the source baseline, `test_audit_source_pins_match_this_reviewed_derivation` 
 `apps/api/canonical_composer.py` digest is `569b08c45a7aeb9c84b9bd7f32627a174f577a39256d9158d7d239b1a44ca17f`,
 while the exact baseline blob hashes to `be4e1afc91e223a17a47de81ab6cd09de5af825b48547268a80754a8d3b545d2`.
 That held baseline pin is not silently updated in this change.
+The later deny-only hook delta also changes the three application files named in
+the existing derivation pins. Those pins must continue to report source drift;
+they cannot be refreshed to imply provider capability or live authorization.

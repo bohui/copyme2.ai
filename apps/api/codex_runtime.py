@@ -24,6 +24,9 @@ from .agent_storage import UserStorage
 from .conversation_text import original_conversation_text
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
+from .issue14_execution_admission import (
+    check_issue14_dispatch, issue14_connection_options, validate_optional_issue14_admission,
+)
 from .turn_stream import VisibleText
 from .family_context import (
     AUTHOR_TIMELINE_MARKER_END,
@@ -1469,7 +1472,8 @@ def build_loop_trace(*, memory_count: int, resumed: bool, saved_paths: int,
 class CodexRuntime:
     def __init__(self, *, home_root=None, command=None, provider_env=None, model=None,
                  base_url=None, timeout=120, worker_url=None, worker_secret=None,
-                 worker_transport=None, task_publisher_enabled=None):
+                 worker_transport=None, task_publisher_enabled=None, issue14_admission=None):
+        self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.home_root = Path(home_root or os.getenv('MEMORY_SPARK_CODEX_HOME', 'var/codex-users'))
         self.command = command or [os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), 'app-server']
         self.provider_env = provider_env or {}
@@ -1557,6 +1561,7 @@ class CodexRuntime:
                    source_kind: str = 'narrator_chat',
                    user_response: bool = True,
                    trajectory: TrajectoryRecorder | None = None):
+        check_issue14_dispatch(self._issue14_admission, role='collector', correlation=evaluation)
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         visible = VisibleText()
         turn_id = str(uuid4())
@@ -1797,6 +1802,7 @@ class CodexRuntime:
                     provider_env=environment,
                     timeout=self.timeout,
                     trajectory=trajectory,
+                    **issue14_connection_options(self._issue14_admission),
                 ) as connection:
                     if prior:
                         result = await connection.request('thread/resume', {
@@ -2211,6 +2217,7 @@ class CodexRuntime:
                                      on_event=None, on_place=None, trajectory=None,
                                      canonical_events=False):
         """Run marker extraction in a separate, non-conversational pass."""
+        check_issue14_dispatch(self._issue14_admission, role='workspace')
         text = original_conversation_text(text)
         marker_buffer = ''
         previewed_places = set()
@@ -2438,6 +2445,7 @@ class CodexRuntime:
                 home,
                 provider_env={'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env},
                 timeout=WORKSPACE_TIMEOUT,
+                **issue14_connection_options(self._issue14_admission),
             ) as connection:
                 result = await connection.request('thread/start', {
                     'cwd': str(home), 'ephemeral': True,
@@ -2869,6 +2877,7 @@ class CodexRuntime:
         return sources
 
     async def publish_task(self, user_id, project_id, task):
+        check_issue14_dispatch(self._issue14_admission, role='organiser')
         if not self.worker_url or not self.worker_secret:
             raise ValueError('Private Codex task publisher is unavailable')
         async with httpx.AsyncClient(timeout=15) as client:
@@ -2880,6 +2889,7 @@ class CodexRuntime:
 
     async def _resolve_language(self, user_id, text, fallback):
         """Run the memory-context skill privately before any visible generation."""
+        check_issue14_dispatch(self._issue14_admission, role='memory_context')
         if self.worker_url:
             result = await self._worker_turn(
                 user_id=user_id, prior=None, memories=[], profile={}, place_journey=None,
@@ -2894,6 +2904,7 @@ class CodexRuntime:
                 self.command, home,
                 provider_env={'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env},
                 timeout=self.timeout,
+                **issue14_connection_options(self._issue14_admission),
             ) as connection:
                 result = await connection.request('thread/start', {
                     'cwd': str(home), 'ephemeral': True,
@@ -2921,6 +2932,7 @@ class CodexRuntime:
                            evaluation=None, agent_role='collector', on_event=None,
                            extraction_focus=None, diagnostic_request_id=None,
                            trajectory: TrajectoryRecorder | None = None, canonical_events=False):
+        check_issue14_dispatch(self._issue14_admission, role=agent_role, correlation=evaluation)
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
         request_id = new_request_id(diagnostic_request_id)
