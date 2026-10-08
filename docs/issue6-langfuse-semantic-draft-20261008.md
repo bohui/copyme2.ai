@@ -61,6 +61,11 @@ because the runtime contract permits choosing one original date expression
 while retaining the other date evidence in the basis. Expected range endpoints
 and precision remain required.
 
+Both Chinese endpoint expressions allow the original numeric substring with or
+without `年`, consistently with the English case. Original-basis validation and
+numeric token boundaries still apply; `19720` and `19820` cannot stand in for
+1972 and 1982 even when those longer tokens occur in valid source evidence.
+
 The age-with-birth-evidence gold cases retain the narrator's original age phrase
 and a possible 1958–1959 calendar range with uncertainty. Birth year 1946 plus
 age 12 does not uniquely establish 1958. Without birth evidence, the paired
@@ -85,9 +90,12 @@ The actual TDD workflow reproduced the interrupted compatibility failure:
 numeric-token case failed before its boundary repair. That initial draft's
 offline verification passed 5 tests. Cloud review then reproduced two bilingual
 evidence-role failures, four period-expression failures, one recording-veto
-false pass and two age-gold failures before their respective repairs. Final
-review-fix verification: **15 passed, zero failures/errors/skips**, with socket
-connect/connect_ex blocked.
+false pass and two age-gold failures before their respective repairs. That
+review-fix verification passed 15 tests. Cloud delta review then reproduced two
+more false negatives for numeric-only Chinese period endpoints. The corrected
+gold alternatives pass **17 tests, zero failures/errors/skips**, with socket
+connect/connect_ex blocked. Both endpoint regressions also retain wrong numeric
+token, endpoint, precision and forged-evidence rejection checks.
 All outputs in these tests are controlled, not live-model generations.
 
 The first numeric-boundary run also contained a misplaced test assertion. Its
@@ -116,6 +124,11 @@ checker incorrectly rejected the intentional `paired` locale; its four checker
 errors are retained in `review-dataset-static-validation.json`. Earlier
 receipts and content hashes describe the earlier source, not this corrected
 fixture. None of these controlled tests calibrates the human rubric.
+
+Delta receipts are retained as `delta-chinese-numeric-endpoints-red/green` and
+`delta-dataset-static-validation`; the earlier 15-test receipt and fixture hash
+remain intact. The evaluator and application runtime code are unchanged by this
+delta.
 
 No application, gateway, migration, entitlement or service configuration changed.
 The user's manual-testing checkout and shared stack were left untouched.

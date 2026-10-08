@@ -162,6 +162,7 @@ def test_age_with_birth_year_retains_calendar_year_uncertainty(locale, expressio
 @pytest.mark.parametrize("locale,expression", [
     ("en-AU", "1972"), ("en-AU", "1982"),
     ("zh-CN", "1972年"), ("zh-CN", "1982年"),
+    ("zh-CN", "1972"), ("zh-CN", "1982"),
 ])
 def test_a_period_may_preserve_one_original_date_anchor(locale, expression):
     case = dataset_case("placement.interval." + locale)
@@ -183,6 +184,19 @@ def test_a_period_may_preserve_one_original_date_anchor(locale, expression):
     forged = deepcopy(event)
     forged["temporal"]["basis"][0]["quote"] = "A manufactured date basis."
     assert score_events(case["input"], {"events": [forged]}, case["expected_output"])["expected_placement"]["value"] == 0
+
+    # These misleading numeric tokens are original source words, so schema
+    # validation alone cannot reject them as invented citations. Neither may
+    # match a supported endpoint inside a longer numeric token.
+    misleading = deepcopy(case["input"])
+    misleading["sources"][0]["text"] += (" 工坊标签的数字为19720和19820。" if locale == "zh-CN"
+                                             else " The workshop label reads 19720 and 19820.")
+    for token in ("19720", "19820"):
+        wrong = deepcopy(event)
+        wrong["temporal"]["expression"] = token
+        wrong["temporal"]["basis"] = [{**ref, "quote": misleading["sources"][0]["text"]}]
+        assert len(validate_extraction({"events": [wrong]}, misleading["sources"], [])) == 1
+        assert score_events(misleading, {"events": [wrong]}, case["expected_output"])["expected_placement"]["value"] == 0
 
 
 @pytest.mark.parametrize("locale,expression,veto", [

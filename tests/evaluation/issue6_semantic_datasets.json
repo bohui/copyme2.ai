@@ -1082,7 +1082,7 @@
                 "kind": "period",
                 "evidence_anchor": "社区工坊",
                 "life_stage": "midlife",
-                "date_expression_alternatives": ["1972年", "1982年"],
+                "date_expression_alternatives": ["1972年", "1982年", "1972", "1982"],
                 "temporal": {
                   "expression": "1972年至1982年",
                   "precision": "range",
