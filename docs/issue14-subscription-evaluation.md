@@ -111,8 +111,9 @@ is enabled here. The four managed rules remain disabled. Raw outcomes can be
 reviewed locally; dataset experiment publication is a separate explicit step.
 
 The historical strict Issue 14 budget adapters/receipts/source inventory remain
-unchanged and their unfulfilled ACs remain open. The old closed source-inventory
-test already fails on main after the photo-memory changes and also rejects these
-new files. The new launcher's clean exact-head gate does not make that old test
-pass. PR40 stays draft with no merge clearance pending proper source-contract
-version reconciliation and applicable review/checks.
+unchanged and their unfulfilled ACs remain open. Source contract v3 separately
+checks the reviewed current runtime, native fixtures, dataset, skills and SQL,
+while v1/v2 tests use verified immutable historical evidence. See
+`issue14-source-contract-v3.md`. A passing source gate is not a native execution
+receipt or semantic acceptance; exact-head review and applicable checks still
+apply before merge and the native resource preflight still applies before a run.

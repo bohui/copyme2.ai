@@ -414,9 +414,13 @@ def test_structurally_invalid_saved_readback_prevents_second_case(controlled):
 def test_absolute_total_deadline_does_not_reset_at_each_round(controlled):
     session = controlled(seconds=.09)
     session.turn_delay = .025
+    deadline = session.run.deadline
     result = execute(session)
     assert result['status'] == 'incomplete' and result['stop_reason'] == 'deadline_exceeded'
-    assert 1 <= len(session.calls) < 6
+    # Setup is included in the same absolute deadline. A loaded machine may
+    # correctly expire before its first turn; that must not make the test flaky.
+    assert 0 <= len(session.calls) < 6
+    assert session.run.deadline == deadline and time.monotonic() >= deadline
     assert session.closed and result['output'] is None
 
 
