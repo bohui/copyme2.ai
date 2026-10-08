@@ -444,6 +444,30 @@ python3 scripts/run_acceptance_evidence.py
 python3 scripts/audit_spec_routes.py
 ```
 
+For the recall/workspace browser acceptance suite, use a task-owned production
+frontend against a fresh test-mode API rather than a development HMR session.
+With that isolated API already running at `http://127.0.0.1:18042`:
+
+```bash
+MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:18042 npm --prefix apps/web run build
+MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:18042 npm --prefix apps/web run start -- --hostname 127.0.0.1 --port 13042
+```
+
+In another terminal, run the actual source UI and controlled service boundaries:
+
+```bash
+MEMOIR_BROWSER_URL=http://127.0.0.1:13042 python3 -m pytest -q \
+  tests/test_recall_browser.py tests/test_interview_workspace_browser.py \
+  tests/test_progressive_memoir_navigation_browser.py
+```
+
+The saved-draft navigation cases require their disposable PostgreSQL fixtures;
+never point them at live storyteller storage. Optional font CSS is controlled
+on every test page, including fresh tabs; dedicated startup regressions keep it
+pending. Production build/start removes the development-only HMR dependency
+without disabling browser network security. Keep failed development-run evidence
+separate from production acceptance results.
+
 `make memoir-progressive-test` runs the deterministic composer validator and
 renderer against ten distinct sample lives (five in China and five in
 Australia, 31 rounds each), then drives 31-round `zh-CN` and `en-AU` browser

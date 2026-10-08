@@ -143,6 +143,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
         expect(page.locator(".private-draft-status")).to_contain_text(saved_copy)
         page.evaluate("sessionStorage.clear()")
         second = context.new_page()
+        control_optional_fonts(second)
         second.on("pageerror", lambda error: errors.append(str(error)))
         second.goto(interview, wait_until="networkidle")
         expect(second.locator(".chat-scroll")).to_contain_text(original)
