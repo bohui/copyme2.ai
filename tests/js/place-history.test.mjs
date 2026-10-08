@@ -107,6 +107,7 @@ test('renderer keeps detailed title and labels parent map coordinates', async ()
  assert.equal(context.placeMapUrl({latitude: 40.97, longitude: 117.93}), 'https://www.google.com/maps/search/?api=1&query=40.97%2C117.93');
  assert.doesNotMatch(markup,/openstreetmap/);
  assert.match(markup,/parentMap 承德/);
+ assert.match(markup,/data-cesium-pins="\[\]"/);
  assert.doesNotMatch(markup,/placeNote/);
 });
 

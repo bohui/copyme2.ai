@@ -1598,6 +1598,7 @@ class CodexRuntime:
                    client_turn_id: str | None = None,
                    source_kind: str = 'narrator_chat',
                    user_response: bool = True,
+                   saved_place_hints: list | None = None,
                    trajectory: TrajectoryRecorder | None = None):
         check_issue14_dispatch(self._issue14_admission, role='collector', correlation=evaluation)
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
@@ -1730,6 +1731,8 @@ class CodexRuntime:
                 await lease.io(storage.save_profile, profile)
                 await lease.check()
             progress.language = language
+            # Project history is extraction context, never a user-profile write.
+            workspace_profile = {**profile, 'memory_places': saved_place_hints} if saved_place_hints else profile
             await progress.update('context', f'Loaded {len(memories)} memory summaries', f'已加载 {len(memories)} 条回忆摘要', status='completed')
             if trajectory:
                 trajectory.set_context(language=language)
@@ -1772,7 +1775,7 @@ class CodexRuntime:
                             'source_sequence': turn_sequence, 'place_journey': candidate,
                         }})
                 extraction_task = asyncio.create_task(self._workspace_extraction(
-                    user_id=user_id, memories=memories, profile=profile,
+                    user_id=user_id, memories=memories, profile=workspace_profile,
                     place_journey=current_place_journey, family_enabled=family_enabled,
                     family_context=existing_family_context, project_id=project_id,
                     canonical_events=isinstance(storage, UserStorage),
@@ -1967,7 +1970,7 @@ class CodexRuntime:
                 'parsed_place_journeys': parsed_place_journeys,
                 'parsed_family_context': parsed_family_context,
                 'family_skills': family_skills,
-                'profile': profile,
+                'profile': workspace_profile,
                 'profile_updates': profile_updates,
                 'task_requests': task_requests,
                 'memories': memories,

@@ -261,12 +261,36 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
         await asyncio.to_thread(storage.client.close)
 
 
+def _project_place_hints(store, project_id, user_id):
+    """Read only the authenticated project's bounded geographic history."""
+    if not project_id:
+        return []
+    from .main import _project
+    with store.lock:
+        # Legacy callers may have only the separate user-memoir project row.
+        if project_id not in store.projects:
+            return []
+        project = _project(store, project_id, user_id)
+        history = project.get('profile', {}).get('memory_places') or []
+        if not isinstance(history, list):
+            return []
+        from .place_journey import validate_place_journey
+        return [place for raw in history[-50:]
+                if (place := validate_place_journey(raw)) is not None]
+
+
 @router.post('/turn')
-async def turn(payload: TurnInput, authorization: str | None = Header(default=None),
+async def turn(payload: TurnInput, request: Request, authorization: str | None = Header(default=None),
                accept: str = Header(default='application/json')):
     if payload.project_id is not None and valid_family_project_id(payload.project_id) is None:
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
+    try:
+        place_hints = await asyncio.to_thread(_project_place_hints,
+            request.app.state.store, payload.project_id, storage.user_id) if payload.project_id else []
+    except BaseException:
+        await asyncio.to_thread(storage.client.close)
+        raise
     if 'application/x-ndjson' in accept:
         async def run_stream(emit):
             options = {
@@ -275,6 +299,8 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
                 'on_delta': emit,
                 'on_event': emit.event,
             }
+            if place_hints:
+                options['saved_place_hints'] = place_hints
             if payload.source_kind != 'narrator_chat':
                 options['source_kind'] = payload.source_kind
             if payload.first_reply_localization:
@@ -292,6 +318,8 @@ async def turn(payload: TurnInput, authorization: str | None = Header(default=No
         )
     try:
         options = {'project_id': payload.project_id, 'language': payload.language}
+        if place_hints:
+            options['saved_place_hints'] = place_hints
         if payload.source_kind != 'narrator_chat':
             options['source_kind'] = payload.source_kind
         if payload.first_reply_localization:
