@@ -34,7 +34,7 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
     mapPhotoAlbums: {sync() {}},
     ...dependencies,
   });
-  for (const name of ['composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',
+  for (const name of ['freeRecallFinished', 'composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',
     'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible', 'workspaceDetail', 'renderStory']) {
     vm.runInContext(extract(name), context);
   }
@@ -94,6 +94,14 @@ test('unlocked composition opens its tabs without a map or draft', () => {
   assert.doesNotMatch(html, /workspace-media-overview|life-stage-navigator/);
 });
 
+test('finishing free recall opens Chapters even without a map, payment or composition', () => {
+  const html = renderedWorkspace({placeJourney:null,
+    recallStatus:{rounds_completed:20, free_rounds:20, payment_required:true}});
+  assert.match(html, /story-shell workspace-visible/);
+  assert.match(html, /data-workspace-tab="memoir"/);
+  assert.doesNotMatch(html, /data-workspace-tab="family"|data-workspace-tab="timeline"|workspace-media-overview/);
+});
+
 test('collapsing a ready workspace also hides the life-stage strip', () => {
   const html = renderedWorkspace({workspaceCollapsed: true,
     placeJourney: {place: 'Chengde', latitude: 40.95, longitude: 117.96}});
@@ -119,6 +127,7 @@ test('keeps the first place workspace visible through a transient map-target gap
     WORKSPACE_VISIBILITY_DEBOUNCE_MS: 180,
     workspaceTabs: () => [],
     composingWorkspaceActive: () => false,
+    freeRecallFinished: () => false,
     placeWorkspaceSelection: () => state.placeJourney,
     placeMapTarget: () => target,
     render: () => { rendered += 1; },

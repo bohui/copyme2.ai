@@ -298,7 +298,7 @@ does not offer this cache-preservation guarantee; use it only for an intentional
 full schema reset. Use
 `ENV_FILE=path/to/.env` to load a different file.
 
-High-level Codex activity is hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary while private model reasoning remains hidden.
+High-level Codex activity and early private-draft previews are hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary and private-draft checkpoints while private model reasoning remains hidden. With the flag off, the saved draft appears only in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early.
 
 ### Langfuse trajectory evaluation
 

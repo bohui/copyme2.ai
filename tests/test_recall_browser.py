@@ -12,7 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 @pytest.mark.parametrize('anonymous', [False, True])
-def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
+@pytest.mark.parametrize('show_developer_steps', [False, True])
+def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, show_developer_steps):
     copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())
     model = {'completed': 19, 'paid': False, 'turns': 0, 'checkouts': [], 'previews': 0}
     project = {'id': 'recall-project', 'revision': 1, 'profile': {'preferred_language': locale}, 'mode': 'self'}
@@ -25,7 +26,8 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         path = route.request.url.split('/api/v1/memoir')[-1]
         data = {}
         if path == '/agent/config':
-            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public', 'auth_mode': 'supabase'}
+            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public',
+                    'auth_mode': 'supabase', 'show_thinking_steps': show_developer_steps}
         elif path == '/story/state':
             data = {'recall_status': status(), 'family_features_enabled': False}
         elif path == '/agent/profile' or path == '/user/profile':
@@ -40,6 +42,11 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
             return route.fulfill(status=403, content_type='application/json', body='{}')
         elif path == '/agent/place-journey':
             data = {'place_journey': None}
+        elif path.startswith('/story/private-draft?'):
+            data = {'covered_round': 15, 'preview': {
+                'title': 'Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿',
+                'text': 'The saved draft recalls afternoons in the garden.' if locale == 'en-AU' else '已保存的草稿记述了花园里的午后。',
+            }}
         elif path == '/agent/turn':
             assert route.request.post_data_json['conversation_text'] == 'A memory from the garden'
             assert 'The storyteller said:' in route.request.post_data_json['text']
@@ -88,6 +95,9 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         page.locator('[data-action="start-story"][data-mode="self"]').click()
         send = page.get_by_role('button', name=copy['Memoir']['story']['send'], exact=True)
         expect(send).to_be_enabled(timeout=30000)
+        page.wait_for_load_state('networkidle')
+        expect(page.locator('[data-workspace-tab]')).to_have_count(0)
+        expect(page.locator('.private-draft-status')).to_have_count(1 if show_developer_steps else 0)
         page.locator('#chat-input').fill('A memory from the garden')
         send.click()
         prompt = page.locator('.recall-package-prompt')
@@ -97,15 +107,29 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         assert page.locator('.recall-preview').evaluate('(el) => Boolean(el.compareDocumentPosition(document.querySelector(".recall-package-prompt")) & Node.DOCUMENT_POSITION_FOLLOWING)')
         expect(page.locator('.assistant-message .message-text').last).to_contain_text('garden' if locale == 'en-AU' else '花园')
         expect(page.locator('#chat-input')).to_have_count(0)
+        chapters = page.locator('[data-workspace-tab="memoir"]')
+        expect(chapters).to_have_text(copy['Memoir']['workspace']['chapters'])
+        draft = page.locator('#workspace-detail .private-draft-status')
+        expect(draft).to_have_count(1)
+        draft.locator('summary').click()
+        expect(draft).to_contain_text('Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿')
+        expect(page.locator('.chat-main .private-draft-status')).to_have_count(0)
         assert model['turns'] == 1
         assert not any(name in prompt.inner_text().lower() for name in ('codex', 'supabase', '20 free', '五轮'))
         assert '20' not in copy['Memoir']['recall']['description']
         page.reload()
         expect(prompt).to_be_visible(timeout=30000)
+        expect(chapters).to_be_visible()
+        expect(draft).to_have_count(1)
+        if not show_developer_steps:
+            page.get_by_role('button', name=copy['Memoir']['workspace']['collapseWorkspace'], exact=True).click()
+            expect(page.locator('.private-draft-status')).to_have_count(0)
+            page.get_by_role('button', name=copy['Memoir']['workspace']['showWorkspace'], exact=True).click()
+            expect(draft).to_have_count(1)
         assert model['turns'] == 1
         page.locator('.story-plan-card:has(input[value="family_memoir_v1"])').click()
         page.locator('#story-book-count').select_option('4')
-        destination = ROOT / f'output/playwright/recall-packages-{locale}-{anonymous}.png'
+        destination = ROOT / f'output/playwright/recall-packages-{locale}-{anonymous}-{show_developer_steps}.png'
         destination.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(destination), full_page=True)
         page.get_by_role('button', name=copy['Memoir']['storyFlow']['continueCheckout']).click()

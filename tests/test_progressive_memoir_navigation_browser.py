@@ -80,7 +80,8 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
             data = {}
             if endpoint == "/agent/config":
                 data = {"supabase_url": "https://auth.test", "supabase_publishable_key": "public",
-                        "auth_mode": "supabase", "google_maps_browser_api_key": "synthetic-key"}
+                        "auth_mode": "supabase", "google_maps_browser_api_key": "synthetic-key",
+                        "show_thinking_steps": True}
             elif endpoint in ("/agent/profile", "/user/profile"):
                 data = profile
             elif endpoint == "/projects/project":
@@ -127,6 +128,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
         expect(page.locator(".place-journey-scene.is-cesium-map")).to_be_visible(timeout=30000)
         page.locator(".story-topbar .brand-name").click()
         expect(page).to_have_url(base + "/memoir")
+        page.wait_for_load_state("networkidle")
         page.locator('[data-action="start-story"][data-mode="self"]').click()
         expect(page).to_have_url(interview)
         expect(page.locator(".chat-scroll")).to_contain_text(original)
