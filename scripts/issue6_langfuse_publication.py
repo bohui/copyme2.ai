@@ -193,6 +193,7 @@ def _rule(dimension, dataset_id, evaluator_name):
             "evaluators": [{"evaluator": {"name": evaluator_name, "type": "code"}}],
             "filter": [
                 {"column": "datasetId", "type": "stringOptions", "operator": "any of", "value": [dataset_id]},
+                {"column": "environment", "type": "stringOptions", "operator": "any of", "value": [ENVIRONMENT]},
             ]}
 
 

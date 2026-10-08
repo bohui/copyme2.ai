@@ -20,7 +20,7 @@ key values must not be sent in chat, logs or artifacts.
 | Synthetic datasets | 4, with 28 items | Reviewed `20261008-v1` fixture and its SHA-256 |
 | Text prompts | 5 | Timeline and composer prepare/index/draft/review instructions, exact application bytes |
 | Managed code evaluators | 4 | One definition per dataset dimension; staged until callback and review |
-| Evaluation rules | 4 | Disabled; `target=experiment`, each filtered to its own synthetic dataset ID |
+| Evaluation rules | 4 | Disabled; `target=experiment`, each filtered to its own synthetic dataset ID and `issue6-synthetic-evaluation` environment |
 
 Names use `memoir/issue6/20261008-v1/`. Prompts receive only the
 `issue6-evaluation` label. The application still loads its reviewed Git builders.
@@ -47,14 +47,26 @@ omit the unsupported description field. Datasets and prompts retain their
 `/api/public/v2` endpoints. These contracts are pinned to the official tagged
 [evaluator](https://github.com/langfuse/langfuse/blob/v4.21.0/fern/apis/server/definition/unstable/evaluators.yml)
 and [rule](https://github.com/langfuse/langfuse/blob/v4.21.0/fern/apis/server/definition/unstable/evaluation-rules.yml)
-definitions, rather than the newer installed SDK's evaluator endpoints.
+definitions and the tagged runtime, rather than the newer installed SDK's
+evaluator endpoints.
 
-On this release, experiment rules support only the `datasetId` filter. They
-cannot express the proposed environment or experiment-root filters. All rules
-remain disabled. Before any activation, a separately reviewed callback must
-enforce the task environment and experiment-root scope; this publisher does not
-implement or authorize that activation. No broader active evaluation scope is
-introduced by these disabled definitions.
+The [runtime filter schema](https://github.com/langfuse/langfuse/blob/v4.21.0/web/src/features/public-api/types/unstable-public-evals-contract.ts#L229-L255)
+accepts observation filters, including environment, for experiment rules in
+addition to dataset IDs. The publisher retains both exact dataset and synthetic
+environment filters. `target=experiment` itself constrains evaluation to
+experiment roots, so no separate root filter is sent. All rules remain disabled;
+this publisher does not implement or authorize activation. The tagged Fern
+prose omits the additional filter columns; the runtime schema is authoritative.
+
+Code-evaluator creation requires an existing configured dispatcher and support
+for the chosen language, even when rules remain disabled. The tagged
+[creation service](https://github.com/langfuse/langfuse/blob/v4.21.0/web/src/features/evals/server/unstable-public-api/evaluator-service.ts#L66-L90)
+checks this before persisting a code definition. That capability has not been
+verified on the local server. It must be confirmed before actual publication;
+configuring or upgrading a dispatcher is outside this operation's authorization.
+If creation is refused, the publisher stops, publishes no rule, does not retry
+and emits no success receipt. Earlier dataset/prompt writes may remain; explicit
+resume preflights those assets. No bulk atomic rollback is claimed.
 
 The receipt records dataset item timestamps and the maximum item timestamp for
 the hosted snapshot, dataset/item hashes, prompt versions, evaluator IDs/versions
@@ -120,8 +132,10 @@ idempotent publication, missing-key handling and credential-file preservation.
 Initial focused validation: **30 passed, zero failures/errors/skips**. Independent
 review then identified the deployed-version mismatch, short-route status crash,
 partial snapshot false pin and malformed-source exceptions. Corrected focused
-validation: **53 passed, zero failures/errors/skips**. Of these,
-17 are the existing controlled semantic regressions and 36 exercise publication
+validation initially passed 53 tests. Delta review then reproduced the missing
+environment filter and corrected the test double's incomplete runtime contract.
+Current validation: **55 passed, zero failures/errors/skips**. Of these,
+17 are the existing controlled semantic regressions and 38 exercise publication
 and the managed function contract. HTTP responses use an explicitly labeled
 external API double; managed code executes through Node locally. These results
 are not server publication, hosted dispatcher, live model or human calibration
@@ -142,6 +156,8 @@ synthetic execution and a named calibrated human reviewer. The complete Issue 6
 acceptance map, historical failures and operator deferral remain unchanged.
 
 Langfuse's [code-evaluator contract](https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators)
-requires a configured dispatcher for hosted execution and a standard-library
-runtime. The definitions remain disabled until that runtime and callback are
-verified within the authorized test environment.
+requires a configured dispatcher and a standard-library runtime. Creation,
+authenticated read-back and hosted execution remain unverified on this server.
+Actual publication stays held pending independent source clearance, credential
+readiness and verified existing dispatcher compatibility. Rules and live
+experiments stay off.

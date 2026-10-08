@@ -110,7 +110,8 @@ def test_publication_rejects_other_project_before_any_asset_write():
 class LangfuseHTTPBoundary:
     """Controlled v4.21.0 HTTP contract, not native Langfuse evidence.
 
-    Routes and evaluator/rule bodies follow the tagged unstable Fern contracts.
+    Routes and evaluator/rule bodies follow the tagged unstable runtime contract.
+    This double covers the dataset/environment filters used by this publisher.
     This double never executes a hosted evaluator or a model.
     """
     def __init__(self):
@@ -162,7 +163,7 @@ class LangfuseHTTPBoundary:
         if kind == "evaluation-rules":
             if set(body) != {"name", "target", "evaluators", "enabled", "sampling", "filter"} or body["target"] != "experiment":
                 return httpx.Response(400, json={"code": "invalid_body"})
-            if any(condition["column"] != "datasetId" for condition in body["filter"]):
+            if any(condition["column"] not in {"datasetId", "environment"} for condition in body["filter"]):
                 return httpx.Response(400, json={"code": "invalid_filter_value"})
             reference = body["evaluators"][0]["evaluator"]
             if reference["type"] != "code" or set(reference) != {"name", "type"}:
@@ -189,6 +190,42 @@ def test_publication_read_back_contains_exact_assets_and_repeating_it_adds_nothi
         repeated = publish(build_manifest(), client)
         assert repeated["verified_counts"] == receipt["verified_counts"]
         assert boundary.writes == written
+
+
+def test_each_disabled_experiment_rule_keeps_the_synthetic_environment_scope():
+    from scripts.issue6_langfuse_publication import ORIGIN, build_manifest, publish
+    boundary = LangfuseHTTPBoundary()
+    with httpx.Client(base_url=ORIGIN, transport=httpx.MockTransport(boundary)) as client:
+        receipt = publish(build_manifest(), client)
+    for rule, dataset in zip(receipt["rules"], receipt["datasets"]):
+        assert rule["enabled"] is False
+        assert boundary.assets["evaluation-rules"][rule["name"]]["target"] == "experiment"
+        assert rule["filter"] == [
+            {"column": "datasetId", "type": "stringOptions", "operator": "any of", "value": [dataset["id"]]},
+            {"column": "environment", "type": "stringOptions", "operator": "any of", "value": ["issue6-synthetic-evaluation"]},
+        ]
+
+
+def test_unavailable_dispatcher_creation_refusal_stops_without_rule_writes_or_a_success_receipt():
+    from scripts.issue6_langfuse_publication import ORIGIN, build_manifest, publish
+    boundary = LangfuseHTTPBoundary()
+    denied_requests = 0
+
+    def dispatcher_unavailable(request):
+        nonlocal denied_requests
+        if request.method == "POST" and request.url.path == "/api/public/unstable/evaluators":
+            denied_requests += 1
+            # The tagged service denies creation before persistence when code
+            # evals are disabled. This is controlled, not a native capability probe.
+            return httpx.Response(403, json={"code": "access_denied", "message": "dispatcher-detail-must-not-be-logged"})
+        return boundary(request)
+
+    with httpx.Client(base_url=ORIGIN, transport=httpx.MockTransport(dispatcher_unavailable)) as client:
+        with pytest.raises(ValueError, match="HTTP 403") as failure:
+            publish(build_manifest(), client)
+    assert "dispatcher-detail-must-not-be-logged" not in str(failure.value)
+    assert denied_requests == 1
+    assert not boundary.assets["evaluators"] and not boundary.assets["evaluation-rules"]
 
 
 def test_cli_missing_project_keys_stops_without_printing_other_secrets(tmp_path):
