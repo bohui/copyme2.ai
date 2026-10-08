@@ -42,6 +42,24 @@ test('preserves known coordinates when later mention omits them', () => {
  const result = mergePlaces([city,{...city,latitude:null,longitude:null}]);
  assert.equal(result[0].latitude,city.latitude);
 });
+test('city suffix aliases retain known coordinates, pictures and life stages', () => {
+ const saved = {...city, place:'承德市', hierarchy:['Earth','中国','河北省','承德市'],
+  life_stage:'baby', pictures:[{asset_id:'earlier'}]};
+ const latest = {...city, latitude:null, longitude:null, life_stage:'childhood', pictures:[{asset_id:'later'}]};
+ assert.equal(placeHistoryKey(saved), placeHistoryKey(latest));
+ const places = mergePlaces([saved, latest]);
+ assert.equal(places.length, 1);
+ assert.equal(places[0].latitude, city.latitude);
+ assert.equal(places[0].place, latest.place);
+ assert.deepEqual(places[0].life_stages, ['baby','childhood']);
+ assert.deepEqual(places[0].pictures.map(picture => picture.asset_id), ['earlier','later']);
+ assert.equal(mapTarget(latest, [saved]).latitude, city.latitude);
+ assert.equal(mapTarget(suburb, [saved]).latitude, city.latitude);
+ assert.notEqual(placeHistoryKey(saved), placeHistoryKey({...latest, place:'承德县',
+  hierarchy:['Earth','中国','河北','承德县'], granularity:'suburb'}));
+ assert.notEqual(placeHistoryKey(saved), placeHistoryKey({...latest,
+  hierarchy:['Earth','中国','另一省','承德']}));
+});
 test('orders places by life-stage chronology instead of mention order', () => {
  const places = mergePlaces([
   {...city, place:'Sydney', hierarchy:['Earth','Australia','Sydney'], life_stage:'young_adulthood', source_sequence:1},
@@ -110,7 +128,7 @@ test('does not render a place card when no map target is available', async () =>
  }), '');
 });
 
-test('does not activate the workspace without a map target', async () => {
+test('activates the workspace for a triggered place even without a map target', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
@@ -118,15 +136,16 @@ test('does not activate the workspace without a map target', async () => {
  const mapped = {place: 'Hobart', hierarchy: ['Earth', 'Australia', 'Hobart'], granularity: 'city', latitude: -42.88, longitude: 147.33};
  const context = vm.createContext({
   state: {project: {id: 'project'}, placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
-  workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
+  workspaceVisibility: {projectId: null, stable: false},
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
-  profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false,
-  workspaceVisibility: {projectId: null, stable: false, pending: null, timer: null},
+  profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false, freeRecallFinished: () => false,
  });
  for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
- assert.equal(context.workspaceHasContent(), false);
+ assert.equal(context.workspaceHasContent(), true);
+ assert.equal(context.placeWorkspaceSelection(), null);
+ assert.equal(context.placeWorkspaceSelection({allowUnmapped: true}).place, unknown.place);
  context.state.placeJourney = mapped;
  context.state.selectedPlace = placeHistoryKey(mapped);
  assert.equal(context.workspaceHasContent(), true);

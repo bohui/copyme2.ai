@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 from typing import Any
+from .place_identity import geographic_label, place_identity, place_path
 
 
 MARKER_START = "[[MEMORY_SPARK_PLACE_JOURNEY]]"
@@ -162,7 +163,22 @@ def place_journey_fingerprint(raw: Any) -> tuple[Any, ...] | None:
     payload = validate_place_journey(raw)
     if payload is None:
         return None
-    return tuple(payload.get(field) for field in PERSISTED_FIELDS)
+    return tuple(geographic_label(payload['place']) if field == 'place'
+                 else place_path(payload, normalized=True) if field == 'hierarchy'
+                 else payload.get(field) for field in PERSISTED_FIELDS)
+
+
+def reuse_known_place(current, candidate):
+    """Keep a repeat mention's stable identity and independently known pin."""
+    known = validate_place_journey(current)
+    if known is None or place_identity(known) != place_identity(candidate):
+        return candidate
+    update = {**candidate, 'place': known['place'], 'hierarchy': list(known['hierarchy'])}
+    if candidate.get('latitude') is None and candidate.get('longitude') is None:
+        for field in ('latitude', 'longitude'):
+            if field in known:
+                update[field] = known[field]
+    return update
 
 
 def place_journey_matches_message(journey: Any, message: str) -> bool:
@@ -234,7 +250,14 @@ def grounded_place_journeys(journeys: list[dict[str, Any]], message: str) -> lis
         # A second standalone mention makes the broad place a distinct cue.
         if place_journey_matches_message(parent, remaining):
             selected.append(parent)
-    return selected
+    distinct = {}
+    for place in selected:
+        key = place_identity(place)
+        previous = distinct.get(key)
+        if previous and place.get('latitude') is None and previous.get('latitude') is not None:
+            place = {**place, 'latitude': previous['latitude'], 'longitude': previous['longitude']}
+        distinct[key] = place
+    return list(distinct.values())
 
 
 def place_journey_message_is_ambiguous(message: str) -> bool:

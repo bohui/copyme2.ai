@@ -266,4 +266,12 @@ test('photo workspace exposes discovery even before any eligible result', () => 
   assert.match(context.workspaceMediaOverview(), /workspace-media-gallery/);
   context.state.photoRequests.set(JSON.stringify(['p', 'Chengde', '', null, null]), {loading: true});
   assert.match(context.workspaceMediaOverview(), /role="status"/);
+  context.placeMapTarget = () => null;
+  context.placeJourneyMarkup = () => '';
+  const unresolved = context.workspaceMediaOverview();
+  assert.match(unresolved, /workspace-media-map/);
+  assert.match(unresolved, /workspace-media-gallery/);
+  assert.match(unresolved, /Chengde/);
+  assert.match(unresolved, /pinUnresolved/);
+  assert.match(unresolved, /picturesSearching/);
 });
