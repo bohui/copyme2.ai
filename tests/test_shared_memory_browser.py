@@ -21,6 +21,36 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 UPDATING_COPY = 'Your private draft is updating in the background.'
 
 
+def claim_diagnostics(sql, lane_id):
+    """Failure-only state from this test's disposable database; no private text."""
+    result = sql(f"""
+      with observed as materialized (select clock_timestamp() as now_at)
+      select jsonb_build_object(
+        'database_clock',now_at,
+        'lane',(select jsonb_build_object(
+          'id',l.id,'owner',l.user_id,'project',l.project_id,'skill',l.skill,
+          'pending',l.pending,'attempts',l.attempts,'available_at',l.available_at,
+          'available_delta_ms',extract(epoch from (l.available_at-now_at))*1000,
+          'lease_token_hash',md5(l.token::text),'lease_until',l.lease_until,
+          'run_deadline',l.run_deadline,'target_milestone',l.target_milestone,
+          'blocked_sources',(select count(*) from public.user_narrator_source s where
+            s.user_id=l.user_id and s.project_id=l.project_id and s.status='active' and s.processing_status<>'succeeded'),
+          'completed_rounds',(select coalesce(max(ordinal),0) from public.user_completed_round r where
+            r.user_id=l.user_id and r.project_id=l.project_id))
+          from public.user_memoir_lane l where l.id='{lane_id}'),
+        'outbox',(select jsonb_build_object('delivered',count(*) filter(where delivered),
+          'pending',count(*) filter(where not delivered)) from public.user_private_draft_outbox),
+        'database_activity',(select jsonb_agg(jsonb_build_object(
+          'pid',pid,'role',usename,'state',state,'wait_type',wait_event_type,'wait_event',wait_event,
+          'action',substring(query from 'public[.]([a-z_]+)[(]')))
+          from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid()),
+        'lane_locks',(select jsonb_agg(jsonb_build_object('pid',pid,'mode',mode,'granted',granted))
+          from pg_locks where relation='public.user_memoir_lane'::regclass)) from observed;
+    """)
+    return {'database':json.loads(result.stdout.splitlines()[-1]),
+            'test_threads':[thread.name for thread in threading.enumerate()]}
+
+
 @pytest.mark.parametrize('checkpoint', [5, 10])
 @pytest.mark.parametrize('recovery', ['complete', 'retry', 'extraction-retry'])
 def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tmp_path, monkeypatch, checkpoint, recovery):
@@ -99,6 +129,7 @@ def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tm
         if recovery != 'complete':
             failed_lane = queued[0]['timeline_lane_id'] if recovery == 'extraction-retry' else composer
             job = service_rpc(sql, 'claim_memoir_lane', f"'{failed_lane}',300")
+            assert job is not None, claim_diagnostics(sql, failed_lane)
             assert service_rpc(sql, 'fail_memoir_lane', f"'{failed_lane}','{job['token']}','MEMOIR_PROVIDER_UNAVAILABLE',false")['status'] == 'retry_required'
             with page.expect_response(lambda response: '/story/private-draft?' in response.url):
                 page.clock.run_for(15001)
