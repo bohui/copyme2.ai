@@ -44,6 +44,10 @@ def recovery(monkeypatch):
             assert request.method == 'GET', 'Recovery must never mutate or generate'
             if request.url.path == '/auth/v1/user':
                 return httpx.Response(200, json={'id': owner})
+            if request.url.path == '/rest/v1/rpc/read_user_interview_turn':
+                assert request.url.params['p_project_id']
+                assert UUID(request.url.params['p_client_turn_id'])
+                return httpx.Response(200, content='null')
             table = request.url.path.rsplit('/', 1)[-1]
             if failure:
                 return httpx.Response(failure['status'], json={'message': 'private-service-token'})

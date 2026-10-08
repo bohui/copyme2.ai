@@ -10,6 +10,7 @@ import { openProfileSettings } from "./profile.js";
 import { formatDateExpression } from "./dates.mjs";
 import { createConversationScroll, installConversationViewport } from "./conversation-scroll.mjs";
 import { createMapPhotoAlbums } from "./map-photo-albums.mjs";
+import { createInterviewPhotoState } from "./interview-photo-turns.mjs";
 import englishMessages from "../../messages/en-AU.json";
 import chineseMessages from "../../messages/zh-CN.json";
 
@@ -109,6 +110,18 @@ const state = {
   supabase: null,
   authPromise: null,
 };
+
+state.photoTurns = createInterviewPhotoState({state, scope:captureProjectScope, render, api,
+  onRecovered: async (turn, receipt) => {
+    const saved = {role:"assistant", text:receipt.reply, clientTurnId:turn.id,
+      responsePhotos:receipt.response_photos, streaming:false, error:"", failed:false};
+    const existing = state.chat.find(message => message.clientTurnId === turn.id && message.role === "assistant");
+    if (existing) Object.assign(existing, saved);
+    else state.chat.push({id:nextAssistantMessageId(), ...saved});
+    state.pendingConversationTurn = null;
+    persistChatHistory();
+  },
+});
 
 const mapPhotoAlbums = createMapPhotoAlbums({
   getProjectId: () => state.project?.id,
@@ -303,6 +316,7 @@ function invalidateProjectNavigation() {
   state.conversationStreams?.clear();
   state.photoRequests?.clear();
   state.pendingConversationTurn = null;
+  state.photoTurns?.clearDisplay();
   state.photoMemoryTask = null;
   state.photoFavoritesOpen = false;
   state.loading = false;
@@ -467,6 +481,8 @@ function persistChatHistory() {
         text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text || ""),
         error: message.error || "",
       };
+      if (message.clientTurnId) saved.clientTurnId = message.clientTurnId;
+      if (message.responsePhotos?.length) saved.responsePhotos = state.photoTurns?.cards(message.responsePhotos);
       if (Array.isArray(message.cues) && message.cues.length) saved.cues = message.cues;
       if (Array.isArray(message.trace) && message.trace.length) {
         saved.trace = message.trace;
@@ -516,6 +532,8 @@ function restoreChatHistory(projectId) {
           role: message.role,
           text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
           error: typeof message.error === "string" ? message.error : "",
+          clientTurnId: typeof message.clientTurnId === "string" ? message.clientTurnId : undefined,
+          responsePhotos: state.photoTurns?.cards(message.responsePhotos),
           cues: Array.isArray(message.cues) ? message.cues : undefined,
           trace: Array.isArray(message.trace) ? message.trace : undefined,
           traceMode: typeof message.traceMode === "string" ? message.traceMode : undefined,
@@ -802,7 +820,7 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
   ];
 }
 
-async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat") {
+async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat", photoOptions = {}) {
   const scope = captureProjectScope();
   const controller = globalThis.AbortController ? new AbortController() : null;
   const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted;
@@ -815,10 +833,15 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   const streamProjectId = state.project?.id || null;
   const ownerId = state.supabase?.user?.id;
   const previousTurn = state.pendingConversationTurn;
-  const requestTurn = previousTurn?.projectId === streamProjectId && previousTurn?.ownerId === ownerId
+  const requestTurn = state.photoTurns?.prepare({text, conversationText, sourceKind, language,
+    firstReplyLocalization, serverAction, ...photoOptions}) || (previousTurn?.projectId === streamProjectId && previousTurn?.ownerId === ownerId
       && previousTurn?.text === text ? previousTurn : {projectId:streamProjectId,ownerId,text,
-      id:globalThis.crypto?.randomUUID?.() || null};
+      id:globalThis.crypto?.randomUUID?.() || null});
   state.pendingConversationTurn = requestTurn;
+  if (photoOptions.retry) {
+    streamedMessage = state.chat.find(message => message.clientTurnId === requestTurn.id && message.role === "assistant") || null;
+    if (streamedMessage) Object.assign(streamedMessage, {text:"", streaming:true, error:"", failed:false});
+  }
   const previousJourney = state.placeJourney;
   const previousSelection = state.selectedPlace;
   let previewJourney = null;
@@ -831,7 +854,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       liveTrace.push(step);
     } else liveTrace[index] = step;
     if (!streamedMessage) {
-      streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
+      streamedMessage = { id: nextAssistantMessageId(), clientTurnId:requestTurn.id, role: "assistant", text: "", streaming: true };
       state.chat.push(streamedMessage);
     }
     streamedMessage.trace = liveTrace;
@@ -939,7 +962,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     const body = await streamAgentTurn(text, async (delta) => {
       if (!current() || replyFinished) return;
       if (!streamedMessage) {
-        streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: "", streaming: true };
+        streamedMessage = { id: nextAssistantMessageId(), clientTurnId:requestTurn.id, role: "assistant", text: "", streaming: true };
         state.chat.push(streamedMessage);
         render();
       }
@@ -949,7 +972,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       if (!current()) return;
       if (event.type === "progress") {
         recordProgress(event.data);
+      } else if (event.type === "source_accepted") {
+        state.photoTurns?.accept(requestTurn, {...event.data, state:"source_accepted"});
       } else if (event.type === "conversation_saved") {
+        state.photoTurns?.accept(requestTurn, {...event.data, state:"conversation_saved"});
         if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
           await applyCommittedConversationLocale(event.data?.profile_updates);
         }
@@ -966,7 +992,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           .then(() => applyWorkspace(event.data))
           .catch((error) => { if (current()) toast(error.message); });
       }
-    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind, {scope, controller});
+    }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind, {scope, controller, turn:requestTurn});
     if (!current()) return detached();
     replyFinished = true;
     // A saved reply is ready even when an earlier workspace write is pending.
@@ -988,11 +1014,19 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     if (!streamedMessage && body.reply) {
       // Compatibility responses may contain the entire reply in one event.
       // They are already complete; do not replay them as simulated typing.
-      streamedMessage = { id: nextAssistantMessageId(), role: "assistant", text: body.reply, streaming: false };
+      streamedMessage = { id: nextAssistantMessageId(), clientTurnId:requestTurn.id, role: "assistant", text: body.reply, streaming: false };
       state.chat.push(streamedMessage);
       render();
     }
-    return { blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
+    if (streamedMessage) {
+      streamedMessage.clientTurnId = requestTurn.id;
+      streamedMessage.responsePhotos = state.photoTurns?.cards(body.response_photos);
+      if (body.reply) streamedMessage.text = body.reply;
+    }
+    // Persist the final visible reply and its cards before dropping the receipt
+    // recovery key. Optional locale/workspace calls above may be interrupted.
+    state.photoTurns?.finish(requestTurn, body);
+    return { responsePhotos:state.photoTurns?.cards(body.response_photos), clientTurnId:requestTurn.id, blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     if (!current()) return detached();
     if (state.project?.id === streamProjectId && state.placeJourney === previewJourney && previewJourney) {
@@ -1005,7 +1039,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       streamedMessage.failed = true;
       streamedMessage.error = error.message;
     }
-    return { streamedMessage, reply: streamedMessage?.text || error.message, trace: liveTrace.map(step => ({ ...step, status: step.status === "running" ? "failed" : step.status })), traceMode: "error" };
+    return { failed:true, streamedMessage, reply: streamedMessage?.text || error.message, trace: liveTrace.map(step => ({ ...step, status: step.status === "running" ? "failed" : step.status })), traceMode: "error" };
   }
 }
 
@@ -1020,6 +1054,11 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
   const body = isGreeting
     ? { action: serverAction, client_turn_id: clientTurnId || undefined, project_id: scope.projectId || null, language, first_reply_localization: firstReplyLocalization }
     : { text, conversation_text: conversationText, source_kind: sourceKind, client_turn_id: clientTurnId || undefined, project_id: scope.projectId || null, language, first_reply_localization: firstReplyLocalization };
+  if (!isGreeting && request.turn) {
+    Object.assign(body, {text:request.turn.text, conversation_text:request.turn.conversationText,
+      source_kind:request.turn.sourceKind, uploaded_photo_ids:request.turn.uploadedPhotoIds || [],
+      photo_selection:request.turn.photoSelection || null});
+  }
   const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
@@ -1092,8 +1131,10 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
       buffer = buffer.slice(end);
       const event = JSON.parse(value);
       if (event.type === "text_delta" && !ready) await onDelta(event.text || "");
+      else if (event.type === "source_accepted") await onEvent(event);
       else if (event.type === "reply_complete") result = { ...(result || {}), ...(event.data || {}) };
       else if (event.type === "conversation_saved") {
+        if (event.data?.photo_cue || event.data?.response_photos) await onEvent(event);
         result = { ...(result || {}), ...(event.data || {}) };
         if (!ready) {
           ready = true;
@@ -2803,6 +2844,8 @@ async function startMemoirStory(mode = "self") {
         && state.project?.mode === "self" && state.projectPrincipalId === state.supabase.user.id) {
       persistChatHistory();
       state.chat = restoreChatHistory(state.project.id);
+      await hydrateAccountHistory();
+      if (!current()) return;
       state.freshAnonymousSession = false;
       state.chatHistoryCollapsed = false;
       navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`);
@@ -2949,31 +2992,87 @@ async function hydrateAccountHistory(history = null) {
   const scope = captureProjectScope();
   const user = state.supabase?.user;
   const projectId = state.project?.id;
-  if (!user || user.is_anonymous || !projectId) return;
-  const { items } = history || await storyApi("/v1/user/conversations");
-  if (!isCurrentProjectScope(scope)) return;
-  const messages = [...items].sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""))
-    .flatMap(item => item.messages.map((message, index) => ({
-      id: `history-${item.id}-${index}`, role: message.role,
-      text: message.role === "assistant" ? cleanAssistantText(message.text) : originalConversationText(message.text),
-    })));
-  // Local entries can mirror saved turns or the freshly attached guest chat.
-  // Consume matching occurrences so repeated memories in server history remain.
-  const signature = message => JSON.stringify([message.role, message.text]);
-  const saved = new Map();
-  for (const message of messages) {
-    const key = signature(message);
-    saved.set(key, [...(saved.get(key) || []), message]);
+  if (!user || !projectId) return;
+  const exchanges = [];
+  const cursors = new Set();
+  let cursor = null, epoch;
+  try {
+    do {
+      const page = await storyApi(`/v1/user/projects/${encodeURIComponent(projectId)}/history?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+      if (!isCurrentProjectScope(scope)) return;
+      if (page.project_id !== projectId || !Array.isArray(page.items)
+          || epoch !== undefined && page.policy_epoch !== epoch) throw new Error("Project history changed. Please reload.");
+      epoch = page.policy_epoch;
+      // Each page is chronological, but its cursor walks toward older turns.
+      exchanges.unshift(...page.items);
+      cursor = page.next_cursor || null;
+      if (cursor && cursors.has(cursor)) throw new Error("Project history could not be loaded. Please reload.");
+      if (cursor) cursors.add(cursor);
+    } while (cursor);
+  } catch (error) {
+    // An unavailable or denied canonical snapshot is not permission to expose
+    // older raw replies, withdrawn evidence, or cached photo descriptions.
+    if (isCurrentProjectScope(scope)) state.chat = [];
+    throw error;
   }
+  let imported = history;
+  if (!user.is_anonymous && !imported) {
+    try { imported = await storyApi("/v1/user/conversations"); }
+    catch { imported = {items:[]}; } // Canonical history remains independently usable.
+  }
+  if (!isCurrentProjectScope(scope)) return;
+  const canonicalIds = new Set(exchanges.flatMap(item => [item.client_turn_id, item.server_turn_id]).filter(Boolean));
+  const maskedEvidence = exchanges.some(item => item.source_status === "withdrawn" || Number(item.source_version || 1) > 1);
+  const messages = exchanges.flatMap(item => {
+    const clientTurnId = item.client_turn_id || item.server_turn_id;
+    const shared = {clientTurnId};
+    return [
+      ...(typeof item.narrator_text === "string" && item.narrator_text ? [{...shared,
+        id:`history-${item.server_turn_id}-user`, role:"user", text:item.narrator_text}] : []),
+      ...(typeof item.reply === "string" && item.reply ? [{...shared,
+        id:`history-${item.server_turn_id}-assistant`, role:"assistant", text:cleanAssistantText(item.reply),
+        responsePhotos:state.photoTurns?.cards(item.response_photos)}] : []),
+    ];
+  });
+  const canonicalMessages = new Set(messages);
+  const signature = message => JSON.stringify([message.role, message.text]);
+  const bySignature = () => {
+    const saved = new Map();
+    for (const message of messages) {
+      const key = signature(message);
+      saved.set(key, [...(saved.get(key) || []), message]);
+    }
+    return saved;
+  };
+  // Preserve authorized older guest transcripts, not the unscoped flattened
+  // account-conversation feed. Canonical versions supersede imported mirrors.
+  const canonicalCopies = bySignature();
+  const legacy = !maskedEvidence ? (imported?.items || [])
+    .filter(item => item.project_id === projectId
+      && !Object.values(item.workspace?.memory_id_map || {}).some(id => canonicalIds.has(id)))
+    .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""))
+    .flatMap(item => (item.messages || []).filter(message => ["user", "assistant"].includes(message.role)
+      && typeof message.text === "string").map((message, index) => ({
+        id:`history-${item.id}-${index}`, role:message.role,
+        text:message.role === "assistant" ? cleanAssistantText(message.text) : originalConversationText(message.text),
+      }))) : [];
+  const importedOnly = legacy.filter(message => !canonicalCopies.get(signature(message))?.shift());
+  messages.unshift(...importedOnly);
+  const saved = bySignature();
   for (const local of state.chat) {
-    const message = local.role === "user" ? { ...local, text: originalConversationText(local.text) } : local;
-    const key = signature(message);
-    const matching = saved.get(key)?.shift();
-    if (matching && Array.isArray(message.trace)) {
-      matching.trace = message.trace;
-      matching.traceMode = message.traceMode;
-    } else if (!matching) messages.push(message);
-    if (matching && message.cacheId) matching.cacheId = message.cacheId;
+    const message = local.role === "user" ? {...local, text:originalConversationText(local.text)} : local;
+    if (maskedEvidence && !message.clientTurnId) continue;
+    // Identity, not matching wording, decides whether a cached turn has been
+    // corrected/withdrawn. A canonical empty photo list also remains final.
+    const authoritative = message.clientTurnId && canonicalIds.has(message.clientTurnId);
+    const matching = authoritative
+      ? messages.find(item => item.clientTurnId === message.clientTurnId && item.role === message.role)
+      : !message.clientTurnId ? saved.get(signature(message))?.shift() : undefined;
+    if (!matching && !authoritative) messages.push(message);
+    if (!matching) continue;
+    if (Array.isArray(message.trace)) { matching.trace = message.trace; matching.traceMode = message.traceMode; }
+    if (!canonicalMessages.has(matching) && !matching.responsePhotos?.length && message.responsePhotos?.length) matching.responsePhotos = message.responsePhotos;
+    if (message.cacheId) matching.cacheId = message.cacheId;
   }
   state.chat = normalizeHistoryOpening(messages);
   persistChatHistory();
@@ -3043,6 +3142,7 @@ function renderStory() {
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
   bindPhotoPagination();
   bindPhotoMemoryActions();
+  void state.photoTurns?.bindImages(document, {path:memoirApiPath, errorText:translate("Memoir.story.photoUnavailable")});
   const scroll = $("#chat-scroll");
   if (draft !== undefined && $("#chat-input")) {
     $("#chat-input").value = draft;
@@ -3991,7 +4091,7 @@ function composerIcon(name) {
 }
 
 const ATTACHMENT_TYPES = {
-  "image/jpeg": "photo", "image/png": "photo", "image/heic": "photo", "image/webp": "photo", "image/gif": "photo",
+  "image/jpeg": "photo", "image/png": "photo", "image/webp": "photo",
   "video/mp4": "video", "video/webm": "video", "video/quicktime": "video",
 };
 
@@ -4010,7 +4110,7 @@ function selectAttachments(files) {
   if (state.loading) return;
   for (const file of files) {
     const kind = ATTACHMENT_TYPES[file.type];
-    const limit = (kind === "video" ? 100 : 25) * 1024 * 1024;
+    const limit = (kind === "video" ? 100 : 10) * 1024 * 1024;
     if (!kind || !file.size || file.size > limit) {
       toast(translate("Memoir.story.attachmentInvalid"));
       continue;
@@ -4023,10 +4123,24 @@ function selectAttachments(files) {
 
 async function uploadAttachments(items) {
   for (const item of items) {
-    if (item.asset) continue;
+    if (item.asset || item.privatePhoto) continue;
     const { file, kind } = item;
     state.attachmentProgress = translateWith("Memoir.story.uploadingAttachment", { name: file.name });
     render();
+    if (kind === "photo") {
+      const scope = captureProjectScope();
+      item.uploadKey ||= globalThis.crypto.randomUUID();
+      const response = await fetch(memoirApiPath(`/v1/agent/projects/${encodeURIComponent(scope.projectId)}/photos`), {
+        method:"POST", headers:{"Content-Type":file.type, Authorization:`Bearer ${state.supabase.accessToken}`,
+          "X-Upload-Idempotency-Key":item.uploadKey, "X-CSRF-Token":state.csrfToken || readCookie("memory_spark_csrf")}, body:file,
+      });
+      if (!response.ok) throw new Error(translate("Memoir.story.photoUploadFailed"));
+      const saved = await response.json();
+      if (!isCurrentProjectScope(scope)) return;
+      if (!saved.id) throw new Error(translate("Memoir.story.photoUploadFailed"));
+      item.privatePhoto = {id:saved.id};
+      continue;
+    }
     item.upload ||= await api("/v1/uploads", { method: "POST", body: JSON.stringify({ project_id: state.project.id, kind, filename: file.name, mime_type: file.type, expected_size: file.size, rights_confirmed: state.attachmentRights }) });
     // Reuse the same upload on retry; acknowledged parts are idempotent.
     const partSize = item.upload.max_part_size || 5 * 1024 * 1024;
@@ -4129,7 +4243,38 @@ function chatComposer() {
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${selectedPhotoCue()}${composerAttachments()}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+}
+
+function responsePhotoMarkup(photos) {
+  const cards = state.photoTurns.cards(photos);
+  return `<div class="response-photo-cards">${cards.map(photo => {
+    const privatePhoto = photo.kind === "private_upload";
+    const id = privatePhoto ? photo.photo_id.replace(/^upload:/, "") : "";
+    const image = privatePhoto ? `<img data-private-response-photo="${escapeHtml(id)}" alt="${escapeHtml(photo.title)}" hidden />`
+      : referenceUrl(photo.image_url) ? `<img src="${escapeHtml(referenceUrl(photo.image_url))}" alt="${escapeHtml(photo.title)}" loading="lazy" />` : "";
+    const source = !privatePhoto && referenceUrl(photo.source_url);
+    return `<figure class="response-photo-card" data-photo-kind="${photo.kind}">${image}<figcaption><small>${escapeHtml(translate(`Memoir.story.${privatePhoto ? "privatePhoto" : "publicPhoto"}`))}</small><strong>${escapeHtml(photo.title)}</strong>${photo.description ? `<p>${escapeHtml(photo.description)}</p>` : ""}<p data-photo-unavailable hidden>${escapeHtml(translate("Memoir.story.photoUnavailable"))}</p>${source ? `<a href="${escapeHtml(source)}" target="_blank" rel="noreferrer">${escapeHtml(translate("Memoir.story.photoSource"))}</a>` : ""}</figcaption></figure>`;
+  }).join("")}</div>`;
+}
+
+async function retryInterviewTurn() {
+  const turn = state.photoTurns?.pending();
+  if (!turn || state.loading) return;
+  const scope = captureProjectScope();
+  state.loading = true;
+  state.chatHistoryCollapsed = false;
+  render();
+  try {
+    const result = await agentTurn(turn.text, conversationMessage("fallback"), ["memory.save", "memory.search"],
+      turn.language, turn.firstReplyLocalization, turn.conversationText, turn.serverAction, turn.sourceKind, {retry:turn});
+    if (result.detached || !isCurrentProjectScope(scope)) return;
+    await streamAssistantMessage(result.reply, {scope, streamedMessage:result.streamedMessage,
+      trace:result.trace, traceMode:result.traceMode, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId});
+    if (state.voiceMode && !result.failed) await speakVoiceReply(result.reply);
+  } finally {
+    if (isCurrentProjectScope(scope)) { state.loading = false; render(); }
+  }
 }
 
 function renderMessage(message) {
@@ -4143,7 +4288,7 @@ function renderMessage(message) {
   const action = !streaming && message.action && message.action.name !== "save-memory" ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !visibleText);
   const listen = streaming || state.voiceMode ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated", expanded = false) {
@@ -4258,6 +4403,7 @@ function bindViewActions() {
     "finish-chapter": finishChapter,
     "continue-memory": startMemory,
     "voice-input": toggleVoiceInput,
+    "retry-interview-turn": () => retryInterviewTurn(),
     "attach-media": () => $("#chat-attachments")?.click(),
     "remove-attachment": button => {
       if (state.loading) return;
@@ -4370,7 +4516,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   const text = voiceTurn ? state.audioTranscript.trim() : (input?.value.trim() || state.audioTranscript.trim() || "");
   const sourceKind = voiceTurn ? "narrator_transcript" : state.audioTranscriptKind;
   const uploadId = state.audioUploadId;
-  const attachments = voiceTurn ? [] : [...state.attachments];
+  const attachments = [...state.attachments];
   if (attachments.length && !state.attachmentRights) return toast(translate("Memoir.story.attachmentRightsRequired"));
   if (!text && !uploadId && !attachments.length) return toast(translate("Memoir.storyFlow.aFewWords"));
   if (state.voiceModeRecorder) {
@@ -4391,9 +4537,6 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       return;
     }
     if (!isCurrentProjectScope(scope)) return;
-    state.attachments = [];
-    state.attachmentRights = false;
-    state.attachmentProgress = "";
   }
   const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
@@ -4412,7 +4555,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   try {
     if (detectedFirstReplyLanguage) await applyFirstReplyLocalization(detectedFirstReplyLanguage);
     if (!isCurrentProjectScope(scope)) return;
-    const session = await ensureMemorySession();
+    const session = text ? await ensureMemorySession() : null;
     if (!isCurrentProjectScope(scope)) return;
     let cues = [];
     let fallback = conversationMessage("fallback");
@@ -4449,16 +4592,17 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         state.session = null;
       }
     }
-    const mediaContext = attachments.length ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
+    const mediaContext = attachments.some(item => item.asset) ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.filter(item => item.asset).map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
     const result = await agentTurn(
-      `The storyteller said: ${messageText}\n${instruction}${mediaContext}`,
+      text ? `The storyteller said: ${text}\n${instruction}${mediaContext}` : "",
       fallback,
       ["memory.save", "memory.search"],
       detectedFirstReplyLanguage || configuredConversationLanguage || (firstReply ? currentUiLocale() : undefined),
       Boolean(detectedFirstReplyLanguage),
-      messageText,
+      text,
       null,
       sourceKind,
+      {attachments},
     );
     if (result.detached || !isCurrentProjectScope(scope)) return;
     if (result.blocked) {
@@ -4470,9 +4614,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       return;
     }
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
-    await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
+    await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
     if (!isCurrentProjectScope(scope)) return;
-    if (state.voiceMode) await speakVoiceReply(result.reply || fallback);
+    if (state.voiceMode && !result.failed) await speakVoiceReply(result.reply || fallback);
   } catch (error) {
     if (!isCurrentProjectScope(scope)) return;
     toast(error.message);
@@ -4510,22 +4654,18 @@ async function reactCue(assetId, reaction) {
 async function speakText(text) {
   if (state.voiceMode) return;
   state.audioPlayer?.pause();
-  if (state.session) {
-    try {
-      const generated = await api(`/v1/memory-sessions/${state.session.id}/question-audio`, {
-        method: "POST",
-        body: JSON.stringify({ language: conversationLanguage() }),
-      });
-      const response = await fetch(memoirApiPath(generated.audio_url));
-      if (!response.ok) throw new Error("Generated audio could not be loaded.");
-      const player = new Audio(URL.createObjectURL(await response.blob()));
-      state.audioPlayer = player;
-      player.onended = () => URL.revokeObjectURL(player.src);
-      await player.play();
-      return;
-    } catch (error) {
-      if (error.status !== 503) toast(error.message);
-    }
+  const scope = captureProjectScope();
+  try {
+    // Speak the exact chosen visible reply, including when the optional legacy
+    // memory-session question differs from the collector's current question.
+    const generated = await storyApi("/v1/story/question-audio", {
+      method:"POST", body:JSON.stringify({text:cleanAssistantText(text), language:conversationLanguage()}),
+    });
+    if (isCurrentProjectScope(scope)) await playGeneratedAudio(generated);
+    return;
+  } catch (error) {
+    if (!isCurrentProjectScope(scope)) return;
+    if (error.status !== 503) toast(error.message);
   }
   if (!window.speechSynthesis) return toast(translate("Memoir.storyFlow.readAloudUnavailable"));
   window.speechSynthesis.cancel();
@@ -5026,8 +5166,13 @@ async function boot() {
         state.projectPrincipalId = state.supabase?.user?.id;
         state.chat = restoreChatHistory(saved);
         rememberProject(saved);
-        try { await hydrateAccountHistory(); }
-        catch { if (current()) toast(translate("AuthReminder.historyError")); }
+        try {
+          await hydrateAccountHistory();
+          if (!current()) return;
+          // Canonical source masking must run before a pending receipt can
+          // render any locally cached history during reconnect.
+          await state.photoTurns?.recover();
+        } catch { if (current()) toast(translate("AuthReminder.historyError")); }
         if (!current()) return;
         await syncProfileUiLocale();
         if (!current()) return;

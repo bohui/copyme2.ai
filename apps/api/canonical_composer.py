@@ -188,7 +188,31 @@ def composer_request(job):
                 'date': {'original_expression': temporal.get('expression', ''),
                     'start_year': temporal.get('year_start'), 'end_year': temporal.get('year_end'),
                     'precision': precision if precision in {'year', 'range', 'decade', 'relative', 'unknown'} else 'relative'}})
+    photo_associations = []
+    for original_event in job['events']:
+        if original_event['id'] not in {event['id'] for event in events}:
+            continue
+        for association in original_event.get('photo_associations', []):
+            original = originals.get(association.get('source_id'))
+            quote = association.get('quote') or ''
+            if (association.get('status') != 'confirmed'
+                or association.get('event_id') != original_event['id']
+                or association.get('provenance') != 'narrator_metadata'
+                or not original or original.get('status') != 'active'
+                or str(association.get('source_version')) != original['version']
+                or not quote or quote not in original['text']):
+                continue
+            evidence = [ref for ref in refs(original_event)
+                if ref['source_id'] == original['id'] and ref['version'] == original['version']
+                and quote in original['text'][ref['char_start']:ref['char_end']]]
+            if not evidence:
+                continue
+            photo_associations.append({'id': association['id'], 'photo_id': association['photo_id'],
+                'event_id': original_event['id'], 'source_refs': evidence, 'quote': quote,
+                'description': association.get('description', ''), 'provenance': 'narrator_metadata',
+                'derived': True})
     key = fingerprint({'sources': job['source_manifest'], 'events': job['event_manifest'],
+                       'photos': photo_associations,
                        'policy': job['policy_epoch'], 'locale': job['locale'], 'base': job['base_revision']})
     # Revocation may purge the prior bytes without resetting the authoritative
     # manuscript revision. A fresh supported candidate still fences that base.
@@ -199,10 +223,21 @@ def composer_request(job):
             'chapters': [{'revision': job['base_revision'], 'approved': False, 'human_locked': False,
                          'chapter': copy.deepcopy(chapter)} for chapter in previous['manuscript']['chapters']],
             'last_snapshot_fingerprint': previous['draft']['input_fingerprint']}
+    photo_manifest = {event_id: fingerprint([a for a in photo_associations if a['event_id'] == event_id])
+                      for event_id in sorted({a['event_id'] for a in photo_associations})}
+    old_photos = (previous or {}).get('photo_association_manifest', {})
+    photo_dirty = sorted(event_id for event_id in set(old_photos) | set(photo_manifest)
+                         if old_photos.get(event_id) != photo_manifest.get(event_id))
+    if previous and 'photo_association_manifest' not in previous:
+        # Older or restricted legacy bundles cannot prove that their surviving
+        # sections are independent of a now-removed photo. Recompose them.
+        photo_dirty = sorted(set(photo_dirty) | {
+            event_id for section in previous.get('sections', []) for event_id in section['event_ids']})
     previous_revisions = (previous or {}).get('event_manifest', [])
     old = {e['id']: e['revision'] for e in previous_revisions}
     dirty = [e['id'] for e in job['event_manifest'] if old.get(e['id']) != e['revision']]
     dirty += [e['id'] for e in previous_revisions if e['id'] not in {n['id'] for n in job['event_manifest']}]
+    dirty = list(dict.fromkeys(dirty + photo_dirty))
     affected_sources = list(dict.fromkeys(ref['source_id'] for event in events if event['id'] in dirty for ref in event['source_refs']))
     if not affected_sources and events:
         # A pure withdrawal can leave only safe unchanged sections to assemble.
@@ -221,13 +256,15 @@ def composer_request(job):
         'sources': sources, 'events': events, 'periods': periods, 'assets': [],
         'prior_state': prior, 'authorised_retirements': [],
         'context': {'canonical_event_index': True, 'dirty_event_ids': dirty, 'style': 'plain, warm, faithful',
+                    'photo_associations': photo_associations,
+                    'photo_association_manifest': photo_manifest, 'photo_dirty_event_ids': photo_dirty,
                     'incremental_model_context': 'compact', 'affected_source_ids': affected_sources,
                     'overlap_source_ids': [s['id'] for s in sources[-2:]]}}
 
 
 async def compose_shared_snapshot(job, worker):
     request = composer_request(job)
-    config = fingerprint({'locale': job['locale'], 'skill': 'shared-composer-2',
+    config = fingerprint({'locale': job['locale'], 'skill': 'shared-composer-4',
         'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
         'policy': request['policy']})
     if job.get('previous') and job['previous'].get('content_config') != config:
@@ -240,6 +277,13 @@ async def compose_shared_snapshot(job, worker):
             ref['source_id'] for event in request['events'] for ref in event['source_refs']))
         request['context']['projection_invalidated_chapter_ids'] = [
             prior['chapter']['id'] for prior in request['prior_state']['chapters']]
+    # Even unchanged canonical event revisions cannot authorize reusing prose
+    # whose photograph association changed or was explicitly removed.
+    photo_dirty = set(request['context']['photo_dirty_event_ids'])
+    photo_chapters = [prior['chapter']['id'] for prior in request['prior_state']['chapters']
+                      if photo_dirty.intersection(prior['chapter']['event_ids'])]
+    request['context']['projection_invalidated_chapter_ids'] = list(dict.fromkeys([
+        *request['context'].get('projection_invalidated_chapter_ids', []), *photo_chapters]))
     if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config:
         bundle = copy.deepcopy(job['previous'])
         bundle['unchanged'] = True
@@ -249,6 +293,7 @@ async def compose_shared_snapshot(job, worker):
     current_sources = {(s['id'], str(s['version'])) for s in job['sources']}
     request['context']['preserved_sections'] = [copy.deepcopy(section) for section in (job.get('previous') or {}).get('sections', [])
         if job['previous'].get('content_config') == config
+        and not photo_dirty.intersection(section['event_ids'])
         and all(current_events.get(id) == old_events.get(id) for id in section['event_ids'])
         and all((ref['source_id'], str(ref['version'])) in current_sources for ref in section['source_refs'])]
     runtime = SimpleNamespace(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
@@ -294,6 +339,7 @@ async def compose_shared_snapshot(job, worker):
     bundle['event_manifest'] = job['event_manifest']
     bundle['source_manifest'] = job['source_manifest']
     bundle['content_config'] = config
+    bundle['photo_association_manifest'] = request['context']['photo_association_manifest']
     sections = []
     manifest = {e['id']: e['revision'] for e in job['event_manifest']}
     bodies = [(chapter['id'], chapter) for chapter in bundle['manuscript']['chapters']]
@@ -307,7 +353,7 @@ async def compose_shared_snapshot(job, worker):
             sections.append({'id': chapter_id + '__' + block['id'], 'chapter_id': chapter_id,
                 'event_ids': event_ids, 'source_refs': block['source_refs'], 'content': block['text'],
                 'block': block, 'fingerprint': fingerprint({'events': {id: manifest[id] for id in event_ids},
-                    'sources': block['source_refs'], 'configuration': config})})
+                    'sources': block['source_refs'], 'photos': {id: bundle['photo_association_manifest'].get(id) for id in event_ids}, 'configuration': config})})
         heading = {'title': chapter['title']}
         if chapter_id != 'sample_storyline':
             heading['subtitle'] = chapter['subtitle']
@@ -315,6 +361,6 @@ async def compose_shared_snapshot(job, worker):
             'event_ids': chapter['event_ids'], 'source_refs': chapter['source_refs'],
             'content': chapter['title'], 'heading': heading,
             'fingerprint': fingerprint({'events': {id: manifest[id] for id in chapter['event_ids']},
-                'sources': chapter['source_refs'], 'configuration': config})})
+                'sources': chapter['source_refs'], 'photos': {id: bundle['photo_association_manifest'].get(id) for id in chapter['event_ids']}, 'configuration': config})})
     bundle['sections'] = sections
     return bundle

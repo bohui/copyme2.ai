@@ -394,3 +394,68 @@ class UserStorage:
         return self.request('PATCH', '/rest/v1/user_memory',
             params={'id': f'eq.{UUID(memory_id)}', 'user_id': f'eq.{self.user_id}', 'kind': 'eq.agent'},
             json={'life_stage': life_stage}, headers={'Prefer': 'return=representation'}).json()
+
+    def put_interview_photo(self, project_id, content, metadata, upload_key=None):
+        """Reserve a server-owned identity before uploading to its private bucket."""
+        from .interview_photos import PRIVATE_PHOTO_BUCKET
+        import hashlib
+        record = self.request('POST', '/rest/v1/rpc/begin_user_interview_photo', json={
+            'p_project_id':project_id, 'p_metadata':{**metadata, 'content_sha256':hashlib.sha256(content).hexdigest()},
+            'p_upload_key':str(UUID(upload_key)) if upload_key else None}).json()
+        if record.get('status') == 'ready':
+            return record
+        try:
+            self.request('POST', '/storage/v1/object/' + PRIVATE_PHOTO_BUCKET + '/' + quote(record['object_path'], safe='/'),
+                         content=content, headers={'Content-Type':record['content_type'], 'x-upsert':'false'})
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code != 409:
+                raise
+        return self.request('POST', '/rest/v1/rpc/finish_user_interview_photo', json={
+            'p_project_id':project_id, 'p_photo_id':record['id']}).json()
+
+    def get_interview_photo(self, project_id, photo_id):
+        from .interview_photos import PRIVATE_PHOTO_BUCKET
+        record = self.request('POST', '/rest/v1/rpc/read_user_interview_photo', json={
+            'p_project_id':project_id, 'p_photo_id':str(UUID(photo_id))}).json()
+        if not record or record.get('status') != 'ready':
+            raise ValueError('Photo not found')
+        content = self.request('GET', '/storage/v1/object/authenticated/' + PRIVATE_PHOTO_BUCKET + '/'
+                               + quote(record['object_path'], safe='/')).content
+        return content, record
+
+    def delete_interview_photo(self, project_id, photo_id):
+        from .interview_photos import PRIVATE_PHOTO_BUCKET
+        record = self.request('POST', '/rest/v1/rpc/delete_user_interview_photo', json={
+            'p_project_id':project_id, 'p_photo_id':str(UUID(photo_id))}).json()
+        if not record:
+            raise ValueError('Photo not found')
+        # Logical deletion/fencing happens first. A failed byte cleanup cannot
+        # restore access, and retrying deletion attempts the same cleanup.
+        self.request('DELETE', '/storage/v1/object/' + PRIVATE_PHOTO_BUCKET,
+                     json={'prefixes':[record['object_path']]})
+
+    def accept_interview_turn(self, project_id, client_turn_id, text, *, kind='narrator_chat',
+                              language='en-AU', uploaded_photo_ids=None, photo_selection=None):
+        return self.request('POST', '/rest/v1/rpc/accept_user_interview_turn', json={
+            'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id)),
+            'p_text':text, 'p_kind':kind, 'p_language':language,
+            'p_uploaded_photo_ids':[str(UUID(value)) for value in (uploaded_photo_ids or [])],
+            'p_photo_selection':photo_selection}).json()
+
+    def interview_context(self, project_id):
+        return self.request('POST', '/rest/v1/rpc/read_user_interview_context', json={
+            'p_project_id':project_id}).json()
+
+    def interview_turn_by_id(self, project_id, client_turn_id):
+        return self.request('GET', '/rest/v1/rpc/read_user_interview_turn', params={
+            'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id))}).json()
+
+    def save_interview_plan(self, project_id, client_turn_id, plan, associations, lease_token, *, reply=None, response_photo_ids=None, thread_id=None):
+        return self.request('POST', '/rest/v1/rpc/save_user_interview_plan', json={
+            'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id)),
+            'p_plan':plan, 'p_associations':associations, 'p_lease_token':str(UUID(lease_token)),
+            'p_reply':reply, 'p_response_photo_ids':response_photo_ids or [], 'p_thread_id':thread_id}).json()
+
+    def unlink_interview_photo(self, project_id, association_id):
+        return self.request('POST', '/rest/v1/rpc/unlink_user_interview_photo', json={
+            'p_project_id':project_id, 'p_association_id':str(UUID(association_id))}).json()

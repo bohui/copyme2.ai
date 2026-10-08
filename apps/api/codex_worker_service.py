@@ -45,6 +45,7 @@ from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
 from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
 from .memory_events import extraction_instructions, extraction_schema
+from .interview_plan import collector_schema
 
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
@@ -73,7 +74,8 @@ class WorkerTurnInput(BaseModel):
     canonical_events: bool = False
     family_context: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
-    text: str = Field(min_length=1, max_length=500000)
+    text: str = Field(default="", max_length=500000)
+    interview_context: dict[str, Any] | None = None
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
@@ -92,6 +94,8 @@ class WorkerTurnInput(BaseModel):
 
     @model_validator(mode='after')
     def bound_conversation_input(self):
+        if not self.text and not (self.agent_role == 'collector' and self.interview_context and self.interview_context.get('photo_context')):
+            raise ValueError('A collector turn needs narration or an accepted photo cue')
         if self.agent_role not in {'composer', 'author_timeline'} and len(self.text) > 100000:
             raise ValueError('Conversation input exceeds the supported limit')
         return self
@@ -363,6 +367,7 @@ class CodexWorker:
                 family_context=payload.family_context,
                 language=language,
                 conversation_rounds_completed=payload.conversation_rounds_completed,
+                interview_context=payload.interview_context,
             )
         elif payload.agent_role == 'workspace':
             instructions = build_workspace_extraction_prompt(
@@ -433,7 +438,9 @@ class CodexWorker:
                     prompt,
                     **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else
                        {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else
-                       {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else {}),
+                       {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else
+                       {'output_schema': collector_schema()}
+                       if payload.agent_role == 'collector' and payload.interview_context is not None else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
                     **({'effort': self.reasoning_effort} if self.reasoning_effort is not None else
