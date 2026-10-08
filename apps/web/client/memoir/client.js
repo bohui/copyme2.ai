@@ -135,7 +135,7 @@ const guestTransfer = createGuestConversationTransfer({
     setItem: (key, value) => sessionStorage.setItem(key, value),
     removeItem: key => sessionStorage.removeItem(key),
   },
-  redirectTo: window.location.origin + window.location.pathname,
+  getRedirectTo: () => window.location.origin + window.location.pathname,
   onMerged: async result => {
     const { data, error } = await state.supabase.client.auth.getUser();
     if (error) throw error;

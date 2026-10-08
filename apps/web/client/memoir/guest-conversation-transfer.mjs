@@ -1,6 +1,6 @@
 export const GUEST_TRANSFER_KEY = 'memoir-guest-conversation-transfer';
 
-export function createGuestConversationTransfer({ getAuth, getConversation, api, storage, redirectTo, onMerged }) {
+export function createGuestConversationTransfer({ getAuth, getConversation, api, storage, getRedirectTo, onMerged }) {
   function pending() {
     try { return JSON.parse(storage.getItem(GUEST_TRANSFER_KEY) || 'null'); }
     catch { return null; }
@@ -28,7 +28,7 @@ export function createGuestConversationTransfer({ getAuth, getConversation, api,
     });
     const { error } = await account.client.auth.signInWithOAuth({
       provider,
-      options: { redirectTo, ...(provider === 'google' ? { queryParams: { prompt: 'consent select_account' } } : {}) },
+      options: { redirectTo: getRedirectTo(), ...(provider === 'google' ? { queryParams: { prompt: 'consent select_account' } } : {}) },
     });
     if (error) throw error;
   }

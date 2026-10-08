@@ -12,13 +12,26 @@ function setup() {
     signInWithOAuth: async options => { calls.push(['oauth', options]); assert.ok(storage.getItem(GUEST_TRANSFER_KEY)); return {}; },
   } } };
   const options = {
-    getAuth: () => account, storage, redirectTo: 'https://memoir.test/memoir/interview/project',
+    getAuth: () => account, storage, getRedirectTo: () => 'https://memoir.test/memoir/interview/project',
     getConversation: () => ({ project_id: 'project', messages: [{ role: 'user', text: 'My childhood' }],
       workspace_profile: { preferred_language: 'zh-CN', memory_places: [{ place: 'Anshan', pictures: [{ id: 'photo' }] }] }, ui_locale: 'zh-CN' }),
     api: async (path, request) => { calls.push([path, JSON.parse(request.body)]); return {}; },
   };
   return { account, options, calls, storage, transfer: createGuestConversationTransfer(options) };
 }
+
+for (const provider of ['google', 'facebook']) test(`${provider} login returns to the interview opened after the homepage loaded`, async () => {
+  const { options, calls } = setup();
+  let currentRedirect = 'https://memoir.test/';
+  const transfer = createGuestConversationTransfer({ ...options, getRedirectTo: () => currentRedirect });
+  currentRedirect = 'https://memoir.test/memoir/interview/project_from_home';
+  await transfer.signIn(provider);
+  assert.equal(calls.at(-1)[1].options.redirectTo, currentRedirect);
+
+  currentRedirect = 'https://memoir.test/memoir/interview/project_next';
+  await transfer.signIn(provider);
+  assert.equal(calls.at(-1)[1].options.redirectTo, currentRedirect);
+});
 
 test('prepare under guest, sign in, redeem under permanent user after reload', async () => {
   const { account, calls, transfer, options, storage } = setup();
