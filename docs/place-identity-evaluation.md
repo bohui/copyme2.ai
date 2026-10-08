@@ -15,7 +15,7 @@ No private storyteller conversation is included.
 
 The checked-in `place_identity_model_outputs.json` records actual extraction
 responses from the configured `gpt-5.6-luna-pooled` model. All eight pass the
-same scorer in CI. Two initial gold failures were resolved by verifying the
+same scorer in the normal pytest suite. Two initial gold failures were resolved by verifying the
 optional 双桥区 parent of 大石庙镇 against the dataset's government source;
 the raw model responses were retained unchanged.
 

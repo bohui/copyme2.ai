@@ -67,7 +67,7 @@ def interview():
                 "place_journey_change": {"changed": True, "revision": 1},
             })))
         page.goto(os.environ.get("MEMOIR_BROWSER_URL", "http://localhost:3011").rstrip('/') + '/memoir',
-                  wait_until="networkidle")
+                  wait_until="networkidle", timeout=30000)
         page.get_by_role("button", name="Begin my story").click()
         expect(page.locator(".assistant-message .listen-button").first).to_be_visible(timeout=30000)
         expect(page.locator(".message-streaming")).to_have_count(0, timeout=30000)
