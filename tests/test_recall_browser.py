@@ -77,16 +77,18 @@ def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, 
             expect(button).to_have_attribute('aria-current', 'page')
             expect(page.locator('.private-draft-status')).to_have_count(1 if tab == 'memoir' else 0)
             expect(page.locator('.workspace-media-overview')).to_have_count(1 if with_place else 0)
-            if tab == 'memoir' and with_place:
+            if with_place:
                 expect(page.locator('.workspace-media-overview')).to_be_visible()
                 panes = page.locator('#workspace-detail').evaluate('''el => {
                     const area = el.getBoundingClientRect();
                     return ['.workspace-media-overview', '.workspace-scroll'].map(selector => {
                         const box = el.querySelector(selector).getBoundingClientRect();
-                        return {height: box.height, inside: box.top >= area.top && box.bottom <= area.bottom + 1};
+                        return {height: box.height, inside: box.top >= area.top && box.bottom <= area.bottom + 1,
+                            scrollable: ['auto', 'scroll'].includes(getComputedStyle(el.querySelector(selector)).overflowY)};
                     });
                 }''')
                 assert all(pane['height'] >= 80 and pane['inside'] for pane in panes), panes
+                assert panes[1]['scrollable'], panes
         page.reload(wait_until='networkidle')
         expect(tabs).to_have_count(len(expected))
         browser.close()

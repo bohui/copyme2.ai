@@ -129,6 +129,7 @@ test('paid Family storytellers retain their selected Family and Timeline tabs at
       const markup = context.workspaceDetail();
       assert.equal((markup.match(/data-workspace-tab=/g) || []).length, 3);
       assert.ok(markup.includes(`${tab} view`));
+      assert.match(markup, /has-recall-views/);
       assert.doesNotMatch(markup, /private-draft-status|童年草稿/);
       context.state.workspaceTab = 'memoir';
       assert.match(context.workspaceDetail(), /童年草稿/);
@@ -197,10 +198,10 @@ test('completed recall keeps location and photo cues until composition unlock', 
     const context = setup({familyFeaturesEnabled, privateDraft:savedDraft,
       recallStatus:{rounds_completed:20, free_rounds:20, paid:true}});
     assert.match(context.workspaceDetail(), /workspace-media-overview/);
-    assert.match(context.workspaceDetail(), /has-recall-chapters/);
+    assert.match(context.workspaceDetail(), /has-recall-views/);
     assert.match(context.workspaceDetail(), /童年草稿/);
     context.state.compositionStage = 3;
-    assert.doesNotMatch(context.workspaceDetail(), /workspace-media-overview|has-recall-chapters/);
+    assert.doesNotMatch(context.workspaceDetail(), /workspace-media-overview|has-recall-views/);
     assert.match(context.workspaceDetail(), /童年草稿/);
   }
 });
