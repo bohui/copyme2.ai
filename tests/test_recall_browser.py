@@ -5,14 +5,143 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
+from browser_optional_fonts import control_optional_fonts
 
 pytestmark = pytest.mark.skipif(not os.environ.get('MEMOIR_BROWSER_URL'), reason='Requires a selected local source frontend')
 ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_startup_does_not_wait_for_optional_font_stylesheet(locale):
+    copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())
+    calls, pending_fonts = [], []
+
+    def api(route):
+        path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+        calls.append(path)
+        if path == '/agent/config':
+            data = {'auth_mode': 'test', 'show_thinking_steps': False}
+        elif path in ('/agent/profile', '/user/profile'):
+            data = {'preferred_language': locale}
+        else:
+            data = {'items': []}
+        route.fulfill(json=data)
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        context = browser.new_context()
+        base = os.environ['MEMOIR_BROWSER_URL']
+        context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
+                            {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
+        context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base) else route.abort())
+        page = context.new_page()
+        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
+            content_type='text/javascript', body='window.supabase = {};'))
+        page.route('https://fonts.googleapis.com/**', lambda route: pending_fonts.append(route))
+        page.route('**/api/v1/memoir/**', api)
+        try:
+            with page.expect_request(lambda request: request.url.startswith('https://fonts.googleapis.com/')):
+                page.goto(base + '/memoir', wait_until='commit')
+            expect(page.get_by_text(copy['Memoir']['landing']['connectSummary'], exact=True)).to_be_visible(timeout=30000)
+            expect(page.locator('[data-action="start-story"][data-mode="self"]')).to_be_enabled()
+            expect(page.locator('link[data-memoir-fonts]')).to_have_count(1)
+            assert '/agent/config' in calls
+            assert len(pending_fonts) == 1, 'Font CSS must remain pending throughout startup assertions'
+        finally:
+            for route in pending_fonts:
+                route.abort()
+            browser.close()
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+@pytest.mark.parametrize('family_enabled', [False, True])
+@pytest.mark.parametrize('with_place', [False, True])
+def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, family_enabled, with_place):
+    copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())['Memoir']['workspace']
+    project = {'id': 'entitlement-round-limit', 'revision': 1, 'mode': 'self',
+               'composition_stage': 2, 'workspace_unlocked': False,
+               'profile': {'preferred_language': locale}}
+    if with_place:
+        project['profile']['memory_places'] = [{'place': 'Chengde',
+            'hierarchy': ['Earth', 'China', 'Hebei', 'Chengde'], 'granularity': 'city',
+            'latitude': 40.9517, 'longitude': 117.9632, 'life_stage': 'childhood'}]
+
+    def api(route):
+        endpoint = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+        data = {'items': []}
+        if endpoint == '/agent/config':
+            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public',
+                    'auth_mode': 'supabase', 'show_thinking_steps': False}
+        elif endpoint in ('/agent/profile', '/user/profile'):
+            data = project['profile']
+        elif endpoint == '/projects/entitlement-round-limit':
+            data = project
+        elif endpoint == '/projects/entitlement-round-limit/journey':
+            data = {'active_session': None}
+        elif endpoint == '/story/state':
+            data = {'family_features_enabled': family_enabled,
+                    'payment_features': ['family_tree', 'timeline'] if family_enabled else [],
+                    'recall_status': {'rounds_completed': 20, 'free_rounds': 20,
+                                      'paid': True, 'payment_required': False}}
+        elif endpoint == '/agent/family-context':
+            data = {'family_features_enabled': family_enabled, 'family_context': {
+                'project_id': project['id'], 'revision': 1, 'people': [], 'relationships': [], 'timeline': []}}
+        elif endpoint == '/story/events':
+            data = {'events': []}
+        elif endpoint == '/story/private-draft':
+            data = {'covered_round': 20, 'preview': {'title': 'Saved memoir draft', 'text': 'Saved memories.'}}
+        route.fulfill(json=data)
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        context = browser.new_context(viewport={'width': 390 if locale == 'zh-CN' else 1440, 'height': 900})
+        base = os.environ['MEMOIR_BROWSER_URL']
+        context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
+                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
+        context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base) else route.abort())
+        page = context.new_page()
+        control_optional_fonts(page)
+        user = {'id': 'paid-storyteller', 'is_anonymous': False, 'user_metadata': {'ui_locale': locale}}
+        auth_script = f"""window.supabase = {{createClient: () => ({{auth: {{
+          getSession: async () => ({{data: {{session: {{access_token: 'token', user: {json.dumps(user)}}}}}}}),
+          getUser: async () => ({{data: {{user: {json.dumps(user)}}}}}),
+          onAuthStateChange: () => ({{}}), updateUser: async () => ({{}})
+        }}}})}};"""
+        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
+            content_type='text/javascript', body=auth_script))
+        page.route('**/api/v1/memoir/**', api)
+        page.goto(base + '/memoir/interview/' + project['id'], wait_until='networkidle')
+        tabs = page.locator('[data-workspace-tab]')
+        expected = ['family', 'timeline', 'memoir'] if family_enabled else ['memoir']
+        expect(tabs).to_have_count(len(expected))
+        for tab in expected:
+            button = page.locator(f'[data-workspace-tab="{tab}"]')
+            expect(button).to_have_text(copy['chapters' if tab == 'memoir' else tab])
+            button.click()
+            expect(button).to_have_attribute('aria-current', 'page')
+            expect(page.locator('.private-draft-status')).to_have_count(1 if tab == 'memoir' else 0)
+            expect(page.locator('.workspace-media-overview')).to_have_count(1 if with_place else 0)
+            if with_place:
+                expect(page.locator('.workspace-media-overview')).to_be_visible()
+                panes = page.locator('#workspace-detail').evaluate('''el => {
+                    const area = el.getBoundingClientRect();
+                    return ['.workspace-media-overview', '.workspace-scroll'].map(selector => {
+                        const box = el.querySelector(selector).getBoundingClientRect();
+                        return {height: box.height, inside: box.top >= area.top && box.bottom <= area.bottom + 1,
+                            scrollable: ['auto', 'scroll'].includes(getComputedStyle(el.querySelector(selector)).overflowY)};
+                    });
+                }''')
+                assert all(pane['height'] >= 80 and pane['inside'] for pane in panes), panes
+                assert panes[1]['scrollable'], panes
+        page.reload(wait_until='networkidle')
+        expect(tabs).to_have_count(len(expected))
+        browser.close()
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 @pytest.mark.parametrize('anonymous', [False, True])
-def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
+@pytest.mark.parametrize('show_developer_steps', [False, True])
+def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, show_developer_steps):
     copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())
     model = {'completed': 19, 'paid': False, 'turns': 0, 'checkouts': [], 'previews': 0}
     project = {'id': 'recall-project', 'revision': 1, 'profile': {'preferred_language': locale}, 'mode': 'self'}
@@ -25,7 +154,8 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         path = route.request.url.split('/api/v1/memoir')[-1]
         data = {}
         if path == '/agent/config':
-            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public', 'auth_mode': 'supabase'}
+            data = {'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public',
+                    'auth_mode': 'supabase', 'show_thinking_steps': show_developer_steps}
         elif path == '/story/state':
             data = {'recall_status': status(), 'family_features_enabled': False}
         elif path == '/agent/profile' or path == '/user/profile':
@@ -40,6 +170,11 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
             return route.fulfill(status=403, content_type='application/json', body='{}')
         elif path == '/agent/place-journey':
             data = {'place_journey': None}
+        elif path.startswith('/story/private-draft?'):
+            data = {'covered_round': 15, 'preview': {
+                'title': 'Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿',
+                'text': 'The saved draft recalls afternoons in the garden.' if locale == 'en-AU' else '已保存的草稿记述了花园里的午后。',
+            }}
         elif path == '/agent/turn':
             assert route.request.post_data_json['conversation_text'] == 'A memory from the garden'
             assert 'The storyteller said:' in route.request.post_data_json['text']
@@ -70,6 +205,7 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         page = context.new_page()
+        control_optional_fonts(page)
         page.set_default_timeout(10000)
         user = {'id': 'recall-user', 'is_anonymous': anonymous, 'user_metadata': {'ui_locale': locale}}
         auth_script = f"""window.supabase = {{createClient: () => ({{auth: {{
@@ -88,6 +224,9 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         page.locator('[data-action="start-story"][data-mode="self"]').click()
         send = page.get_by_role('button', name=copy['Memoir']['story']['send'], exact=True)
         expect(send).to_be_enabled(timeout=30000)
+        page.wait_for_load_state('networkidle')
+        expect(page.locator('[data-workspace-tab]')).to_have_count(0)
+        expect(page.locator('.private-draft-status')).to_have_count(1 if show_developer_steps else 0)
         page.locator('#chat-input').fill('A memory from the garden')
         send.click()
         prompt = page.locator('.recall-package-prompt')
@@ -97,15 +236,29 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous):
         assert page.locator('.recall-preview').evaluate('(el) => Boolean(el.compareDocumentPosition(document.querySelector(".recall-package-prompt")) & Node.DOCUMENT_POSITION_FOLLOWING)')
         expect(page.locator('.assistant-message .message-text').last).to_contain_text('garden' if locale == 'en-AU' else '花园')
         expect(page.locator('#chat-input')).to_have_count(0)
+        chapters = page.locator('[data-workspace-tab="memoir"]')
+        expect(chapters).to_have_text(copy['Memoir']['workspace']['chapters'])
+        draft = page.locator('#workspace-detail .private-draft-status')
+        expect(draft).to_have_count(1)
+        draft.locator('summary').click()
+        expect(draft).to_contain_text('Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿')
+        expect(page.locator('.chat-main .private-draft-status')).to_have_count(0)
         assert model['turns'] == 1
         assert not any(name in prompt.inner_text().lower() for name in ('codex', 'supabase', '20 free', '五轮'))
         assert '20' not in copy['Memoir']['recall']['description']
         page.reload()
         expect(prompt).to_be_visible(timeout=30000)
+        expect(chapters).to_be_visible()
+        expect(draft).to_have_count(1)
+        if not show_developer_steps:
+            page.get_by_role('button', name=copy['Memoir']['workspace']['collapseWorkspace'], exact=True).click()
+            expect(page.locator('.private-draft-status')).to_have_count(0)
+            page.get_by_role('button', name=copy['Memoir']['workspace']['showWorkspace'], exact=True).click()
+            expect(draft).to_have_count(1)
         assert model['turns'] == 1
         page.locator('.story-plan-card:has(input[value="family_memoir_v1"])').click()
         page.locator('#story-book-count').select_option('4')
-        destination = ROOT / f'output/playwright/recall-packages-{locale}-{anonymous}.png'
+        destination = ROOT / f'output/playwright/recall-packages-{locale}-{anonymous}-{show_developer_steps}.png'
         destination.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(destination), full_page=True)
         page.get_by_role('button', name=copy['Memoir']['storyFlow']['continueCheckout']).click()
@@ -170,6 +323,7 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         page = browser.new_page()
+        control_optional_fonts(page)
         page.clock.install()
         page.add_init_script('''
           localStorage.setItem('memory-spark-project', 'history-project');
@@ -258,6 +412,7 @@ def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         page = context.new_page()
+        control_optional_fonts(page)
         page.clock.install()
         page.clock.pause_at(datetime.now() + timedelta(hours=1))
         page.add_init_script("localStorage.setItem('memory-spark-project', 'preview-fixture');")

@@ -8,6 +8,7 @@ import os
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
+from browser_optional_fonts import control_optional_fonts
 
 from test_shared_memory_events_postgres import (
     database, attachment_database, private_database, event_database, sql,
@@ -80,7 +81,8 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
             data = {}
             if endpoint == "/agent/config":
                 data = {"supabase_url": "https://auth.test", "supabase_publishable_key": "public",
-                        "auth_mode": "supabase", "google_maps_browser_api_key": "synthetic-key"}
+                        "auth_mode": "supabase", "google_maps_browser_api_key": "synthetic-key",
+                        "show_thinking_steps": True}
             elif endpoint in ("/agent/profile", "/user/profile"):
                 data = profile
             elif endpoint == "/projects/project":
@@ -115,6 +117,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
           }}
         """)
         page = context.new_page()
+        control_optional_fonts(page)
         page.on("pageerror", lambda error: errors.append(str(error)))
         interview = base + "/memoir/interview/project"
         page.goto(interview, wait_until="networkidle")
@@ -127,6 +130,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
         expect(page.locator(".place-journey-scene.is-cesium-map")).to_be_visible(timeout=30000)
         page.locator(".story-topbar .brand-name").click()
         expect(page).to_have_url(base + "/memoir")
+        page.wait_for_load_state("networkidle")
         page.locator('[data-action="start-story"][data-mode="self"]').click()
         expect(page).to_have_url(interview)
         expect(page.locator(".chat-scroll")).to_contain_text(original)
@@ -139,6 +143,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
         expect(page.locator(".private-draft-status")).to_contain_text(saved_copy)
         page.evaluate("sessionStorage.clear()")
         second = context.new_page()
+        control_optional_fonts(second)
         second.on("pageerror", lambda error: errors.append(str(error)))
         second.goto(interview, wait_until="networkidle")
         expect(second.locator(".chat-scroll")).to_contain_text(original)

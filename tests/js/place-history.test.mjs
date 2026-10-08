@@ -141,7 +141,7 @@ test('activates the workspace for a triggered place even without a map target', 
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
   profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false, freeRecallFinished: () => false,
  });
- for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'workspaceContentAvailable', 'workspaceHasContent']) {
+ for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
  assert.equal(context.workspaceHasContent(), true);
