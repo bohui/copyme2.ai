@@ -28,6 +28,21 @@ def test_chinese_place_markers_normalize_earth_and_preserve_both_named_cities():
     assert all(place_journey_matches_message(journey, message) for journey in journeys)
 
 
+def test_same_city_aliases_are_deduplicated_after_source_grounding():
+    full = {'place': '承德市', 'hierarchy': ['Earth', '中国', '河北省', '承德市'],
+            'granularity': 'city', 'latitude': 40.9517, 'longitude': 117.9632}
+    short = {'place': '承德', 'hierarchy': ['Earth', '中国', '河北', '承德'], 'granularity': 'city'}
+    result = grounded_place_journeys([full, short], '我在承德市长大，后来又回到承德。')
+    assert len(result) == 1
+    assert result[0]['place'] == '承德'
+    assert result[0]['latitude'] == full['latitude']
+    # The first alias is not grounded in this wording. It must not suppress the
+    # later valid marker or donate its coordinates before grounding succeeds.
+    result = grounded_place_journeys([full, short], '我后来又回到承德。')
+    assert result == [short]
+    assert 'latitude' not in short
+
+
 @pytest.mark.parametrize('message,independent', [
     ('我出生在河北省承德市附属医院。', False),
     ('我出生在河北省的承德市。', False),

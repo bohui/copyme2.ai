@@ -27,7 +27,7 @@ function setup(overrides = {}) {
 }
 
 test('interview keeps place/photo panels without family or payment tabs', () => {
-  const context = setup();
+  const context = setup({people: [{id: 'author'}], timeline: [{id: 'birth'}]});
   assert.equal(context.workspaceTabs().length, 0);
   const markup = context.workspaceDetail();
   assert.match(markup, /workspace-media-overview/);

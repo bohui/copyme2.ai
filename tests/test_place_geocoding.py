@@ -77,6 +77,44 @@ def test_provider_outage_still_uses_saved_parent(monkeypatch):
     assert geo.resolve_place_map(SUBURB, [])['status'] == 'UNAVAILABLE'
 
 
+def test_city_alias_reuses_project_coordinates_without_geocoding(monkeypatch):
+    def unexpected_lookup(query):
+        raise AssertionError('A known city alias must not need the provider')
+    monkeypatch.setattr(geo, 'search_place', unexpected_lookup)
+    client = TestClient(create_app(MemoryStore()))
+    headers = {'X-Account-Id': 'alias-owner'}
+    project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()
+    saved = {**CITY, 'place': '承德市', 'hierarchy': ['Earth', '中国', '河北省', '承德市']}
+    assert client.patch(f"/v1/projects/{project['id']}", headers=headers,
+                        json={'profile': {'memory_places': [saved]}}).status_code == 200
+    current = {**CITY, 'latitude': None, 'longitude': None}
+    response = client.post(f"/v1/projects/{project['id']}/place-map", headers=headers, json=current)
+    assert response.status_code == 200
+    assert response.json() == {'status': 'READY', 'target': {
+        'place': '承德', 'latitude': CITY['latitude'], 'longitude': CITY['longitude']}, 'fallback': False}
+
+
+def test_city_alias_is_a_parent_target_and_does_not_supply_child_coordinates(monkeypatch):
+    monkeypatch.setattr(geo, 'search_place', lambda query: None)
+    saved = {**CITY, 'place': '承德市', 'hierarchy': ['Earth', '中国', '河北省', '承德市']}
+    result = geo.resolve_place_map(SUBURB, [saved])
+    assert result['target']['place'] == '承德'
+    assert result['fallback'] is True
+    assert 'latitude' not in SUBURB
+
+
+def test_alias_matching_preserves_regions_and_county_identity(monkeypatch):
+    monkeypatch.setattr(geo, 'search_place', lambda query: None)
+    saved = {**CITY, 'place': '承德市', 'hierarchy': ['Earth', '中国', '河北省', '承德市']}
+    for current in (
+        {**CITY, 'hierarchy': ['Earth', '中国', '另一省', '承德']},
+        {**CITY, 'place': '承德县', 'hierarchy': ['Earth', '中国', '河北', '承德县'], 'granularity': 'suburb'},
+    ):
+        current.pop('latitude')
+        current.pop('longitude')
+        assert geo.resolve_place_map(current, [saved])['target'] is None
+
+
 def test_grouping_metadata_shares_map_cache_and_preserves_partial_match(monkeypatch):
     calls = []
     def get(url, **kwargs):

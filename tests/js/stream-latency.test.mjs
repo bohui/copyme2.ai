@@ -39,14 +39,18 @@ test('map preview renders during text streaming without a profile write or photo
   assert.ok(renders >= 2);
 });
 
-test('a failed conversational save restores the previous place preview', async () => {
-  const previous = {place: 'Chengde'};
+for (const previous of [null, {place: 'Chengde'}]) {
+test(`a failed conversational save restores ${previous ? 'the confirmed workspace' : 'the unopened workspace'}`, async () => {
+  const visibility = [];
   const context = vm.createContext({
     state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: [],
-      placeJourney: previous, selectedPlace: 'Chengde'},
+      placeJourney: previous, selectedPlace: previous?.place || null},
+    workspaceVisibility: {projectId: null, stable: false},
+    composingWorkspaceActive: () => false,
     appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
     conversationLanguage: () => 'en-AU', simulatedLoopTrace: () => [],
-    render: () => {}, toast: () => {}, placeHistoryKey: item => item.place, resolvePlaceMap: () => {},
+    render: () => visibility.push(context.workspaceHasContent()),
+    toast: () => {}, placeHistoryKey: item => item.place, resolvePlaceMap: () => {},
     streamAgentTurn: async (_text, _onDelta, onEvent) => {
       await onEvent({type: 'place_preview', data: {project_id: 'p', source_sequence: 1,
         place_journey: {place: 'Sydney'}}});
@@ -54,11 +58,18 @@ test('a failed conversational save restores the previous place preview', async (
     },
   });
   context.refreshPrivateDraft = async () => {};
+  for (const name of ['workspaceContentAvailable', 'workspaceHasContent']) {
+    vm.runInContext(extract(name), context);
+  }
+  assert.equal(context.workspaceHasContent(), Boolean(previous));
   vm.runInContext(extract('agentTurn'), context);
   await context.agentTurn('Sydney');
   assert.equal(context.state.placeJourney, previous);
-  assert.equal(context.state.selectedPlace, 'Chengde');
+  assert.equal(context.state.selectedPlace, previous?.place || null);
+  assert.equal(visibility[0], true, 'a streamed preview remains visible while the turn is pending');
+  assert.equal(visibility.at(-1), Boolean(previous), 'failed previews must restore prior workspace availability');
 });
+}
 
 test('buffered response is not paced by one animation frame per delta', async () => {
   let frames = 0;
@@ -266,4 +277,12 @@ test('photo workspace exposes discovery even before any eligible result', () => 
   assert.match(context.workspaceMediaOverview(), /workspace-media-gallery/);
   context.state.photoRequests.set(JSON.stringify(['p', 'Chengde', '', null, null]), {loading: true});
   assert.match(context.workspaceMediaOverview(), /role="status"/);
+  context.placeMapTarget = () => null;
+  context.placeJourneyMarkup = () => '';
+  const unresolved = context.workspaceMediaOverview();
+  assert.match(unresolved, /workspace-media-map/);
+  assert.match(unresolved, /workspace-media-gallery/);
+  assert.match(unresolved, /Chengde/);
+  assert.match(unresolved, /pinUnresolved/);
+  assert.match(unresolved, /picturesSearching/);
 });
