@@ -3758,12 +3758,6 @@ async function saveMemoryEventEdit(event) {
   }
 }
 
-function placeMapUrl(journey) {
-  if (!Number.isFinite(journey?.latitude) || !Number.isFinite(journey?.longitude)) return "";
-  const query = encodeURIComponent(`${journey.latitude},${journey.longitude}`);
-  return `https://www.google.com/maps/search/?api=1&query=${query}`;
-}
-
 function placeMapViewHeight(journey, target = journey) {
   const granularity = target?.granularity
     || (target?.place === journey?.place ? journey?.granularity : "city");
@@ -3773,23 +3767,17 @@ function placeMapViewHeight(journey, target = journey) {
 function placeJourneyMarkup(journey, variant = "surface", group = null) {
   if (!journey) return "";
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  const tWith = (key, values) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
   const title = group?.city || journey;
   const target = group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
   if (!target) return "";
   const parentFallback = !group && target.place && placeHistoryKey({place: target.place}) !== placeHistoryKey({place: journey.place});
-  const mapUrl = placeMapUrl(target);
-  const mapLink = mapUrl ? `<a class="place-map-link" href="${escapeHtml(mapUrl)}" target="_blank" rel="noreferrer">${t("exploreMap")} <span aria-hidden="true">↗</span></a>` : "";
   const latitude = Number.isFinite(target?.latitude) ? target.latitude : "";
   const longitude = Number.isFinite(target?.longitude) ? target.longitude : "";
   const duration = Number(journey.duration_ms) || 5200;
-  const placeType = currentUiLocale() === "zh-CN"
-    ? ({ city: "城市", town: "城镇", region: "地区", country: "国家", neighbourhood: "街区" }[journey.granularity] || "地点")
-    : (journey.granularity || "place");
   const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
   const pinData = ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
   const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
-  return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}<div class="place-journey-toolbar"><span class="place-journey-status">${parentFallback ? escapeHtml(translateWith("Memoir.workspace.parentMap", { place: target.place })) : tWith("approximate", { placeType: group ? (currentUiLocale() === "zh-CN" ? "地点" : "places") : placeType })}</span>${mapLink}</div></section>`;
+  return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
 }
 
 function placeJourneySurface() {
