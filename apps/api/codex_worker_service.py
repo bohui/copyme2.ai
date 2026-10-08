@@ -45,7 +45,7 @@ from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
 from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
 from .memory_events import extraction_instructions, extraction_schema
-from .interview_plan import collector_schema
+from .interview_plan import collector_schema, run_collector_turn
 
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
@@ -433,9 +433,11 @@ class CodexWorker:
                         "baseInstructions": instructions,
                     })
                 thread_id = result["thread"]["id"]
-                reply = await connection.turn(
+                reply = await run_collector_turn(
+                    connection,
                     thread_id,
                     prompt,
+                    interview_context=payload.interview_context if payload.agent_role == 'collector' else None,
                     **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else
                        {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else
                        {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else

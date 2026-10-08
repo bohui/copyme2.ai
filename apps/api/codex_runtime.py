@@ -1611,7 +1611,7 @@ class CodexRuntime:
         check_issue14_dispatch(self._issue14_admission, role='collector', correlation=evaluation)
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         from .interview_plan import (CollectorVisibleStream, public_interview_fields,
-            validate_collector_result, collector_schema)
+            validate_collector_result, collector_schema, run_collector_turn)
         visible = VisibleText()
         collector_visible = CollectorVisibleStream()
         interview_context = None
@@ -1900,9 +1900,11 @@ class CodexRuntime:
                             'baseInstructions': instructions,
                         })
                     thread_id = result['thread']['id']
-                    reply = await connection.turn(
+                    reply = await run_collector_turn(
+                        connection,
                         thread_id,
                         prompt,
+                        interview_context=interview_context,
                         **({'output_schema': collector_schema()} if interview_context is not None else {}),
                         **({'on_delta': emit_visible} if on_delta else {}),
                         **({'on_event': progress.harness_event} if on_event else {}),

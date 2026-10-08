@@ -121,3 +121,84 @@ def test_private_collector_contract_is_identical_for_local_and_remote_execution(
     assert json.loads(remote['reply'])==proposal()
     assert 'candidates' not in result['reply'] and result['reply'].count('？')==1
     assert all('Private structured interview contract' in prompt for prompt in observed)
+
+
+@pytest.mark.parametrize('execution', ['local', 'worker'])
+@pytest.mark.parametrize('invalid_context', ['year', 'stage_and_event'])
+@pytest.mark.parametrize('repair_result', ['valid', 'invalid_again', 'changed_acknowledgement'])
+def test_collector_repairs_unsupported_context_before_saving_once(
+        tmp_path, monkeypatch, execution, invalid_context, repair_result):
+    from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
+
+    corrected = proposal()
+    invalid = deepcopy(corrected)
+    if invalid_context == 'year':
+        invalid['plan']['candidates'][0]['context']['year'] = 1983
+    else:
+        invalid['plan']['candidates'][0]['context']['life_stage'] = 'childhood'
+        invalid['plan']['candidates'][1]['context']['event_id'] = 'mistyped-event-id'
+    if repair_result == 'invalid_again':
+        corrected = deepcopy(invalid)
+    elif repair_result == 'changed_acknowledgement':
+        corrected['acknowledgement'] = 'A different acknowledgement.'
+    calls = []
+
+    class Connection:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def request(self, method, params): return {'thread': {'id': 'thread-1'}}
+        async def turn(self, thread, prompt, **kwargs):
+            calls.append((prompt, kwargs))
+            raw = json.dumps(invalid if len(calls) == 1 else corrected, ensure_ascii=False)
+            if kwargs.get('on_delta'):
+                await kwargs['on_delta'](raw)
+            return raw
+
+    monkeypatch.setattr('apps.api.codex_runtime.CodexConnection', Connection)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+    storage = Storage()
+    runtime, _ = harness(monkeypatch, storage)
+    if execution == 'local':
+        runtime.worker_url = None
+        monkeypatch.setattr(runtime, '_home', lambda *args: tmp_path)
+    else:
+        worker = CodexWorker(home_root=tmp_path / 'worker')
+        monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
+        monkeypatch.setattr('apps.api.codex_worker_service.iter_artifacts', lambda *args, **kwargs: [])
+
+        async def remote(**kwargs):
+            result = await worker.turn(WorkerTurnInput(
+                user_id=storage.user_id, project_id='project', text=kwargs['text'],
+                language='zh-CN', interview_context=kwargs['interview_context']),
+                on_delta=kwargs.get('on_delta'))
+            return {**result, '_workspace_capable': True}
+
+        monkeypatch.setattr(runtime, '_worker_turn', remote)
+
+    deltas, events = [], []
+    async def on_delta(value): deltas.append(value)
+    async def on_event(value): events.append(value)
+    def turn():
+        return asyncio.run(runtime.turn(storage, CONTEXT['source']['text'],
+            project_id='project', client_turn_id=str(uuid4()), on_delta=on_delta, on_event=on_event))
+
+    if repair_result != 'valid':
+        with pytest.raises(ValueError):
+            turn()
+        assert len(calls) == 2
+        assert storage.rounds == 0 and storage.saved_plan is None
+        assert deltas == [invalid['acknowledgement']]
+        assert not any(e['type'] == 'conversation_saved' for e in events)
+        return
+    result = turn()
+
+    assert len(calls) == 2
+    assert not calls[1][1].get('on_delta')
+    assert calls[1][1]['output_schema']['properties']['acknowledgement']['enum'] == [invalid['acknowledgement']]
+    assert storage.rounds == 1
+    assert storage.saved_plan == corrected['plan']
+    assert result['reply'] == ''.join(deltas)
+    assert result['reply'].count(corrected['acknowledgement']) == 1
+    assert result['reply'].count('？') == 1
+    assert len([e for e in events if e['type'] == 'conversation_saved']) == 1

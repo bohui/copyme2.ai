@@ -84,6 +84,12 @@ def collector_instructions(context):
         'bridge back to something already discussed. Do not assign unsupported dates or stages. An open '
         'invitation to another period uses null year/stage. Stop or pause means stopped=true, no candidates '
         'and chosen_id=null. Candidate question text contains at most one question.\n'
+        'Question context is a pointer into the supplied active canonical events, not a new extraction. '
+        'Use year only when it equals an active event temporal.year_start or temporal.year_end. '
+        'Use life_stage only when it is present on an active event and is a supported stage. '
+        'A date or childhood cue in the latest narration alone does not authorize year/stage metadata; '
+        'you can still ask about that memory with null year and life_stage. Copy event IDs exactly '
+        'from active events, and recheck retained candidates against the current context.\n'
         'Associate a photo only when the narrator actually identifies or discusses it, with the exact '
         'narrow quote from the CURRENT source and version (never older testimony). A click/upload alone is not testimony. Use canonical event IDs '
         'only when the quote supports that event; leave event_id=null until extraction resolves it. '
@@ -189,6 +195,55 @@ def validate_collector_result(value, context):
     return {'reply': reply, 'acknowledgement': result.acknowledgement,
         'plan': plan.model_dump(), 'associations': [a.model_dump() for a in result.associations],
         'response_photos': [deepcopy(photos[id]) for id in display], 'stopped': result.stopped}
+
+
+async def run_collector_turn(connection, thread_id, prompt, *, interview_context=None, **options):
+    """Correct one invalid proposal before publishing provider completion.
+
+    The API still validates the returned proposal before saving. Correction
+    receives the same evidence, never creates testimony, and cannot replace an
+    acknowledgement already exposed by the first stream.
+    """
+    reply = await connection.turn(thread_id, prompt, **options)
+    if interview_context is None:
+        return reply
+    try:
+        validate_collector_result(reply, interview_context)
+        return reply
+    except (ValueError, TypeError, KeyError) as error:
+        # Our explicit ValueErrors contain fixed contract messages. Schema
+        # errors can include private model output; do not copy those details.
+        reason = str(error) if type(error) is ValueError else 'The proposal does not match the collector schema.'
+
+    acknowledgement = CollectorVisibleStream().feed(reply, final=True)
+    active = [e for e in interview_context.get('events', []) if e.get('status') == 'active']
+    scope = {
+        'event_ids': [e['id'] for e in active],
+        'years': sorted({year for e in active for year in
+            (e.get('temporal', {}).get('year_start'), e.get('temporal', {}).get('year_end')) if year}),
+        'life_stages': sorted({e.get('life_stage') for e in active if e.get('life_stage') in LIFE_STAGES}),
+    }
+    correction = (
+        'Correct the previous private structured interview JSON using the same original narrator '
+        'source and private context. This is a correction of the same turn, not new testimony. '
+        'Return the complete collector object and retain the useful grounded question. '
+        'Every candidate must validate, including retained and unchosen candidates. '
+        'Use null for unsupported year/life_stage/event metadata; never invent canonical IDs. '
+        'Keep photo associations grounded in exact current source evidence. '
+        'Validation failure: ' + reason + '\n'
+        'Allowed canonical question context: ' + json.dumps(scope, ensure_ascii=False) + '\n'
+    )
+    retry_options = {key: value for key, value in options.items() if key != 'on_delta'}
+    if acknowledgement:
+        correction += 'Copy this acknowledgement exactly: ' + json.dumps(acknowledgement, ensure_ascii=False)
+        schema = deepcopy(options.get('output_schema') or collector_schema())
+        schema['properties']['acknowledgement']['enum'] = [acknowledgement]
+        retry_options['output_schema'] = schema
+    repaired = await connection.turn(thread_id, correction, **retry_options)
+    result = validate_collector_result(repaired, interview_context)
+    if acknowledgement and result['acknowledgement'] != acknowledgement:
+        raise ValueError('Correction cannot replace the streamed acknowledgement')
+    return repaired
 
 
 class CollectorVisibleStream:
