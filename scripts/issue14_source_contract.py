@@ -63,7 +63,8 @@ def _read(root, relative, maximum=_MAX_OBJECT_BYTES):
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
             os.close(descriptor)
             descriptor = child
-        child = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=descriptor)
+        # Inspect non-regular entries without blocking on a FIFO's writer.
+        child = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
         os.close(descriptor)
         descriptor = child
         info = os.fstat(descriptor)
@@ -210,11 +211,13 @@ class _Proof:
 
 def _current_inventory(root):
     result = set(EXTRA_SOURCE_PATHS)
+    def unreadable(_error):
+        _fail('source_inventory_unavailable')
     for prefix in ('apps/api', 'scripts'):
         directory = root / prefix
         if directory.is_symlink() or not directory.is_dir():
             _fail('source_inventory_invalid')
-        for current, dirs, files in os.walk(directory, followlinks=False):
+        for current, dirs, files in os.walk(directory, followlinks=False, onerror=unreadable):
             if any((Path(current) / name).is_symlink() for name in dirs):
                 _fail('source_inventory_invalid')
             for name in files:

@@ -159,3 +159,44 @@ def test_source_audit_is_read_only_and_repeatable(tmp_path):
     after = {p.relative_to(root): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in root.rglob('*') if p.is_file()}
     assert after == before
+
+
+@pytest.mark.parametrize('prefix', ['apps/api', 'scripts'])
+def test_unreadable_inventory_subdirectory_cannot_hide_source(tmp_path, monkeypatch, prefix):
+    import os
+    root = copy_scope(tmp_path)
+    hidden = root / prefix / 'hidden'
+    hidden.mkdir()
+    (hidden / 'unreviewed_sender.py').write_text('pass\n')
+    original = os.scandir
+    def denied(path):
+        if Path(path) == hidden:
+            raise PermissionError('synthetic traversal failure')
+        return original(path)
+    monkeypatch.setattr(os, 'scandir', denied)
+    with pytest.raises(SourceContractError, match='source_inventory_unavailable'):
+        audit_source_contract(root)
+
+
+@pytest.mark.parametrize('relative', [str(PROOF), 'apps/api/codex_agent.py'])
+def test_fifo_proof_or_source_fails_without_waiting_for_a_writer(tmp_path, relative):
+    import os
+    import subprocess
+    import sys
+    root = copy_scope(tmp_path)
+    target = root / relative
+    target.unlink()
+    os.mkfifo(target)
+    program = '''
+import sys
+sys.path.insert(0, sys.argv[1])
+from scripts.issue14_source_contract import SourceContractError, audit_source_contract
+try:
+    audit_source_contract(sys.argv[2])
+except SourceContractError:
+    raise SystemExit(0)
+raise SystemExit(2)
+'''
+    result = subprocess.run([sys.executable, '-c', program, str(ROOT), str(root)],
+        capture_output=True, timeout=2)
+    assert result.returncode == 0
