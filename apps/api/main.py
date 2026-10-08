@@ -371,6 +371,14 @@ def _verified_account_id() -> str:
         service = authenticated_storage(principal['authorization'])
         try:
             principal['user_id'] = service.user_id
+            user = service.user if isinstance(service.user, dict) else {}
+            metadata = user.get('app_metadata', {})
+            roles = metadata.get('roles', []) if isinstance(metadata, dict) else []
+            principal['operator_roles'] = (
+                set(roles)
+                if isinstance(roles, list) and all(isinstance(role, str) for role in roles)
+                else set()
+            )
         finally:
             service.client.close()
     return principal['user_id']
@@ -945,8 +953,21 @@ def _build_edition(
     return edition
 
 
-def _is_operator(actor: str, role_header: str | None) -> bool:
-    return actor.startswith("ops") or actor.startswith("operator") or role_header in {"operator", "finance", "admin"}
+def _is_operator(actor: str, role_header: str | None, *, read_metadata: bool = False) -> bool:
+    # Operator privileges come from the verified identity, never request headers,
+    # account names, user-editable metadata or unverified JWT claims.
+    principal = _request_principal.get()
+    if not principal or not principal['authorization']:
+        return False
+    allowed_roles = {'operator', 'admin'} | ({'finance'} if read_metadata else set())
+    return actor == _verified_account_id() and bool(principal.get('operator_roles', set()) & allowed_roles)
+
+
+def _operator_job_metadata(job: dict[str, Any]) -> dict[str, Any]:
+    return {key: deepcopy(job[key]) for key in (
+        'id', 'project_id', 'kind', 'status', 'created_at', 'updated_at',
+        'status_url', 'can_leave_page',
+    ) if key in job}
 
 
 def _processing_available(store: MemoryStore, project: dict[str, Any], data_class: str = "transcript") -> bool:
@@ -3390,9 +3411,9 @@ def create_app(
 
     @app.get("/v1/ops/jobs")
     def operations_jobs(x_account_id: str | None = Header(default=None), x_role: str | None = Header(default=None), cursor: str | None = None, limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
-        if not _is_operator(_account_id(x_account_id), x_role):
+        if not _is_operator(_account_id(x_account_id), x_role, read_metadata=True):
             raise _unauthorised()
-        return _paginate([{key: deepcopy(value) for key, value in job.items() if key not in {"snapshot", "result"}} for job in memory.jobs.values()], cursor, limit)
+        return _paginate([_operator_job_metadata(job) for job in memory.jobs.values()], cursor, limit)
 
     @app.post("/v1/ops/jobs/{job_id}/retry")
     def retry_job(job_id: str, x_account_id: str | None = Header(default=None), x_role: str | None = Header(default=None)) -> dict[str, Any]:
@@ -3406,7 +3427,7 @@ def create_app(
             raise HTTPException(status_code=409, detail="Succeeded jobs do not need a retry")
         memory.requeue_job(job)
         memory.audit("job.retried", actor, job["project_id"], job_id=job_id)
-        return deepcopy(job)
+        return _operator_job_metadata(job)
 
     @app.post("/v1/ops/jobs/{job_id}/cancel")
     def cancel_job(job_id: str, x_account_id: str | None = Header(default=None), x_role: str | None = Header(default=None)) -> dict[str, Any]:
@@ -3421,7 +3442,7 @@ def create_app(
         job["status"] = "CANCELLED"
         job["updated_at"] = now_iso()
         memory.audit("job.cancelled", actor, job["project_id"], job_id=job_id)
-        return deepcopy(job)
+        return _operator_job_metadata(job)
 
     @app.post("/v1/ops/support-grants", status_code=status.HTTP_201_CREATED)
     def create_support_grant(payload: LooseModel, x_account_id: str | None = Header(default=None), x_role: str | None = Header(default=None)) -> dict[str, Any]:
@@ -3449,6 +3470,7 @@ def create_app(
     @app.get("/v1/ops/support-grants/{grant_id}/projects/{project_id}/metadata")
     def support_project_metadata(grant_id: str, project_id: str, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         actor = _account_id(x_account_id)
+        _verified_account_id()
         grant = memory.support_grants.get(grant_id)
         if not grant or grant.get("project_id") != project_id or grant.get("account_id") != actor:
             raise _unauthorised()
@@ -3490,7 +3512,7 @@ def create_app(
 
     @app.get("/v1/ops/audit")
     def operations_audit(x_account_id: str | None = Header(default=None), x_role: str | None = Header(default=None)) -> dict[str, Any]:
-        if not _is_operator(_account_id(x_account_id), x_role):
+        if not _is_operator(_account_id(x_account_id), x_role, read_metadata=True):
             raise _unauthorised()
         return {"items": deepcopy(memory.audit_events)}
 

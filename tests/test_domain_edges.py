@@ -6,10 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
+from synthetic_staff_auth import authenticated_staff, staff_headers
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(monkeypatch) -> TestClient:
+    authenticated_staff(monkeypatch)
     return TestClient(create_app())
 
 
@@ -80,7 +82,7 @@ def test_person_introduction_can_be_saved_and_revised(client: TestClient) -> Non
 def test_disabling_the_approved_regional_writer_pauses_processing_without_fallback(client: TestClient) -> None:
     project = make_project(client)
     session = client.post(f"/v1/projects/{project['id']}/memory-sessions", json={}, headers={"X-Account-Id": "storyteller-1"}).json()
-    disabled = client.patch("/v1/ops/providers/demo_writer", json={"enabled": False}, headers={"X-Account-Id": "ops-1"})
+    disabled = client.patch("/v1/ops/providers/demo_writer", json={"enabled": False}, headers=staff_headers("ops-1"))
     assert disabled.status_code == 200
     paused = client.post(f"/v1/memory-sessions/{session['id']}/answers", json={"text": "I remember a quiet road."}, headers={"X-Account-Id": "storyteller-1"})
     assert paused.status_code == 503
