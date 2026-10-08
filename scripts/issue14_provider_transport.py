@@ -199,6 +199,10 @@ class ControlledBudgetTransport(httpx.AsyncBaseTransport):
             chunks, size = [], 0
             async with asyncio.timeout(2):
                 async for block in request.stream:
+                    # A caller-owned bytearray/memoryview can change after it
+                    # was counted; only immutable built-in bytes are admitted.
+                    if type(block) is not bytes:
+                        self._reject('protocol_invalid')
                     size += len(block)
                     if size > MAX_REQUEST_BYTES:
                         self._reject('protocol_invalid')

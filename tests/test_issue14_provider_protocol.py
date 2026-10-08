@@ -596,3 +596,26 @@ def test_caller_trace_callback_cannot_strip_wire_output_cap(tmp_path):
             assert calls == []
         ledger.close()
     asyncio.run(check())
+
+
+def test_mutable_stream_chunk_cannot_bypass_request_size_bound(tmp_path):
+    async def check():
+        ledger = budget(tmp_path, input_tokens=2000000, currency_micros=5000000)
+        raw = json.dumps(payload(instructions='x' * (1024 * 1024))).encode()
+        chunk = bytearray(b'{')
+        class MutableBody(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield chunk
+                chunk.extend(raw[1:])
+        async with server() as fixture:
+            transport = ControlledBudgetTransport.controlled(ledger=ledger, endpoint=fixture.endpoint)
+            request = httpx.Request('POST', fixture.endpoint, stream=MutableBody(),
+                headers={**headers(), 'host': fixture.endpoint.split('/')[2],
+                    'content-type': 'application/json', 'content-length': str(len(raw))})
+            with pytest.raises(BudgetStopped, match='protocol_invalid'):
+                await transport.handle_async_request(request)
+            assert fixture.contacts == []
+            assert ledger.receipt()['reserved_requests'] == 0
+            await transport.aclose()
+        ledger.close()
+    asyncio.run(check())
