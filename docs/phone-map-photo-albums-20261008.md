@@ -17,8 +17,12 @@ life-stage artwork and marker selection retain their existing behavior.
 Every resolved map pin has a 44-pixel marker target and an album button with up
 to three permitted thumbnail images. Nearby album cards move apart and connect
 to their actual pins with stems. If the map cannot fit them, a horizontally
-scrollable tray keeps crowded albums reachable. Offscreen pins hide their
-albums. The surrounding canvas continues to handle map gestures. If Cesium is
+scrollable tray keeps crowded albums reachable. The tray also exposes every
+non-pin member of the active city group, including the parent city suppressed
+by child pins and places with unresolved pins. Its controls are 44 pixels high
+and it fits its contents. Albums remain available when the group has no pins;
+no geographic marker is invented. Offscreen resolved pins hide their albums.
+The surrounding canvas continues to handle map gestures. If Cesium is
 unavailable, album buttons remain reachable over the existing map fallback.
 
 Tapping a marker or album opens a native modal dialog with the corresponding
@@ -41,6 +45,18 @@ The new module tests first failed because the album implementation was absent.
 The phone acceptance test failed against the original 67-pixel header. A new
 streaming-focus assertion failed before its focus restoration fix.
 
+Independent review of `9851764232456d3539fc4fc652ce32230c7be445` found that
+collecting albums from resolved pins omitted the parent city's own pictures
+and every unresolved-pin album. Two new JavaScript regressions first failed
+because no independent group-member collector existed. Four new browser
+cases then failed: two albums instead of three with child pins, and zero
+instead of three for no-pin groups. The fix collects the active group's
+members independently of pins and uses the compact tray for non-pin members.
+The browser cases verify each city/child album's distinct source titles and
+dates, plus empty/error/retry states without Cesium entities. An additional
+no-pin loading case verifies streamed photos and focus restoration. The map
+gesture assertion targets an actual canvas point outside the tray.
+
 Commands run from the task worktree:
 
 ```sh
@@ -51,9 +67,9 @@ MEMOIR_BROWSER_URL=http://127.0.0.1:19492 python3 -m pytest -q tests/test_conver
 cd apps/web && npm run build
 ```
 
-- JavaScript: 174 passed.
+- JavaScript: 176 passed.
 - Localization: 543 messages valid in `en-AU` and `zh-CN`.
-- Phone/map albums: 6 passed. Real Cesium camera, scene projection and picking;
+- Phone/map albums: 11 passed. Real Cesium camera, scene projection and picking;
   synthetic grid imagery, photos, auth and all API responses. No live photo,
   provider or model calls.
 - Existing conversation/keyboard/scrolling cases: 3 passed, 1 deselected.
@@ -91,6 +107,11 @@ Validated local screenshots and test receipts are in the ignored directory
 `browser-final.txt`, `conversation-tests.txt`, `baseline-regression.txt` and
 `build-final.txt`. Screenshots show synthetic fixtures, not fetched archive
 photos or real Google imagery.
+
+Review-fix receipts: `js-city-tray.txt`, `browser-city-tray-final.txt`,
+`conversation-city-tray.txt`, and `build-city-tray.txt`. New screenshots
+`after-saved-all-albums.png` and `after-unresolved-all-albums.png` show all
+three distinct group albums; the standard after screenshots are refreshed.
 
 Library screenshot saving is blocked: the required current prepared-upload
 helper reports `Library prepare_uploads is not available` on this Mac, before

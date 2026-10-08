@@ -106,11 +106,7 @@ const state = {
 const mapPhotoAlbums = createMapPhotoAlbums({
   getProjectId: () => state.project?.id,
   getAlbum: mapPhotoAlbum,
-  getAlbums: scene => {
-    const container = scene.querySelector("[data-cesium-place]");
-    const pins = JSON.parse(container?.dataset.cesiumPins || "[]");
-    return pins.map(pin => mapPhotoAlbum(pin.key)).filter(Boolean);
-  },
+  getAlbums: mapPhotoAlbumsForScene,
   renderAlbum: album => pictureWall(album.pictures, album.entry) || mapPhotoAlbumStatus(album.entry),
   bindAlbum: (content, album) => {
     content.querySelector("[data-photo-more]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {more:true}));
@@ -2979,6 +2975,16 @@ function workspaceMediaOverview(toggle = "") {
       : `<p class="workspace-photo-status" role="status">${t(Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
   const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
   return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
+}
+
+function mapPhotoAlbumsForScene(scene) {
+  const container = scene.querySelector("[data-cesium-place]");
+  const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
+  const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])]);
+  const group = workspacePlaceGroups(places).find(item => item.key === container?.dataset.placeKey);
+  const entries = group?.members || [placeWorkspaceSelection()].filter(Boolean);
+  return entries.map(entry => mapPhotoAlbum(placeHistoryKey(entry))).filter(Boolean)
+    .map(album => ({...album, pinned:pins.has(album.key)}));
 }
 
 function mapPhotoAlbum(key) {

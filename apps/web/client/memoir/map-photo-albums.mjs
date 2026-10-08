@@ -127,7 +127,8 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
     if (signature !== next || layer.dataset.signature !== next) {
       signature = next;
       layer.dataset.signature = next;
-      layer.innerHTML = albums.map(album => `<div class="map-album-anchor" data-album-key="${escape(album.key)}"><span class="map-album-stem" aria-hidden="true"></span>${albumStackMarkup(album,window.location.origin)}</div><button type="button" class="map-photo-marker" data-photo-marker="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"></button>`).join('') + '<div class="map-album-overflow"></div>';
+      layer.innerHTML = '<div class="map-album-overflow">' + albums.map(album => `<div class="map-album-anchor" data-album-key="${escape(album.key)}" data-album-pinned="${Boolean(album.pinned)}"><span class="map-album-stem" aria-hidden="true"></span>${albumStackMarkup(album,window.location.origin)}</div>`).join('') + '</div>'
+        + albums.filter(album => album.pinned).map(album => `<button type="button" class="map-photo-marker" data-photo-marker="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"></button>`).join('');
     }
     if (focusedKey && !dialog?.open) [...layer.querySelectorAll('[data-photo-album]')]
       .find(button => button.dataset.photoAlbum === focusedKey)?.focus({preventScroll:true});
@@ -149,7 +150,8 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
         const point = cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,pin.position);
         return {key:pin.key,x:point?.x,y:point?.y};
       });
-      const boxes = layoutMapAlbums(projected,layer.clientWidth,layer.clientHeight);
+      const hasUnpinnedAlbums = Boolean(layer.querySelector('[data-album-pinned="false"]'));
+      const boxes = layoutMapAlbums(projected,layer.clientWidth,layer.clientHeight,hasUnpinnedAlbums ? 94 : 50);
       for (const marker of layer.querySelectorAll('[data-photo-marker]')) {
         const point = boxes.find(item => item.key === marker.dataset.photoMarker);
         marker.hidden = !point;
@@ -157,6 +159,12 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       }
       const overflow = layer.querySelector('.map-album-overflow');
       for (const anchor of layer.querySelectorAll('.map-album-anchor')) {
+        if (anchor.dataset.albumPinned === 'false') {
+          anchor.hidden = false;
+          if (anchor.parentElement !== overflow) overflow.append(anchor);
+          anchor.removeAttribute('style');
+          continue;
+        }
         const box = boxes.find(item => item.key === anchor.dataset.albumKey);
         anchor.hidden = !box;
         if (!box) continue;

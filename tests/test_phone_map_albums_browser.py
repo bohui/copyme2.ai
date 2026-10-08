@@ -13,6 +13,7 @@ OUTPUT = Path(__file__).resolve().parents[1] / 'output/phone-map-albums'
 @pytest.fixture
 def album_page(request):
     mode = getattr(request, 'param', 'saved')
+    state_mode = mode.removeprefix('unresolved-')
     base = os.environ['MEMOIR_BROWSER_URL']
     city = dict(place='承德', hierarchy=['Earth', '中国', '河北', '承德'], granularity='city',
                 latitude=40.97, longitude=117.93, period='1980s', revision=1, status='active', schema_version=1)
@@ -21,12 +22,14 @@ def album_page(request):
     if mode == 'current':
         places = [dict(city, period='')]
     for i, place in enumerate(places):
+        if mode.startswith('unresolved'):
+            place['map_pin']=None
         date = '2026-08-01' if mode == 'current' else '1983'
         place.update(photo_search_period=place['period'], photo_search_policy='place-fallback-gps-time-v8',
                      photo_search_place=place['place']+', 承德' if place['granularity']=='suburb' else place['place'],
-                     photo_search_complete=mode not in ('loading', 'error','current'), photo_search_at=1,
+                     photo_search_complete=state_mode not in ('loading', 'error','current'), photo_search_at=1,
                      photo_search_latitude=place['latitude'], photo_search_longitude=place['longitude'],
-                     pictures=[] if mode in ('empty','loading','error','current') else [dict(asset_id=f'{i}-{j}', title=f'{place["place"]} fixture {j}',
+                     pictures=[] if state_mode in ('empty','loading','error','current') else [dict(asset_id=f'{i}-{j}', title=f'{place["place"]} fixture {j}',
                        image_url=f'/static/album-fixture-{i}-{j}.svg', source_url='https://archive.example/photo',
                        attribution='Synthetic test archive', date_expression=date, latitude=place['latitude'],
                        longitude=place['longitude'], allowed_actions={'embed':True}) for j in range(3)])
@@ -64,11 +67,11 @@ def album_page(request):
             elif path.endswith('/journey'): data = {'active_session':None}
             elif path.endswith('/place-photos'):
                 calls.append(route.request.url)
-                data = {'items':[], 'status':'UNAVAILABLE' if mode=='error' else 'NO_MATCH', 'searching':False}
+                data = {'items':[], 'status':'UNAVAILABLE' if state_mode=='error' else 'NO_MATCH', 'searching':False}
             return route.fulfill(json=data)
         context.route('**/api/v1/memoir/**', api)
         context.add_init_script("localStorage.setItem('memory-spark-project','album-project');sessionStorage.setItem('memory-spark-chat-history:album-project',JSON.stringify([{id:'opening',role:'assistant',text:'Synthetic memory recall conversation'}]));")
-        if mode == 'loading':
+        if state_mode == 'loading':
             arriving = dict(asset_id='arriving',title='Arriving dated reference',image_url='/static/album-fixture-arriving.svg',
                 source_url='https://archive.example/photo',attribution='Synthetic test archive',date_expression='1986',
                 latitude=places[-1]['latitude'],longitude=places[-1]['longitude'],allowed_actions={'embed':True})
@@ -100,7 +103,7 @@ def test_phone_map_and_album_navigation(album_page):
     scene=page.locator('.place-journey-scene').bounding_box()
     panel=page.locator('.workspace-media-overview').bounding_box()
     assert scene['height'] >= panel['height']-48, (scene,panel)
-    stacks=page.locator('[data-photo-album]:visible')
+    stacks=page.locator('.map-photo-album-layer > .map-album-anchor [data-photo-album]:visible')
     expect(stacks).to_have_count(2)
     boxes=stacks.all()
     a,b=[item.bounding_box() for item in boxes]
@@ -149,17 +152,19 @@ def test_phone_map_and_album_navigation(album_page):
     page.wait_for_function('!history.state?.memoirPhotoAlbum')
     previous=page.evaluate('window.__mapViewer.camera.position.x')
     scene=page.locator('.place-journey-scene').bounding_box()
-    page.mouse.move(scene['x']+40,scene['y']+scene['height']-65)
-    page.mouse.down();page.mouse.move(scene['x']+150,scene['y']+scene['height']-65,steps=10);page.mouse.up()
+    gesture_y=scene['y']+scene['height']*.65
+    assert page.evaluate('([x,y])=>document.elementFromPoint(x,y).tagName', [scene['x']+40,gesture_y])=='CANVAS'
+    page.mouse.move(scene['x']+40,gesture_y)
+    page.mouse.down();page.mouse.move(scene['x']+150,gesture_y,steps=10);page.mouse.up()
     page.wait_for_function('(old)=>window.__mapViewer.camera.position.x!==old',arg=previous)
     expect(dialog).not_to_be_visible()
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
 
 
-@pytest.mark.parametrize('album_page',['empty','error','loading','current'],indirect=True)
+@pytest.mark.parametrize('album_page',['empty','error','loading','unresolved-loading','current'],indirect=True)
 def test_album_search_states_and_current_default(album_page, request):
     page,calls,_=album_page
-    mode=request.node.callspec.params['album_page']
+    mode=request.node.callspec.params['album_page'].removeprefix('unresolved-')
     page.locator('[data-photo-album]:visible').last.tap()
     dialog=page.get_by_role('dialog')
     expect(dialog).to_be_visible()
@@ -200,3 +205,50 @@ def test_desktop_gallery_and_phone_resize_preserve_map(album_page):
         scene=page.locator('.place-journey-scene').bounding_box()
         assert scene['height']>=100,scene
         assert page.locator('#chat-input').bounding_box()['y']<height
+
+
+@pytest.mark.parametrize('album_page',['saved','unresolved'],indirect=True)
+def test_every_city_group_album_keeps_its_own_photos(album_page,request):
+    page,_,_=album_page
+    expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+    if request.node.callspec.params['album_page']=='unresolved':
+        assert page.evaluate('window.__mapViewer.entities.values.length')==0
+        expect(page.locator('[data-photo-marker]:visible')).to_have_count(0)
+    for place in ['承德','双桥区','大石庙镇']:
+        album=page.locator('[data-photo-album]:visible').filter(has_text=place)
+        expect(album).to_have_count(1)
+        if place=='承德':
+            assert album.bounding_box()['height']==44
+        album.tap()
+        dialog=page.get_by_role('dialog')
+        expect(dialog).to_be_visible()
+        assert dialog.locator('figcaption a').all_text_contents()==[f'{place} fixture {i}' for i in range(3)]
+        assert '1983' in dialog.inner_text()
+        dialog.locator('[data-close-photo-album]').click()
+        expect(dialog).not_to_be_visible()
+        page.wait_for_function('!history.state?.memoirPhotoAlbum')
+    page.screenshot(path=str(OUTPUT/f'after-{request.node.callspec.params["album_page"]}-all-albums.png'))
+    expect(page.locator('.place-journey-heading')).not_to_be_visible()
+
+
+@pytest.mark.parametrize('album_page',['unresolved-empty','unresolved-error'],indirect=True)
+def test_no_pin_groups_keep_photo_status_and_retry_reachable(album_page,request):
+    page,calls,_=album_page
+    expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+    assert page.evaluate('window.__mapViewer.entities.values.length')==0
+    for place in ['承德','双桥区','大石庙镇']:
+        page.locator('[data-photo-album]:visible').filter(has_text=place).tap()
+        dialog=page.get_by_role('dialog')
+        expect(dialog).to_be_visible()
+        expect(dialog.locator('figure')).to_have_count(0)
+        expect(dialog.locator('[role="status"]')).to_be_visible()
+        if request.node.callspec.params['album_page']=='unresolved-error':
+            retry=dialog.locator('[data-photo-retry]')
+            expect(retry).to_be_visible()
+            before=len(calls)
+            retry.click()
+            expect(retry).to_be_visible()
+            assert len(calls)>before
+        dialog.locator('[data-close-photo-album]').click()
+        expect(dialog).not_to_be_visible()
+        page.wait_for_function('!history.state?.memoirPhotoAlbum')
