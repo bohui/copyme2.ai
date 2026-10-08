@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
-const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
+const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
 test('forwards progress before text and skill events after conversation save', async () => {
  const seen=[];
  const events=[{type:'progress',data:{id:'context',label:'Loading context'}},{type:'text_delta',text:'Hello'}, {type:'conversation_saved',data:{reply:'Hello',conversation_saved:true}}, {type:'progress',data:{id:'place',skill:'memoir-place-journey'}},{type:'result',data:{reply:'Hello'}}];

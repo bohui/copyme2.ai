@@ -7,6 +7,10 @@ const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',
 const openingMessages = ['en-AU', 'zh-CN'].map(locale => JSON.parse(fs.readFileSync(
   new URL(`../../apps/web/messages/${locale}.json`, import.meta.url), 'utf8')).Memoir.conversation.opening);
 function load(context, name) {
+  for (const helper of ['captureProjectScope', 'isCurrentProjectScope', 'readBrowserValues', 'mergeChatHistoryCopies']) {
+    vm.runInContext(source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0], context);
+  }
+  if (name === 'boot') { load(context, 'invalidateProjectNavigation'); context.persistChatHistory ||= () => {}; }
   if (['boot', 'startMemoirStory'].includes(name)) {
     for (const helper of ['savedProjectStorageKey', 'readBrowserValue', 'saveBrowserValue', 'savedProjectId', 'rememberProject']) load(context, helper);
   }
@@ -217,12 +221,14 @@ test('an account switch during interview recovery discards the prior account his
   let created = false;
   const context = vm.createContext({ state, stopVoiceMode() {}, conversationLanguage: () => 'en-AU',
     storyApi: async () => {
+      context.invalidateProjectNavigation();
       state.supabase.user = { id: 'another-owner', is_anonymous: false };
       return { resume_project_id: 'private-project', items: [{ messages: [{ role: 'user', text: 'Private memory' }] }] };
     },
     api: async () => { created = true; return {}; },
-    setLoading() {}, toast() {},
+    persistChatHistory() {}, setLoading() {}, toast() {},
   });
+  load(context, 'invalidateProjectNavigation');
   load(context, 'startMemoirStory');
   await context.startMemoirStory();
   assert.equal(created, false);

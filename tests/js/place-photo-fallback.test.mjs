@@ -34,7 +34,7 @@ function harness(api, entries = [city, town, otherCity]) {
     referenceUrl: value => value || '', formatDateExpression: value => value,
     currentUiLocale: () => 'zh-CN',
   });
-  for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures',
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures',
     'renderablePictureItems', 'workspacePictureItems', 'photoPaginationMarkup',
     'pictureWall', 'workspaceMediaOverview', 'placesWorkspace']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);

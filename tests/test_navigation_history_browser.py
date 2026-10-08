@@ -280,3 +280,108 @@ def test_unverified_legacy_history_is_retained_without_a_replacement_project(nav
     assert page.evaluate(f"sessionStorage.getItem({json.dumps(key)})") == history
     assert page.evaluate("localStorage.getItem('memory-spark-project')") == project['id']
     assert client.get('/v1/projects/' + project['id']).json()['owner_id'] == 'demo-storyteller'
+
+
+@pytest.mark.parametrize('ending', ['final', 'error', 'workspace-tail'])
+def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigation_browser, ending):
+    page, _, _, _, _, client = navigation_browser
+    interview_a = start_conversation(page)
+    project_b = client.post('/v1/projects', headers={'Authorization': 'Bearer fixture-guest'},
+                            json={'mode': 'family', 'storyteller_name': 'Synthetic B'}).json()['id']
+    interview_b = os.environ['MEMOIR_BROWSER_URL'] + '/memoir/interview/' + project_b
+    page.evaluate("""()=>{const nativeFetch=window.fetch;window.fetch=(url,options)=>{
+      if(!String(url).endsWith('/agent/turn')) return nativeFetch(url,options);
+      window.fixtureStreamSignal=options.signal;
+      let deliver;
+      const reader={read:()=>new Promise(resolve=>{deliver=resolve}),cancel:async()=>{window.fixtureCanceled=true},releaseLock(){}};
+      window.fixtureEvent=event=>deliver({done:false,value:new TextEncoder().encode(JSON.stringify(event)+'\\n')});
+      return Promise.resolve({ok:true,status:200,body:{getReader:()=>reader}});
+    }}""")
+    page.locator('#chat-input').fill('A pending synthetic memory.')
+    page.locator('#chat-form button[type="submit"]').click()
+    page.wait_for_function('window.fixtureEvent !== undefined')
+    page.evaluate("fixtureEvent({type:'text_delta',text:'A accepted partial reply.'})")
+    expect(page.get_by_text('A accepted partial reply.', exact=True)).to_be_visible()
+    if ending == 'workspace-tail':
+        page.evaluate("fixtureEvent({type:'conversation_saved',data:{conversation_saved:true,reply:'A accepted partial reply.'}})")
+        expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
+    # Add B once, then exercise actual Back/Forward events in this document.
+    page.evaluate("url=>{history.pushState({},'',url);dispatchEvent(new PopStateEvent('popstate'))}", interview_b)
+    expect(page.locator('#chat-input')).to_be_enabled()
+    assert page.evaluate('fixtureStreamSignal.aborted') is True
+    assert page.evaluate('fixtureCanceled') is True
+    before_b = page.evaluate("id=>localStorage.getItem('memory-spark-chat-history:guest:'+id)", project_b)
+    late = {'type': 'error', 'message': 'A late synthetic error'} if ending == 'error' else {
+        'type': 'result', 'data': {'conversation_saved': True, 'reply': 'A late complete reply.',
+                                 'composition_stage': 3, 'recall_status': {'payment_required': True}}}
+    page.evaluate('event=>fixtureEvent(event)', late)
+    expect(page.get_by_text('A late complete reply.', exact=True)).to_have_count(0)
+    expect(page.get_by_text('A late synthetic error', exact=True)).to_have_count(0)
+    expect(page.locator('#chat-input')).to_be_enabled()
+    assert page.evaluate("id=>localStorage.getItem('memory-spark-chat-history:guest:'+id)", project_b) == before_b
+    page.go_back()
+    expect(page).to_have_url(interview_a)
+    show_history(page)
+    expect(page.get_by_text('A pending synthetic memory.', exact=True)).to_be_visible()
+    expect(page.get_by_text('A accepted partial reply.', exact=True)).to_be_visible()
+    page.go_forward()
+    expect(page).to_have_url(interview_b)
+    expect(page.locator('#chat-input')).to_be_enabled()
+    expect(page.get_by_text('A pending synthetic memory.', exact=True)).to_have_count(0)
+    page.reload()
+    expect(page.locator('#chat-input')).to_be_enabled()
+    expect(page.get_by_text('A accepted partial reply.', exact=True)).to_have_count(0)
+
+
+def test_a_late_failed_back_recovery_cannot_clear_the_forward_project(navigation_browser):
+    page, _, _, _, _, client = navigation_browser
+    interview_a = start_conversation(page)
+    project_a = interview_a.rsplit('/', 1)[-1]
+    project_b = client.post('/v1/projects', headers={'Authorization': 'Bearer fixture-guest'},
+                            json={'mode': 'family', 'storyteller_name': 'Synthetic B'}).json()['id']
+    interview_b = os.environ['MEMOIR_BROWSER_URL'] + '/memoir/interview/' + project_b
+    page.evaluate("url=>{history.pushState({},'',url);dispatchEvent(new PopStateEvent('popstate'))}", interview_b)
+    expect(page.locator('#chat-input')).to_be_enabled()
+    page.evaluate("""id=>{const nativeFetch=window.fetch;window.fetch=(url,options)=>{
+      if(String(url).endsWith('/projects/'+id)&&!window.fixtureRecoveryHeld){window.fixtureRecoveryHeld=true;
+        return new Promise((_resolve,reject)=>{window.fixtureRejectRecovery=()=>reject(new Error('Late recovery error'))})}
+      return nativeFetch(url,options);
+    }}""", project_a)
+    page.go_back()
+    page.wait_for_function('window.fixtureRecoveryHeld === true')
+    page.go_forward()
+    expect(page).to_have_url(interview_b)
+    expect(page.locator('#chat-input')).to_be_enabled()
+    page.evaluate('fixtureRejectRecovery()')
+    expect(page.locator('#chat-input')).to_be_enabled()
+    expect(page.locator('.hero-actions')).to_have_count(0)
+    page.go_back()
+    show_history(page)
+
+
+def test_readable_durable_history_and_pointer_survive_write_quota(navigation_browser):
+    page, _, _, _, _, _ = navigation_browser
+    interview = start_conversation(page)
+    quota = """(()=>{const save=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){
+      if(this===localStorage && key.startsWith('memory-spark-')) throw new DOMException('Full','QuotaExceededError');
+      return save.call(this,key,value);
+    }})()"""
+    page.add_init_script(quota)
+    page.evaluate(quota)
+    page.locator('#chat-input').fill('A newer quota fallback memory.')
+    page.locator('#chat-form button[type="submit"]').click()
+    expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
+    page.reload()
+    show_history(page)
+    expect(page.get_by_text('A newer quota fallback memory.', exact=True)).to_be_visible()
+    page.get_by_role('link', name='回忆', exact=True).click()
+    page.locator('[data-action="start-story"][data-mode="family"]').click()
+    expect(page.locator('#chat-input')).to_be_enabled()
+    newer_interview = page.url
+    assert newer_interview != interview
+    page.goto(os.environ['MEMOIR_BROWSER_URL'] + '/memoir/start')
+    expect(page).to_have_url(newer_interview)
+    expect(page.locator('#chat-input')).to_be_enabled()
+    page.goto(interview)
+    show_history(page)
+    expect(page.get_by_text('A newer quota fallback memory.', exact=True)).to_be_visible()

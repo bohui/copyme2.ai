@@ -21,7 +21,7 @@ test('life-stage labels do not suppress the automatic photo request', async () =
       placeHistoryKey: place => place.place,
       saveProfileUpdates: async updates => saved.push(updates), render: () => {},
     });
-    for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
+    for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
       vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
     }
     await context.loadPlacePictures(entry, 'project');
@@ -50,7 +50,7 @@ test('photo research reports real request progress and an unavailable provider f
     api: async () => { calls++; return {items: [], status: 'UNAVAILABLE'}; },
     placeHistoryKey: place => place.place, translate: key => key, render: () => {},
   });
-  for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'loadPlacePictures']) {
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'loadPlacePictures']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   await context.loadPlacePictures(entry, 'project', {onProgress: step => events.push(step)});
@@ -79,7 +79,7 @@ test('photo batches persist after being painted optimistically', async () => {
       return {...state.project, profile: body.profile, revision: 8};
     },
   });
-  for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope',
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope',
     'mergePlacePictures', 'loadPlacePictures', 'mergeProfileUpdates', 'saveProfileUpdates']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
