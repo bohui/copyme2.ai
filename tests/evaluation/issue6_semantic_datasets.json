@@ -1,0 +1,1729 @@
+{
+  "schema_version": 1,
+  "suite": "memoir-issue6-semantics",
+  "version": "20261008-v1",
+  "source_revision": "050a664ceadeaeacedd9ac4c38448db494fcf1a4",
+  "synthetic": true,
+  "contains_customer_data": false,
+  "rubric_version": "issue6-semantic-v1",
+  "actual_provider_accounting_verified": false,
+  "live_execution_status": "blocked_pending_issue14_provider_binding_and_enforcement",
+  "datasets": [
+    {
+      "dimension": "event-grounding",
+      "name": "memoir/issue6/20261008-v1/event-grounding",
+      "description": "Acknowledgements, leading questions, multiple events and distinct recurring events.",
+      "items": [
+        {
+          "case_id": "grounding.ack.en-AU",
+          "pair_id": "grounding.ack",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "Thank you. Let's keep talking.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.ack.zh-CN",
+          "pair_id": "grounding.ack",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "谢谢，我们继续聊吧。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.leading-question.en-AU",
+          "pair_id": "grounding.leading-question",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "I'm ready for the next question.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z",
+            "assistant_context": [
+              "Was your first job in a factory in 1970, and did it teach you resilience?"
+            ]
+          },
+          "expected_output": {
+            "events": [],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.leading-question.zh-CN",
+          "pair_id": "grounding.leading-question",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "我准备好回答下一个问题了。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z",
+            "assistant_context": [
+              "你的第一份工作是在1970年的工厂里吗？它是不是让你学会了坚韧？"
+            ]
+          },
+          "expected_output": {
+            "events": [],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.several-events.en-AU",
+          "pair_id": "grounding.several-events",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "In my childhood in 1958, I helped paint the school sign.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "In my young adulthood in 1974, I started working at a bookshop.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "school sign",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "1958",
+                  "precision": "year",
+                  "year_start": 1958,
+                  "year_end": 1958
+                }
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "bookshop",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "1974",
+                  "precision": "year",
+                  "year_start": 1974,
+                  "year_end": 1974
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.several-events.zh-CN",
+          "pair_id": "grounding.several-events",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "童年时的1958年，我帮忙给学校的牌子上漆。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "青年时期的1974年，我开始在一家书店工作。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "学校的牌子",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "1958年",
+                  "precision": "year",
+                  "year_start": 1958,
+                  "year_end": 1958
+                }
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "书店",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "1974年",
+                  "precision": "year",
+                  "year_start": 1974,
+                  "year_end": 1974
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.recurring-events.en-AU",
+          "pair_id": "grounding.recurring-events",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "As a young adult in 1974, I worked a summer at the station kiosk.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "Separately, as a young adult in 1976, I worked another summer at the same station kiosk. These were two separate jobs.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "in 1974",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "1974",
+                  "precision": "year",
+                  "year_start": 1974,
+                  "year_end": 1974
+                }
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "in 1976",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "1976",
+                  "precision": "year",
+                  "year_start": 1976,
+                  "year_end": 1976
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "grounding.recurring-events.zh-CN",
+          "pair_id": "grounding.recurring-events",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "青年时期的1974年，我在车站的小亭子里做了一份暑期工作。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "另一次是在青年时期的1976年，我又在同一个车站小亭子做暑期工作。这是两份不同的工作。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "1974年",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "1974年",
+                  "precision": "year",
+                  "year_start": 1974,
+                  "year_end": 1974
+                }
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "1976年",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "1976年",
+                  "precision": "year",
+                  "year_start": 1976,
+                  "year_end": 1976
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        }
+      ]
+    },
+    {
+      "dimension": "temporal-placement",
+      "name": "memoir/issue6/20261008-v1/temporal-placement",
+      "description": "All seven stages, dates, approximate years, age basis, unknown years, intervals and conflicting accounts.",
+      "items": [
+        {
+          "case_id": "placement.seven-stages.en-AU",
+          "pair_id": "placement.seven-stages",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "A diary records that in my baby years I was often taken to the town garden.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "During my toddler years, I learned to stack wooden blocks.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s3",
+                "version": 1,
+                "text": "When I was a child, I helped paint the school sign.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s4",
+                "version": 1,
+                "text": "In my adolescence, I joined the school drama club.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s5",
+                "version": 1,
+                "text": "During my young adulthood, I started working at a bookshop.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s6",
+                "version": 1,
+                "text": "In my midlife years, I took evening pottery classes.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s7",
+                "version": 1,
+                "text": "In my later life, I tended the community garden.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "town garden",
+                "life_stage": "baby",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "wooden blocks",
+                "life_stage": "toddler",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "school sign",
+                "life_stage": "childhood",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "drama club",
+                "life_stage": "adolescence",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "bookshop",
+                "life_stage": "young_adulthood",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "pottery classes",
+                "life_stage": "midlife",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "community garden",
+                "life_stage": "later_life",
+                "year_unknown": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.seven-stages.zh-CN",
+          "pair_id": "placement.seven-stages",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "日记记载，婴儿时期的我经常被带到镇上的花园。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "幼儿时期，我学着堆木积木。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s3",
+                "version": 1,
+                "text": "童年时，我帮忙给学校的牌子上漆。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s4",
+                "version": 1,
+                "text": "青少年时期，我参加了学校的话剧社。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s5",
+                "version": 1,
+                "text": "青年时期，我开始在一家书店工作。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s6",
+                "version": 1,
+                "text": "中年时期，我参加了夜间陶艺课。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s7",
+                "version": 1,
+                "text": "晚年时，我照料社区的花园。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "镇上的花园",
+                "life_stage": "baby",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "木积木",
+                "life_stage": "toddler",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "学校的牌子",
+                "life_stage": "childhood",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "话剧社",
+                "life_stage": "adolescence",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "书店",
+                "life_stage": "young_adulthood",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "陶艺课",
+                "life_stage": "midlife",
+                "year_unknown": true
+              },
+              {
+                "kind": "event",
+                "evidence_anchor": "社区的花园",
+                "life_stage": "later_life",
+                "year_unknown": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.exact-date.en-AU",
+          "pair_id": "placement.exact-date",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "During my childhood, on 3 June 1988, I entered the school painting contest.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "painting contest",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "3 June 1988",
+                  "precision": "day",
+                  "year_start": 1988,
+                  "year_end": 1988
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.exact-date.zh-CN",
+          "pair_id": "placement.exact-date",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "童年时的1988年6月3日，我参加了学校的绘画比赛。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "绘画比赛",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "1988年6月3日",
+                  "precision": "day",
+                  "year_start": 1988,
+                  "year_end": 1988
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.approximate.en-AU",
+          "pair_id": "placement.approximate",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "In my young adulthood, around 1970, I began helping in a bicycle repair shop. I do not remember the exact year.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "bicycle repair shop",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "around 1970",
+                  "precision": "approximate",
+                  "year_start": 1970,
+                  "year_end": 1970
+                },
+                "uncertainty_required": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.approximate.zh-CN",
+          "pair_id": "placement.approximate",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "青年时期，大约1970年，我开始在一家自行车修理店帮忙。我记不清确切的年份。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "自行车修理店",
+                "life_stage": "young_adulthood",
+                "temporal": {
+                  "expression": "大约1970年",
+                  "precision": "approximate",
+                  "year_start": 1970,
+                  "year_end": 1970
+                },
+                "uncertainty_required": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.age-with-birth-evidence.en-AU",
+          "pair_id": "placement.age-with-birth-evidence",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "At age 12, during my childhood, I learned to repair a radio.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z",
+            "context_sources": [
+              {
+                "id": "s0",
+                "version": 1,
+                "text": "I was born in 1946.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ]
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "repair a radio",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "age 12",
+                  "precision": "age",
+                  "year_start": 1958,
+                  "year_end": 1958
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.age-with-birth-evidence.zh-CN",
+          "pair_id": "placement.age-with-birth-evidence",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "十二岁时，在童年时期，我学会了修理收音机。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z",
+            "context_sources": [
+              {
+                "id": "s0",
+                "version": 1,
+                "text": "我出生于1946年。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ]
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "修理收音机",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "十二岁",
+                  "precision": "age",
+                  "year_start": 1958,
+                  "year_end": 1958
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.age-without-birth-evidence.en-AU",
+          "pair_id": "placement.age-without-birth-evidence",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "At age 12, during my childhood, I learned to repair a radio.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "repair a radio",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "age 12",
+                  "precision": "age",
+                  "year_start": null,
+                  "year_end": null
+                },
+                "year_unknown": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.age-without-birth-evidence.zh-CN",
+          "pair_id": "placement.age-without-birth-evidence",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "十二岁时，在童年时期，我学会了修理收音机。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "修理收音机",
+                "life_stage": "childhood",
+                "temporal": {
+                  "expression": "十二岁",
+                  "precision": "age",
+                  "year_start": null,
+                  "year_end": null
+                },
+                "year_unknown": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.interval.en-AU",
+          "pair_id": "placement.interval",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "During my midlife years, from 1972 to 1982, I managed the same community workshop. It was one continuous period.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "period",
+                "evidence_anchor": "community workshop",
+                "life_stage": "midlife",
+                "temporal": {
+                  "expression": "1972 to 1982",
+                  "precision": "range",
+                  "year_start": 1972,
+                  "year_end": 1982
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.interval.zh-CN",
+          "pair_id": "placement.interval",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "中年时期，从1972年至1982年，我一直管理同一家社区工坊。这是一段连续的时期。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "period",
+                "evidence_anchor": "社区工坊",
+                "life_stage": "midlife",
+                "temporal": {
+                  "expression": "1972年至1982年",
+                  "precision": "range",
+                  "year_start": 1972,
+                  "year_end": 1982
+                }
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.competing-accounts.en-AU",
+          "pair_id": "placement.competing-accounts",
+          "language": "en-AU",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "My friend says my move to Harbour Town was in 2001; I remember 2002. Was it 2001 or 2002? I am uncertain.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "Harbour Town",
+                "life_stage": "unplaced",
+                "temporal": {
+                  "expression": "2001 or 2002",
+                  "precision": "unknown",
+                  "year_start": null,
+                  "year_end": null
+                },
+                "year_unknown": true,
+                "uncertainty_required": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "placement.competing-accounts.zh-CN",
+          "pair_id": "placement.competing-accounts",
+          "language": "zh-CN",
+          "input": {
+            "mode": "timeline",
+            "sources": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "朋友说我是2001年搬到海港镇的；我记得是2002年。到底是2001年还是2002年？我不确定。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "saved_events": [],
+            "capture_time": "2026-10-08T00:00:00Z"
+          },
+          "expected_output": {
+            "events": [
+              {
+                "kind": "event",
+                "evidence_anchor": "海港镇",
+                "life_stage": "unplaced",
+                "temporal": {
+                  "expression": "2001年还是2002年",
+                  "precision": "unknown",
+                  "year_start": null,
+                  "year_end": null
+                },
+                "year_unknown": true,
+                "uncertainty_required": true
+              }
+            ],
+            "forbidden_inferences": [
+              "Capture time must not become a story date.",
+              "Assistant text and prior generated prose are not narrator testimony."
+            ],
+            "human_review_required": [
+              "factual_entailment"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        }
+      ]
+    },
+    {
+      "dimension": "chapter-continuity",
+      "name": "memoir/issue6/20261008-v1/chapter-continuity",
+      "description": "Bilingual real story-workflow checkpoints at rounds five, ten and fifteen; coherent transitions and original evidence.",
+      "items": [
+        {
+          "case_id": "chapters.transitions.en-AU",
+          "pair_id": "chapters.transitions",
+          "language": "en-AU",
+          "input": {
+            "mode": "progressive_story_workflow",
+            "narrator_turns": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "I was born in 1950.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "In my childhood in 1958, I started at the village school.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s3",
+                "version": 1,
+                "text": "At that school, I enjoyed painting the sign above the classroom door.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s4",
+                "version": 1,
+                "text": "In 1960, still in childhood, I joined the school choir.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s5",
+                "version": 1,
+                "text": "Thank you. Please continue.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s6",
+                "version": 1,
+                "text": "In my young adulthood in 1970, I began my first job at a bookshop.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s7",
+                "version": 1,
+                "text": "At that bookshop, I sorted deliveries and learned the shelving system.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s8",
+                "version": 1,
+                "text": "I liked the quiet work, but I have not said that it changed my personality.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s9",
+                "version": 1,
+                "text": "With my first wages from that job, I bought a second-hand bicycle.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s10",
+                "version": 1,
+                "text": "Yes, let us continue with another memory.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s11",
+                "version": 1,
+                "text": "In my midlife years in 1982, I moved to Harbour Town. I have not given a reason for the move.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s12",
+                "version": 1,
+                "text": "In Harbour Town, I rode my bicycle beside the public park.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s13",
+                "version": 1,
+                "text": "In 1983, during midlife, I joined an evening pottery class.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s14",
+                "version": 1,
+                "text": "In my later life in 2010, I began tending a community garden.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s15",
+                "version": 1,
+                "text": "Those are the memories I want to share for now.",
+                "language": "en-AU",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "checkpoint_rounds": [
+              5,
+              10,
+              15
+            ],
+            "output_locale": "en-AU",
+            "family_legacy": false,
+            "paid_actions_authorized": false
+          },
+          "expected_output": {
+            "checkpoint_coverage": [
+              5,
+              10,
+              15
+            ],
+            "supported_transitions": [
+              "school and learning",
+              "first job and first wages",
+              "new town and later activities"
+            ],
+            "acceptable_grouping": "Several valid chapter groupings receive credit; do not require one chapter per event or per life-stage bucket.",
+            "required_facts": [
+              "school in 1958",
+              "choir in 1960",
+              "bookshop work in 1970",
+              "move in 1982",
+              "pottery class in 1983",
+              "community garden in 2010"
+            ],
+            "forbidden_claims": [
+              "The move happened because of family, marriage, promotion or conflict.",
+              "Quiet work transformed the narrator or taught a life lesson.",
+              "Invented dialogue, sensory details, hardship or triumphant resolution.",
+              "Birth-to-present completeness or human approval."
+            ],
+            "structural_checks": [
+              "Each checkpoint truthfully covers extraction through its stated round.",
+              "All retained source references resolve to originals in the project.",
+              "Unchanged earlier passages keep their bytes and revisions.",
+              "Every chapter remains within the existing 7000-word ceiling."
+            ],
+            "human_review_required": [
+              "factual_entailment",
+              "meaningful_chapter_transitions",
+              "chronology",
+              "adult_prose_and_locale"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "chapters.transitions.zh-CN",
+          "pair_id": "chapters.transitions",
+          "language": "zh-CN",
+          "input": {
+            "mode": "progressive_story_workflow",
+            "narrator_turns": [
+              {
+                "id": "s1",
+                "version": 1,
+                "text": "我出生于1950年。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s2",
+                "version": 1,
+                "text": "童年时的1958年，我开始在村里的学校上学。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s3",
+                "version": 1,
+                "text": "在那所学校，我喜欢给教室门上方的牌子画画。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s4",
+                "version": 1,
+                "text": "1960年，仍在童年时期，我参加了学校的合唱团。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s5",
+                "version": 1,
+                "text": "谢谢，请继续。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s6",
+                "version": 1,
+                "text": "青年时期的1970年，我在一家书店开始了第一份工作。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s7",
+                "version": 1,
+                "text": "在那家书店，我整理到货的书，并学会了书架的分类系统。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s8",
+                "version": 1,
+                "text": "我喜欢那份安静的工作，但我没有说它改变了我的性格。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s9",
+                "version": 1,
+                "text": "我用那份工作的第一笔工资买了一辆二手自行车。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s10",
+                "version": 1,
+                "text": "好，我们继续聊另一个记忆。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s11",
+                "version": 1,
+                "text": "中年时期的1982年，我搬到了海港镇。我没有说明搬家的原因。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s12",
+                "version": 1,
+                "text": "在海港镇，我骑自行车经过公共公园。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s13",
+                "version": 1,
+                "text": "1983年，在中年时期，我参加了夜间陶艺课。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s14",
+                "version": 1,
+                "text": "晚年时的2010年，我开始照料社区的花园。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              },
+              {
+                "id": "s15",
+                "version": 1,
+                "text": "暂时我想分享的就是这些记忆。",
+                "language": "zh-CN",
+                "input_kind": "typed",
+                "status": "active"
+              }
+            ],
+            "checkpoint_rounds": [
+              5,
+              10,
+              15
+            ],
+            "output_locale": "zh-CN",
+            "family_legacy": false,
+            "paid_actions_authorized": false
+          },
+          "expected_output": {
+            "checkpoint_coverage": [
+              5,
+              10,
+              15
+            ],
+            "supported_transitions": [
+              "school and learning",
+              "first job and first wages",
+              "new town and later activities"
+            ],
+            "acceptable_grouping": "Several valid chapter groupings receive credit; do not require one chapter per event or per life-stage bucket.",
+            "required_facts": [
+              "school in 1958",
+              "choir in 1960",
+              "bookshop work in 1970",
+              "move in 1982",
+              "pottery class in 1983",
+              "community garden in 2010"
+            ],
+            "forbidden_claims": [
+              "The move happened because of family, marriage, promotion or conflict.",
+              "Quiet work transformed the narrator or taught a life lesson.",
+              "Invented dialogue, sensory details, hardship or triumphant resolution.",
+              "Birth-to-present completeness or human approval."
+            ],
+            "structural_checks": [
+              "Each checkpoint truthfully covers extraction through its stated round.",
+              "All retained source references resolve to originals in the project.",
+              "Unchanged earlier passages keep their bytes and revisions.",
+              "Every chapter remains within the existing 7000-word ceiling."
+            ],
+            "human_review_required": [
+              "factual_entailment",
+              "meaningful_chapter_transitions",
+              "chronology",
+              "adult_prose_and_locale"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        }
+      ]
+    },
+    {
+      "dimension": "bilingual-consistency",
+      "name": "memoir/issue6/20261008-v1/bilingual-consistency",
+      "description": "Paired evaluation of matching run outcomes; no additional generation or judge calls.",
+      "items": [
+        {
+          "case_id": "bilingual.grounding.ack",
+          "pair_id": "grounding.ack",
+          "language": "paired",
+          "input": {
+            "mode": "paired_outcomes",
+            "left": {
+              "dimension": "event-grounding",
+              "case_id": "grounding.ack.en-AU"
+            },
+            "right": {
+              "dimension": "event-grounding",
+              "case_id": "grounding.ack.zh-CN"
+            },
+            "required_same_cohort": [
+              "dataset_content_hash",
+              "source_revision",
+              "provider_model",
+              "reasoning_configuration",
+              "run_id"
+            ],
+            "new_model_requests": 0
+          },
+          "expected_output": {
+            "invariants": [
+              "Both locale-specific gold contracts pass independently.",
+              "Equivalent facts, uncertainty and supported placement receive equivalent treatment.",
+              "Original testimony retains its language; output locale remains distinct.",
+              "Opaque server IDs and prose wording need not match between projects."
+            ],
+            "human_review_required": [
+              "cross_language_factual_equivalence",
+              "natural_language_quality"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "bilingual.placement.seven-stages",
+          "pair_id": "placement.seven-stages",
+          "language": "paired",
+          "input": {
+            "mode": "paired_outcomes",
+            "left": {
+              "dimension": "temporal-placement",
+              "case_id": "placement.seven-stages.en-AU"
+            },
+            "right": {
+              "dimension": "temporal-placement",
+              "case_id": "placement.seven-stages.zh-CN"
+            },
+            "required_same_cohort": [
+              "dataset_content_hash",
+              "source_revision",
+              "provider_model",
+              "reasoning_configuration",
+              "run_id"
+            ],
+            "new_model_requests": 0
+          },
+          "expected_output": {
+            "invariants": [
+              "Both locale-specific gold contracts pass independently.",
+              "Equivalent facts, uncertainty and supported placement receive equivalent treatment.",
+              "Original testimony retains its language; output locale remains distinct.",
+              "Opaque server IDs and prose wording need not match between projects."
+            ],
+            "human_review_required": [
+              "cross_language_factual_equivalence",
+              "natural_language_quality"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "bilingual.placement.approximate",
+          "pair_id": "placement.approximate",
+          "language": "paired",
+          "input": {
+            "mode": "paired_outcomes",
+            "left": {
+              "dimension": "temporal-placement",
+              "case_id": "placement.approximate.en-AU"
+            },
+            "right": {
+              "dimension": "temporal-placement",
+              "case_id": "placement.approximate.zh-CN"
+            },
+            "required_same_cohort": [
+              "dataset_content_hash",
+              "source_revision",
+              "provider_model",
+              "reasoning_configuration",
+              "run_id"
+            ],
+            "new_model_requests": 0
+          },
+          "expected_output": {
+            "invariants": [
+              "Both locale-specific gold contracts pass independently.",
+              "Equivalent facts, uncertainty and supported placement receive equivalent treatment.",
+              "Original testimony retains its language; output locale remains distinct.",
+              "Opaque server IDs and prose wording need not match between projects."
+            ],
+            "human_review_required": [
+              "cross_language_factual_equivalence",
+              "natural_language_quality"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        },
+        {
+          "case_id": "bilingual.chapters.transitions",
+          "pair_id": "chapters.transitions",
+          "language": "paired",
+          "input": {
+            "mode": "paired_outcomes",
+            "left": {
+              "dimension": "chapter-continuity",
+              "case_id": "chapters.transitions.en-AU"
+            },
+            "right": {
+              "dimension": "chapter-continuity",
+              "case_id": "chapters.transitions.zh-CN"
+            },
+            "required_same_cohort": [
+              "dataset_content_hash",
+              "source_revision",
+              "provider_model",
+              "reasoning_configuration",
+              "run_id"
+            ],
+            "new_model_requests": 0
+          },
+          "expected_output": {
+            "invariants": [
+              "Both locale-specific gold contracts pass independently.",
+              "Equivalent facts, uncertainty and supported placement receive equivalent treatment.",
+              "Original testimony retains its language; output locale remains distinct.",
+              "Opaque server IDs and prose wording need not match between projects."
+            ],
+            "human_review_required": [
+              "cross_language_factual_equivalence",
+              "natural_language_quality"
+            ],
+            "rubric_version": "issue6-semantic-v1"
+          }
+        }
+      ]
+    }
+  ],
+  "human_rubric": {
+    "review_status": "proposed; owner has not calibrated or accepted examples",
+    "reviewer": "owner review pending",
+    "dimensions": {
+      "factual_entailment": {
+        "pass": "Every personal claim is supported by the exact original evidence; uncertainty and attribution are retained.",
+        "fail": "Any unsupported personal fact, motive, dialogue, cause or certainty is introduced."
+      },
+      "meaningful_chapter_transitions": {
+        "pass": "Chapters connect supported stretches of life around meaningful changes, with neutral bridges where causation is unknown.",
+        "fail": "Prose is a disconnected event list, forced stage buckets or unsupported causal story."
+      },
+      "cross_language_factual_equivalence": {
+        "pass": "English and Chinese retain equivalent facts, dates, uncertainty and placement without requiring identical prose.",
+        "fail": "One language invents, drops or resolves evidence that the other preserves."
+      }
+    }
+  }
+}
