@@ -168,7 +168,11 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
         const box = boxes.find(item => item.key === anchor.dataset.albumKey);
         anchor.hidden = !box;
         if (!box) continue;
-        if (box.overflow) { overflow.append(anchor); anchor.removeAttribute('style'); continue; }
+        if (box.overflow) {
+          if (anchor.parentElement !== overflow) overflow.append(anchor);
+          anchor.removeAttribute('style');
+          continue;
+        }
         if (anchor.parentElement !== layer) layer.append(anchor);
         anchor.style.left = `${box.left}px`;
         anchor.style.top = `${box.top}px`;

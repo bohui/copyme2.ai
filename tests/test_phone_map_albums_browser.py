@@ -252,3 +252,57 @@ def test_no_pin_groups_keep_photo_status_and_retry_reachable(album_page,request)
         dialog.locator('[data-close-photo-album]').click()
         expect(dialog).not_to_be_visible()
         page.wait_for_function('!history.state?.memoirPhotoAlbum')
+
+
+def test_pinned_overflow_album_keeps_keyboard_focus_across_cesium_frames(album_page):
+    page,_,_=album_page
+    page.set_viewport_size({'width':390,'height':500})
+    overflow=page.locator('.map-album-overflow [data-album-pinned="true"] [data-photo-album]:visible')
+    expect(overflow).to_have_count(2)
+    key=overflow.first.get_attribute('data-photo-album')
+    page.locator('[data-photo-album]:visible').filter(has_text='承德').focus()
+    page.keyboard.press('Tab')
+    focus=page.evaluate('''() => new Promise(resolve => {
+      const states=[document.activeElement.dataset.photoAlbum || null];
+      const remove=window.__mapViewer.scene.postRender.addEventListener(() => {
+        states.push(document.activeElement.dataset.photoAlbum || null);
+        if(states.length===7){remove();resolve(states);}
+      });
+      window.__mapViewer.scene.requestRender();
+    })''')
+    assert focus==[key]*7,focus
+    page.keyboard.press('Enter')
+    dialog=page.get_by_role('dialog')
+    expect(dialog).to_be_visible()
+    expect(dialog.locator('h2')).to_have_text('双桥区')
+    dialog.locator('[data-close-photo-album]').click()
+    expect(dialog).not_to_be_visible()
+    page.screenshot(path=str(OUTPUT/'after-short-phone-overflow.png'))
+
+
+def test_city_tray_tap_wins_over_marker_projected_behind_it(album_page):
+    page,_,_=album_page
+    city=page.locator('[data-photo-album]:visible').filter(has_text='承德')
+    box=city.bounding_box()
+    scene=page.locator('.place-journey-scene').bounding_box()
+    point={'x':box['x']+box['width']/2,'y':box['y']+box['height']/2}
+    key=city.get_attribute('data-photo-album')
+    # Feed a pin behind the chip through real Cesium postRender positioning.
+    page.evaluate('''point => {
+      Cesium.SceneTransforms.worldToWindowCoordinates=()=>new Cesium.Cartesian2(point.x,point.y);
+      window.__mapViewer.scene.requestRender();
+    }''',{'x':point['x']-scene['x'],'y':point['y']-scene['y']})
+    page.wait_for_function('''([x,y]) => {
+      const box=document.querySelector('[data-photo-marker]').getBoundingClientRect();
+      return Math.abs(box.x+22-x)<1 && Math.abs(box.y+22-y)<1;
+    }''',arg=[point['x'],point['y']])
+    hit=page.evaluate('''([x,y]) => {
+      const button=document.elementFromPoint(x,y).closest('[data-photo-album], [data-photo-marker]');
+      return {kind:button?.dataset.photoAlbum ? 'album':'marker',key:button?.dataset.photoAlbum || button?.dataset.photoMarker};
+    }''',[point['x'],point['y']])
+    page.touchscreen.tap(point['x'],point['y'])
+    dialog=page.get_by_role('dialog')
+    expect(dialog).to_be_visible()
+    actual={'hit':hit,'opened':dialog.locator('h2').inner_text()}
+    assert actual=={'hit':{'kind':'album','key':key},'opened':'承德'},actual
+    assert dialog.locator('figcaption a').all_text_contents()==[f'承德 fixture {i}' for i in range(3)]

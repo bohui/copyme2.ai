@@ -57,6 +57,14 @@ dates, plus empty/error/retry states without Cesium entities. An additional
 no-pin loading case verifies streamed photos and focus restoration. The map
 gesture assertion targets an actual canvas point outside the tray.
 
+Further review of `05f4e8985f330a323f306c02ed18ba187aa69127` found two
+interaction issues. Both first failed in Chromium: a pinned overflow album
+lost Tab focus across six Cesium postRender frames, and a city-chip tap opened
+the town album when its transparent marker projected behind the chip. The
+fix leaves overflow anchors in their existing parent and raises the tray's
+stacking priority above marker targets. The regressions exercise Tab/Enter,
+real Cesium frames, `elementFromPoint`, touch tapping and exact album attribution.
+
 Commands run from the task worktree:
 
 ```sh
@@ -69,7 +77,7 @@ cd apps/web && npm run build
 
 - JavaScript: 176 passed.
 - Localization: 543 messages valid in `en-AU` and `zh-CN`.
-- Phone/map albums: 11 passed. Real Cesium camera, scene projection and picking;
+- Phone/map albums: 13 passed. Real Cesium camera, scene projection and picking;
   synthetic grid imagery, photos, auth and all API responses. No live photo,
   provider or model calls.
 - Existing conversation/keyboard/scrolling cases: 3 passed, 1 deselected.
@@ -112,6 +120,11 @@ Review-fix receipts: `js-city-tray.txt`, `browser-city-tray-final.txt`,
 `conversation-city-tray.txt`, and `build-city-tray.txt`. New screenshots
 `after-saved-all-albums.png` and `after-unresolved-all-albums.png` show all
 three distinct group albums; the standard after screenshots are refreshed.
+
+Interaction-review receipts: `overflow-review-red-confirmed.txt` (both
+behavioral failures), `overflow-review-green.txt`, `browser-overflow-final.txt`,
+`js-overflow.txt`, `conversation-overflow.txt`, and `build-overflow.txt`.
+`after-short-phone-overflow.png` captures the compact overflow controls.
 
 Library screenshot saving is blocked: the required current prepared-upload
 helper reports `Library prepare_uploads is not available` on this Mac, before
