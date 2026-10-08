@@ -48,6 +48,7 @@ const state = {
   selectedFamilyPerson: null,
   familyPhotoTask: null,
   photoMemoryTask: null,
+  photoMemoryRevision: 0,
   photoFavoritesOpen: false,
   workspaceUnlocked: false,
   compositionStage: 0,
@@ -1571,6 +1572,7 @@ async function savePhotoMemory(action, photo = null) {
     });
     if (!isCurrentProjectScope(scope)) return;
     state.project.profile = {...profile(), photo_memories:{...(profile().photo_memories || {}), [scope.projectId]:saved}};
+    state.photoMemoryRevision = (state.photoMemoryRevision || 0) + 1;
   } catch (error) {
     if (isCurrentProjectScope(scope)) toast(translate(`Memoir.workspace.${error.status === 409 ? "photoSaveBusy" : "photoSaveError"}`));
   } finally {
@@ -2871,6 +2873,12 @@ async function startMemoirStory(mode = "self") {
 
 async function refreshProject() {
   const scope = captureProjectScope();
+  const photoMemoryRevision = state.photoMemoryRevision || 0;
+  // Both reads can begin before a successful photo command. Scope checks below
+  // reject other projects/principals; within this scope only a newer committed
+  // command wins over those snapshots. Failed saves leave refreshes eligible.
+  const preservePhotoMemory = incoming => (state.photoMemoryRevision || 0) !== photoMemoryRevision
+    ? {...incoming, photo_memories:state.project.profile.photo_memories} : incoming;
   const projectId = state.project.id;
   state.stageReadiness = {};
   state.privateDraft = null;
@@ -2889,12 +2897,12 @@ async function refreshProject() {
     headers: { Authorization: `Bearer ${state.supabase.accessToken}` },
   } : {});
   if (!isCurrentProjectScope(scope)) return;
-  state.project = { ...base, ...journey, profile: preserveConversationLocale(base.profile, state.project.profile) };
+  state.project = { ...base, ...journey, profile: preservePhotoMemory(preserveConversationLocale(base.profile, state.project.profile)) };
   if (state.supabase?.accessToken) {
     const savedProfile = await storyApi("/v1/user/profile");
     if (!isCurrentProjectScope(scope)) return;
-    state.project.profile = preserveConversationLocale({ ...state.project.profile, ...savedProfile,
-      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])]) }, state.project.profile);
+    state.project.profile = preservePhotoMemory(preserveConversationLocale({ ...state.project.profile, ...savedProfile,
+      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])]) }, state.project.profile));
   }
   state.session = journey.active_session;
   state.preview = state.project.preview || null;

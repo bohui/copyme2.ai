@@ -104,3 +104,90 @@ test('a voice answer waits for photo persistence and respects cancellation while
   assert.equal(sent,true);
   assert.equal(h.context.photoMemoryState().selected,key);
 });
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => {resolve = done;});
+  return {promise, resolve};
+}
+
+function refreshHarness({snapshot, delayedAt, saveResult = saved, failSave = false}) {
+  const pending = deferred();
+  const reached = deferred();
+  const h = harness(async (url, options) => {
+    if (options?.method === 'PUT') {
+      if (failSave) throw new Error('offline');
+      return saveResult;
+    }
+    if (url.endsWith('/journey')) return {};
+    if (delayedAt === 'project') {reached.resolve(); return pending.promise;}
+    return {id:'p', profile:{photo_memories:{p:snapshot}}};
+  });
+  Object.assign(h.context, {
+    mergePlaces:places => places, refreshStageReadiness() {}, refreshPrivateDraft() {},
+    storyApi:async () => {
+      if (delayedAt === 'profile') {reached.resolve(); return pending.promise;}
+      return {photo_memories:{p:snapshot}};
+    },
+  });
+  h.state.supabase.accessToken = 'synthetic';
+  for (const name of ['refreshProject']) {
+    vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], h.context);
+  }
+  return {...h, pending, reached};
+}
+
+const empty = {favorites:[], selected:null};
+const cleared = {favorites:saved.favorites, selected:null};
+for (const delayedAt of ['project', 'profile']) {
+  for (const [action, before, committed] of [
+    ['select', empty, saved], ['clear', saved, cleared], ['unfavorite', saved, empty],
+  ]) {
+    test(`refresh paused at ${delayedAt} cannot undo acknowledged ${action}`, async () => {
+      const h = refreshHarness({snapshot:before, delayedAt, saveResult:committed});
+      h.state.project.profile.photo_memories = {p:before};
+      const refreshing = h.context.refreshProject();
+      await h.reached.promise;
+      await h.context.savePhotoMemory(action, action === 'clear' ? null : photo);
+      assert.equal(h.context.photoMemoryState().selected, committed.selected);
+      h.pending.resolve(delayedAt === 'project'
+        ? {id:'p', profile:{photo_memories:{p:before}}} : {photo_memories:{p:before}});
+      await refreshing;
+      assert.deepEqual(JSON.parse(JSON.stringify(h.context.photoMemoryState())), committed);
+    });
+  }
+  test(`refresh paused at ${delayedAt} stays scoped to its project and principal`, async () => {
+    for (const change of [h => {h.state.project={id:'other',profile:{name:'other'}};},
+      h => {h.state.supabase.user.id='other'; h.state.project.profile={name:'other'};},
+      h => {h.state.navigationGeneration++; h.state.project.profile={name:'other'};}]) {
+      const h=refreshHarness({snapshot:saved, delayedAt});
+      const refreshing=h.context.refreshProject();
+      await h.reached.promise;
+      change(h);
+      const current=h.state.project.profile;
+      h.pending.resolve(delayedAt === 'project' ? {id:'p',profile:{photo_memories:{p:saved}}} : {photo_memories:{p:saved}});
+      await refreshing;
+      assert.equal(h.state.project.profile,current);
+    }
+  });
+}
+
+test('failed photo commands do not prevent a later refresh from loading authoritative state', async () => {
+  const h=refreshHarness({snapshot:saved, delayedAt:'profile', failSave:true});
+  const refreshing=h.context.refreshProject();
+  await h.reached.promise;
+  await h.context.savePhotoMemory('clear');
+  h.pending.resolve({photo_memories:{p:cleared}});
+  await refreshing;
+  assert.equal(h.context.photoMemoryState().selected,null);
+});
+
+test('a refresh started after a committed mutation can load a subsequent authoritative change', async () => {
+  const h=refreshHarness({snapshot:empty, delayedAt:'profile'});
+  await h.context.savePhotoMemory('select',photo);
+  const refreshing=h.context.refreshProject();
+  await h.reached.promise;
+  h.pending.resolve({photo_memories:{p:cleared}});
+  await refreshing;
+  assert.equal(h.context.photoMemoryState().selected,null);
+});

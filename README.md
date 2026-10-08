@@ -410,6 +410,31 @@ does not call the model or Supabase, and it is not a live-model integration test
 
 ## Verify
 
+### Photo favourites and interview cues
+
+For authenticated users, favourites and the selected cue are private to the
+signed-in account and keyed by interview project in its Supabase profile. This
+also applies to family projects: the owner and storyteller each retain their
+own selection, used by that principal's collector. Ordinary project members
+cannot change favourites. Project and journey responses expose only the
+viewer's current-project photo state; the shared project adapter does not
+cache account photo maps. A failed authoritative read returns an error rather
+than another member's cached selection. Local/demo projects continue to use
+their project store.
+
+Successful photo commands take precedence over project/profile refreshes that
+started before them. Clearing the cue keeps the favourite; removing a selected
+favourite also clears its cue. Failed saves preserve the previous cue, and
+navigation or account changes invalidate in-flight responses. Reference-photo
+metadata remains untrusted context, not evidence of the storyteller's life.
+
+Offline regressions are in `tests/test_photo_memories.py` and
+`tests/js/photo-memories.test.mjs`, including separate principals/projects,
+project-store reloads, legacy contaminated snapshots, and delayed refreshes.
+Mocked account storage does not establish live Supabase/RLS acceptance.
+
+### Test commands
+
 ```bash
 python3 -m pytest -q
 make browser-test

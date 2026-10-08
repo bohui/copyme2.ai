@@ -29,7 +29,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .agent_routes_support import authenticated_storage
 from .namespaces import rewrite_memoir_path
-from .photo_memories import PhotoMemoryInput, update_photo_memory
+from .photo_memories import PhotoMemoryInput, photo_memory_state, update_photo_memory
 from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service, speech_character
 from .store import MemoryStore, new_id, now_iso, sha256_bytes, sha256_json
 
@@ -535,6 +535,25 @@ def _entitlement_response(project: dict[str, Any]) -> dict[str, Any]:
 
 def _project_response(project: dict[str, Any]) -> dict[str, Any]:
     _require_project_access(project)
+    # Authenticated favourites belong to the viewer, including in family
+    # projects. The collector uses that same principal's UserStorage profile.
+    # Never keep an account-wide (or another member's) map in the shared
+    # adapter, including snapshots saved by older versions of this route.
+    if project.get('supabase_owner_id'):
+        project['profile'].pop('photo_memories', None)
+        service = authenticated_storage(_request_principal.get()['authorization'])
+        try:
+            photo_profile = service.profile()
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            raise HTTPException(503, 'Photo favourites could not be loaded') from None
+        finally:
+            service.client.close()
+    else:
+        photo_profile = project['profile']
+    profile = deepcopy(project['profile'])
+    profile.pop('photo_memories', None)
+    if project['id'] in (photo_profile.get('photo_memories') or {}):
+        profile['photo_memories'] = {project['id']: photo_memory_state(photo_profile, project['id'])}
     entitlements = _entitlement_response(project)
     approved_chapters = [chapter for chapter in project.get("chapters", {}).values() if chapter.get("status") == "APPROVED"]
     try:
@@ -550,7 +569,7 @@ def _project_response(project: dict[str, Any]) -> dict[str, Any]:
         "requires_supabase_auth": bool(project.get('supabase_owner_id')),
         "storyteller_id": project["storyteller_id"],
         "home_region": project["home_region"],
-        "profile": deepcopy(project["profile"]),
+        "profile": profile,
         "consent": deepcopy(project["consent"]),
         "preferences": deepcopy(project.get("preferences", {})),
         "member_count": len(project["members"]),
@@ -2386,9 +2405,14 @@ def create_app(
                 await asyncio.to_thread(service.client.close)
         else:
             updated, photo_state = update_photo_memory(project['profile'], project_id, payload)
-        # Update the project adapter only after authoritative persistence succeeds.
+        # Only local/demo projects use the project store for photo persistence.
+        # Authenticated projects must not cache any principal's private map in
+        # a shared adapter; reads project the viewer's authoritative profile.
         project = _project(memory, project_id, actor)
-        project['profile']['photo_memories'] = updated['photo_memories']
+        if project.get('supabase_owner_id'):
+            project['profile'].pop('photo_memories', None)
+        else:
+            project['profile']['photo_memories'] = {project_id: photo_state}
         return photo_state
 
     @app.get("/v1/projects/{project_id}/place-photos")
