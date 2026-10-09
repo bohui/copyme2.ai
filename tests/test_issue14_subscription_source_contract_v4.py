@@ -10,19 +10,17 @@ PROOF = 'tests/fixtures/issue14_subscription_source_v4.json'
 
 
 def copy_scope(tmp_path):
-    proof = json.loads((ROOT / PROOF).read_text())
-    names = set(proof['current_snapshot']['files']) | {
-        PROOF, 'scripts/issue14_source_contract.py', 'scripts/issue14_subscription_source_contract.py',
-        'scripts/issue14_subscription_source_contract_v4.py',
-        'tests/fixtures/issue14_source_contract_v2.json', 'tests/fixtures/issue14_subscription_source_v3.json'}
-    for name in names:
+    # Execute the frozen v4 contract against its independently verified original
+    # inputs. Current source is checked by v5, not relabelled as old evidence.
+    from scripts.issue14_subscription_source_contract_v5 import historical_v4_files
+    for name, raw in historical_v4_files(ROOT).items():
         target = tmp_path / name; target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((ROOT / name).read_bytes())
+        target.write_bytes(raw)
     return tmp_path
 
 
-def test_new_current_and_immutable_history_pass_without_live_authority():
-    result = audit_subscription_source_v4(ROOT)
+def test_new_current_and_immutable_history_pass_without_live_authority(tmp_path):
+    result = audit_subscription_source_v4(copy_scope(tmp_path))
     assert result['source_gate_passed'] is True
     assert result['historical_derivation_integrity_verified'] is True
     assert result['historical_v2_integrity_verified'] is True

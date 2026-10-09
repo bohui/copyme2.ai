@@ -114,10 +114,10 @@ is enabled here. The four managed rules remain disabled. Raw outcomes can be
 reviewed locally; dataset experiment publication is a separate explicit step.
 
 The historical strict Issue 14 budget adapters/receipts/source inventory remain
-unchanged and their unfulfilled ACs remain open. Source contract v4 separately
+unchanged and their unfulfilled ACs remain open. Source contract v5 separately
 checks the reviewed current runtime, native fixtures, dataset, skills and SQL,
 while v1/v2 tests use verified immutable historical evidence. See
-`issue14-source-contract-v4.md`. A passing source gate is not a native execution
+`issue14-source-contract-v5.md`. A passing source gate is not a native execution
 receipt or semantic acceptance; exact-head review and applicable checks still
 apply before merge and the native resource preflight still applies before a run.
 

@@ -143,9 +143,9 @@ def test_audit_source_pins_match_this_reviewed_derivation():
     # V1 is an immutable historical derivation, not a hash lock on all future
     # checkouts. Keep this existing gate strict: validate its original Git
     # objects AND the separately reviewed versioned current source contract.
-    from scripts.issue14_subscription_source_contract_v4 import audit_subscription_source_v4
+    from scripts.issue14_subscription_source_contract_v5 import audit_subscription_source_v5
     root = Path(__file__).resolve().parents[1]
-    report = audit_subscription_source_v4(root)
+    report = audit_subscription_source_v5(root)
     assert report['historical_derivation_integrity_verified'] is True
     assert report['current_source_matches_reviewed_snapshot'] is True
     assert report['source_gate_passed'] is True
