@@ -9,15 +9,15 @@ admission remain prerequisites; this offline audit does not publish or approve
 execution.
 
 The canonical runtime source snapshot is commit
-`f68d0204a1f92cbb219b5843e68b1af82d10127b`, tree
-`05dd80fdb1bd42e416cd378207104353046af4e4`. V6 monitors 299 source files.
+`f5d2e37eb6c075696e5045b7a8f83c794eafa68d`, tree
+`1fba44cf004459c7eca919d7999cc07c4ba0a388`. V6 monitors 299 source files.
 Its proof adds 22 Git objects and has SHA-256
-`2f254ce0139fdb5e449e24717da19725442e857b1139d1001441954e65150232`.
+`c392356d0cdbb0ebbb295ab5ad00542a0d7cedc7d48c5f0cc64e5257829a5dde`.
 
-This revision binds fresh post-turn canonical history reads, Unicode-safe JSON
-framing and sanitized private parser-failure diagnostics. Passing source checks
-does not prove native browser hydration, live recovery or the cause of the earlier
-native JSON failure. The first V6 proof
+This revision binds bounded terminal parser-failure diagnostics and isolated
+disposable worker-artifact storage and readiness checks. Passing source checks
+does not prove native artifact readiness, browser hydration, live recovery or
+the cause of the earlier native JSON failure. The first V6 proof
 remains preserved in commit `4f15346b33b35d36872aa26960d891c3d5227786`,
 bound to runtime `99cd9533e92508433a475da4718233ee0ce074ff` with proof SHA-256
 `e299e5a7d8790218fd20318a0ee53d51026b221287c9d90692d253a015ce511c`.
@@ -29,6 +29,10 @@ The per-case production Next build/start binding remains preserved in commit
 `a2e35ed6811f569527f231f33e3a07731690c233`, bound to runtime
 `76064164486391a942d04772325688a5837cc286` with proof SHA-256
 `443021867869fcacfac73f5477c38ed80adee52b1b8f67f67a535916ccb84c8d`.
+The fresh-history, Unicode-framing and private-parser-diagnostic binding remains
+preserved in commit `36296f43eda1fbf56459a08c570bce11ea22cac7`, bound to runtime
+`f68d0204a1f92cbb219b5843e68b1af82d10127b` with proof SHA-256
+`2f254ce0139fdb5e449e24717da19725442e857b1139d1001441954e65150232`.
 Earlier run attribution remains tied to its original source identity.
 
 The inventory covers all Python runtime modules under `apps/api` and `scripts`,
