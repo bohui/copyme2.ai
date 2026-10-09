@@ -11,6 +11,7 @@ import base64
 from copy import deepcopy
 import json
 import os
+import re
 import socket
 import sqlite3
 from types import SimpleNamespace
@@ -296,6 +297,146 @@ def test_explicit_postgres_gate_cannot_pass_as_an_availability_skip(monkeypatch)
         setup.close()
 
 
+def _cleanup_round_owner(sql, owner, storages, *, failure=None):
+    """Remove only this freshly inserted owner, preserving assertion failures.
+
+    Memory DELETE triggers create outbox records and reconcile narrator sources.
+    Run those triggers while their owner/project parents still exist; then clear
+    the owned children and finally the auth row. Keep all production constraints.
+    """
+    if type(owner) is not str or str(UUID(owner)) != owner:
+        raise ValueError('Canonical synthetic owner required')
+    errors = []
+    for storage in storages:
+        try:
+            storage.client.close()
+        except BaseException as error:
+            errors.append(error)
+    owner_sql = quoted(owner)
+    try:
+        sql(f'''begin;
+            delete from public.user_memory where user_id={owner_sql};
+            delete from public.user_memoir_project where user_id={owner_sql};
+            delete from public.user_completed_round where user_id={owner_sql};
+            delete from public.user_private_draft_outbox where user_id={owner_sql};
+            delete from storage.objects where bucket_id='memory-spark' and split_part(name,'/',1)={owner_sql};
+            delete from auth.users where id={owner_sql};
+            commit;''')
+        remaining = sql(f'''select jsonb_build_object(
+            'owners',(select count(*) from auth.users where id={owner_sql}),
+            'memories',(select count(*) from public.user_memory where user_id={owner_sql}),
+            'projects',(select count(*) from public.user_memoir_project where user_id={owner_sql}),
+            'rounds',(select count(*) from public.user_completed_round where user_id={owner_sql}),
+            'outbox',(select count(*) from public.user_private_draft_outbox where user_id={owner_sql}),
+            'objects',(select count(*) from storage.objects where split_part(name,'/',1)={owner_sql}));''')
+        assert _sql_json_record(remaining.stdout) == {
+            'owners': 0, 'memories': 0, 'projects': 0, 'rounds': 0, 'outbox': 0, 'objects': 0,
+        }, 'Synthetic round cleanup unverified'
+    except BaseException as error:
+        errors.append(error)
+    if errors:
+        if failure is not None:
+            raise BaseExceptionGroup('Complete round and owned cleanup failed', [failure, *errors]) from None
+        if len(errors) == 1:
+            raise errors[0]
+        raise BaseExceptionGroup('Owned round cleanup failed', errors)
+
+
+class CleanupSql:
+    """Offline model of the owner/outbox dependency, not PostgreSQL evidence."""
+    def __init__(self, owner, other, *, failure=None, residue=False):
+        self.owner, self.other, self.failure, self.residue = owner, other, failure, residue
+        self.calls, self.deletions = [], []
+        self.rows = {identity: {'owners': 1, 'memories': 1, 'projects': 1,
+            'rounds': 1, 'outbox': 1, 'objects': 1} for identity in (owner, other)}
+
+    def __call__(self, query):
+        self.calls.append(query)
+        if self.failure:
+            raise self.failure
+        if query.lstrip().startswith('select'):
+            assert self.other not in query
+            value = dict(self.rows[self.owner])
+            if self.residue:
+                value['memories'] = 1
+            return SimpleNamespace(stdout=json.dumps(value) + '\n')
+        for statement in query.split(';'):
+            statement = statement.strip()
+            if not statement or statement.lower() in ('begin', 'commit'):
+                continue
+            matched = re.fullmatch(r"delete from ([a-z_.]+) where (.+)", statement)
+            assert matched, 'Only scoped DELETE statements belong in owner cleanup'
+            table, condition = matched.groups()
+            identity = re.search(r"'([0-9a-f-]{36})'", condition)[1]
+            assert identity == self.owner
+            row = self.rows[identity]
+            self.deletions.append(table)
+            if table == 'storage.objects':
+                assert condition == f"bucket_id='memory-spark' and split_part(name,'/',1)='{identity}'"
+                row['objects'] = 0
+            elif table == 'auth.users':
+                assert condition == f"id='{identity}'"
+                # The production AFTER DELETE trigger inserts an outbox row;
+                # cascading memory deletion after owner removal violates its FK.
+                assert row['memories'] == 0, 'Memory deletion must run while its owner exists'
+                row['owners'] = 0
+            else:
+                assert condition == f"user_id='{identity}'"
+                key = {'public.user_memory': 'memories', 'public.user_memoir_project': 'projects',
+                    'public.user_completed_round': 'rounds', 'public.user_private_draft_outbox': 'outbox'}[table]
+                if key == 'memories':
+                    assert row['owners'] == 1
+                    row['outbox'] += row['memories']
+                row[key] = 0
+        return SimpleNamespace(stdout='')
+
+
+def test_round_cleanup_deletes_children_before_owner_and_preserves_other_owner():
+    owner, other = str(uuid4()), str(uuid4())
+    sql = CleanupSql(owner, other)
+    foreign = deepcopy(sql.rows[other])
+    _cleanup_round_owner(sql, owner, [])
+    assert sql.rows[other] == foreign
+    assert all(count == 0 for count in sql.rows[owner].values())
+    assert sql.deletions.index('public.user_memory') < sql.deletions.index('public.user_private_draft_outbox')
+    assert sql.deletions.index('public.user_private_draft_outbox') < sql.deletions.index('auth.users')
+    assert sql.deletions.index('public.user_memoir_project') < sql.deletions.index('auth.users')
+    assert len(sql.calls) == 2
+
+
+def test_round_cleanup_retains_original_assertion_when_database_cleanup_also_fails():
+    original, cleanup = AssertionError('Synthetic round assertion'), RuntimeError('Synthetic cleanup failure')
+    owner = str(uuid4())
+    sql = CleanupSql(owner, str(uuid4()), failure=cleanup)
+    with pytest.raises(BaseExceptionGroup) as caught:
+        _cleanup_round_owner(sql, owner, [], failure=original)
+    assert caught.value.exceptions == (original, cleanup)
+    assert len(sql.calls) == 1
+
+
+def test_round_cleanup_attempts_all_client_closes_and_database_after_close_failure():
+    owner, calls = str(uuid4()), []
+    close_failure = RuntimeError('Synthetic close failure')
+    def first_close():
+        calls.append('first')
+        raise close_failure
+    def second_close():
+        calls.append('second')
+    stores = [SimpleNamespace(client=SimpleNamespace(close=close)) for close in (first_close, second_close)]
+    sql = CleanupSql(owner, str(uuid4()))
+    with pytest.raises(RuntimeError) as caught:
+        _cleanup_round_owner(sql, owner, stores)
+    assert caught.value is close_failure and calls == ['first', 'second']
+    assert all(count == 0 for count in sql.rows[owner].values())
+
+
+def test_round_cleanup_requires_confirmed_child_and_owner_absence():
+    owner = str(uuid4())
+    sql = CleanupSql(owner, str(uuid4()), residue=True)
+    with pytest.raises(AssertionError, match='Synthetic round cleanup unverified'):
+        _cleanup_round_owner(sql, owner, [])
+
+
 @pytest.mark.parametrize('streaming', [False, True])
 def test_postgres_complete_runtime_round_strict_and_canonical_readback(
         round_database, round_environment, tmp_path, streaming):
@@ -330,13 +471,11 @@ def test_postgres_complete_runtime_round_strict_and_canonical_readback(
         assert len(view['events']) == 1 and view['events'][0]['status'] == 'active'
         assert view['events'][0]['source_refs'][0]['quote'] == TEXT
         assert [call.get('agent_role', 'collector') for call in worker.calls].count('author_timeline') == 1
+    failure = None
     try:
         asyncio.run(scenario())
+    except BaseException as error:
+        failure = error
+        raise
     finally:
-        for storage in storages:
-            storage.client.close()
-        sql(f"begin; delete from storage.objects where split_part(name,'/',1)={quoted(owner)}; "
-            f'delete from auth.users where id={quoted(owner)}; commit;')
-        remaining = sql(f"select jsonb_build_object('owners',(select count(*) from auth.users where id={quoted(owner)}),"
-            f"'objects',(select count(*) from storage.objects where split_part(name,'/',1)={quoted(owner)}));")
-        assert _sql_json_record(remaining.stdout) == {'owners': 0, 'objects': 0}
+        _cleanup_round_owner(sql, owner, storages, failure=failure)
