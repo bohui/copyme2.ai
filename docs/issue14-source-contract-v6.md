@@ -9,15 +9,15 @@ admission remain prerequisites; this offline audit does not publish or approve
 execution.
 
 The canonical runtime source snapshot is commit
-`f5d2e37eb6c075696e5045b7a8f83c794eafa68d`, tree
-`1fba44cf004459c7eca919d7999cc07c4ba0a388`. V6 monitors 299 source files.
+`6ff9b7cbce514b8070b571db943e63260a1ab43e`, tree
+`0378238cb2491c708f957d309bf79f5f48204cd1`. V6 monitors 299 source files.
 Its proof adds 22 Git objects and has SHA-256
-`c392356d0cdbb0ebbb295ab5ad00542a0d7cedc7d48c5f0cc64e5257829a5dde`.
+`45a8201e89824764b6cba7e06e4f3683413045efcae1c6453eaddcad1046ae9e`.
 
-This revision binds bounded terminal parser-failure diagnostics and isolated
-disposable worker-artifact storage and readiness checks. Passing source checks
-does not prove native artifact readiness, browser hydration, live recovery or
-the cause of the earlier native JSON failure. The first V6 proof
+This revision binds family-progress settlement after verified persistence and
+privacy-safe reason codes for strict readback failures. Passing source checks
+does not prove native complete-round readback, artifact readiness, browser
+hydration, live recovery or the cause of an earlier native failure. The first V6 proof
 remains preserved in commit `4f15346b33b35d36872aa26960d891c3d5227786`,
 bound to runtime `99cd9533e92508433a475da4718233ee0ce074ff` with proof SHA-256
 `e299e5a7d8790218fd20318a0ee53d51026b221287c9d90692d253a015ce511c`.
@@ -33,6 +33,10 @@ The fresh-history, Unicode-framing and private-parser-diagnostic binding remains
 preserved in commit `36296f43eda1fbf56459a08c570bce11ea22cac7`, bound to runtime
 `f68d0204a1f92cbb219b5843e68b1af82d10127b` with proof SHA-256
 `2f254ce0139fdb5e449e24717da19725442e857b1139d1001441954e65150232`.
+The terminal-parser-diagnostic and isolated artifact-readiness binding remains
+preserved in commit `c7551f720356050ac51c288858793f7f535ba0c9`, bound to runtime
+`f5d2e37eb6c075696e5045b7a8f83c794eafa68d` with proof SHA-256
+`c392356d0cdbb0ebbb295ab5ad00542a0d7cedc7d48c5f0cc64e5257829a5dde`.
 Earlier run attribution remains tied to its original source identity.
 
 The inventory covers all Python runtime modules under `apps/api` and `scripts`,
