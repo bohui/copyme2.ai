@@ -2706,10 +2706,10 @@ class CodexRuntime:
                             'project_id':project_id, 'stage_readiness':stage_readiness(rows, project_id)}})
         if parsed_place_journey:
             await progress.update('place', 'Validating the place mentioned in this turn', '正在验证本轮提到的地点', skill='memoir-place-journey', status='triggered')
-        for skill in family_skills if family_enabled else []:
-            skill = {'family_tree': 'memoir-family-tree', 'author_timeline': 'memoir-author-timeline'}.get(skill)
-            if skill is None:
-                continue
+        family_progress_skills = [mapped for skill in (family_skills if family_enabled else [])
+            if (mapped := {'family_tree': 'memoir-family-tree',
+                           'author_timeline': 'memoir-author-timeline'}.get(skill)) is not None]
+        for skill in family_progress_skills:
             await progress.update(skill, 'Validating the extracted workspace update', '正在验证提取的工作区更新', skill=skill, status='triggered')
 
         family_context = None
@@ -2771,6 +2771,17 @@ class CodexRuntime:
                         'family_features_enabled': family_enabled,
                     },
                 })
+
+        # Finish the same skill rows that announced validation. Overall
+        # workspace completion does not settle their independent progress IDs.
+        # An unchanged but verified persisted document is successful; rejected,
+        # stale or unavailable persistence must never look like a saved update.
+        family_persisted = bool(family_context_update and family_context_update.get('persisted') is True)
+        for skill in family_progress_skills:
+            await progress.update(skill,
+                'Workspace update verified' if family_persisted else 'Workspace update could not be verified',
+                '工作区更新已验证' if family_persisted else '无法验证工作区更新',
+                skill=skill, status='completed' if family_persisted else 'failed')
 
         place_journey = current_place_journey
         place_journey_change = None

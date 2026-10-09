@@ -291,3 +291,34 @@ coordinates and error type; they do not retain payload text or expose these
 details through the public browser response. The framing and artifact fixtures
 have deterministic regressions. Earlier native failures did not retain their
 exact parser stack, so those regressions do not establish the live cause.
+
+## Complete-round readback validation
+
+The private receipt identifies rejected runtime, canonical, checkpoint and
+settlement predicates using fixed labels and bounded indexes/status categories.
+Runtime diagnostics include bounded trajectory limits only after matching the
+current round correlation. No reply, source text, comparison value, arbitrary
+action/identifier, exception message or private worker output is copied. Existing
+acceptance rules still reject unfinished work, failed protocol/tool steps,
+artifact failures, overflow, missing extraction and incomplete checkpoints.
+
+Family skill progress settles only after the corresponding family document is
+verified as persisted. Verified unchanged persistence also completes; invalid,
+stale or unavailable persistence is unsuccessful. Completing the overall
+workspace does not substitute for completing its individual skill operations.
+
+`tests/test_memoir_postgres_runtime_readback.py` adds provider-free complete-round
+checks for streaming and nonstreaming turns. The native variants replace
+generated worker content only at the HTTP transport boundary. The actual runtime,
+leases, workspace job, family/place persistence, raw artifacts and strict runtime
+readback execute against real PostgreSQL. A fresh storage facade, the actual
+extraction lane and canonical round validation follow. Python TCP connections are
+trapped. They do not start a campaign, replay original inputs or contact a model.
+
+Run its `test_postgres_complete_runtime_round_strict_and_canonical_readback`
+selection under the same explicit `MEMOIR_TEST_ARTIFACT_POSTGRES=1` opt-in,
+verified native backend and exclusive lease. Both native variants must pass with
+zero skips; explicitly requested but unavailable PostgreSQL is a failure. Offline
+tests use a labelled in-memory storage double and cannot establish PostgreSQL
+correctness. These deterministic checks prove runtime/readback wiring, not model
+quality, live browser acceptance or the cause of an earlier unretained failure.

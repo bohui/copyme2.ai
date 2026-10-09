@@ -36,6 +36,132 @@ class SubscriptionRunnerError(ValueError):
     """Fixed, content-free execution reason; never a provider exception body."""
 
 
+_READBACK_PREDICATES = {
+    'runtime': frozenset({
+        'result_shape', 'reply_type', 'reply_empty', 'accepted_source_type', 'accepted_source_empty',
+        'trajectory_shape', 'correlation_shape', 'correlation_mismatch', 'final_shape', 'final_status',
+        'final_error', 'task_errors', 'tasks_shape', 'task_shape', 'task_status', 'trace_shape',
+        'trace_entry_shape', 'trace_status', 'steps_shape', 'step_shape', 'step_error',
+        'step_protocol_failed', 'step_status_shape', 'step_status', 'step_action_status',
+        'step_output_error', 'step_output_retryable', 'step_output_pending', 'step_output_status_shape',
+        'step_output_status', 'limits_shape', 'trajectory_overflow', 'trajectory_dropped_steps',
+        'final_state_shape', 'workspace_failure', 'task_error_count', 'task_statuses_shape',
+        'final_task_status', 'helper_exception',
+    }),
+    'canonical': frozenset({
+        'state_shape', 'project_mismatch', 'completed_rounds', 'processing_shape', 'extracted_through',
+        'pending_inputs', 'sources_shape', 'source_count', 'accepted_source_uniqueness', 'source_shape',
+        'source_id', 'source_text', 'source_project', 'source_language', 'source_kind', 'source_status',
+        'source_version', 'source_sequence', 'helper_exception',
+    }),
+    'checkpoint': frozenset({
+        'draft_shape', 'draft_status', 'updating', 'error', 'proposal_pending', 'covered_round',
+        'milestone', 'revision', 'progress_shape', 'extraction_shape', 'extracted_through',
+        'pending_inputs', 'preview_shape', 'preview_locale', 'preview_text_type', 'preview_text_empty',
+        'milestones_shape', 'milestone_count', 'milestone_shape', 'milestone_status', 'milestone_ordinal',
+        'milestone_covered_round', 'sections_shape', 'sections_empty', 'helper_exception',
+    }),
+    'settlement': frozenset({'handle_id', 'outcome_shape', 'outcome_status', 'outcome_pending',
+        'outcome_error', 'outcome_retryable', 'outcome_attempt', 'pending_shape', 'pending_lanes', 'helper_exception'}),
+    'case': frozenset({'observation_unavailable', 'helper_exception'}),
+}
+_COMPLETED_STATUSES = frozenset({'completed', 'succeeded', 'SUCCEEDED'})
+_FAILED_STATUSES = frozenset({'failed', 'cancelled', 'canceled', 'retry', 'retry_required', 'pending'})
+_DIAGNOSTIC_STATUSES = _COMPLETED_STATUSES | _FAILED_STATUSES | frozenset({
+    'running', 'started', 'queued', 'QUEUED', 'ready', 'finished', 'incomplete',
+    'triggered', 'skipped', 'active', 'missing', 'invalid', 'unrecognized',
+})
+_TRACE_CATEGORIES = frozenset({'memoir-family-tree', 'memoir-author-timeline',
+    'context', 'reply', 'save', 'workspace', 'place', 'memory-context', 'language', 'other'})
+_ACTION_CATEGORIES = frozenset({'artifact', 'workspace', 'recovery', 'worker', 'protocol', 'other'})
+
+
+def _trace_category(value):
+    return value if type(value) is str and value in _TRACE_CATEGORIES else 'other'
+
+
+def _action_category(value):
+    if type(value) is not str:
+        return 'other'
+    if value.startswith('artifact.'):
+        return 'artifact'
+    if value.startswith('workspace.family_recovery.'):
+        return 'recovery'
+    if value.startswith('workspace.'):
+        return 'workspace'
+    if value.startswith('codex.worker.'):
+        return 'worker'
+    if value.startswith(('protocol.', 'thread/', 'turn/', 'item/')):
+        return 'protocol'
+    return 'other'
+
+
+def _safe_status(value):
+    if value is None:
+        return 'missing'
+    if type(value) is not str:
+        return 'invalid'
+    return value if value in _DIAGNOSTIC_STATUSES else 'unrecognized'
+
+
+def _sanitize_readback_diagnostic(value, boundary):
+    """Fixed labels and bounded numbers only; never copy caller data or IDs."""
+    if (type(value) is not dict or type(value.get('predicate')) is not str
+            or value['predicate'] not in _READBACK_PREDICATES[boundary]):
+        return None
+    safe = {'schema_version': f'memoir-{boundary}-readback-diagnostic/1',
+            'boundary': boundary, 'predicate': value['predicate']}
+    collection = value.get('collection')
+    if type(collection) is str and collection in {'tasks', 'trace', 'steps', 'task_statuses', 'sources', 'milestones', 'handles'}:
+        safe['collection'] = collection
+    index = value.get('index')
+    if type(index) is int and 0 <= index <= 2**31 - 1:
+        safe['index'] = index
+    count = value.get('count')
+    if type(count) is int and 0 <= count <= 2**31 - 1:
+        safe['count'] = count
+    if 'status' in value:
+        safe['status'] = _safe_status(value['status'])
+    for key, allowed in (('trace_category', _TRACE_CATEGORIES), ('action_category', _ACTION_CATEGORIES)):
+        category = value.get(key)
+        if type(category) is str and category in allowed:
+            safe[key] = category
+    action_status = value.get('action_status')
+    if type(action_status) is str and action_status in _FAILED_STATUSES:
+        safe['action_status'] = action_status
+    limits = value.get('trajectory_limits')
+    if type(limits) is dict:
+        projected = {key: limits[key] for key in ('max_steps', 'observed_steps', 'dropped_steps')
+                     if type(limits.get(key)) is int and 0 <= limits[key] <= 2**31 - 1}
+        if type(limits.get('overflowed')) is bool:
+            projected['overflowed'] = limits['overflowed']
+        if projected:
+            safe['trajectory_limits'] = projected
+    return safe
+
+
+def _readback_require(condition, reason, boundary, predicate, **details):
+    if not condition:
+        error = SubscriptionRunnerError(reason)
+        error.readback_diagnostic = _sanitize_readback_diagnostic({'predicate': predicate, **details}, boundary)
+        raise error
+
+
+def _readback_call(record, boundary, function, *args):
+    """Save a detached safe diagnostic even when the readback must reject."""
+    try:
+        return function(*args)
+    except Exception as error:
+        try:
+            diagnostic = _sanitize_readback_diagnostic(getattr(error, 'readback_diagnostic', None), boundary)
+        except Exception:
+            diagnostic = None
+        record[f'{boundary}_readback_diagnostic'] = diagnostic or {
+            'schema_version': f'memoir-{boundary}-readback-diagnostic/1',
+            'boundary': boundary, 'predicate': 'helper_exception'}
+        raise
+
+
 def _error_reason(error):
     # Even a caller raising our exception class cannot inject arbitrary content
     # into an evidence error field. Do not invoke an overridden __str__ method.
@@ -134,45 +260,86 @@ def _runtime_failure_summary(value, correlation):
 
 
 def _runtime_readback(value, correlation):
-    _require(type(value) is dict and type(value.get('reply')) is str
-             and value['reply'].strip() and type(value.get('accepted_source_id')) is str
-             and value['accepted_source_id'], 'turn_incomplete')
+    trajectory, correlation_verified = None, False
+    def check(condition, predicate, **details):
+        reason = ('correlation_mismatch' if predicate in {'trajectory_shape', 'correlation_shape', 'correlation_mismatch'}
+                  else 'turn_incomplete' if predicate in {'result_shape', 'reply_type', 'reply_empty',
+                    'accepted_source_type', 'accepted_source_empty', 'final_shape', 'final_status', 'final_error'}
+                  else 'background_incomplete')
+        if correlation_verified:
+            details['trajectory_limits'] = trajectory.get('limits')
+        _readback_require(condition, reason, 'runtime', predicate, **details)
+    def entries(items, predicate):
+        try:
+            return enumerate(iter(items))
+        except TypeError:
+            check(False, predicate)
+    def member(status, choices):
+        try:
+            return status in choices
+        except TypeError:
+            return False
+    def nonfailure(status, shape_predicate, predicate, **details):
+        try:
+            failed = status in _FAILED_STATUSES
+        except TypeError:
+            check(False, shape_predicate, status=status, **details)
+        check(not failed, predicate, status=status, **details)
+
+    check(type(value) is dict, 'result_shape')
+    check(type(value.get('reply')) is str, 'reply_type')
+    check(value['reply'].strip(), 'reply_empty')
+    check(type(value.get('accepted_source_id')) is str, 'accepted_source_type')
+    check(value['accepted_source_id'], 'accepted_source_empty')
     trajectory = value.get('trajectory')
-    _require(type(trajectory) is dict and type(trajectory.get('correlation')) is dict
-             and all(trajectory['correlation'].get(key) == expected
-                     for key, expected in correlation.items()), 'correlation_mismatch')
+    check(type(trajectory) is dict, 'trajectory_shape')
+    check(type(trajectory.get('correlation')) is dict, 'correlation_shape')
+    check(all(trajectory['correlation'].get(key) == expected for key, expected in correlation.items()), 'correlation_mismatch')
+    correlation_verified = True
     final = trajectory.get('final')
-    _require(type(final) is dict and final.get('status') == 'completed'
-             and not final.get('error'), 'turn_incomplete')
-    _require(not value.get('task_errors'), 'background_incomplete')
-    for task in value.get('tasks', []):
-        _require(type(task) is dict and task.get('status') in {'completed', 'succeeded', 'SUCCEEDED'},
-                 'background_incomplete')
+    check(type(final) is dict, 'final_shape')
+    check(final.get('status') == 'completed', 'final_status', status=final.get('status'))
+    check(not final.get('error'), 'final_error')
+    check(not value.get('task_errors'), 'task_errors')
+    for index, task in entries(value.get('tasks', []), 'tasks_shape'):
+        details = {'collection': 'tasks', 'index': index}
+        check(type(task) is dict, 'task_shape', **details)
+        check(member(task.get('status'), _COMPLETED_STATUSES), 'task_status', status=task.get('status'), **details)
     # User-visible trace entries are the latest states, unlike protocol steps
     # which legitimately retain earlier running events from a completed call.
-    for step in value.get('trace', []):
-        _require(type(step) is dict and step.get('status') in {'completed', 'succeeded', 'SUCCEEDED'},
-                 'background_incomplete')
-    failures = {'failed', 'cancelled', 'canceled', 'retry', 'retry_required', 'pending'}
-    for step in trajectory.get('steps', []):
-        _require(type(step) is dict, 'background_incomplete')
+    for index, step in entries(value.get('trace', []), 'trace_shape'):
+        details = {'collection': 'trace', 'index': index}
+        check(type(step) is dict, 'trace_entry_shape', **details)
+        details['trace_category'] = _trace_category(step.get('id'))
+        check(member(step.get('status'), _COMPLETED_STATUSES), 'trace_status', status=step.get('status'), **details)
+    for index, step in entries(trajectory.get('steps', []), 'steps_shape'):
+        details = {'collection': 'steps', 'index': index}
+        check(type(step) is dict, 'step_shape', **details)
         action = step.get('action', '')
+        details['action_category'] = _action_category(action)
         output = step.get('output')
-        _require(not step.get('error') and step.get('protocol_failed') is not True
-                 and step.get('status') not in failures
-                 and not (type(action) is str and action.rsplit('.', 1)[-1] in failures),
-                 'background_incomplete')
+        check(not step.get('error'), 'step_error', **details)
+        check(step.get('protocol_failed') is not True, 'step_protocol_failed', **details)
+        nonfailure(step.get('status'), 'step_status_shape', 'step_status', **details)
+        action_status = action.rsplit('.', 1)[-1] if type(action) is str else None
+        check(not (type(action) is str and action_status in _FAILED_STATUSES),
+              'step_action_status', action_status=action_status, **details)
         if type(output) is dict:
-            _require(not output.get('error') and not output.get('retryable')
-                     and not output.get('pending') and output.get('status') not in failures,
-                     'background_incomplete')
+            check(not output.get('error'), 'step_output_error', **details)
+            check(not output.get('retryable'), 'step_output_retryable', **details)
+            check(not output.get('pending'), 'step_output_pending', **details)
+            nonfailure(output.get('status'), 'step_output_status_shape', 'step_output_status', **details)
     limits = trajectory.get('limits', {})
-    _require(type(limits) is dict and not limits.get('overflowed')
-             and not limits.get('dropped_steps'), 'background_incomplete')
+    check(type(limits) is dict, 'limits_shape')
+    check(not limits.get('overflowed'), 'trajectory_overflow')
+    check(not limits.get('dropped_steps'), 'trajectory_dropped_steps')
     state = final.get('state', {})
-    _require(type(state) is dict and not state.get('workspace_failure') and not state.get('task_error_count')
-             and all(status in {'completed', 'succeeded', 'SUCCEEDED'}
-                     for status in state.get('task_statuses', [])), 'background_incomplete')
+    check(type(state) is dict, 'final_state_shape')
+    check(not state.get('workspace_failure'), 'workspace_failure')
+    check(not state.get('task_error_count'), 'task_error_count')
+    for index, status in entries(state.get('task_statuses', []), 'task_statuses_shape'):
+        check(member(status, _COMPLETED_STATUSES), 'final_task_status', status=status,
+              collection='task_statuses', index=index)
     # The canonical bridge needs only correlation and final state. Never copy
     # arbitrary runtime metadata or hidden reasoning into the returned artifact.
     return {'reply': value['reply'], 'accepted_source_id': value['accepted_source_id'],
@@ -180,49 +347,99 @@ def _runtime_readback(value, correlation):
 
 
 def _canonical_state(value, inputs, accepted):
+    def check(condition, predicate, **details):
+        _readback_require(condition, 'readback_incomplete', 'canonical', predicate, **details)
     ordinal = len(accepted)
-    _require(type(value) is dict and value.get('project_id') == inputs['project_id']
-             and _exact_integer(value.get('completed_rounds'), ordinal), 'readback_incomplete')
+    check(type(value) is dict, 'state_shape')
+    check(value.get('project_id') == inputs['project_id'], 'project_mismatch')
+    check(_exact_integer(value.get('completed_rounds'), ordinal), 'completed_rounds')
     processing = value.get('processing')
-    _require(type(processing) is dict and _exact_integer(processing.get('extracted_through'), ordinal)
-             and _exact_integer(processing.get('pending_inputs'), 0), 'readback_incomplete')
+    check(type(processing) is dict, 'processing_shape')
+    check(_exact_integer(processing.get('extracted_through'), ordinal), 'extracted_through')
+    check(_exact_integer(processing.get('pending_inputs'), 0), 'pending_inputs')
     sources = value.get('sources')
-    _require(type(sources) is list and len(sources) == ordinal
-             and len(set(accepted)) == ordinal, 'readback_incomplete')
+    check(type(sources) is list, 'sources_shape')
+    check(len(sources) == ordinal, 'source_count')
+    check(len(set(accepted)) == ordinal, 'accepted_source_uniqueness')
     for index, source in enumerate(sources, 1):
-        _require(type(source) is dict and source.get('id') == accepted[index - 1]
-                 and source.get('text') == inputs['rounds'][index - 1]
-                 and source.get('project_id') == inputs['project_id']
-                 and source.get('language') == inputs['language']
-                 and source.get('kind') == 'narrator_chat' and source.get('status') == 'active'
-                 and _exact_integer(source.get('version'), 1)
-                 and _exact_integer(source.get('sequence'), index), 'readback_incomplete')
+        details = {'collection': 'sources', 'index': index - 1}
+        check(type(source) is dict, 'source_shape', **details)
+        check(source.get('id') == accepted[index - 1], 'source_id', **details)
+        check(source.get('text') == inputs['rounds'][index - 1], 'source_text', **details)
+        check(source.get('project_id') == inputs['project_id'], 'source_project', **details)
+        check(source.get('language') == inputs['language'], 'source_language', **details)
+        check(source.get('kind') == 'narrator_chat', 'source_kind', **details)
+        check(source.get('status') == 'active', 'source_status', status=source.get('status'), **details)
+        check(_exact_integer(source.get('version'), 1), 'source_version', **details)
+        check(_exact_integer(source.get('sequence'), index), 'source_sequence', **details)
 
 
 def _saved_checkpoint(draft, ordinal, language):
     # Stop immediately on a pending/failed saved milestone. Full references,
     # fingerprints and revision consistency are checked by the pure bridge.
-    _require(type(draft) is dict and draft.get('status') == 'ready'
-             and draft.get('updating') is False and draft.get('error') is None
-             and draft.get('proposal_pending') is False
-             and _exact_integer(draft.get('covered_round'), ordinal)
-             and _exact_integer(draft.get('milestone'), ordinal)
-             and type(draft.get('revision')) is int and draft['revision'] > 0,
-             'checkpoint_incomplete')
+    def check(condition, predicate, **details):
+        _readback_require(condition, 'checkpoint_incomplete', 'checkpoint', predicate, **details)
+    check(type(draft) is dict, 'draft_shape')
+    check(draft.get('status') == 'ready', 'draft_status', status=draft.get('status'))
+    check(draft.get('updating') is False, 'updating')
+    check(draft.get('error') is None, 'error')
+    check(draft.get('proposal_pending') is False, 'proposal_pending')
+    check(_exact_integer(draft.get('covered_round'), ordinal), 'covered_round')
+    check(_exact_integer(draft.get('milestone'), ordinal), 'milestone')
+    check(type(draft.get('revision')) is int and draft['revision'] > 0, 'revision')
     progress = draft.get('progress')
-    extraction = progress.get('extraction') if type(progress) is dict else None
-    _require(type(extraction) is dict and _exact_integer(extraction.get('extracted_through'), ordinal)
-             and _exact_integer(extraction.get('pending_inputs'), 0), 'checkpoint_incomplete')
+    check(type(progress) is dict, 'progress_shape')
+    extraction = progress.get('extraction')
+    check(type(extraction) is dict, 'extraction_shape')
+    check(_exact_integer(extraction.get('extracted_through'), ordinal), 'extracted_through')
+    check(_exact_integer(extraction.get('pending_inputs'), 0), 'pending_inputs')
     preview = draft.get('preview')
-    _require(type(preview) is dict and preview.get('locale') == language
-             and type(preview.get('text')) is str and preview['text'].strip(), 'checkpoint_incomplete')
+    check(type(preview) is dict, 'preview_shape')
+    check(preview.get('locale') == language, 'preview_locale')
+    check(type(preview.get('text')) is str, 'preview_text_type')
+    check(preview['text'].strip(), 'preview_text_empty')
     milestones = draft.get('milestones')
-    _require(type(milestones) is list and len(milestones) == ordinal // 5, 'checkpoint_incomplete')
-    for row, milestone in zip(milestones, range(5, ordinal + 1, 5)):
-        _require(type(row) is dict and row.get('state') == 'completed'
-                 and _exact_integer(row.get('milestone'), milestone)
-                 and _exact_integer(row.get('covered_round'), milestone), 'checkpoint_incomplete')
-    _require(type(draft.get('sections')) is list and draft['sections'], 'checkpoint_incomplete')
+    check(type(milestones) is list, 'milestones_shape')
+    check(len(milestones) == ordinal // 5, 'milestone_count')
+    for index, (row, milestone) in enumerate(zip(milestones, range(5, ordinal + 1, 5))):
+        details = {'collection': 'milestones', 'index': index}
+        check(type(row) is dict, 'milestone_shape', **details)
+        check(row.get('state') == 'completed', 'milestone_status', status=row.get('state'), **details)
+        check(_exact_integer(row.get('milestone'), milestone), 'milestone_ordinal', **details)
+        check(_exact_integer(row.get('covered_round'), milestone), 'milestone_covered_round', **details)
+    check(type(draft.get('sections')) is list, 'sections_shape')
+    check(draft['sections'], 'sections_empty')
+
+
+def _lane_identifier(handle, index):
+    _readback_require(type(handle.id) is str and handle.id, 'lane_incomplete', 'settlement',
+                      'handle_id', collection='handles', index=index)
+    return handle.id
+
+
+def _lane_outcome(value, index):
+    def check(condition, predicate, **details):
+        _readback_require(condition, 'lane_incomplete', 'settlement', predicate,
+                          collection='handles', index=index, **details)
+    check(type(value) is dict, 'outcome_shape')
+    check(value.get('status') == 'finished', 'outcome_status', status=value.get('status'))
+    check(value.get('pending', False) is False, 'outcome_pending')
+    check(not value.get('error'), 'outcome_error')
+    check(not value.get('retryable'), 'outcome_retryable')
+    check(_exact_integer(value.get('attempt', 1), 1), 'outcome_attempt')
+
+
+def _pending_lanes(value):
+    _readback_require(type(value) is list, 'background_incomplete', 'settlement', 'pending_shape')
+    _readback_require(not value, 'background_incomplete', 'settlement', 'pending_lanes', count=len(value))
+
+
+def _case_observation(bridge, partial):
+    observation = bridge.observation(partial)
+    if observation['output'] is None:
+        partial['status'] = 'incomplete'
+    _readback_require(observation['output'] is not None, 'readback_incomplete', 'case', 'observation_unavailable')
+    return observation
 
 
 class SubscriptionProgressiveRunner:
@@ -284,7 +501,7 @@ class SubscriptionProgressiveRunner:
             _require(isinstance(storage, UserStorage)
                      and storage.user_id == self._plans[case]['owner_id'], 'storage_scope_invalid')
             initial = await _storage_read(storage.memory_events, self._plans[case]['project_id'])
-            _canonical_state(initial, self._bridges[case].driver_inputs(), [])
+            _readback_call(receipt, 'canonical', _canonical_state, initial, self._bridges[case].driver_inputs(), [])
             _require(initial.get('events') == [], 'project_not_fresh')
             storages[case] = storage
         for partial in receipt['cases']:
@@ -312,30 +529,27 @@ class SubscriptionProgressiveRunner:
                     failure_summary = _runtime_failure_summary(value, correlation)
                     if failure_summary is not None:
                         record['failure_summary'] = failure_summary
-                    record.update(_runtime_readback(value, correlation), status='delivered')
+                    record.update(_readback_call(record, 'runtime', _runtime_readback, value, correlation), status='delivered')
                     accepted.append(record['accepted_source_id'])
                     receipt['execution_stage'] = 'background_dispatch'
                     handles = await dispatch_memoir_lanes_once(session.temporal_client, session.broker,
                                                              session.task_queue, single_attempt=True)
                     receipt['execution_stage'] = 'background_settlement'
-                    for handle in handles:
-                        _require(type(handle.id) is str and handle.id, 'lane_incomplete')
-                        if handle.id not in partial['workflow_ids']:
-                            partial['workflow_ids'].append(handle.id)
+                    for handle_index, handle in enumerate(handles):
+                        handle_id = _readback_call(record, 'settlement', _lane_identifier, handle, handle_index)
+                        if handle_id not in partial['workflow_ids']:
+                            partial['workflow_ids'].append(handle_id)
                         outcome = await handle.result()
-                        _require(type(outcome) is dict and outcome.get('status') == 'finished'
-                                 and outcome.get('pending', False) is False and not outcome.get('error')
-                                 and not outcome.get('retryable')
-                                 and _exact_integer(outcome.get('attempt', 1), 1), 'lane_incomplete')
+                        _readback_call(record, 'settlement', _lane_outcome, outcome, handle_index)
                     receipt['execution_stage'] = 'canonical_readback'
                     view = await _storage_read(storage.memory_events, inputs['project_id'])
-                    _canonical_state(view, inputs, accepted)
+                    _readback_call(record, 'canonical', _canonical_state, view, inputs, accepted)
                     record['canonical_state'] = deepcopy(view)
                     draft = None
                     if ordinal in self._profile.checkpoints:
                         receipt['execution_stage'] = 'checkpoint_readback'
                         draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
-                        _saved_checkpoint(draft, ordinal, inputs['language'])
+                        _readback_call(record, 'checkpoint', _saved_checkpoint, draft, ordinal, inputs['language'])
                         partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
                     if self._profile.name == 'subscription_fifty':
                         from scripts.memoir_fifty_coverage import round_skill_coverage, runtime_family_decision
@@ -358,7 +572,7 @@ class SubscriptionProgressiveRunner:
                     receipt['execution_stage'] = 'background_drain'
                     await session.broker.drain_once()
                     pending = await session.broker.rpc('pending_memoir_lanes', p_limit=100)
-                    _require(type(pending) is list and not pending, 'background_incomplete')
+                    _readback_call(record, 'settlement', _pending_lanes, pending)
                     session.finish_round()
                     record.update(background_settled=True, status='completed')
                     receipt['execution_stage'] = 'progress_receipt'
@@ -366,10 +580,7 @@ class SubscriptionProgressiveRunner:
             partial['status'] = 'completed'
             partial['workflow_ids'].sort()
             receipt['execution_stage'] = 'case_observation'
-            observation = bridge.observation(partial)
-            if observation['output'] is None:
-                partial['status'] = 'incomplete'
-            _require(observation['output'] is not None, 'readback_incomplete')
+            observation = _readback_call(record, 'case', _case_observation, bridge, partial)
             partial['observation'] = observation
             if self._profile.name == 'subscription_fifty':
                 from scripts.memoir_fifty_coverage import case_skill_coverage

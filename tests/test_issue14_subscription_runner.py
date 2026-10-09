@@ -482,6 +482,354 @@ def test_successful_runtime_receipts_do_not_add_failure_metadata(controlled):
     assert all('failure_summary' not in row for case in result['cases'] for row in case['rounds'])
 
 
+READBACK_REJECTIONS = [
+    ('result_shape', (), None),
+    ('reply_type', ('reply',), []),
+    ('reply_empty', ('reply',), '  '),
+    ('accepted_source_type', ('accepted_source_id',), []),
+    ('accepted_source_empty', ('accepted_source_id',), ''),
+    ('trajectory_shape', ('trajectory',), []),
+    ('correlation_shape', ('trajectory', 'correlation'), []),
+    ('correlation_mismatch', ('trajectory', 'correlation', 'round_id'), 'SECRET_ROUND'),
+    ('final_shape', ('trajectory', 'final'), []),
+    ('final_status', ('trajectory', 'final', 'status'), 'SECRET_STATUS'),
+    ('final_error', ('trajectory', 'final', 'error'), 'SECRET_ERROR'),
+    ('task_errors', ('task_errors',), ['SECRET_ERROR']),
+    ('tasks_shape', ('tasks',), None),
+    ('task_shape', ('tasks',), ['SECRET_TASK']),
+    ('task_status', ('tasks',), [{'status': 'SECRET_STATUS', 'id': 'SECRET_ID'}]),
+    ('trace_shape', ('trace',), None),
+    ('trace_entry_shape', ('trace',), ['SECRET_TRACE']),
+    ('trace_status', ('trace',), [{'status': 'running', 'message': 'SECRET_MESSAGE'}]),
+    ('steps_shape', ('trajectory', 'steps'), None),
+    ('step_shape', ('trajectory', 'steps'), ['SECRET_STEP']),
+    ('step_error', ('trajectory', 'steps'), [{'error': 'SECRET_ERROR'}]),
+    ('step_protocol_failed', ('trajectory', 'steps'), [{'protocol_failed': True}]),
+    ('step_status_shape', ('trajectory', 'steps'), [{'status': ['SECRET_STATUS']}]),
+    ('step_status', ('trajectory', 'steps'), [{'status': 'failed'}]),
+    ('step_action_status', ('trajectory', 'steps'), [{'action': 'SECRET_ACTION.retry_required'}]),
+    ('step_output_error', ('trajectory', 'steps'), [{'output': {'error': 'SECRET_ERROR'}}]),
+    ('step_output_retryable', ('trajectory', 'steps'), [{'output': {'retryable': True}}]),
+    ('step_output_pending', ('trajectory', 'steps'), [{'output': {'pending': True}}]),
+    ('step_output_status_shape', ('trajectory', 'steps'), [{'output': {'status': ['SECRET_STATUS']}}]),
+    ('step_output_status', ('trajectory', 'steps'), [{'output': {'status': 'pending'}}]),
+    ('limits_shape', ('trajectory', 'limits'), []),
+    ('trajectory_overflow', ('trajectory', 'limits'), {'max_steps': 512, 'observed_steps': 512,
+                                                     'dropped_steps': 19, 'overflowed': True}),
+    ('trajectory_dropped_steps', ('trajectory', 'limits'), {'dropped_steps': 1}),
+    ('final_state_shape', ('trajectory', 'final', 'state'), []),
+    ('workspace_failure', ('trajectory', 'final', 'state'), {'workspace_failure': {'message': 'SECRET_ERROR'}}),
+    ('task_error_count', ('trajectory', 'final', 'state'), {'task_error_count': 1}),
+    ('task_statuses_shape', ('trajectory', 'final', 'state'), {'task_statuses': None}),
+    ('final_task_status', ('trajectory', 'final', 'state'), {'task_statuses': ['SECRET_STATUS']}),
+]
+
+
+def _replace_readback(value, path, replacement):
+    if not path:
+        return deepcopy(replacement)
+    target = value
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = deepcopy(replacement)
+    return value
+
+
+@pytest.mark.parametrize('predicate,path,replacement', READBACK_REJECTIONS,
+                         ids=[row[0] for row in READBACK_REJECTIONS])
+def test_every_runtime_readback_rejection_retains_safe_predicate(controlled, predicate, path, replacement):
+    from types import SimpleNamespace
+    session = controlled()
+    owned_turn = session.turn
+    async def rejected_turn(*args, **kwargs):
+        value = await owned_turn(*args, **kwargs)
+        value['reply'] = 'SECRET_REPLY'
+        value['trajectory']['arbitrary_metadata'] = 'SECRET_METADATA'
+        return _replace_readback(value, path, replacement)
+    session.runtime = SimpleNamespace(turn=rejected_turn)
+    published = []
+    result = asyncio.run(module.SubscriptionProgressiveRunner(session).run(progress=published.append))
+    record = result['cases'][0]['rounds'][0]
+    diagnostic = record['runtime_readback_diagnostic']
+    assert diagnostic['schema_version'] == 'memoir-runtime-readback-diagnostic/1'
+    assert diagnostic['predicate'] == predicate
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['failure_stage'] == 'runtime_readback'
+    assert record['status'] == 'failed' and record['background_settled'] is False
+    assert len(session.calls) == 1 and not any(event[0] == 'dispatch' for event in session.events)
+    assert 'reply' not in record and 'trajectory' not in record
+    assert published[-1]['cases'][0]['rounds'][0]['runtime_readback_diagnostic'] == diagnostic
+    assert 'SECRET' not in str(result)
+    assert len(str(diagnostic)) < 1500
+
+
+@pytest.mark.parametrize('predicate,mutation', [
+    ('trajectory_overflow', lambda v: v['trajectory'].update(limits={
+        'max_steps': 512, 'observed_steps': 512, 'dropped_steps': 31, 'overflowed': True})),
+    ('trace_status', lambda v: v.update(trace=[{'status': 'completed'}, {'status': 'running'}])),
+    ('step_output_pending', lambda v: v['trajectory']['steps'].append({
+        'action': 'SECRET_ACTION', 'phase': 'application', 'output': {'pending': True}})),
+])
+def test_successful_workspace_can_still_fail_strict_readback_with_a_specific_reason(controlled, predicate, mutation):
+    session = controlled()
+    def mutate(value):
+        value['tasks'] = [{'status': 'SUCCEEDED'}]
+        value['trajectory']['final']['state'] = {'task_statuses': ['completed'], 'task_error_count': 0}
+        value['trajectory']['steps'].append({'phase': 'application', 'action': 'workspace.completed',
+                                           'output': {'status': 'completed'}})
+        mutation(value)
+    session.turn_hook = mutate
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['runtime_readback_diagnostic']
+    assert diagnostic['predicate'] == predicate
+    if predicate == 'trajectory_overflow':
+        assert diagnostic['trajectory_limits'] == {
+            'max_steps': 512, 'observed_steps': 512, 'dropped_steps': 31, 'overflowed': True}
+    elif predicate == 'trace_status':
+        assert diagnostic['collection'] == 'trace' and diagnostic['index'] == 1
+        assert diagnostic['status'] == 'running'
+    else:
+        assert diagnostic['collection'] == 'steps' and diagnostic['index'] == 1
+    assert result['stop_reason'] == 'background_incomplete'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert 'failure_summary' not in result['cases'][0]['rounds'][0]
+    assert 'SECRET' not in str(result)
+
+
+def test_runtime_readback_diagnostic_omits_unknown_fields_unbounded_limits_and_identifiers(controlled):
+    session = controlled()
+    def mutate(value):
+        value['trace'] = [{'status': 'SECRET_STATUS', 'id': 'SECRET_ID', 'message': 'SECRET_MESSAGE'}]
+        value['trajectory']['limits'] = {'max_steps': True, 'observed_steps': 2**100,
+            'dropped_steps': 'SECRET_LIMIT', 'overflowed': 'SECRET_FLAG', 'path': '/SECRET_PATH'}
+    session.turn_hook = mutate
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['runtime_readback_diagnostic']
+    assert diagnostic['predicate'] == 'trace_status' and diagnostic['status'] == 'unrecognized'
+    assert not diagnostic.get('trajectory_limits')
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('trace_id,category', [('memoir-family-tree', 'memoir-family-tree'),
+    ('memoir-author-timeline', 'memoir-author-timeline'), ('SECRET_TRACE_ID', 'other')])
+def test_triggered_trace_keeps_fixed_status_and_known_component_only(controlled, trace_id, category):
+    session = controlled()
+    session.turn_hook = lambda value: value.update(trace=[{'id': trace_id, 'status': 'triggered',
+                                                         'detail': 'SECRET_DETAIL'}])
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['runtime_readback_diagnostic']
+    assert diagnostic['predicate'] == 'trace_status'
+    assert diagnostic['status'] == 'triggered' and diagnostic['trace_category'] == category
+    assert result['stop_reason'] == 'background_incomplete'
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('action,category', [('artifact.sync.failed', 'artifact'),
+    ('workspace.failed', 'workspace'), ('workspace.family_recovery.failed', 'recovery'),
+    ('protocol.failed', 'protocol'), ('codex.worker.failed', 'worker'), ('SECRET_ACTION.failed', 'other')])
+def test_failed_step_keeps_only_fixed_action_category(controlled, action, category):
+    session = controlled()
+    session.turn_hook = lambda value: value['trajectory']['steps'].append({'action': action})
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['runtime_readback_diagnostic']
+    assert diagnostic['predicate'] == 'step_action_status'
+    assert diagnostic['action_status'] == 'failed' and diagnostic['action_category'] == category
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('empty', [[], (), {}, ''])
+def test_empty_iterable_defaults_keep_historical_runtime_acceptance(empty):
+    correlation = {'run_id': 'controlled', 'case_id': 'controlled', 'round_id': '1'}
+    value = {'reply': 'Controlled reply', 'accepted_source_id': 'controlled-source',
+        'tasks': empty, 'trace': empty,
+        'trajectory': {'correlation': correlation, 'steps': empty,
+                       'final': {'status': 'completed', 'state': {'task_statuses': empty}}}}
+    assert module._runtime_readback(value, correlation)['reply'] == value['reply']
+    value.pop('tasks'); value.pop('trace')
+    value['trajectory'].pop('steps'); value['trajectory']['final'].pop('state')
+    assert module._runtime_readback(value, correlation)['reply'] == value['reply']
+
+
+def test_runtime_readback_exception_diagnostic_is_reprojected_before_receipt(controlled, monkeypatch):
+    session = controlled()
+    def rejected(*args):
+        error = module.SubscriptionRunnerError('background_incomplete')
+        error.readback_diagnostic = {'schema_version': 'SECRET_SCHEMA', 'predicate': 'trace_status',
+            'collection': 'trace', 'index': 0, 'status': 'SECRET_STATUS', 'message': 'SECRET_MESSAGE',
+            'accepted_source_id': 'SECRET_SOURCE', 'trajectory_limits': {'max_steps': 512, 'secret': 'SECRET_LIMIT'}}
+        raise error
+    monkeypatch.setattr(module, '_runtime_readback', rejected)
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['runtime_readback_diagnostic']
+    assert diagnostic['schema_version'] == 'memoir-runtime-readback-diagnostic/1'
+    assert diagnostic['predicate'] == 'trace_status'
+    assert diagnostic['trajectory_limits'] == {'max_steps': 512}
+    assert 'SECRET' not in str(result)
+
+
+CANONICAL_REJECTIONS = [
+    ('state_shape', (), []), ('project_mismatch', ('project_id',), 'SECRET_PROJECT'),
+    ('completed_rounds', ('completed_rounds',), 0), ('processing_shape', ('processing',), []),
+    ('extracted_through', ('processing', 'extracted_through'), 0),
+    ('pending_inputs', ('processing', 'pending_inputs'), 1), ('sources_shape', ('sources',), None),
+    ('source_count', ('sources',), []), ('source_shape', ('sources', 0), 'SECRET_SOURCE'),
+    ('source_id', ('sources', 0, 'id'), 'SECRET_SOURCE'),
+    ('source_text', ('sources', 0, 'text'), 'SECRET_TEXT'),
+    ('source_project', ('sources', 0, 'project_id'), 'SECRET_PROJECT'),
+    ('source_language', ('sources', 0, 'language'), 'SECRET_LANGUAGE'),
+    ('source_kind', ('sources', 0, 'kind'), 'SECRET_KIND'),
+    ('source_status', ('sources', 0, 'status'), 'SECRET_STATUS'),
+    ('source_version', ('sources', 0, 'version'), True),
+    ('source_sequence', ('sources', 0, 'sequence'), 2),
+]
+
+
+@pytest.mark.parametrize('predicate,path,replacement', CANONICAL_REJECTIONS,
+                         ids=[row[0] for row in CANONICAL_REJECTIONS])
+def test_canonical_readback_failures_retain_only_fixed_comparison_reason(controlled, predicate, path, replacement):
+    session = controlled()
+    storage = session.storages[CASE_IDS[0]]
+    read = storage.memory_events
+    def mutate(project):
+        value = read(project)
+        return _replace_readback(value, path, replacement) if storage.sources else value
+    storage.memory_events = mutate
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['canonical_readback_diagnostic']
+    assert diagnostic['predicate'] == predicate and diagnostic['boundary'] == 'canonical'
+    assert result['stop_reason'] == 'readback_incomplete'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['failure_stage'] == 'canonical_readback'
+    assert 'SECRET' not in str(result)
+
+
+CHECKPOINT_REJECTIONS = [
+    ('draft_shape', (), []), ('draft_status', ('status',), 'SECRET_STATUS'),
+    ('updating', ('updating',), True), ('error', ('error',), 'SECRET_ERROR'),
+    ('proposal_pending', ('proposal_pending',), True), ('covered_round', ('covered_round',), 4),
+    ('milestone', ('milestone',), 4), ('revision', ('revision',), True),
+    ('progress_shape', ('progress',), []), ('extraction_shape', ('progress', 'extraction'), []),
+    ('extracted_through', ('progress', 'extraction', 'extracted_through'), 4),
+    ('pending_inputs', ('progress', 'extraction', 'pending_inputs'), 1),
+    ('preview_shape', ('preview',), []), ('preview_locale', ('preview', 'locale'), 'SECRET_LOCALE'),
+    ('preview_text_type', ('preview', 'text'), []), ('preview_text_empty', ('preview', 'text'), ' '),
+    ('milestones_shape', ('milestones',), None), ('milestone_count', ('milestones',), []),
+    ('milestone_shape', ('milestones', 0), 'SECRET_MILESTONE'),
+    ('milestone_status', ('milestones', 0, 'state'), 'SECRET_STATUS'),
+    ('milestone_ordinal', ('milestones', 0, 'milestone'), 4),
+    ('milestone_covered_round', ('milestones', 0, 'covered_round'), 4),
+    ('sections_shape', ('sections',), None), ('sections_empty', ('sections',), []),
+]
+
+
+@pytest.mark.parametrize('predicate,path,replacement', CHECKPOINT_REJECTIONS,
+                         ids=[row[0] for row in CHECKPOINT_REJECTIONS])
+def test_saved_checkpoint_failures_retain_only_fixed_comparison_reason(controlled, predicate, path, replacement):
+    session = controlled()
+    storage = session.storages[CASE_IDS[0]]
+    read = storage.saved_memoir_draft
+    storage.saved_memoir_draft = lambda *args: _replace_readback(read(*args), path, replacement)
+    result = execute(session)
+    record = result['cases'][0]['rounds'][-1]
+    diagnostic = record['checkpoint_readback_diagnostic']
+    assert diagnostic['predicate'] == predicate and diagnostic['boundary'] == 'checkpoint'
+    assert record['round'] == 5 and len(session.calls) == 5
+    assert result['stop_reason'] == 'checkpoint_incomplete'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['failure_stage'] == 'checkpoint_readback'
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('boundary,function_name', [('runtime', '_runtime_readback'),
+    ('canonical', '_canonical_state'), ('checkpoint', '_saved_checkpoint')])
+def test_unexpected_readback_exception_records_fixed_category_and_reraises(boundary, function_name, monkeypatch):
+    record = {}
+    error = RuntimeError('SECRET_EXCEPTION_TEXT')
+    def broken(*args): raise error
+    with pytest.raises(RuntimeError) as caught:
+        module._readback_call(record, boundary, broken)
+    assert caught.value is error
+    assert record[f'{boundary}_readback_diagnostic'] == {
+        'schema_version': f'memoir-{boundary}-readback-diagnostic/1',
+        'boundary': boundary, 'predicate': 'helper_exception'}
+    assert 'SECRET' not in str(record)
+
+
+def test_duplicate_accepted_sources_have_fixed_canonical_predicate():
+    record = {}
+    value = {'project_id': 'controlled-project', 'completed_rounds': 2,
+        'processing': {'extracted_through': 2, 'pending_inputs': 0}, 'sources': [{}, {}]}
+    with pytest.raises(module.SubscriptionRunnerError, match='readback_incomplete'):
+        module._readback_call(record, 'canonical', module._canonical_state,
+            value, {'project_id': 'controlled-project'}, ['SECRET_SOURCE', 'SECRET_SOURCE'])
+    assert record['canonical_readback_diagnostic']['predicate'] == 'accepted_source_uniqueness'
+    assert 'SECRET' not in str(record)
+
+
+def test_initial_canonical_readback_failure_is_retained_before_any_round(controlled):
+    session = controlled()
+    session.read_hook = lambda value: value.update(processing=None)
+    result = execute(session)
+    assert result['canonical_readback_diagnostic']['predicate'] == 'processing_shape'
+    assert result['failure_stage'] == 'initial_readback'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert not session.calls
+
+
+@pytest.mark.parametrize('predicate,outcome', [
+    ('outcome_shape', None), ('outcome_status', {'status': 'SECRET_STATUS'}),
+    ('outcome_pending', {'status': 'finished', 'pending': True}),
+    ('outcome_error', {'status': 'finished', 'error': 'SECRET_ERROR'}),
+    ('outcome_retryable', {'status': 'finished', 'retryable': True}),
+    ('outcome_attempt', {'status': 'finished', 'attempt': 2}),
+])
+def test_settlement_validation_retains_fixed_rejection_without_outcome_data(controlled, predicate, outcome):
+    session = controlled()
+    session.lane_outcome = outcome
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['settlement_readback_diagnostic']
+    assert diagnostic['predicate'] == predicate
+    assert diagnostic['collection'] == 'handles' and diagnostic['index'] == 0
+    assert result['stop_reason'] == 'lane_incomplete'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('pending,predicate', [(None, 'pending_shape'), (['SECRET_WORKFLOW'], 'pending_lanes')])
+def test_background_drain_validation_retains_fixed_rejection(controlled, pending, predicate):
+    session = controlled()
+    session.pending_lanes = pending
+    result = execute(session)
+    diagnostic = result['cases'][0]['rounds'][0]['settlement_readback_diagnostic']
+    assert diagnostic['predicate'] == predicate
+    if predicate == 'pending_lanes': assert diagnostic['count'] == 1
+    assert result['stop_reason'] == 'background_incomplete'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert 'SECRET' not in str(result)
+
+
+def test_bad_lane_handle_id_retains_fixed_reason_without_workflow_id(controlled, monkeypatch):
+    from types import SimpleNamespace
+    session = controlled()
+    async def bad_lanes(*args, **kwargs): return [SimpleNamespace(id=[])]
+    monkeypatch.setattr(module, 'dispatch_memoir_lanes_once', bad_lanes)
+    result = execute(session)
+    assert result['cases'][0]['rounds'][0]['settlement_readback_diagnostic']['predicate'] == 'handle_id'
+    assert result['stop_reason'] == 'lane_incomplete'
+
+
+def test_final_case_unavailable_observation_retains_fixed_reason(controlled):
+    session = controlled()
+    runner = module.SubscriptionProgressiveRunner(session)
+    runner._bridges[CASE_IDS[0]].observation = lambda value: {'output': None, 'metadata': {'private': 'SECRET'}}
+    result = asyncio.run(runner.run())
+    record = result['cases'][0]['rounds'][-1]
+    assert record['case_readback_diagnostic']['predicate'] == 'observation_unavailable'
+    assert result['stop_reason'] == 'readback_incomplete'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert 'SECRET' not in str(result)
+
+
 @pytest.mark.parametrize('lane', [
     {'status': 'retry_required'}, {'status': 'failed'}, {'status': 'cancelled'},
     {'status': 'finished', 'pending': True}, {'status': 'finished', 'pending': 1},
