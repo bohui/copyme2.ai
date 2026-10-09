@@ -1,8 +1,10 @@
-"""Offline contracts only: no Node, Chromium, HTTP server or provider execution."""
+"""Offline contracts, including pure Node policy checks; no browser/server/provider."""
 import asyncio
 from copy import deepcopy
 import hashlib
 import json
+import shutil
+import subprocess
 import zlib
 from pathlib import Path
 from types import SimpleNamespace
@@ -124,6 +126,93 @@ def test_strict_readonly_network_scope(method, url, allowed, auth):
     decision = runner.request_policy(method, url, frontend_origin='http://127.0.0.1:31234',
         project_id='00000000-0000-0000-0000-000000000001', public_asset_urls=runner.PUBLIC_ASSETS)
     assert decision == {'allowed': allowed, 'synthetic_auth': auth}
+
+
+_STATIC_PATH_CASES = [
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/page.js', True),
+    ('/_next/static/chunks/main-app.js', True),
+    ('/_next/static/%2e%2e/secrets', False),
+    ('/_next/static/%2fapi/v1/memoir/agent/turn', False),
+    ('/_next/static/%5csecrets', False),
+    ('/_next/static/%252e%252e/secrets', False),
+    ('/_next/static/../../secrets', False),
+    ('/_next/static/chunks/app/[[...path]]/page.js', True),
+    ('/_next/static/chunks/app/%5b%5b...path%5d%5d/page.js', True),
+    ('/_next/static/chunks/app/%5Bid%5D/page.js', True),
+    ('/_next/static/chunks/app/%5B...path%5D/page.js', True),
+    ('/_next/static/chunks/app/%255B%255B...path%255D%255D/page.js', False),
+    ('/_next/static/chunks/app/%5B%5B%2e%2e%2epath%5D%5D/page.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%2fpage.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/../main-app.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%2e%2e/main-app.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%252fpage.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D/page.js', False),
+    ('/_next/static/chunks/app/%5B%5B...%5D%5D/page.js', False),
+    ('/_next/static/chunks/app/%5B%5B...a/b%5D%5D/page.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%GG', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5Dextra/page.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%00page.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%3Fpage.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/%23page.js', False),
+    ('/_next/static/chunks/app/a..b/page.js', False),
+    ('/_next/static/chunks/./main-app.js', False),
+    ('/_next/static/chunks/%2e/main-app.js', False),
+    ('/_next/static/chunks/../main-app.js', False),
+    ('/_next/static/chunks/.\n./main-app.js', False),
+    ('/_next/static/chunks/.\r./main-app.js', False),
+    ('/_next/static/chunks/.\t./main-app.js', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/.\n./page.js', False),
+    ('/_next/static/chunks/main-app.js ', False),
+    ('/_next/static/chunks/main\x00-app.js', False),
+    ('/_next/static/chunks/main\x7f-app.js', False),
+    ('/_next/static/chunks\\main-app.js', False),
+    ('/static/%5B%5B...path%5D%5D/page.js', False),
+    ('/api/v1/memoir/%5B%5B...path%5D%5D', False),
+    ('/_next/static/chunks/app/%5B%5B...path%5D%5D/page.js#fragment', False),
+]
+
+
+@pytest.mark.parametrize('path,allowed', _STATIC_PATH_CASES)
+def test_next_static_route_brackets_without_traversal(path, allowed):
+    origin = 'http://127.0.0.1:31234'
+    assert runner.request_policy('GET', origin + path, frontend_origin=origin,
+        project_id='00000000-0000-0000-0000-000000000001') == {
+            'allowed': allowed, 'synthetic_auth': False}
+
+
+@pytest.mark.parametrize('method', ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'])
+def test_next_static_bracket_exception_remains_read_only(method):
+    origin = 'http://127.0.0.1:31234'
+    path = '/_next/static/chunks/app/%5B%5B...path%5D%5D/page.js'
+    assert runner.request_policy(method, origin + path, frontend_origin=origin,
+        project_id='00000000-0000-0000-0000-000000000001') == {
+            'allowed': method == 'HEAD', 'synthetic_auth': False}
+
+
+@pytest.mark.skipif(shutil.which('node') is None, reason='Pure embedded-JavaScript policy regression requires existing Node')
+def test_actual_embedded_javascript_static_policy_matches_python():
+    # Execute the exact embedded decision, not a rewritten JavaScript fixture.
+    # No Playwright import, browser, filesystem read, network or provider call.
+    origin = 'http://127.0.0.1:31234'
+    cases = [('GET', origin + path, allowed) for path, allowed in _STATIC_PATH_CASES]
+    cases += [
+        ('GET', 'http://127.0.0.1:31235/_next/static/chunks/app/%5B%5B...path%5D%5D/page.js', False),
+        ('GET', 'https://evil.test/_next/static/chunks/app/%5B%5B...path%5D%5D/page.js', False),
+    ]
+    cases += [(method, origin + _STATIC_PATH_CASES[0][0], method == 'HEAD')
+        for method in ('HEAD', 'POST', 'PUT', 'PATCH', 'DELETE')]
+    config = {'frontend_origin': origin, 'public_asset_urls': [], 'api_paths': [],
+        'max_requests': len(cases), 'interview_path': '/memoir/interview/project'}
+    script = 'const c = ' + json.dumps(config) + '; const report = {}; let attempts = 0, sent = false;\n'
+    script += 'const allowedAssets =' + runner.BROWSER_SCRIPT.split(
+        'const allowedAssets =', 1)[1].split('async function quiet', 1)[0]
+    script += ('\nprocess.stdout.write(JSON.stringify(' + json.dumps([(method, url) for method, url, _ in cases]) +
+        '.map(([method,url]) => decision({url:()=>url, method:()=>method}))));')
+    result = subprocess.run([shutil.which('node'), '-e', script], check=True,
+        capture_output=True, text=True, timeout=10)
+    decisions = json.loads(result.stdout)
+    assert [(row['ok'], row.get('api', False)) for row in decisions] == [
+        (allowed, False) for _, _, allowed in cases]
 
 
 def test_source_worker_never_replays_facts_or_launches_unowned_browsers():

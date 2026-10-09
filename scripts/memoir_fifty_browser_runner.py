@@ -171,10 +171,37 @@ def _api_paths(project_id):
     return sorted('/api/v1/memoir' + path for path in paths)
 
 
+def _safe_local_path(path):
+    """Allow only bracket escapes for complete Next dynamic-route segments.
+
+    Never generally URL-decode a path: encoded dots, separators, percent signs
+    and malformed escapes remain refused. Catch-all dots are valid only inside
+    a well-formed route segment beneath the existing Next static boundary.
+    """
+    if '\\' in path or any(part in ('.', '..') for part in path.split('/')):
+        return False
+    if '%' not in path and '..' not in path:
+        return True
+    if not path.startswith('/_next/static/'):
+        return False
+    decoded = re.sub(r'%5[bBdD]', lambda match: '[' if match.group().lower() == '%5b' else ']', path)
+    if '%' in decoded:
+        return False
+    for part in decoded[len('/_next/static/'):].split('/'):
+        if not part or part == '.':
+            return False
+        if ('..' in part or '[' in part or ']' in part) and not re.fullmatch(
+                r'(?:\[(?:\.\.\.)?[A-Za-z0-9_-]+\]|\[\[\.\.\.[A-Za-z0-9_-]+\]\])', part):
+            return False
+    return True
+
+
 def request_policy(method, url, *, frontend_origin, project_id, public_asset_urls=PUBLIC_ASSETS):
     """Pure reference policy mirrored by the browser's fail-closed route guard."""
     denied = {'allowed': False, 'synthetic_auth': False}
     try:
+        if any(ord(char) <= 32 or ord(char) == 127 for char in url):
+            return denied
         parsed, origin = urlsplit(url), urlsplit(frontend_origin)
         if method not in ('GET', 'HEAD') or parsed.username or parsed.password or parsed.fragment:
             return denied
@@ -182,7 +209,7 @@ def request_policy(method, url, *, frontend_origin, project_id, public_asset_url
             return {'allowed': True, 'synthetic_auth': False}
         if (parsed.scheme != 'http' or parsed.hostname != '127.0.0.1'
                 or parsed.netloc != origin.netloc or origin.hostname != '127.0.0.1'
-                or '%' in parsed.path or '..' in parsed.path or '\\' in url):
+                or not _safe_local_path(parsed.path) or '\\' in url):
             return denied
         api = parsed.path in _api_paths(project_id)
         if api:
@@ -263,12 +290,26 @@ const report = {schema_version:"memoir-fifty-browser-observation/1", case_id:c.c
 const responses = [], apiBodies = new Map(); let browser, context, page, cdp, sent = false, attempts = 0;
 const allowedAssets = new Set(c.public_asset_urls), readPaths = new Set(c.api_paths);
 const origin = new URL(c.frontend_origin); let lastActivity = Date.now(), inflight = 0;
+function safeLocalPath(rawPath) {
+  if (typeof rawPath !== "string" || rawPath.includes("\\") || rawPath.split("/").some(part => part === "." || part === "..")) return false;
+  if (!rawPath.includes("%") && !rawPath.includes("..")) return true;
+  if (!rawPath.startsWith("/_next/static/")) return false;
+  const decoded = rawPath.replace(/%5[bBdD]/g, escape => escape.toLowerCase() === "%5b" ? "[" : "]");
+  if (decoded.includes("%")) return false;
+  return decoded.slice("/_next/static/".length).split("/").every(part => part && part !== "." &&
+    (!(part.includes("..") || part.includes("[") || part.includes("]")) || /^(?:\[(?:\.\.\.)?[A-Za-z0-9_-]+\]|\[\[\.\.\.[A-Za-z0-9_-]+\]\])$/.test(part)));
+}
 function decision(request) {
-  const raw = request.url(), u = new URL(raw), method = request.method();
+  const raw = request.url(), method = request.method();
   if (++attempts > c.max_requests) { report.request_budget_exhausted = true; return {ok:false, reason:"request_cap"}; }
+  if (/[\x00-\x20\x7f]/.test(raw)) return {ok:false, reason:"URL_scope"};
+  const u = new URL(raw);
   if (u.username || u.password || u.hash || raw.includes("\\")) return {ok:false, reason:"URL_scope"};
   if (["GET", "HEAD"].includes(method) && allowedAssets.has(raw)) return {ok:true, api:false};
-  if (u.origin !== origin.origin || u.hostname !== "127.0.0.1" || u.protocol !== "http:" || u.pathname.includes("%") || u.pathname.includes("..")) return {ok:false, reason:"origin_scope"};
+  // URL() normalizes dot segments. Inspect the untouched path before admitting
+  // its normalized pathname, so traversal cannot collapse into an allowed URL.
+  const rawPath = raw.match(/^http:\/\/[^/?#]*([^?#]*)/)?.[1];
+  if (u.origin !== origin.origin || u.hostname !== "127.0.0.1" || u.protocol !== "http:" || !safeLocalPath(rawPath)) return {ok:false, reason:"origin_scope"};
   if (method === "POST" && u.pathname === "/api/v1/memoir/agent/turn" && !u.search && c.turn && !sent) {
     let body; try { body = request.postDataJSON(); } catch { return {ok:false, reason:"turn_payload"}; }
     const keys = new Set(["text","conversation_text","source_kind","client_turn_id","project_id","language","first_reply_localization","uploaded_photo_ids","photo_selection"]);

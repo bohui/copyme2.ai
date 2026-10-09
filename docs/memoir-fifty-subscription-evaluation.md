@@ -180,6 +180,13 @@ libraries use exact versioned public URLs. Request counts are bounded per
 operation (16–512), and startup probes are separately capped. No missing runtime,
 package, browser or CLI documentation is automatically installed/downloaded.
 
+Next static assets may contain bracket-escaped dynamic-route segments such as
+`%5B%5B...path%5D%5D`. Only complete route-segment grammar beneath
+`/_next/static/` receives that narrow exception. Encoded dots/separators,
+double encoding, malformed escapes and raw dot-segment traversal remain denied.
+The actual embedded JavaScript policy is tested offline against the Python policy;
+native hydration still requires its own provider-free smoke check before recovery.
+
 The producer saves actual DOM/network/page-error observations and PNGs from every
 original form turn and final case views, including available life-stage tabs.
 Missing views and blocked enrichment stay visible. It verifies the final original
