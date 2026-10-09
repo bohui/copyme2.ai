@@ -45,6 +45,7 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
                max_case_client_requests=None, max_case_elapsed_seconds=None,
                enable_public_photo_research=False, photo_python_binary=None, photo_python_sha256=None,
                enable_browser_readback=False, browser_config=None):
+    from apps.api.codex_timeout_policy import native_worker_deadlines
     from scripts.memoir_subscription_profiles import profile_for
     profile = profile_for(evaluation_profile)
     profile.validate_limits(max_client_requests, max_elapsed_seconds,
@@ -98,6 +99,7 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
             'dataset_version': profile.dataset_version, 'dataset_sha256': profile.dataset_sha256}
            if profile.name == 'subscription_fifty' else {}),
         'memory_pressure_check_waived': waive_memory_pressure_check,
+        'worker_deadlines': native_worker_deadlines(),
         'max_client_requests': max_client_requests, 'max_elapsed_seconds': max_elapsed_seconds,
         'codex_binary': _binary(codex_binary, codex_sha256), 'codex_sha256': codex_sha256,
         'temporal_binary': _binary(temporal_binary, temporal_sha256), 'temporal_sha256': temporal_sha256,

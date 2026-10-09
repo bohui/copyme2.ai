@@ -333,7 +333,7 @@ class SubscriptionRun:
         with self._lock:
             self._capacity()
             entry = {'ordinal': len(self._entries) + 1, 'status': 'reserved',
-                     'payload_bytes': payload_bytes}
+                     'payload_bytes': payload_bytes, 'reserved_at_monotonic': time.monotonic()}
             if self._active_case is not None:
                 entry.update(case_id=self._active_case['case_id'],
                     case_ordinal=len(self._active_case['entries']) + 1)
@@ -353,25 +353,35 @@ class SubscriptionRun:
                 and len(self._active_case['entries']) >= self.case_limits.max_requests):
             self._reject('case_requests_limit')
 
-    def _starting(self):
+    def _starting(self, entry):
         with self._lock:
             # Serialization/fsync may have consumed the last remaining time.
             self._admit()
             self._started_count += 1
             if self._active_case is not None:
                 self._active_case['client_requests_started'] += 1
+            entry['started_at_monotonic'] = time.monotonic()
+            self._write('send_started', ordinal=entry['ordinal'],
+                started_at_monotonic=entry['started_at_monotonic'],
+                **({key: entry[key] for key in ('case_id', 'case_ordinal')} if 'case_id' in entry else {}))
+            # The extra diagnostic write cannot extend the existing deadline.
+            self._admit()
 
     def _complete(self, entry, status_code, response_bytes):
         with self._lock:
             self._admit()
             case_fields = ({'case_id': entry['case_id'], 'case_ordinal': entry['case_ordinal']}
                 if 'case_id' in entry else {})
+            completed_at = time.monotonic()
+            elapsed = max(0, round((completed_at - entry['started_at_monotonic']) * 1000))
             self._write('http_response_completed', ordinal=entry['ordinal'],
-                status_code=status_code, response_bytes=response_bytes, **case_fields)
+                status_code=status_code, response_bytes=response_bytes,
+                completed_at_monotonic=completed_at, elapsed_ms=elapsed, **case_fields)
             # A blocking durable write is not a reason to extend the deadline.
             self._admit()
             entry.update(status='completed', status_code=status_code,
-                         response_bytes=response_bytes)
+                         response_bytes=response_bytes, completed_at_monotonic=completed_at,
+                         elapsed_ms=elapsed)
 
     def _case_snapshot(self, case, now):
         completed = sum(entry['status'] == 'completed' for entry in case['entries'])
@@ -582,7 +592,7 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                         extensions={'timeout': dict.fromkeys(('connect', 'read', 'write', 'pool'),
                             self.run.remaining_seconds())})
                     entry = self.run._reserve(len(body))
-                    self.run._starting()
+                    self.run._starting(entry)
                     response = await self._wire.handle_async_request(outgoing)
                     if (not 200 <= response.status_code < 300
                             or response.headers.get('content-encoding', 'identity') != 'identity'):

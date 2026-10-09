@@ -33,10 +33,11 @@ def test_current_fifty_source_preserves_all_history_without_execution_authority(
         assert result[f'historical_{version}_integrity_verified'] is True
     assert result['current_snapshot_revision'] == v6.CURRENT_REVISION
     assert result['current_snapshot_tree'] == v6.CURRENT_TREE
-    assert result['current_source_file_count'] == 299
+    assert result['current_source_file_count'] == 300
     assert result['historical_v5_snapshot_revision'] == '3d0e157f0835a72c3fb3aa9ec6766f8c2aaaa67b'
     assert result['historical_v5_matches_current_source'] is False
     assert result['newly_monitored_source_paths'] == [
+        'apps/api/codex_timeout_policy.py',
         'scripts/memoir_fifty_browser.py', 'scripts/memoir_fifty_browser_runner.py',
         'scripts/memoir_fifty_coverage.py',
         'scripts/memoir_fifty_photo.py',

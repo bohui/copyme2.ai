@@ -1094,5 +1094,44 @@ def test_failure_diagnostics_name_only_the_fixed_stage_and_safe_class(controlled
     assert result['status'] == 'incomplete' and result['output'] is None
     assert result['failure_stage'] == 'collector_turn'
     assert result['failure_class'] == 'runtime_error'
+
+
+def test_owned_timeout_cause_survives_generic_browser_runner_failure(controlled):
+    session = controlled()
+    case = session.case_ids[0]
+    correlation = session.bridges[case].before_round(case, 1)
+    cause = {'schema_version': 'memoir-worker-failure/1', 'correlation': correlation,
+        'role': 'collector', 'failure_class': 'timeout', 'execution_timeout_seconds': 120,
+        'elapsed_ms': 120050, 'request_accounting': {'started': 3, 'completed': 2, 'unresolved': 1}}
+    seen = []
+    def trusted(ids):
+        seen.append(ids)
+        assert ids == correlation
+        return deepcopy(cause)
+    session.worker_failure_for = trusted
+    class Browser:
+        turns_enabled = True
+        async def turn(self, *args):
+            raise ValueError('Owned browser turn failed')
+    session.browser_readback = Browser()
+    result = execute(session)
+    assert result['failure_class'] == 'exception'
+    assert result['worker_failure'] == cause
+    assert result['cases'][0]['rounds'][0]['worker_failure'] == cause
+    assert result['status'] == 'incomplete' and session.closed
+    assert seen == [correlation]
+
+
+def test_runner_does_not_trust_timeout_metadata_attached_to_arbitrary_errors(controlled):
+    import json
+    session = controlled()
+    def fail(value):
+        error = ValueError('PRIVATE_EXCEPTION')
+        error.worker_failure = {'failure_class': 'timeout', 'message': 'PRIVATE_SIDECAR'}
+        raise error
+    session.turn_hook = fail
+    result = execute(session)
+    assert 'worker_failure' not in result
+    assert 'PRIVATE' not in json.dumps(result)
     assert 'private prompt credential exception detail' not in str(result)
     assert session.closed

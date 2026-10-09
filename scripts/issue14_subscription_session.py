@@ -10,9 +10,11 @@ from copy import deepcopy
 from contextvars import ContextVar
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import socket
+import time
 import weakref
 
 import httpx
@@ -201,10 +203,14 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                 worker = owner._workers[role]
                 owner._dispatch_role = role
                 owner._dispatch_correlation = deepcopy(expected)
+                before = owner.run.snapshot()
                 record = {'case_id': case_id, 'round': ordinal, 'role': role,
                           'phase': payload.composer_phase if role == 'composer' else None,
                           'correlation': deepcopy(expected), 'status': 'started',
-                          'client_requests_before': owner.run.snapshot()['client_requests_started'],
+                          'execution_timeout_seconds': worker._execution_timeout(role, payload.composer_phase),
+                          'started_at_monotonic': time.monotonic(),
+                          'client_requests_before': before['client_requests_started'],
+                          'completed_responses_before': before['completed_http_responses'],
                           'local_client_requests_seen': 0}
                 owner._worker_records.append(record)
                 owner._dispatch_record = record
@@ -216,7 +222,12 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                                   failure_class=failure_class(error))
                     raise
                 finally:
-                    record['client_requests_after'] = owner.run.snapshot()['client_requests_started']
+                    finished = time.monotonic()
+                    after = owner.run.snapshot()
+                    record.update(finished_at_monotonic=finished,
+                        elapsed_ms=max(0, round((finished - record['started_at_monotonic']) * 1000)),
+                        client_requests_after=after['client_requests_started'],
+                        completed_responses_after=after['completed_http_responses'])
                     owner._dispatch_role = None
                     owner._dispatch_correlation = None
                     owner._dispatch_record = None
@@ -470,6 +481,50 @@ class OwnedSubscriptionSession:
 
     def worker_receipts(self):
         return deepcopy(self._worker_records)
+
+    def worker_failure_for(self, correlation):
+        """Project a bounded timeout cause from owned records, never an error.
+
+        This is diagnostic readback only. The dispatch gate remains stopped,
+        and no receipt or HTTP/browser input can authorize another worker call.
+        """
+        assert_owned_subscription_session(self)
+        if type(correlation) is not dict:
+            return None
+        case, round_id = correlation.get('case_id'), correlation.get('round_id')
+        if (type(case) is not str or case not in self._plans or type(round_id) is not str
+                or not round_id.isascii() or not round_id.isdigit() or len(round_id) > 2):
+            return None
+        ordinal = int(round_id)
+        if not 1 <= ordinal <= self._profile.rounds:
+            return None
+        expected = self.bridge_for_case(case).before_round(case, ordinal)
+        if correlation != expected:
+            return None
+        for record in reversed(self._worker_records[-16:]):
+            if (type(record) is not dict or record.get('correlation') != expected
+                    or record.get('case_id') != case or type(record.get('round')) is not int
+                    or record['round'] != ordinal or type(record.get('role')) is not str
+                    or record['role'] not in _PROFILES
+                    or record.get('status') != 'failed' or record.get('failure_stage') != 'worker_turn'
+                    or record.get('failure_class') != 'timeout'):
+                continue
+            seconds, elapsed = record.get('execution_timeout_seconds'), record.get('elapsed_ms')
+            counts = [record.get(key) for key in ('client_requests_before', 'client_requests_after',
+                'completed_responses_before', 'completed_responses_after')]
+            if (type(seconds) not in (int, float) or not .001 <= seconds <= 600 or not math.isfinite(seconds)
+                    or type(elapsed) is not int or not 0 <= elapsed < 2**53
+                    or any(type(n) is not int or not 0 <= n < 2**53 for n in counts)):
+                continue
+            started, completed = counts[1] - counts[0], counts[3] - counts[2]
+            if not 0 <= completed <= started:
+                continue
+            return {'schema_version': 'memoir-worker-failure/1', 'correlation': deepcopy(expected),
+                'role': record['role'], 'failure_class': 'timeout',
+                'execution_timeout_seconds': seconds, 'elapsed_ms': elapsed,
+                'request_accounting': {'started': started, 'completed': completed,
+                    'unresolved': started - completed}}
+        return None
 
     def bridge_for_case(self, case_id):
         return self._profile.bridge(case_id=case_id, run_id=self.run.run_id,

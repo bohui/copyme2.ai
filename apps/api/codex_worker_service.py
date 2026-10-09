@@ -23,6 +23,7 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
+from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .issue14_execution_admission import (
     AdmissionDenied, check_issue14_dispatch, issue14_connection_options,
     validate_optional_issue14_admission,
@@ -130,12 +131,12 @@ class CodexWorker:
         configured_timeout = timeout
         if configured_timeout is None:
             try:
-                configured_timeout = float(os.getenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", "120"))
+                configured_timeout = float(os.getenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", str(WORKER_TIMEOUT)))
             except ValueError:
-                configured_timeout = 120
+                configured_timeout = WORKER_TIMEOUT
         # Keep explicit sub-second values available to unit tests; deployed
         # values are bounded above and the normal default remains 120s.
-        self.timeout = min(max(float(configured_timeout), 0.001), 240)
+        self.timeout = min(max(float(configured_timeout), 0.001), WORKER_MAX_TIMEOUT)
         self._locks: dict[str, object] = {}
         self._identity_lock = threading.Lock()
         self._identity_file = self.home_root / ".user-ids.json"

@@ -11,16 +11,15 @@ from pathlib import Path
 import httpx
 
 from .codex_runtime import CodexRuntime, normalize_conversation_language
+from .codex_timeout_policy import COMPOSER_TIMEOUT, COMPOSER_DRAFT_TIMEOUT
 from .conversation_text import original_conversation_text
 from .recall import free_recall_rounds
 from .stage_readiness import LIFE_STAGES
 
 
 logger = logging.getLogger(__name__)
-COMPOSER_TIMEOUT = 240
 # Drafting emits a complete structured manuscript. Its private job lease is
 # refreshed per phase and lasts 900 seconds; collector budgets are separate.
-COMPOSER_DRAFT_TIMEOUT = 600
 
 
 def composer_timeout(phase):

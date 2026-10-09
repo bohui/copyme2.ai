@@ -493,9 +493,11 @@ def test_global_and_case_reservation_are_durable_before_socket_boundary(tmp_path
             original = wire.handle_async_request
             async def inspect(request):
                 events = journal(tmp_path)
-                assert events[-1]['event'] == 'send_reserved'
+                assert events[-2]['event'] == 'send_reserved'
+                assert events[-1]['event'] == 'send_started'
                 assert events[-1]['ordinal'] == events[-1]['case_ordinal'] == 1
                 assert events[-1]['case_id'] == CASE_IDS[0]
+                assert events[-2]['reserved_at_monotonic'] <= events[-1]['started_at_monotonic']
                 assert run.snapshot()['cases'][0]['client_requests_reserved'] == 1
                 return await original(request)
             wire.handle_async_request = inspect
@@ -511,7 +513,7 @@ def test_exact_600_case_and_3000_global_reservation_boundaries(tmp_path, case_co
         run.start_case(CASE_IDS[index])
         for _ in range(600):
             entry = run._reserve(2)
-            run._starting()
+            run._starting(entry)
             run._complete(entry, 200, 2)
         if index < case_count - 1:
             run.finish_case(CASE_IDS[index])
@@ -531,8 +533,8 @@ def test_terminal_partial_receipts_mark_active_case_incomplete_without_reset(tmp
     monkeypatch.setattr(budget, 'time', SimpleNamespace(monotonic=lambda: now[0]))
     run = campaign(tmp_path, case_seconds=10)
     run.start_case(CASE_IDS[0])
-    run._reserve(2)
-    run._starting()
+    entry = run._reserve(2)
+    run._starting(entry)
     before = run.snapshot()
     if terminal == 'closed':
         run.close()

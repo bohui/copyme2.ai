@@ -517,14 +517,25 @@ class SubscriptionProgressiveRunner:
                 async with asyncio.timeout(session.run.remaining_seconds()):
                     receipt['execution_stage'] = 'collector_turn'
                     browser = getattr(session, 'browser_readback', None)
-                    if browser is not None and browser.turns_enabled:
-                        record['turn_delivery'] = 'browser_form'
-                        value = await browser.turn(case, ordinal, text)
-                    else:
-                        record['turn_delivery'] = 'direct_api'
-                        value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
-                            language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
-                            evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
+                    try:
+                        if browser is not None and browser.turns_enabled:
+                            record['turn_delivery'] = 'browser_form'
+                            value = await browser.turn(case, ordinal, text)
+                        else:
+                            record['turn_delivery'] = 'direct_api'
+                            value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
+                                language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
+                                evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
+                    except BaseException:
+                        try:
+                            readback = getattr(session, 'worker_failure_for', None)
+                            cause = readback(correlation) if callable(readback) else None
+                            if cause is not None:
+                                record['worker_failure'] = deepcopy(cause)
+                                receipt['worker_failure'] = deepcopy(cause)
+                        except Exception:
+                            pass
+                        raise
                     receipt['execution_stage'] = 'runtime_readback'
                     failure_summary = _runtime_failure_summary(value, correlation)
                     if failure_summary is not None:

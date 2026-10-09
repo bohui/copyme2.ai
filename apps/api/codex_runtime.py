@@ -22,6 +22,7 @@ from .recall import recall_status, storage_recall_status
 from .stage_readiness import LIFE_STAGES
 from .agent_storage import UserStorage
 from .conversation_text import original_conversation_text
+from .codex_timeout_policy import WORKSPACE_TIMEOUT
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
 from .issue14_execution_admission import (
@@ -69,7 +70,6 @@ from .trajectory_evaluation import (
     normalise_correlation,
 )
 
-WORKSPACE_TIMEOUT = 240
 _MAX_WORKER_ERROR_BODY_BYTES = 64 * 1024
 _WORKER_ERROR_BODY_EXTENSION = "memoir_worker_error_body"
 
