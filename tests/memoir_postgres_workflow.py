@@ -6,6 +6,8 @@ This is a test adapter, never a production endpoint or an application mock.
 """
 import json
 import re
+from datetime import datetime
+from uuid import UUID
 
 import httpx
 
@@ -24,6 +26,38 @@ def quoted(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def read_filter(key, value):
+    """Only the product recovery reader's structured filters, never raw SQL."""
+    if key == 'or':
+        matched = re.fullmatch(r'\(created_at\.lt\.([^,()]+),and\(created_at\.eq\.([^,()]+),id\.lt\.([0-9a-f-]{36})\)\)', value)
+        if not matched or matched[1] != matched[2]:
+            raise ValueError('Unsupported synthetic history cursor')
+        date = datetime.fromisoformat(matched[1])
+        if date.tzinfo is None or str(UUID(matched[3])) != matched[3]:
+            raise ValueError('Invalid synthetic history cursor')
+        timestamp, identifier = quoted(date.isoformat()), quoted(matched[3])
+        return f'(created_at<{timestamp} or (created_at={timestamp} and id<{identifier}))'
+    if not re.fullmatch('[a-z_]+', key):
+        raise ValueError('Invalid synthetic field')
+    if value.startswith('eq.'):
+        return key + '=' + quoted(value[3:])
+    if value == 'is.null':
+        return key + ' is null'
+    if value.startswith('gt.') and key == 'project_id' and re.fullmatch('[A-Za-z0-9][A-Za-z0-9_-]{0,127}', value[3:]):
+        return key + '>' + quoted(value[3:])
+    if value.startswith('in.(') and value.endswith(')') and key in {'kind', 'client_turn_id'}:
+        values = value[4:-1].split(',')
+        if not 1 <= len(values) <= 1001:
+            raise ValueError('Invalid synthetic list filter')
+        if key == 'kind':
+            if not all(item in {'agent', 'agent_greeting'} for item in values):
+                raise ValueError('Invalid synthetic memory kind')
+        elif not all(str(UUID(item)) == item for item in values):
+            raise ValueError('Invalid synthetic turn identifier')
+        return key + ' in (' + ','.join(quoted(item) for item in values) + ')'
+    raise ValueError('Unsupported synthetic REST filter')
+
+
 class PostgresRest:
     def __init__(self, sql, owner, *, service=False, entitlement=None):
         self.sql, self.owner, self.service = sql, owner, service
@@ -37,6 +71,12 @@ class PostgresRest:
         if request.url.path == '/auth/v1/user':
             return httpx.Response(200, json={'id': self.owner, 'is_anonymous': False})
         body = json.loads(request.content) if request.content else {}
+        if request.method == 'GET' and request.url.path == '/rest/v1/rpc/read_user_interview_turn':
+            if set(request.url.params) != {'p_project_id', 'p_client_turn_id'}:
+                raise ValueError('Exact read-interview RPC arguments required')
+            body = dict(request.url.params)
+            if str(UUID(body['p_client_turn_id'])) != body['p_client_turn_id']:
+                raise ValueError('Canonical client turn required')
         path = request.url.path.removeprefix('/rest/v1/')
         if path == 'story_entitlements':
             # External verified entitlement boundary: this storyteller is free.
@@ -54,19 +94,17 @@ class PostgresRest:
             query = f'select to_jsonb(public.{name}(' + ','.join(args) + '));'
         else:
             assert path in {'user_profile', 'user_memory', 'user_agent_session', 'user_place_journey',
-                            'user_recall_usage', 'user_completed_round', 'user_private_draft_outbox', 'user_family_context'}
+                            'user_recall_usage', 'user_completed_round', 'user_private_draft_outbox', 'user_family_context',
+                            'user_memoir_project', 'user_narrator_source'}
             if request.method == 'GET':
+                selected = request.url.params.get('select', '*')
+                if not re.fullmatch(r'\*|[a-z_]+(?:,[a-z_]+)*', selected):
+                    raise ValueError('Invalid synthetic field selection')
                 filters = []
                 for key, value in request.url.params.multi_items():
                     if key in {'select', 'order', 'limit', 'offset'}:
                         continue
-                    assert re.fullmatch('[a-z_]+', key)
-                    if value.startswith('eq.'):
-                        filters.append(key + '=' + quoted(value[3:]))
-                    elif value == 'is.null':
-                        filters.append(key + ' is null')
-                    else:
-                        raise AssertionError('Unsupported synthetic REST filter')
+                    filters.append(read_filter(key, value))
                 where = ' where ' + ' and '.join(filters) if filters else ''
                 ordering = request.url.params.get('order', '')
                 order_parts = []
@@ -77,6 +115,8 @@ class PostgresRest:
                 order = ' order by ' + ','.join(order_parts) if order_parts else ''
                 limit = int(request.url.params.get('limit', '1001'))
                 offset = int(request.url.params.get('offset', '0'))
+                if not 0 <= limit <= 1001 or not 0 <= offset <= 1200:
+                    raise ValueError('Bounded synthetic page required')
                 query = f"select coalesce(jsonb_agg(to_jsonb(r)),'[]'::jsonb) from (select * from public.{path}{where}{order} limit {limit} offset {offset}) r;"
             elif path == 'user_profile' and request.method == 'POST':
                 query = f"with r as (insert into public.user_profile(user_id,profile) values({quoted(self.owner)},{quoted(body['profile'])}) on conflict(user_id) do update set profile=excluded.profile returning *) select jsonb_agg(to_jsonb(r)) from r;"

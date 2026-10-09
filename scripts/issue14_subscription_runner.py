@@ -19,6 +19,7 @@ from apps.api.diagnostics import failure_class
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback
 from scripts.issue14_subscription_transport import SubscriptionStopped
 from scripts.task_runtime import dispatch_memoir_lanes_once
+from scripts.memoir_subscription_profiles import profile_for
 
 
 EVIDENCE_MODE = 'subscription_progressive'
@@ -199,28 +200,34 @@ class SubscriptionProgressiveRunner:
     """
 
     def __init__(self, session, *, evidence_mode=EVIDENCE_MODE):
-        _require(evidence_mode == EVIDENCE_MODE, 'evidence_mode_invalid')
+        _require(evidence_mode in (EVIDENCE_MODE, 'subscription_fifty'), 'evidence_mode_invalid')
+        self._profile = profile_for(evidence_mode)
         assert_owned_subscription_session(session)
         # No attribute on an unverified object is inspected above this line.
+        _require(getattr(session, 'evaluation_profile', EVIDENCE_MODE) == evidence_mode, 'evidence_mode_invalid')
+        case_ids = self._profile.case_ids
+        canonical_plans = self._profile.plans(session.run.run_id)
         plans = session.case_plans
-        _require(type(plans) is dict and set(plans) == set(CASE_IDS)
-                 and tuple(session.case_ids) == CASE_IDS, 'case_plan_invalid')
+        _require(type(plans) is dict and set(plans) == set(case_ids)
+                 and tuple(session.case_ids) == case_ids, 'case_plan_invalid')
         owners, projects = set(), set()
-        for case in CASE_IDS:
+        for case in case_ids:
             plan = plans[case]
             _require(type(plan) is dict and plan.get('case_id') == case
-                     and plan.get('language') == case.rsplit('.', 1)[-1]
+                     and plan.get('language') == canonical_plans[case]['language']
                      and _uuid(plan.get('owner_id')) and _uuid(plan.get('project_id')),
                      'case_plan_invalid')
             owners.add(plan['owner_id'])
             projects.add(plan['project_id'])
-        _require(len(owners) == len(projects) == 2 and not owners.intersection(projects), 'case_plan_invalid')
+        if evidence_mode == 'subscription_fifty':
+            _require(plans == canonical_plans, 'case_plan_invalid')
+        _require(len(owners) == len(projects) == len(case_ids) and not owners.intersection(projects), 'case_plan_invalid')
         _require(type(session.task_queue) is str and session.task_queue.startswith('canary-'), 'case_plan_invalid')
         self._session, self._plans, self._used = session, deepcopy(plans), False
         self._progress = None
         self._run_id, self._revision, self._queue = session.run.run_id, session.run.source_revision, session.task_queue
-        self._bridges = {case: ProgressiveReadback(case_id=case, run_id=session.run.run_id,
-            project_id=plans[case]['project_id'], source_revision=session.run.source_revision) for case in CASE_IDS}
+        self._bridges = {case: self._profile.bridge(case_id=case, run_id=session.run.run_id,
+            project_id=plans[case]['project_id'], source_revision=session.run.source_revision) for case in case_ids}
 
     async def _emit(self, receipt):
         if self._progress is not None:
@@ -236,8 +243,8 @@ class SubscriptionProgressiveRunner:
         session = self._session
         receipt['execution_stage'] = 'initial_readback'
         storages = {}
-        # Validate both projects before dispatching any original narration.
-        for case in CASE_IDS:
+        # Validate every fresh project before dispatching any original narration.
+        for case in self._profile.case_ids:
             storage = session.storage_for_case(case)
             _require(isinstance(storage, UserStorage)
                      and storage.user_id == self._plans[case]['owner_id'], 'storage_scope_invalid')
@@ -255,45 +262,69 @@ class SubscriptionProgressiveRunner:
                 partial['rounds'].append(record)
                 correlation = bridge.before_round(case, ordinal)
                 _require(session.activate_round(case, ordinal) == correlation, 'correlation_mismatch')
-                receipt['execution_stage'] = 'collector_turn'
-                value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
-                    language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
-                    evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
-                receipt['execution_stage'] = 'runtime_readback'
-                record.update(_runtime_readback(value, correlation), status='delivered')
-                accepted.append(record['accepted_source_id'])
-                receipt['execution_stage'] = 'background_dispatch'
-                handles = await dispatch_memoir_lanes_once(session.temporal_client, session.broker,
-                                                         session.task_queue, single_attempt=True)
-                receipt['execution_stage'] = 'background_settlement'
-                for handle in handles:
-                    _require(type(handle.id) is str and handle.id, 'lane_incomplete')
-                    if handle.id not in partial['workflow_ids']:
-                        partial['workflow_ids'].append(handle.id)
-                    outcome = await handle.result()
-                    _require(type(outcome) is dict and outcome.get('status') == 'finished'
-                             and outcome.get('pending', False) is False and not outcome.get('error')
-                             and not outcome.get('retryable')
-                             and _exact_integer(outcome.get('attempt', 1), 1), 'lane_incomplete')
-                receipt['execution_stage'] = 'canonical_readback'
-                view = await _storage_read(storage.memory_events, inputs['project_id'])
-                _canonical_state(view, inputs, accepted)
-                record['canonical_state'] = deepcopy(view)
-                if ordinal in CHECKPOINTS:
-                    receipt['execution_stage'] = 'checkpoint_readback'
-                    draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
-                    _saved_checkpoint(draft, ordinal, inputs['language'])
-                    partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
-                # Extraction may create a bookkeeping outbox row. Drain it while
-                # the same case/round owns the scope; never dispatch a retry.
-                receipt['execution_stage'] = 'background_drain'
-                await session.broker.drain_once()
-                pending = await session.broker.rpc('pending_memoir_lanes', p_limit=100)
-                _require(type(pending) is list and not pending, 'background_incomplete')
-                session.finish_round()
-                record.update(background_settled=True, status='completed')
-                receipt['execution_stage'] = 'progress_receipt'
-                await self._emit(receipt)
+                async with asyncio.timeout(session.run.remaining_seconds()):
+                    receipt['execution_stage'] = 'collector_turn'
+                    browser = getattr(session, 'browser_readback', None)
+                    if browser is not None and browser.turns_enabled:
+                        record['turn_delivery'] = 'browser_form'
+                        value = await browser.turn(case, ordinal, text)
+                    else:
+                        record['turn_delivery'] = 'direct_api'
+                        value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
+                            language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
+                            evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
+                    receipt['execution_stage'] = 'runtime_readback'
+                    record.update(_runtime_readback(value, correlation), status='delivered')
+                    accepted.append(record['accepted_source_id'])
+                    receipt['execution_stage'] = 'background_dispatch'
+                    handles = await dispatch_memoir_lanes_once(session.temporal_client, session.broker,
+                                                             session.task_queue, single_attempt=True)
+                    receipt['execution_stage'] = 'background_settlement'
+                    for handle in handles:
+                        _require(type(handle.id) is str and handle.id, 'lane_incomplete')
+                        if handle.id not in partial['workflow_ids']:
+                            partial['workflow_ids'].append(handle.id)
+                        outcome = await handle.result()
+                        _require(type(outcome) is dict and outcome.get('status') == 'finished'
+                                 and outcome.get('pending', False) is False and not outcome.get('error')
+                                 and not outcome.get('retryable')
+                                 and _exact_integer(outcome.get('attempt', 1), 1), 'lane_incomplete')
+                    receipt['execution_stage'] = 'canonical_readback'
+                    view = await _storage_read(storage.memory_events, inputs['project_id'])
+                    _canonical_state(view, inputs, accepted)
+                    record['canonical_state'] = deepcopy(view)
+                    draft = None
+                    if ordinal in self._profile.checkpoints:
+                        receipt['execution_stage'] = 'checkpoint_readback'
+                        draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
+                        _saved_checkpoint(draft, ordinal, inputs['language'])
+                        partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
+                    if self._profile.name == 'subscription_fifty':
+                        from scripts.memoir_fifty_coverage import round_skill_coverage, runtime_family_decision
+                        receipt['execution_stage'] = 'skill_readback'
+                        profile = await _storage_read(storage.profile)
+                        family = await _storage_read(storage.family_context, inputs['project_id'])
+                        journey = await _storage_read(storage.place_journey)
+                        record['planned_family_enabled'] = self._profile.family_enabled_for_round(self._plans[case], ordinal)
+                        record['skill_coverage'] = round_skill_coverage(
+                            project_id=inputs['project_id'], round_number=ordinal,
+                            runtime_result=value, profile=profile, family_context=family,
+                            place_journey=journey, canonical_state=view, saved_draft=draft,
+                            family_enabled=runtime_family_decision(value))
+                    if self._profile.name == 'subscription_fifty' and getattr(session, 'photo_research', None) is not None:
+                        receipt['execution_stage'] = 'photo_research'
+                        record['photo_research'] = await session.photo_research.observe_round(
+                            case_id=case, ordinal=ordinal, runtime_result=value)
+                    # Extraction may create a bookkeeping outbox row. Drain it while
+                    # the same case/round owns the scope; never dispatch a retry.
+                    receipt['execution_stage'] = 'background_drain'
+                    await session.broker.drain_once()
+                    pending = await session.broker.rpc('pending_memoir_lanes', p_limit=100)
+                    _require(type(pending) is list and not pending, 'background_incomplete')
+                    session.finish_round()
+                    record.update(background_settled=True, status='completed')
+                    receipt['execution_stage'] = 'progress_receipt'
+                    await self._emit(receipt)
             partial['status'] = 'completed'
             partial['workflow_ids'].sort()
             receipt['execution_stage'] = 'case_observation'
@@ -302,7 +333,18 @@ class SubscriptionProgressiveRunner:
                 partial['status'] = 'incomplete'
             _require(observation['output'] is not None, 'readback_incomplete')
             partial['observation'] = observation
+            if self._profile.name == 'subscription_fifty':
+                from scripts.memoir_fifty_coverage import case_skill_coverage
+                partial['skill_coverage'] = case_skill_coverage(case_id=case, rounds=partial['rounds'])
+                if getattr(session, 'browser_readback', None) is not None:
+                    receipt['execution_stage'] = 'browser_case_readback'
+                    partial['browser_readback'] = await session.browser_readback.observe_case(case)
+                session.finish_case(case)
         receipt['status'] = 'completed'
+        if self._profile.name == 'subscription_fifty':
+            receipt['e2e_status'] = 'partial'
+            receipt['e2e_passed'] = False
+            receipt['coverage_basis'] = 'saved_application_readbacks_not_full_browser_or_photo_judge_evidence'
         receipt['execution_stage'] = 'completed'
 
     async def run(self, *, progress=None):
@@ -310,22 +352,27 @@ class SubscriptionProgressiveRunner:
         _require(not self._used, 'runner_already_used')
         assert_owned_subscription_session(self._session)
         _require(self._session.case_plans == self._plans
-                 and tuple(self._session.case_ids) == CASE_IDS
+                 and tuple(self._session.case_ids) == self._profile.case_ids
+                 and getattr(self._session, 'evaluation_profile', EVIDENCE_MODE) == self._profile.name
                  and self._session.task_queue == self._queue
                  and self._session.run.run_id == self._run_id
                  and self._session.run.source_revision == self._revision, 'session_binding_changed')
         self._used = True
         self._progress = progress
         session = self._session
+        metadata_key = ('memoir_fifty_readback_status' if self._profile.name == 'subscription_fifty'
+                        else 'issue14_progressive_readback_status')
         receipt = {'schema_version': 'memoir-subscription-progressive-run/1',
             'run_id': session.run.run_id, 'source_revision': session.run.source_revision,
-            'evidence_mode': EVIDENCE_MODE, 'status': 'running', 'output': None,
+            'evidence_mode': self._profile.name, 'status': 'running', 'output': None,
             'execution_stage': 'runner_start',
+            **({'e2e_status': 'partial', 'e2e_passed': False} if self._profile.name == 'subscription_fifty' else {}),
             'semantic_acceptance': 'human_review_required', 'live_ready': False,
-            'cases': [{**deepcopy(self._plans[case]), 'evidence_mode': EVIDENCE_MODE,
+            'rounds_per_case': self._profile.rounds, 'checkpoints': list(self._profile.checkpoints),
+            'cases': [{**deepcopy(self._plans[case]), 'evidence_mode': self._profile.name,
                        'status': 'not_started', 'rounds': [], 'checkpoints': [], 'workflow_ids': [],
                        'observation': {'output': None, 'metadata': {'live_ready': False,
-                           'issue14_progressive_readback_status': 'unavailable'}}} for case in CASE_IDS],
+                           metadata_key: 'unavailable'}}} for case in self._profile.case_ids],
             'cleanup': {'session_closed': False}}
 
         def fail(reason, classification='exception'):
@@ -340,6 +387,7 @@ class SubscriptionProgressiveRunner:
                         case['rounds'][-1].update(status='failed', stop_reason=reason)
             try:
                 session.run.stop('elapsed_limit' if reason == 'deadline_exceeded'
+                                 else reason if reason in ('case_requests_limit', 'case_elapsed_limit')
                                  else 'send_interrupted_or_failed')
             except Exception:
                 receipt['stop_recorded'] = False
@@ -349,7 +397,7 @@ class SubscriptionProgressiveRunner:
             remaining = session.run.remaining_seconds()
             _require(type(remaining) in (int, float) and math.isfinite(remaining)
                      and remaining > 0, 'deadline_exceeded')
-            # One absolute timeout covers preflight, all 30 turns, readbacks,
+            # One absolute timeout covers preflight, every original turn, readbacks,
             # workflow settlement and scope teardown; it never resets per turn.
             deadline = asyncio.get_running_loop().time() + remaining
             async with asyncio.timeout_at(deadline):
@@ -362,12 +410,14 @@ class SubscriptionProgressiveRunner:
         except asyncio.CancelledError:
             fail('cancelled', 'cancelled')
         except TimeoutError:
-            fail('deadline_exceeded', 'timeout')
+            reason = ('case_elapsed_limit' if self._profile.name == 'subscription_fifty'
+                      and session.run.timeout_reason() == 'case_elapsed_limit' else 'deadline_exceeded')
+            fail(reason, 'timeout')
         except SubscriptionRunnerError as error:
             fail(_error_reason(error), 'validation')
         except SubscriptionStopped as error:
             fail({'elapsed_limit': 'deadline_exceeded', 'requests_limit': 'requests_limit'}
-                 .get(str(error), 'execution_failed'))
+                 .get(str(error), str(error) if str(error) in ('case_requests_limit', 'case_elapsed_limit') else 'execution_failed'))
         except Exception as error:
             fail('execution_failed', failure_class(error))
         finally:
@@ -399,6 +449,12 @@ class SubscriptionProgressiveRunner:
                          and _exact_integer(accounting.get('concurrency'), 1), 'accounting_unavailable')
                 if receipt['status'] == 'completed':
                     _require(accounting.get('stop_reason') in (None, 'closed'), 'requests_stopped')
+                    if self._profile.name == 'subscription_fifty':
+                        cases = accounting.get('cases')
+                        _require(type(cases) is list and len(cases) == 5
+                            and [c.get('case_id') for c in cases] == list(self._profile.case_ids)
+                            and all(c.get('status') == 'completed' and c.get('unresolved_requests') == 0
+                                    for c in cases), 'accounting_unavailable')
             except SubscriptionRunnerError as error:
                 fail(_error_reason(error), 'validation')
             except Exception:
@@ -410,7 +466,7 @@ class SubscriptionProgressiveRunner:
             # run never exposes experiment output as though the run completed.
             for case in receipt['cases']:
                 case['observation']['output'] = None
-                case['observation']['metadata']['issue14_progressive_readback_status'] = 'unavailable'
+                case['observation']['metadata'][metadata_key] = 'unavailable'
         try:
             worker_receipts = getattr(session, 'worker_receipts', None)
             if callable(worker_receipts):

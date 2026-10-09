@@ -25,6 +25,7 @@ from apps.api.codex_runtime import CodexRuntime
 from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback, case_plans_for_run
 from scripts.issue14_subscription_transport import SubscriptionRun, SubscriptionTransport, MAX_REQUEST_BYTES
+from scripts.memoir_subscription_profiles import profile_for
 
 
 _ISSUED = weakref.WeakSet()
@@ -46,6 +47,8 @@ _OPTIONS = ('model_providers.llm_provider.request_max_retries=0',
 def assert_owned_subscription_session(value):
     if (type(value) is not OwnedSubscriptionSession or value not in _ISSUED or value._closed
             or not value._workflow_ready
+            or value._profile != profile_for(value._profile.name)
+            or value._plans != value._profile.plans(value.run.run_id)
             or value.runtime.worker_transport is not value.worker_transport
             or value.runtime.worker_url != value.worker_url
             or value.provider_transport.run is not value.run
@@ -181,13 +184,14 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                         raise ValueError('Background worker requires owned activity context')
                     expected['job_id'] = job['job_id']
                     if role == 'composer':
-                        if ordinal not in (5, 10, 15):
+                        if ordinal not in owner._profile.checkpoints:
                             raise ValueError('Composer outside checkpoint')
                         expected['checkpoint_id'] = f'{case_id}:{ordinal}'
                 supplied = data.get('evaluation')
                 if (role not in _PROFILES or data.get('user_id') != plan['owner_id']
                         or data.get('project_id') != plan['project_id'] or data.get('language') != plan['language']
-                        or data.get('family_enabled', False) is not False
+                        or type(data.get('family_enabled', False)) is not bool
+                        or data.get('family_enabled', False) and not owner._profile.family_enabled_for_round(plan, ordinal)
                         or data.get('model') not in (None, _PROFILES[role][0])
                         or supplied is not None and (type(supplied) is not dict
                             or any(supplied.get(k) != v for k, v in expected.items()))):
@@ -241,14 +245,24 @@ class OwnedSubscriptionSession:
 
     @classmethod
     async def create(cls, *, run, provider_transport, storages, broker, temporal_client,
-                     home_root, codex_binary, codex_sha256, api_key):
+                     home_root, codex_binary, codex_sha256, api_key,
+                     evaluation_profile='subscription_progressive', entitlement_facades=None):
         if (type(run) is not SubscriptionRun or type(provider_transport) is not SubscriptionTransport
                 or provider_transport.run is not run or type(api_key) is not str or not api_key):
             raise ValueError('Explicit owned run, transport and existing credential required')
-        if run.limits.max_requests > 160 or run.limits.max_elapsed_seconds > 1800:
-            raise ValueError('Approved subscription evaluation limits exceeded')
-        plans = case_plans_for_run(run.run_id)
-        if (type(storages) is not dict or set(storages) != set(CASE_IDS)
+        profile = profile_for(evaluation_profile)
+        case_limits = run.case_limits
+        profile.validate_limits(run.limits.max_requests, run.limits.max_elapsed_seconds,
+            case_limits.max_requests if case_limits else None,
+            case_limits.max_elapsed_seconds if case_limits else None)
+        if tuple(run.case_ids or ()) != (profile.case_ids if profile.name == 'subscription_fifty' else ()):
+            raise ValueError('Request gate does not match the explicit evaluation profile')
+        plans = profile.plans(run.run_id)
+        # Validate the original dataset before starting listeners or workers.
+        for case, plan in plans.items():
+            profile.bridge(case_id=case, run_id=run.run_id, project_id=plan['project_id'],
+                           source_revision=run.source_revision)
+        if (type(storages) is not dict or set(storages) != set(profile.case_ids)
                 or any(type(storages[k]) is not UserStorage or storages[k].user_id != p['owner_id']
                        or storages[k].url != 'http://synthetic.invalid'
                        or type(storages[k].client._transport) is not httpx.MockTransport
@@ -257,6 +271,18 @@ class OwnedSubscriptionSession:
         if (type(broker) is not MemoirLaneBroker or broker.url != 'http://synthetic.invalid'
                 or type(broker.client._transport) is not httpx.MockTransport):
             raise ValueError('Disposable Postgres RPC facade broker required')
+        if profile.name == 'subscription_fifty':
+            from memoir_postgres_workflow import PostgresRest
+            if (type(entitlement_facades) is not dict or set(entitlement_facades) != set(plans)
+                    or any(type(entitlement_facades[case]) is not PostgresRest
+                        or entitlement_facades[case].owner != plan['owner_id']
+                        or entitlement_facades[case].service is not False
+                        or getattr(storages[case].client._transport.handler, '__self__', None) is not entitlement_facades[case]
+                        or storages[case].story_entitlement() != profile.entitlement(plan, 1)
+                        for case, plan in plans.items())):
+                raise ValueError('Owner-scoped synthetic campaign entitlement required')
+        elif entitlement_facades is not None:
+            raise ValueError('Historical profile has no mutable campaign entitlement facade')
         home, binary = Path(home_root), Path(codex_binary)
         if (home.exists() or home.is_symlink() or not binary.is_absolute() or not binary.is_file()
                 or hashlib.sha256(binary.read_bytes()).hexdigest() != codex_sha256):
@@ -265,12 +291,16 @@ class OwnedSubscriptionSession:
             raise ValueError('Run deadline expired before allocation')
         self = object.__new__(cls)
         self.run, self.provider_transport = run, provider_transport
+        self.photo_research = None
+        self.browser_readback = None
+        self._profile = profile
+        self._entitlement_facades = dict(entitlement_facades or {})
         self.temporal_client = temporal_client
         self._broker = broker
         self.broker = _ScopedSubscriptionBroker(broker, self)
         self.task_queue = 'canary-subscription-' + run.run_id
         self._plans, self._storages = plans, dict(storages)
-        self._active, self._finished, self._pending = None, {case: 0 for case in CASE_IDS}, set()
+        self._active, self._finished, self._pending = None, {case: 0 for case in profile.case_ids}, set()
         self._closed, self._worker_lock = False, asyncio.Lock()
         self._dispatch_role = None
         self._dispatch_correlation = None
@@ -425,7 +455,11 @@ class OwnedSubscriptionSession:
 
     @property
     def case_ids(self):
-        return CASE_IDS
+        return self._profile.case_ids
+
+    @property
+    def evaluation_profile(self):
+        return self._profile.name
 
     @property
     def case_plans(self):
@@ -435,7 +469,7 @@ class OwnedSubscriptionSession:
         return deepcopy(self._worker_records)
 
     def bridge_for_case(self, case_id):
-        return ProgressiveReadback(case_id=case_id, run_id=self.run.run_id,
+        return self._profile.bridge(case_id=case_id, run_id=self.run.run_id,
             project_id=self._plans[case_id]['project_id'], source_revision=self.run.source_revision)
 
     def storage_for_case(self, case_id):
@@ -445,11 +479,20 @@ class OwnedSubscriptionSession:
     def activate_round(self, case_id, ordinal):
         assert_owned_subscription_session(self)
         if (self._active is not None or self._pending or type(ordinal) is not int
-                or case_id not in CASE_IDS or ordinal != self._finished[case_id] + 1 or ordinal > 15):
+                or case_id not in self.case_ids or ordinal != self._finished[case_id] + 1
+                or ordinal > self._profile.rounds):
             self.run.stop('protocol_invalid')
             raise ValueError('Subscription round sequence mismatch')
-        if case_id == CASE_IDS[1] and self._finished[CASE_IDS[0]] != 15:
-            raise ValueError('First case must finish before second')
+        index = self.case_ids.index(case_id)
+        if any(self._finished[prior] != self._profile.rounds for prior in self.case_ids[:index]):
+            self.run.stop('protocol_invalid')
+            raise ValueError('Earlier cases must finish before the next case')
+        if self._profile.name == 'subscription_fifty' and ordinal == 1:
+            self.run.start_case(case_id)
+        if self._profile.name == 'subscription_fifty':
+            # Mutate only the already verified disposable HTTP facade. No
+            # payment service or database entitlement row is involved.
+            self._entitlement_facades[case_id].entitlement = self._profile.entitlement(self._plans[case_id], ordinal)
         self._active = (case_id, ordinal)
         return self.bridge_for_case(case_id).before_round(case_id, ordinal)
 
@@ -459,6 +502,14 @@ class OwnedSubscriptionSession:
             raise ValueError('Owned worker calls have not settled')
         self._finished[self._active[0]] = self._active[1]
         self._active = None
+
+    def finish_case(self, case_id):
+        assert_owned_subscription_session(self)
+        if self._active is not None or self._pending or self._finished.get(case_id) != self._profile.rounds:
+            self.run.stop('protocol_invalid')
+            raise ValueError('Case must finish all rounds and readbacks')
+        if self._profile.name == 'subscription_fifty':
+            self.run.finish_case(case_id)
 
     async def close(self):
         if getattr(self, '_closed', True):
@@ -475,6 +526,16 @@ class OwnedSubscriptionSession:
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
         cleanup_failed = False
+        if self.browser_readback is not None:
+            try:
+                await self.browser_readback.close()
+            except BaseException:
+                cleanup_failed = True
+        if self.photo_research is not None:
+            try:
+                await self.photo_research.close()
+            except BaseException:
+                cleanup_failed = True
         if self._workflow is not None:
             try:
                 await self._workflow.__aexit__(None, None, None)

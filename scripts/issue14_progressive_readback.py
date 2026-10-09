@@ -80,24 +80,20 @@ def _references(refs, originals):
     return projected
 
 
-class ProgressiveReadback:
-    """Bind original inputs and readbacks; no live execution or admission API.
+class _ConfiguredReadback:
+    """Private structural checks shared by explicit, separately pinned profiles."""
 
-    driver_inputs() and before_round match CanonicalEvaluationDriver's existing
-    hooks. Its historical five-round live limit stays intact. capture() consumes
-    the returned terminal outcome, not the mutable running progress callbacks.
-    """
-
-    def __init__(self, *, case_id, run_id, project_id, source_revision):
-        _require(case_id in CASE_IDS)
+    def _configure(self, *, case, run_id, project_id, source_revision,
+                   dataset_name, dataset_hash, checkpoints, evidence_modes,
+                   schema_version, status_key):
         self._run_id, self._project_id = _identifier(run_id), _identifier(project_id)
         _require(type(source_revision) is str and re.fullmatch('[0-9a-f]{40}', source_revision))
         self._revision = source_revision
-        raw = DATASET_PATH.read_bytes()
-        _require(hashlib.sha256(raw).hexdigest() == DATASET_SHA256)
-        dataset = next(d for d in json.loads(raw)['datasets'] if d['dimension'] == 'chapter-continuity')
-        self._dataset_name = dataset['name']
-        self._case = deepcopy(next(i for i in dataset['items'] if i['case_id'] == case_id))
+        self._dataset_name, self._dataset_hash = dataset_name, dataset_hash
+        self._checkpoints, self._evidence_modes = tuple(checkpoints), tuple(evidence_modes)
+        self._round_count = self._checkpoints[-1]
+        self._schema_version, self._status_key = schema_version, status_key
+        self._case = deepcopy(case)
 
     def driver_inputs(self):
         """No expected answers, provider hints, credentials or execution mode."""
@@ -108,12 +104,12 @@ class ProgressiveReadback:
     def before_round(self, case_id, ordinal):
         _require(case_id == self._case['case_id'])
         _integer(ordinal)
-        _require(1 <= ordinal <= 15)
-        binding = [self._run_id, self._revision, self._project_id, case_id, ordinal, DATASET_SHA256]
+        _require(1 <= ordinal <= self._round_count)
+        binding = [self._run_id, self._revision, self._project_id, case_id, ordinal, self._dataset_hash]
         trace_id = hashlib.sha256(json.dumps(binding, separators=(',', ':')).encode()).hexdigest()[:32]
         return {'run_id': self._run_id, 'case_id': case_id, 'round_id': str(ordinal),
                 'trace_id': trace_id, 'application_revision': self._revision,
-                'dataset': self._dataset_name, 'dataset_version': DATASET_SHA256}
+                'dataset': self._dataset_name, 'dataset_version': self._dataset_hash}
 
     def capture(self, outcome):
         """Return a detached structural projection or raise ReadbackError.
@@ -126,9 +122,9 @@ class ProgressiveReadback:
         case_id, locale = self._case['case_id'], self._case['language']
         _require(result.get('status') == 'completed' and result.get('case_id') == case_id
                  and result.get('project_id') == self._project_id)
-        _require(result.get('evidence_mode') in ('mock_only', 'guarded_live_canary', 'subscription_progressive'))
+        _require(result.get('evidence_mode') in self._evidence_modes)
         rounds = _list(result.get('rounds'))
-        _require(len(rounds) == 15)
+        _require(len(rounds) == self._round_count)
         accepted, mappings, states = [], [], {}
         for ordinal, record in enumerate(rounds, 1):
             record = _object(record)
@@ -161,11 +157,11 @@ class ProgressiveReadback:
                              'application_source_id': source_id, 'version': 1, 'round': ordinal,
                              'trace_id': correlation['trace_id']})
         checkpoints = _list(result.get('checkpoints'))
-        _require(len(checkpoints) == 3)
+        _require(len(checkpoints) == len(self._checkpoints))
         saved, previous = [], {}
         last_revision = 0
         last_snapshot = None
-        for checkpoint, ordinal in zip(checkpoints, (5, 10, 15)):
+        for checkpoint, ordinal in zip(checkpoints, self._checkpoints):
             _integer(_object(checkpoint).get('milestone'), ordinal)
             draft = _object(checkpoint.get('draft'))
             _require(draft.get('status') == 'ready' and draft.get('updating') is False
@@ -212,10 +208,10 @@ class ProgressiveReadback:
                 sections.append(projection)
             _require(sections)
             saved.append({'milestone': ordinal, 'covered_round': ordinal, 'revision': revision, 'sections': sections})
-        return deepcopy({'schema_version': 'memoir-progressive-readback/1',
+        return deepcopy({'schema_version': self._schema_version,
             'status': 'structural_readback_complete', 'case_id': case_id, 'language': locale,
             'run_id': self._run_id, 'project_id': self._project_id, 'source_revision': self._revision,
-            'dataset_content_hash': DATASET_SHA256, 'declared_evidence_mode': result['evidence_mode'],
+            'dataset_content_hash': self._dataset_hash, 'declared_evidence_mode': result['evidence_mode'],
             'source_mapping': mappings, 'saved_checkpoints': saved,
             'evidence_basis': 'caller_supplied_application_readback', 'durability_verified': False,
             'provider_cohort_verified': False, 'live_ready': False,
@@ -227,6 +223,31 @@ class ProgressiveReadback:
         try:
             evidence = self.capture(outcome)
         except ReadbackError:
-            return {'output': None, 'metadata': {'issue14_progressive_readback_status': 'unavailable', 'live_ready': False}}
+            return {'output': None, 'metadata': {self._status_key: 'unavailable', 'live_ready': False}}
         return {'output': evidence, 'metadata': {
-            'issue14_progressive_readback_status': evidence['status'], 'live_ready': False}}
+            self._status_key: evidence['status'], 'live_ready': False}}
+
+
+class ProgressiveReadback(_ConfiguredReadback):
+    """Bind the original two 15-turn cases without broadening their guards.
+
+    driver_inputs() and before_round match CanonicalEvaluationDriver's existing
+    hooks. Its historical five-round live limit stays intact. capture() consumes
+    the returned terminal outcome, not the mutable running progress callbacks.
+    """
+
+    def __init__(self, *, case_id, run_id, project_id, source_revision):
+        _require(case_id in CASE_IDS)
+        # Validate caller context before loading any dataset, as historically.
+        _identifier(run_id)
+        _identifier(project_id)
+        _require(type(source_revision) is str and re.fullmatch('[0-9a-f]{40}', source_revision))
+        raw = DATASET_PATH.read_bytes()
+        _require(hashlib.sha256(raw).hexdigest() == DATASET_SHA256)
+        dataset = next(d for d in json.loads(raw)['datasets'] if d['dimension'] == 'chapter-continuity')
+        case = next(i for i in dataset['items'] if i['case_id'] == case_id)
+        self._configure(case=case, run_id=run_id, project_id=project_id,
+            source_revision=source_revision, dataset_name=dataset['name'], dataset_hash=DATASET_SHA256,
+            checkpoints=(5, 10, 15),
+            evidence_modes=('mock_only', 'guarded_live_canary', 'subscription_progressive'),
+            schema_version='memoir-progressive-readback/1', status_key='issue14_progressive_readback_status')
