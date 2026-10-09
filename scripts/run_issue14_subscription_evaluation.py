@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 from uuid import UUID
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,18 +38,20 @@ def _binary(path, digest):
 
 
 def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
-               temporal_binary, temporal_sha256, max_client_requests, max_elapsed_seconds):
+               temporal_binary, temporal_sha256, max_client_requests, max_elapsed_seconds,
+               waive_memory_pressure_check=False):
     from scripts.issue14_progressive_readback import case_plans_for_run
     if (type(run_id) is not str or str(UUID(run_id)) != run_id or type(source_revision) is not str
             or not re.fullmatch('[0-9a-f]{40}', source_revision)
             or type(max_client_requests) is not int or not 0 < max_client_requests <= 160
             or type(max_elapsed_seconds) not in (int, float) or not math.isfinite(max_elapsed_seconds)
-            or not 0 < max_elapsed_seconds <= 1800):
+            or not 0 < max_elapsed_seconds <= 1800 or type(waive_memory_pressure_check) is not bool):
         raise ValueError('Explicit approved case/request/time bounds required')
     cases = case_plans_for_run(run_id)
     return {'schema_version': 'memoir-subscription-evaluation-plan/1', 'run_id': run_id,
         'source_revision': source_revision, 'case_ids': list(cases), 'cases': cases,
         'rounds_per_case': 15, 'checkpoints': [5, 10, 15], 'concurrency': 1,
+        'memory_pressure_check_waived': waive_memory_pressure_check,
         'max_client_requests': max_client_requests, 'max_elapsed_seconds': max_elapsed_seconds,
         'codex_binary': _binary(codex_binary, codex_sha256), 'codex_sha256': codex_sha256,
         'temporal_binary': _binary(temporal_binary, temporal_sha256), 'temporal_sha256': temporal_sha256,
@@ -216,6 +219,25 @@ def invalidate_native_receipt(receipt, reason):
                     case['observation']['output'] = None
 
 
+def memory_resource_check(*, waived=False):
+    """Only this one-shot Memoir evaluation may explicitly waive pressure.
+
+    Normal callers retain the historical gate. The supported Mac requirement,
+    owned resources and exclusive native lease remain independent requirements.
+    No system settings or other application's limits are changed.
+    """
+    if type(waived) is not bool:
+        raise ValueError('An explicit boolean memory policy is required')
+    if not waived:
+        from scripts.native_canary_launcher import resource_gate
+        return resource_gate()
+    if sys.platform != 'darwin':
+        raise ValueError('The authorized Mac fixture is still required')
+    return {'pressure_level': None, 'checked_at_unix': time.time(),
+        'memory_pressure_check_waived': True, 'scope': 'one_shot_memoir_evaluation',
+        'exclusive_native_lease_required': True}
+
+
 def native_environment(directory, run_id):
     """Private Mac fixture options only; no inherited authentication or services."""
     from scripts.run_isolated_check import offline_environment
@@ -245,7 +267,6 @@ async def native_resources(plan, run, directory, receipt):
     import httpx
     from temporalio.testing import WorkflowEnvironment
     from apps.api.memory_event_worker import MemoirLaneBroker
-    from scripts.native_canary_launcher import resource_gate
     # This is a dedicated process. Remove inherited service/auth configuration;
     # the one existing provider credential stays only in execute_native's local.
     environment = native_environment(directory, plan['run_id'])
@@ -262,7 +283,7 @@ async def native_resources(plan, run, directory, receipt):
         'temporal_start_attempted': False}
     def record():
         _save(directory / 'receipt.json', receipt)
-    receipt['resource_gate'] = resource_gate()
+    receipt['resource_gate'] = memory_resource_check(waived=plan.get('memory_pressure_check_waived', False))
     require_absent_container(postgres_name)
     record()
     ownership_scope = postgres_fixture_ownership(database.__wrapped__, postgres_name)
@@ -282,7 +303,7 @@ async def native_resources(plan, run, directory, receipt):
     try:
         setup_task = asyncio.create_task(asyncio.to_thread(setup))
         sql = await asyncio.shield(setup_task)
-        receipt['resource_gate'] = resource_gate()
+        receipt['resource_gate'] = memory_resource_check(waived=plan.get('memory_pressure_check_waived', False))
         receipt['native']['temporal_start_attempted'] = True
         temporal = await WorkflowEnvironment.start_local(
             dev_server_existing_path=plan['temporal_binary'],
@@ -393,6 +414,8 @@ async def execute_native(plan, directory, api_key):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-existing-subscription', action='store_true')
+    parser.add_argument('--waive-memory-pressure-check', action='store_true',
+        help='Explicitly authorized one-shot Memoir memory waiver; keeps isolation and the native lease')
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--source-revision', required=True)
     parser.add_argument('--run-dir', type=Path, required=True)
@@ -407,15 +430,15 @@ def main(argv=None):
     try:
         plan = build_plan(**{key: getattr(args, key) for key in ('run_id','source_revision',
             'codex_binary','codex_sha256','temporal_binary','temporal_sha256',
-            'max_client_requests','max_elapsed_seconds')})
+            'max_client_requests','max_elapsed_seconds','waive_memory_pressure_check')})
         if not args.execute_existing_subscription:
             print(json.dumps(plan, sort_keys=True))
             return 0
         verify_source(args.source_revision)
         if sys.platform != 'darwin':
             raise ValueError('This native bootstrap requires the authorized Mac fixture')
-        from scripts.native_canary_launcher import resource_gate, native_resource_lease
-        resource_gate()
+        from scripts.native_canary_launcher import native_resource_lease
+        memory_resource_check(waived=plan['memory_pressure_check_waived'])
         if args.run_dir.exists() or args.run_dir.is_symlink() or ROOT in args.run_dir.resolve().parents:
             raise ValueError('A fresh task output directory outside the source checkout is required')
         # Refuse silent stock-image installation. The native preflight must have
@@ -434,7 +457,7 @@ def main(argv=None):
             finally:
                 loop.remove_signal_handler(signal.SIGTERM)
         with native_resource_lease(args.run_id):
-            resource_gate()
+            memory_resource_check(waived=plan['memory_pressure_check_waived'])
             execution_started = True
             result = asyncio.run(scenario())
         print(json.dumps({'run_id': result['run_id'], 'status': result['status'],

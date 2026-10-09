@@ -20,6 +20,7 @@ from fastapi import FastAPI, Request, Response
 import uvicorn
 
 from apps.api.agent_storage import UserStorage
+from apps.api.diagnostics import failure_class
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback, case_plans_for_run
@@ -78,6 +79,28 @@ def _json(raw):
     if type(value) is not dict:
         raise ValueError('Object required')
     return value
+
+
+def _response_correlation_matches(data, expected):
+    """Codex 0.155.1 encodes application IDs inside its JSON turn metadata.
+
+    Pinned upstream be2951ea, core/src/responses_metadata.rs and its
+    app-server client_metadata tests define this envelope. Top-level caller IDs
+    are not an alternative contract. Parse duplicate keys strictly and retain
+    the exact payload bytes for forwarding; never repair or inject missing IDs.
+    """
+    metadata = data.get('client_metadata')
+    if type(metadata) is not dict or any(key in metadata for key in expected):
+        return False
+    encoded = metadata.get('x-codex-turn-metadata')
+    if type(encoded) is not str:
+        return False
+    try:
+        actual = _json(encoded)
+    except (ValueError, TypeError, RecursionError):
+        return False
+    return all(type(actual.get(key)) is str and actual[key] == value
+               for key, value in expected.items())
 
 
 class _ScopedSubscriptionBroker:
@@ -177,15 +200,22 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                 record = {'case_id': case_id, 'round': ordinal, 'role': role,
                           'phase': payload.composer_phase if role == 'composer' else None,
                           'correlation': deepcopy(expected), 'status': 'started',
-                          'client_requests_before': owner.run.snapshot()['client_requests_started']}
+                          'client_requests_before': owner.run.snapshot()['client_requests_started'],
+                          'local_client_requests_seen': 0}
                 owner._worker_records.append(record)
+                owner._dispatch_record = record
                 try:
                     result = await worker.turn(payload)
                     record['status'] = 'completed'
+                except BaseException as error:
+                    record.update(status='failed', failure_stage='worker_turn',
+                                  failure_class=failure_class(error))
+                    raise
                 finally:
                     record['client_requests_after'] = owner.run.snapshot()['client_requests_started']
                     owner._dispatch_role = None
                     owner._dispatch_correlation = None
+                    owner._dispatch_record = None
                 if 'application/x-ndjson' in request.headers.get('accept', ''):
                     # The evaluation is buffered, but the normal runtime still
                     # consumes its existing typed NDJSON worker protocol.
@@ -244,6 +274,7 @@ class OwnedSubscriptionSession:
         self._closed, self._worker_lock = False, asyncio.Lock()
         self._dispatch_role = None
         self._dispatch_correlation = None
+        self._dispatch_record = None
         self._job_context = ContextVar('subscription_activity', default=None)
         self._worker_records = []
         self._server = self._server_task = self._socket = None
@@ -272,10 +303,16 @@ class OwnedSubscriptionSession:
 
         @app.post('/v1/responses')
         async def responses(request: Request):
+            record, stage = None, 'owned_dispatch'
             try:
                 assert_owned_subscription_session(self)
                 if self._active is None or not self._pending or self._dispatch_role not in _PROFILES:
                     raise ValueError('No owned worker dispatch')
+                record = self._dispatch_record
+                if record is None:
+                    raise ValueError('No owned worker record')
+                record['local_client_requests_seen'] += 1
+                stage = 'client_body'
                 chunks, size = [], 0
                 async for chunk in request.stream():
                     size += len(chunk)
@@ -283,26 +320,38 @@ class OwnedSubscriptionSession:
                         raise ValueError('Client payload too large')
                     chunks.append(chunk)
                 raw = b''.join(chunks)
+                stage = 'client_json'
                 data = _json(raw)
                 expected = self._dispatch_correlation
-                metadata = data.get('client_metadata')
-                if (type(metadata) is not dict or any(metadata.get(k) != v for k, v in expected.items())
-                        or data.get('stream') is not True
+                stage = 'client_correlation'
+                if not _response_correlation_matches(data, expected):
+                    raise ValueError('Client correlation mismatch')
+                stage = 'client_profile'
+                if (data.get('stream') is not True
                         or (data.get('model'), (data.get('reasoning') or {}).get('effort')) != _PROFILES[self._dispatch_role]):
                     raise ValueError('Client scope mismatch')
                 # No hosted tools, photos/audio/files, paid tier or alternate endpoint.
                 from scripts.canary_gateway_binding import _text_only
+                stage = 'client_modality'
                 if not _text_only(data):
                     raise ValueError('Client modality unsupported')
                 authorization = request.headers.get('authorization', '')
+                stage = 'gateway_send'
                 result = await self._http.post(self.provider_transport.endpoint, content=raw,
                     headers={'Authorization': authorization, 'Content-Type': 'application/json'})
+                record.update(local_client_last_stage='gateway_response', local_client_last_status='forwarded')
                 return Response(content=result.content, status_code=result.status_code,
                                 media_type=result.headers.get('content-type', 'application/json'))
             except asyncio.CancelledError:
+                if record is not None:
+                    record.update(local_client_last_stage=stage, local_client_last_status='cancelled',
+                                  local_client_last_failure_class='cancelled')
                 self.run.stop('send_interrupted_or_failed')
                 raise
-            except Exception:
+            except Exception as error:
+                if record is not None:
+                    record.update(local_client_last_stage=stage, local_client_last_status='rejected',
+                                  local_client_last_failure_class=failure_class(error))
                 self.run.stop('send_interrupted_or_failed')
                 return Response(status_code=502, content='Subscription client request stopped')
 
