@@ -17,7 +17,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
-from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
+from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, json_failure_details, log_diagnostic, new_request_id
 from .recall import recall_status, storage_recall_status
 from .stage_readiness import LIFE_STAGES
 from .agent_storage import UserStorage
@@ -2111,6 +2111,7 @@ class CodexRuntime:
                     trajectory.record('application', 'workspace.failed', output={
                         'error_type': type(workspace_failure).__name__,
                         'retryable': True,
+                        **json_failure_details(workspace_failure),
                     })
                 # The exchange is already durable. A workspace failure is
                 # optional and must not turn the saved reply into a failed

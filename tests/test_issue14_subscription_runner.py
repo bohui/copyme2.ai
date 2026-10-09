@@ -323,6 +323,85 @@ def test_failed_or_pending_runtime_work_stops_without_background_dispatch(contro
     assert 'private-error' not in str(result)
 
 
+def test_parser_failure_summary_survives_rejected_runtime_readback_without_private_payloads(controlled):
+    session = controlled()
+    captured = {}
+    def mutate(value):
+        captured['source_id'] = value['accepted_source_id']
+        value['reply'] = 'REPLY_SECRET'
+        value['trajectory']['private'] = 'TRAJECTORY_SECRET'
+        value['trajectory']['steps'].append({'action': 'workspace.failed', 'output': {
+            'error_type': 'JSONDecodeError', 'retryable': True,
+            'parser_boundary': 'postgres_rest_json_record',
+            'json_line': 3, 'json_column': 11, 'json_position': 78,
+            'message': 'MESSAGE_SECRET', 'doc': 'DOCUMENT_SECRET',
+            'frames': [{'filename': 'apps/api/codex_runtime.py', 'function': '_persist_workspace',
+                        'line': 2451, 'source': 'SOURCE_SECRET', 'locals': {'key': 'LOCAL_SECRET'}}],
+        }})
+    session.turn_hook = mutate
+    published = []
+    result = asyncio.run(module.SubscriptionProgressiveRunner(session).run(progress=published.append))
+    failed = result['cases'][0]['rounds'][0]
+    assert failed['failure_summary'] == {
+        'action': 'workspace.failed', 'error_type': 'JSONDecodeError', 'retryable': True,
+        'parser_boundary': 'postgres_rest_json_record',
+        'json_line': 3, 'json_column': 11, 'json_position': 78,
+        'frames': [{'filename': 'apps/api/codex_runtime.py', 'function': '_persist_workspace', 'line': 2451}],
+        'accepted_source_id': captured['source_id'],
+    }
+    assert failed['status'] == 'failed' and failed['background_settled'] is False
+    assert 'reply' not in failed and 'trajectory' not in failed
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['failure_stage'] == 'runtime_readback'
+    assert result['stop_reason'] == 'background_incomplete'
+    assert published[-1]['cases'][0]['rounds'][0]['failure_summary'] == failed['failure_summary']
+    assert len(session.calls) == 1
+    assert not any(event[0] == 'dispatch' for event in session.events)
+    for secret in ('REPLY_SECRET', 'TRAJECTORY_SECRET', 'MESSAGE_SECRET', 'DOCUMENT_SECRET',
+                   'SOURCE_SECRET', 'LOCAL_SECRET'):
+        assert secret not in str(result)
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda v: v['trajectory']['correlation'].update(round_id='50'),
+    lambda v: v['trajectory']['steps'][0].update(action='provider.failed'),
+    lambda v: v['trajectory']['steps'][0]['output'].update(error_type='SECRET_ERROR'),
+])
+def test_failure_summary_does_not_trust_other_rounds_or_arbitrary_events(controlled, mutation):
+    session = controlled()
+    def mutate(value):
+        value['trajectory']['steps'].append({'action': 'workspace.failed', 'output': {
+            'error_type': 'JSONDecodeError', 'parser_boundary': 'postgres_rest_json_record'}})
+        mutation(value)
+    session.turn_hook = mutate
+    result = execute(session)
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert 'failure_summary' not in result['cases'][0]['rounds'][0]
+    assert 'SECRET_ERROR' not in str(result)
+
+
+def test_failure_summary_omits_invalid_accepted_source_id(controlled):
+    session = controlled()
+    def mutate(value):
+        value['accepted_source_id'] = 'SOURCE_SECRET'
+        value['trajectory']['steps'].append({'action': 'workspace.failed', 'output': {
+            'error_type': 'JSONDecodeError', 'parser_boundary': 'SECRET_BOUNDARY',
+            'json_line': True, 'json_column': 'COLUMN_SECRET', 'json_position': 2**100,
+            'frames': [{'filename': '/private/SECRET/path.py', 'function': 'secret', 'line': 2}],
+        }})
+    session.turn_hook = mutate
+    result = execute(session)
+    assert result['cases'][0]['rounds'][0]['failure_summary'] == {
+        'action': 'workspace.failed', 'error_type': 'JSONDecodeError'}
+    assert 'SECRET' not in str(result)
+
+
+def test_successful_runtime_receipts_do_not_add_failure_metadata(controlled):
+    result = execute(controlled())
+    assert result['status'] == 'completed'
+    assert all('failure_summary' not in row for case in result['cases'] for row in case['rounds'])
+
+
 @pytest.mark.parametrize('lane', [
     {'status': 'retry_required'}, {'status': 'failed'}, {'status': 'cancelled'},
     {'status': 'finished', 'pending': True}, {'status': 'finished', 'pending': 1},

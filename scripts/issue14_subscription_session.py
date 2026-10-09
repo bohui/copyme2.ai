@@ -223,7 +223,10 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                 if 'application/x-ndjson' in request.headers.get('accept', ''):
                     # The evaluation is buffered, but the normal runtime still
                     # consumes its existing typed NDJSON worker protocol.
-                    terminal = json.dumps({'type': 'result', 'data': result}, ensure_ascii=False) + '\n'
+                    # HTTPX aiter_lines also splits Unicode NEL/LS/PS. Escape
+                    # them (including nested strings) without changing decoded
+                    # text, so one terminal JSON object remains one wire line.
+                    terminal = json.dumps({'type': 'result', 'data': result}, ensure_ascii=True) + '\n'
                     return httpx.Response(200, content=terminal.encode(),
                         headers={'Content-Type':'application/x-ndjson'}, request=request)
                 return httpx.Response(200, json=result, request=request)

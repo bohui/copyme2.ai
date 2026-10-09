@@ -141,5 +141,19 @@ class PostgresRest:
             # Never manufacture HTTP 409 from the word "conflict".
             status = 500 if code.startswith(('40', 'XX')) else 403 if code=='42501' else 409 if code in ('23503','23505') else 400
             return httpx.Response(status, json={'code': code, 'message': result.stderr})
-        value = json.loads(result.stdout.splitlines()[-1] or 'null')
+        # psql frames records with physical LF, not Unicode line separators.
+        # U+0085/U+2028/U+2029 are legal inside JSON strings and must survive.
+        # Remove only the final record terminator; CRLF's CR is JSON whitespace.
+        record = result.stdout.removesuffix('\n').rsplit('\n', 1)[-1]
+        try:
+            # A framed blank record is psql's SQL NULL representation. Missing
+            # output and malformed nonempty JSON are errors, never a fallback.
+            value = (None if result.stdout.endswith('\n') and record in ('', '\r')
+                     else json.loads(record))
+        except json.JSONDecodeError as error:
+            # Consumers may publish only these fixed/numeric fields, never
+            # the exception's document, message, query or SQL output streams.
+            error.parser_boundary = 'postgres_rest_json_record'
+            error.json_line, error.json_column, error.json_position = error.lineno, error.colno, error.pos
+            raise
         return httpx.Response(200, content=json.dumps(value), headers={'Content-Type': 'application/json'})

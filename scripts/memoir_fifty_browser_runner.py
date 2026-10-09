@@ -381,6 +381,47 @@ function decision(request) {
   }
   return {ok:u.pathname === c.interview_path || u.pathname.startsWith("/_next/static/") || u.pathname.startsWith("/static/"), api:false, reason:"route_scope"};
 }
+function compareHistorySnapshot(snapshot, users) {
+  if (snapshot?.status !== "observed" || !Array.isArray(snapshot.narrator_texts) || !Array.isArray(users)) return null;
+  const norm=value=>String(value || "").replace(/\s+/g," ").trim();
+  return snapshot.narrator_texts.length === users.length && snapshot.narrator_texts.every((text,index)=>norm(text) === norm(users[index]));
+}
+async function readPostTurnHistory(page) {
+  const url=c.frontend_origin + "/api/v1/memoir/user/projects/" + encodeURIComponent(c.project_id) + "/history?limit=100";
+  const snapshot={phase:"post_turn",status:"unavailable",url,reason:"refresh_failed"};
+  try {
+    // A page-context GET uses the existing scoped route, auth injection,
+    // request cap and deadline. It never submits or replays a narrator turn.
+    const value=await page.evaluate(async ({url,timeoutMs})=>{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),timeoutMs);
+      try {
+        const response=await fetch(url,{method:"GET",cache:"no-store",redirect:"error",signal:controller.signal});
+        const body=await response.text();
+        if (body.length > 4000000) throw new Error("History evidence exceeds cap");
+        return {http_status:response.status,api_fixture:response.headers.get("x-evaluation-fixture"),body};
+      } finally { clearTimeout(timer); }
+    },{url,timeoutMs:Math.min(c.timeout_ms,30000)});
+    snapshot.http_status=value.http_status;
+    snapshot.api_fixture=value.api_fixture;
+    if (value.http_status !== 200) { snapshot.reason="history_read_failed"; return snapshot; }
+    if (value.api_fixture !== c.expected_api_fixture) { snapshot.reason="unowned_history_response"; return snapshot; }
+    const body=JSON.parse(value.body);
+    if (!body || typeof body !== "object" || Array.isArray(body) || body.project_id !== c.project_id
+        || !Array.isArray(body.items) || body.items.length > 100
+        || body.items.some(item=>!item || typeof item !== "object" || Array.isArray(item)
+          || item.narrator_text != null && typeof item.narrator_text !== "string")) {
+      snapshot.reason="history_scope_or_shape_differs"; return snapshot;
+    }
+    if (body.next_cursor) { snapshot.reason="history_snapshot_paginated"; return snapshot; }
+    snapshot.status="observed";
+    snapshot.reason=null;
+    snapshot.project_id=body.project_id;
+    snapshot.response_sha256=sha(value.body);
+    snapshot.narrator_texts=body.items.map(item=>item.narrator_text).filter(text=>typeof text === "string" && text);
+    return snapshot;
+  } catch { return snapshot; }
+}
 async function quiet(page) {
   const start = Date.now();
   while (Date.now() - start < Math.min(5000, c.timeout_ms / 4)) {
@@ -477,6 +518,7 @@ async function capture(page, name) {
     await result.finished();
     await page.waitForFunction(() => !document.querySelector(".message-streaming") && !document.querySelector("#chat-form button[type=submit]")?.disabled, null, {timeout:c.timeout_ms});
     report.checks.ui_form_submitted_once = sent;
+    report.history_snapshot = await readPostTurnHistory(page);
   }
   const history = page.locator('[data-action="toggle-chat-history"]');
   if (await history.count() && await history.getAttribute("aria-expanded") === "false") await history.click();
@@ -509,8 +551,15 @@ async function capture(page, name) {
   }
   const histories=[...apiBodies.entries()].filter(([url])=>new URL(url).pathname.endsWith("/history")).map(([,body])=>body);
   const historyTexts=histories.flatMap(body=>(body.items || []).map(item=>item.narrator_text).filter(Boolean));
-  report.checks.saved_history_api_observed=histories.length > 0;
-  report.checks.saved_history_dom_matches=historyTexts.length > 0 && historyTexts.every(text=>users.some(user=>norm(user)===norm(text)));
+  if (c.turn) {
+    // Never substitute the boot-time history when the post-turn read failed.
+    report.checks.saved_history_api_observed=report.history_snapshot?.status === "observed";
+    report.checks.saved_history_dom_matches=compareHistorySnapshot(report.history_snapshot, users);
+  } else {
+    report.history_snapshot={phase:"initial_load",status:histories.length ? "observed" : "unavailable"};
+    report.checks.saved_history_api_observed=histories.length > 0;
+    report.checks.saved_history_dom_matches=historyTexts.length > 0 && historyTexts.every(text=>users.some(user=>norm(user)===norm(text)));
+  }
   const allText=norm(allViews.map(v=>[v.workspace,v.draft,...v.family,...v.timeline,...v.places].join(" ")).join(" "));
   for (const [suffix,field,pluck] of [["/family-context","family",b=>(b.family_context?.people || []).map(p=>p.name)], ["/events","timeline",b=>(b.events || []).map(e=>e.title)], ["/private-draft","draft",b=>b.preview?.text ? [b.preview.text] : []]]) {
     const data=[...apiBodies.entries()].filter(([url])=>new URL(url).pathname.endsWith(suffix)).flatMap(([,b])=>pluck(b)).filter(Boolean);

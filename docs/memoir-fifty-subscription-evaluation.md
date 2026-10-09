@@ -96,8 +96,40 @@ original deadlines and counters. Any native cleanup failure invalidates all
 experiment outputs. No automatic retry under a new UUID is authorized by this
 profile. Source-only cloud tests are not a native or live-provider evaluation.
 
+The native attempt on `a2e35ed6811f569527f231f33e3a07731690c233` saved the
+first original conversation, then stopped with an incomplete workspace and a
+`JSONDecodeError`. Seven client requests completed with none unresolved; no
+campaign round or checkpoint completed and four cases were unstarted. Cleanup
+removed the disposable canonical database. Retained call and browser receipts
+can identify consumed requests and the submitted input, but cannot restore the
+database or authorize a resume. A separately approved clean rerun must disclose
+the repeated first input, fresh identities, prior elapsed time and all seven
+charged requests. The current uniform per-case request flag can conservatively
+use 593 per case with a 2,993 global ceiling, allowing at most 2,965 additional
+requests. Relative command-line time limits start with a new run; they do not
+preserve a prior run's absolute cutoff.
+
+Source-only regressions reproduce valid Unicode JSON being split at U+0085,
+U+2028 and U+2029 by line-oriented decoders. The owned worker adapter escapes
+these characters in its NDJSON wire representation, and the synthetic
+PostgreSQL adapter uses physical newline record boundaries. Both preserve the
+decoded content without retries. The failed native attempt did not retain the
+worker replies or trajectories needed to establish whether this defect caused
+that failure. Its cause remains unresolved; these fixes must not be reported
+as proof of a successful live recovery.
+
+Future workspace JSON failures retain a small private diagnostic: an approved
+parser boundary, numeric JSON position and up to four known repository
+file/function/line locations. The round receipt revalidates this metadata and
+same-round correlation before retaining it, including a valid accepted source
+UUID when available, before strict readback rejects the incomplete workspace.
+It does not copy exception messages, JSON documents, local variables, absolute
+paths, raw replies or complete trajectories. Public workspace error events stay
+type-only, and a diagnostic never turns an incomplete round into acceptance.
+
 Canonical publication, exact-head independent review and native execution
-remain separate gates. This development change does not claim any of them ran.
+remain separate gates. Passing source-only tests does not establish native
+acceptance for a new candidate.
 
 ## Optional bounded public photo research
 
@@ -204,7 +236,16 @@ The producer saves actual DOM/network/page-error observations and PNGs from ever
 original form turn and final case views, including available life-stage tabs.
 Missing views and blocked enrichment stay visible. It verifies the final original
 narration and actual retained model reply appear in the UI, and preserves partial
-receipts on failure. All work and cleanup share the original case/global deadline;
+receipts on failure. After each real UI turn's response and visible reply settle,
+it performs exactly one fresh page-context GET of that project's canonical
+`/history?limit=100` through the existing scoped request guard, request cap and
+original deadline. The receipt labels this snapshot `post_turn` and compares its
+ordered narrator texts with the actual captured DOM. Boot-time history is labelled
+`initial_load`; it is never substituted for a failed post-turn read. Failed,
+unowned, wrong-project or paginated fresh snapshots make the comparison unavailable
+(`null`), while an observed fresh snapshot that differs from the DOM remains a
+real mismatch. This read does not repeat a turn or enable blocked enrichment.
+All work and cleanup share the original case/global deadline;
 unverified process-group cleanup is fatal. Readback-only mode remains available
 with `allow_browser_turns: false`, but never claims the original turns were
 browser-submitted.

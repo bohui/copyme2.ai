@@ -753,3 +753,70 @@ def test_cancelled_build_is_joined_before_cancellation_returns(config, tmp_path)
         assert instance._frontend_builds[0]['status'] == 'incomplete'
         assert instance._frontend_builds[0]['process_group_joined'] is True
     asyncio.run(exercise())
+
+
+def test_ui_turn_refreshes_history_once_after_settlement_before_dom_capture():
+    script = runner.BROWSER_SCRIPT
+    call = 'report.history_snapshot = await readPostTurnHistory(page);'
+    assert script.count(call) == 1
+    assert script.index('await result.finished();') < script.index(call) < script.index('await capture(page,"history");')
+    helper = script.split('async function readPostTurnHistory(page)', 1)[1].split('async function quiet', 1)[0]
+    assert 'page.evaluate' in helper and 'fetch(url,' in helper
+    assert 'method:"GET"' in helper and 'cache:"no-store"' in helper
+    assert 'redirect:"error"' in helper and 'AbortController' in helper
+    assert '/history?limit=100' in helper and 'phase:"post_turn"' in helper
+    assert 'c.expected_api_fixture' in helper
+    assert 'page.request' not in helper and 'context.request' not in helper
+    assert 'authorization' not in helper.lower() and '.fill(' not in helper and '.click(' not in helper
+
+
+@pytest.mark.skipif(shutil.which('node') is None, reason='Pure snapshot regression requires existing Node')
+def test_post_turn_history_snapshot_uses_only_fresh_owned_data_and_actual_dom():
+    # This runs pure helper code with a fake page.evaluate result. No Playwright,
+    # browser, provider, network, native process lifecycle or source-data read.
+    functions = runner.BROWSER_SCRIPT.split('function compareHistorySnapshot(', 1)[1].split('async function quiet', 1)[0]
+    script = '''const c={frontend_origin:"http://127.0.0.1:31234",project_id:"project",timeout_ms:100,
+      expected_api_fixture:"owned-fifty-armed-api"};
+    const sha=value=>require("crypto").createHash("sha256").update(value).digest("hex");
+    function compareHistorySnapshot(''' + functions + '''
+    (async()=>{
+      const make=body=>({http_status:200,api_fixture:c.expected_api_fixture,body:JSON.stringify(body)});
+      const outcomes=[];
+      for (const value of [
+        make({project_id:"project",items:[{narrator_text:"Original source"}],next_cursor:null}),
+        make({project_id:"project",items:[],next_cursor:null}),
+        make({project_id:"other-project",items:[{narrator_text:"Original source"}]}),
+        make({project_id:"project",items:[{narrator_text:"Original source"}],next_cursor:"older"}),
+        {...make({project_id:"project",items:[{narrator_text:"Original source"}]}),api_fixture:"wrong"},
+        {...make({project_id:"project",items:[]}),http_status:403},
+        {...make({project_id:"project",items:[]}),body:"not JSON"},
+        null,
+      ]) {
+        let calls=0;
+        const page={evaluate:async()=>{calls++;if(value===null)throw Error("blocked");return value;}};
+        const snapshot=await readPostTurnHistory(page);
+        outcomes.push({snapshot,calls,matches:compareHistorySnapshot(snapshot,["Original source"])});
+      }
+      const two={status:"observed",narrator_texts:["First source","Second source"]};
+      outcomes.push({ordered:compareHistorySnapshot(two,["First source","Second source"]),
+        reordered:compareHistorySnapshot(two,["Second source","First source"]),
+        missing:compareHistorySnapshot(two,["First source"]),
+        whitespace:compareHistorySnapshot({status:"observed",narrator_texts:["First\\nsource"]},["First source"])});
+      process.stdout.write(JSON.stringify(outcomes));
+    })().catch(error=>{console.error(error);process.exitCode=1;});'''
+    result = subprocess.run([shutil.which('node'), '-e', script], check=True,
+        capture_output=True, text=True, timeout=10)
+    values = json.loads(result.stdout)
+    assert all(item['calls'] == 1 and item['snapshot']['phase'] == 'post_turn' for item in values[:-1])
+    assert values[0]['snapshot']['status'] == 'observed' and values[0]['matches'] is True
+    assert values[1]['snapshot']['status'] == 'observed' and values[1]['matches'] is False
+    assert all(item['snapshot']['status'] == 'unavailable' and item['matches'] is None for item in values[2:-1])
+    assert values[-1] == {'ordered': True, 'reordered': False, 'missing': False, 'whitespace': True}
+
+
+def test_post_turn_comparison_never_falls_back_to_pre_turn_snapshot():
+    script = runner.BROWSER_SCRIPT
+    checks = script.split('const histories=', 1)[1].split('const allText=', 1)[0]
+    assert 'if (c.turn)' in checks
+    assert 'compareHistorySnapshot(report.history_snapshot, users)' in checks
+    assert 'phase:"initial_load"' in checks

@@ -15,7 +15,7 @@ import inspect
 from uuid import UUID, uuid4
 
 from apps.api.agent_storage import UserStorage
-from apps.api.diagnostics import failure_class
+from apps.api.diagnostics import failure_class, sanitize_json_failure_details
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback
 from scripts.issue14_subscription_transport import SubscriptionStopped
 from scripts.task_runtime import dispatch_memoir_lanes_once
@@ -96,6 +96,34 @@ async def _storage_read(function, *args):
         except Exception:
             pass
         raise
+
+
+def _runtime_failure_summary(value, correlation):
+    """Retain only a small, same-round parser location before strict rejection."""
+    if type(value) is not dict:
+        return None
+    trajectory = value.get('trajectory')
+    if (type(trajectory) is not dict or type(trajectory.get('correlation')) is not dict
+            or not all(trajectory['correlation'].get(key) == expected
+                       for key, expected in correlation.items())):
+        return None
+    steps = trajectory.get('steps')
+    if type(steps) is not list:
+        return None
+    for step in reversed(steps[-512:]):
+        if type(step) is not dict or step.get('action') != 'workspace.failed':
+            continue
+        output = step.get('output')
+        details = sanitize_json_failure_details(output)
+        if not details:
+            continue
+        summary = {'action': 'workspace.failed', **details}
+        if type(output.get('retryable')) is bool:
+            summary['retryable'] = output['retryable']
+        if _uuid(value.get('accepted_source_id')):
+            summary['accepted_source_id'] = value['accepted_source_id']
+        return summary
+    return None
 
 
 def _runtime_readback(value, correlation):
@@ -274,6 +302,9 @@ class SubscriptionProgressiveRunner:
                             language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
                             evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
                     receipt['execution_stage'] = 'runtime_readback'
+                    failure_summary = _runtime_failure_summary(value, correlation)
+                    if failure_summary is not None:
+                        record['failure_summary'] = failure_summary
                     record.update(_runtime_readback(value, correlation), status='delivered')
                     accepted.append(record['accepted_source_id'])
                     receipt['execution_stage'] = 'background_dispatch'
