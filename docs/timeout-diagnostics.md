@@ -124,7 +124,9 @@ deadline checks. A terminal event or `[DONE]` marker is **diagnostic metadata**,
 never proof of semantic success or authority to stop reading before HTTP EOF.
 
 SSE observation parses only complete frames, including split CR/LF, UTF-8 and
-multiline data. Duplicate JSON keys, nonfinite numbers, malformed JSON and
+multiline data. A BOM is ignored only at the stream's initial position; an
+initial blank line consumes that position, including split CR/LF chunks.
+Duplicate JSON keys, nonfinite numbers, malformed JSON and
 mismatched event/type fields cannot supply terminal evidence. Completed data
 frames are decoded strictly as UTF-8 before JSON parsing; JSON byte autodetection
 must not turn UTF-16/32 or invalid UTF-8 into false terminal evidence. A DONE

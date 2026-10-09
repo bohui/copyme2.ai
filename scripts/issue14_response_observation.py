@@ -149,6 +149,8 @@ class ResponseObservation:
                 self._dispatch(stamp)
             elif not self._discard:
                 self._field(bytes(self._line))
+            # Empty/discarded first lines also consume the leading-BOM position.
+            self._first_line = False
             self._line.clear()
             self._line_nonempty = False
             self._skip_lf = block[end] == 13
@@ -157,7 +159,6 @@ class ResponseObservation:
     def _field(self, line):
         if self._first_line:
             line = line.removeprefix(b'\xef\xbb\xbf')
-            self._first_line = False
         if line.startswith(b':'):
             return
         key, _, value = line.partition(b':')
