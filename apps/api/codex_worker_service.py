@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import asyncio
+from contextvars import ContextVar
 import fcntl
 import hashlib
 import hmac
@@ -137,6 +138,7 @@ class CodexWorker:
         # Keep explicit sub-second values available to unit tests; deployed
         # values are bounded above and the normal default remains 120s.
         self.timeout = min(max(float(configured_timeout), 0.001), WORKER_MAX_TIMEOUT)
+        self._deadline_context = ContextVar('worker_execution_deadline', default=None)
         self._locks: dict[str, object] = {}
         self._identity_lock = threading.Lock()
         self._identity_file = self.home_root / ".user-ids.json"
@@ -155,6 +157,13 @@ class CodexWorker:
         if agent_role == 'workspace':
             return WORKSPACE_TIMEOUT
         return self.timeout
+
+    def execution_deadline_expired(self, payload):
+        """Read this task's actual timeout context for this exact dispatch."""
+        evidence = self._deadline_context.get()
+        return bool(evidence is not None and evidence[0] is payload
+                    and evidence[2] is asyncio.current_task()
+                    and evidence[1] is not None and evidence[1].expired())
 
     @staticmethod
     def _refresh_collector_thread(payload: WorkerTurnInput) -> bool:
@@ -239,6 +248,8 @@ class CodexWorker:
         ]
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        deadline_payload = payload
+        self._deadline_context.set((deadline_payload, None, asyncio.current_task()))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
         user_id = str(payload.user_id)
@@ -272,7 +283,8 @@ class CodexWorker:
                         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     except BlockingIOError:
                         raise AgentTurnBusyError('Codex worker is busy for this user') from None
-                    async with asyncio.timeout(self._execution_timeout(payload.agent_role, payload.composer_phase)):
+                    async with asyncio.timeout(self._execution_timeout(payload.agent_role, payload.composer_phase)) as execution_deadline:
+                        self._deadline_context.set((deadline_payload, execution_deadline, asyncio.current_task()))
                         options = {}
                         if on_delta:
                             options['on_delta'] = on_delta

@@ -1135,3 +1135,31 @@ def test_runner_does_not_trust_timeout_metadata_attached_to_arbitrary_errors(con
     assert 'PRIVATE' not in json.dumps(result)
     assert 'private prompt credential exception detail' not in str(result)
     assert session.closed
+
+
+@pytest.mark.parametrize('stage,role', [('runtime_readback', 'workspace'),
+    ('background_settlement', 'author_timeline')])
+def test_timeout_cause_survives_returned_workspace_and_background_failure(controlled, stage, role):
+    session = controlled()
+    case = session.case_ids[0]
+    ids = session.bridges[case].before_round(case, 1)
+    cause = {'schema_version': 'memoir-worker-failure/1', 'correlation': ids, 'role': role,
+        'failure_class': 'timeout', 'timeout_origin': 'worker_execution_deadline',
+        'worker_deadline_expired': True, 'execution_timeout_seconds': 120, 'elapsed_ms': 120050,
+        'request_accounting': {'started': 3, 'completed': 2, 'unresolved': 1}}
+    seen = []
+    def trusted(correlation):
+        seen.append(correlation)
+        assert correlation == ids
+        return deepcopy(cause)
+    session.worker_failure_for = trusted
+    if stage == 'runtime_readback':
+        session.turn_hook = lambda value: value['trajectory']['steps'].append(
+            {'action': 'workspace.failed', 'status': 'failed'})
+    else:
+        session.lane_outcome = {'status': 'failed', 'pending': False}
+    result = execute(session)
+    assert result['failure_stage'] == stage and result['failure_class'] == 'validation'
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['worker_failure'] == result['cases'][0]['rounds'][0]['worker_failure'] == cause
+    assert seen == [ids] and session.closed

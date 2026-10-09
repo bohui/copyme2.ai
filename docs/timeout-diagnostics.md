@@ -29,15 +29,30 @@ extra durable write rechecks the existing deadline before any socket access.
 No request, case or global cap is increased, reset, refunded or bypassed.
 
 The browser's owned failure future carries a fixed timeout sidecar selected
-from the last sixteen owned worker records. It matches the exact original-data
-run/case/round/project/source correlation and role, and includes only timeout
-classification, effective seconds, elapsed milliseconds and worker-local
+from the last sixteen owned worker records. A separate bounded dispatch binding
+retains the authorized role and exact correlation, including author-timeline
+job context and composer checkpoint context after the activity context resets.
+The query must be the exact original base round or the full registered context;
+foreign jobs/checkpoints, mutated records and extra fields are rejected.
+The sidecar includes only correlation, role, timeout
+classification/origin, actual deadline-expiry evidence, effective seconds, elapsed milliseconds and worker-local
 started/completed/unresolved counts. It contains no exception text, payload,
 provider fields, browser-supplied cause or arbitrary error attributes. Failure
 evidence remains readable when admission is stopped; pending and successful
 turns still require every original browser check. The runner independently
-reads the same owned source into round and terminal receipts. Its generic
+reads the same owned source into round and terminal receipts for failures
+throughout the round, including returned workspace results rejected by strict
+readback and background settlement failures. Its generic
 failure and stop classification remains present alongside the timeout cause.
+
+Timeout names alone do not prove expiry. The real worker retains its actual
+asyncio timeout context, bound to the exact input object and executing task.
+Only its expired context proves `worker_execution_deadline`. An immediate
+HTTPX timeout records `transport_timeout`, and other timeout errors without
+expired context record `unknown_timeout`; both explicitly report
+`worker_deadline_expired: false`. Arbitrary exception attributes cannot supply
+this evidence. Timeout duration, cancellation, and all original guards remain
+unchanged.
 
 Synthetic tests exercise the real bounded worker, SubscriptionRun/Transport,
 owned worker transport and browser future seam: two fixed successful responses
@@ -45,6 +60,10 @@ followed by a third call blocked on an asyncio.Event. They require timeout,
 inner cancellation, 3 started / 2 completed / 1 unresolved, terminal closure,
 restart fencing and no fourth send. Other cases reject hostile/mismatched
 metadata and cover journal failure and deadline expiry before wire access.
+Issued-session tests additionally exercise accelerated real timeout contexts
+for author timeline/composer, ended activity context, foreign job/checkpoint
+rejection and transport/unknown timeout origins with zero model sends. Temporal
+startup and generated worker content are synthetic seams; no native command runs.
 Owned source/protocol seams are synthetic; these results establish neither a
 native app-server campaign nor PostgreSQL persistence or provider behavior.
 

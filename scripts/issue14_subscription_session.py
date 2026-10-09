@@ -13,6 +13,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import socket
 import time
 import weakref
@@ -213,13 +214,18 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                           'completed_responses_before': before['completed_http_responses'],
                           'local_client_requests_seen': 0}
                 owner._worker_records.append(record)
+                owner._worker_diagnostic_contexts.append((record, deepcopy(expected), role))
+                del owner._worker_diagnostic_contexts[:-16]
                 owner._dispatch_record = record
                 try:
                     result = await worker.turn(payload)
                     record['status'] = 'completed'
                 except BaseException as error:
+                    expired = worker.execution_deadline_expired(payload)
                     record.update(status='failed', failure_stage='worker_turn',
-                                  failure_class=failure_class(error))
+                        failure_class=failure_class(error), worker_deadline_expired=expired,
+                        timeout_origin=('worker_execution_deadline' if expired else
+                            'transport_timeout' if isinstance(error, httpx.TimeoutException) else 'unknown_timeout'))
                     raise
                 finally:
                     finished = time.monotonic()
@@ -321,6 +327,7 @@ class OwnedSubscriptionSession:
         self._dispatch_record = None
         self._job_context = ContextVar('subscription_activity', default=None)
         self._worker_records = []
+        self._worker_diagnostic_contexts = []
         self._server = self._server_task = self._socket = None
         self._workflow = None
         self._workflow_ready = False
@@ -499,15 +506,39 @@ class OwnedSubscriptionSession:
         if not 1 <= ordinal <= self._profile.rounds:
             return None
         expected = self.bridge_for_case(case).before_round(case, ordinal)
-        if correlation != expected:
+        if {k: v for k, v in correlation.items() if k not in ('job_id', 'checkpoint_id')} != expected:
             return None
         for record in reversed(self._worker_records[-16:]):
-            if (type(record) is not dict or record.get('correlation') != expected
+            if (type(record) is not dict
                     or record.get('case_id') != case or type(record.get('round')) is not int
                     or record['round'] != ordinal or type(record.get('role')) is not str
                     or record['role'] not in _PROFILES
                     or record.get('status') != 'failed' or record.get('failure_stage') != 'worker_turn'
                     or record.get('failure_class') != 'timeout'):
+                continue
+            context = next((ctx for ctx in self._worker_diagnostic_contexts
+                if ctx[0] is record), None)
+            if context is None or context[2] != record['role']:
+                continue
+            authorized = context[1]
+            extras = ({'job_id', 'checkpoint_id'} if record['role'] == 'composer' else
+                {'job_id'} if record['role'] == 'author_timeline' else set())
+            if (set(authorized) != set(expected) | extras
+                    or any(authorized.get(k) != v for k, v in expected.items())
+                    or record.get('correlation') != authorized
+                    or correlation != expected and correlation != authorized):
+                continue
+            if extras and (type(authorized.get('job_id')) is not str
+                    or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,256}', authorized['job_id'])):
+                continue
+            if record['role'] == 'composer' and (ordinal not in self._profile.checkpoints
+                    or authorized.get('checkpoint_id') != f'{case}:{ordinal}'):
+                continue
+            origin = record.get('timeout_origin', 'unknown_timeout')
+            expired = record.get('worker_deadline_expired', False)
+            if (type(origin) is not str or origin not in
+                    {'worker_execution_deadline', 'transport_timeout', 'unknown_timeout'}
+                    or type(expired) is not bool or expired != (origin == 'worker_execution_deadline')):
                 continue
             seconds, elapsed = record.get('execution_timeout_seconds'), record.get('elapsed_ms')
             counts = [record.get(key) for key in ('client_requests_before', 'client_requests_after',
@@ -519,8 +550,9 @@ class OwnedSubscriptionSession:
             started, completed = counts[1] - counts[0], counts[3] - counts[2]
             if not 0 <= completed <= started:
                 continue
-            return {'schema_version': 'memoir-worker-failure/1', 'correlation': deepcopy(expected),
+            return {'schema_version': 'memoir-worker-failure/1', 'correlation': deepcopy(authorized),
                 'role': record['role'], 'failure_class': 'timeout',
+                'timeout_origin': origin, 'worker_deadline_expired': expired,
                 'execution_timeout_seconds': seconds, 'elapsed_ms': elapsed,
                 'request_accounting': {'started': started, 'completed': completed,
                     'unresolved': started - completed}}

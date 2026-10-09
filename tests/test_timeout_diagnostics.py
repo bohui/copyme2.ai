@@ -69,7 +69,8 @@ def diagnostic_owner(monkeypatch):
         'completed_responses_before': 28, 'completed_responses_after': 30,
         'exception': 'PRIVATE_EXCEPTION', 'provider': {'secret': 'PRIVATE_PROVIDER'}}
     owner = SimpleNamespace(_plans=plans, _profile=SimpleNamespace(rounds=50),
-        _worker_records=[record], bridge_for_case=lambda case: bridge)
+        _worker_records=[record], _worker_diagnostic_contexts=[(record, deepcopy(ids), 'collector')],
+        bridge_for_case=lambda case: bridge)
     monkeypatch.setattr(sessions, 'assert_owned_subscription_session', lambda value:
         None if value is owner else pytest.fail('Foreign synthetic owner'))
     return owner, ids, record
@@ -104,10 +105,14 @@ def test_owned_timeout_projection_is_detached_and_omits_hostile_metadata(diagnos
     lambda ids, r: r.update(client_requests_after=27),
     lambda ids, r: r.update(completed_responses_after=32),
     lambda ids, r: r.update(completed_responses_before=True),
+    lambda ids, r: r.update(timeout_origin='PRIVATE_ORIGIN'),
+    lambda ids, r: r.update(timeout_origin='worker_execution_deadline', worker_deadline_expired=False),
+    lambda ids, r: r.update(worker_deadline_expired='true'),
 ])
 def test_timeout_projection_rejects_mismatched_or_malformed_local_records(diagnostic_owner, mutation):
     owner, ids, record = diagnostic_owner
     owner._worker_records = [deepcopy(record)]
+    owner._worker_diagnostic_contexts = [(owner._worker_records[0], deepcopy(ids), 'collector')]
     mutation(ids, owner._worker_records[0])
     assert sessions.OwnedSubscriptionSession.worker_failure_for(owner, ids) is None
 
@@ -144,7 +149,8 @@ def test_two_responses_then_blocked_third_preserves_timeout_through_owned_future
         correlation = bridge.before_round(case, 1)
         owner = SimpleNamespace(run=ledger, _active=(case, 1), _plans=plans,
             _pending=set(), _worker_lock=asyncio.Lock(), _job_context=ContextVar('test-job', default=None),
-            _payload_type=WorkerTurnInput, _worker_records=[], worker_url=sessions._WORKER_URL,
+            _payload_type=WorkerTurnInput, _worker_records=[], _worker_diagnostic_contexts=[],
+            worker_url=sessions._WORKER_URL,
             bridge_for_case=lambda value: bridge,
             _profile=SimpleNamespace(rounds=50, family_enabled_for_round=lambda *args: False))
         monkeypatch.setattr(sessions, 'assert_owned_subscription_session', lambda value:
@@ -195,6 +201,8 @@ def test_two_responses_then_blocked_third_preserves_timeout_through_owned_future
                 await browser.OwnedFiftyBrowserAPI.wait_turn(api, case, 1)
             cause = caught.value.worker_failure
             assert cause['failure_class'] == 'timeout'
+            assert cause['timeout_origin'] == 'worker_execution_deadline'
+            assert cause['worker_deadline_expired'] is True
             assert cause['correlation'] == correlation and cause['role'] == 'collector'
             assert cause['execution_timeout_seconds'] == .1
             assert cause['request_accounting'] == {'started': 3, 'completed': 2, 'unresolved': 1}
@@ -228,4 +236,139 @@ def test_two_responses_then_blocked_third_preserves_timeout_through_owned_future
         with pytest.raises(SubscriptionStopped):
             SubscriptionRun.create(reservation_root=tmp_path, run_id=ledger.run_id,
                 source_revision=ledger.source_revision, limits=SubscriptionLimits(10, 5))
+    asyncio.run(scenario())
+
+
+async def _issued_timeout_session(tmp_path, monkeypatch):
+    from apps.api.agent_storage import UserStorage
+    from apps.api.memory_event_worker import MemoirLaneBroker
+    async def ready(self):
+        self._workflow_ready = True  # Synthetic Temporal seam, never a service.
+    monkeypatch.setattr(sessions.OwnedSubscriptionSession, '_start_workflows', ready)
+    ledger = SubscriptionRun.create(reservation_root=tmp_path, run_id=str(uuid4()),
+        source_revision='a' * 40, limits=SubscriptionLimits(10, 5))
+    transport = SubscriptionTransport.controlled(run=ledger,
+        endpoint='http://127.0.0.1:12345/v1/responses')
+    plans = sessions.case_plans_for_run(ledger.run_id)
+    stores = {case: UserStorage('http://synthetic.invalid', 'synthetic-public', 'synthetic-token',
+        client=httpx.Client(transport=httpx.MockTransport(lambda r, owner=p['owner_id']:
+            httpx.Response(200, json={'id': owner, 'is_anonymous': False}))))
+        for case, p in plans.items()}
+    broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic-service',
+        client=httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[]))))
+    binary = Path(sys.executable).resolve()
+    owner = await sessions.OwnedSubscriptionSession.create(run=ledger, provider_transport=transport,
+        storages=stores, broker=broker, temporal_client=object(), home_root=tmp_path / 'issued-home',
+        codex_binary=binary, codex_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(), api_key='synthetic-token')
+    return owner, stores, broker
+
+
+@pytest.mark.parametrize('role', ['author_timeline', 'composer'])
+def test_real_issued_background_timeout_matches_base_and_owned_job_context(tmp_path, monkeypatch, role):
+    from apps.api import codex_worker_service as service
+    async def scenario():
+        owner, stores, broker = await _issued_timeout_session(tmp_path, monkeypatch)
+        try:
+            case = owner.case_ids[0]
+            plan = owner.case_plans[case]
+            for n in range(1, 5):
+                owner.activate_round(case, n)
+                owner.finish_round()
+            base = owner.activate_round(case, 5)
+            job = 'synthetic-workflow:activity'
+            token = owner._job_context.set({'job_id': job})
+            expected = {**base, 'job_id': job}
+            if role == 'composer':
+                expected['checkpoint_id'] = f'{case}:5'
+            worker = owner._workers[role]
+            worker.timeout = .02
+            monkeypatch.setattr(service, 'composer_timeout', lambda phase: .02)
+            async def blocked(*args, **kwargs):
+                await asyncio.Event().wait()
+            async def no_provider():
+                pass
+            monkeypatch.setattr(worker, '_turn', blocked)
+            monkeypatch.setattr(worker, '_ensure_composer_provider', no_provider)
+            async with httpx.AsyncClient(transport=owner.worker_transport, base_url=owner.worker_url) as client:
+                with pytest.raises(TimeoutError):
+                    await client.post('/internal/codex/turn', json={'user_id': plan['owner_id'],
+                        'project_id': plan['project_id'], 'language': plan['language'], 'text': 'synthetic',
+                        'agent_role': role, 'evaluation': expected})
+            owner._job_context.reset(token)
+            # Temporal activity context has ended; retained dispatch authority
+            # must still bind the job without borrowing a later activity.
+            for ids in (base, expected):
+                cause = owner.worker_failure_for(ids)
+                assert cause is not None and cause['correlation'] == expected
+                assert cause['role'] == role and cause['timeout_origin'] == 'worker_execution_deadline'
+                assert cause['worker_deadline_expired'] is True
+            for changes in ({'job_id': 'foreign:activity'}, {'round_id': '4'},
+                {'checkpoint_id': f'{case}:10'}, {'application_revision': 'b' * 40}):
+                assert owner.worker_failure_for({**expected, **changes}) is None
+            record = owner._worker_records[-1]
+            record['correlation']['job_id'] = 'foreign:activity'
+            assert owner.worker_failure_for(base) is None
+        finally:
+            await owner.close()
+            for storage in stores.values():
+                storage.client.close()
+            await broker.client.aclose()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('kind,origin', [('transport', 'transport_timeout'), ('builtin', 'unknown_timeout')])
+def test_real_issued_nonexpired_timeout_does_not_claim_worker_deadline(tmp_path, monkeypatch, kind, origin):
+    async def scenario():
+        owner, stores, broker = await _issued_timeout_session(tmp_path, monkeypatch)
+        try:
+            case = owner.case_ids[0]
+            plan = owner.case_plans[case]
+            ids = owner.activate_round(case, 1)
+            worker = owner._workers['collector']
+            async def immediate(*args, **kwargs):
+                error = (httpx.ReadTimeout('PRIVATE_TRANSPORT_TIMEOUT') if kind == 'transport'
+                    else TimeoutError('PRIVATE_TIMEOUT'))
+                error.worker_deadline_expired = True
+                error.timeout_origin = 'worker_execution_deadline'
+                raise error
+            monkeypatch.setattr(worker, '_turn', immediate)
+            async with httpx.AsyncClient(transport=owner.worker_transport, base_url=owner.worker_url) as client:
+                with pytest.raises((httpx.ReadTimeout, TimeoutError)):
+                    await client.post('/internal/codex/turn', json={'user_id': plan['owner_id'],
+                        'project_id': plan['project_id'], 'language': plan['language'], 'text': 'synthetic'})
+            cause = owner.worker_failure_for(ids)
+            assert cause['failure_class'] == 'timeout' and cause['timeout_origin'] == origin
+            assert cause['worker_deadline_expired'] is False
+            assert cause['execution_timeout_seconds'] == 120
+            assert 'PRIVATE' not in json.dumps(cause)
+            assert cause['request_accounting'] == {'started': 0, 'completed': 0, 'unresolved': 0}
+        finally:
+            await owner.close()
+            for storage in stores.values():
+                storage.client.close()
+            await broker.client.aclose()
+    asyncio.run(scenario())
+
+
+def test_worker_deadline_evidence_is_task_local_payload_bound_and_reset(tmp_path, monkeypatch):
+    from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
+    async def scenario():
+        worker = CodexWorker(home_root=tmp_path, timeout=.01, api_key='synthetic-token')
+        payload = WorkerTurnInput(user_id=str(uuid4()), text='synthetic')
+        async def blocked(*args, **kwargs):
+            await asyncio.Event().wait()
+        monkeypatch.setattr(worker, '_turn', blocked)
+        with pytest.raises(TimeoutError):
+            await worker.turn(payload)
+        assert worker.execution_deadline_expired(payload) is True
+        assert worker.execution_deadline_expired(payload.model_copy()) is False
+        async def other_task():
+            # A child inheriting context cannot reuse its parent's expiry.
+            return worker.execution_deadline_expired(payload)
+        assert await asyncio.create_task(other_task()) is False
+        async def completed(*args, **kwargs):
+            return {'reply': 'synthetic'}
+        monkeypatch.setattr(worker, '_turn', completed)
+        await worker.turn(payload)
+        assert worker.execution_deadline_expired(payload) is False
     asyncio.run(scenario())
