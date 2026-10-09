@@ -163,11 +163,14 @@ class CodexConnection:
         streamed_items = set()
         async with asyncio.timeout(self.timeout):
             while True:
-                event = self.events.pop(0) if self.events else await self.receive()
+                queued = bool(self.events)
+                event = self.events.pop(0) if queued else await self.receive()
                 if 'method' in event and 'id' in event:
                     await self.handle_event(event)
                     continue
-                if self.trajectory:
+                # handle_event already recorded queued notifications on receipt.
+                # Distinct notifications with identical IDs/payloads still count.
+                if self.trajectory and not queued:
                     self.trajectory.record_protocol(event, phase='codex.turn')
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:

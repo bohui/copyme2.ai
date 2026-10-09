@@ -1849,7 +1849,7 @@ class CodexRuntime:
                 thread_id = result['thread_id']
                 reply = result['reply']
                 if trajectory:
-                    trajectory.append_external(result.get('trajectory', {}).get('steps', []) if isinstance(result.get('trajectory'), dict) else [], source='codex-worker')
+                    trajectory.append_trajectory(result.get('trajectory'), source='codex-worker')
                     trajectory.record('application', 'codex.worker.completed', output={
                         'thread_id': thread_id,
                         'has_trajectory': bool(result.get('trajectory')),
@@ -2392,9 +2392,8 @@ class CodexRuntime:
                     trajectory=trajectory,
                 )
                 if trajectory:
-                    trajectory.append_external(
-                        result.get('trajectory', {}).get('steps', [])
-                        if isinstance(result.get('trajectory'), dict) else [],
+                    trajectory.append_trajectory(
+                        result.get('trajectory'),
                         source='codex-worker',
                     )
                     trajectory.record('application', 'workspace.worker.completed', output={
@@ -2476,9 +2475,8 @@ class CodexRuntime:
                                 trajectory=trajectory,
                             )
                             if trajectory:
-                                trajectory.append_external(
-                                    focused.get('trajectory', {}).get('steps', [])
-                                    if isinstance(focused.get('trajectory'), dict) else [],
+                                trajectory.append_trajectory(
+                                    focused.get('trajectory'),
                                     source='codex-worker',
                                 )
                                 trajectory.record('application', 'workspace.worker.completed', output={
@@ -3115,9 +3113,7 @@ class CodexRuntime:
                     partial = candidate
             if trajectory is not None:
                 if isinstance(partial, Mapping):
-                    steps = partial.get('steps')
-                    if isinstance(steps, list):
-                        trajectory.append_external(steps, source='codex-worker-failure')
+                    trajectory.append_trajectory(partial, source='codex-worker-failure')
                 trajectory.record('application', 'codex.worker.failed', output={
                     'error_type': type(error).__name__,
                     'has_partial_trajectory': isinstance(partial, Mapping),
