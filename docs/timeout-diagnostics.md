@@ -5,7 +5,7 @@ The closed run `6fd8b614-4e8b-4e4d-b3a4-ffb0963983fd` on PR48 head
 Owned collector diagnostics identify the local whole-execution deadline:
 app-server cancellation at 120,049 ms and worker timeout at 120,050 ms. Three
 client sends were charged, two HTTP 200 responses completed, and one remained
-unresolved. Total prior/current charges remain 31. No provider outage, quota
+unresolved. That attempt brought cumulative prior/current charges to 31. No provider outage, quota
 failure, upstream cancellation or final original-source PostgreSQL state is
 established; successful conversation commit was not reached.
 
@@ -99,3 +99,63 @@ Retained proof identities (existing receipts are read-only):
 
 The delegated request associated the receipt hash with the diagnosis filename;
 the two distinct identities above preserve the actual binding.
+
+## Response phases and cancellation progress
+
+The later approved 180-second run `6a70df63-7149-4a08-b2f9-017d89508b55`
+on `39449148778e2a48c84bdde5cc702a0a8ee43d44` also stopped before a completed
+round. Three HTTP 200 responses completed in 14.689, 11.622 and 21.280 seconds.
+The fourth send remained unfinished for 131.648 seconds when the actual collector
+deadline expired. Cumulative accounting is now **35 charged / 2 unresolved**;
+those charges and original owner receipts remain unchanged. Headers/connect
+wait, body stall, terminal SSE without EOF and upstream behavior remain
+indistinguishable in that run's retained metadata. Its safe assessment has
+SHA-256 `5ad45c47d15a555752938deb0e1a1e485d53bf19ea2fd9adbf49cb059258803a`.
+
+Every newly admitted send now keeps a content-free response observation: headers
+arrival/status, first/last raw byte-chunk arrival, aggregate bytes/chunks, fixed
+allowlisted SSE event counts, terminal category/timestamps, HTTP EOF, failure
+phase/class and cleanup status/class. These are guarded-client timings, not
+provider-generation timings. An owned stream wrapper delegates the same bytes
+and close calls, observing EOF immediately before HTTPX's automatic close;
+EOF remains distinguishable if that close fails. Completed body bytes still
+reach Codex only after the original full-response, status, size, journal and
+deadline checks. A terminal event or `[DONE]` marker is **diagnostic metadata**,
+never proof of semantic success or authority to stop reading before HTTP EOF.
+
+SSE observation parses only complete frames, including split CR/LF, UTF-8 and
+multiline data. Duplicate JSON keys, nonfinite numbers, malformed JSON and
+mismatched event/type fields cannot supply terminal evidence. Event/line buffers
+are capped at 256 KiB each; oversized frames are counted as omitted. Arbitrary
+names and fields are never retained; unknown types receive a fixed count.
+Fixed counters saturate with explicit truncation. Nonfinite/backward monotonic
+times are discarded with an invalid-timestamp flag. Buffers are cleared and
+observations sealed at close. One bounded final summary is journaled per send,
+including on cancellation. A journal failure stops admission and preserves
+the original failure; a successful diagnostic write cannot extend the existing
+deadline or complete/refund a reservation.
+
+A separate private app-server observer counts turn starts/completions, additional
+turn starts, known message/reasoning delta events, and tool notifications by fixed
+operation/status. It counts distinct opaque tool IDs using only bounded in-memory
+hashes (256 IDs), and repeated starts for a fixed allowlist of tool names.
+Unknown names receive a fixed unlisted count, never a guessed repeated-name
+claim. Counts are bounded to 4,096 progress events with explicit truncation;
+ID/turn hashes are cleared on closure. The observer processes queued items once
+and requires the exact current thread/turn. It supplies neither tool authority
+nor evidence that a tool's claimed effect actually persisted.
+
+Worker progress is bound to the exact original input and executing task, sealed
+in the worker's `finally` block, and copied into the owned dispatch binding.
+Cancellation retains these counts without exporting the trajectory, prompt,
+reply, arguments, outputs, private reasoning, identifiers, headers or error
+text. No renderer callback is needed. Mutated/foreign progress cannot enter the
+trusted browser/runner timeout sidecar; late callbacks cannot change sealed
+counts. Trajectory recording and fail-closed acceptance remain unchanged.
+
+Synthetic tests prove that buffering withholds even a terminal SSE frame until
+HTTP EOF, and that healthy EOF preserves identical bytes. This demonstrates
+the diagnostic boundary and the intentional complete-response guard, **not a
+protocol defect or the cause of the live expiry**. Forwarding, terminal
+acceptance, model/reasoning selection, retries, timeouts and caps are unchanged.
+No new live attempt, service or database allocation is part of this repair.

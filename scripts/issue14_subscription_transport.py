@@ -25,6 +25,8 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
+from apps.api.diagnostics import failure_class
+from scripts.issue14_response_observation import ResponseObservation, ObservedResponseStream
 
 
 EXISTING_ENDPOINT = 'http://192.168.66.1:4000/v1/responses'
@@ -383,6 +385,15 @@ class SubscriptionRun:
                          response_bytes=response_bytes, completed_at_monotonic=completed_at,
                          elapsed_ms=elapsed)
 
+    def _response_observed(self, entry, observation):
+        # Diagnostic-only write remains available after cancellation stops the
+        # gate. It cannot admit, complete, refund or reset a charged request.
+        with self._lock:
+            if self._closed:
+                return
+            self._write('response_observed', ordinal=entry['ordinal'],
+                response_observation=observation.snapshot())
+
     def _case_snapshot(self, case, now):
         completed = sum(entry['status'] == 'completed' for entry in case['entries'])
         started, finished = case['started_at_monotonic'], case['finished_at_monotonic']
@@ -557,6 +568,8 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request):
         response = None
         case_dispatch = False
+        entry = observation = None
+        observation_written = False
         try:
             self.run._bind_loop()
             if self._closed:
@@ -593,7 +606,12 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                             self.run.remaining_seconds())})
                     entry = self.run._reserve(len(body))
                     self.run._starting(entry)
+                    observation = ResponseObservation()
+                    entry['response_observation'] = observation.data
                     response = await self._wire.handle_async_request(outgoing)
+                    observation.headers(response.status_code,
+                        response.headers.get('content-type', '').split(';',1)[0].strip().lower() == 'text/event-stream')
+                    response.stream = ObservedResponseStream(response.stream, observation)
                     if (not 200 <= response.status_code < 300
                             or response.headers.get('content-encoding', 'identity') != 'identity'):
                         self.run._reject('http_response_failed')
@@ -602,6 +620,7 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                         size += len(block)
                         if size > MAX_RESPONSE_BYTES:
                             self.run._reject('protocol_invalid')
+                        observation.chunk(block)
                         chunks.append(block)
                     body = b''.join(chunks)
                     status = response.status_code
@@ -611,9 +630,13 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                             b'upgrade', b'content-length'}]
                     await response.aclose()
                     response = None
+                    observation_written = True
+                    self.run._response_observed(entry, observation)
                     self.run._complete(entry, status, len(body))
                     return httpx.Response(status, headers=response_headers, content=body)
         except BaseException as error:
+            if observation is not None:
+                observation.failed(failure_class(error))
             reason = (self.run.timeout_reason() if isinstance(error, TimeoutError) else
                 str(error) if isinstance(error, SubscriptionStopped) and str(error) in _STOP_REASONS
                 else 'send_interrupted_or_failed')
@@ -628,8 +651,18 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                 try:
                     async with asyncio.timeout(1):
                         await response.aclose()
-                except (Exception, asyncio.CancelledError):
-                    pass
+                except (Exception, asyncio.CancelledError) as error:
+                    if observation is not None:
+                        observation.data.update(cleanup_status='failed', cleanup_failure_class=failure_class(error))
+            if observation is not None:
+                observation.close()
+                if not observation_written:
+                    try:
+                        self.run._response_observed(entry, observation)
+                    except Exception:
+                        # _write already fences a journal failure. Preserve
+                        # the original timeout/cancellation; no send can resume.
+                        pass
             if case_dispatch:
                 self.run._end_dispatch()
 

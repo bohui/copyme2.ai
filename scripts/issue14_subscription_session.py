@@ -215,7 +215,8 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                           'completed_responses_before': before['completed_http_responses'],
                           'local_client_requests_seen': 0}
                 owner._worker_records.append(record)
-                owner._worker_diagnostic_contexts.append((record, deepcopy(expected), role))
+                diagnostic_context = [record, deepcopy(expected), role, None]
+                owner._worker_diagnostic_contexts.append(diagnostic_context)
                 del owner._worker_diagnostic_contexts[:-16]
                 owner._dispatch_record = record
                 try:
@@ -229,6 +230,10 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                             'transport_timeout' if isinstance(error, httpx.TimeoutException) else 'unknown_timeout'))
                     raise
                 finally:
+                    progress = worker.execution_progress(payload)
+                    if progress is not None:
+                        record['worker_progress'] = progress
+                        diagnostic_context[3] = deepcopy(progress)
                     finished = time.monotonic()
                     after = owner.run.snapshot()
                     record.update(finished_at_monotonic=finished,
@@ -554,12 +559,17 @@ class OwnedSubscriptionSession:
             started, completed = counts[1] - counts[0], counts[3] - counts[2]
             if not 0 <= completed <= started:
                 continue
+            progress = record.get('worker_progress')
+            if (len(context) == 4 and context[3] is not None and progress != context[3]
+                    or progress is not None and (len(context) != 4 or progress != context[3])):
+                continue
             return {'schema_version': 'memoir-worker-failure/1', 'correlation': deepcopy(authorized),
                 'role': record['role'], 'failure_class': 'timeout',
                 'timeout_origin': origin, 'worker_deadline_expired': expired,
                 'execution_timeout_seconds': seconds, 'elapsed_ms': elapsed,
                 'request_accounting': {'started': started, 'completed': completed,
-                    'unresolved': started - completed}}
+                    'unresolved': started - completed},
+                **({'worker_progress':deepcopy(progress)} if progress is not None else {})}
         return None
 
     def bridge_for_case(self, case_id):
