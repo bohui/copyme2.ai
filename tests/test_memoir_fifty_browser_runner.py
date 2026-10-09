@@ -23,7 +23,7 @@ def config(tmp_path, monkeypatch):
     root = tmp_path / 'repo'
     web = root / 'apps/web'
     web.mkdir(parents=True)
-    (web / 'package.json').write_text('{"scripts":{"dev":"next dev"}}')
+    (web / 'package.json').write_text('{"scripts":{"dev":"next dev","build":"next build","start":"next start"}}')
     (web / 'next.config.mjs').write_text('const apiOrigin = process.env.MEMORY_SPARK_API_ORIGIN;')
     (web / 'app').mkdir()
     (web / 'app/page.jsx').write_text('export default function Page() { return null; }')
@@ -32,7 +32,7 @@ def config(tmp_path, monkeypatch):
     paths = {}
     for key in ('node_executable', 'python_executable', 'chromium_executable', 'playwright_module', 'next_cli', 'next_cli_docs'):
         path = deps / key
-        path.write_text('next dev --hostname --port --webpack' if key == 'next_cli_docs' else key)
+        path.write_text('next build --webpack; next start --hostname --port' if key == 'next_cli_docs' else key)
         path.chmod(0o700)
         paths[key] = str(path)
     monkeypatch.setattr(runner, '_tracked_frontend', lambda path: tuple(sorted('apps/web/' + str(p.relative_to(web)) for p in web.rglob('*') if p.is_file())))
@@ -506,3 +506,250 @@ def test_api_provenance_check_uses_exact_admitted_mode_and_requires_observed_res
     import inspect
     operation = inspect.getsource(runner.OwnedFiftyBrowserReadback._operation)
     assert "'owned-fifty-armed-api' if self.turns_enabled else 'owned-fifty-readback-only'" in operation
+
+
+def production_routes(api_origin):
+    return {'version': 3, 'rewrites': {'beforeFiles': [], 'afterFiles': [
+        {'source': '/api/v1/memoir/:path*', 'destination': api_origin + '/api/v1/memoir/:path*', 'regex': '^/api/v1/memoir'},
+        {'source': '/api/v1/memoir', 'destination': api_origin + '/api/v1/memoir', 'regex': '^/api/v1/memoir$'},
+        {'source': '/static/:path*', 'destination': '/:path*', 'regex': '^/static'}], 'fallback': []}}
+
+
+def write_routes(web, origin):
+    target = web / '.next/routes-manifest.json'
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps(production_routes(origin)))
+    return target
+
+
+def test_each_case_gets_clean_verified_frontend_without_prior_build_rewrites(config):
+    template = runner._copy_frontend(validate(config))
+    write_routes(template, 'http://127.0.0.1:31234/cases/previous-case')
+    (template / '.env.local').write_text('SHOULD_NOT_COPY=1')
+    first = Path(config['output_root']) / 'first-case'
+    second = Path(config['output_root']) / 'second-case'
+    first.mkdir(); second.mkdir()
+    first_web = runner._copy_case_frontend(config, template, first)
+    second_web = runner._copy_case_frontend(config, template, second)
+    assert first_web != second_web and first_web != template
+    assert first_web == first / 'frontend' and second_web == second / 'frontend'
+    for web in (first_web, second_web):
+        assert not (web / '.next').exists() and not (web / '.env.local').exists()
+        assert (web / 'node_modules').resolve() == Path(config['node_modules'])
+        assert (web / 'app/page.jsx').read_bytes() == (template / 'app/page.jsx').read_bytes()
+    with pytest.raises(FileExistsError): runner._copy_case_frontend(config, template, first)
+
+
+def test_generated_manifest_requires_exact_case_specific_api_rewrites(tmp_path):
+    origin = 'http://127.0.0.1:31234/cases/first-case'
+    path = write_routes(tmp_path, origin)
+    result = runner._verify_routes_manifest(tmp_path, origin)
+    assert result['sha256'] == sha(path) and result['api_origin'] == origin
+    assert result['api_rewrites_verified'] is True
+    with pytest.raises(ValueError, match='rewrites'):
+        runner._verify_routes_manifest(tmp_path, 'http://127.0.0.1:31234/cases/second-case')
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda value: value['rewrites']['afterFiles'][0].update(destination='http://127.0.0.1:8000/api/v1/memoir/:path*'),
+    lambda value: value['rewrites']['afterFiles'][1].update(destination='https://unapproved.test/api/v1/memoir'),
+    lambda value: value['rewrites']['beforeFiles'].append({'source': '/:path*', 'destination': 'https://unapproved.test/:path*'}),
+    lambda value: value['rewrites']['afterFiles'].append({'source': '/api/other', 'destination': 'http://127.0.0.1:8000'}),
+    lambda value: value['rewrites']['afterFiles'].pop(),
+    lambda value: value['rewrites']['afterFiles'][0].update(has=[{'type': 'header', 'key': 'authorization'}]),
+])
+def test_stale_extra_or_conditionally_different_rewrites_fail_before_start(tmp_path, mutation):
+    origin = 'http://127.0.0.1:31234/cases/first-case'
+    path = write_routes(tmp_path, origin)
+    value = json.loads(path.read_text()); mutation(value); path.write_text(json.dumps(value))
+    with pytest.raises(ValueError, match='rewrites'):
+        runner._verify_routes_manifest(tmp_path, origin)
+
+
+def build_owner(config, tmp_path, *, exit_code=0, wait_gate=None):
+    instance = object.__new__(runner.OwnedFiftyBrowserReadback)
+    instance._config = config
+    instance._frontend_builds = []
+    instance._check = instance._remaining = lambda case: 30
+    calls = []
+    async def wait():
+        calls.append(('wait',))
+        if wait_gate is not None: await wait_gate.wait()
+        return exit_code
+    process = SimpleNamespace(pid=4567, returncode=exit_code, wait=wait)
+    async def spawn(command, **kwargs):
+        calls.append(('spawn', command, kwargs))
+        return process
+    async def stop(kind, child):
+        calls.append(('stop', kind, child.pid))
+    instance._spawn, instance._stop = spawn, stop
+    return instance, calls
+
+
+def test_owned_build_completes_and_joins_before_start_can_run(config, tmp_path):
+    origin = 'http://127.0.0.1:31234/cases/first-case'
+    web = tmp_path / 'frontend'
+    write_routes(web, origin)
+    instance, calls = build_owner(config, tmp_path)
+    env = runner._child_environment(tmp_path)
+    env.update(NODE_ENV='production', MEMORY_SPARK_API_ORIGIN=origin)
+    result = asyncio.run(instance._build_frontend('first-case', web, env))
+    assert calls[0] == ('spawn', [config['node_executable'], config['next_cli'], 'build', '--webpack'],
+        {'cwd': web, 'env': env, 'kind': 'frontend_build'})
+    assert calls[-1] == ('stop', 'frontend_build', 4567)
+    assert result['status'] == 'completed' and result['process_group_joined'] is True
+    assert result['routes_manifest']['api_origin'] == origin
+    assert instance._frontend_builds == [result]
+
+
+def test_failed_build_is_joined_and_never_reports_completed(config, tmp_path):
+    instance, calls = build_owner(config, tmp_path, exit_code=1)
+    with pytest.raises(ValueError, match='production build failed'):
+        asyncio.run(instance._build_frontend('first-case', tmp_path,
+            {'MEMORY_SPARK_API_ORIGIN': 'http://127.0.0.1:31234/cases/first-case', 'NODE_ENV': 'production'}))
+    assert calls[-1] == ('stop', 'frontend_build', 4567)
+    assert instance._frontend_builds[0]['status'] == 'incomplete'
+    assert instance._frontend_builds[0]['returncode'] == 1
+
+
+def test_build_expiry_preserves_original_deadline_and_joins(config, tmp_path):
+    async def exercise():
+        instance, calls = build_owner(config, tmp_path, wait_gate=asyncio.Event())
+        instance._remaining = instance._check = lambda case: .01
+        with pytest.raises(TimeoutError):
+            await instance._build_frontend('first-case', tmp_path,
+                {'MEMORY_SPARK_API_ORIGIN': 'http://127.0.0.1:31234/cases/first-case', 'NODE_ENV': 'production'})
+        assert calls[-1] == ('stop', 'frontend_build', 4567)
+        assert instance._frontend_builds[0]['failure_type'] == 'TimeoutError'
+        assert instance._frontend_builds[0]['status'] == 'incomplete'
+    asyncio.run(exercise())
+
+
+def test_build_cleanup_failure_overrides_success(config, tmp_path):
+    origin = 'http://127.0.0.1:31234/cases/first-case'
+    web = tmp_path / 'frontend'; write_routes(web, origin)
+    instance, _ = build_owner(config, tmp_path)
+    async def stop(*args): raise RuntimeError('group remains')
+    instance._stop = stop
+    with pytest.raises(RuntimeError, match='group remains'):
+        asyncio.run(instance._build_frontend('first-case', web,
+            {'MEMORY_SPARK_API_ORIGIN': origin, 'NODE_ENV': 'production'}))
+    assert instance._frontend_builds[0]['status'] == 'incomplete'
+    assert instance._frontend_builds[0]['process_group_joined'] is False
+
+
+def test_launch_source_uses_production_build_start_instead_of_dev():
+    import inspect
+    source = inspect.getsource(runner.OwnedFiftyBrowserReadback._ensure_case)
+    assert "'dev'" not in source
+    assert "'start', '--hostname', '127.0.0.1', '--port'" in source
+    assert source.index('await self._build_frontend(') < source.index("kind='frontend')")
+    assert '_copy_case_frontend(' in source and "env['NODE_ENV'] = 'production'" in source
+
+
+def test_two_case_startup_builds_each_origin_after_stopping_previous_frontend(config, monkeypatch):
+    """Exercise real orchestration with every process/socket/HTTP boundary mocked."""
+    import httpx
+    from urllib.parse import urlsplit
+    instance = object.__new__(runner.OwnedFiftyBrowserReadback)
+    instance._config = config
+    instance._session = SimpleNamespace(run=SimpleNamespace(source_revision=config['source_revision']))
+    instance._web = instance._template_web = instance._case = instance._frontend = instance._chromium = None
+    instance._processes, instance._cleanup, instance._startup_requests, instance._frontend_builds = [], [], [], []
+    instance._check = instance._remaining = lambda case: 30
+    events = []
+    async def start_api(): events.append(('api_start',))
+    async def prepare(case): events.append(('prepare', case))
+    instance._api = SimpleNamespace(start=start_api, prepare_project=prepare,
+        origin_for_case=lambda case: 'http://127.0.0.1:31234/cases/' + case)
+    monkeypatch.setattr(runner, 'ROOT', Path(config['source_root']))
+    class Socket:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def bind(self, target): assert target == ('127.0.0.1', 0)
+        def getsockname(self): return ('127.0.0.1', 41234)
+    monkeypatch.setattr(runner, 'socket', SimpleNamespace(AF_INET=runner.socket.AF_INET,
+        SOCK_STREAM=runner.socket.SOCK_STREAM, socket=lambda *args: Socket()))
+    class Client:
+        def __init__(self, **kwargs): assert kwargs == {'trust_env': False, 'follow_redirects': False}
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return False
+        async def get(self, url, **kwargs):
+            marker = instance._web / 'public' / urlsplit(url).path.removeprefix('/')
+            return SimpleNamespace(status_code=200, text=marker.read_text())
+    monkeypatch.setattr(httpx, 'AsyncClient', Client)
+    async def spawn(command, *, cwd, env, kind):
+        events.append(('spawn', kind, str(cwd), env.get('MEMORY_SPARK_API_ORIGIN'), command))
+        async def wait(): return 0
+        process = SimpleNamespace(pid=1000 + len(events), returncode=None, wait=wait)
+        if kind == 'frontend_build':
+            assert command[-2:] == ['build', '--webpack'] and env['NODE_ENV'] == 'production'
+            write_routes(cwd, env['MEMORY_SPARK_API_ORIGIN'])
+        elif kind == 'frontend':
+            assert command[2:5] == ['start', '--hostname', '127.0.0.1']
+            assert env['NODE_ENV'] == 'production'
+            runner._verify_routes_manifest(cwd, env['MEMORY_SPARK_API_ORIGIN'])
+        elif kind == 'chromium':
+            profile = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('--user-data-dir=')))
+            (profile / 'DevToolsActivePort').write_text('51234\n/devtools/browser/owned\n')
+        instance._processes.append((kind, process))
+        return process
+    async def stop(kind, process):
+        events.append(('stop', kind, process.pid))
+        instance._processes = [(name, child) for name, child in instance._processes if child is not process]
+    instance._spawn, instance._stop = spawn, stop
+    async def exercise():
+        await instance._ensure_case('first-case')
+        await instance._ensure_case('first-case')  # Same case retains its one completed build.
+        await instance._ensure_case('second-case')
+        await instance._close_case()
+    asyncio.run(exercise())
+    builds = [event for event in events if event[:2] == ('spawn', 'frontend_build')]
+    assert len(builds) == 2 and builds[0][2] != builds[1][2]
+    assert [entry['api_origin'] for entry in instance._frontend_builds] == [
+        'http://127.0.0.1:31234/cases/first-case', 'http://127.0.0.1:31234/cases/second-case']
+    first_server = next(event for event in events if event[:2] == ('spawn', 'frontend'))
+    first_stopped = next(event for event in events if event[:2] == ('stop', 'frontend'))
+    assert events.index(first_server) < events.index(first_stopped) < events.index(builds[1])
+    assert events.count(('api_start',)) == 1
+    assert not instance._processes
+
+
+def test_build_manifest_is_checked_only_after_last_descendant_is_joined(config, tmp_path):
+    origin = 'http://127.0.0.1:31234/cases/first-case'
+    web = tmp_path / 'frontend'; write_routes(web, origin)
+    instance, calls = build_owner(config, tmp_path)
+    async def stop(kind, process):
+        calls.append(('stop', kind, process.pid))
+        # Model a descendant's final write during shutdown, before join returns.
+        path = web / '.next/routes-manifest.json'
+        path.write_text(json.dumps(production_routes('http://127.0.0.1:31234/cases/stale-case')))
+    instance._stop = stop
+    with pytest.raises(ValueError, match='rewrites'):
+        asyncio.run(instance._build_frontend('first-case', web,
+            {'MEMORY_SPARK_API_ORIGIN': origin, 'NODE_ENV': 'production'}))
+    assert calls[-1] == ('stop', 'frontend_build', 4567)
+    assert instance._frontend_builds[0]['status'] == 'incomplete'
+    assert instance._frontend_builds[0]['process_group_joined'] is True
+
+
+def test_non_object_routes_manifest_has_clear_failure(tmp_path):
+    path = write_routes(tmp_path, 'http://127.0.0.1:31234/cases/first-case')
+    path.write_text('[]')
+    with pytest.raises(ValueError, match='manifest must be an object'):
+        runner._verify_routes_manifest(tmp_path, 'http://127.0.0.1:31234/cases/first-case')
+
+
+def test_cancelled_build_is_joined_before_cancellation_returns(config, tmp_path):
+    async def exercise():
+        instance, calls = build_owner(config, tmp_path, wait_gate=asyncio.Event())
+        pending = asyncio.create_task(instance._build_frontend('first-case', tmp_path,
+            {'MEMORY_SPARK_API_ORIGIN': 'http://127.0.0.1:31234/cases/first-case', 'NODE_ENV': 'production'}))
+        while ('wait',) not in calls: await asyncio.sleep(0)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError): await pending
+        assert calls[-1] == ('stop', 'frontend_build', 4567)
+        assert instance._frontend_builds[0]['failure_type'] == 'CancelledError'
+        assert instance._frontend_builds[0]['status'] == 'incomplete'
+        assert instance._frontend_builds[0]['process_group_joined'] is True
+    asyncio.run(exercise())

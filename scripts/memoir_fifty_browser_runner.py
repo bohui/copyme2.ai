@@ -109,7 +109,7 @@ def validate_browser_config(config, *, source_revision, source_root=ROOT):
     if not all(Path(value[key]).is_relative_to(deps) for key in ('next_cli', 'next_cli_docs')):
         raise ValueError('Next CLI and its local docs must be in the installed dependencies')
     docs = Path(value['next_cli_docs']).read_text()
-    if not all(flag in docs for flag in ('next dev', '--hostname', '--port', '--webpack')):
+    if not all(flag in docs for flag in ('next build', 'next start', '--hostname', '--port', '--webpack')):
         raise ValueError('Installed Next CLI documentation must verify the exact launch flags')
     manifest = value['frontend_sha256']
     if type(manifest) is not dict or set(manifest) != set(_tracked_frontend(root)):
@@ -121,8 +121,9 @@ def validate_browser_config(config, *, source_revision, source_root=ROOT):
                 or not re.fullmatch(r'[0-9a-f]{64}', str(digest)) or _sha(path) != digest):
             raise ValueError('Frontend source hash or inventory differs')
     package = json.loads((root / 'apps/web/package.json').read_text())
-    if package.get('scripts', {}).get('dev') != 'next dev':
-        raise ValueError('Reviewed existing Next dev command is required')
+    if any(package.get('scripts', {}).get(command) != 'next ' + command
+            for command in ('build', 'start')):
+        raise ValueError('Reviewed existing Next build/start commands are required')
     if 'MEMORY_SPARK_API_ORIGIN' not in (root / 'apps/web/next.config.mjs').read_text():
         raise ValueError('Reviewed loopback API rewrite is required')
     maximum = value.setdefault('max_requests', 256)
@@ -153,6 +154,55 @@ def _copy_frontend(plan):
     (web / 'node_modules').symlink_to(plan['node_modules'], target_is_directory=True)
     (output / 'tmp').mkdir(mode=0o700)
     return web
+
+
+def _copy_case_frontend(plan, template, case_directory):
+    """Build each case from reviewed files only, never a prior case's .next."""
+    web = case_directory / 'frontend'
+    web.mkdir(mode=0o700, exist_ok=False)
+    for name, digest in plan['frontend_sha256'].items():
+        relative = Path(name).relative_to('apps/web')
+        source = _ordinary(template / relative)
+        if _sha(source) != digest:
+            raise ValueError('Frontend template hash changed before case build')
+        destination = web / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(source.read_bytes())
+        if _sha(destination) != digest:
+            raise ValueError('Frontend case copy hash differs')
+    (web / 'node_modules').symlink_to(plan['node_modules'], target_is_directory=True)
+    return web
+
+
+def _verify_routes_manifest(web, api_origin):
+    """Check the generated Next 16 routes against the exact owned case origin."""
+    if (not re.fullmatch(r'http://127\.0\.0\.1:[1-9][0-9]{0,4}/cases/[a-z0-9-]+', api_origin)
+            or urlsplit(api_origin).port > 65535):
+        raise ValueError('Owned case origin is required for production rewrites')
+    path = _ordinary(web / '.next/routes-manifest.json')
+    if path.stat().st_size > 1_000_000:
+        raise ValueError('Production routes manifest exceeds the bounded size')
+    raw = path.read_bytes()
+    manifest = json.loads(raw)
+    if type(manifest) is not dict:
+        raise ValueError('Production rewrites manifest must be an object')
+    rewrites = manifest.get('rewrites')
+    expected = [
+        ('/api/v1/memoir/:path*', api_origin + '/api/v1/memoir/:path*'),
+        ('/api/v1/memoir', api_origin + '/api/v1/memoir'),
+        ('/static/:path*', '/:path*'),
+    ]
+    if (manifest.get('version') != 3 or type(rewrites) is not dict
+            or set(rewrites) != {'beforeFiles', 'afterFiles', 'fallback'}
+            or rewrites['beforeFiles'] != [] or rewrites['fallback'] != []
+            or type(rewrites['afterFiles']) is not list
+            or any(type(route) is not dict or set(route) != {'source', 'destination', 'regex'}
+                or type(route['regex']) is not str or not route['regex']
+                for route in rewrites['afterFiles'])
+            or [(route['source'], route['destination']) for route in rewrites['afterFiles']] != expected):
+        raise ValueError('Production rewrites do not match the exact owned case')
+    return {'path': '.next/routes-manifest.json', 'sha256': hashlib.sha256(raw).hexdigest(),
+            'bytes': len(raw), 'api_origin': api_origin, 'api_rewrites_verified': True}
 
 
 def _child_environment(output):
@@ -514,9 +564,9 @@ class OwnedFiftyBrowserReadback:
             self._api.enable_turns()
         self._closed, self._busy = False, False
         self._api_cleanup_complete = False
-        self._web = self._case = self._frontend = self._chromium = None
+        self._web = self._template_web = self._case = self._frontend = self._chromium = None
         self._processes, self._observations, self._cleanup = [], [], []
-        self._startup_requests = []
+        self._startup_requests, self._frontend_builds = [], []
         self._turn_ordinals, self._observed_cases = {}, set()
         self._pid = os.getpid()
         return self
@@ -621,6 +671,46 @@ class OwnedFiftyBrowserReadback:
         if errors:
             raise errors[0]
 
+    async def _build_frontend(self, case, web, env):
+        """Compile once for this case, under its unchanged original deadline."""
+        self._check(case)
+        record = {'case_id': case, 'mode': 'production', 'status': 'started',
+                  'api_origin': env['MEMORY_SPARK_API_ORIGIN'], 'returncode': None,
+                  'process_group_joined': False}
+        self._frontend_builds.append(record)
+        process = None
+        try:
+            async with asyncio.timeout(self._remaining(case)):
+                process = await self._spawn([self._config['node_executable'], self._config['next_cli'],
+                    'build', '--webpack'], cwd=web, env=env, kind='frontend_build')
+                record['pid'] = process.pid
+                record['returncode'] = await process.wait()
+                self._check(case)
+                if record['returncode'] != 0:
+                    raise ValueError('Owned private Next production build failed')
+        except BaseException as error:
+            record.update(status='incomplete', failure_type=type(error).__name__)
+            raise
+        finally:
+            if process is not None:
+                try:
+                    await self._stop('frontend_build', process)
+                    record['process_group_joined'] = True
+                except BaseException as error:
+                    record.update(status='incomplete', failure_type=type(error).__name__)
+                    raise
+        # Read generated output only after every build descendant is gone.
+        # Cleanup cannot extend the original case allowance before server start.
+        try:
+            self._check(case)
+            record['routes_manifest'] = _verify_routes_manifest(web, env['MEMORY_SPARK_API_ORIGIN'])
+            self._check(case)
+        except BaseException as error:
+            record.update(status='incomplete', failure_type=type(error).__name__)
+            raise
+        record['status'] = 'completed'
+        return record
+
     async def _ensure_case(self, case):
         self._check(case)
         if self._case == case:
@@ -628,11 +718,11 @@ class OwnedFiftyBrowserReadback:
                 raise ValueError('Owned frontend or Chromium exited')
             return
         await self._close_case()
-        if self._web is None:
+        if self._template_web is None:
             # Recheck all runtime/source pins immediately before first allocation.
             validate_browser_config(self._config, source_revision=self._session.run.source_revision,
                                     source_root=ROOT)
-            self._web = _copy_frontend(self._config)
+            self._template_web = _copy_frontend(self._config)
             self._script = Path(self._config['output_root']) / 'browser-worker.cjs'
             self._script.write_text(BROWSER_SCRIPT)
             await self._api.start()
@@ -642,18 +732,22 @@ class OwnedFiftyBrowserReadback:
         case_dir = output / case
         case_dir.mkdir(mode=0o700)
         self._case_dir = case_dir
+        self._web = _copy_case_frontend(self._config, self._template_web, case_dir)
         env = _child_environment(output)
+        env['NODE_ENV'] = 'production'
         env['MEMORY_SPARK_API_ORIGIN'] = self._api.origin_for_case(case)
         marker = uuid4().hex
         marker_path = self._web / 'public' / ('owned-browser-' + marker + '.txt')
         marker_path.parent.mkdir(exist_ok=True)
         marker_path.write_text(marker)
+        await self._build_frontend(case, self._web, env)
+        self._check(case)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
         self._origin = f'http://127.0.0.1:{port}'
         self._frontend = await self._spawn([self._config['node_executable'], self._config['next_cli'],
-            'dev', '--webpack', '--hostname', '127.0.0.1', '--port', str(port)],
+            'start', '--hostname', '127.0.0.1', '--port', str(port)],
             cwd=self._web, env=env, kind='frontend')
         import httpx
         async with httpx.AsyncClient(trust_env=False, follow_redirects=False) as client:
@@ -806,6 +900,8 @@ class OwnedFiftyBrowserReadback:
             'original_turn_submission': 'browser_form' if self._config.get('allow_browser_turns') else 'direct_api_not_browser',
             'observations': deepcopy(self._observations), 'cleanup': deepcopy(self._cleanup),
             'startup_requests': deepcopy(self._startup_requests),
+            'frontend_mode': 'production_build_start_per_case',
+            'frontend_builds': deepcopy(self._frontend_builds),
             'startup_request_cap_per_case': 60,
             'processes_remaining': len(self._processes), 'api': self._api.receipt(), 'e2e_passed': False,
             'cleanup_complete': self._closed and not self._processes and self._api_cleanup_complete,

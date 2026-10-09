@@ -170,8 +170,21 @@ drafts or events are seeded. Revision-zero legacy draft imports and hidden
 locale-backfill writes are rejected; the synthetic profiles use the production
 initialized explicit-locale record.
 
-A private verified frontend copy runs against this owned loopback API. Shared
-frontend/service configuration is untouched. Each case owns its Node and Chromium
+A private verified frontend copy runs against this owned loopback API. Each case
+gets a fresh source-only copy with the already installed dependency directory,
+then runs the pinned `next build --webpack` followed by
+`next start --hostname 127.0.0.1 --port <owned-port>` with `NODE_ENV=production`.
+Development HMR is not used and its blocked WebSockets remain blocked. The
+case-specific API origin is supplied during both build and start: no `.next`
+output or embedded first-case rewrites are reused for a later case. Before
+server startup, the generated Next routes manifest must contain exactly the two
+owned-case API rewrites and the existing local static rewrite. Build status,
+exit code, manifest hash, exact API origin and process-group join evidence are
+retained in the producer receipt. A failed, cancelled, expired or mismatched
+build stops before server/browser startup. Build work uses the original
+case/global deadline, and its owned process group is joined or killed before
+continuing; cleanup cannot grant extra case time. No app source defaults or
+public-service configuration are changed. Each case owns its Node and Chromium
 process groups, and each UI operation has a fresh context. Only exact scoped API
 reads and its single armed form POST are permitted; synthetic authorization is
 attached only to that loopback API path. Service workers, unapproved sockets,
