@@ -25,6 +25,7 @@ from uuid import UUID, uuid5
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from apps.api.codex_timeout_policy import WORKER_TIMEOUT
 EXISTING_ORIGIN = 'http://192.168.66.1:4000/v1'
 ARTIFACT_STORAGE_LIMITS = {'max_artifact_bytes': 25 * 1024 * 1024,
     'max_objects_per_owner': 512, 'max_bytes_per_owner': 512 * 1024 * 1024}
@@ -44,10 +45,12 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
                waive_memory_pressure_check=False, evaluation_profile='subscription_progressive',
                max_case_client_requests=None, max_case_elapsed_seconds=None,
                enable_public_photo_research=False, photo_python_binary=None, photo_python_sha256=None,
-               enable_browser_readback=False, browser_config=None):
+               enable_browser_readback=False, browser_config=None,
+               collector_timeout_seconds=WORKER_TIMEOUT):
     from apps.api.codex_timeout_policy import native_worker_deadlines
     from scripts.memoir_subscription_profiles import profile_for
     profile = profile_for(evaluation_profile)
+    worker_deadlines = native_worker_deadlines(collector_timeout_seconds)
     profile.validate_limits(max_client_requests, max_elapsed_seconds,
                             max_case_client_requests, max_case_elapsed_seconds)
     if (type(run_id) is not str or str(UUID(run_id)) != run_id or type(source_revision) is not str
@@ -99,7 +102,8 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
             'dataset_version': profile.dataset_version, 'dataset_sha256': profile.dataset_sha256}
            if profile.name == 'subscription_fifty' else {}),
         'memory_pressure_check_waived': waive_memory_pressure_check,
-        'worker_deadlines': native_worker_deadlines(),
+        'collector_timeout_seconds': collector_timeout_seconds,
+        'worker_deadlines': worker_deadlines,
         'max_client_requests': max_client_requests, 'max_elapsed_seconds': max_elapsed_seconds,
         'codex_binary': _binary(codex_binary, codex_sha256), 'codex_sha256': codex_sha256,
         'temporal_binary': _binary(temporal_binary, temporal_sha256), 'temporal_sha256': temporal_sha256,
@@ -476,6 +480,7 @@ async def execute_native(plan, directory, api_key):
         waive_memory_pressure_check=plan.get('memory_pressure_check_waived', False),
         max_case_client_requests=plan.get('max_case_client_requests'),
         max_case_elapsed_seconds=plan.get('max_case_elapsed_seconds'),
+        collector_timeout_seconds=plan.get('collector_timeout_seconds', WORKER_TIMEOUT),
         enable_public_photo_research=bool(plan.get('photo_research')),
         photo_python_binary=(plan.get('photo_research') or {}).get('python_binary'),
         photo_python_sha256=(plan.get('photo_research') or {}).get('python_sha256'),
@@ -509,7 +514,8 @@ async def execute_native(plan, directory, api_key):
             async with native_resources(plan, run, directory, receipt) as resources:
                 session = await OwnedSubscriptionSession.create(run=run, provider_transport=transport,
                     **resources, home_root=directory / 'homes', codex_binary=plan['codex_binary'],
-                    codex_sha256=plan['codex_sha256'], api_key=api_key, evaluation_profile=profile.name)
+                    codex_sha256=plan['codex_sha256'], api_key=api_key, evaluation_profile=profile.name,
+                    collector_timeout_seconds=plan['collector_timeout_seconds'])
                 if plan.get('browser_readback'):
                     from scripts.memoir_fifty_browser_runner import OwnedFiftyBrowserReadback
                     session.browser_readback = OwnedFiftyBrowserReadback.admit(session, plan['browser_readback'])
@@ -587,6 +593,8 @@ def main(argv=None):
     parser.add_argument('--max-case-elapsed-seconds', type=float)
     parser.add_argument('--max-client-requests', type=int, required=True)
     parser.add_argument('--max-elapsed-seconds', type=float, required=True)
+    parser.add_argument('--collector-timeout-seconds', type=float, default=WORKER_TIMEOUT,
+        help='Explicit native collector execution budget (default 120; maximum 240 seconds)')
     args = parser.parse_args(argv)
     execution_started = False
     try:
@@ -598,7 +606,7 @@ def main(argv=None):
             'max_client_requests','max_elapsed_seconds','waive_memory_pressure_check',
             'evaluation_profile','max_case_client_requests','max_case_elapsed_seconds',
             'enable_public_photo_research','photo_python_binary','photo_python_sha256',
-            'enable_browser_readback')})
+            'enable_browser_readback','collector_timeout_seconds')})
         if not args.execute_existing_subscription:
             print(json.dumps(plan, sort_keys=True))
             return 0

@@ -25,6 +25,7 @@ import uvicorn
 from apps.api.agent_storage import UserStorage
 from apps.api.diagnostics import failure_class
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.codex_timeout_policy import WORKER_TIMEOUT, validate_native_collector_timeout
 from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback, case_plans_for_run
 from scripts.issue14_subscription_transport import SubscriptionRun, SubscriptionTransport, MAX_REQUEST_BYTES
@@ -266,7 +267,9 @@ class OwnedSubscriptionSession:
     @classmethod
     async def create(cls, *, run, provider_transport, storages, broker, temporal_client,
                      home_root, codex_binary, codex_sha256, api_key,
-                     evaluation_profile='subscription_progressive', entitlement_facades=None):
+                     evaluation_profile='subscription_progressive', entitlement_facades=None,
+                     collector_timeout_seconds=WORKER_TIMEOUT):
+        collector_timeout_seconds = validate_native_collector_timeout(collector_timeout_seconds)
         if (type(run) is not SubscriptionRun or type(provider_transport) is not SubscriptionTransport
                 or provider_transport.run is not run or type(api_key) is not str or not api_key):
             raise ValueError('Explicit owned run, transport and existing credential required')
@@ -427,7 +430,8 @@ class OwnedSubscriptionSession:
             self._command = tuple(command)
             for role, (model, effort) in _PROFILES.items():
                 worker = CodexWorker(home_root=home / 'workers' / role, command=list(command),
-                    base_url=self._base_url, api_key=api_key, model=model, reasoning_effort=effort)
+                    base_url=self._base_url, api_key=api_key, model=model, reasoning_effort=effort,
+                    timeout=collector_timeout_seconds if role == 'collector' else WORKER_TIMEOUT)
                 worker.legacy_root = None
                 self._workers[role] = worker
             self.runtime = CodexRuntime(home_root=home / 'api', base_url=self._base_url,

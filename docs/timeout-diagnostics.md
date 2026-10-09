@@ -18,6 +18,18 @@ also record the actual selected execution budget and monotonic dispatch/finish
 times. These dispatch timings include worker lock acquisition; they do not
 claim to measure the exact instant the internal timeout context begins.
 
+Native campaign plans accept an explicit `--collector-timeout-seconds 180`.
+Omission retains 120 seconds. The value must be a finite number from 0.001
+through 240 seconds; invalid values fail before allocation and are never
+silently clamped. Execution revalidates the entire saved plan, including its
+deadline diagnostics, and passes the selected value only to collector workers.
+Other native roles use explicit defaults, so the normal product's environment
+override cannot supersede the plan. Product defaults, environment policy and
+240-second clamp remain unchanged. Request counts and case/global clocks retain
+their existing enforcement. The separately approved 180-second selection is
+configuration for parent-owned evaluation admission; a longer window has not
+been proven to resolve the original failure.
+
 Each existing bounded send reservation carries its monotonic reservation time.
 A durable `send_started` entry records admission immediately before wire access;
 completed responses carry completion time and elapsed milliseconds. These times
@@ -51,8 +63,8 @@ Only its expired context proves `worker_execution_deadline`. An immediate
 HTTPX timeout records `transport_timeout`, and other timeout errors without
 expired context record `unknown_timeout`; both explicitly report
 `worker_deadline_expired: false`. Arbitrary exception attributes cannot supply
-this evidence. Timeout duration, cancellation, and all original guards remain
-unchanged.
+this evidence. The diagnostics preserve cancellation and all original guards;
+the explicit native collector selection changes only its execution budget.
 
 Synthetic tests exercise the real bounded worker, SubscriptionRun/Transport,
 owned worker transport and browser future seam: two fixed successful responses
@@ -64,6 +76,9 @@ Issued-session tests additionally exercise accelerated real timeout contexts
 for author timeline/composer, ended activity context, foreign job/checkpoint
 rejection and transport/unknown timeout origins with zero model sends. Temporal
 startup and generated worker content are synthetic seams; no native command runs.
+Configuration tests cover default/explicit propagation, invalid inputs, saved
+plan drift, environment precedence, the issued collector timer and diagnostics,
+and unchanged case/global clocks, using synthetic storage and no model sends.
 Owned source/protocol seams are synthetic; these results establish neither a
 native app-server campaign nor PostgreSQL persistence or provider behavior.
 
