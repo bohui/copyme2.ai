@@ -666,15 +666,16 @@ class TrajectoryRecorder:
             return
         self.append_external(steps, source=source)
         limits = trajectory.get("limits")
-        if limits is not None:
-            valid = (isinstance(limits, Mapping)
+        limits_valid = False
+        if "limits" in trajectory:
+            limits_valid = (isinstance(limits, Mapping)
                      and all(type(limits.get(key)) is int and limits[key] >= 0
                              for key in ("max_steps", "observed_steps", "dropped_steps"))
                      and limits["max_steps"] >= 1
                      and limits["observed_steps"] == len(steps) <= limits["max_steps"]
                      and type(limits.get("overflowed")) is bool
                      and (not limits["dropped_steps"] or limits["overflowed"]))
-            if not valid:
+            if not limits_valid:
                 self.record("application", "worker.evidence.invalid", error={"reason": "limits_shape"})
             else:
                 dropped = limits["dropped_steps"]
@@ -683,8 +684,22 @@ class TrajectoryRecorder:
                 if dropped:
                     # Older workers cannot identify the dropped categories.
                     self._dropped_categories["external"] = self._dropped_categories.get("external", 0) + dropped
+        elif "telemetry" in trajectory or "overflow" in trajectory:
+            # Genuine legacy step-only records have no accounting witnesses.
+            self.record("application", "worker.evidence.invalid", error={"reason": "limits_missing"})
+        if "overflow" in trajectory:
+            overflow = trajectory["overflow"]
+            categories = overflow.get("dropped_by_category") if isinstance(overflow, Mapping) else None
+            valid = (isinstance(overflow, Mapping) and set(overflow) == {"dropped_by_category"}
+                     and isinstance(categories, Mapping)
+                     and set(categories) <= {"application", "model", "tool", "error", "terminal", "external"}
+                     and all(type(count) is int and count > 0 for count in categories.values())
+                     and limits_valid and limits["overflowed"] is True
+                     and sum(categories.values()) == limits["dropped_steps"])
+            if not valid:
+                self.record("application", "worker.evidence.invalid", error={"reason": "overflow_shape"})
         telemetry = trajectory.get("telemetry")
-        if telemetry is not None:
+        if "telemetry" in trajectory:
             counts = telemetry.get("by_method") if isinstance(telemetry, Mapping) else None
             valid = (isinstance(telemetry, Mapping)
                      and set(telemetry) == {"schema_version", "retention", "compacted_events", "omitted_payloads", "by_method"}

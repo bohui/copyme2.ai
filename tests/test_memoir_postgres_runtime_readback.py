@@ -438,8 +438,9 @@ def test_round_cleanup_requires_confirmed_child_and_owner_absence():
 
 
 @pytest.mark.parametrize('streaming', [False, True])
+@pytest.mark.parametrize('worker_evidence', ['legacy', 'noisy', 'overflow', 'null_limits', 'null_telemetry'])
 def test_postgres_complete_runtime_round_strict_and_canonical_readback(
-        round_database, round_environment, tmp_path, streaming):
+        round_database, round_environment, tmp_path, streaming, worker_evidence):
     """Explicit native opt-in only; actual PG, no provider/browser/Temporal."""
     sql, owner = round_database, str(uuid4())
     sql(f'insert into auth.users(id,is_anonymous) values({quoted(owner)},false);')
@@ -448,11 +449,37 @@ def test_postgres_complete_runtime_round_strict_and_canonical_readback(
         storage = await AgentTurnLease.io(lambda: PostgresRest(sql, owner, entitlement=ENTITLEMENT).storage())
         storages.append(storage)
         await AgentTurnLease.io(storage.save_profile, PROFILE)
-        worker = DeterministicWorker()
+        if worker_evidence == 'legacy':
+            worker = DeterministicWorker()
+        else:
+            # Shared synthetic HTTP producer is also exercised by offline full
+            # runtime tests. No generated content crosses a provider boundary.
+            from test_trajectory_retention import NoisyWorker
+            worker = NoisyWorker(audit_overflow=worker_evidence == 'overflow',
+                accounting_fault=worker_evidence.removeprefix('null_')
+                    if worker_evidence.startswith('null_') else None)
         result, correlation = await run_round(storage, worker, streaming=streaming, tmp_path=tmp_path)
         reader = await AgentTurnLease.io(lambda: PostgresRest(sql, owner, entitlement=ENTITLEMENT).storage())
         storages.append(reader)
         await AgentTurnLease.io(assert_workspace_persisted, result, reader, round_environment, family=True)
+        if worker_evidence not in {'legacy', 'null_telemetry'}:
+            assert result['trajectory']['telemetry']['compacted_events'] == 1988
+            assert result['trajectory']['telemetry']['omitted_payloads'] == 1988
+        elif worker_evidence == 'null_telemetry':
+            assert 'telemetry' not in result['trajectory']
+        if worker_evidence in {'overflow', 'null_limits', 'null_telemetry'}:
+            with pytest.raises(SubscriptionRunnerError, match='background_incomplete') as caught:
+                _runtime_readback(result, correlation)
+            if worker_evidence == 'overflow':
+                assert result['trajectory']['limits']['overflowed'] is True
+                assert result['trajectory']['limits']['dropped_steps'] > 0
+                assert caught.value.readback_diagnostic['predicate'] == 'trajectory_overflow'
+            else:
+                assert any(step.get('error') == {'reason': worker_evidence.removeprefix('null_') + '_shape'}
+                    for step in result['trajectory']['steps'])
+                assert caught.value.readback_diagnostic['predicate'] == 'step_error'
+            # Rejection precedes canonical lane work, matching campaign order.
+            return
         # Strict admission occurs before canonical lane work, as in the runner.
         admitted = _runtime_readback(result, correlation)
         async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql, owner, service=True).handle)) as db:
@@ -465,7 +492,9 @@ def test_postgres_complete_runtime_round_strict_and_canonical_readback(
             assert outcome['status'] == 'saved'
             await broker.drain_once()
             assert await broker.rpc('pending_memoir_lanes', p_limit=100) == []
-        view = await AgentTurnLease.io(reader.memory_events, PROJECT)
+        canonical_reader = await AgentTurnLease.io(lambda: PostgresRest(sql, owner, entitlement=ENTITLEMENT).storage())
+        storages.append(canonical_reader)
+        view = await AgentTurnLease.io(canonical_reader.memory_events, PROJECT)
         _canonical_state(view, {'project_id': PROJECT, 'language': 'en-AU', 'rounds': [TEXT]},
             [admitted['accepted_source_id']])
         assert len(view['events']) == 1 and view['events'][0]['status'] == 'active'

@@ -76,13 +76,16 @@ def test_worker_import_preserves_telemetry_and_rejects_worker_audit_overflow():
 
 class NoisyWorker(DeterministicWorker):
     """Synthetic model evidence injected solely at the worker HTTP boundary."""
-    def __init__(self, *, audit_overflow=False):
+    def __init__(self, *, audit_overflow=False, accounting_fault=None):
         super().__init__()
         self.audit_overflow = audit_overflow
+        self.accounting_fault = accounting_fault
 
     def handle(self, request):
         response = super().handle(request)
         body = json.loads(request.content)
+        if not body.get('evaluation'):
+            return response  # The canonical extractor has no turn recorder.
         recorder = TrajectoryRecorder(body['evaluation'], max_steps=1 if self.audit_overflow else 512)
         recorder.record_protocol({'method': 'item/started', 'params': {'item': {
             'id': 'synthetic-tool', 'type': 'mcpToolCall', 'tool': 'memory.search',
@@ -99,12 +102,15 @@ class NoisyWorker(DeterministicWorker):
         recorder.record_protocol({'method': 'turn/completed', 'params': {
             'turn': {'id': 'synthetic-turn', 'status': 'completed'}}})
         recorder.finish('Synthetic reply')
+        evidence = recorder.payload()
+        if self.accounting_fault:
+            evidence[self.accounting_fault] = None
         if request.headers.get('accept') != 'application/x-ndjson':
-            return httpx.Response(200, json={**response.json(), 'trajectory': recorder.payload()})
+            return httpx.Response(200, json={**response.json(), 'trajectory': evidence})
         events = [json.loads(line) for line in response.text.splitlines()]
         for event in events:
             if event['type'] in ('provider_complete', 'result'):
-                event['data']['trajectory'] = recorder.payload()
+                event['data']['trajectory'] = evidence
         return httpx.Response(200, content=''.join(json.dumps(event) + '\n' for event in events),
                               headers={'content-type': 'application/x-ndjson'})
 
@@ -321,3 +327,118 @@ def test_full_runtime_failure_receipt_preserves_worker_omission_accounting(
     assert payload['limits']['dropped_steps'] == 1
     assert payload['telemetry']['compacted_events'] == 994
     assert 'private synthetic reasoning' not in json.dumps(payload)
+
+
+def test_explicit_null_worker_limits_cannot_erase_dropped_failure_evidence():
+    worker = TrajectoryRecorder(max_steps=1)
+    worker.record('application', 'memory.persist', output={'count': 1})
+    worker.record('codex', 'tool.failed', error={'code': 'synthetic'})
+    worker.finish('Synthetic reply')
+    payload = worker.payload()
+    assert payload['overflow']['dropped_by_category'] == {'tool': 1}
+    payload['limits'] = None
+    outer = TrajectoryRecorder()
+    outer.append_trajectory(payload, source='worker')
+    outer.finish('Synthetic reply')
+    with pytest.raises(SubscriptionRunnerError):
+        _runtime_readback(result_for(outer), {})
+    invalid = next(step for step in outer.payload()['steps'] if step['action'] == 'worker.evidence.invalid')
+    assert invalid['error'] == {'reason': 'limits_shape'}
+
+
+@pytest.mark.parametrize('mutate', [
+    lambda value: value.update(telemetry=None),
+    lambda value: value.update(overflow=None),
+    lambda value: value.update(overflow=[]),
+    lambda value: value.update(overflow={'dropped_by_category': {'tool': 1}}),
+    lambda value: value.update(overflow={'dropped_by_category': {'tool': True}}),
+    lambda value: value.update(overflow={'dropped_by_category': {'tool': -1}}),
+    lambda value: value.update(overflow={'dropped_by_category': {'private-unknown': 1}}),
+    lambda value: value.pop('limits'),
+])
+def test_present_malformed_accounting_or_missing_limits_with_telemetry_cannot_pass_as_legacy(mutate):
+    worker = TrajectoryRecorder()
+    worker.record('application', 'memory.persist', output={'count': 1})
+    worker.record_protocol({'method': 'item/agentMessage/delta', 'params': {'delta': 'synthetic'}})
+    worker.finish('Synthetic reply')
+    payload = worker.payload()
+    mutate(payload)
+    outer = TrajectoryRecorder()
+    outer.append_trajectory(payload, source='worker')
+    outer.finish('Synthetic reply')
+    with pytest.raises(SubscriptionRunnerError):
+        _runtime_readback(result_for(outer), {})
+    assert any(step['action'] == 'worker.evidence.invalid' for step in outer.payload()['steps'])
+    assert 'private-unknown' not in json.dumps(outer.payload())
+
+
+def test_missing_worker_limits_with_explicit_overflow_witness_is_rejected():
+    worker = TrajectoryRecorder(max_steps=1)
+    worker.record('application', 'memory.persist', output={'count': 1})
+    worker.record('codex', 'tool.failed', error={'code': 'synthetic'})
+    worker.finish('Synthetic reply')
+    payload = worker.payload()
+    payload.pop('limits')
+    outer = TrajectoryRecorder()
+    outer.append_trajectory(payload, source='worker')
+    outer.finish('Synthetic reply')
+    with pytest.raises(SubscriptionRunnerError):
+        _runtime_readback(result_for(outer), {})
+    assert any(step['action'] == 'worker.evidence.invalid' for step in outer.payload()['steps'])
+
+
+def test_genuine_legacy_step_only_worker_keeps_supported_readback():
+    outer = TrajectoryRecorder()
+    outer.append_trajectory({'steps': [{'phase': 'application', 'action': 'memory.persist',
+                                       'output': {'count': 1}}]}, source='legacy-worker')
+    outer.finish('Synthetic reply')
+    _runtime_readback(result_for(outer), {})
+    assert len(outer.payload()['steps']) == 1
+
+
+@pytest.mark.parametrize('field', ['limits', 'telemetry', 'overflow'])
+@pytest.mark.parametrize('streaming', [False, True])
+def test_full_runtime_rejects_explicit_null_worker_accounting(round_environment, tmp_path, field, streaming):
+    result, correlation = asyncio.run(run_round(OfflineStorage(), NoisyWorker(accounting_fault=field),
+                                                streaming=streaming, tmp_path=tmp_path))
+    with pytest.raises(SubscriptionRunnerError):
+        _runtime_readback(result, correlation)
+    invalid = [step for step in result['trajectory']['steps'] if step['action'] == 'worker.evidence.invalid']
+    assert len(invalid) == 2
+    assert all(step['error'] == {'reason': field + '_shape'} for step in invalid)
+
+
+@pytest.mark.parametrize('mutate', [
+    lambda value: value.update(limits=None),
+    lambda value: value.update(telemetry=None),
+])
+def test_invalid_worker_accounting_remains_rejected_when_outer_audit_budget_is_full(mutate):
+    worker = TrajectoryRecorder()
+    worker.record('application', 'memory.persist', output={'count': 1})
+    worker.record_protocol({'method': 'item/agentMessage/delta', 'params': {'delta': 'synthetic'}})
+    worker.finish('Synthetic reply')
+    payload = worker.payload()
+    mutate(payload)
+    outer = TrajectoryRecorder(max_steps=1)
+    outer.append_trajectory(payload, source='worker')
+    outer.finish('Synthetic reply')
+    assert outer.payload()['limits']['overflowed'] is True
+    assert outer.payload()['limits']['dropped_steps'] == 1
+    with pytest.raises(SubscriptionRunnerError):
+        _runtime_readback(result_for(outer), {})
+
+
+def test_overflow_histogram_must_match_the_dropped_step_total():
+    worker = TrajectoryRecorder(max_steps=1)
+    worker.record('application', 'memory.persist', output={'count': 1})
+    worker.record('codex', 'tool.failed', error={'code': 'synthetic'})
+    worker.finish('Synthetic reply')
+    payload = worker.payload()
+    payload['overflow']['dropped_by_category'] = {'tool': 2}
+    outer = TrajectoryRecorder()
+    outer.append_trajectory(payload, source='worker')
+    outer.finish('Synthetic reply')
+    assert any(step.get('error') == {'reason': 'overflow_shape'} for step in outer.payload()['steps'])
+    assert outer.payload()['limits']['dropped_steps'] == 1
+    with pytest.raises(SubscriptionRunnerError):
+        _runtime_readback(result_for(outer), {})

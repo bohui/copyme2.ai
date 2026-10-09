@@ -41,7 +41,12 @@ Collector, workspace, focused recovery and worker-failure imports now receive
 the whole worker trajectory. They preserve compacted transport counts and
 worker-local audit overflow even when the outer step list has room. Contradictory
 or malformed accounting becomes an explicit bounded error record and fails
-readback. Legacy workers without telemetry/limits remain supported. Aggregate
+readback. Omitted legacy fields and explicitly present null fields are distinct:
+null limits, telemetry or overflow summaries fail closed. A record carrying
+telemetry or overflow evidence must include valid limits. An overflow histogram
+must use fixed categories, positive integer counts, agree with the dropped-step
+total and accompany an overflow flag. Genuine legacy step-only workers remain
+supported. Aggregate
 audit saturation remains an error, rather than eviction of earlier evidence or
 an increase to an unbounded budget. `finish` remains separate from the step cap;
 it never proves audit completeness by itself.
@@ -52,6 +57,24 @@ normal and adversarial streams, five worker imports, queued/direct lifecycle
 and failures, overflow propagation, malformed accounting, privacy, streaming
 and nonstreaming runtime persistence/readback, and failure receipts. They do
 not establish real PostgreSQL/RLS or live-provider/campaign acceptance.
+
+The authorized retained terminal metadata, request journal and task accounting
+contain no recoverable JSON-RPC method counts. The collector's 51 high-level
+rollup records are not a runtime protocol trace; no workspace rollup survived.
+Presence or absence of legacy `codex/event/*` notifications remains unknown.
+The exact-v2 synthetic flood results do not prove prevention of that particular
+live overflow. Unknown methods continue to receive strict audit treatment.
+
+The opt-in native complete-round test now defines ten cases: HTTP and streaming
+for legacy evidence, noisy evidence, worker audit overflow, null limits and null
+telemetry. Valid noisy cases require 1,988 compacted/omitted deltas, real artifact
+and workspace persistence, strict admission, canonical lane settlement and a new
+storage facade for the final canonical readback. Negative cases require strict
+rejection before canonical lane work. These native cases remain unrun in this
+task. After source review, the parent must coordinate a fresh task-owned
+PostgreSQL allocation and exclusive lease, full exact-Git checkout verification,
+the existing native backend/opt-in flags and owned cleanup. The shared synthetic
+worker uses MockTransport; no provider or evaluation-owner resource is needed.
 
 Changing these runtime modules requires a new V6 source binding. The original
 V1–V5 proofs, original inputs/expected data, previous V6 commit identities and
