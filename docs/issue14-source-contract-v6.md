@@ -4,14 +4,15 @@ V6 adds a separately bound source snapshot for the explicit
 `subscription_fifty` profile. Its commit and tree identities are fixed in
 `scripts/issue14_subscription_source_contract_v6.py` and repeated in
 `tests/fixtures/issue14_subscription_source_v6.json`. The canonical remote
-binding and independent review remain prerequisites for using that snapshot;
-this offline audit does not publish or approve it.
+binding records source integrity only. Independent review and explicit run
+admission remain prerequisites; this offline audit does not publish or approve
+execution.
 
-The local source snapshot is commit
-`069749687b7deac8f9a68497691891529f617b91`, tree
-`4cc792cb50fead8bbaf06099a2b0329cb244fd6d`. V6 monitors 299 source files.
+The canonical runtime source snapshot is commit
+`99cd9533e92508433a475da4718233ee0ce074ff`, tree
+`d1ceb2f676d1c7abb7b297dbd43f4b752090ef0d`. V6 monitors 299 source files.
 Its proof adds 20 Git objects and has SHA-256
-`cda052db5b3e0507b5a297e3ab715cc691b5a984c17db0afd1d30903e9829fbf`.
+`e299e5a7d8790218fd20318a0ee53d51026b221287c9d90692d253a015ce511c`.
 
 The inventory covers all Python runtime modules under `apps/api` and `scripts`,
 all files under `skills` and `supabase`, the root journalist prompt, the existing native
