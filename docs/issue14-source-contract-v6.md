@@ -9,10 +9,18 @@ admission remain prerequisites; this offline audit does not publish or approve
 execution.
 
 The canonical runtime source snapshot is commit
-`99cd9533e92508433a475da4718233ee0ce074ff`, tree
-`d1ceb2f676d1c7abb7b297dbd43f4b752090ef0d`. V6 monitors 299 source files.
+`d6209255dc834b417d343643c6c586a3a7099c40`, tree
+`0bc9f01573b388a59d586d91cb6d89d5d3cf3248`. V6 monitors 299 source files.
 Its proof adds 20 Git objects and has SHA-256
+`2dd230c2d9a053073c23a19ab0b8b6bb589ef792f07b696bff4fb817cbaecb2d`.
+
+This revision binds the narrow Next static hydration fix. Its only changed
+monitored runtime file is `scripts/memoir_fifty_browser_runner.py`; passing
+source checks does not prove native browser hydration. The previous V6 proof
+remains preserved in commit `4f15346b33b35d36872aa26960d891c3d5227786`,
+bound to runtime `99cd9533e92508433a475da4718233ee0ce074ff` with proof SHA-256
 `e299e5a7d8790218fd20318a0ee53d51026b221287c9d90692d253a015ce511c`.
+Earlier run attribution remains tied to its original source identity.
 
 The inventory covers all Python runtime modules under `apps/api` and `scripts`,
 all files under `skills` and `supabase`, the root journalist prompt, the existing native
