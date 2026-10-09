@@ -2,11 +2,14 @@
 from copy import deepcopy
 import json
 import math
+import re
 import time
 import httpx
 from apps.api.diagnostics import failure_class
 
 MAX_SSE_EVENT_BYTES = 256 * 1024
+MAX_SSE_LINES = 16384
+_LINE_END = re.compile(rb'[\r\n]')
 _COUNT_MAX = 2**53 - 1
 _TERMINAL = frozenset({'response.completed', 'response.failed', 'response.incomplete', 'error'})
 _EVENTS = frozenset({'response.created', 'response.in_progress', 'response.output_item.added',
@@ -46,6 +49,7 @@ class ResponseObservation:
             'response_bytes_seen':0, 'response_chunks_seen':0, 'sse_enabled':False,
             'sse_event_counts':{name:0 for name in sorted(_EVENTS)}, 'sse_unknown_events':0,
             'sse_invalid_events':0, 'sse_omitted_events':0, 'counts_truncated':False,
+            'sse_scan_truncated':False, 'sse_lines_scanned':0,
             'terminal_sse_category':None, 'terminal_sse_at_monotonic':None,
             'last_terminal_sse_at_monotonic':None, 'eof_at_monotonic':None,
             'eof_observed':False,
@@ -98,19 +102,23 @@ class ResponseObservation:
             if self.data['first_byte_at_monotonic'] is None:
                 self.data['first_byte_at_monotonic'] = stamp
             self.data['last_byte_at_monotonic'] = stamp
-        if not self.data['sse_enabled']:
+        if not self.data['sse_enabled'] or self.data['sse_scan_truncated']:
             return
         # Scan without splitting a large block into an unbounded list of lines.
         offset = 0
         while offset < len(block):
+            if self.data['sse_lines_scanned'] >= MAX_SSE_LINES:
+                self.data.update(sse_scan_truncated=True, counts_truncated=True)
+                self._line.clear(); self._data.clear(); self._event = None
+                self._discard = False; self._line_nonempty = False
+                return
             if self._skip_lf:
                 self._skip_lf = False
                 if block[offset] == 10:
                     offset += 1
                     continue
-            cr, lf = block.find(b'\r', offset), block.find(b'\n', offset)
-            ends = [index for index in (cr,lf) if index >= 0]
-            end = min(ends) if ends else len(block)
+            delimiter = _LINE_END.search(block, offset)
+            end = delimiter.start() if delimiter is not None else len(block)
             length = end - offset
             self._line_nonempty = self._line_nonempty or length > 0
             if not self._discard:
@@ -121,6 +129,7 @@ class ResponseObservation:
                     self._line.extend(block[offset:end])
             if end == len(block):
                 break
+            self.data['sse_lines_scanned'] += 1
             # Empty line dispatches one complete SSE frame; never dispatch at EOF.
             if not self._line_nonempty:
                 self._dispatch(stamp)

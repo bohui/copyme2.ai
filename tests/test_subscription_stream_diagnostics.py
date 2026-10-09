@@ -416,3 +416,14 @@ def test_observation_journal_overhead_cannot_extend_original_deadline(tmp_path,m
             assert receipt['attempts'][0]['response_observation']['eof_observed'] is True
         finally:await transport.aclose();run.close()
     asyncio.run(scenario())
+
+
+def test_sse_line_flood_bounds_work_and_declares_partial_counts():
+    from scripts.issue14_response_observation import ResponseObservation
+    observation=ResponseObservation();observation.headers(200,True)
+    observation.chunk(b'\n'*32768+TERMINAL)
+    result=observation.snapshot()
+    assert result['sse_scan_truncated'] is True and result['counts_truncated'] is True
+    assert result['terminal_sse_category'] is None
+    assert observation.buffered_bytes == 0
+    assert result['response_bytes_seen']==32768+len(TERMINAL)

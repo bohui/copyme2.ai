@@ -128,7 +128,11 @@ multiline data. Duplicate JSON keys, nonfinite numbers, malformed JSON and
 mismatched event/type fields cannot supply terminal evidence. Event/line buffers
 are capped at 256 KiB each; oversized frames are counted as omitted. Arbitrary
 names and fields are never retained; unknown types receive a fixed count.
-Fixed counters saturate with explicit truncation. Nonfinite/backward monotonic
+Fixed counters saturate with explicit truncation. A combined delimiter scan
+and 16,384-line per-response limit bound diagnostic work; once that limit is
+reached, SSE counts are explicitly partial and no later terminal category is
+inferred. Aggregate byte/chunk observations and original response reading
+continue unchanged. Nonfinite/backward monotonic
 times are discarded with an invalid-timestamp flag. Buffers are cleared and
 observations sealed at close. One bounded final summary is journaled per send,
 including on cancellation. A journal failure stops admission and preserves
