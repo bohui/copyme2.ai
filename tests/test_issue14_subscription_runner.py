@@ -396,6 +396,86 @@ def test_failure_summary_omits_invalid_accepted_source_id(controlled):
     assert 'SECRET' not in str(result)
 
 
+def test_saturated_trajectory_terminal_parser_summary_survives_round_rejection(controlled):
+    from apps.api.trajectory_evaluation import TrajectoryRecorder
+    session = controlled()
+    def mutate(value):
+        recorder = TrajectoryRecorder(value['trajectory']['correlation'])
+        for _ in range(recorder.max_steps):
+            recorder.record('worker', 'synthetic.completed')
+        failure = {'action': 'workspace.failed', 'error_type': 'JSONDecodeError', 'retryable': True,
+                   'parser_boundary': 'postgres_rest_json_record',
+                   'json_line': 2, 'json_column': 4, 'json_position': 12,
+                   'message': 'MESSAGE_SECRET', 'doc': 'DOCUMENT_SECRET',
+                   'frames': [{'filename': 'apps/api/codex_runtime.py', 'function': '_persist_workspace',
+                               'line': 2500, 'source': 'SOURCE_SECRET'}]}
+        assert recorder.record('application', 'workspace.failed', output=failure)['accepted'] is False
+        recorder.finish('REPLY_SECRET', status='completed', state={'workspace_failure': failure})
+        value['trajectory'] = recorder.payload()
+        assert not any(step['action'] == 'workspace.failed' for step in value['trajectory']['steps'])
+    session.turn_hook = mutate
+    published = []
+    result = asyncio.run(module.SubscriptionProgressiveRunner(session).run(progress=published.append))
+    record = result['cases'][0]['rounds'][0]
+    summary = record['failure_summary']
+    assert summary['json_position'] == 12
+    assert summary['frames'] == [{'filename': 'apps/api/codex_runtime.py',
+                                  'function': '_persist_workspace', 'line': 2500}]
+    assert summary['accepted_source_id'] == session.storages[CASE_IDS[0]].sources[0]['id']
+    assert record['status'] == 'failed' and record['background_settled'] is False
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['stop_reason'] == 'background_incomplete'
+    assert result['failure_stage'] == 'runtime_readback'
+    assert len(session.calls) == 1 and not any(event[0] == 'dispatch' for event in session.events)
+    assert published[-1]['cases'][0]['rounds'][0]['failure_summary'] == summary
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda v: v['trajectory']['correlation'].update(round_id='50'),
+    lambda v: v['trajectory']['final']['state']['workspace_failure'].update(action='provider.failed'),
+    lambda v: v['trajectory']['final']['state']['workspace_failure'].update(error_type='SECRET_ERROR'),
+])
+def test_terminal_parser_evidence_keeps_exact_scope_and_type_guard(controlled, mutation):
+    session = controlled()
+    def mutate(value):
+        value['trajectory']['limits'] = {'overflowed': True, 'dropped_steps': 1}
+        value['trajectory']['final']['state'] = {'workspace_failure': {
+            'action': 'workspace.failed', 'error_type': 'JSONDecodeError'}}
+        mutation(value)
+    session.turn_hook = mutate
+    result = execute(session)
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert 'failure_summary' not in result['cases'][0]['rounds'][0]
+    assert 'SECRET_ERROR' not in str(result)
+
+
+def test_terminal_parser_evidence_is_preferred_to_earlier_step_copy(controlled):
+    session = controlled()
+    def mutate(value):
+        value['trajectory']['steps'].append({'action': 'workspace.failed', 'output': {
+            'error_type': 'JSONDecodeError', 'json_position': 1}})
+        value['trajectory']['final']['state'] = {'workspace_failure': {
+            'action': 'workspace.failed', 'error_type': 'JSONDecodeError', 'json_position': 27}}
+    session.turn_hook = mutate
+    result = execute(session)
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['cases'][0]['rounds'][0]['failure_summary']['json_position'] == 27
+
+
+def test_terminal_workspace_failure_alone_cannot_be_accepted_as_completed(controlled):
+    session = controlled()
+    def mutate(value):
+        value['trajectory']['final']['state'] = {'workspace_failure': {
+            'action': 'workspace.failed', 'error_type': 'JSONDecodeError', 'json_position': 27}}
+    session.turn_hook = mutate
+    result = execute(session)
+    assert result['status'] == 'incomplete' and result['output'] is None
+    assert result['stop_reason'] == 'background_incomplete'
+    assert result['cases'][0]['rounds'][0]['failure_summary']['json_position'] == 27
+    assert len(session.calls) == 1 and not any(event[0] == 'dispatch' for event in session.events)
+
+
 def test_successful_runtime_receipts_do_not_add_failure_metadata(controlled):
     result = execute(controlled())
     assert result['status'] == 'completed'

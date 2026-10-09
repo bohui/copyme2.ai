@@ -20,12 +20,14 @@ import subprocess
 import sys
 import threading
 import time
-from uuid import UUID
+from uuid import UUID, uuid5
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 EXISTING_ORIGIN = 'http://192.168.66.1:4000/v1'
+ARTIFACT_STORAGE_LIMITS = {'max_artifact_bytes': 25 * 1024 * 1024,
+    'max_objects_per_owner': 512, 'max_bytes_per_owner': 512 * 1024 * 1024}
 
 
 def _binary(path, digest):
@@ -85,6 +87,9 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
         'source_revision': source_revision, 'case_ids': list(cases), 'cases': cases,
         'evaluation_profile': profile.name, 'rounds_per_case': profile.rounds,
         'checkpoints': list(profile.checkpoints), 'concurrency': 1,
+        'artifact_storage': {'backend': 'owned_disposable_postgres',
+            'provider_free_readiness_required': True, 'real_storage_writes': False,
+            **ARTIFACT_STORAGE_LIMITS},
         **({'photo_research': photo} if photo is not None else {}),
         **({'browser_readback': browser} if browser is not None else {}),
         **({'max_case_client_requests': max_case_client_requests,
@@ -316,6 +321,30 @@ def native_cleanup_complete(native, cleanup_failed):
         and (not native.get('temporal_start_attempted') or native['temporal_stopped'] is True))
 
 
+def native_artifact_setup(sql, plan):
+    """Verify the isolated byte fixture before any worker can contact a model.
+
+    Called only in the already-owned PostgreSQL setup thread. Its existing
+    deadline/cancellation seam and joined teardown cover initialization and the
+    real runtime upload/readback probe; no independent services are started.
+    """
+    from memoir_postgres_workflow import initialize_artifact_storage, verify_artifact_storage
+    probe_owner = str(uuid5(UUID(plan['run_id']), 'memoir-artifact-readiness'))
+    if probe_owner in {case['owner_id'] for case in plan['cases'].values()}:
+        raise ValueError('Artifact readiness owner must be separate from campaign cases')
+    limits = initialize_artifact_storage(sql)
+    if type(limits) is not dict or limits != ARTIFACT_STORAGE_LIMITS:
+        raise ValueError('Isolated artifact readiness limits differ from the plan')
+    evidence = asyncio.run(verify_artifact_storage(sql, probe_owner=probe_owner))
+    if (type(evidence) is not dict or evidence.get('status') != 'verified'
+            or evidence.get('byte_readback_verified') is not True
+            or evidence.get('probe_cleaned') is not True
+            or type(evidence.get('model_calls')) is not int or evidence['model_calls'] != 0
+            or evidence.get('real_storage_writes') is not False):
+        raise ValueError('Isolated artifact readiness was not verified')
+    return {**evidence, 'limits': limits}
+
+
 @asynccontextmanager
 async def native_resources(plan, run, directory, receipt):
     """Own only one disposable PG container and loopback Temporal process."""
@@ -340,6 +369,7 @@ async def native_resources(plan, run, directory, receipt):
         'rest_auth_facade': 'synthetic_PostgresRest',
         'entitlement': 'synthetic_campaign_facade_only' if profile.name == 'subscription_fifty' else 'free',
         'real_account_subscriptions_modified': False,
+        'artifact_storage': {'status': 'not_verified', 'real_storage_writes': False},
         'temporal': 'owned_loopback', 'postgres_removed': False, 'temporal_stopped': False,
         'temporal_start_attempted': False}
     def record():
@@ -358,15 +388,18 @@ async def native_resources(plan, run, directory, receipt):
         if sql.command[3] != postgres_name:
             raise ValueError('Owned PostgreSQL identity differs')
         sql = event_database.__wrapped__(private_database.__wrapped__(attachment_database.__wrapped__(sql)))
+        artifact_evidence = native_artifact_setup(sql, plan)
         for case in plan['cases'].values():
             sql(f"insert into auth.users(id,is_anonymous) values ({quoted(case['owner_id'])},false);")
             if (plan.get('browser_readback') or {}).get('allow_browser_turns') is True:
                 sql("insert into public.user_memoir_project(user_id,project_id) values ("
                     + quoted(case['owner_id']) + "," + quoted(case['project_id']) + " );")
-        return sql
+        return sql, artifact_evidence
     try:
         setup_task = asyncio.create_task(asyncio.to_thread(setup))
-        sql = await asyncio.shield(setup_task)
+        sql, artifact_evidence = await asyncio.shield(setup_task)
+        receipt['native']['artifact_storage'] = artifact_evidence
+        record()
         receipt['resource_gate'] = memory_resource_check(waived=plan.get('memory_pressure_check_waived', False))
         receipt['native']['temporal_start_attempted'] = True
         temporal = await WorkflowEnvironment.start_local(

@@ -255,3 +255,39 @@ current semantic judge is not run, and the legacy formal-composition/timeline
 marker expectations are not relabelled as equivalent to current canonical event
 and private-checkpoint contracts. No source-only/offline test result proves the
 native browser campaign happened or all seven skill acceptance dimensions passed.
+
+## Disposable worker artifact storage and readiness
+
+The native PostgreSQL fixture stores raw worker artifacts in its own
+`storage.objects.fixture_content` bytes, under the existing authenticated owner
+policy. Only immutable, lease-qualified agent `sessions`, `archived_sessions`
+and `memories` paths are accepted. Real Storage, photo/attachment uploads,
+service-role uploads, overwrite, signing and listing are unavailable. Each
+artifact is limited to 25 MiB; each synthetic owner has a 512-object and 512 MiB
+total limit. Concurrent writes check quotas under the same owner transaction
+lock. These are disposable fixture bounds, not product subscription changes.
+Removing the owned PostgreSQL container removes both metadata and bytes.
+
+Before creating campaign owners or starting Temporal or model workers, native
+setup creates a separate fresh synthetic probe owner and exercises the actual
+`AgentTurnLease`, `CodexRuntime._save_worker_artifacts` and `UserStorage` paths.
+It uploads multi-record JSONL and non-UTF-8 bytes, reads both back through a new
+facade, verifies exact bytes, closes clients and verifies probe cleanup. A
+content-free receipt records hashes, sizes, limits and zero model calls. Any
+failure blocks execution. Probe I/O joins before cleanup on cancellation.
+
+The native owner can verify this path without a campaign or model request by
+running `tests/test_memoir_postgres_artifacts.py -k test_postgres_` with
+`MEMOIR_TEST_ARTIFACT_POSTGRES=1` and the existing verified PostgreSQL backend,
+exclusive lease and workspace temporary directory. Its four integration tests
+cover actual runtime persistence/readback/cleanup, owner isolation, immutable
+objects, existing lease fencing and concurrent byte/object quotas. Offline
+adapter tests do not substitute for this native database gate.
+
+Private parser-failure evidence is also retained in the trajectory's bounded
+terminal state, so a full 512-step recorder cannot drop the error location.
+Overflow still fails evaluation. Receipts project only validated boundary,
+coordinates and error type; they do not retain payload text or expose these
+details through the public browser response. The framing and artifact fixtures
+have deterministic regressions. Earlier native failures did not retain their
+exact parser stack, so those regressions do not establish the live cause.

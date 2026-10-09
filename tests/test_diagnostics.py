@@ -182,9 +182,12 @@ def test_sanitizer_never_stringifies_untrusted_metadata():
         'error_type': 'JSONDecodeError'}
 
 
-def test_workspace_parser_details_are_private_and_public_error_stays_type_only(monkeypatch):
+@pytest.mark.parametrize('worker_steps', [0, 512])
+def test_workspace_parser_details_are_private_and_public_error_stays_type_only(monkeypatch, worker_steps):
     import asyncio
     from apps.api.codex_runtime import CodexRuntime
+    from scripts.issue14_subscription_runner import _runtime_failure_summary, _runtime_readback, SubscriptionRunnerError
+    from scripts.memoir_fifty_browser import _public_turn
 
     monkeypatch.delenv('MEMORY_SPARK_TASK_DB', raising=False)
 
@@ -200,9 +203,14 @@ def test_workspace_parser_details_are_private_and_public_error_stays_type_only(m
         def commit_agent_turn(self, *args, **kwargs): return {'id': 'memory', 'source_sequence': 1}
 
     async def run():
-        runtime, events = CodexRuntime(worker_url='http://controlled-worker'), []
+        runtime, events, worker_calls = CodexRuntime(worker_url='http://controlled-worker'), [], []
+        correlation = {'run_id': '00000000-0000-4000-8000-000000000001',
+                       'case_id': 'parser-diagnostic-fixture', 'round_id': '1'}
         async def worker(**kwargs):
-            return {'thread_id': 'collector', 'reply': 'Saved controlled reply.', 'artifacts': []}
+            worker_calls.append(kwargs.get('agent_role', 'collector'))
+            return {'thread_id': 'collector', 'reply': 'Saved controlled reply.', 'artifacts': [],
+                    'trajectory': {'steps': [{'action': 'synthetic.worker.completed',
+                        'output': {'status': 'completed'}} for _ in range(worker_steps)]}}
         async def fail_workspace(*args, **kwargs):
             error = _caught_parser_error()
             error.parser_boundary = 'postgres_rest_json_record'
@@ -212,20 +220,50 @@ def test_workspace_parser_details_are_private_and_public_error_stays_type_only(m
         monkeypatch.setattr(runtime, '_worker_turn', worker)
         monkeypatch.setattr(runtime, '_run_workspace_job', fail_workspace)
         result = await runtime.turn(Storage(), 'Controlled original input.', language='en-AU',
-                                    on_event=emit, include_trajectory=True)
-        failure = next(step['output'] for step in result['trajectory']['steps']
-                       if step.get('action') == 'workspace.failed')
+                                    on_event=emit, include_trajectory=True, evaluation=correlation)
+        trajectory = result['trajectory']
+        failure = trajectory['final']['state']['workspace_failure']
+        assert failure['action'] == 'workspace.failed'
         assert failure['error_type'] == 'JSONDecodeError'
         assert failure['parser_boundary'] == 'postgres_rest_json_record'
         assert failure['json_position'] == 19
         assert failure['frames'][-1]['function'] == '_persist_workspace'
+        steps = [step for step in trajectory['steps'] if step.get('action') == 'workspace.failed']
+        if worker_steps:
+            assert steps == []
+            assert trajectory['limits']['observed_steps'] == trajectory['limits']['max_steps'] == 512
+            assert trajectory['limits']['dropped_steps'] > 0 and trajectory['limits']['overflowed'] is True
+        else:
+            assert len(steps) == 1 and trajectory['limits']['overflowed'] is False
+            assert failure == {'action': 'workspace.failed', **steps[0]['output']}
+        assert _runtime_failure_summary(result, correlation) == failure
+        # The synthetic source identifier only permits reaching the existing
+        # background checks; no actual source, transport or storage is created.
+        with pytest.raises(SubscriptionRunnerError, match='background_incomplete'):
+            _runtime_readback({**result, 'accepted_source_id': str(UUID(int=2))}, correlation)
+        public_result = _public_turn(result)
+        assert 'trajectory' not in public_result
+        assert 'workspace_failure' not in json.dumps(public_result)
+        assert 'parser_boundary' not in json.dumps(public_result)
         public = next(event['data'] for event in events if event['type'] == 'workspace_error')
         assert public['error_type'] == 'JSONDecodeError'
         assert not {'frames', 'parser_boundary', 'json_line', 'json_column', 'json_position'} & public.keys()
         assert result['conversation_saved'] is True
         assert result['reply'] == 'Saved controlled reply.'
         assert result['trajectory']['final']['status'] == 'completed'
+        assert worker_calls == ['collector']
         for secret in ('MESSAGE_SECRET', 'DOCUMENT_SECRET', 'LOCAL_SECRET', 'SOURCE_SECRET'):
             assert secret not in json.dumps(failure)
             assert secret not in json.dumps(public)
+        async def successful_workspace(*args, **kwargs):
+            return {'place_journey': None, 'place_journey_change': None, 'profile_updates': {},
+                    'family_context': None, 'family_context_update': None,
+                    'tasks': [], 'task_errors': [], 'source_paths': []}
+        monkeypatch.setattr(runtime, '_run_workspace_job', successful_workspace)
+        following = await runtime.turn(Storage(), 'A later controlled input.', language='en-AU',
+            on_event=emit, include_trajectory=True, evaluation={**correlation, 'round_id': '2'})
+        assert 'workspace_failure' not in following['trajectory']['final']['state']
+        assert following['conversation_saved'] is True
+        assert following['reply'] == 'Saved controlled reply.'
+        assert worker_calls == ['collector', 'collector']
     asyncio.run(run())

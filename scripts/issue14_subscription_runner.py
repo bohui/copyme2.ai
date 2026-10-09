@@ -107,13 +107,20 @@ def _runtime_failure_summary(value, correlation):
             or not all(trajectory['correlation'].get(key) == expected
                        for key, expected in correlation.items())):
         return None
+    # The recorder can exhaust its step budget before workspace.failed. Its
+    # bounded final state is independent of that budget, but remains untrusted
+    # evidence that must be projected again under this exact round correlation.
+    outputs = []
+    final = trajectory.get('final')
+    state = final.get('state') if type(final) is dict else None
+    terminal = state.get('workspace_failure') if type(state) is dict else None
+    if type(terminal) is dict and terminal.get('action') == 'workspace.failed':
+        outputs.append(terminal)
     steps = trajectory.get('steps')
-    if type(steps) is not list:
-        return None
-    for step in reversed(steps[-512:]):
-        if type(step) is not dict or step.get('action') != 'workspace.failed':
-            continue
-        output = step.get('output')
+    if type(steps) is list:
+        outputs.extend(step.get('output') for step in reversed(steps[-512:])
+                       if type(step) is dict and step.get('action') == 'workspace.failed')
+    for output in outputs:
         details = sanitize_json_failure_details(output)
         if not details:
             continue
@@ -163,7 +170,7 @@ def _runtime_readback(value, correlation):
     _require(type(limits) is dict and not limits.get('overflowed')
              and not limits.get('dropped_steps'), 'background_incomplete')
     state = final.get('state', {})
-    _require(type(state) is dict and not state.get('task_error_count')
+    _require(type(state) is dict and not state.get('workspace_failure') and not state.get('task_error_count')
              and all(status in {'completed', 'succeeded', 'SUCCEEDED'}
                      for status in state.get('task_statuses', [])), 'background_incomplete')
     # The canonical bridge needs only correlation and final state. Never copy

@@ -2093,6 +2093,7 @@ class CodexRuntime:
             # can start while enrichment is still settling.
             conversation_scope = turn_scope.pop_all()
             await conversation_scope.aclose()
+            workspace_parser_failure = None
             try:
                 try:
                     await self._resume_pending_workspace(storage, exclude_turn_id=turn_id)
@@ -2108,10 +2109,18 @@ class CodexRuntime:
             except Exception as workspace_failure:
                 await progress.update('workspace', 'Workspace update could not finish; the reply is saved', '工作区更新未完成；回复已保存', status='failed')
                 if trajectory:
+                    parser_details = json_failure_details(workspace_failure)
+                    if parser_details:
+                        # Keep this bounded private terminal evidence even if
+                        # worker steps exhausted the recorder. Overflow still
+                        # rejects evaluation; it never justifies a larger cap.
+                        workspace_parser_failure = {
+                            'action': 'workspace.failed', 'retryable': True, **parser_details,
+                        }
                     trajectory.record('application', 'workspace.failed', output={
                         'error_type': type(workspace_failure).__name__,
                         'retryable': True,
-                        **json_failure_details(workspace_failure),
+                        **parser_details,
                     })
                 # The exchange is already durable. A workspace failure is
                 # optional and must not turn the saved reply into a failed
@@ -2168,6 +2177,7 @@ class CodexRuntime:
                         'task_kinds': [task.get('kind') for task in tasks if isinstance(task, Mapping)],
                         'task_statuses': [task.get('status') for task in tasks if isinstance(task, Mapping)],
                         'task_results': tasks,
+                        **({'workspace_failure': workspace_parser_failure} if workspace_parser_failure else {}),
                     },
                 )
             response = {
