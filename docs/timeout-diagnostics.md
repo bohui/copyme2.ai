@@ -125,7 +125,12 @@ never proof of semantic success or authority to stop reading before HTTP EOF.
 
 SSE observation parses only complete frames, including split CR/LF, UTF-8 and
 multiline data. Duplicate JSON keys, nonfinite numbers, malformed JSON and
-mismatched event/type fields cannot supply terminal evidence. Event/line buffers
+mismatched event/type fields cannot supply terminal evidence. Completed data
+frames are decoded strictly as UTF-8 before JSON parsing; JSON byte autodetection
+must not turn UTF-16/32 or invalid UTF-8 into false terminal evidence. A DONE
+marker has its own bounded count/timestamps, preserves any typed terminal
+outcome, and never creates a conflict with that outcome. Contradictory typed
+terminal events still produce a conflicting category. Event/line buffers
 are capped at 256 KiB each; oversized frames are counted as omitted. Arbitrary
 names and fields are never retained; unknown types receive a fixed count.
 Fixed counters saturate with explicit truncation. A combined delimiter scan
@@ -134,10 +139,20 @@ reached, SSE counts are explicitly partial and no later terminal category is
 inferred. Aggregate byte/chunk observations and original response reading
 continue unchanged. Nonfinite/backward monotonic
 times are discarded with an invalid-timestamp flag. Buffers are cleared and
-observations sealed at close. One bounded final summary is journaled per send,
-including on cancellation. A journal failure stops admission and preserves
+observations sealed at close. At most two bounded observation revisions are
+journaled per send, including on cancellation. The initial revision precedes
+the original accounting gate; a single final correction records failure fields
+if that gate rejects or later cleanup changes the observation. The latest
+durable revision supplies the final observation; a failed correction keeps
+the journal explicitly nondurable and preserves the primary failure. A journal failure stops admission and preserves
 the original failure; a successful diagnostic write cannot extend the existing
 deadline or complete/refund a reservation.
+
+Byte/chunk counts and arrival times include the size-rejected final chunk,
+before the unchanged response-size guard rejects it. Those rejected bytes are
+neither copied into diagnostic buffers nor parsed, retained or forwarded; SSE
+counts are marked partial with a fixed response-size reason. This distinguishes
+an oversized single block from a response that supplied no bytes.
 
 A separate private app-server observer counts turn starts/completions, additional
 turn starts, known message/reasoning delta events, and tool notifications by fixed

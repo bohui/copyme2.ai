@@ -385,14 +385,16 @@ class SubscriptionRun:
                          response_bytes=response_bytes, completed_at_monotonic=completed_at,
                          elapsed_ms=elapsed)
 
-    def _response_observed(self, entry, observation):
+    def _response_observed(self, entry, observation, *, revision=1):
         # Diagnostic-only write remains available after cancellation stops the
         # gate. It cannot admit, complete, refund or reset a charged request.
         with self._lock:
             if self._closed:
                 return
+            snapshot = observation.snapshot()
             self._write('response_observed', ordinal=entry['ordinal'],
-                response_observation=observation.snapshot())
+                observation_revision=revision, response_observation=snapshot)
+            return snapshot
 
     def _case_snapshot(self, case, now):
         completed = sum(entry['status'] == 'completed' for entry in case['entries'])
@@ -569,7 +571,8 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
         response = None
         case_dispatch = False
         entry = observation = None
-        observation_written = False
+        observation_write_attempted = False
+        persisted_observation = None
         try:
             self.run._bind_loop()
             if self._closed:
@@ -618,9 +621,9 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                     chunks, size = [], 0
                     async for block in response.aiter_raw():
                         size += len(block)
+                        observation.chunk(block, parse=size <= MAX_RESPONSE_BYTES)
                         if size > MAX_RESPONSE_BYTES:
                             self.run._reject('protocol_invalid')
-                        observation.chunk(block)
                         chunks.append(block)
                     body = b''.join(chunks)
                     status = response.status_code
@@ -630,8 +633,8 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                             b'upgrade', b'content-length'}]
                     await response.aclose()
                     response = None
-                    observation_written = True
-                    self.run._response_observed(entry, observation)
+                    observation_write_attempted = True
+                    persisted_observation = self.run._response_observed(entry, observation)
                     self.run._complete(entry, status, len(body))
                     return httpx.Response(status, headers=response_headers, content=body)
         except BaseException as error:
@@ -656,9 +659,14 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                         observation.data.update(cleanup_status='failed', cleanup_failure_class=failure_class(error))
             if observation is not None:
                 observation.close()
-                if not observation_written:
+                if (not observation_write_attempted or persisted_observation is not None
+                        and observation.snapshot() != persisted_observation):
                     try:
-                        self.run._response_observed(entry, observation)
+                        # At most one correction after a confirmed first write.
+                        # Accounting rejection may add failure fields after its
+                        # fsync. The original completion/deadline gate stays shut.
+                        self.run._response_observed(entry, observation,
+                            revision=2 if persisted_observation is not None else 1)
                     except Exception:
                         # _write already fences a journal failure. Preserve
                         # the original timeout/cancellation; no send can resume.

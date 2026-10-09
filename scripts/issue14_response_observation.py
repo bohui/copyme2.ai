@@ -35,7 +35,10 @@ def _object(raw):
         if not math.isfinite(number):
             raise ValueError('Nonfinite value')
         return number
-    value = json.loads(raw, object_pairs_hook=unique, parse_constant=invalid, parse_float=finite)
+    # SSE data is UTF-8. Passing bytes to json.loads would autodetect UTF-16/32
+    # and accept terminal evidence a UTF-8 consumer cannot parse.
+    value = json.loads(raw.decode('utf-8'), object_pairs_hook=unique,
+        parse_constant=invalid, parse_float=finite)
     if type(value) is not dict or type(value.get('type')) is not str:
         raise ValueError('Typed object required')
     return value['type']
@@ -50,6 +53,9 @@ class ResponseObservation:
             'sse_event_counts':{name:0 for name in sorted(_EVENTS)}, 'sse_unknown_events':0,
             'sse_invalid_events':0, 'sse_omitted_events':0, 'counts_truncated':False,
             'sse_scan_truncated':False, 'sse_lines_scanned':0,
+            'sse_scan_truncation_reason':None,
+            'done_markers':0, 'first_done_marker_at_monotonic':None,
+            'last_done_marker_at_monotonic':None,
             'terminal_sse_category':None, 'terminal_sse_at_monotonic':None,
             'last_terminal_sse_at_monotonic':None, 'eof_at_monotonic':None,
             'eof_observed':False,
@@ -92,7 +98,7 @@ class ResponseObservation:
             http_status=status if type(status) is int and 100 <= status <= 599 else None,
             sse_enabled=sse if type(sse) is bool else False, phase='reading_body', cleanup_status='pending')
 
-    def chunk(self, block):
+    def chunk(self, block, *, parse=True):
         if self._sealed:
             return
         self._count('response_chunks_seen')
@@ -102,13 +108,21 @@ class ResponseObservation:
             if self.data['first_byte_at_monotonic'] is None:
                 self.data['first_byte_at_monotonic'] = stamp
             self.data['last_byte_at_monotonic'] = stamp
+        if not parse:
+            # Retain only counts/times for a size-rejected chunk. Do not copy
+            # any bytes into diagnostic buffers or interpret terminal data.
+            if self.data['sse_enabled']:
+                self.data.update(sse_scan_truncated=True, counts_truncated=True,
+                    sse_scan_truncation_reason='response_size_limit')
+            return
         if not self.data['sse_enabled'] or self.data['sse_scan_truncated']:
             return
         # Scan without splitting a large block into an unbounded list of lines.
         offset = 0
         while offset < len(block):
             if self.data['sse_lines_scanned'] >= MAX_SSE_LINES:
-                self.data.update(sse_scan_truncated=True, counts_truncated=True)
+                self.data.update(sse_scan_truncated=True, counts_truncated=True,
+                    sse_scan_truncation_reason='line_limit')
                 self._line.clear(); self._data.clear(); self._event = None
                 self._discard = False; self._line_nonempty = False
                 return
@@ -168,7 +182,15 @@ class ResponseObservation:
                 return
             raw = bytes(self._data[:-1])
             if raw == b'[DONE]':
-                name = 'done_marker'
+                self._count('done_markers')
+                self.data['last_done_marker_at_monotonic'] = stamp
+                if self.data['first_done_marker_at_monotonic'] is None:
+                    self.data['first_done_marker_at_monotonic'] = stamp
+                self.data['phase'] = 'awaiting_eof'
+                if self.data['terminal_sse_category'] is None:
+                    self.data.update(terminal_sse_category='done_marker',
+                        terminal_sse_at_monotonic=stamp, last_terminal_sse_at_monotonic=stamp)
+                return
             else:
                 try:
                     name = _object(raw)
@@ -182,11 +204,11 @@ class ResponseObservation:
                     self._count('sse_unknown_events')
                     return
                 self._count(name, target=self.data['sse_event_counts'])
-            if name in _TERMINAL or name == 'done_marker':
+            if name in _TERMINAL:
                 previous = self.data['terminal_sse_category']
-                self.data.update(terminal_sse_category=(name if previous in (None,name) else 'conflicting'),
+                self.data.update(terminal_sse_category=(name if previous in (None,'done_marker',name) else 'conflicting'),
                     last_terminal_sse_at_monotonic=stamp, phase='awaiting_eof')
-                if previous is None:
+                if previous in (None,'done_marker'):
                     self.data['terminal_sse_at_monotonic'] = stamp
         finally:
             self._data.clear(); self._event = None; self._discard = False
