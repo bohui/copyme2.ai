@@ -311,7 +311,6 @@ h3 { line-height: 1.1; }
 .place-journey-workspace { margin: 0; }
 .place-journey-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .place-journey-heading h2 { margin: 8px 0 12px; font-family: Fraunces, Georgia, serif; font-size: 36px; line-height: 1.12; letter-spacing: -.035em; overflow-wrap: anywhere; }
-.place-journey-status { color: var(--muted); font-size: 12px; text-transform: capitalize; }
 .place-journey-scene { position: relative; height: clamp(280px, 42vh, 430px); overflow: hidden; margin: 22px 0 0; border-radius: 8px; background: #173f45; }
 .cesium-place-journey, .cesium-place-journey .cesium-viewer, .cesium-place-journey .cesium-viewer-cesiumWidgetContainer, .cesium-place-journey .cesium-widget, .cesium-place-journey canvas { width: 100%; height: 100%; }
 .cesium-place-journey canvas { display: block; }
@@ -325,10 +324,7 @@ h3 { line-height: 1.1; }
 .journey-pin { color: var(--gold); font-size: 32px; animation: journey-arrive var(--journey-duration) ease-out .3s both; text-shadow: 0 5px 12px rgba(0,0,0,.28); }
 .journey-scene-caption { position: absolute; top: 10px; right: 13px; z-index: 3; padding: 4px 6px; border-radius: 999px; background: rgba(23,63,69,.62); color: rgba(255,255,255,.9); font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 @keyframes journey-arrive { 0%, 44% { opacity: 0; transform: scale(.35) rotate(-15deg); } 72% { opacity: 1; transform: scale(1.12) rotate(5deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
-.place-journey-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.place-map-link { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; color: var(--green); font-size: 12px; font-weight: 600; text-decoration: none; }
-.place-map-link:hover { text-decoration: underline; }
-.place-map-link:focus-visible, .workspace-detail-tab:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.workspace-detail-tab:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 .place-journey-note { margin: 15px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .place-journey-card > .text-button { display: inline-block; margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) {
@@ -798,9 +794,6 @@ h3 { line-height: 1.1; }
   margin-top: 12px;
   border-radius: 12px;
 }
-.workspace-media-map .place-journey-toolbar {
-  padding: 10px 0;
-}
 .workspace-media-map .place-journey-note {
   margin-bottom: 0;
 }
@@ -1167,8 +1160,6 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-choices button { min-height: 44px; padding: 4px 10px; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-journey-card { position: relative; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; margin: 0; border: 0; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-journey-scene { flex: 1 1 0; height: 0; min-height: 0; margin: 0; border-radius: 0; }
-  .story-shell:has(#chat-scroll) .workspace-media-map .place-journey-toolbar { position: absolute; bottom: 0; left: 0; right: 0; z-index: 1; min-height: 32px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); background: rgba(255,253,248,.88); font-size: 10px; pointer-events: none; }
-  .story-shell:has(#chat-scroll) .workspace-media-map .place-map-link { pointer-events: auto; min-height: 32px; display: flex; align-items: center; }
   .story-shell:has(#chat-scroll) .life-stage-navigator { padding: 2px max(6px, env(safe-area-inset-right)) 2px max(6px, env(safe-area-inset-left)); min-height: 48px; box-shadow: none; }
   .story-shell:has(#chat-scroll) .life-stage-tabs { display: flex; padding: 0; gap: 4px; }
   .story-shell:has(#chat-scroll) .life-stage-tabs::before,
@@ -1207,3 +1198,27 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
   .map-photo-album-layer.is-fallback .map-album-stem { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .map-photo-album.is-loading .map-album-placeholder { animation: none; } }
+
+.response-photo-cards { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.response-photo-card { margin: 0; width: min(240px, 100%); min-width: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.response-photo-card img { display: block; width: 100%; max-height: 180px; object-fit: contain; background: var(--paper); }
+.response-photo-card figcaption { display: grid; gap: 6px; padding: 10px; overflow-wrap: anywhere; }
+.response-photo-card small, .response-photo-card p { font-size: 12px; color: var(--muted); margin: 0; }
+.response-photo-card a { min-height: 44px; display: flex; align-items: center; }
+.retry-interview-turn { min-height: 44px; margin-bottom: 8px; }
+
+/* Recall views share the workspace with location cues until composition.
+   Give both panes independent room and scrolling on narrow interview screens. */
+@media (max-width: 760px) {
+  .story-shell:has(#chat-scroll) .workspace-detail.has-recall-views:has(.workspace-media-overview) {
+    flex-basis: 70%;
+    max-height: 70%;
+  }
+  .story-shell:has(#chat-scroll) .workspace-detail.has-recall-views > .workspace-scroll {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+}

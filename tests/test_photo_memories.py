@@ -37,7 +37,8 @@ def test_favorites_and_selection_survive_restart_and_remain_project_scoped(tmp_p
     cleared = client.put(url, headers=headers, json={'action': 'clear'}).json()
     assert cleared['selected'] is None and len(cleared['favorites']) == 1
     removed = client.put(url, headers=headers, json={'action': 'unfavorite', 'photo': PHOTO}).json()
-    assert removed == {'favorites': [], 'selected': None}
+    assert removed['favorites'] == [] and removed['selected'] is None
+    assert removed['selection_revision'] == cleared['selection_revision']
 
 
 def test_supabase_save_uses_latest_profile_and_does_not_claim_success_on_failure(monkeypatch):

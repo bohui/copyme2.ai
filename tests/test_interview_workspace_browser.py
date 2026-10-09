@@ -9,6 +9,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
+from browser_optional_fonts import control_optional_fonts
 
 pytestmark = pytest.mark.skipif(not os.environ.get("MEMOIR_BROWSER_URL"), reason="Requires an explicitly selected running browser test server")
 
@@ -18,6 +19,7 @@ def interview():
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         page = browser.new_page(viewport={"width": 1440, "height": 900})
+        control_optional_fonts(page)
         page.set_default_timeout(8000)
         # Product routes use the isolated API's demo principal; the synthetic
         # browser token belongs only to the mocked authentication boundary.
@@ -274,9 +276,11 @@ def test_unmapped_place_keeps_places_and_photos_available_after_round_five(inter
     expect(page.locator(".place-journey-card")).to_have_count(0)
     expect(page.locator("[data-workspace-tab]")).to_have_count(0)
 
-    page.reload()
+    with page.expect_response(lambda response: "/story/private-draft?" in response.url):
+        page.reload()
     expect(page.get_by_role("heading", name="Beijing", exact=True)).to_be_visible(timeout=20000)
-    expect(page.locator(".private-draft-status")).to_contain_text("round 5")
+    expect(page.locator(".private-draft-status")).to_have_count(0)
+    expect(page.get_by_text("A saved private draft.", exact=True)).to_have_count(0)
     expect(page.locator(".workspace-media-gallery")).to_be_visible()
     history = page.get_by_role("navigation", name="Place history")
     history.get_by_role("button", name="Chengde", exact=False).click()

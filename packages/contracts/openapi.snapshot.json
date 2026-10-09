@@ -68,6 +68,17 @@
               }
             ]
           },
+          "photo_cue": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reply": {
             "anyOf": [
               {
@@ -77,6 +88,13 @@
                 "type": "null"
               }
             ]
+          },
+          "response_photos": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
           },
           "server_turn_id": {
             "type": "string"
@@ -831,7 +849,6 @@
             "anyOf": [
               {
                 "maxLength": 100000,
-                "minLength": 1,
                 "type": "string"
               },
               {
@@ -851,6 +868,17 @@
                   "zh-CN"
                 ],
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "photo_selection": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
               },
               {
                 "type": "null"
@@ -878,14 +906,19 @@
             "type": "string"
           },
           "text": {
+            "default": "",
             "maxLength": 100000,
-            "minLength": 1,
             "type": "string"
+          },
+          "uploaded_photo_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "type": "array"
           }
         },
-        "required": [
-          "text"
-        ],
         "type": "object"
       },
       "TurnReceipt": {
@@ -921,6 +954,17 @@
               }
             ]
           },
+          "photo_cue": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "project_id": {
             "type": "string"
           },
@@ -946,6 +990,13 @@
                 "type": "null"
               }
             ]
+          },
+          "response_photos": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
           },
           "schema_version": {
             "const": 1,

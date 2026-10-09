@@ -78,8 +78,11 @@ Distinct synthetic owner/project UUIDs and default-free entitlement are used.
 This is not production authentication/RLS coverage. Only the recorded UUID
 container, task SQLite files, worker homes and loopback listeners are owned;
 cleanup never searches for or stops unrelated services.
-The existing pressure-level-1 gate and exclusive native heavy-resource lease
-remain in force. An existing or unverified UUID-container name prevents allocation.
+The pressure-level-1 check remains the default. The explicitly authorized
+`--waive-memory-pressure-check` option applies only to this one-shot Memoir
+evaluation and records the waiver in its plan/receipt. It does not alter any
+shared setting or other application. The exclusive native heavy-resource lease
+and all isolation/ownership/cleanup requirements remain in force. An existing or unverified UUID-container name prevents allocation.
 The unchanged fixture's process adapter is narrowly fenced for this one-shot
 process: only a confirmed successful create permits one stop attempt. Failed or
 uncertain creation never authorizes stopping a possibly pre-existing container;
@@ -111,10 +114,10 @@ is enabled here. The four managed rules remain disabled. Raw outcomes can be
 reviewed locally; dataset experiment publication is a separate explicit step.
 
 The historical strict Issue 14 budget adapters/receipts/source inventory remain
-unchanged and their unfulfilled ACs remain open. Source contract v3 separately
+unchanged and their unfulfilled ACs remain open. Source contract v4 separately
 checks the reviewed current runtime, native fixtures, dataset, skills and SQL,
 while v1/v2 tests use verified immutable historical evidence. See
-`issue14-source-contract-v3.md`. A passing source gate is not a native execution
+`issue14-source-contract-v4.md`. A passing source gate is not a native execution
 receipt or semantic acceptance; exact-head review and applicable checks still
 apply before merge and the native resource preflight still applies before a run.
 

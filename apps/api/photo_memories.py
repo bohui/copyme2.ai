@@ -1,5 +1,6 @@
 """User-selected reference photos, kept separately from narrated memories."""
 from copy import deepcopy
+from uuid import uuid4
 from typing import Literal
 from urllib.parse import unquote, urlsplit
 
@@ -58,6 +59,7 @@ def update_photo_memory(profile, project_id, payload):
     state = photo_memory_state(profile, project_id)
     if payload.action == 'clear':
         state['selected'] = None
+        state['selection_revision'] = str(uuid4())
     else:
         photo = payload.photo.reference()
         favorites = [item for item in state['favorites'] if item['key'] != photo['key']]
@@ -68,8 +70,10 @@ def update_photo_memory(profile, project_id, payload):
         state['favorites'] = favorites
         if payload.action == 'select':
             state['selected'] = photo['key']
+            state['selection_revision'] = str(uuid4())
         elif payload.action == 'unfavorite' and state['selected'] == photo['key']:
             state['selected'] = None
+            state['selection_revision'] = str(uuid4())
     updated = {**profile, PHOTO_MEMORIES: {**(profile.get(PHOTO_MEMORIES) or {}), project_id: state}}
     return updated, state
 

@@ -37,7 +37,7 @@ test('provider rejection retains the activated workspace and unresolved media pa
     escapeHtml: String, translate: String, renderablePictureItems: value => value,
     favoritePhotoWall: () => '',
   });
-  for (const name of ['resolvePlaceMap', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceMediaOverview']) {
+  for (const name of ['resolvePlaceMap', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceMediaOverview']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   context.resolvePlaceMap(journey);

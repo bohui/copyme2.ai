@@ -241,9 +241,15 @@
       "removeAttachment": "移除附件",
       "attachmentRights": "我有权在回忆录中使用这些图片和视频。",
       "attachmentRightsRequired": "发送前，请确认您有权使用这些文件。",
-      "attachmentInvalid": "请选择不超过 25 MB 的 JPG、PNG、HEIC、WebP 或 GIF 图片，或不超过 100 MB 的 MP4、WebM 或 MOV 视频。不能上传空文件。",
+      "attachmentInvalid": "请选择不超过 10 MB 的 JPEG、PNG 或 WebP 照片，或不超过 100 MB 的视频。",
       "uploadingAttachment": "正在上传 {name}…",
-      "sharedAttachments": "我分享了图片或视频。"
+      "sharedAttachments": "我分享了图片或视频。",
+      "retryTurn": "重试上一条回答",
+      "photoUnavailable": "暂时无法加载这张照片，您可以继续讲述。",
+      "photoUploadFailed": "照片未能上传，请重试。",
+      "privatePhoto": "您的私人照片",
+      "publicPhoto": "公共参考照片",
+      "photoSource": "查看来源"
     },
     "workspace": {
       "showWorkspace": "显示工作区",

@@ -1,6 +1,5 @@
-"""Current subscription source proof; immutable prior versions stay historical."""
+"""Historical v3 source proof; its original audit and mutations retain meaning."""
 from pathlib import Path
-import shutil
 import pytest
 
 from scripts.issue14_subscription_source_contract import (
@@ -11,19 +10,19 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def copy_current(tmp_path):
-    for directory in ('apps','scripts','skills','supabase'):
-        shutil.copytree(ROOT/directory,tmp_path/directory,ignore=shutil.ignore_patterns('__pycache__'))
-    for path in ('pyproject.toml','compose.yml','.env.example',
-        'tests/fixtures/issue14_source_contract_v2.json','tests/fixtures/issue14_subscription_source_v3.json',
-        'tests/test_agent_commit_postgres.py','tests/test_shared_memory_events_postgres.py',
-        'tests/test_guest_conversation_transfer.py','tests/test_private_rounds_postgres.py',
-        'tests/memoir_postgres_workflow.py','tests/evaluation/issue6_semantic_datasets.json'):
-        destination=tmp_path/path;destination.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/path,destination)
+    # V3 is immutable history after the separately reviewed recovery. Materialize
+    # its verified original inputs, not current files that would make negatives
+    # pass merely because the entire checkout has already drifted.
+    from scripts.issue14_subscription_source_contract_v4 import historical_v3_files
+    for path, raw in historical_v3_files(ROOT).items():
+        destination = tmp_path / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(raw)
     return tmp_path
 
 
-def test_current_proof_and_both_historical_versions_are_independent():
-    report=audit_subscription_source(ROOT)
+def test_current_proof_and_both_historical_versions_are_independent(tmp_path):
+    report=audit_subscription_source(copy_current(tmp_path))
     assert report['source_gate_passed'] is True
     assert report['historical_derivation_integrity_verified'] is True
     assert report['historical_v2_integrity_verified'] is True

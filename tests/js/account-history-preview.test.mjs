@@ -20,6 +20,13 @@ function load(context, name) {
     context.setTimeout ||= () => {};
   }
   if (name === 'hydrateAccountHistory') {
+    // These legacy-import cases exercise an authorized project with no
+    // canonical exchanges. Canonical exchange coverage lives in the dedicated
+    // interview-photo-history suite.
+    const legacyApi = context.storyApi;
+    context.storyApi = async (path, ...args) => path.startsWith('/v1/user/projects/')
+      ? {project_id:context.state.project.id, policy_epoch:'1', items:[], next_cursor:null}
+      : legacyApi(path, ...args);
     context.openingMessages = openingMessages;
     context.conversationMessage ||= () => openingMessages[0];
     load(context, 'originalConversationText');
@@ -35,9 +42,9 @@ test('merged history starts with one original Mira greeting and retains every re
   const context = vm.createContext({ state, openingMessages, conversationMessage: () => chineseOpening,
     cleanAssistantText: text => text, persistChatHistory() {},
     storyApi: async () => ({ items: [
-      { id: 'account', created_at: '2026-09-01', messages: [
+      { id: 'account', project_id:'project', created_at: '2026-09-01', messages: [
         { role: 'user', text: 'My first memory' }, { role: 'assistant', text: 'Tell me more.' }] },
-      { id: 'attached', created_at: '2026-10-02', messages: [
+      { id: 'attached', project_id:'project', created_at: '2026-10-02', messages: [
         { role: 'assistant', text: opening }, { role: 'assistant', text: opening }] },
     ] }),
   });
@@ -71,7 +78,7 @@ test('history removes legacy instructions from cached user messages before dedup
   const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, project: { id: 'project' },
     chat: [{ role: 'user', text: wrapped }] };
   const context = vm.createContext({ state, cleanAssistantText: text => text, persistChatHistory() {},
-    storyApi: async () => ({ items: [{ id: 'saved', messages: [{ role: 'user', text: original }] }] }),
+    storyApi: async () => ({ items: [{ id: 'saved', project_id:'project', messages: [{ role: 'user', text: original }] }] }),
   });
   load(context, 'hydrateAccountHistory');
   await context.hydrateAccountHistory();
@@ -102,7 +109,7 @@ test('OAuth return loads saved account history into the main chat before renderi
     render() {}, startCodexConversation: async () => {},
     restoreChatHistory: () => [{ role: 'assistant', text: 'Guest opening' }],
     cleanAssistantText: text => text, persistChatHistory() {},
-    storyApi: async () => ({ items: [{ id: 'account-conversation', messages: [
+    storyApi: async () => ({ items: [{ id: 'attached-account', project_id:'project', messages: [
       { role: 'user', text: 'My saved childhood' }, { role: 'assistant', text: 'Tell me more.' },
     ] }] }),
     toast() {},
@@ -119,7 +126,7 @@ test('history hydration preserves repeated saved messages without duplicating lo
   const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, project: { id: 'project' },
     chat: [repeated, repeated, { role: 'user', text: 'Unsent local memory' }] };
   const context = vm.createContext({ state, cleanAssistantText: text => text, persistChatHistory() {},
-    storyApi: async () => ({ items: [{ id: 'saved', messages: [repeated, repeated] }] }),
+    storyApi: async () => ({ items: [{ id: 'saved', project_id:'project', messages: [repeated, repeated] }] }),
   });
   load(context, 'hydrateAccountHistory');
   await context.hydrateAccountHistory();
@@ -132,7 +139,7 @@ test('history response for an account cannot populate a different account', asyn
   const context = vm.createContext({ state, cleanAssistantText: text => text, persistChatHistory() {},
     storyApi: async () => {
       state.supabase.user = { id: 'another-owner', is_anonymous: false };
-      return { items: [{ id: 'saved', messages: [{ role: 'user', text: 'Private memory' }] }] };
+      return { items: [{ id: 'saved', project_id:'project', messages: [{ role: 'user', text: 'Private memory' }] }] };
     },
   });
   load(context, 'hydrateAccountHistory');
@@ -160,7 +167,7 @@ test('saved conversation hydration preserves matching local skill progress', asy
  const state={supabase:{user:{id:'owner',is_anonymous:false}},project:{id:'project'},
    chat:[{role:'assistant',text:'Tell me more.',trace,traceMode:'live'}]};
  const context=vm.createContext({state,cleanAssistantText:text=>text,persistChatHistory(){},
-   storyApi:async()=>({items:[{id:'saved',messages:[{role:'assistant',text:'Tell me more.'}]}]}),
+   storyApi:async()=>({items:[{id:'saved',project_id:'project',messages:[{role:'assistant',text:'Tell me more.'}]}]}),
  });
  load(context,'hydrateAccountHistory');
  await context.hydrateAccountHistory();
@@ -178,7 +185,7 @@ test('opening an interview after login restores account turns before sample admi
     localStorage: { setItem() {}, removeItem() {} },
     api: async path => path === '/v1/projects' ? { id: 'new-project', profile: {} } : {},
     storyApi: async path => path === '/v1/user/profile' ? {} : { items: [
-      { id: 'saved', messages: [{ role: 'user', text: 'My saved childhood' }] }] },
+      { id: 'saved', project_id:'new-project', messages: [{ role: 'user', text: 'My saved childhood' }] }] },
     navigateTo() {}, refreshProject: async () => {},
     refreshFamilyEntitlement: async () => { previewHistory = [...state.chat]; },
     startCodexConversation: async () => { if (!state.chat.length) state.chat.push({ role: 'assistant', text: 'Opening' }); },
@@ -204,7 +211,7 @@ test('continuing a signed-in interview uses its saved project for progressive sa
       return { id: 'saved-project', profile: {} };
     },
     storyApi: async path => path === '/v1/user/profile' ? {} : {
-      resume_project_id: 'saved-project', items: [{ id: 'saved', messages: [{ role: 'user', text: 'My saved childhood' }] }] },
+      resume_project_id: 'saved-project', items: [{ id: 'saved', project_id:'saved-project', messages: [{ role: 'user', text: 'My saved childhood' }] }] },
     navigateTo() {}, refreshProject: async () => {}, refreshFamilyEntitlement: async () => {},
     startCodexConversation: async () => {}, cleanAssistantText: text => text, persistChatHistory() {},
     setLoading() {}, toast() {},

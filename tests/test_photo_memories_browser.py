@@ -86,5 +86,7 @@ def test_photo_selection_favorites_reload_clear_and_failed_save(album_page, phon
         wall.locator('.photo-favorites summary').click()
     wall.locator('.photo-favorites [data-photo-memory="unfavorite"]').click()
     expect(wall.locator('.photo-favorites')).to_have_count(0)
-    assert profile['photo_memories']['album-project'] == {'favorites':[], 'selected':None}
+    saved = profile['photo_memories']['album-project']
+    assert saved['favorites'] == [] and saved['selected'] is None
+    assert saved['selection_revision']
     assert not errors

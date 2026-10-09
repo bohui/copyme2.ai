@@ -58,7 +58,7 @@ test(`a failed conversational save restores ${previous ? 'the confirmed workspac
     },
   });
   context.refreshPrivateDraft = async () => {};
-  for (const name of ['workspaceContentAvailable', 'workspaceHasContent']) {
+  for (const name of ['freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
     vm.runInContext(extract(name), context);
   }
   assert.equal(context.workspaceHasContent(), Boolean(previous));

@@ -92,7 +92,8 @@ class MemoryEventWorker:
                             'user_id': job['user_id'], 'project_id': job['project_id'], 'family_enabled': False,
                             'agent_role': 'author_timeline', 'language': job['locale'],
                             'text': json.dumps({'schema_version': 1, 'sources': job['sources'],
-                                'context_sources': job['context_sources'], 'events': job['events']}, ensure_ascii=False),
+                                'context_sources': job['context_sources'], 'events': job['events'],
+                                'interview_context': job.get('interview_context', {})}, ensure_ascii=False),
                         })
                     response.raise_for_status()
                     proposed = json.loads(response.json()['reply'])

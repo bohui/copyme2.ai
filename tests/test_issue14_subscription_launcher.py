@@ -250,3 +250,58 @@ def test_fixture_can_stop_only_once_after_confirmed_owned_create(monkeypatch,cre
         assert state['creation_confirmed'] is creation_ok
     assert sum(command[:2]==['container','stop'] for command in calls)==int(creation_ok)
     assert namespace['ProcessDeadline'] is Deadline
+
+
+def test_memory_waiver_is_explicit_memoir_only_and_keeps_default_gate(monkeypatch):
+    import scripts.run_issue14_subscription_evaluation as launcher
+    import scripts.native_canary_launcher as native
+    def blocked():
+        raise native.NativeGateError('native_memory_pressure_elevated_or_unknown')
+    monkeypatch.setattr(native, 'resource_gate', blocked)
+    with pytest.raises(native.NativeGateError):
+        launcher.memory_resource_check(waived=False)
+    monkeypatch.setattr(launcher.sys, 'platform', 'linux')
+    with pytest.raises(ValueError, match='Mac'):
+        launcher.memory_resource_check(waived=True)
+    monkeypatch.setattr(launcher.sys, 'platform', 'darwin')
+    result = launcher.memory_resource_check(waived=True)
+    assert result['memory_pressure_check_waived'] is True
+    assert result['scope'] == 'one_shot_memoir_evaluation'
+    assert result['exclusive_native_lease_required'] is True
+    with pytest.raises(ValueError):
+        launcher.memory_resource_check(waived=1)
+
+
+def test_explicit_memory_waiver_still_enters_owned_lease(monkeypatch, tmp_path):
+    from contextlib import contextmanager
+    import scripts.run_issue14_subscription_evaluation as launcher
+    import scripts.native_canary_launcher as native
+    events=[]
+    def plan(**kwargs):
+        assert kwargs['waive_memory_pressure_check'] is True
+        return {'run_id':kwargs['run_id'],'memory_pressure_check_waived':True}
+    @contextmanager
+    def lease(run_id):
+        events.append('lease_enter')
+        yield
+        events.append('lease_exit')
+    async def execute(plan, directory, key):
+        assert events==['lease_enter'] and key=='synthetic-only'
+        events.append('execute')
+        return {'run_id':plan['run_id'],'status':'completed'}
+    monkeypatch.setattr(launcher, 'build_plan', plan)
+    monkeypatch.setattr(launcher, 'verify_source', lambda _revision: None)
+    monkeypatch.setattr(launcher.sys, 'platform', 'darwin')
+    monkeypatch.setattr(launcher.subprocess, 'run', lambda *args, **kwargs: None)
+    monkeypatch.setattr(launcher, 'configured_credential', lambda: 'synthetic-only')
+    monkeypatch.setattr(launcher, 'execute_native', execute)
+    monkeypatch.setattr(native, 'native_resource_lease', lease)
+    def blocked(): raise AssertionError('Waived pressure check was used')
+    monkeypatch.setattr(native, 'resource_gate', blocked)
+    result=launcher.main(['--run-id','ab73d8d0-07e5-4ee1-8a90-474d60390c7e',
+        '--source-revision','a'*40,'--run-dir',str(tmp_path/'fresh'),
+        '--codex-binary','/synthetic/codex','--codex-sha256','b'*64,
+        '--temporal-binary','/synthetic/temporal','--temporal-sha256','c'*64,
+        '--max-client-requests','160','--max-elapsed-seconds','1800',
+        '--waive-memory-pressure-check','--execute-existing-subscription'])
+    assert result==0 and events==['lease_enter','execute','lease_exit']
