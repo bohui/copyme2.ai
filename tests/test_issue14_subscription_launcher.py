@@ -30,6 +30,15 @@ def test_plan_is_bounded_and_never_reads_credentials_or_starts_services(monkeypa
     assert value['hard_token_cap_verified'] is value['hard_dollar_cap_verified'] is False
 
 
+def test_plan_declares_isolated_artifact_readiness_and_finite_byte_limits():
+    value = plan()
+    assert value['artifact_storage'] == {
+        'backend': 'owned_disposable_postgres', 'provider_free_readiness_required': True,
+        'real_storage_writes': False, 'max_artifact_bytes': 25 * 1024 * 1024,
+        'max_objects_per_owner': 512, 'max_bytes_per_owner': 512 * 1024 * 1024,
+    }
+
+
 @pytest.mark.parametrize('key,value', [('max_client_requests',0),('max_client_requests',161),
     ('max_client_requests',True),('max_elapsed_seconds',0),('max_elapsed_seconds',1801),
     ('max_elapsed_seconds',float('inf')),('source_revision','main'),('run_id','not-uuid'),
@@ -156,6 +165,77 @@ def test_task_native_environment_is_mac_compatible_and_keeps_model_provenance(tm
     assert environment['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL']=='memoir-luna-low'
     assert environment['MEMORY_SPARK_LLM_MODEL']=='gpt-5.6-luna-pooled'
     assert environment['MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT']=='low'
+
+
+def test_native_artifact_setup_requires_actual_byte_readback_and_probe_cleanup(monkeypatch):
+    import memoir_postgres_workflow as fixture
+    from uuid import UUID, uuid5
+    from scripts.issue14_subscription_session import case_plans_for_run
+    run_id = str(uuid4())
+    cases = case_plans_for_run(run_id)
+    events = []
+    sql = object()
+    limits = {'max_artifact_bytes': 25 * 1024 * 1024,
+              'max_objects_per_owner': 512, 'max_bytes_per_owner': 512 * 1024 * 1024}
+    def initialize(value):
+        assert value is sql
+        events.append('initialize')
+        return limits
+    async def verify(value, *, probe_owner):
+        assert value is sql and probe_owner not in {case['owner_id'] for case in cases.values()}
+        assert probe_owner == str(uuid5(UUID(run_id), 'memoir-artifact-readiness'))
+        events.append('verify_actual_runtime_flow')
+        return {'status': 'verified', 'byte_readback_verified': True,
+                'probe_cleaned': True, 'model_calls': 0, 'real_storage_writes': False}
+    monkeypatch.setattr(fixture, 'initialize_artifact_storage', initialize, raising=False)
+    monkeypatch.setattr(fixture, 'verify_artifact_storage', verify, raising=False)
+    result = module.native_artifact_setup(sql, {'run_id': run_id, 'cases': cases})
+    assert result['status'] == 'verified' and result['limits'] == limits
+    assert events == ['initialize', 'verify_actual_runtime_flow']
+
+
+@pytest.mark.parametrize('key,value', [('status', 'incomplete'), ('byte_readback_verified', False),
+    ('byte_readback_verified', 1), ('probe_cleaned', False), ('model_calls', 1),
+    ('model_calls', False), ('real_storage_writes', True)])
+def test_native_artifact_setup_rejects_incomplete_or_nonisolated_probe(monkeypatch, key, value):
+    import memoir_postgres_workflow as fixture
+    async def verify(*args, **kwargs):
+        result = {'status': 'verified', 'byte_readback_verified': True,
+                  'probe_cleaned': True, 'model_calls': 0, 'real_storage_writes': False}
+        result[key] = value
+        return result
+    monkeypatch.setattr(fixture, 'initialize_artifact_storage',
+                        lambda sql: dict(module.ARTIFACT_STORAGE_LIMITS), raising=False)
+    monkeypatch.setattr(fixture, 'verify_artifact_storage', verify, raising=False)
+    with pytest.raises(ValueError, match='artifact readiness'):
+        module.native_artifact_setup(object(), {'run_id': str(uuid4()), 'cases': {}})
+
+
+def test_native_artifact_probe_failure_prevents_ready_result(monkeypatch):
+    import memoir_postgres_workflow as fixture
+    calls = []
+    def initialize(sql):
+        calls.append('initialize')
+        raise RuntimeError('synthetic database unavailable')
+    async def verify(*args, **kwargs):
+        pytest.fail('Failed initialization reached probe')
+    monkeypatch.setattr(fixture, 'initialize_artifact_storage', initialize, raising=False)
+    monkeypatch.setattr(fixture, 'verify_artifact_storage', verify, raising=False)
+    with pytest.raises(RuntimeError, match='synthetic database unavailable'):
+        module.native_artifact_setup(object(), {'run_id': str(uuid4()), 'cases': {}})
+    assert calls == ['initialize']
+
+
+def test_native_artifact_limit_drift_prevents_probe(monkeypatch):
+    import memoir_postgres_workflow as fixture
+    monkeypatch.setattr(fixture, 'initialize_artifact_storage',
+                        lambda sql: {**module.ARTIFACT_STORAGE_LIMITS, 'max_objects_per_owner': 513},
+                        raising=False)
+    async def verify(*args, **kwargs):
+        pytest.fail('Unreviewed limits reached readiness probe')
+    monkeypatch.setattr(fixture, 'verify_artifact_storage', verify, raising=False)
+    with pytest.raises(ValueError, match='readiness limits'):
+        module.native_artifact_setup(object(), {'run_id': str(uuid4()), 'cases': {}})
 
 
 def test_native_teardown_failure_invalidates_completed_evaluation(tmp_path,monkeypatch):

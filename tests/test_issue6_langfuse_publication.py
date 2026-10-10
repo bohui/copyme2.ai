@@ -49,8 +49,8 @@ def test_v1_export_cannot_relabel_current_source_or_create_output(tmp_path):
 
 
 def test_current_source_gate_is_separate_from_historical_publication_permission():
-    from scripts.issue14_subscription_source_contract_v5 import audit_subscription_source_v5
-    report = audit_subscription_source_v5(ROOT)
+    from scripts.issue14_subscription_source_contract_v6 import audit_subscription_source_v6
+    report = audit_subscription_source_v6(ROOT)
     assert report['source_gate_passed'] is True
     assert report['historical_publication_test_source_verified'] is True
     assert report['live_execution_authorized'] is report['provider_capability_verified'] is False

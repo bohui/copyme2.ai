@@ -10,6 +10,7 @@ from pathlib import Path
 from .diagnostics import configure_diagnostic_logger, elapsed_ms, log_diagnostic, new_request_id
 from .trajectory_evaluation import normalise_correlation, protocol_request_evidence
 from .issue14_execution_admission import check_issue14_dispatch, validate_optional_issue14_admission
+from .codex_progress import WorkerProgress
 
 
 diagnostic_logger = logging.getLogger("memoir.appserver.diagnostics")
@@ -18,7 +19,10 @@ configure_diagnostic_logger(diagnostic_logger)
 
 class CodexConnection:
     def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None,
-                 issue14_admission=None):
+                 issue14_admission=None, progress=None):
+        if progress is not None and type(progress) is not WorkerProgress:
+            raise TypeError('Owned protocol progress required')
+        self.progress = progress
         self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.command = command
         # Codex uses this value for both cwd and HOME/CODEX_HOME.  Resolve it
@@ -157,21 +161,30 @@ class CodexConnection:
                     'request_id',
                 }
             }
+        if self.progress:
+            self.progress.begin_turn()
         result = await self.request('turn/start', params)
         turn_id = result['turn']['id']
+        if self.progress:
+            self.progress.bind_turn(thread_id, turn_id)
         messages = []
         streamed_items = set()
         async with asyncio.timeout(self.timeout):
             while True:
-                event = self.events.pop(0) if self.events else await self.receive()
+                queued = bool(self.events)
+                event = self.events.pop(0) if queued else await self.receive()
                 if 'method' in event and 'id' in event:
                     await self.handle_event(event)
                     continue
-                if self.trajectory:
+                # handle_event already recorded queued notifications on receipt.
+                # Distinct notifications with identical IDs/payloads still count.
+                if self.trajectory and not queued:
                     self.trajectory.record_protocol(event, phase='codex.turn')
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:
                     continue
+                if self.progress:
+                    self.progress.observe(event.get('method'), params)
                 if on_event and event.get('method') in ('item/started', 'item/completed') and params.get('turnId') == turn_id:
                     item = params.get('item', {})
                     # Forward only public operation metadata, never arguments,
@@ -228,6 +241,8 @@ class CodexConnection:
                     )
                     if self.trajectory:
                         self.trajectory.record('codex.turn', 'turn.completed', output={'turn': params['turn'], 'message_count': len(messages)})
+                    if self.progress:
+                        self.progress.complete_turn()
                     return '\n'.join(messages)
 
 

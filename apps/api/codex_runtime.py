@@ -17,11 +17,12 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
-from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
+from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, json_failure_details, log_diagnostic, new_request_id
 from .recall import recall_status, storage_recall_status
 from .stage_readiness import LIFE_STAGES
 from .agent_storage import UserStorage
 from .conversation_text import original_conversation_text
+from .codex_timeout_policy import WORKSPACE_TIMEOUT
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
 from .issue14_execution_admission import (
@@ -69,7 +70,6 @@ from .trajectory_evaluation import (
     normalise_correlation,
 )
 
-WORKSPACE_TIMEOUT = 240
 _MAX_WORKER_ERROR_BODY_BYTES = 64 * 1024
 _WORKER_ERROR_BODY_EXTENSION = "memoir_worker_error_body"
 
@@ -1849,7 +1849,7 @@ class CodexRuntime:
                 thread_id = result['thread_id']
                 reply = result['reply']
                 if trajectory:
-                    trajectory.append_external(result.get('trajectory', {}).get('steps', []) if isinstance(result.get('trajectory'), dict) else [], source='codex-worker')
+                    trajectory.append_trajectory(result.get('trajectory'), source='codex-worker')
                     trajectory.record('application', 'codex.worker.completed', output={
                         'thread_id': thread_id,
                         'has_trajectory': bool(result.get('trajectory')),
@@ -2093,6 +2093,7 @@ class CodexRuntime:
             # can start while enrichment is still settling.
             conversation_scope = turn_scope.pop_all()
             await conversation_scope.aclose()
+            workspace_parser_failure = None
             try:
                 try:
                     await self._resume_pending_workspace(storage, exclude_turn_id=turn_id)
@@ -2108,9 +2109,18 @@ class CodexRuntime:
             except Exception as workspace_failure:
                 await progress.update('workspace', 'Workspace update could not finish; the reply is saved', '工作区更新未完成；回复已保存', status='failed')
                 if trajectory:
+                    parser_details = json_failure_details(workspace_failure)
+                    if parser_details:
+                        # Keep this bounded private terminal evidence even if
+                        # worker steps exhausted the recorder. Overflow still
+                        # rejects evaluation; it never justifies a larger cap.
+                        workspace_parser_failure = {
+                            'action': 'workspace.failed', 'retryable': True, **parser_details,
+                        }
                     trajectory.record('application', 'workspace.failed', output={
                         'error_type': type(workspace_failure).__name__,
                         'retryable': True,
+                        **parser_details,
                     })
                 # The exchange is already durable. A workspace failure is
                 # optional and must not turn the saved reply into a failed
@@ -2167,6 +2177,7 @@ class CodexRuntime:
                         'task_kinds': [task.get('kind') for task in tasks if isinstance(task, Mapping)],
                         'task_statuses': [task.get('status') for task in tasks if isinstance(task, Mapping)],
                         'task_results': tasks,
+                        **({'workspace_failure': workspace_parser_failure} if workspace_parser_failure else {}),
                     },
                 )
             response = {
@@ -2381,9 +2392,8 @@ class CodexRuntime:
                     trajectory=trajectory,
                 )
                 if trajectory:
-                    trajectory.append_external(
-                        result.get('trajectory', {}).get('steps', [])
-                        if isinstance(result.get('trajectory'), dict) else [],
+                    trajectory.append_trajectory(
+                        result.get('trajectory'),
                         source='codex-worker',
                     )
                     trajectory.record('application', 'workspace.worker.completed', output={
@@ -2465,9 +2475,8 @@ class CodexRuntime:
                                 trajectory=trajectory,
                             )
                             if trajectory:
-                                trajectory.append_external(
-                                    focused.get('trajectory', {}).get('steps', [])
-                                    if isinstance(focused.get('trajectory'), dict) else [],
+                                trajectory.append_trajectory(
+                                    focused.get('trajectory'),
                                     source='codex-worker',
                                 )
                                 trajectory.record('application', 'workspace.worker.completed', output={
@@ -2695,10 +2704,10 @@ class CodexRuntime:
                             'project_id':project_id, 'stage_readiness':stage_readiness(rows, project_id)}})
         if parsed_place_journey:
             await progress.update('place', 'Validating the place mentioned in this turn', '正在验证本轮提到的地点', skill='memoir-place-journey', status='triggered')
-        for skill in family_skills if family_enabled else []:
-            skill = {'family_tree': 'memoir-family-tree', 'author_timeline': 'memoir-author-timeline'}.get(skill)
-            if skill is None:
-                continue
+        family_progress_skills = [mapped for skill in (family_skills if family_enabled else [])
+            if (mapped := {'family_tree': 'memoir-family-tree',
+                           'author_timeline': 'memoir-author-timeline'}.get(skill)) is not None]
+        for skill in family_progress_skills:
             await progress.update(skill, 'Validating the extracted workspace update', '正在验证提取的工作区更新', skill=skill, status='triggered')
 
         family_context = None
@@ -2760,6 +2769,17 @@ class CodexRuntime:
                         'family_features_enabled': family_enabled,
                     },
                 })
+
+        # Finish the same skill rows that announced validation. Overall
+        # workspace completion does not settle their independent progress IDs.
+        # An unchanged but verified persisted document is successful; rejected,
+        # stale or unavailable persistence must never look like a saved update.
+        family_persisted = bool(family_context_update and family_context_update.get('persisted') is True)
+        for skill in family_progress_skills:
+            await progress.update(skill,
+                'Workspace update verified' if family_persisted else 'Workspace update could not be verified',
+                '工作区更新已验证' if family_persisted else '无法验证工作区更新',
+                skill=skill, status='completed' if family_persisted else 'failed')
 
         place_journey = current_place_journey
         place_journey_change = None
@@ -3093,9 +3113,7 @@ class CodexRuntime:
                     partial = candidate
             if trajectory is not None:
                 if isinstance(partial, Mapping):
-                    steps = partial.get('steps')
-                    if isinstance(steps, list):
-                        trajectory.append_external(steps, source='codex-worker-failure')
+                    trajectory.append_trajectory(partial, source='codex-worker-failure')
                 trajectory.record('application', 'codex.worker.failed', output={
                     'error_type': type(error).__name__,
                     'has_partial_trajectory': isinstance(partial, Mapping),

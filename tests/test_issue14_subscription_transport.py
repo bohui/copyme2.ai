@@ -285,7 +285,7 @@ def test_absolute_deadline_covers_full_response_and_queued_waiters(tmp_path):
     asyncio.run(check())
 
 
-@pytest.mark.parametrize('when', ['reserve', 'complete'])
+@pytest.mark.parametrize('when', ['reserve', 'start', 'complete'])
 def test_journal_failure_retains_uncertainty_and_restart_fence(tmp_path, monkeypatch, when):
     async def check():
         ledger = run(tmp_path)
@@ -294,7 +294,7 @@ def test_journal_failure_retains_uncertainty_and_restart_fence(tmp_path, monkeyp
         def fail(fd):
             nonlocal writes
             writes += 1
-            if writes == (1 if when == 'reserve' else 2):
+            if writes == {'reserve': 1, 'start': 2, 'complete': 3}[when]:
                 raise OSError('synthetic private filesystem failure')
             return real_fsync(fd)
         monkeypatch.setattr(os, 'fsync', fail)
@@ -302,7 +302,7 @@ def test_journal_failure_retains_uncertainty_and_restart_fence(tmp_path, monkeyp
             for _ in range(2):
                 with pytest.raises(SubscriptionStopped, match='journal_unavailable'):
                     await session.post(fixture.endpoint, json=payload(), headers=headers())
-            assert len(fixture.contacts) == (0 if when == 'reserve' else 1)
+            assert len(fixture.contacts) == (1 if when == 'complete' else 0)
             assert ledger.snapshot()['unresolved_requests'] == 1
             assert ledger.snapshot()['journal_durable'] is False
         with pytest.raises(SubscriptionStopped, match='reservation_exists'):
@@ -469,12 +469,17 @@ def test_body_buffering_consumes_original_deadline(tmp_path):
     asyncio.run(check())
 
 
-def test_durable_reservation_delay_cannot_extend_deadline_or_contact(tmp_path, monkeypatch):
+@pytest.mark.parametrize('slow_write', [1, 2])
+def test_durable_reservation_delay_cannot_extend_deadline_or_contact(tmp_path, monkeypatch, slow_write):
     async def check():
         ledger = run(tmp_path, max_elapsed_seconds=.08)
         fsync = os.fsync
+        writes = 0
         def slow_fsync(fd):
-            time.sleep(.1)
+            nonlocal writes
+            writes += 1
+            if writes == slow_write:
+                time.sleep(.1)
             return fsync(fd)
         monkeypatch.setattr(os, 'fsync', slow_fsync)
         async with server() as fixture, client(ledger, fixture) as session:
@@ -483,7 +488,7 @@ def test_durable_reservation_delay_cannot_extend_deadline_or_contact(tmp_path, m
             assert fixture.contacts == []
             snapshot = ledger.snapshot()
             assert snapshot['client_requests_reserved'] == 1
-            assert snapshot['client_requests_started'] == 0
+            assert snapshot['client_requests_started'] == (0 if slow_write == 1 else 1)
             assert snapshot['unresolved_requests'] == 1
         ledger.close()
     asyncio.run(check())

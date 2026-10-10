@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from apps.api.codex_runtime import CodexRuntime, build_system_prompt
 
 
@@ -132,5 +134,81 @@ def test_paid_family_turn_returns_validated_context_and_strips_the_marker(monkey
     assert result["family_context_update"]["persisted"] is True
     assert result["family_context_update"]["changed"] is True
     assert result["family_context_update"]["skills"] == ["family_tree", "author_timeline"]
+    family_steps = [step for step in result['trace']
+                    if step['id'] in {'memoir-family-tree', 'memoir-author-timeline'}]
+    assert len(family_steps) == 2
+    assert all(step['status'] == 'completed' for step in family_steps)
     assert "MEMORY_SPARK_FAMILY_TREE" not in result["memory"]["content"]
     assert "MEMORY_SPARK_AUTHOR_TIMELINE" not in result["memory"]["content"]
+
+
+@pytest.mark.parametrize('outcome', ['changed', 'unchanged', 'invalid', 'stale', 'missing', 'exception'])
+def test_family_progress_requires_verified_persistence_before_strict_readback(monkeypatch, outcome):
+    from apps.api.family_context import merge_family_context_document
+    from apps.api.trajectory_evaluation import TrajectoryRecorder
+    from apps.api.turn_progress import TurnProgress
+    from scripts.issue14_subscription_runner import _runtime_readback, SubscriptionRunnerError
+
+    monkeypatch.delenv('MEMORY_SPARK_TASK_DB', raising=False)
+    project = 'synthetic-family-progress'
+    update = {'people': [{'id': 'p1', 'name': 'Synthetic Person'}],
+              'relationships': [], 'timeline': []}
+    saved, _ = merge_family_context_document(None, update, project)
+    existing = {**saved, 'revision': 1, 'source_sequence': 2 if outcome == 'stale' else 1}
+
+    class Storage:
+        user_id = 'synthetic-owner'
+        writes = 0
+
+        def family_context(self, project_id):
+            return existing if outcome in {'unchanged', 'stale'} else None
+
+        def upsert_family_context(self, project_id, document, revision):
+            self.writes += 1
+            if outcome == 'exception':
+                raise RuntimeError('Synthetic write failed')
+            return {'document': document, 'changed': outcome != 'unchanged', 'revision': 1}
+
+    storage = Storage()
+    if outcome == 'missing':
+        storage.upsert_family_context = None
+    if outcome == 'invalid':
+        update = {**update, 'relationships': [{'from_person_id': 'p1',
+            'to_person_id': 'absent', 'relationship_type': 'parent'}]}
+    correlation = {'run_id': 'synthetic-run', 'case_id': 'synthetic-case', 'round_id': '1'}
+    recorder = TrajectoryRecorder(correlation)
+    progress = TurnProgress(None, 'synthetic-turn', project, 'en-AU')
+
+    async def persist():
+        return await CodexRuntime(task_publisher_enabled=False)._persist_workspace(
+            storage=storage, user_id=storage.user_id, project_id=project,
+            family_enabled=True, existing_family_context=None, current_place_journey=None,
+            parsed_place_journey=None, parsed_family_context=update, family_skills=['family_tree'],
+            profile={}, profile_updates=None, task_requests=[], memories=[],
+            text='Synthetic family fixture.', language='en-AU', turn_sequence=1,
+            deferred_artifacts=[], deferred_artifacts_task=None, deferred_home=None,
+            memory={}, legacy_markers=True, turn_id='synthetic-turn', on_event=None,
+            trajectory=recorder, progress=progress)
+
+    if outcome == 'exception':
+        with pytest.raises(RuntimeError, match='Synthetic write failed'):
+            asyncio.run(persist())
+        assert next(s for s in progress.steps if s['id'] == 'memoir-family-tree')['status'] != 'completed'
+        return
+    result = asyncio.run(persist())
+    recorder.finish('Synthetic reply', status='completed', state={'task_error_count': 0, 'task_statuses': []})
+    value = {**result, 'reply': 'Synthetic reply',
+        'accepted_source_id': '11111111-1111-4111-8111-111111111111',
+        'trajectory': recorder.payload(), 'trace': progress.steps}
+    status = next(s for s in progress.steps if s['id'] == 'memoir-family-tree')['status']
+    if outcome in {'changed', 'unchanged'}:
+        assert storage.writes == 1 and result['family_context_update']['persisted'] is True
+        assert result['family_context_update']['changed'] is (outcome == 'changed')
+        assert status == 'completed'
+        assert _runtime_readback(value, correlation)['reply'] == 'Synthetic reply'
+    else:
+        assert storage.writes == 0 and result['family_context_update'] is None
+        assert status == 'failed'
+        with pytest.raises(SubscriptionRunnerError, match='background_incomplete'):
+            _runtime_readback(value, correlation)
+    assert recorder.payload()['limits']['overflowed'] is False

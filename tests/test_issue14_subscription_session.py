@@ -304,3 +304,78 @@ def test_pinned_codex_metadata_envelope_fails_closed_before_gateway(tmp_path, ga
         finally:
             await owned.close()
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('separator', ['\u0085', '\u2028', '\u2029', '\u0085\u2028\u2029'],
+                         ids=['next-line', 'line-separator', 'paragraph-separator', 'combined'])
+@pytest.mark.parametrize('callbacks', ['delta', 'event', 'both'])
+def test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream(
+        tmp_path, gateway, monkeypatch, separator, callbacks):
+    """Synthetic worker output traverses the real adapter and HTTPX aiter_lines."""
+    from copy import deepcopy
+    from apps.api.codex_worker_service import CodexWorker
+    from scripts.issue14_subscription_session import _WorkerTransport
+    endpoint, contacts = gateway
+    text = 'Before' + separator + 'After 中文 🙂\nquoted "text"\tend'
+    worker_calls, wire_bodies, callback_calls, expected = [], [], [], []
+    async def controlled_reply(self, payload, **kwargs):
+        worker_calls.append(payload.agent_role)
+        value = {'thread_id': 'synthetic-thread', 'reply': text,
+            'artifacts': [{'path': 'draft' + separator + '.md',
+                'content': text, 'metadata': {'nested': [{text: text}]}}],
+            'trajectory': {'correlation': payload.evaluation,
+                'steps': [{'action': 'synthetic.completed', 'output': {'label': text, 'nested': [text]}}],
+                'final': {'status': 'completed', 'reply': text}}}
+        expected.append(deepcopy(value))
+        return value
+    monkeypatch.setattr(CodexWorker, 'turn', controlled_reply)
+    original_handle = _WorkerTransport.handle_async_request
+    async def observe_terminal(self, request):
+        assert request.headers['accept'] == 'application/x-ndjson'
+        response = await original_handle(self, request)
+        wire_bodies.append(await response.aread())
+        return response
+    monkeypatch.setattr(_WorkerTransport, 'handle_async_request', observe_terminal)
+    async def scenario():
+        owned = await session(tmp_path, endpoint)
+        case = owned.case_ids[0]; plan = owned.case_plans[case]
+        correlation = owned.activate_round(case, 1)
+        async def delta(value): callback_calls.append(('delta', value))
+        async def event(value): callback_calls.append(('event', value))
+        options = {}
+        if callbacks in {'delta', 'both'}: options['on_delta'] = delta
+        if callbacks in {'event', 'both'}: options['on_event'] = event
+        before = owned.run.snapshot()
+        before_workers = owned.runtime.observed_worker_requests
+        try:
+            result = await owned.runtime._worker_turn(user_id=plan['owner_id'], prior=None,
+                memories=[], profile={}, place_journey={}, family_enabled=False, family_context={},
+                project_id=plan['project_id'], text='Synthetic source', language=plan['language'],
+                agent_role='workspace', evaluation=correlation, **options)
+            artifacts = await result['_artifact_task']
+            assert result['reply'] == text
+            assert artifacts == result['artifacts'] == expected[0]['artifacts']
+            assert result['trajectory'] == expected[0]['trajectory']
+            assert result['_workspace_capable'] is True
+            assert worker_calls == ['workspace']
+            assert owned.runtime.observed_worker_requests == before_workers + 1
+            assert callback_calls == []  # Buffered terminal does not invent streamed deltas.
+            assert len(wire_bodies) == 1 and wire_bodies[0].isascii()
+            assert wire_bodies[0].endswith(b'\n') and wire_bodies[0].count(b'\n') == 1
+            assert len(wire_bodies[0].decode().splitlines()) == 1
+            assert json.loads(wire_bodies[0]) == {'type': 'result', 'data': expected[0]}
+            after = owned.run.snapshot()
+            assert contacts == []
+            for key in ('client_requests_started', 'client_requests_reserved'):
+                assert after[key] == before[key] == 0
+            assert after['stop_reason'] is None
+            records = owned.worker_receipts()
+            assert len(records) == 1 and records[0]['status'] == 'completed'
+            assert records[0]['role'] == 'workspace'
+            assert records[0]['local_client_requests_seen'] == 0
+            assert records[0]['client_requests_before'] == records[0]['client_requests_after'] == 0
+            assert not owned._pending
+            owned.finish_round()
+        finally:
+            await owned.close()
+    asyncio.run(scenario())

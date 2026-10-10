@@ -1,0 +1,103 @@
+# Five-case/fifty-input source contract v6
+
+V6 adds a separately bound source snapshot for the explicit
+`subscription_fifty` profile. Its commit and tree identities are fixed in
+`scripts/issue14_subscription_source_contract_v6.py` and repeated in
+`tests/fixtures/issue14_subscription_source_v6.json`. The canonical remote
+binding records source integrity only. Independent review and explicit run
+admission remain prerequisites; this offline audit does not publish or approve
+execution.
+
+The candidate recorder-fix runtime source snapshot is commit
+`1e09083b6234985c8a7d164fd3cfc9c53e8b6d31`, tree
+`119874881a6abe40952b70780ab166ad4f98b560`. V6 monitors 299 source files.
+Its proof retains all 63 preceding V6 objects and adds 7 objects (70 total),
+with SHA-256
+`665cf5b1c15b782a671cb4ae8963cb6762bb60e3c8780630153c65e9b29850ce`. Independent cloud review remains pending.
+
+This revision also rejects explicitly null or inconsistent worker accounting.
+The first recorder binding is preserved in commit
+`8734eb7bbf8441785135f6425656d04e89547793`, bound to runtime
+`2842dcc440a1a7cd1cafd247327d457f10093b09`, tree `ec55f8d225c9193ccb8528338722a6265a74e459`,
+with proof SHA-256 `bbe017f7848a056ef1fa489e1967b2190534e96e6319f37d918d695e2731b1ec`.
+Bounded delta telemetry, single recording of queued notifications and worker
+overflow/accounting propagation remain bound. The strict runtime
+readback guards are byte-for-byte unchanged. See [retention contract](trajectory-retention.md).
+The preceding family-progress/readback-diagnostic binding is preserved in PR47
+head `bc3f2223474657e85a1406517da56f04f53bc5b2`, bound to runtime
+`6ff9b7cbce514b8070b571db943e63260a1ab43e`, tree
+`0378238cb2491c708f957d309bf79f5f48204cd1`, with proof SHA-256
+`45a8201e89824764b6cba7e06e4f3683413045efcae1c6453eaddcad1046ae9e`. Passing source checks
+does not prove native complete-round readback, artifact readiness, browser
+hydration, live recovery or the cause of an earlier native failure. The first V6 proof
+remains preserved in commit `4f15346b33b35d36872aa26960d891c3d5227786`,
+bound to runtime `99cd9533e92508433a475da4718233ee0ce074ff` with proof SHA-256
+`e299e5a7d8790218fd20318a0ee53d51026b221287c9d90692d253a015ce511c`.
+The subsequent narrow Next static hydration fix remains preserved in commit
+`421e35803df6692327a754d6f0f003f6d53db37f`, bound to runtime
+`d6209255dc834b417d343643c6c586a3a7099c40` with proof SHA-256
+`2dd230c2d9a053073c23a19ab0b8b6bb589ef792f07b696bff4fb817cbaecb2d`.
+The per-case production Next build/start binding remains preserved in commit
+`a2e35ed6811f569527f231f33e3a07731690c233`, bound to runtime
+`76064164486391a942d04772325688a5837cc286` with proof SHA-256
+`443021867869fcacfac73f5477c38ed80adee52b1b8f67f67a535916ccb84c8d`.
+The fresh-history, Unicode-framing and private-parser-diagnostic binding remains
+preserved in commit `36296f43eda1fbf56459a08c570bce11ea22cac7`, bound to runtime
+`f68d0204a1f92cbb219b5843e68b1af82d10127b` with proof SHA-256
+`2f254ce0139fdb5e449e24717da19725442e857b1139d1001441954e65150232`.
+The terminal-parser-diagnostic and isolated artifact-readiness binding remains
+preserved in commit `c7551f720356050ac51c288858793f7f535ba0c9`, bound to runtime
+`f5d2e37eb6c075696e5045b7a8f83c794eafa68d` with proof SHA-256
+`c392356d0cdbb0ebbb295ab5ad00542a0d7cedc7d48c5f0cc64e5257829a5dde`.
+Earlier run attribution remains tied to its original source identity.
+
+The inventory covers all Python runtime modules under `apps/api` and `scripts`,
+all files under `skills` and `supabase`, the root journalist prompt, the existing native
+Postgres fixture sources, both the original progressive dataset and the
+original five-case input/expected datasets. This includes the fifty-profile
+selection, readback, offline coverage, isolated public-photo and browser modules, along
+with the revised session, transport, runner and native launcher.
+
+Frontend TypeScript/JavaScript and package manifests are outside this versioned
+backend inventory. Native admission separately requires the launcher's full
+tracked-Git-blob verification, including frontend source and rejection of hidden
+index flags. The owned browser producer must use a hash-verified private copy
+of that verified frontend; a V6 pass alone cannot stand in for those checks.
+
+The original five-case input SHA-256 is
+`e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927`.
+The separate offline expected-data SHA-256 is
+`9391515876dc2f346291e9ecca653e3710a1497d6a03961291cebb8f01d1c242`.
+V6 independently pins both original files in addition to authenticating their
+Git membership. Monitoring expected data does not make it a narrator input or
+authorize placing it in any runtime prompt.
+
+V1 derivations, v2/v3/v4/v5 auditor modules and proofs, and earlier 5/10/15
+evidence remain byte-for-byte unchanged. V5 keeps source revision
+`3d0e157f0835a72c3fb3aa9ec6766f8c2aaaa67b` and tree
+`fda1225d8cde3c00d81d4168e7d7a1a68c4d4b4a`. V6 archives the exact V5
+source blobs and exposes them through `historical_v5_files`. The original V5
+positive assertions and negative mutations run against that verified archive,
+so they neither silently fail on unrelated current drift nor relabel the new
+profile as old evidence. Earlier archive helpers and publisher regressions
+continue checking their original identities.
+
+V5 is frozen to the final canonical files merged in PR44. Its auditor SHA-256
+is `294db5d8aef39d9595a42fe52b2746734059e5124c73f13f66660448ea1826db`
+and its proof SHA-256 is
+`94070f30ef19b7de626eac54ba1052656d16bf588a0151ddcd90cf5f5d29f78a`.
+Its source tree and source-file bytes are unchanged by that canonical binding.
+
+The new proof reuses the unchanged bounded Git-object parser and immutable
+parent objects. It adds only the objects needed for the new snapshot and the
+V5 archive. Source inventory additions/deletions, byte mutations, forged or
+missing object evidence, duplicate JSON keys, unreadable paths, symlinks,
+nonregular files and oversize inputs fail closed. The explicitly named auditor
+modules remain reviewed tooling outside their own runtime inventories, avoiding
+a self-referential snapshot.
+
+A passing V6 audit proves source integrity only. It supplies no live execution,
+provider capability, subscription entitlement, publication, semantic acceptance,
+hard token/monetary limit, or production authority. The old progressive profile
+retains its own limits; the new profile must independently satisfy its explicit
+campaign, per-case, native-process and cleanup gates.

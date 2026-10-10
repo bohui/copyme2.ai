@@ -20,12 +20,15 @@ import subprocess
 import sys
 import threading
 import time
-from uuid import UUID
+from uuid import UUID, uuid5
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from apps.api.codex_timeout_policy import WORKER_TIMEOUT
 EXISTING_ORIGIN = 'http://192.168.66.1:4000/v1'
+ARTIFACT_STORAGE_LIMITS = {'max_artifact_bytes': 25 * 1024 * 1024,
+    'max_objects_per_owner': 512, 'max_bytes_per_owner': 512 * 1024 * 1024}
 
 
 def _binary(path, digest):
@@ -39,19 +42,68 @@ def _binary(path, digest):
 
 def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
                temporal_binary, temporal_sha256, max_client_requests, max_elapsed_seconds,
-               waive_memory_pressure_check=False):
-    from scripts.issue14_progressive_readback import case_plans_for_run
+               waive_memory_pressure_check=False, evaluation_profile='subscription_progressive',
+               max_case_client_requests=None, max_case_elapsed_seconds=None,
+               enable_public_photo_research=False, photo_python_binary=None, photo_python_sha256=None,
+               enable_browser_readback=False, browser_config=None,
+               collector_timeout_seconds=WORKER_TIMEOUT):
+    from apps.api.codex_timeout_policy import native_worker_deadlines
+    from scripts.memoir_subscription_profiles import profile_for
+    profile = profile_for(evaluation_profile)
+    worker_deadlines = native_worker_deadlines(collector_timeout_seconds)
+    profile.validate_limits(max_client_requests, max_elapsed_seconds,
+                            max_case_client_requests, max_case_elapsed_seconds)
     if (type(run_id) is not str or str(UUID(run_id)) != run_id or type(source_revision) is not str
             or not re.fullmatch('[0-9a-f]{40}', source_revision)
-            or type(max_client_requests) is not int or not 0 < max_client_requests <= 160
-            or type(max_elapsed_seconds) not in (int, float) or not math.isfinite(max_elapsed_seconds)
-            or not 0 < max_elapsed_seconds <= 1800 or type(waive_memory_pressure_check) is not bool):
+            or type(waive_memory_pressure_check) is not bool):
         raise ValueError('Explicit approved case/request/time bounds required')
-    cases = case_plans_for_run(run_id)
+    browser = None
+    if type(enable_browser_readback) is not bool:
+        raise ValueError('Explicit browser policy required')
+    if enable_browser_readback:
+        if profile.name != 'subscription_fifty' or type(browser_config) is not dict:
+            raise ValueError('Browser readback requires the explicit fifty profile and native config')
+        from scripts.memoir_fifty_browser_runner import validate_browser_config
+        browser = validate_browser_config(browser_config, source_revision=source_revision)
+    elif browser_config is not None:
+        raise ValueError('Browser config requires explicit admission')
+    photo = None
+    if type(enable_public_photo_research) is not bool:
+        raise ValueError('Explicit public photo policy required')
+    if enable_public_photo_research:
+        if profile.name != 'subscription_fifty' or photo_python_binary is None or photo_python_sha256 is None:
+            raise ValueError('Public photo research needs the explicit fifty profile and existing interpreter pin')
+        photo = {'enabled': True, 'python_binary': _binary(photo_python_binary, photo_python_sha256),
+            'python_sha256': photo_python_sha256, 'llm_search_enabled': False,
+            'max_searches_per_case': 2, 'max_searches_global': 10,
+            'counted_in_model_gateway_requests': False, 'real_storage_writes': False,
+            'network_scope': 'counted_keyless_catalogues_only',
+            'public_http_limit_search': 128, 'public_http_limit_case': 256,
+            'public_http_limit_global': 1280,
+            'photo_browser_providers': 'not_admitted_uncounted_browser_network'}
+    elif photo_python_binary is not None or photo_python_sha256 is not None:
+        raise ValueError('Photo interpreter pins need explicit photo research admission')
+    cases = profile.plans(run_id)
+    for case, details in cases.items():
+        profile.bridge(case_id=case, run_id=run_id, project_id=details['project_id'],
+                       source_revision=source_revision)
     return {'schema_version': 'memoir-subscription-evaluation-plan/1', 'run_id': run_id,
         'source_revision': source_revision, 'case_ids': list(cases), 'cases': cases,
-        'rounds_per_case': 15, 'checkpoints': [5, 10, 15], 'concurrency': 1,
+        'evaluation_profile': profile.name, 'rounds_per_case': profile.rounds,
+        'checkpoints': list(profile.checkpoints), 'concurrency': 1,
+        'artifact_storage': {'backend': 'owned_disposable_postgres',
+            'provider_free_readiness_required': True, 'real_storage_writes': False,
+            **ARTIFACT_STORAGE_LIMITS},
+        **({'photo_research': photo} if photo is not None else {}),
+        **({'browser_readback': browser} if browser is not None else {}),
+        **({'max_case_client_requests': max_case_client_requests,
+            'max_case_elapsed_seconds': max_case_elapsed_seconds,
+            'synthetic_entitlement': 'disposable_facade_only',
+            'dataset_version': profile.dataset_version, 'dataset_sha256': profile.dataset_sha256}
+           if profile.name == 'subscription_fifty' else {}),
         'memory_pressure_check_waived': waive_memory_pressure_check,
+        'collector_timeout_seconds': collector_timeout_seconds,
+        'worker_deadlines': worker_deadlines,
         'max_client_requests': max_client_requests, 'max_elapsed_seconds': max_elapsed_seconds,
         'codex_binary': _binary(codex_binary, codex_sha256), 'codex_sha256': codex_sha256,
         'temporal_binary': _binary(temporal_binary, temporal_sha256), 'temporal_sha256': temporal_sha256,
@@ -162,7 +214,7 @@ def configured_credential():
     return value
 
 
-def load_existing_application_env(path):
+def load_existing_application_env(path, *, include_public_photo_settings=False):
     """Privately load only the authorized existing app's provider configuration.
 
     No shell evaluation/interpolation, credential argument, secret output or
@@ -174,6 +226,12 @@ def load_existing_application_env(path):
         'MEMORY_SPARK_LLM_MODEL', 'MEMORY_SPARK_LLM_REASONING_EFFORT',
         'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT',
         'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'}
+    if type(include_public_photo_settings) is not bool:
+        raise ValueError('Explicit public photo environment policy required')
+    if include_public_photo_settings:
+        # Only existing non-secret search configuration. Never import a new
+        # provider credential or a shared photo-worker/Supabase endpoint.
+        allowed.update({'GOOGLE_CSE_ID', 'GOOGLE_CSE_URL', 'PLAYWRIGHT_BROWSERS_PATH'})
     descriptor = None
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
@@ -255,10 +313,42 @@ def native_environment(directory, run_id):
     return environment
 
 
+def native_case_profile(case, evaluation_profile):
+    if evaluation_profile == 'subscription_fifty':
+        from apps.api.conversation_locale import explicit_profile
+        return explicit_profile({}, case['language'])
+    return {'preferred_language': case['language'], 'conversation_language':
+            {'locale': case['language'], 'source': 'explicit', 'revision': 1}}
+
+
 def native_cleanup_complete(native, cleanup_failed):
     return (not cleanup_failed and not native['ownership']['creation_uncertain']
         and (not native['postgres_allocation']['created'] or native['postgres_removed'] is True)
         and (not native.get('temporal_start_attempted') or native['temporal_stopped'] is True))
+
+
+def native_artifact_setup(sql, plan):
+    """Verify the isolated byte fixture before any worker can contact a model.
+
+    Called only in the already-owned PostgreSQL setup thread. Its existing
+    deadline/cancellation seam and joined teardown cover initialization and the
+    real runtime upload/readback probe; no independent services are started.
+    """
+    from memoir_postgres_workflow import initialize_artifact_storage, verify_artifact_storage
+    probe_owner = str(uuid5(UUID(plan['run_id']), 'memoir-artifact-readiness'))
+    if probe_owner in {case['owner_id'] for case in plan['cases'].values()}:
+        raise ValueError('Artifact readiness owner must be separate from campaign cases')
+    limits = initialize_artifact_storage(sql)
+    if type(limits) is not dict or limits != ARTIFACT_STORAGE_LIMITS:
+        raise ValueError('Isolated artifact readiness limits differ from the plan')
+    evidence = asyncio.run(verify_artifact_storage(sql, probe_owner=probe_owner))
+    if (type(evidence) is not dict or evidence.get('status') != 'verified'
+            or evidence.get('byte_readback_verified') is not True
+            or evidence.get('probe_cleaned') is not True
+            or type(evidence.get('model_calls')) is not int or evidence['model_calls'] != 0
+            or evidence.get('real_storage_writes') is not False):
+        raise ValueError('Isolated artifact readiness was not verified')
+    return {**evidence, 'limits': limits}
 
 
 @asynccontextmanager
@@ -270,15 +360,22 @@ async def native_resources(plan, run, directory, receipt):
     # This is a dedicated process. Remove inherited service/auth configuration;
     # the one existing provider credential stays only in execute_native's local.
     environment = native_environment(directory, plan['run_id'])
+    if plan.get('evaluation_profile') == 'subscription_fifty':
+        environment['STRIPE_PRICE_FAMILY'] = 'synthetic-memoir-fifty-price'
     postgres_name = 'memoir-issue6-pg-' + plan['run_id'].replace('-', '')[:12]
     os.environ.clear(); os.environ.update(environment)
     sys.path.insert(0, str(ROOT / 'tests'))
     from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database
     from memoir_postgres_workflow import PostgresRest, quoted
+    from scripts.memoir_subscription_profiles import profile_for
+    profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
     cancellation = threading.Event()
     allocation = {'attempted': False, 'created': False}
     receipt['native'] = {'postgres_container': postgres_name, 'postgres_allocation': allocation,
-        'rest_auth_facade': 'synthetic_PostgresRest', 'entitlement': 'free',
+        'rest_auth_facade': 'synthetic_PostgresRest',
+        'entitlement': 'synthetic_campaign_facade_only' if profile.name == 'subscription_fifty' else 'free',
+        'real_account_subscriptions_modified': False,
+        'artifact_storage': {'status': 'not_verified', 'real_storage_writes': False},
         'temporal': 'owned_loopback', 'postgres_removed': False, 'temporal_stopped': False,
         'temporal_start_attempted': False}
     def record():
@@ -291,32 +388,40 @@ async def native_resources(plan, run, directory, receipt):
     generator = database.__wrapped__(deadline=run.deadline, cancellation=cancellation,
                                      allocation=allocation, on_allocation=record)
     setup_task = temporal = broker = None
-    storages = {}
+    storages, entitlement_facades = {}, {}
     def setup():
         sql = next(generator)
         if sql.command[3] != postgres_name:
             raise ValueError('Owned PostgreSQL identity differs')
         sql = event_database.__wrapped__(private_database.__wrapped__(attachment_database.__wrapped__(sql)))
+        artifact_evidence = native_artifact_setup(sql, plan)
         for case in plan['cases'].values():
             sql(f"insert into auth.users(id,is_anonymous) values ({quoted(case['owner_id'])},false);")
-        return sql
+            if (plan.get('browser_readback') or {}).get('allow_browser_turns') is True:
+                sql("insert into public.user_memoir_project(user_id,project_id) values ("
+                    + quoted(case['owner_id']) + "," + quoted(case['project_id']) + " );")
+        return sql, artifact_evidence
     try:
         setup_task = asyncio.create_task(asyncio.to_thread(setup))
-        sql = await asyncio.shield(setup_task)
+        sql, artifact_evidence = await asyncio.shield(setup_task)
+        receipt['native']['artifact_storage'] = artifact_evidence
+        record()
         receipt['resource_gate'] = memory_resource_check(waived=plan.get('memory_pressure_check_waived', False))
         receipt['native']['temporal_start_attempted'] = True
         temporal = await WorkflowEnvironment.start_local(
             dev_server_existing_path=plan['temporal_binary'],
             dev_server_database_filename=str(directory / 'temporal.sqlite'), ip='127.0.0.1', ui=False)
         for case_id, case in plan['cases'].items():
-            storage = PostgresRest(sql, case['owner_id']).storage()
-            storage.save_profile({'preferred_language': case['language'], 'conversation_language':
-                {'locale': case['language'], 'source': 'explicit', 'revision': 1}})
+            facade = PostgresRest(sql, case['owner_id'], entitlement=profile.entitlement(case, 1))
+            storage = facade.storage()
+            entitlement_facades[case_id] = facade
+            storage.save_profile(native_case_profile(case, profile.name))
             storages[case_id] = storage
         client = httpx.AsyncClient(transport=httpx.MockTransport(
             PostgresRest(sql, next(iter(plan['cases'].values()))['owner_id'], service=True).handle))
         broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic-service', client=client)
-        yield {'storages': storages, 'broker': broker, 'temporal_client': temporal.client}
+        yield {'storages': storages, 'broker': broker, 'temporal_client': temporal.client,
+               **({'entitlement_facades': entitlement_facades} if profile.name == 'subscription_fifty' else {})}
     finally:
         cancellation.set()
         cleanup_failed = False
@@ -364,28 +469,69 @@ async def execute_native(plan, directory, api_key):
     from scripts.issue14_subscription_transport import SubscriptionLimits, SubscriptionRun, SubscriptionTransport
     from scripts.issue14_subscription_session import OwnedSubscriptionSession
     from scripts.issue14_subscription_runner import SubscriptionProgressiveRunner
+    from scripts.memoir_subscription_profiles import profile_for
+    profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
+    # Rebuild the full plan before any resource or output allocation. An edited
+    # saved plan cannot change cases, dataset, entitlement or approved caps.
+    validated = build_plan(**{key: plan[key] for key in ('run_id', 'source_revision',
+        'codex_binary', 'codex_sha256', 'temporal_binary', 'temporal_sha256',
+        'max_client_requests', 'max_elapsed_seconds')},
+        evaluation_profile=profile.name,
+        waive_memory_pressure_check=plan.get('memory_pressure_check_waived', False),
+        max_case_client_requests=plan.get('max_case_client_requests'),
+        max_case_elapsed_seconds=plan.get('max_case_elapsed_seconds'),
+        collector_timeout_seconds=plan.get('collector_timeout_seconds', WORKER_TIMEOUT),
+        enable_public_photo_research=bool(plan.get('photo_research')),
+        photo_python_binary=(plan.get('photo_research') or {}).get('python_binary'),
+        photo_python_sha256=(plan.get('photo_research') or {}).get('python_sha256'),
+        enable_browser_readback='browser_readback' in plan, browser_config=plan.get('browser_readback'))
+    if plan != validated:
+        raise ValueError('Exact freshly validated evaluation plan required')
     directory = Path(directory)
+    if plan.get('browser_readback'):
+        output = Path(plan['browser_readback']['output_root']).resolve()
+        if directory.resolve() not in output.parents:
+            raise ValueError('Browser output must remain inside this owned run directory')
     directory.mkdir(parents=True, exist_ok=False, mode=0o700)
     (directory / 'journal').mkdir(mode=0o700)
     _save(directory / 'plan.json', plan)
     run = SubscriptionRun.create(reservation_root=directory / 'journal', run_id=plan['run_id'],
         source_revision=plan['source_revision'], limits=SubscriptionLimits(
-            plan['max_client_requests'], plan['max_elapsed_seconds']))
+            plan['max_client_requests'], plan['max_elapsed_seconds']),
+        **({'case_ids': profile.case_ids, 'case_limits': SubscriptionLimits(
+            plan['max_case_client_requests'], plan['max_case_elapsed_seconds'])}
+           if profile.name == 'subscription_fifty' else {}))
     receipt = {'schema_version': 'memoir-subscription-native-receipt/1', 'run_id': plan['run_id'],
         'source_revision': plan['source_revision'], 'status': 'incomplete', 'execution_started': True,
         'judge': 'not_run', 'langfuse': 'not_published', 'semantic_acceptance': 'human_review_required'}
     session = None
+    photo_settings = {key: os.environ[key] for key in ('GOOGLE_CSE_ID', 'GOOGLE_CSE_URL')
+                      if key in os.environ}
+    photo_browsers = os.environ.get('PLAYWRIGHT_BROWSERS_PATH')
     transport = SubscriptionTransport.existing_route(run=run, authorization='Bearer ' + api_key)
     try:
         async with asyncio.timeout(run.remaining_seconds()):
             async with native_resources(plan, run, directory, receipt) as resources:
                 session = await OwnedSubscriptionSession.create(run=run, provider_transport=transport,
                     **resources, home_root=directory / 'homes', codex_binary=plan['codex_binary'],
-                    codex_sha256=plan['codex_sha256'], api_key=api_key)
+                    codex_sha256=plan['codex_sha256'], api_key=api_key, evaluation_profile=profile.name,
+                    collector_timeout_seconds=plan['collector_timeout_seconds'])
+                if plan.get('browser_readback'):
+                    from scripts.memoir_fifty_browser_runner import OwnedFiftyBrowserReadback
+                    session.browser_readback = OwnedFiftyBrowserReadback.admit(session, plan['browser_readback'])
+                if plan.get('photo_research'):
+                    from scripts.memoir_fifty_photo import FiftyPhotoResearch
+                    photo = plan['photo_research']
+                    session.photo_research = await FiftyPhotoResearch.admit(
+                        session=session, directory=directory / 'photos',
+                        python_binary=photo['python_binary'], python_sha256=photo['python_sha256'],
+                        existing_public_settings=photo_settings, playwright_browsers_path=photo_browsers)
                 def progress(value):
                     receipt['evaluation_progress'] = value
                     _save(directory / 'receipt.json', receipt)
-                result = await SubscriptionProgressiveRunner(session).run(progress=progress)
+                runner = SubscriptionProgressiveRunner(session, **(
+                    {'evidence_mode': profile.name} if profile.name == 'subscription_fifty' else {}))
+                result = await runner.run(progress=progress)
                 receipt['evaluation'] = result
                 receipt['worker_receipts'] = session.worker_receipts()
                 receipt['status'] = result['status']
@@ -407,8 +553,21 @@ async def execute_native(plan, directory, api_key):
         except BaseException:
             invalidate_native_receipt(receipt, 'native_cleanup_failed')
         receipt['request_accounting'] = run.snapshot()
+        if session is not None and getattr(session, 'photo_research', None) is not None:
+            receipt['photo_research'] = session.photo_research.snapshot()
+        if session is not None and getattr(session, 'browser_readback', None) is not None:
+            receipt['browser_readback'] = session.browser_readback.receipt()
         _save(directory / 'receipt.json', receipt)
     return receipt
+
+
+def read_browser_config(path):
+    path = Path(path)
+    if (not path.is_absolute() or path.is_symlink() or not path.is_file()
+            or path.stat().st_uid != os.getuid() or path.stat().st_size > 2 * 1024 * 1024):
+        raise ValueError('An existing owner-owned bounded browser config is required')
+    from scripts.issue14_subscription_session import _json
+    return _json(path.read_bytes())
 
 
 def main(argv=None):
@@ -423,18 +582,38 @@ def main(argv=None):
     for name in ('codex', 'temporal'):
         parser.add_argument(f'--{name}-binary', type=Path, required=True)
         parser.add_argument(f'--{name}-sha256', required=True)
+    parser.add_argument('--enable-browser-readback', action='store_true')
+    parser.add_argument('--browser-config', type=Path)
+    parser.add_argument('--enable-public-photo-research', action='store_true')
+    parser.add_argument('--photo-python-binary', type=Path)
+    parser.add_argument('--photo-python-sha256')
+    parser.add_argument('--evaluation-profile', choices=('subscription_progressive', 'subscription_fifty'),
+        default='subscription_progressive')
+    parser.add_argument('--max-case-client-requests', type=int)
+    parser.add_argument('--max-case-elapsed-seconds', type=float)
     parser.add_argument('--max-client-requests', type=int, required=True)
     parser.add_argument('--max-elapsed-seconds', type=float, required=True)
+    parser.add_argument('--collector-timeout-seconds', type=float, default=WORKER_TIMEOUT,
+        help='Explicit native collector execution budget (default 120; maximum 240 seconds)')
     args = parser.parse_args(argv)
     execution_started = False
     try:
-        plan = build_plan(**{key: getattr(args, key) for key in ('run_id','source_revision',
+        if args.browser_config is not None and not args.enable_browser_readback:
+            raise ValueError('Browser config requires explicit admission')
+        browser_config = read_browser_config(args.browser_config) if args.browser_config is not None else None
+        plan = build_plan(browser_config=browser_config, **{key: getattr(args, key) for key in ('run_id','source_revision',
             'codex_binary','codex_sha256','temporal_binary','temporal_sha256',
-            'max_client_requests','max_elapsed_seconds','waive_memory_pressure_check')})
+            'max_client_requests','max_elapsed_seconds','waive_memory_pressure_check',
+            'evaluation_profile','max_case_client_requests','max_case_elapsed_seconds',
+            'enable_public_photo_research','photo_python_binary','photo_python_sha256',
+            'enable_browser_readback','collector_timeout_seconds')})
         if not args.execute_existing_subscription:
             print(json.dumps(plan, sort_keys=True))
             return 0
         verify_source(args.source_revision)
+        if plan.get('evaluation_profile', 'subscription_progressive') == 'subscription_fifty':
+            from scripts.issue14_subscription_source_contract_v6 import audit_subscription_source_v6
+            audit_subscription_source_v6(ROOT)
         if sys.platform != 'darwin':
             raise ValueError('This native bootstrap requires the authorized Mac fixture')
         from scripts.native_canary_launcher import native_resource_lease
@@ -446,7 +625,8 @@ def main(argv=None):
         subprocess.run(['container','image','inspect','postgres:18.3'], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if args.existing_app_env is not None:
-            load_existing_application_env(args.existing_app_env)
+            load_existing_application_env(args.existing_app_env, **(
+                {'include_public_photo_settings': True} if args.enable_public_photo_research else {}))
         api_key = configured_credential()
         async def scenario():
             task = asyncio.current_task()

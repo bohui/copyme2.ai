@@ -25,17 +25,25 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
+from apps.api.diagnostics import failure_class
+from scripts.issue14_response_observation import ResponseObservation, ObservedResponseStream
 
 
 EXISTING_ENDPOINT = 'http://192.168.66.1:4000/v1/responses'
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+# The explicit campaign is the original ordered dataset, not an arbitrary
+# grouping mechanism that can mint fresh per-case budgets.
+MEMOIR_FIVE_CASE_IDS = ('harbour-copper-notebook', 'chengdu-tea-ledger',
+    'perth-workshop-compass', 'kunming-garden-lanterns', 'sydney-platform-letters')
 _SCHEMA = 'issue14-subscription-client-request-budget/1'
 _BOUNDARY = 'client_to_existing_gateway_http_requests'
 _STOP_REASONS = frozenset({'closed', 'requests_limit', 'elapsed_limit',
     'target_forbidden', 'identity_mismatch', 'protocol_invalid',
     'send_interrupted_or_failed', 'journal_unavailable', 'http_response_failed',
-    'process_ownership_mismatch', 'event_loop_mismatch', 'route_binding_mismatch'})
+    'process_ownership_mismatch', 'event_loop_mismatch', 'route_binding_mismatch',
+    'case_sequence_invalid', 'case_inactive', 'case_inflight',
+    'case_requests_limit', 'case_elapsed_limit'})
 
 
 class SubscriptionStopped(RuntimeError):
@@ -76,11 +84,22 @@ class SubscriptionRun:
         raise TypeError('Use create with explicit run identity and limits')
 
     @classmethod
-    def create(cls, *, reservation_root, run_id, source_revision, limits):
+    def create(cls, *, reservation_root, run_id, source_revision, limits,
+               case_ids=None, case_limits=None):
         if (not _uuid(run_id) or type(source_revision) is not str
                 or not re.fullmatch('[a-f0-9]{40}', source_revision)
                 or type(limits) is not SubscriptionLimits):
             raise ValueError('Explicit run UUID, source revision and limits are required')
+        if case_ids is not None or case_limits is not None:
+            if (type(case_ids) is not tuple
+                    or any(type(case_id) is not str for case_id in case_ids)
+                    or case_ids != MEMOIR_FIVE_CASE_IDS
+                    or type(case_limits) is not SubscriptionLimits
+                    or case_limits.max_requests > 600
+                    or case_limits.max_elapsed_seconds > 7200
+                    or limits.max_requests > 3000
+                    or limits.max_elapsed_seconds > 36000):
+                raise ValueError('The explicit ordered five-case campaign and bounded limits are required')
         root = Path(reservation_root)
         if root.is_symlink() or not root.is_dir():
             raise ValueError('An existing ordinary reservation directory is required')
@@ -95,6 +114,14 @@ class SubscriptionRun:
         self._binding = None
         self._entries = []
         self._started_count = 0
+        self._case_ids, self._case_limits = case_ids, case_limits
+        self._cases = [{'case_id': case_id, 'status': 'pending', 'entries': [],
+            'client_requests_started': 0, 'started_at_monotonic': None,
+            'deadline_monotonic': None, 'finished_at_monotonic': None}
+            for case_id in (case_ids or ())]
+        self._active_case = None
+        self._next_case_index = 0
+        self._case_dispatches = 0
         self._stop_reason = None
         self._journal_durable = True
         self._closed = False
@@ -107,11 +134,15 @@ class SubscriptionRun:
                     os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
             except FileExistsError:
                 raise SubscriptionStopped('reservation_exists') from None
+            campaign = ({} if case_ids is None else {
+                'case_ids': list(case_ids), 'case_limits': asdict(case_limits),
+                'started_at_monotonic': self._started_at,
+                'global_deadline_monotonic': self._deadline})
             self._write('created', schema=_SCHEMA, run_id=run_id,
                 source_revision=source_revision, limits=asdict(limits),
                 counted_boundary=_BOUNDARY, concurrency=1, restart_allowed=False,
                 hard_token_cap_verified=False, hard_dollar_cap_verified=False,
-                upstream_cancellation_verified=False)
+                upstream_cancellation_verified=False, **campaign)
             # The exclusive filename must survive a crash before any contact.
             os.fsync(directory)
         except BaseException as error:
@@ -140,8 +171,71 @@ class SubscriptionRun:
         return self._limits
 
     @property
-    def deadline(self):
+    def case_ids(self):
+        return self._case_ids
+
+    @property
+    def case_limits(self):
+        return self._case_limits
+
+    @property
+    def global_deadline(self):
         return self._deadline
+
+    @property
+    def deadline(self):
+        case = self._active_case
+        if case is not None:
+            return min(self._deadline, case['deadline_monotonic'])
+        return self._deadline
+
+    def start_case(self, case_id):
+        """Durably activate the next single-use case without resetting the run."""
+        with self._lock:
+            self._admit()
+            if self.case_ids is None:
+                raise ValueError('An explicit campaign is required')
+            if (type(case_id) is not str or self._active_case is not None
+                    or self._next_case_index >= len(self.case_ids)
+                    or case_id != self.case_ids[self._next_case_index]):
+                self._reject('case_sequence_invalid')
+            if self._case_dispatches:
+                self._reject('case_inflight')
+            case = self._cases[self._next_case_index]
+            started = time.monotonic()
+            case.update(status='active', started_at_monotonic=started,
+                deadline_monotonic=min(self.global_deadline,
+                    started + self.case_limits.max_elapsed_seconds))
+            # Retain activation even when its journal write is uncertain.
+            self._active_case = case
+            self._write('case_started', case_id=case_id,
+                case_index=self._next_case_index + 1,
+                started_at_monotonic=started,
+                deadline_monotonic=case['deadline_monotonic'],
+                global_deadline_monotonic=self.global_deadline)
+            self._admit()
+
+    def finish_case(self, case_id):
+        """Finish only the active case; retain its budget, counters and deadline."""
+        with self._lock:
+            self._admit()
+            if self.case_ids is None:
+                raise ValueError('An explicit campaign is required')
+            case = self._active_case
+            if type(case_id) is not str or case is None or case_id != case['case_id']:
+                self._reject('case_sequence_invalid')
+            if self._case_dispatches:
+                self._reject('case_inflight')
+            finished = time.monotonic()
+            summary = self._case_snapshot(case, finished)
+            summary.update(status='completed', finished_at_monotonic=finished)
+            self._write('case_finished', **summary,
+                global_client_requests_reserved=len(self._entries),
+                global_client_requests_started=self._started_count)
+            self._admit()
+            case.update(status='completed', finished_at_monotonic=finished)
+            self._active_case = None
+            self._next_case_index += 1
 
     def _owner(self):
         if os.getpid() != self._pid:
@@ -183,14 +277,43 @@ class SubscriptionRun:
         self._owner()
         if self._closed or self._stop_reason:
             raise SubscriptionStopped(self._stop_reason or 'closed')
-        if time.monotonic() >= self.deadline:
+        now = time.monotonic()
+        if now >= self.global_deadline:
             self._reject('elapsed_limit')
+        if self._active_case is not None and now >= self._active_case['deadline_monotonic']:
+            self._reject('case_elapsed_limit')
 
     def remaining_seconds(self):
-        """Remaining original absolute run time; raises on terminal state."""
+        """Remaining original run/active-case time; raises on terminal state."""
         with self._lock:
             self._admit()
             return max(0.0, self.deadline - time.monotonic())
+
+    def _timeout_reason(self):
+        if self._active_case is not None and self.deadline < self.global_deadline:
+            return 'case_elapsed_limit'
+        return 'elapsed_limit'
+
+    def timeout_reason(self):
+        """Content-free limiting deadline, retained even after terminal stop."""
+        with self._lock:
+            return self._timeout_reason()
+
+    def _begin_dispatch(self):
+        with self._lock:
+            if self.case_ids is None:
+                return False
+            self._admit()
+            if self._active_case is None:
+                self._reject('case_inactive')
+            # Include queued requests and body buffering, not only socket use.
+            # Their case cannot change while they wait for the serial gate.
+            self._case_dispatches += 1
+            return True
+
+    def _end_dispatch(self):
+        with self._lock:
+            self._case_dispatches -= 1
 
     def _bind_route(self, endpoint, mode):
         self._owner()
@@ -212,7 +335,11 @@ class SubscriptionRun:
         with self._lock:
             self._capacity()
             entry = {'ordinal': len(self._entries) + 1, 'status': 'reserved',
-                     'payload_bytes': payload_bytes}
+                     'payload_bytes': payload_bytes, 'reserved_at_monotonic': time.monotonic()}
+            if self._active_case is not None:
+                entry.update(case_id=self._active_case['case_id'],
+                    case_ordinal=len(self._active_case['entries']) + 1)
+                self._active_case['entries'].append(entry)
             # Retain uncertainty even if only part of this write reaches disk.
             self._entries.append(entry)
             self._write('send_reserved', **entry)
@@ -220,30 +347,78 @@ class SubscriptionRun:
 
     def _capacity(self):
         self._admit()
+        if self.case_ids is not None and self._active_case is None:
+            self._reject('case_inactive')
         if len(self._entries) >= self.limits.max_requests:
             self._reject('requests_limit')
+        if (self._active_case is not None
+                and len(self._active_case['entries']) >= self.case_limits.max_requests):
+            self._reject('case_requests_limit')
 
-    def _starting(self):
+    def _starting(self, entry):
         with self._lock:
             # Serialization/fsync may have consumed the last remaining time.
             self._admit()
             self._started_count += 1
+            if self._active_case is not None:
+                self._active_case['client_requests_started'] += 1
+            entry['started_at_monotonic'] = time.monotonic()
+            self._write('send_started', ordinal=entry['ordinal'],
+                started_at_monotonic=entry['started_at_monotonic'],
+                **({key: entry[key] for key in ('case_id', 'case_ordinal')} if 'case_id' in entry else {}))
+            # The extra diagnostic write cannot extend the existing deadline.
+            self._admit()
 
     def _complete(self, entry, status_code, response_bytes):
         with self._lock:
             self._admit()
+            case_fields = ({'case_id': entry['case_id'], 'case_ordinal': entry['case_ordinal']}
+                if 'case_id' in entry else {})
+            completed_at = time.monotonic()
+            elapsed = max(0, round((completed_at - entry['started_at_monotonic']) * 1000))
             self._write('http_response_completed', ordinal=entry['ordinal'],
-                status_code=status_code, response_bytes=response_bytes)
+                status_code=status_code, response_bytes=response_bytes,
+                completed_at_monotonic=completed_at, elapsed_ms=elapsed, **case_fields)
             # A blocking durable write is not a reason to extend the deadline.
             self._admit()
             entry.update(status='completed', status_code=status_code,
-                         response_bytes=response_bytes)
+                         response_bytes=response_bytes, completed_at_monotonic=completed_at,
+                         elapsed_ms=elapsed)
+
+    def _response_observed(self, entry, observation, *, revision=1):
+        # Diagnostic-only write remains available after cancellation stops the
+        # gate. It cannot admit, complete, refund or reset a charged request.
+        with self._lock:
+            if self._closed:
+                return
+            snapshot = observation.snapshot()
+            self._write('response_observed', ordinal=entry['ordinal'],
+                observation_revision=revision, response_observation=snapshot)
+            return snapshot
+
+    def _case_snapshot(self, case, now):
+        completed = sum(entry['status'] == 'completed' for entry in case['entries'])
+        started, finished = case['started_at_monotonic'], case['finished_at_monotonic']
+        status = case['status']
+        if status == 'active' and (self._stop_reason is not None or self._closed):
+            status = 'incomplete'
+        return {'case_id': case['case_id'], 'status': status,
+            'limits': asdict(self.case_limits),
+            'max_client_requests': self.case_limits.max_requests,
+            'client_requests_reserved': len(case['entries']),
+            'client_requests_started': case['client_requests_started'],
+            'completed_http_responses': completed,
+            'unresolved_requests': len(case['entries']) - completed,
+            'started_at_monotonic': started, 'deadline_monotonic': case['deadline_monotonic'],
+            'finished_at_monotonic': finished,
+            'elapsed_seconds': (0.0 if started is None else
+                max(0.0, (now if finished is None else finished) - started))}
 
     def snapshot(self):
         self._owner()
         with self._lock:
             completed = sum(entry['status'] == 'completed' for entry in self._entries)
-            return {'schema': _SCHEMA, 'run_id': self.run_id,
+            receipt = {'schema': _SCHEMA, 'run_id': self.run_id,
                 'source_revision': self.source_revision, 'limits': asdict(self.limits),
                 'counted_boundary': _BOUNDARY, 'concurrency': 1,
                 'max_client_requests': self.limits.max_requests,
@@ -257,6 +432,15 @@ class SubscriptionRun:
                 'actual_upstream_provider_requests': None,
                 'hard_token_cap_verified': False, 'hard_dollar_cap_verified': False,
                 'upstream_cancellation_verified': False, 'restart_allowed': False}
+            if self.case_ids is not None:
+                receipt.update(case_ids=list(self.case_ids), case_limits=asdict(self.case_limits),
+                    active_case_id=(None if self._active_case is None or self._closed
+                        or self._stop_reason is not None else self._active_case['case_id']),
+                    started_at_monotonic=self._started_at,
+                    global_deadline_monotonic=self.global_deadline,
+                    effective_deadline_monotonic=self.deadline,
+                    cases=[self._case_snapshot(case, time.monotonic()) for case in self._cases])
+            return receipt
 
     def close(self):
         self._owner()
@@ -385,10 +569,15 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
 
     async def handle_async_request(self, request):
         response = None
+        case_dispatch = False
+        entry = observation = None
+        observation_write_attempted = False
+        persisted_observation = None
         try:
             self.run._bind_loop()
             if self._closed:
                 self.run._reject('closed')
+            case_dispatch = self.run._begin_dispatch()
             async with asyncio.timeout(self.run.remaining_seconds()):
                 async with self.run._gate:
                     # Fail without touching another caller-owned stream once
@@ -419,14 +608,20 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                         extensions={'timeout': dict.fromkeys(('connect', 'read', 'write', 'pool'),
                             self.run.remaining_seconds())})
                     entry = self.run._reserve(len(body))
-                    self.run._starting()
+                    self.run._starting(entry)
+                    observation = ResponseObservation()
+                    entry['response_observation'] = observation.data
                     response = await self._wire.handle_async_request(outgoing)
+                    observation.headers(response.status_code,
+                        response.headers.get('content-type', '').split(';',1)[0].strip().lower() == 'text/event-stream')
+                    response.stream = ObservedResponseStream(response.stream, observation)
                     if (not 200 <= response.status_code < 300
                             or response.headers.get('content-encoding', 'identity') != 'identity'):
                         self.run._reject('http_response_failed')
                     chunks, size = [], 0
                     async for block in response.aiter_raw():
                         size += len(block)
+                        observation.chunk(block, parse=size <= MAX_RESPONSE_BYTES)
                         if size > MAX_RESPONSE_BYTES:
                             self.run._reject('protocol_invalid')
                         chunks.append(block)
@@ -438,10 +633,14 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                             b'upgrade', b'content-length'}]
                     await response.aclose()
                     response = None
+                    observation_write_attempted = True
+                    persisted_observation = self.run._response_observed(entry, observation)
                     self.run._complete(entry, status, len(body))
                     return httpx.Response(status, headers=response_headers, content=body)
         except BaseException as error:
-            reason = ('elapsed_limit' if isinstance(error, TimeoutError) else
+            if observation is not None:
+                observation.failed(failure_class(error))
+            reason = (self.run.timeout_reason() if isinstance(error, TimeoutError) else
                 str(error) if isinstance(error, SubscriptionStopped) and str(error) in _STOP_REASONS
                 else 'send_interrupted_or_failed')
             try:
@@ -455,8 +654,25 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                 try:
                     async with asyncio.timeout(1):
                         await response.aclose()
-                except (Exception, asyncio.CancelledError):
-                    pass
+                except (Exception, asyncio.CancelledError) as error:
+                    if observation is not None:
+                        observation.data.update(cleanup_status='failed', cleanup_failure_class=failure_class(error))
+            if observation is not None:
+                observation.close()
+                if (not observation_write_attempted or persisted_observation is not None
+                        and observation.snapshot() != persisted_observation):
+                    try:
+                        # At most one correction after a confirmed first write.
+                        # Accounting rejection may add failure fields after its
+                        # fsync. The original completion/deadline gate stays shut.
+                        self.run._response_observed(entry, observation,
+                            revision=2 if persisted_observation is not None else 1)
+                    except Exception:
+                        # _write already fences a journal failure. Preserve
+                        # the original timeout/cancellation; no send can resume.
+                        pass
+            if case_dispatch:
+                self.run._end_dispatch()
 
     async def aclose(self):
         # Closing one client never resets the shared count/deadline/run gate.
