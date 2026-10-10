@@ -444,6 +444,15 @@ python3 scripts/run_acceptance_evidence.py
 python3 scripts/audit_spec_routes.py
 ```
 
+For live subscription evaluation with disposable local PostgreSQL, use
+`make memoir-live-fifty-plan` to inspect the five distinct cases, then
+`make memoir-live-fifty-test` for 50 rounds per case (250 total). The live target
+also saves a readable `report.md` beside the raw receipts, including partial
+results after failure. Add `EVAL_CASE_ID=harbour-copper-notebook` (or another
+original case ID) to run one complete 50-round conversation independently.
+See [setup and report commands](docs/memoir-fifty-subscription-evaluation.md#make-commands-and-saved-reports)
+for the required source revision, executable pins and existing gateway configuration.
+
 For the recall/workspace browser acceptance suite, use a task-owned production
 frontend against a fresh test-mode API rather than a development HMR session.
 With that isolated API already running at `http://127.0.0.1:18042`:

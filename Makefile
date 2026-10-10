@@ -10,6 +10,19 @@ EVAL_CASES ?= tests/evaluation/cases.json
 EVAL_TASK ?= apps.api.evaluation_cases:run_case
 EVAL_FAILURE_DIR ?= var/evaluation-failures
 EVAL_CONCURRENCY ?= 1
+EVAL_SOURCE_REVISION ?= $(REVIEWED_MAIN_HEAD)
+EVAL_CODEX_BINARY ?= $(REVIEWED_CODEX_BINARY)
+EVAL_CODEX_SHA256 ?= $(REVIEWED_CODEX_SHA256)
+EVAL_TEMPORAL_BINARY ?= $(REVIEWED_TEMPORAL_BINARY)
+EVAL_TEMPORAL_SHA256 ?= $(REVIEWED_TEMPORAL_SHA256)
+EVAL_CASE_ID ?=
+EVAL_RUN_ID ?=
+EVAL_RUN_DIR ?=
+EVAL_OUTPUT_ROOT ?= $(HOME)/memoir-test-results
+EVAL_MAX_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,3000)
+EVAL_MAX_ELAPSED_SECONDS ?= $(if $(strip $(EVAL_CASE_ID)),7200,36000)
+EVAL_MAX_CASE_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,600)
+EVAL_MAX_CASE_ELAPSED_SECONDS ?= 7200
 CONTAINER_BUILD ?= 0
 ENV_FILE ?= .env
 TUNNEL_ARGS ?=
@@ -25,7 +38,10 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 
 help: ## Show the Apple Container + Mocker commands.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} /^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} \
+		/^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2} \
+		/^## / {hints[++hint_count] = substr($$0, 4)} \
+		END {if (hint_count) printf "\n"; for (i = 1; i <= hint_count; i++) printf "%s\n", hints[i]}' $(MAKEFILE_LIST)
 
 check: ## Verify Mocker and Apple Container are installed.
 	@command -v $(MOCKER) >/dev/null || { echo "Missing Mocker. Install with: brew tap us/tap && brew install mocker"; exit 1; }
@@ -115,6 +131,79 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
 	args=""; if test "$(EVAL_PUBLISH)" = "1"; then args="--publish"; fi; \
 		python3 scripts/run_langfuse_evaluation.py --cases "$(EVAL_CASES)" --task "$(EVAL_TASK)" --failure-dir "$(EVAL_FAILURE_DIR)" --concurrency "$(EVAL_CONCURRENCY)" $$args
+
+.PHONY: memoir-live-fifty-plan memoir-live-fifty-test memoir-live-fifty-report
+
+## Live memoir evaluation: each selected case runs a complete 50-round conversation.
+##   Preview without LLM calls:
+##     make memoir-live-fifty-plan EVAL_CASE_ID=harbour-copper-notebook
+##   Run one case with live LLM calls:
+##     make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook
+##     make memoir-live-fifty-test EVAL_CASE_ID=chengdu-tea-ledger
+##     make memoir-live-fifty-test EVAL_CASE_ID=perth-workshop-compass
+##     make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
+##     make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
+##   Omit EVAL_CASE_ID to run all five cases (250 rounds total).
+##   Live runs require reviewed source/binary pins and clean main; planning detects local defaults.
+##   Saved report: ~/memoir-test-results/<run-id>/report.md (default location).
+##   Regenerate: make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/run
+##   Setup details: docs/memoir-fifty-subscription-evaluation.md
+
+memoir-live-fifty-plan: ## Inspect 50-round cases without LLM calls; select one with EVAL_CASE_ID.
+
+memoir-live-fifty-test: ## Run 50 live rounds per case in disposable PostgreSQL; select one with EVAL_CASE_ID.
+
+memoir-live-fifty-plan memoir-live-fifty-test:
+	@set -eu; \
+	case "$(EVAL_CASE_ID)" in \
+		""|harbour-copper-notebook|chengdu-tea-ledger|perth-workshop-compass|kunming-garden-lanterns|sydney-platform-letters) ;; \
+		*) echo "Unknown EVAL_CASE_ID. Choose harbour-copper-notebook, chengdu-tea-ledger, perth-workshop-compass, kunming-garden-lanterns or sydney-platform-letters." >&2; exit 2 ;; \
+	esac; \
+	source_revision="$(EVAL_SOURCE_REVISION)"; \
+	codex_binary="$(EVAL_CODEX_BINARY)"; codex_sha256="$(EVAL_CODEX_SHA256)"; \
+	temporal_binary="$(EVAL_TEMPORAL_BINARY)"; temporal_sha256="$(EVAL_TEMPORAL_SHA256)"; \
+	if test "$@" = "memoir-live-fifty-plan"; then \
+		if test -z "$$source_revision"; then source_revision="$$(git rev-parse HEAD)"; fi; \
+		if test -z "$$codex_binary"; then codex_binary="$$(command -v codex || true)"; fi; \
+		if test -z "$$temporal_binary"; then temporal_binary="$$(command -v temporal || true)"; fi; \
+		if test -z "$$temporal_binary"; then temporal_binary="$$(python3 -c 'import os; from pathlib import Path; paths=[p for p in Path("/tmp/memoir-issue6-temporal").glob("temporal-sdk-python-*") if p.is_file() and os.access(p, os.X_OK)]; print(paths[0].resolve() if len(paths)==1 else "")')"; fi; \
+		if test -n "$$codex_binary" && test -z "$$codex_sha256"; then codex_sha256="$$(python3 -c 'import hashlib,sys; from pathlib import Path; print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())' "$$codex_binary")"; fi; \
+		if test -n "$$temporal_binary" && test -z "$$temporal_sha256"; then temporal_sha256="$$(python3 -c 'import hashlib,sys; from pathlib import Path; print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())' "$$temporal_binary")"; fi; \
+	fi; \
+	test -n "$$source_revision" || { echo "Set EVAL_SOURCE_REVISION (or REVIEWED_MAIN_HEAD) to the reviewed main commit." >&2; exit 2; }; \
+	test -n "$$codex_binary" && test -n "$$codex_sha256" || { echo "Set EVAL_CODEX_BINARY and EVAL_CODEX_SHA256 (or REVIEWED_CODEX_*)." >&2; exit 2; }; \
+	test -n "$$temporal_binary" && test -n "$$temporal_sha256" || { echo "Set EVAL_TEMPORAL_BINARY and EVAL_TEMPORAL_SHA256 (or REVIEWED_TEMPORAL_*); no unique cached Temporal executable was found." >&2; exit 2; }; \
+	run_id="$(EVAL_RUN_ID)"; \
+	if test -z "$$run_id"; then run_id="$$(python3 -c 'from uuid import uuid4; print(uuid4())')"; fi; \
+	run_dir="$(EVAL_RUN_DIR)"; \
+	if test -z "$$run_dir"; then run_dir="$(EVAL_OUTPUT_ROOT)/$$run_id"; fi; \
+	set -- python3 scripts/run_issue14_subscription_evaluation.py \
+		--evaluation-profile subscription_fifty \
+		--run-id "$$run_id" --source-revision "$$source_revision" --run-dir "$$run_dir" \
+		--codex-binary "$$codex_binary" --codex-sha256 "$$codex_sha256" \
+		--temporal-binary "$$temporal_binary" --temporal-sha256 "$$temporal_sha256" \
+		--max-client-requests "$(EVAL_MAX_CLIENT_REQUESTS)" --max-elapsed-seconds "$(EVAL_MAX_ELAPSED_SECONDS)" \
+		--max-case-client-requests "$(EVAL_MAX_CASE_CLIENT_REQUESTS)" --max-case-elapsed-seconds "$(EVAL_MAX_CASE_ELAPSED_SECONDS)" \
+		--collector-timeout-seconds 180; \
+	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
+	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
+	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
+	if test -f "$(ENV_FILE)"; then set -- "$$@" --existing-app-env "$(abspath $(ENV_FILE))"; fi; \
+	set -- "$$@" --execute-existing-subscription; \
+	if test -n "$(EVAL_CASE_ID)"; then \
+		printf 'Case %s, 50 rounds. Evidence directory: %s\n' "$(EVAL_CASE_ID)" "$$run_dir" >&2; \
+	else \
+		printf 'Five cases, 50 rounds each. Evidence directory: %s\n' "$$run_dir" >&2; \
+	fi; \
+	status=0; "$$@" || status=$$?; \
+	if test -f "$$run_dir/receipt.json"; then \
+		node scripts/render_memoir_subscription_report.mjs --run-dir "$$run_dir" || { if test "$$status" -eq 0; then status=1; fi; }; \
+	fi; \
+	exit "$$status"
+
+memoir-live-fifty-report: ## Render a saved live-run report; pass EVAL_RUN_DIR=/absolute/run-directory.
+	@test -n "$(EVAL_RUN_DIR)" || { echo "Set EVAL_RUN_DIR to the saved run directory." >&2; exit 2; }
+	@node scripts/render_memoir_subscription_report.mjs --run-dir "$(EVAL_RUN_DIR)"
 
 localization-catalog-test: ## Validate the English and Simplified Chinese message catalogues.
 	@python3 scripts/check_localization_catalog.py
