@@ -59,6 +59,25 @@ def test_stop_has_no_candidates_and_no_question():
     assert validate_collector_result(p,CONTEXT)['reply']=='我们先休息。'
 
 
+@pytest.mark.parametrize('mutation', ['invented_name', 'accepted_photo', 'rich_name', 'extra_candidate'])
+def test_reply_work_plan_cannot_forge_a_name_or_discard_a_photo(mutation):
+    from test_name_only_opening import proposal as opening_proposal
+    p = opening_proposal()
+    context = {'source': {'id': 'name-source', 'version': 1, 'status': 'active', 'text': '我叫韩凤江'},
+        'events': [], 'photo_context': [], 'opening_turn': True}
+    if mutation == 'invented_name': p['plan']['work']['name'] = '另一个人'
+    if mutation == 'accepted_photo': context['photo_context'] = [PHOTO]
+    if mutation == 'rich_name': p['plan']['work']['mode'] = 'extract'
+    if mutation == 'extra_candidate':
+        p['plan']['candidates'].append({**p['plan']['candidates'][0], 'id': 'other', 'question': '另一段往事呢？'})
+    with pytest.raises(ValueError): validate_collector_result(p, context)
+
+
+def test_legacy_collector_without_work_keeps_original_plan():
+    p = proposal()
+    assert validate_collector_result(p, CONTEXT)['plan'] == p['plan']
+
+
 def test_unrelated_selection_remains_a_deferred_candidate_without_association():
     p=proposal();p['associations']=[];p['acknowledgement']='You caught insects beside the gate.'
     p['plan']['candidates'][0].update(question='What did you keep them in?',context={'event_id':None,'photo_id':None,'life_stage':None,'year':None})
