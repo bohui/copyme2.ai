@@ -23,10 +23,12 @@ function draftText(draft) {
 export function renderReport(plan, receipt) {
   if (plan.schema_version !== 'memoir-subscription-evaluation-plan/1'
       || plan.evaluation_profile !== 'subscription_fifty'
-      || receipt.schema_version !== 'memoir-subscription-native-receipt/1'
+      || !['memoir-subscription-native-receipt/1', 'memoir-supabase-evaluation-receipt/1'].includes(receipt.schema_version)
       || receipt.run_id !== plan.run_id || receipt.source_revision !== plan.source_revision) {
-    throw new Error('A matching fifty-round plan and native receipt are required.');
+    throw new Error('A matching fifty-round plan and evaluation receipt are required.');
   }
+  const remote = receipt.schema_version === 'memoir-supabase-evaluation-receipt/1';
+  if (remote && plan.storage_backend !== 'remote_supabase') throw new Error('Remote receipt requires a Supabase plan.');
   const evaluation = receipt.evaluation ?? receipt.evaluation_progress ?? {};
   const savedCases = new Map((evaluation.cases ?? []).map(item => [item.case_id, item]));
   const accounting = receipt.request_accounting ?? evaluation.request_accounting ?? {};
@@ -38,21 +40,37 @@ export function renderReport(plan, receipt) {
     ...(plan.local_checkout_source ? [
       `Branch: ${cell(plan.local_checkout_source.branch)}; local changes: ${cell(plan.local_checkout_source.dirty)}  `,
       `Checkout fingerprint: ${cell(plan.local_checkout_source.snapshot_sha256)}  `,
-      `Checkout unchanged through cleanup: ${cell(receipt.local_checkout_unchanged)}  `,
+      `Checkout unchanged through ${remote ? 'execution' : 'cleanup'}: ${cell(receipt.local_checkout_unchanged)}  `,
       'Historical reviewed-source audit: not run (development evaluation).  ',
     ] : []),
     `Run status: **${cell(receipt.status)}**  `,
     `Evaluation status: ${cell(evaluation.status)}  `,
     `Stop reason: ${cell(receipt.stop_reason ?? evaluation.stop_reason ?? accounting.stop_reason)}  `,
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
-    `Client HTTP requests reserved: ${cell(accounting.client_requests_reserved)}  `,
-    `Unresolved requests: ${cell(accounting.unresolved_requests)}  `,
-    `Native cleanup complete: ${cell(receipt.native?.cleanup_complete)}  `,
+    ...(remote ? [
+      'Storage: remote Supabase; projects retained.  ',
+      `UI account: ${cell(plan.user_email)}  `,
+      `Backend/Auth/readback HTTP requests reserved: ${cell(accounting.backend_http_requests_reserved)}  `,
+      `Original turn submission attempts: ${cell(receipt.backend_turn_submissions)}  `,
+      `Family features available: ${cell(receipt.preflight?.family_features_enabled)}  `,
+    ] : [
+      `Client HTTP requests reserved: ${cell(accounting.client_requests_reserved)}  `,
+      `Unresolved requests: ${cell(accounting.unresolved_requests)}  `,
+      `Native cleanup complete: ${cell(receipt.native?.cleanup_complete)}  `,
+    ]),
     `Semantic acceptance: ${cell(receipt.semantic_acceptance ?? evaluation.semantic_acceptance)}`, '',
     'Completion records execution and saved readbacks. Model quality still requires human review. '
       + 'Provider request, token and spend totals are not verified by this launcher.', '',
-    'Project IDs identify disposable test projects. They cannot be reopened in the normal app after database cleanup.', '',
-    'Saved evidence: [plan.json](plan.json), [receipt.json](receipt.json), [request journal](journal/).', '',
+    ...(remote ? [
+      'Sign in as the UI account above and open the case URL below. Run the frontend separately against this backend. '
+        + '`make db-truncate RESET_CONFIRM=1` removes these projects and Auth accounts.', '',
+      ...(receipt.ui_login_file === 'ui-login.html' ? ['Private, expiring, one-time [UI sign-in link](ui-login.html). '
+        + 'Generate a new link with `make memoir-live-fifty-login` when needed.', ''] : []),
+      'Saved evidence: [plan.json](plan.json), [receipt.json](receipt.json).', '',
+    ] : [
+      'Project IDs identify disposable test projects. They cannot be reopened in the normal app after database cleanup.', '',
+      'Saved evidence: [plan.json](plan.json), [receipt.json](receipt.json), [request journal](journal/).', '',
+    ]),
     '## Cases', '',
     '| Case | Locale | Status | Completed rounds | Ready checkpoints | Project ID |',
     '| --- | --- | --- | --- | --- | --- |',
@@ -70,7 +88,14 @@ export function renderReport(plan, receipt) {
   for (const id of plan.case_ids) {
     const item = savedCases.get(id) ?? {};
     const rounds = item.rounds ?? [];
-    lines.push('', `## ${cell(id)}`, '', '### Round results', '',
+    lines.push('', `## ${cell(id)}`, '');
+    if (remote) {
+      const url = plan.cases[id].ui_url;
+      if (typeof url !== 'string' || !/^https?:\/\/[^\s<>]+$/.test(url)) throw new Error('A valid UI URL is required.');
+      lines.push(`[Open project in Memoir](<${url}>)`, '',
+        `Authenticated UI recovery verified: ${cell(item.ui_recovery_verified)}.`, '');
+    }
+    lines.push('### Round results', '',
       '| Round | Status | Background settled | Accepted source |', '| --- | --- | --- | --- | --- |');
     for (const round of rounds) {
       lines.push(`| ${cell(round.round)} | ${cell(round.status)} | ${cell(round.background_settled)} | ${cell(round.accepted_source_id)} |`);

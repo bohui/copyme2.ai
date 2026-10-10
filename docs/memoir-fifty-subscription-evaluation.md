@@ -8,39 +8,12 @@ budget adapters and all previous source proofs retain their own meaning.
 
 ## Make commands and saved reports
 
-The Makefile exposes the existing launcher with all five cases selected, 50
-original inputs per case, ten saved checkpoints per case, and sequential
-execution by default. The read-only plan works directly:
+The default Make commands run each original 50-round conversation through the
+normal backend, authenticated as a permanent Supabase UI account. Projects and
+checkpoint drafts remain in the remote Supabase configured in `.env`.
 
 ```sh
 make memoir-live-fifty-plan
-```
-
-When values are omitted, both targets observe the current Git HEAD, find Codex and
-Temporal on PATH (or the single existing SDK Temporal executable in
-`/tmp/memoir-issue6-temporal`), and hash those files. Planning does not install or
-start them, read credentials, or certify those values as independently reviewed.
-Explicit values still take precedence. The normal live command works without
-manually exporting source or executable pins:
-
-```sh
-make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook
-```
-
-The Make targets default to `EVAL_SOURCE_MODE=local`, which passes the launcher's
-explicit `--local-checkout` option. This tests your current development branch,
-including tracked edits and new non-ignored files. The plan, receipt and report
-record the Git HEAD, branch, dirty state and checkout fingerprint. The fingerprint
-is checked before allocation and after cleanup; detected source changes invalidate
-the run. Avoid editing the checkout during a live conversation. Ignored files,
-including private `.env` and installed dependencies, are outside this fingerprint.
-Local runs do not claim to pass the historical reviewed-source audit.
-
-To run each case independently, choose its ID. Each command creates a fresh
-run, executes that case's complete 50-round conversation in order, and saves
-its own report:
-
-```sh
 make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook
 make memoir-live-fifty-test EVAL_CASE_ID=chengdu-tea-ledger
 make memoir-live-fifty-test EVAL_CASE_ID=perth-workshop-compass
@@ -48,87 +21,95 @@ make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
 make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
 ```
 
-The same selector works with `memoir-live-fifty-plan`. Selection preserves the
-original case inputs, locale and all ten checkpoints. The existing single-case
-profile limits apply: 569 client requests and 7,200 seconds globally and for
-the selected case. Omitting `EVAL_CASE_ID` retains the five-case campaign.
+Each selected case gets a fresh project and all 50 original inputs in order, with
+saved drafts at rounds 5, 10, ..., 50. Omit `EVAL_CASE_ID` to run all five cases
+sequentially (250 rounds). Planning reads the current Git source fingerprint but
+does not read `.env`, contact services, or allocate resources. No reviewed-main
+revision or executable pins are required for this development run. Avoid editing
+the checkout during execution: a changed fingerprint marks the run incomplete.
 
-The equivalent existing `REVIEWED_MAIN_HEAD`, `REVIEWED_CODEX_BINARY`,
-`REVIEWED_CODEX_SHA256`, `REVIEWED_TEMPORAL_BINARY` and
-`REVIEWED_TEMPORAL_SHA256` environment variables are also accepted. Plan-only
-prints JSON and does not read `.env`, allocate native resources or call a model.
-For a local run, any explicitly supplied source revision must equal current HEAD.
-Both execution modes retain Mac resource checks, the exclusive native lease,
-the existing cached `postgres:18.3` image, exact executable hashes, model routing,
-request/time ceilings and disposable storage cleanup.
+Execution requires Python with the repository dependencies, Node.js for reports,
+Mocker/Apple Container, cached app/worker images, the existing live LLM gateway,
+and migrated remote Supabase. `.env` must be an owned 0400/0600 regular file with
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` (or inherited
+`SUPABASE_SERVICE_ROLE_KEY`). The runner starts only API, Codex/photo workers,
+background worker and Temporal. It never starts PostgreSQL, the frontend, or a
+browser. Set `EVAL_START_BACKEND=0` to reuse an already configured backend at
+`API_BASE`; that account must already have enough conversation allowance.
 
-Strict reviewed-source execution is still available with
-`EVAL_SOURCE_MODE=reviewed`. It requires clean fetched `main` and the launcher's
-fixed source proof; merely committing new code does not update that proof. The
-direct Python launcher keeps reviewed mode as its default. Explicit pins can be
-supplied in either mode, for example:
+The default owner is `test@test.com`; override with `EVAL_USER_EMAIL` or exported
+`MEMOIR_EVAL_USER_EMAIL`. The command creates that test account if missing and
+confirms its email directly through Supabase Admin. Existing account passwords
+are preserved. Admin-generated links and token verification establish a real
+user session; application requests/readbacks use that user's JWT under RLS.
+Admin credentials are used only for Auth administration. These links are
+[generated without sending email](https://supabase.com/docs/reference/javascript/auth-admin-generatelink).
+
+The local evaluation API receives an absolute recall allowance for this account
+only, covering its existing usage plus the requested 50 or 250 rounds. This does
+not insert payment records or grant Family entitlement. Family features retain
+the account's actual entitlement and their availability is recorded in the
+report. Restart the normal API configuration to remove the evaluation allowance.
+
+Each round submits the original text once with a fresh client turn UUID to
+`/api/v1/agent/turn`, rejects cached/empty/failed delivery, then waits for canonical
+source extraction. At each five-round checkpoint it also waits for the saved
+manuscript before continuing. The final authenticated project recovery route is
+checked for UI reopening. Failed submissions are never automatically repeated;
+partial projects and evidence remain available for inspection. Stopping the
+client does not prove cancellation of already accepted background/provider work.
+
+The runner prints project IDs and `/memoir/interview/<project-id>` URLs. Start the
+frontend separately against the same backend, then sign in with the owning
+account:
 
 ```sh
-make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook \
-  EVAL_SOURCE_MODE=reviewed EVAL_SOURCE_REVISION='<reviewed-main-commit>' \
-  EVAL_CODEX_BINARY=/absolute/path/to/codex EVAL_CODEX_SHA256='<sha256>' \
-  EVAL_TEMPORAL_BINARY=/absolute/path/to/temporal EVAL_TEMPORAL_SHA256='<sha256>'
+MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8010 npm --prefix apps/web run dev -- --port 3010
 ```
 
-Preflight failures report a safe `preflight_stage` and hint, identifying source,
-memory pressure, cached-image, provider-config or native-lease problems without
-printing credentials or arbitrary exception bodies.
+Avoid `make container-up` during a live run, since it restarts the backend. To create a private, expiring, one-time sign-in link without email:
 
-For live execution, an existing `ENV_FILE` (default `.env`) is passed privately
-to the launcher's allowlisted provider-config loader. It must satisfy that
-loader's existing owner and 0400/0600 permission requirements. If the file is
-absent, the launcher uses the inherited provider configuration. The existing
-gateway route remains `http://192.168.66.1:4000/v1`; no Supabase endpoint is used.
-Node.js is required to render the saved report.
+```sh
+make memoir-live-fifty-login
+# Optionally land directly on a retained project:
+make memoir-live-fifty-login EVAL_PROJECT_ID=<project-id>
+```
 
-Each invocation chooses a fresh UUID and an external evidence directory under
-`~/memoir-test-results/<run-id>`, printed before execution. Set
-`EVAL_RUN_ID` and `EVAL_RUN_DIR` for explicit identities, or set
-`EVAL_OUTPUT_ROOT` to an absolute location outside the checkout for durable
-storage. The directory must be fresh. For the five-case campaign, the four
-`EVAL_MAX_*` Make variables default to the global 3,000-request/36,000-second and
-per-case 600-request/7,200-second ceilings; selecting one case uses the smaller
-single-case bounds above. Smaller bounds may be supplied. The collector timeout is 180 seconds.
-These count client HTTP attempts, including background roles and continuations;
-250 conversation rounds are not necessarily 250 provider calls.
+Open the printed `ui-login.html` file and follow its sign-in link. The default
+frontend origin is `WEB_BASE=http://127.0.0.1:3010`; ensure Supabase allows this
+redirect URL. Keep login files private. A successful live run also saves one
+beside its report. Generate another if expired or already used.
 
-Once native execution has created a receipt, the Make target renders
-`report.md` even if the run is incomplete, while preserving the launcher's
-failure exit status. Inspect these files after the database is removed:
-
-- `report.md`: per-case status, completed round counts, checkpoints, project IDs,
-  failure evidence, saved skill coverage and every retained checkpoint's draft text.
-- `receipt.json`: full saved round/canonical readbacks, checkpoint draft objects,
-  request accounting and native cleanup evidence. Partial progress survives failure.
-- `plan.json`: case/owner/project bindings, source revision and limits.
-- `journal/<run-id>.jsonl`: durable client-request reservations and settlement.
-
-To regenerate the readable report without making LLM calls:
+Evidence is saved outside the checkout under `~/memoir-test-results/<run-id>`
+(default; override with `EVAL_RUN_DIR` or `EVAL_OUTPUT_ROOT`). `report.md` contains
+project URLs, completed-round/checkpoint counts, saved drafts and failure details.
+`receipt.json` retains canonical source readbacks, replies, all checkpoint objects,
+and backend request accounting; `plan.json` records source, owner/project bindings
+and limits. The report is rendered even after an incomplete run.
 
 ```sh
 make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/saved-run
 ```
 
-Open the resulting `report.md` in Codex or a Markdown viewer. The report shows
-execution completion separately from semantic acceptance, which still requires
-human review. The raw JSON retains source references and structured evidence for
-closer inspection. Default runs do not produce browser screenshots; those
-require the optional isolated browser configuration below. Project IDs belong
-to the disposable database and cannot be reopened through the normal app UI
-after cleanup. The saved report is a review artifact, not a restored project.
+One case defaults to 7,200 seconds; all five default to 36,000 seconds with 7,200
+per case. `EVAL_MAX_BACKEND_REQUESTS` is 20,000 for one case or 100,000 for all five
+and counts Auth, backend and RLS-readback HTTP attempts. `EVAL_SETTLE_SECONDS=600`
+and `EVAL_POLL_SECONDS=2` bound each background wait. These limits do not count
+private worker/provider requests, tokens or spend; those totals remain unknown.
+Execution completion is separate from human review of model quality.
 
-Remote Supabase is not a backend option for this launcher. Its owned session
-requires synthetic authentication, owner-scoped entitlement facades and disposable
-PostgreSQL storage. A separate remote mode would need real authentication and
-project ownership, storage, entitlement and workflow integration. It could retain
-projects for normal UI access and avoid the local PostgreSQL container.
-`make db-truncate RESET_CONFIRM=1` clears application data, storage and all Supabase
-Auth users as well as local user state; it therefore removes retained UI access.
+`make db-truncate RESET_CONFIRM=1` clears application data, Storage and all Auth
+users, removing retained project access. The evaluation never invokes it.
+
+## Original disposable launcher
+
+The following sections describe the original owned native launcher, which still
+uses synthetic authentication and disposable local PostgreSQL. Use
+`make memoir-live-fifty-disposable-plan` or
+`make memoir-live-fifty-disposable-test EVAL_CASE_ID=<case>` for that path. It
+detects executable pins and supports `EVAL_SOURCE_MODE=reviewed` with its historical
+source proof. Its projects disappear during cleanup; review saved reports instead.
+The direct `run_issue14_subscription_evaluation.py` interface is unchanged.
 
 ## Approved bounds and original inputs
 

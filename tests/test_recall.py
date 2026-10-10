@@ -48,6 +48,31 @@ class RecallStorage(FakeSupabaseUserStorage):
         return [{'id': f'reply-{self.completed}', 'content': text}]
 
 
+def test_evaluation_allowance_applies_only_to_configured_owner_and_response(monkeypatch):
+    from apps.api.recall import storage_recall_status
+    storage = RecallStorage(completed=20)
+    monkeypatch.setenv('MEMORY_SPARK_EVAL_RECALL_OWNER_ID', storage.user_id)
+    monkeypatch.setenv('MEMORY_SPARK_EVAL_RECALL_LIMIT', '70')
+    assert storage_recall_status(storage, None)['free_rounds'] == 70
+    runtime = CodexRuntime(worker_url='http://unused')
+    async def worker(**kwargs):
+        return {'thread_id': 'thread', 'reply': 'Tell me more.', 'artifacts': []}
+    monkeypatch.setattr(runtime, '_worker_turn', worker)
+    result = asyncio.run(runtime.turn(storage, 'Another memory'))
+    assert result['recall_status'] == {'rounds_completed': 21, 'free_rounds': 70,
+                                     'payment_required': False, 'paid': False}
+    other = RecallStorage(completed=20)
+    other.user_id = 'another-owner'
+    assert storage_recall_status(other, None)['payment_required'] is True
+    assert storage_recall_status(other, {'status': 'paid'})['paid'] is True
+    assert storage_recall_status(other, None)['free_rounds'] == 20
+    monkeypatch.setenv('MEMORY_SPARK_EVAL_RECALL_LIMIT', '1')
+    assert storage_recall_status(storage, None)['free_rounds'] == 20
+    monkeypatch.delenv('MEMORY_SPARK_EVAL_RECALL_OWNER_ID')
+    monkeypatch.setenv('MEMORY_SPARK_EVAL_RECALL_LIMIT', 'invalid-unused')
+    assert storage_recall_status(storage, None)['free_rounds'] == 20
+
+
 @pytest.mark.parametrize('explicit_original', [True, False])
 def test_original_conversation_text_is_saved_separately_from_agent_instructions(monkeypatch, explicit_original):
     storage = RecallStorage()
@@ -108,6 +133,7 @@ def test_ordinary_turns_cannot_use_legacy_opening_text_to_avoid_the_free_gate(mo
             self.commits = []
             self.profile_data = {'preferred_language': 'en-AU'}
             self.held = False
+            self.sources = {}
 
         def acquire_agent_turn_lease(self, *args):
             if self.held:
@@ -153,6 +179,26 @@ def test_ordinary_turns_cannot_use_legacy_opening_text_to_avoid_the_free_gate(mo
             # This quota double controls the external source-persistence boundary.
             return {'id': client_turn_id}
 
+        def accept_interview_turn(self, project_id, client_turn_id, text, **kwargs):
+            source = {'id': client_turn_id, 'text': text, 'version': 1, 'status': 'active'}
+            self.sources[(project_id, client_turn_id)] = source
+            return {'source': source, 'photo_context': []}
+
+        def interview_context(self, project_id):
+            return {'photo_context': [], 'events': []}
+
+        def memory_events(self, project_id):
+            return {'sources': list(self.sources.values()), 'events': []}
+
+        def narrator_source_by_turn(self, project_id, client_turn_id):
+            return self.sources.get((project_id, client_turn_id))
+
+        def interview_turn_by_id(self, *args):
+            return None
+
+        def save_interview_plan(self, *args, **kwargs):
+            return {}
+
         def commit_agent_turn(self, token, thread_id, text, source_paths, **kwargs):
             self.commits.append(kwargs)
             self.completed += int(kwargs.get('user_response', True))
@@ -165,7 +211,13 @@ def test_ordinary_turns_cannot_use_legacy_opening_text_to_avoid_the_free_gate(mo
     runtime = CodexRuntime(worker_url='http://unused')
 
     async def worker(**kwargs):
-        return {'thread_id': 'thread', 'reply': 'A grounded reply.', 'artifacts': []}
+        import json
+        reply = 'A grounded reply.'
+        if kwargs.get('interview_context') is not None:
+            reply = json.dumps({'acknowledgement': reply, 'stopped': True,
+                'plan': {'candidates': [], 'chosen_id': None, 'active_event_id': None},
+                'associations': [], 'response_photo_ids': []})
+        return {'thread_id': 'thread', 'reply': reply, 'artifacts': []}
 
     monkeypatch.setattr(runtime, '_worker_turn', worker)
     opening_prefix = 'The storyteller wants to begin exploring a memory. '

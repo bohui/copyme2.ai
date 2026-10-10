@@ -31,6 +31,20 @@ Hundredquant default certificate and CopyMe2 email MX/TXT records were preserved
 
 ## Setup and operation
 
+For the existing setup, with the local frontend running on port 3010:
+
+```bash
+make cloudflare-link    # Start the connector and enable it at user login.
+make cloudflare-unlink  # Stop the connector and disable it at user login.
+```
+
+These commands reuse the existing DNS route and tunnel credentials. Unlink
+leaves the local app running; repeating unlink succeeds when already stopped.
+The public hostname cannot reach this Mac's frontend until linked again.
+`cloudflare-link` aliases `tunnel-start`; `cloudflare-unlink` aliases `tunnel-stop`.
+
+For initial setup:
+
 Set `MEMORY_SPARK_PUBLIC_URL=https://copyme2.ai` in `.env`, then:
 
 ```bash
@@ -60,8 +74,9 @@ make tunnel-start
 tail -n 50 ~/Library/Logs/com.cloudflare.cloudflared.copyme2.err.log
 ```
 
-The launch agent starts the connector at this user's login and restarts it after
-failure. Start containers with `make container-up` after a reboot. Availability
+While enabled, the launch agent starts the connector at this user's login and
+restarts it after failure. Unlink keeps it disabled across logins until the next
+link. Start containers with `make container-up` after a reboot. Availability
 depends on this Mac remaining awake, online, and logged in.
 
 Supabase Auth must allow `https://copyme2.ai/memoir/start` as an application

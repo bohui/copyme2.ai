@@ -24,6 +24,12 @@ EVAL_MAX_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,3000)
 EVAL_MAX_ELAPSED_SECONDS ?= $(if $(strip $(EVAL_CASE_ID)),7200,36000)
 EVAL_MAX_CASE_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,600)
 EVAL_MAX_CASE_ELAPSED_SECONDS ?= 7200
+EVAL_USER_EMAIL ?= $(MEMOIR_EVAL_USER_EMAIL)
+EVAL_START_BACKEND ?= 1
+EVAL_MAX_BACKEND_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),20000,100000)
+EVAL_SETTLE_SECONDS ?= 600
+EVAL_POLL_SECONDS ?= 2
+EVAL_PROJECT_ID ?=
 CONTAINER_BUILD ?= 0
 ENV_FILE ?= .env
 TUNNEL_ARGS ?=
@@ -133,7 +139,7 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 	args=""; if test "$(EVAL_PUBLISH)" = "1"; then args="--publish"; fi; \
 		python3 scripts/run_langfuse_evaluation.py --cases "$(EVAL_CASES)" --task "$(EVAL_TASK)" --failure-dir "$(EVAL_FAILURE_DIR)" --concurrency "$(EVAL_CONCURRENCY)" $$args
 
-.PHONY: memoir-live-fifty-plan memoir-live-fifty-test memoir-live-fifty-report
+.PHONY: memoir-live-fifty-plan memoir-live-fifty-test memoir-live-fifty-report memoir-live-fifty-login memoir-live-fifty-backend memoir-live-fifty-disposable-plan memoir-live-fifty-disposable-test
 
 ## Live memoir evaluation: each selected case runs a complete 50-round conversation.
 ##   Preview without LLM calls:
@@ -145,17 +151,64 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 ##     make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
 ##     make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
 ##   Omit EVAL_CASE_ID to run all five cases (250 rounds total).
-##   Defaults: current checkout (including local edits), detected binaries, existing .env.
-##   Strict reviewed-main run: add EVAL_SOURCE_MODE=reviewed (requires its fixed source proof).
+##   Defaults: current checkout, remote Supabase from .env, EVAL_USER_EMAIL=test@test.com.
+##   Starts backend services only; retains projects and prints UI URLs. No local PostgreSQL.
+##   Sign in without email: make memoir-live-fifty-login (private ui-login.html).
+##   Run the UI: MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8010 npm --prefix apps/web run dev -- --port 3010.
+##   Sign in as EVAL_USER_EMAIL, then visit /memoir/interview/<project-id>.
+##   db-truncate removes retained projects and Auth accounts; it never runs automatically.
+##   Disposable alternative: make memoir-live-fifty-disposable-test EVAL_CASE_ID=<case>.
 ##   Saved report: ~/memoir-test-results/<run-id>/report.md (default location).
 ##   Regenerate: make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/run
 ##   Setup details: docs/memoir-fifty-subscription-evaluation.md
 
 memoir-live-fifty-plan: ## Inspect 50-round cases without LLM calls; select one with EVAL_CASE_ID.
 
-memoir-live-fifty-test: ## Run 50 live rounds per case in disposable PostgreSQL; select one with EVAL_CASE_ID.
+memoir-live-fifty-test: ## Run 50 live rounds per case against remote Supabase; retain projects for the UI.
 
 memoir-live-fifty-plan memoir-live-fifty-test:
+	@set -eu; \
+	test "$(EVAL_SOURCE_MODE)" = "local" || { echo "Remote evaluation tests the current checkout. Use the disposable target for reviewed-source mode." >&2; exit 2; }; \
+	run_id="$(EVAL_RUN_ID)"; \
+	if test -z "$$run_id"; then run_id="$$(python3 -c 'from uuid import uuid4; print(uuid4())')"; fi; \
+	run_dir="$(EVAL_RUN_DIR)"; \
+	if test -z "$$run_dir"; then run_dir="$(EVAL_OUTPUT_ROOT)/$$run_id"; fi; \
+	set -- python3 scripts/run_memoir_supabase_evaluation.py \
+		--run-id "$$run_id" --run-dir "$$run_dir" --env-file "$(abspath $(ENV_FILE))" \
+		--api-base "$(API_BASE)" --web-base "$(WEB_BASE)" \
+		--max-elapsed-seconds "$(EVAL_MAX_ELAPSED_SECONDS)" --max-case-elapsed-seconds "$(EVAL_MAX_CASE_ELAPSED_SECONDS)" \
+		--max-backend-requests "$(EVAL_MAX_BACKEND_REQUESTS)" --settle-seconds "$(EVAL_SETTLE_SECONDS)" --poll-seconds "$(EVAL_POLL_SECONDS)"; \
+	if test -n "$(EVAL_SOURCE_REVISION)"; then set -- "$$@" --source-revision "$(EVAL_SOURCE_REVISION)"; fi; \
+	if test -n "$(EVAL_USER_EMAIL)"; then set -- "$$@" --user-email "$(EVAL_USER_EMAIL)"; fi; \
+	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
+	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
+	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
+	case "$(EVAL_START_BACKEND)" in 1) set -- "$$@" --start-backend ;; 0) ;; *) echo "EVAL_START_BACKEND must be 0 or 1." >&2; exit 2 ;; esac; \
+	set -- "$$@" --execute --create-confirmed-test-user; \
+	status=0; MOCKER="$(MOCKER)" APPLE_CONTAINER_BIN="$(APPLE_CONTAINER_BIN)" COMPOSE_FILE="$(COMPOSE_FILE)" "$$@" || status=$$?; \
+	if test -f "$$run_dir/receipt.json"; then \
+		node scripts/render_memoir_subscription_report.mjs --run-dir "$$run_dir" || { if test "$$status" -eq 0; then status=1; fi; }; \
+	fi; \
+	exit "$$status"
+
+memoir-live-fifty-login: ## Create/confirm EVAL_USER_EMAIL and save a private UI sign-in link; no email or LLM calls.
+	@set -eu; \
+	set -- python3 scripts/run_memoir_supabase_evaluation.py --prepare-user \
+		--env-file "$(abspath $(ENV_FILE))" --web-base "$(WEB_BASE)"; \
+	if test -n "$(EVAL_USER_EMAIL)"; then set -- "$$@" --user-email "$(EVAL_USER_EMAIL)"; fi; \
+	if test -n "$(EVAL_RUN_DIR)"; then set -- "$$@" --run-dir "$(EVAL_RUN_DIR)"; fi; \
+	if test -n "$(EVAL_PROJECT_ID)"; then set -- "$$@" --project-id "$(EVAL_PROJECT_ID)"; fi; \
+	exec "$$@"
+
+memoir-live-fifty-backend: runtime-start ## Start the API and workers for a remote run; called by memoir-live-fifty-test.
+	@test -n "$${MEMORY_SPARK_EVAL_RECALL_OWNER_ID:-}" || { echo "Use make memoir-live-fifty-test to configure its account allowance." >&2; exit 2; }
+	@$(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build --wait --wait-timeout 120 api codex-worker photo-worker worker temporal
+
+memoir-live-fifty-disposable-plan: ## Inspect the original disposable PostgreSQL launcher without live calls.
+
+memoir-live-fifty-disposable-test: ## Run the original disposable PostgreSQL evaluation; projects disappear after cleanup.
+
+memoir-live-fifty-disposable-plan memoir-live-fifty-disposable-test:
 	@set -eu; \
 	case "$(EVAL_CASE_ID)" in \
 		""|harbour-copper-notebook|chengdu-tea-ledger|perth-workshop-compass|kunming-garden-lanterns|sydney-platform-letters) ;; \
@@ -191,7 +244,7 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 		--collector-timeout-seconds 180; \
 	if test "$(EVAL_SOURCE_MODE)" = "local"; then set -- "$$@" --local-checkout; fi; \
 	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
-	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
+	if test "$@" = "memoir-live-fifty-disposable-plan"; then exec "$$@"; fi; \
 	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
 	if test -f "$(ENV_FILE)"; then set -- "$$@" --existing-app-env "$(abspath $(ENV_FILE))"; fi; \
 	set -- "$$@" --execute-existing-subscription; \
@@ -322,7 +375,11 @@ down: container-down ## Stop and remove the stack (alias for container-down).
 container-down: check ## Stop and remove the stack.
 	@$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans
 
-.PHONY: tunnel-plan tunnel-setup tunnel-start tunnel-stop tunnel-status tunnel-health
+.PHONY: cloudflare-link cloudflare-unlink tunnel-plan tunnel-setup tunnel-start tunnel-stop tunnel-status tunnel-health
+
+cloudflare-link: tunnel-start ## Link copyme2.ai to the local frontend on port 3010.
+
+cloudflare-unlink: tunnel-stop ## Disconnect copyme2.ai from this Mac until linked again.
 
 tunnel-plan: ## Preview the copyme2.ai Cloudflare Tunnel setup.
 	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; scripts/setup-cloudflare-tunnel.sh
@@ -333,8 +390,14 @@ tunnel-setup: ## Configure CopyMe2 DNS and install its launch agent; pass TUNNEL
 tunnel-start: ## Install/start the tunnel launch agent using its existing local config.
 	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; scripts/setup-cloudflare-tunnel.sh --service-only
 
-tunnel-stop: ## Stop this Mac's CopyMe2 tunnel connector.
-	@launchctl bootout gui/$$(id -u)/$(TUNNEL_LABEL)
+tunnel-stop: ## Stop the CopyMe2 connector and disable its automatic start at login.
+	@set -eu; \
+	service="gui/$$(id -u)/$(TUNNEL_LABEL)"; \
+	launchctl disable "$$service"; \
+	if launchctl print "$$service" >/dev/null 2>&1; then \
+		launchctl bootout "$$service"; \
+	fi; \
+	echo "CopyMe2 tunnel disconnected. Reconnect with: make cloudflare-link"
 
 tunnel-status: ## Show the CopyMe2 launch agent state and ingress validation.
 	@launchctl print gui/$$(id -u)/$(TUNNEL_LABEL)

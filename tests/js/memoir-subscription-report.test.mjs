@@ -115,7 +115,7 @@ test('Make plan invokes the actual launcher with five original 50-round cases wi
     const runDirectory = join(directory, 'not allocated');
     const envFile = join(directory, 'must-not-be-read.env');
     writeFileSync(envFile, 'not a provider configuration', { mode: 0o000 });
-    const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-plan',
+    const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-disposable-plan',
       'EVAL_SOURCE_MODE=reviewed',
       `EVAL_SOURCE_REVISION=${'a'.repeat(40)}`, `EVAL_CODEX_BINARY=${binary}`, `EVAL_CODEX_SHA256=${digest}`,
       `EVAL_TEMPORAL_BINARY=${binary}`, `EVAL_TEMPORAL_SHA256=${digest}`,
@@ -138,6 +138,105 @@ test('Make plan invokes the actual launcher with five original 50-round cases wi
 const caseIds = ['harbour-copper-notebook', 'chengdu-tea-ledger', 'perth-workshop-compass',
   'kunming-garden-lanterns', 'sydney-platform-letters'];
 
+function remoteFixture() {
+  const { plan, receipt } = fixture();
+  plan.storage_backend = 'remote_supabase';
+  plan.user_email = 'test@test.com';
+  for (const binding of Object.values(plan.cases)) binding.ui_url = `http://localhost:3010/memoir/interview/${binding.project_id}`;
+  receipt.schema_version = 'memoir-supabase-evaluation-receipt/1';
+  receipt.ui_login_file = 'ui-login.html';
+  receipt.request_accounting = { backend_http_requests_reserved: 234 };
+  receipt.backend_turn_submissions = 50;
+  return { plan, receipt };
+}
+
+test('remote report links retained UI projects and private login without claiming native cleanup or provider accounting', () => {
+  const { plan, receipt } = remoteFixture();
+  const report = renderReport(plan, receipt);
+  assert.match(report, /Storage: remote Supabase; projects retained/);
+  assert.match(report, /UI account: test@test.com/);
+  assert.match(report, /HTTP requests reserved: 234/);
+  assert.match(report, /Original turn submission attempts: 50/);
+  assert.match(report, /UI sign-in link\]\(ui-login.html\)/);
+  assert.match(report, /http:\/\/localhost:3010\/memoir\/interview\/project-0/);
+  assert.match(report, /removes these projects and Auth accounts/);
+  assert.doesNotMatch(report, /disposable test projects|Native cleanup complete|request journal/);
+});
+
+for (const selectedCase of ['', ...caseIds]) {
+  test(`remote Make plan for ${selectedCase || 'all cases'} requires no credentials or native executable pins`, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'memoir-remote-plan-'));
+    try {
+      const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-plan',
+        `EVAL_CASE_ID=${selectedCase}`, 'EVAL_SOURCE_REVISION=', 'EVAL_USER_EMAIL=test@test.com',
+        `ENV_FILE=${join(directory, 'absent.env')}`, `EVAL_RUN_DIR=${join(directory, 'unallocated')}`],
+      { cwd: root, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      const plan = JSON.parse(result.stdout);
+      assert.equal(plan.storage_backend, 'remote_supabase');
+      assert.equal(plan.user_email, 'test@test.com');
+      assert.equal(plan.source_revision, spawnSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding: 'utf8'}).stdout.trim());
+      assert.deepEqual(plan.case_ids, selectedCase ? [selectedCase] : caseIds);
+      assert.equal(plan.rounds_per_case, 50);
+      assert.equal(plan.checkpoints.length, 10);
+      assert.equal(plan.browser_started, false);
+      assert.equal(plan.local_postgres_started, false);
+      assert.equal(plan.actual_upstream_provider_requests, null);
+      assert.equal(plan.max_backend_requests, selectedCase ? 20000 : 100000);
+      assert.equal(plan.codex_binary, undefined);
+      assert.throws(() => statSync(join(directory, 'unallocated')), { code: 'ENOENT' });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const [exitCode, startBackend] of [[0, 1], [3, 0]]) {
+  test(`remote Make live renders retained receipt and preserves exit ${exitCode}`, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'memoir-remote-live-'));
+    try {
+      const { plan, receipt } = remoteFixture();
+      const bin = join(directory, 'bin');
+      mkdirSync(bin);
+      writeFileSync(join(directory, 'plan.json'), JSON.stringify(plan));
+      writeFileSync(join(directory, 'receipt.json'), JSON.stringify(receipt));
+      writeFileSync(join(bin, 'python3'), `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+const fixture = process.env.MEMOIR_REPORT_TEST_FIXTURE;
+const directory = args[args.indexOf('--run-dir') + 1];
+fs.writeFileSync(path.join(fixture, 'args.json'), JSON.stringify(args));
+fs.mkdirSync(directory);
+for (const name of ['plan.json','receipt.json']) fs.copyFileSync(path.join(fixture, name), path.join(directory, name));
+process.exit(Number(process.env.MEMOIR_REPORT_TEST_EXIT));
+`, {mode: 0o700});
+      const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-test',
+        `EVAL_RUN_ID=${plan.run_id}`, `EVAL_RUN_DIR=${join(directory, 'run')}`,
+        'EVAL_CASE_ID=harbour-copper-notebook', 'EVAL_USER_EMAIL=test@test.com', `EVAL_START_BACKEND=${startBackend}`],
+      {cwd: root, encoding: 'utf8', env: {...process.env, PATH: `${bin}:${process.env.PATH}`,
+        MEMOIR_REPORT_TEST_FIXTURE: directory, MEMOIR_REPORT_TEST_EXIT: String(exitCode)}});
+      assert.equal(result.status, exitCode === 0 ? 0 : 2, result.stderr || result.stdout);
+      const args = JSON.parse(readFileSync(join(directory, 'args.json'), 'utf8'));
+      assert.equal(args[0], 'scripts/run_memoir_supabase_evaluation.py');
+      assert.ok(args.includes('--execute') && args.includes('--create-confirmed-test-user'));
+      assert.equal(args.includes('--start-backend'), !!startBackend);
+      assert.equal(args[args.indexOf('--case-id') + 1], 'harbour-copper-notebook');
+      assert.equal(args[args.indexOf('--user-email') + 1], 'test@test.com');
+      assert.match(readFileSync(join(directory, 'run', 'report.md'), 'utf8'), /remote Supabase; projects retained/);
+    } finally {
+      rmSync(directory, {recursive: true, force: true});
+    }
+  });
+}
+
+test('backend target starts only backend services from cached images', () => {
+  const result = spawnSync('make', ['--no-print-directory', '-n', 'memoir-live-fifty-backend'], {cwd: root, encoding: 'utf8'});
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /--no-build.*api codex-worker photo-worker worker temporal/);
+  assert.doesNotMatch(result.stdout, /\bweb\b|postgres|db-truncate/);
+});
+
 for (const selectedCase of ['', ...caseIds]) {
   test(`Make plan discovers local metadata for ${selectedCase || 'all five cases'} without executing binaries`, () => {
     const directory = mkdtempSync(join(tmpdir(), 'memoir-plan-defaults-'));
@@ -147,7 +246,7 @@ for (const selectedCase of ['', ...caseIds]) {
       const executable = '#!/bin/sh\necho must-not-execute >&2\nexit 99\n';
       for (const name of ['codex', 'temporal']) writeFileSync(join(bin, name), executable, { mode: 0o700 });
       const runDirectory = join(directory, 'unallocated');
-      const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-plan',
+      const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-disposable-plan',
         'EVAL_SOURCE_REVISION=', 'EVAL_CODEX_BINARY=', 'EVAL_CODEX_SHA256=',
         'EVAL_TEMPORAL_BINARY=', 'EVAL_TEMPORAL_SHA256=', `EVAL_CASE_ID=${selectedCase}`,
         `EVAL_RUN_DIR=${runDirectory}`, `ENV_FILE=${join(directory, 'absent.env')}`,
@@ -176,11 +275,11 @@ for (const selectedCase of ['', ...caseIds]) {
 }
 
 test('Make refuses unknown case IDs and unknown source modes before execution', () => {
-  const unknown = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-plan',
+  const unknown = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-disposable-plan',
     'EVAL_CASE_ID=unknown'], { cwd: root, encoding: 'utf8' });
   assert.equal(unknown.status, 2);
   assert.match(unknown.stderr, /Unknown EVAL_CASE_ID/);
-  const invalid = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-test',
+  const invalid = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-disposable-test',
     'EVAL_SOURCE_MODE=unknown', 'EVAL_CASE_ID=harbour-copper-notebook'], { cwd: root, encoding: 'utf8' });
   assert.equal(invalid.status, 2);
   assert.match(invalid.stderr, /EVAL_SOURCE_MODE must be local or reviewed/);
@@ -226,7 +325,7 @@ process.exit(Number(process.env.MEMOIR_REPORT_TEST_EXIT));
       const executable = '#!/bin/sh\necho must-not-execute >&2\nexit 99\n';
       for (const name of ['codex', 'temporal']) writeFileSync(join(bin, name), executable, { mode: 0o700 });
       const runDirectory = join(directory, 'saved run');
-      const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-test',
+      const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-disposable-test',
         `EVAL_SOURCE_REVISION=${defaults ? '' : plan.source_revision}`, `EVAL_SOURCE_MODE=${sourceMode}`,
         `EVAL_CODEX_BINARY=${defaults ? '' : '/synthetic/codex'}`,
         `EVAL_CODEX_SHA256=${defaults ? '' : 'b'.repeat(64)}`, `EVAL_TEMPORAL_BINARY=${defaults ? '' : '/synthetic/temporal'}`,

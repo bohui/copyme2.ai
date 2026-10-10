@@ -2028,7 +2028,8 @@ class CodexRuntime:
                 )
             await progress.update('save', 'Conversation memory saved', '对话记忆已保存', status='completed')
             if recall_access is not None:
-                recall_access = recall_status(recall_access['rounds_completed'] + int(is_user_round), entitlement)
+                recall_access = recall_status(recall_access['rounds_completed'] + int(is_user_round), entitlement,
+                    free_rounds=recall_access['free_rounds'])
             turn_sequence = self._stored_memory_sequence(stored) or turn_sequence
             if reply_only and turn_work.get('name'):
                 # Match delayed extraction's durable per-user ordering, never

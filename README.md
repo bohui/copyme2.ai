@@ -200,6 +200,18 @@ through the dedicated `copyme2-memoir` tunnel. A macOS launch agent keeps
 `cloudflared` running and forwards the hostname to the Next.js frontend on
 `127.0.0.1:3010`; Next.js forwards `/api/v1/memoir/*` to the private API.
 
+With the tunnel already configured and the local frontend running:
+
+```bash
+make cloudflare-link    # Connect copyme2.ai to localhost:3010.
+make cloudflare-unlink  # Disconnect and keep the tunnel off across logins.
+```
+
+Unlink leaves the local app running and keeps the DNS route for the next link.
+While disconnected, the public hostname cannot reach this Mac's frontend.
+
+For initial setup and health checks:
+
 ```bash
 make container-up
 make tunnel-plan
@@ -211,8 +223,8 @@ make tunnel-status
 Set `MEMORY_SPARK_PUBLIC_URL=https://copyme2.ai` in `.env` before starting
 containers. Tunnel login requires selecting `copyme2.ai` in Cloudflare; its
 certificate and tunnel credentials stay outside the repository. The tunnel
-launch agent starts at user login; the container stack must also be running and
-this Mac must remain awake and online. See
+launch agent starts at user login while enabled; the container stack must also
+be running and this Mac must remain awake and online. See
 [`infra/cloudflare/README.md`](infra/cloudflare/README.md) for restart, logs,
 auth callback settings, and rollback.
 
@@ -444,14 +456,19 @@ python3 scripts/run_acceptance_evidence.py
 python3 scripts/audit_spec_routes.py
 ```
 
-For live subscription evaluation with disposable local PostgreSQL, use
+For live evaluation against remote Supabase, use
 `make memoir-live-fifty-plan` to inspect the five distinct cases, then
 `make memoir-live-fifty-test` for 50 rounds per case (250 total). The live target
 also saves a readable `report.md` beside the raw receipts, including partial
 results after failure. Add `EVAL_CASE_ID=harbour-copper-notebook` (or another
 original case ID) to run one complete 50-round conversation independently.
 See [setup and report commands](docs/memoir-fifty-subscription-evaluation.md#make-commands-and-saved-reports)
-for the required source revision, executable pins and existing gateway configuration.
+for backend configuration and UI sign-in. The runner starts backend services only,
+uses the current checkout, and retains projects for `test@test.com` (override with
+`EVAL_USER_EMAIL`). It prints each project ID and UI URL. Use
+`make memoir-live-fifty-login` to save a private sign-in link without sending email.
+The original local PostgreSQL launcher remains available through
+`memoir-live-fifty-disposable-plan` and `memoir-live-fifty-disposable-test`.
 
 For the recall/workspace browser acceptance suite, use a task-owned production
 frontend against a fresh test-mode API rather than a development HMR session.
