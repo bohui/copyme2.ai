@@ -25,6 +25,8 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
+from apps.api.diagnostics import failure_class
+from scripts.issue14_response_observation import ResponseObservation, ObservedResponseStream
 
 
 EXISTING_ENDPOINT = 'http://192.168.66.1:4000/v1/responses'
@@ -333,7 +335,7 @@ class SubscriptionRun:
         with self._lock:
             self._capacity()
             entry = {'ordinal': len(self._entries) + 1, 'status': 'reserved',
-                     'payload_bytes': payload_bytes}
+                     'payload_bytes': payload_bytes, 'reserved_at_monotonic': time.monotonic()}
             if self._active_case is not None:
                 entry.update(case_id=self._active_case['case_id'],
                     case_ordinal=len(self._active_case['entries']) + 1)
@@ -353,25 +355,46 @@ class SubscriptionRun:
                 and len(self._active_case['entries']) >= self.case_limits.max_requests):
             self._reject('case_requests_limit')
 
-    def _starting(self):
+    def _starting(self, entry):
         with self._lock:
             # Serialization/fsync may have consumed the last remaining time.
             self._admit()
             self._started_count += 1
             if self._active_case is not None:
                 self._active_case['client_requests_started'] += 1
+            entry['started_at_monotonic'] = time.monotonic()
+            self._write('send_started', ordinal=entry['ordinal'],
+                started_at_monotonic=entry['started_at_monotonic'],
+                **({key: entry[key] for key in ('case_id', 'case_ordinal')} if 'case_id' in entry else {}))
+            # The extra diagnostic write cannot extend the existing deadline.
+            self._admit()
 
     def _complete(self, entry, status_code, response_bytes):
         with self._lock:
             self._admit()
             case_fields = ({'case_id': entry['case_id'], 'case_ordinal': entry['case_ordinal']}
                 if 'case_id' in entry else {})
+            completed_at = time.monotonic()
+            elapsed = max(0, round((completed_at - entry['started_at_monotonic']) * 1000))
             self._write('http_response_completed', ordinal=entry['ordinal'],
-                status_code=status_code, response_bytes=response_bytes, **case_fields)
+                status_code=status_code, response_bytes=response_bytes,
+                completed_at_monotonic=completed_at, elapsed_ms=elapsed, **case_fields)
             # A blocking durable write is not a reason to extend the deadline.
             self._admit()
             entry.update(status='completed', status_code=status_code,
-                         response_bytes=response_bytes)
+                         response_bytes=response_bytes, completed_at_monotonic=completed_at,
+                         elapsed_ms=elapsed)
+
+    def _response_observed(self, entry, observation, *, revision=1):
+        # Diagnostic-only write remains available after cancellation stops the
+        # gate. It cannot admit, complete, refund or reset a charged request.
+        with self._lock:
+            if self._closed:
+                return
+            snapshot = observation.snapshot()
+            self._write('response_observed', ordinal=entry['ordinal'],
+                observation_revision=revision, response_observation=snapshot)
+            return snapshot
 
     def _case_snapshot(self, case, now):
         completed = sum(entry['status'] == 'completed' for entry in case['entries'])
@@ -547,6 +570,9 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request):
         response = None
         case_dispatch = False
+        entry = observation = None
+        observation_write_attempted = False
+        persisted_observation = None
         try:
             self.run._bind_loop()
             if self._closed:
@@ -582,14 +608,20 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                         extensions={'timeout': dict.fromkeys(('connect', 'read', 'write', 'pool'),
                             self.run.remaining_seconds())})
                     entry = self.run._reserve(len(body))
-                    self.run._starting()
+                    self.run._starting(entry)
+                    observation = ResponseObservation()
+                    entry['response_observation'] = observation.data
                     response = await self._wire.handle_async_request(outgoing)
+                    observation.headers(response.status_code,
+                        response.headers.get('content-type', '').split(';',1)[0].strip().lower() == 'text/event-stream')
+                    response.stream = ObservedResponseStream(response.stream, observation)
                     if (not 200 <= response.status_code < 300
                             or response.headers.get('content-encoding', 'identity') != 'identity'):
                         self.run._reject('http_response_failed')
                     chunks, size = [], 0
                     async for block in response.aiter_raw():
                         size += len(block)
+                        observation.chunk(block, parse=size <= MAX_RESPONSE_BYTES)
                         if size > MAX_RESPONSE_BYTES:
                             self.run._reject('protocol_invalid')
                         chunks.append(block)
@@ -601,9 +633,13 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                             b'upgrade', b'content-length'}]
                     await response.aclose()
                     response = None
+                    observation_write_attempted = True
+                    persisted_observation = self.run._response_observed(entry, observation)
                     self.run._complete(entry, status, len(body))
                     return httpx.Response(status, headers=response_headers, content=body)
         except BaseException as error:
+            if observation is not None:
+                observation.failed(failure_class(error))
             reason = (self.run.timeout_reason() if isinstance(error, TimeoutError) else
                 str(error) if isinstance(error, SubscriptionStopped) and str(error) in _STOP_REASONS
                 else 'send_interrupted_or_failed')
@@ -618,8 +654,23 @@ class SubscriptionTransport(httpx.AsyncBaseTransport):
                 try:
                     async with asyncio.timeout(1):
                         await response.aclose()
-                except (Exception, asyncio.CancelledError):
-                    pass
+                except (Exception, asyncio.CancelledError) as error:
+                    if observation is not None:
+                        observation.data.update(cleanup_status='failed', cleanup_failure_class=failure_class(error))
+            if observation is not None:
+                observation.close()
+                if (not observation_write_attempted or persisted_observation is not None
+                        and observation.snapshot() != persisted_observation):
+                    try:
+                        # At most one correction after a confirmed first write.
+                        # Accounting rejection may add failure fields after its
+                        # fsync. The original completion/deadline gate stays shut.
+                        self.run._response_observed(entry, observation,
+                            revision=2 if persisted_observation is not None else 1)
+                    except Exception:
+                        # _write already fences a journal failure. Preserve
+                        # the original timeout/cancellation; no send can resume.
+                        pass
             if case_dispatch:
                 self.run._end_dispatch()
 

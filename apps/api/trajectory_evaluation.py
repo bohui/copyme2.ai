@@ -344,6 +344,32 @@ _PRIVATE_REASONING_DELTA_METHODS = {
     "item/reasoning/textdelta",
 }
 
+# Only plain transport notifications may bypass the audit-step budget. Unknown
+# methods, extra fields, requests, malformed deltas and lifecycle/error facts
+# stay in the ordered evidence stream and remain subject to strict overflow.
+_COMPACT_PROTOCOL_METHODS = frozenset({
+    "item/agentMessage/delta",
+    "item/commandExecution/outputDelta",
+    "item/reasoning/summaryTextDelta",
+    "item/reasoning/textDelta",
+})
+_DELTA_FIELDS = frozenset({"threadId", "turnId", "itemId", "delta", "summaryIndex", "contentIndex"})
+TELEMETRY_SCHEMA_VERSION = "memoir-trajectory-telemetry/1"
+
+
+def _plain_transport_delta(message: Mapping[str, Any]) -> bool:
+    if (not isinstance(message.get("method"), str)
+            or message["method"] not in _COMPACT_PROTOCOL_METHODS
+            or set(message) - {"method", "params", "jsonrpc"}
+            or ("jsonrpc" in message and message["jsonrpc"] != "2.0")):
+        return False
+    params = message.get("params")
+    return (isinstance(params, Mapping) and not set(params) - _DELTA_FIELDS
+            and isinstance(params.get("delta"), str)
+            and all(type(value) is int and value >= 0
+                    if key in {"summaryIndex", "contentIndex"} else isinstance(value, str)
+                    for key, value in params.items() if key != "delta"))
+
 
 def _filter_protocol_private_items(value: Any) -> Any:
     """Remove private reasoning payloads before local or provider export."""
@@ -526,6 +552,8 @@ class TrajectoryRecorder:
         self.final: dict[str, Any] = {}
         self.dropped_steps = 0
         self.overflowed = False
+        self._telemetry_counts = {method: 0 for method in _COMPACT_PROTOCOL_METHODS}
+        self._dropped_categories: dict[str, int] = {}
 
     def set_context(self, **values: Any) -> None:
         self.context.update(redact_payload(values))
@@ -551,6 +579,8 @@ class TrajectoryRecorder:
         if len(self.steps) >= self.max_steps:
             self.dropped_steps += 1
             self.overflowed = True
+            category = normalise_action(action, phase=phase).get("category", "application")
+            self._dropped_categories[category] = self._dropped_categories.get(category, 0) + 1
             return {
                 "step_id": f"overflow-{self.dropped_steps:04d}",
                 "sequence": self.max_steps + self.dropped_steps,
@@ -599,6 +629,11 @@ class TrajectoryRecorder:
         return step
 
     def record_protocol(self, message: Mapping[str, Any], *, phase: str = "codex") -> dict[str, Any]:
+        if _plain_transport_delta(message):
+            method = message["method"]
+            self._telemetry_counts[method] += 1
+            # Never retain delta text, identifiers, hashes or per-item state.
+            return {"accepted": True, "compacted": True, "phase": str(phase), "action": method}
         method = message.get("method")
         action = str(method or ("protocol.error" if "error" in message else "protocol.response"))
         metadata = _protocol_action_metadata(message)
@@ -612,6 +647,77 @@ class TrajectoryRecorder:
             if key in metadata:
                 step[key] = metadata[key]
         return step
+
+    def append_trajectory(self, trajectory: Any, *, source: str) -> None:
+        """Import a worker's bounded evidence, including upstream omissions.
+
+        Counts-only transport summaries are separate from audit loss. Legacy
+        step-only workers remain supported; malformed accounting fails closed.
+        No worker text or arbitrary keys are copied into the summary counters.
+        """
+        if trajectory is None:
+            return  # Workers without evaluation enabled omit the trajectory.
+        if not isinstance(trajectory, Mapping):
+            self.record("application", "worker.evidence.invalid", error={"reason": "trajectory_shape"})
+            return
+        steps = trajectory.get("steps", [])
+        if not isinstance(steps, list) or any(not isinstance(step, Mapping) for step in steps):
+            self.record("application", "worker.evidence.invalid", error={"reason": "steps_shape"})
+            return
+        self.append_external(steps, source=source)
+        limits = trajectory.get("limits")
+        limits_valid = False
+        if "limits" in trajectory:
+            limits_valid = (isinstance(limits, Mapping)
+                     and all(type(limits.get(key)) is int and limits[key] >= 0
+                             for key in ("max_steps", "observed_steps", "dropped_steps"))
+                     and limits["max_steps"] >= 1
+                     and limits["observed_steps"] == len(steps) <= limits["max_steps"]
+                     and type(limits.get("overflowed")) is bool
+                     and (not limits["dropped_steps"] or limits["overflowed"]))
+            if not limits_valid:
+                self.record("application", "worker.evidence.invalid", error={"reason": "limits_shape"})
+            else:
+                dropped = limits["dropped_steps"]
+                self.dropped_steps += dropped
+                self.overflowed = self.overflowed or limits["overflowed"]
+                if dropped:
+                    # Older workers cannot identify the dropped categories.
+                    self._dropped_categories["external"] = self._dropped_categories.get("external", 0) + dropped
+        elif "telemetry" in trajectory or "overflow" in trajectory:
+            # Genuine legacy step-only records have no accounting witnesses.
+            self.record("application", "worker.evidence.invalid", error={"reason": "limits_missing"})
+        if "overflow" in trajectory:
+            overflow = trajectory["overflow"]
+            categories = overflow.get("dropped_by_category") if isinstance(overflow, Mapping) else None
+            valid = (isinstance(overflow, Mapping) and set(overflow) == {"dropped_by_category"}
+                     and isinstance(categories, Mapping)
+                     and set(categories) <= {"application", "model", "tool", "error", "terminal", "external"}
+                     and all(type(count) is int and count > 0 for count in categories.values())
+                     and limits_valid and limits["overflowed"] is True
+                     and sum(categories.values()) == limits["dropped_steps"])
+            if not valid:
+                self.record("application", "worker.evidence.invalid", error={"reason": "overflow_shape"})
+        telemetry = trajectory.get("telemetry")
+        if "telemetry" in trajectory:
+            counts = telemetry.get("by_method") if isinstance(telemetry, Mapping) else None
+            valid = (isinstance(telemetry, Mapping)
+                     and set(telemetry) == {"schema_version", "retention", "compacted_events", "omitted_payloads", "by_method"}
+                     and telemetry["schema_version"] == TELEMETRY_SCHEMA_VERSION
+                     and telemetry["retention"] == "counts_only"
+                     and isinstance(counts, Mapping) and set(counts) <= _COMPACT_PROTOCOL_METHODS
+                     and all(type(count) is int and count > 0 for count in counts.values())
+                     and type(telemetry["compacted_events"]) is int
+                     and type(telemetry["omitted_payloads"]) is int
+                     and telemetry["compacted_events"] == telemetry["omitted_payloads"] == sum(counts.values()))
+            if not valid:
+                self.record("application", "worker.evidence.invalid", error={"reason": "telemetry_shape"})
+            else:
+                for method, count in counts.items():
+                    self._telemetry_counts[method] += count
+        final = trajectory.get("final")
+        if isinstance(final, Mapping) and (final.get("error") or final.get("status") not in (None, "completed")):
+            self.record("application", "worker.evidence.failed", error={"reason": "worker_final"})
 
     def append_external(self, steps: Iterable[Mapping[str, Any]], *, source: str) -> None:
         """Append worker steps while preserving their evidence and local order."""
@@ -725,7 +831,7 @@ class TrajectoryRecorder:
             self.final["error"] = redact_payload(error)
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema_version": TRAJECTORY_SCHEMA_VERSION,
             "correlation": dict(self.correlation),
             "started_at": self.started_at,
@@ -741,6 +847,18 @@ class TrajectoryRecorder:
             "steps": list(self.steps),
             "final": dict(self.final),
         }
+        compacted = sum(self._telemetry_counts.values())
+        if compacted:
+            payload["telemetry"] = {
+                "schema_version": TELEMETRY_SCHEMA_VERSION,
+                "retention": "counts_only",
+                "compacted_events": compacted,
+                "omitted_payloads": compacted,
+                "by_method": {method: count for method, count in sorted(self._telemetry_counts.items()) if count},
+            }
+        if self.overflowed:
+            payload["overflow"] = {"dropped_by_category": dict(sorted(self._dropped_categories.items()))}
+        return payload
 
     def digest(self) -> str:
         return _sha256(self.payload())

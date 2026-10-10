@@ -8,14 +8,26 @@ binding records source integrity only. Independent review and explicit run
 admission remain prerequisites; this offline audit does not publish or approve
 execution.
 
-The canonical runtime source snapshot is commit
-`6ff9b7cbce514b8070b571db943e63260a1ab43e`, tree
-`0378238cb2491c708f957d309bf79f5f48204cd1`. V6 monitors 299 source files.
-Its proof adds 22 Git objects and has SHA-256
-`45a8201e89824764b6cba7e06e4f3683413045efcae1c6453eaddcad1046ae9e`.
+The candidate recorder-fix runtime source snapshot is commit
+`1e09083b6234985c8a7d164fd3cfc9c53e8b6d31`, tree
+`119874881a6abe40952b70780ab166ad4f98b560`. V6 monitors 299 source files.
+Its proof retains all 63 preceding V6 objects and adds 7 objects (70 total),
+with SHA-256
+`665cf5b1c15b782a671cb4ae8963cb6762bb60e3c8780630153c65e9b29850ce`. Independent cloud review remains pending.
 
-This revision binds family-progress settlement after verified persistence and
-privacy-safe reason codes for strict readback failures. Passing source checks
+This revision also rejects explicitly null or inconsistent worker accounting.
+The first recorder binding is preserved in commit
+`8734eb7bbf8441785135f6425656d04e89547793`, bound to runtime
+`2842dcc440a1a7cd1cafd247327d457f10093b09`, tree `ec55f8d225c9193ccb8528338722a6265a74e459`,
+with proof SHA-256 `bbe017f7848a056ef1fa489e1967b2190534e96e6319f37d918d695e2731b1ec`.
+Bounded delta telemetry, single recording of queued notifications and worker
+overflow/accounting propagation remain bound. The strict runtime
+readback guards are byte-for-byte unchanged. See [retention contract](trajectory-retention.md).
+The preceding family-progress/readback-diagnostic binding is preserved in PR47
+head `bc3f2223474657e85a1406517da56f04f53bc5b2`, bound to runtime
+`6ff9b7cbce514b8070b571db943e63260a1ab43e`, tree
+`0378238cb2491c708f957d309bf79f5f48204cd1`, with proof SHA-256
+`45a8201e89824764b6cba7e06e4f3683413045efcae1c6453eaddcad1046ae9e`. Passing source checks
 does not prove native complete-round readback, artifact readiness, browser
 hydration, live recovery or the cause of an earlier native failure. The first V6 proof
 remains preserved in commit `4f15346b33b35d36872aa26960d891c3d5227786`,
