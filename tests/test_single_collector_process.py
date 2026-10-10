@@ -5,10 +5,13 @@ import os
 from pathlib import Path
 import sys
 import time
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
 from scripts import single_collector_observation as mode
+from scripts import issue14_subscription_transport as budget
 
 
 CHILD = r'''
@@ -153,8 +156,10 @@ def test_hard_stop_accounting_recovers_three_sends_without_refunding_uncertain_t
     (journal/'run.jsonl').write_text(raw)
     result=mode._journal_accounting(tmp_path,plan)
     if damage=='none':
-        assert result['client_requests_started']==3 and result['completed_http_responses']==2
-        assert result['unresolved_requests']==1 and result['restart_allowed'] is False
+        assert result['client_requests_started']==3 and result['completed_http_responses']==0
+        assert result['unresolved_requests']==3 and result['restart_allowed'] is False
+        assert result['journal_http_response_records']==2
+        assert result['completion_admission_verified'] is False
         assert len(result['attempts'])==3
         assert result['attempts'][0]['completed_at_monotonic']==103
         assert result['attempts'][2]['started_at_monotonic']==104
@@ -185,3 +190,55 @@ def test_pipe_failure_still_settles_owned_child_and_reports_uncertain_charges(tm
     assert result['accounting_verified'] is False
     assert result['cumulative_accounting']['charged_upper_bound']==39
     assert 'SYNTHETIC_PRIVATE_FAILURE' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('receipt_state',['sealed','missing','partial'])
+@pytest.mark.parametrize('failure',['completion_deadline','started_write'])
+def test_journaled_http_completion_cannot_override_post_fsync_deadline_rejection(tmp_path,monkeypatch,receipt_state,failure):
+    directory=tmp_path/'run';directory.mkdir()
+    journal=directory/'journal';journal.mkdir()
+    clock=SimpleNamespace(now=100.0)
+    monkeypatch.setattr(budget,'time',SimpleNamespace(monotonic=lambda:clock.now))
+    plan={'run_id':str(uuid4()),'source_revision':'a'*40}
+    run=budget.SubscriptionRun.create(reservation_root=journal,**plan,limits=budget.SubscriptionLimits(4,300))
+    initial=run.snapshot()
+    entry=run._reserve(1)
+    write=run._write
+    def slow_fsync(event,**fields):
+        write(event,**fields)  # The real durable journal is written first.
+        if event=='http_response_completed':clock.now=401.0
+    if failure=='completion_deadline':
+        run._starting(entry)
+        monkeypatch.setattr(run,'_write',slow_fsync)
+        with pytest.raises(budget.SubscriptionStopped):run._complete(entry,200,10)
+    else:
+        with monkeypatch.context() as isolated:
+            def failed_write(*args):raise OSError('synthetic journal unavailable')
+            isolated.setattr(budget.os,'write',failed_write)
+            with pytest.raises(budget.SubscriptionStopped):run._starting(entry)
+    run.close()
+    sealed=run.snapshot()
+    assert sealed['client_requests_started']==1 and sealed['completed_http_responses']==0
+    assert sealed['unresolved_requests']==1
+    assert sealed['stop_reason']==('elapsed_limit' if failure=='completion_deadline' else 'journal_unavailable')
+    receipt={**plan,'status':'incomplete','cleanup_complete':True,
+        'observation':{'outcome':'limit_guard','campaign_acceptance':False}}
+    if receipt_state=='sealed':
+        receipt.update(request_accounting=sealed,cleanup_started_monotonic=time.monotonic())
+    if receipt_state=='partial':receipt['request_accounting']=initial
+    child="import json,sys; from pathlib import Path; p=json.load(sys.stdin); (Path(p['directory'])/'receipt.json').write_text(json.dumps(p['receipt']))"
+    result=asyncio.run(mode._supervise([sys.executable,'-B','-c',child],
+        {'plan':plan,'directory':str(directory),'receipt':receipt},directory,
+        execution_seconds=2,cleanup_seconds=.4,stop_grace=.1))
+    accounting=result['request_accounting']
+    if receipt_state=='sealed' or failure=='completion_deadline':assert accounting['client_requests_started']==1
+    else:assert accounting['started_count_is_lower_bound'] is True
+    assert accounting['completed_http_responses']==0 and accounting['unresolved_requests']==1
+    if receipt_state=='sealed':
+        assert accounting==sealed
+        assert result['cumulative_accounting']['charged']==36
+        assert result['cumulative_accounting']['unresolved']==3
+    else:
+        assert result['accounting_verified'] is False
+        assert result['cumulative_accounting']['unresolved_upper_bound']>=3
+        assert result['cumulative_accounting']['charged_upper_bound']>=36

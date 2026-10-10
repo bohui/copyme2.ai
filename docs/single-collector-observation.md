@@ -71,6 +71,10 @@ after that writer exits. A forced stop is incomplete and does not prove native
 container removal, independently spawned native process absence, or upstream
 cancellation. Those remaining resources require the parent's owned cleanup
 verification before any later run; a hard stop grants no replay authority.
+Sealed ledger counters remain authoritative. An HTTP completion journal event
+precedes the ledger's final deadline check and cannot prove that completion was
+admitted. Recovery without a sealed receipt retains those events as diagnostics,
+keeps every reservation unresolved and reports accounting bounds.
 
 After merge, use the parent's verified main revision, fresh run UUID/output
 directory, existing reviewed executable pins and existing subscription credential

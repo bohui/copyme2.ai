@@ -103,6 +103,7 @@ async def _execute_child(plan,directory,api_key):
     transport=SubscriptionTransport.existing_route(run=run,authorization='Bearer '+api_key)
     session=None
     cleanup_deadline=None
+    execution_timeout=None
     interrupted=False
 
     def stop(reason):
@@ -112,6 +113,8 @@ async def _execute_child(plan,directory,api_key):
     def begin_cleanup():
         nonlocal cleanup_deadline
         if cleanup_deadline is None:
+            if execution_timeout is not None and not execution_timeout.expired():
+                execution_timeout.reschedule(None)
             receipt['cleanup_started_monotonic']=time.monotonic()
             cleanup_deadline=asyncio.get_running_loop().time()+60
         receipt['cleanup_deadline_monotonic']=cleanup_deadline
@@ -173,7 +176,8 @@ async def _execute_child(plan,directory,api_key):
             begin_cleanup()
 
     try:
-        async with asyncio.timeout_at(run.global_deadline):await pipeline()
+        execution_timeout=asyncio.timeout_at(run.global_deadline)
+        async with execution_timeout:await pipeline()
         receipt['cleanup_complete']=(receipt.get('native',{}).get('cleanup_complete') is True
             and receipt['session_cleanup_complete'])
     except BaseException as error:
@@ -242,13 +246,17 @@ def _journal_accounting(directory,plan):
             if event['event']=='http_response_completed':
                 if ordinal not in started or ordinal in completed:return None
                 completed.add(ordinal)
-                reserved[ordinal].update(status='completed',**{key:event[key] for key in
+                # The journal write precedes _complete's final deadline check.
+                # It proves observation, never ledger admission/completion.
+                reserved[ordinal].update(http_response_journaled=True,**{key:event[key] for key in
                     ('status_code','response_bytes','completed_at_monotonic','elapsed_ms') if key in event})
             if event['event']=='response_observed' and ordinal in reserved:
                 reserved[ordinal]['response_observation']=event['response_observation']
         if not completed<=started<=set(reserved) or len(reserved)>4:return None
         return {'client_requests_reserved':len(reserved),'client_requests_started':len(started),
-            'completed_http_responses':len(completed),'unresolved_requests':len(reserved)-len(completed),
+            'completed_http_responses':0,'unresolved_requests':len(reserved),
+            'journal_http_response_records':len(completed),'completion_admission_verified':False,
+            'started_count_is_lower_bound':True,'unresolved_count_is_conservative':True,
             'attempts':list(reserved.values()),
             'journal_durable':None,'closed':False,'recovered_from_journal':True,
             'journal_durability_verified':False,
@@ -361,22 +369,19 @@ async def _supervise(command,payload,directory,*,execution_seconds=300,cleanup_s
     journal=_journal_accounting(directory,plan)
     receipt['admission_closed']=gone
     accounting=receipt.get('request_accounting')
-    if journal is not None:
-        if (accounting is None or any(accounting.get(key)!=journal[key] for key in
-                ('client_requests_started','completed_http_responses','unresolved_requests'))):
-            accounting=receipt['request_accounting']=journal
     sealed=(accounting is not None and receipt.get('cleanup_started_monotonic') is not None
         and accounting.get('stop_reason') is not None)
-    verified=(accounting is not None and (not forced or journal is not None or sealed))
+    if not sealed and journal is not None:accounting=receipt['request_accounting']=journal
+    verified=sealed
     if not verified:
         receipt.update(status='incomplete',accounting_verified=False)
         receipt['accounting_uncertainty']={'additional_charges_max':4,'replay_allowed':False}
         started=0 if accounting is None else accounting['client_requests_started']
-        unresolved=0 if accounting is None else accounting['unresolved_requests']
         receipt['cumulative_accounting']={'charged_lower_bound':35+started,'charged_upper_bound':39,
-            'unresolved_lower_bound':2+unresolved,'unresolved_upper_bound':6,
+            'unresolved_lower_bound':2,'unresolved_upper_bound':6,
             'prior_charged':35,'prior_unresolved':2}
     else:
+        receipt['accounting_verified']=True
         receipt['cumulative_accounting']={'charged':35+accounting['client_requests_started'],
             'unresolved':2+accounting['unresolved_requests'],'prior_charged':35,'prior_unresolved':2}
     # Read only after the writer has exited. Never return a live mutable pipeline.
@@ -428,5 +433,9 @@ def _child_main():
 
 if __name__=='__main__':
     if sys.argv[1:]!=['--owned-child']:raise SystemExit(3)
-    try:_child_main()
+    try:
+        # -m executes this file as __main__; issued classes and sentinels
+        # must come from the same canonical module as OwnedSession.create.
+        from scripts.single_collector_observation import _child_main as canonical_child_main
+        canonical_child_main()
     except BaseException:raise SystemExit(3) from None

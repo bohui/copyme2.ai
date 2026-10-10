@@ -298,3 +298,38 @@ def test_native_executor_rejects_unmerged_source_before_output_or_resources(tmp_
     with pytest.raises(ValueError,match='main branch'):
         asyncio.run(launcher.execute_native(p,tmp_path/'run','synthetic-token'))
     assert not (tmp_path/'run').exists()
+
+
+def test_execution_timer_is_disarmed_when_separate_cleanup_window_begins(tmp_path,monkeypatch):
+    from scripts import single_collector_observation as mode
+    async def scenario():
+        directory=tmp_path/'run';directory.mkdir()
+        original=budget.SubscriptionRun.create
+        def create_run(**kwargs):
+            run=original(**kwargs)
+            # Simulate arriving at the end of the unchanged 300-second budget.
+            run._deadline=asyncio.get_running_loop().time()+.05
+            return run
+        monkeypatch.setattr(budget.SubscriptionRun,'create',staticmethod(create_run))
+        closed=[]
+        @asynccontextmanager
+        async def native(*args):
+            receipt=args[-1];receipt['native']={'cleanup_complete':False}
+            try:yield {}
+            finally:receipt['native']['cleanup_complete']=True
+        class Owner:
+            def worker_receipts(self):return []
+            async def close(self):
+                try:await asyncio.sleep(.15)
+                except asyncio.CancelledError:closed.append('cancelled');raise
+                closed.append('complete')
+        async def create(**kwargs):return Owner()
+        async def observe(owner):return {'outcome':'collector_completed','campaign_acceptance':False}
+        monkeypatch.setattr(launcher,'native_resources',native)
+        monkeypatch.setattr(sessions.OwnedSubscriptionSession,'create',create)
+        monkeypatch.setattr(mode,'observe',observe)
+        result=await mode._execute_child(plan(),directory,'synthetic-token')
+        assert closed==['complete']
+        assert result['status']=='observation' and result['cleanup_complete'] is True
+        assert 59<result['cleanup_deadline_monotonic']-asyncio.get_running_loop().time()<60
+    asyncio.run(scenario())
