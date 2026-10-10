@@ -46,10 +46,15 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
                max_case_client_requests=None, max_case_elapsed_seconds=None,
                enable_public_photo_research=False, photo_python_binary=None, photo_python_sha256=None,
                enable_browser_readback=False, browser_config=None,
-               collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False):
+               collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False,
+               selected_case_ids=None):
     from apps.api.codex_timeout_policy import native_worker_deadlines
     from scripts.memoir_subscription_profiles import profile_for
-    profile = profile_for(evaluation_profile)
+    profile = profile_for(evaluation_profile, selected_case_ids=selected_case_ids)
+    if selected_case_ids is not None and (single_collector_observation or collector_timeout_seconds != 180):
+        raise ValueError('Selected fifty-case execution requires 180-second collector and full campaign mode')
+    if selected_case_ids is not None and (enable_browser_readback or enable_public_photo_research):
+        raise ValueError('Selected fifty-case execution excludes unadmitted browser/photo work')
     if type(single_collector_observation) is not bool:
         raise ValueError('Explicit single collector mode required')
     if single_collector_observation:
@@ -98,6 +103,7 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
     return {'schema_version': 'memoir-subscription-evaluation-plan/1', 'run_id': run_id,
         'source_revision': source_revision, 'case_ids': list(cases), 'cases': cases,
         'evaluation_profile': profile.name, 'rounds_per_case': profile.rounds,
+        **({'selected_case_ids': list(selected_case_ids)} if selected_case_ids is not None else {}),
         'checkpoints': list(profile.checkpoints), 'concurrency': 1,
         'artifact_storage': {'backend': 'owned_disposable_postgres',
             'provider_free_readiness_required': True, 'real_storage_writes': False,
@@ -122,6 +128,17 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
         'actual_upstream_provider_requests': None, 'hard_token_cap_verified': False,
         'hard_dollar_cap_verified': False, 'upstream_cancellation_verified': False,
         'judge': 'not_run', 'langfuse': 'not_published', 'photo': 'not_run'}
+
+
+def _profile_for_plan(plan):
+    from scripts.memoir_subscription_profiles import profile_for
+    selected = None
+    if 'selected_case_ids' in plan:
+        if type(plan['selected_case_ids']) is not list:
+            raise ValueError('Saved case selection requires an explicit JSON list')
+        selected = tuple(plan['selected_case_ids'])
+    return profile_for(plan.get('evaluation_profile', 'subscription_progressive'),
+                       selected_case_ids=selected)
 
 
 def git_read(*args):
@@ -384,8 +401,7 @@ async def native_resources(plan, run, directory, receipt):
     sys.path.insert(0, str(ROOT / 'tests'))
     from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database
     from memoir_postgres_workflow import PostgresRest, quoted
-    from scripts.memoir_subscription_profiles import profile_for
-    profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
+    profile = _profile_for_plan(plan)
     cancellation = threading.Event()
     allocation = {'attempted': False, 'created': False}
     receipt['native'] = {'postgres_container': postgres_name, 'postgres_allocation': allocation,
@@ -483,14 +499,14 @@ async def native_resources(plan, run, directory, receipt):
 
 
 def validate_native_plan(plan):
-    from scripts.memoir_subscription_profiles import profile_for
-    profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
+    profile = _profile_for_plan(plan)
     # Rebuild the full plan before any resource or output allocation. An edited
     # saved plan cannot change cases, dataset, entitlement or approved caps.
     validated = build_plan(**{key: plan[key] for key in ('run_id', 'source_revision',
         'codex_binary', 'codex_sha256', 'temporal_binary', 'temporal_sha256',
         'max_client_requests', 'max_elapsed_seconds')},
         evaluation_profile=profile.name,
+        selected_case_ids=profile.selected_case_ids,
         waive_memory_pressure_check=plan.get('memory_pressure_check_waived', False),
         max_case_client_requests=plan.get('max_case_client_requests'),
         max_case_elapsed_seconds=plan.get('max_case_elapsed_seconds'),
@@ -508,8 +524,7 @@ async def execute_native(plan, directory, api_key):
     from scripts.issue14_subscription_transport import SubscriptionLimits, SubscriptionRun, SubscriptionTransport
     from scripts.issue14_subscription_session import OwnedSubscriptionSession
     from scripts.issue14_subscription_runner import SubscriptionProgressiveRunner
-    from scripts.memoir_subscription_profiles import profile_for
-    profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
+    profile = _profile_for_plan(plan)
     validate_native_plan(plan)
     verify_main_source(plan['source_revision'])
     if 'single_collector_observation' in plan:
@@ -526,12 +541,14 @@ async def execute_native(plan, directory, api_key):
     run = SubscriptionRun.create(reservation_root=directory / 'journal', run_id=plan['run_id'],
         source_revision=plan['source_revision'], limits=SubscriptionLimits(
             plan['max_client_requests'], plan['max_elapsed_seconds']),
-        **({'case_ids': profile.case_ids, 'case_limits': SubscriptionLimits(
+        **({'case_ids': profile.case_ids, 'selected_case_ids': profile.selected_case_ids, 'case_limits': SubscriptionLimits(
             plan['max_case_client_requests'], plan['max_case_elapsed_seconds'])}
            if profile.name == 'subscription_fifty' else {}))
     receipt = {'schema_version': 'memoir-subscription-native-receipt/1', 'run_id': plan['run_id'],
         'source_revision': plan['source_revision'], 'status': 'incomplete', 'execution_started': True,
         'judge': 'not_run', 'langfuse': 'not_published', 'semantic_acceptance': 'human_review_required'}
+    if profile.selected_case_ids is not None:
+        receipt['selected_case_ids'] = list(profile.selected_case_ids)
     session = None
     photo_settings = {key: os.environ[key] for key in ('GOOGLE_CSE_ID', 'GOOGLE_CSE_URL')
                       if key in os.environ}
@@ -543,7 +560,8 @@ async def execute_native(plan, directory, api_key):
                 session = await OwnedSubscriptionSession.create(run=run, provider_transport=transport,
                     **resources, home_root=directory / 'homes', codex_binary=plan['codex_binary'],
                     codex_sha256=plan['codex_sha256'], api_key=api_key, evaluation_profile=profile.name,
-                    collector_timeout_seconds=plan['collector_timeout_seconds'])
+                    collector_timeout_seconds=plan['collector_timeout_seconds'],
+                    selected_case_ids=profile.selected_case_ids)
                 if plan.get('browser_readback'):
                     from scripts.memoir_fifty_browser_runner import OwnedFiftyBrowserReadback
                     session.browser_readback = OwnedFiftyBrowserReadback.admit(session, plan['browser_readback'])
@@ -558,7 +576,8 @@ async def execute_native(plan, directory, api_key):
                     receipt['evaluation_progress'] = value
                     _save(directory / 'receipt.json', receipt)
                 runner = SubscriptionProgressiveRunner(session, **(
-                    {'evidence_mode': profile.name} if profile.name == 'subscription_fifty' else {}))
+                    {'evidence_mode': profile.name, 'selected_case_ids': profile.selected_case_ids}
+                    if profile.name == 'subscription_fifty' else {}))
                 result = await runner.run(progress=progress)
                 receipt['evaluation'] = result
                 receipt['worker_receipts'] = session.worker_receipts()
@@ -619,6 +638,8 @@ def main(argv=None):
     parser.add_argument('--photo-python-sha256')
     parser.add_argument('--evaluation-profile', choices=('subscription_progressive', 'subscription_fifty'),
         default='subscription_progressive')
+    parser.add_argument('--case-id', dest='selected_case_ids', action='append',
+        help='Select exactly one original fifty-case campaign; omitted keeps the default five cases')
     parser.add_argument('--max-case-client-requests', type=int)
     parser.add_argument('--max-case-elapsed-seconds', type=float)
     parser.add_argument('--max-client-requests', type=int, required=True)
@@ -631,7 +652,9 @@ def main(argv=None):
         if args.browser_config is not None and not args.enable_browser_readback:
             raise ValueError('Browser config requires explicit admission')
         browser_config = read_browser_config(args.browser_config) if args.browser_config is not None else None
-        plan = build_plan(browser_config=browser_config, **{key: getattr(args, key) for key in ('run_id','source_revision',
+        plan = build_plan(browser_config=browser_config,
+            selected_case_ids=tuple(args.selected_case_ids) if args.selected_case_ids is not None else None,
+            **{key: getattr(args, key) for key in ('run_id','source_revision',
             'codex_binary','codex_sha256','temporal_binary','temporal_sha256',
             'max_client_requests','max_elapsed_seconds','waive_memory_pressure_check',
             'evaluation_profile','max_case_client_requests','max_case_elapsed_seconds',

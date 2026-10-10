@@ -85,21 +85,24 @@ class SubscriptionRun:
 
     @classmethod
     def create(cls, *, reservation_root, run_id, source_revision, limits,
-               case_ids=None, case_limits=None):
+               case_ids=None, case_limits=None, selected_case_ids=None):
         if (not _uuid(run_id) or type(source_revision) is not str
                 or not re.fullmatch('[a-f0-9]{40}', source_revision)
                 or type(limits) is not SubscriptionLimits):
             raise ValueError('Explicit run UUID, source revision and limits are required')
-        if case_ids is not None or case_limits is not None:
+        if selected_case_ids is not None:
+            from scripts.memoir_subscription_profiles import validate_case_selection
+            validate_case_selection(selected_case_ids)
+        if case_ids is not None or case_limits is not None or selected_case_ids is not None:
             if (type(case_ids) is not tuple
                     or any(type(case_id) is not str for case_id in case_ids)
-                    or case_ids != MEMOIR_FIVE_CASE_IDS
+                    or case_ids != (MEMOIR_FIVE_CASE_IDS if selected_case_ids is None else selected_case_ids)
                     or type(case_limits) is not SubscriptionLimits
-                    or case_limits.max_requests > 600
+                    or case_limits.max_requests > (600 if selected_case_ids is None else 569)
                     or case_limits.max_elapsed_seconds > 7200
-                    or limits.max_requests > 3000
-                    or limits.max_elapsed_seconds > 36000):
-                raise ValueError('The explicit ordered five-case campaign and bounded limits are required')
+                    or limits.max_requests > (3000 if selected_case_ids is None else 569)
+                    or limits.max_elapsed_seconds > (36000 if selected_case_ids is None else 7200)):
+                raise ValueError('The explicit campaign selection and bounded limits are required')
         root = Path(reservation_root)
         if root.is_symlink() or not root.is_dir():
             raise ValueError('An existing ordinary reservation directory is required')
@@ -115,6 +118,7 @@ class SubscriptionRun:
         self._entries = []
         self._started_count = 0
         self._case_ids, self._case_limits = case_ids, case_limits
+        self._selected_case_ids = selected_case_ids
         self._cases = [{'case_id': case_id, 'status': 'pending', 'entries': [],
             'client_requests_started': 0, 'started_at_monotonic': None,
             'deadline_monotonic': None, 'finished_at_monotonic': None}
@@ -136,6 +140,7 @@ class SubscriptionRun:
                 raise SubscriptionStopped('reservation_exists') from None
             campaign = ({} if case_ids is None else {
                 'case_ids': list(case_ids), 'case_limits': asdict(case_limits),
+                **({'selected_case_ids': list(selected_case_ids)} if selected_case_ids is not None else {}),
                 'started_at_monotonic': self._started_at,
                 'global_deadline_monotonic': self._deadline})
             self._write('created', schema=_SCHEMA, run_id=run_id,
@@ -173,6 +178,10 @@ class SubscriptionRun:
     @property
     def case_ids(self):
         return self._case_ids
+
+    @property
+    def selected_case_ids(self):
+        return self._selected_case_ids
 
     @property
     def case_limits(self):
@@ -434,6 +443,7 @@ class SubscriptionRun:
                 'upstream_cancellation_verified': False, 'restart_allowed': False}
             if self.case_ids is not None:
                 receipt.update(case_ids=list(self.case_ids), case_limits=asdict(self.case_limits),
+                    **({'selected_case_ids': list(self.selected_case_ids)} if self.selected_case_ids is not None else {}),
                     active_case_id=(None if self._active_case is None or self._closed
                         or self._stop_reason is not None else self._active_case['case_id']),
                     started_at_monotonic=self._started_at,
