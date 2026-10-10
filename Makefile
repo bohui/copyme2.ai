@@ -153,6 +153,7 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 ##   Omit EVAL_CASE_ID to run all five cases (250 rounds total).
 ##   Defaults: current checkout, remote Supabase from .env, EVAL_USER_EMAIL=test@test.com.
 ##   Starts backend services only; retains projects and prints UI URLs. No local PostgreSQL.
+##   Refreshes service addresses and checks worker connections; make up is not required.
 ##   Sign in without email: make memoir-live-fifty-login (private ui-login.html).
 ##   Run the UI: MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8010 npm --prefix apps/web run dev -- --port 3010.
 ##   Sign in as EVAL_USER_EMAIL, then visit /memoir/interview/<project-id>.
@@ -202,7 +203,12 @@ memoir-live-fifty-login: ## Create/confirm EVAL_USER_EMAIL and save a private UI
 
 memoir-live-fifty-backend: runtime-start ## Start the API and workers for a remote run; called by memoir-live-fifty-test.
 	@test -n "$${MEMORY_SPARK_EVAL_RECALL_OWNER_ID:-}" || { echo "Use make memoir-live-fifty-test to configure its account allowance." >&2; exit 2; }
-	@$(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build --wait --wait-timeout 120 api codex-worker photo-worker worker temporal
+	@$(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build api codex-worker photo-worker worker temporal
+	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
+	@$(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build --no-recreate --wait --wait-timeout 120 api codex-worker photo-worker worker temporal
+	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T api python -c 'import os,urllib.request; [urllib.request.urlopen(os.environ[key]+"/health", timeout=10).read() for key in ("MEMORY_SPARK_CODEX_WORKER_URL", "MEMORY_SPARK_PHOTO_WORKER_URL")]; print("API worker connections: ready")'
+	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T worker python -c 'import os,urllib.request; urllib.request.urlopen(os.environ["MEMORY_SPARK_TASK_STORE_URL"]+"/health", timeout=10).read(); print("Worker API connection: ready")'
+	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T worker python scripts/worker.py --readiness
 
 memoir-live-fifty-disposable-plan: ## Inspect the original disposable PostgreSQL launcher without live calls.
 

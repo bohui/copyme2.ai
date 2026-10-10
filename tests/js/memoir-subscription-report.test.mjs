@@ -234,6 +234,10 @@ test('backend target starts only backend services from cached images', () => {
   const result = spawnSync('make', ['--no-print-directory', '-n', 'memoir-live-fifty-backend'], {cwd: root, encoding: 'utf8'});
   assert.equal(result.status, 0);
   assert.match(result.stdout, /--no-build.*api codex-worker photo-worker worker temporal/);
+  assert.ok(result.stdout.indexOf('refresh_mocker_compose_hosts.py') < result.stdout.indexOf('--wait --wait-timeout'));
+  assert.match(result.stdout, /API worker connections: ready/);
+  assert.match(result.stdout, /Worker API connection: ready/);
+  assert.match(result.stdout, /scripts\/worker.py --readiness/);
   assert.doesNotMatch(result.stdout, /\bweb\b|postgres|db-truncate/);
 });
 

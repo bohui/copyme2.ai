@@ -34,7 +34,10 @@ and migrated remote Supabase. `.env` must be an owned 0400/0600 regular file wit
 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` (or inherited
 `SUPABASE_SERVICE_ROLE_KEY`). The runner starts only API, Codex/photo workers,
 background worker and Temporal. It never starts PostgreSQL, the frontend, or a
-browser. Set `EVAL_START_BACKEND=0` to reuse an already configured backend at
+browser. Startup refreshes Mocker's static service aliases in the running Compose
+containers after any recreation, then verifies API-to-worker, worker-to-API and
+Temporal connectivity before submitting a conversation. `make up` is not required.
+Set `EVAL_START_BACKEND=0` to reuse an already configured backend at
 `API_BASE`; that account must already have enough conversation allowance.
 
 The default owner is `test@test.com`; override with `EVAL_USER_EMAIL` or exported
