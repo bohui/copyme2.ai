@@ -1717,6 +1717,9 @@ class CodexRuntime:
             saved_language = profile.get('preferred_language')
             current_locale_state = locale_state(profile)
             narrator = eligible_reply(saved_text) if is_user_round else None
+            if interview_context is not None:
+                interview_context['opening_turn'] = bool(narrator and not first_narrator_reply(memories)
+                    and (interview_turn or {}).get('sequence') == 1)
             requested = explicit_request(narrator) if narrator else None
             if requested:
                 profile = explicit_profile(profile, requested)
@@ -1796,7 +1799,9 @@ class CodexRuntime:
             deferred_artifacts_task = None
             deferred_home = None
             extraction_task = None
-            if on_delta and on_event and is_user_round:
+            # Structured turns let the same collector choose work before any
+            # optional extraction starts. Legacy collectors keep their bridge.
+            if on_delta and on_event and is_user_round and interview_context is None:
                 async def preview_place(candidate):
                     if (not place_journey_message_is_ambiguous(text)
                             and place_journey_matches_message(candidate, text)):
@@ -1933,6 +1938,8 @@ class CodexRuntime:
                 tail = visible.feed('', final=True)
                 if tail:
                     await on_delta(tail)
+            turn_work = ((collector_result or {}).get('plan') or {}).get('work') or {}
+            reply_only = turn_work.get('mode') == 'reply_only'
             await progress.update('reply', 'Reply generated', '回复已生成', status='completed')
             # Keep a compatibility bridge for an older worker that still emits
             # markers from the collector. New workers have a marker-free
@@ -1978,6 +1985,14 @@ class CodexRuntime:
                 parsed_profile_updates.pop('preferred_language', None)
             profile_updates = {**(parsed_profile_updates or {}), **(language_updates or {})} or None
             profile_updates = apply_explicit_story_stage(text, profile_updates)
+            if reply_only and turn_work.get('name'):
+                # The model's preferred name is validated against the accepted
+                # narrator source. A minimal introduction needs no extractor.
+                profile_updates = {**(profile_updates or {}), 'name': turn_work['name']}
+                profile = {**profile, 'name': turn_work['name']}
+                await lease.check()
+                await lease.io(storage.save_profile, profile)
+                await lease.check()
 
             # The conversational exchange is the first durable boundary.
             # Workspace extraction and public-reference work below may be
@@ -2044,7 +2059,7 @@ class CodexRuntime:
             }
             workspace_job = None
             try:
-                workspace_job = await self._enqueue_workspace_intent(
+                workspace_job = None if reply_only else await self._enqueue_workspace_intent(
                     user_id=user_id,
                     project_id=project_id,
                     turn_id=turn_id,
@@ -2081,7 +2096,7 @@ class CodexRuntime:
                         'reply': reply,
                         **public_interview_fields(interview_turn),
                         'conversation_saved': True,
-                        'profile_updates': language_updates,
+                        'profile_updates': profile_updates if reply_only else language_updates,
                         'recall_status': recall_access,
                         'trace': list(progress.steps),
                         'trace_mode': 'live',
@@ -2095,17 +2110,26 @@ class CodexRuntime:
             await conversation_scope.aclose()
             workspace_parser_failure = None
             try:
-                try:
-                    await self._resume_pending_workspace(storage, exclude_turn_id=turn_id)
-                except (OSError, RuntimeError, TypeError, ValueError):
-                    pass
-                workspace = await self._run_workspace_job(
-                    storage,
-                    workspace_job,
-                    workspace_kwargs={**workspace_kwargs, "progress": progress},
-                    on_event=on_event,
-                    trajectory=trajectory,
-                )
+                if reply_only:
+                    if deferred_artifacts_task is not None:
+                        if not deferred_artifacts_task.done():
+                            deferred_artifacts_task.cancel()
+                        await asyncio.gather(deferred_artifacts_task, return_exceptions=True)
+                    workspace = {'place_journey': current_place_journey, 'place_journey_change': None,
+                        'profile_updates': profile_updates, 'family_context': None,
+                        'family_context_update': None, 'tasks': [], 'task_errors': [], 'source_paths': paths}
+                else:
+                    try:
+                        await self._resume_pending_workspace(storage, exclude_turn_id=turn_id)
+                    except (OSError, RuntimeError, TypeError, ValueError):
+                        pass
+                    workspace = await self._run_workspace_job(
+                        storage,
+                        workspace_job,
+                        workspace_kwargs={**workspace_kwargs, "progress": progress},
+                        on_event=on_event,
+                        trajectory=trajectory,
+                    )
             except Exception as workspace_failure:
                 await progress.update('workspace', 'Workspace update could not finish; the reply is saved', '工作区更新未完成；回复已保存', status='failed')
                 if trajectory:

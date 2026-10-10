@@ -37,10 +37,16 @@ class QuestionCandidate(StrictModel):
     bridge: str = Field(max_length=500)
 
 
+class TurnWorkPlan(StrictModel):
+    mode: Literal['reply_only', 'extract']
+    name: str | None = Field(max_length=120)
+
+
 class InterviewPlan(StrictModel):
     candidates: list[QuestionCandidate] = Field(max_length=5)
     chosen_id: str | None
     active_event_id: str | None
+    work: TurnWorkPlan | None = None
 
 
 class PhotoAssociation(StrictModel):
@@ -85,6 +91,24 @@ def collector_instructions(context):
         'bridge only when returning to a different earlier topic. Do not assign unsupported dates or stages. An open '
         'invitation to another period uses null year/stage. Stop or pause means stopped=true, no candidates '
         'and chosen_id=null. Candidate question text contains at most one question.\n'
+        'For every turn, choose plan.work.mode from the ENTIRE narrator message and saved context. '
+        'Use "reply_only" for a name-only introduction, greeting, pause, or similarly minimal '
+        'conversational reply with no new memory details or other workspace actions to process. '
+        'A brief sentence can still be a rich clue: a birthplace, date, person, activity, '
+        'or event calls for "extract" and normal interview planning. Corrections, privacy requests '
+        'and photo discussion also require "extract". A long first story '
+        'must keep all its clues; ask about an unanswered detail in that story, without resetting '
+        'to a generic opening question. No length rule or list of surnames decides this. '
+        'When opening_turn=true and the reply is a simple introduction, give one very short '
+        'acknowledgement and at most one candidate '
+        'about an earlier memory, such as 您最早记得的一段往事是什么？. Do not ask about today or '
+        'a present-day object. For reply_only, set plan.work.name to the exact preferred name stated in the CURRENT '
+        'source, or null when unknown; never infer it from a greeting or another person. '
+        'A name-only reply needs no media retrieval, research or workspace extraction. '
+        'For extract set plan.work.name=null; normal extraction will preserve its profile clues. '
+        'When opening_turn is absent or false, continue the current memory rather than restarting '
+        'with a generic earliest-memory question. This work decision uses the same reply pass '
+        'on every turn, without separate classification or research before the reply.\n'
         'Question context is a pointer into the supplied active canonical events, not a new extraction. '
         'Use year only when it equals an active event temporal.year_start or temporal.year_end. '
         'Use life_stage only when it is present on an active event and is a supported stage. '
@@ -140,6 +164,17 @@ def validate_collector_result(value, context):
     source = context.get('source')
     if source and source.get('status') == 'active':
         sources[(source['id'], int(source['version']))] = source
+    if plan.work:
+        if plan.work.mode == 'reply_only':
+            if context.get('photo_context') or result.associations or result.response_photo_ids:
+                raise ValueError('Reply-only work cannot discard accepted photo context')
+            if context.get('opening_turn') and len(plan.candidates) > 1:
+                raise ValueError('A simple opening needs at most one candidate')
+            name = plan.work.name
+            if name is not None and (not name.strip() or not source or name not in source['text']):
+                raise ValueError('Opening name requires exact current narrator wording')
+        elif plan.work.name is not None:
+            raise ValueError('Story profile clues belong to normal extraction')
     if plan.active_event_id is not None and plan.active_event_id not in events:
         raise ValueError('Unknown active event')
     # A year mentioned in a source may be a caption date or explicitly denied.
@@ -193,8 +228,11 @@ def validate_collector_result(value, context):
         reply += '\n\n' + (' '.join([chosen.bridge.strip(), chosen.question.strip()])).strip()
     # Always present an accepted cue, even when its topic is deferred.
     display = list(dict.fromkeys(result.response_photo_ids + [p['photo_id'] for p in context.get('photo_context', [])]))[:5]
+    saved_plan = plan.model_dump()
+    if plan.work is None:
+        saved_plan.pop('work')  # Older collectors retain normal extraction behavior.
     return {'reply': reply, 'acknowledgement': result.acknowledgement,
-        'plan': plan.model_dump(), 'associations': [a.model_dump() for a in result.associations],
+        'plan': saved_plan, 'associations': [a.model_dump() for a in result.associations],
         'response_photos': [deepcopy(photos[id]) for id in display], 'stopped': result.stopped}
 
 
