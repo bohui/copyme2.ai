@@ -46,6 +46,7 @@ export function renderReport(plan, receipt) {
     `Run status: **${cell(receipt.status)}**  `,
     `Evaluation status: ${cell(evaluation.status)}  `,
     `Stop reason: ${cell(receipt.stop_reason ?? evaluation.stop_reason ?? accounting.stop_reason)}  `,
+    ...(receipt.source_validation_error ? [`Source validation error: ${cell(receipt.source_validation_error)}  `] : []),
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
     ...(remote ? [
       'Storage: remote Supabase; projects retained.  ',

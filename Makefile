@@ -44,6 +44,7 @@ SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
 .PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
+.PHONY: _db-truncate _install_skill _memoir-live-fifty-backend _container-up _container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} \
@@ -65,7 +66,10 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
-db-truncate: check ## Clear user/app data, Auth, Storage and local Compose state; preserve shared photo search cache; pass RESET_CONFIRM=1.
+db-truncate: ## Clear user/app data, Auth, Storage and local Compose state; preserve shared photo search cache; pass RESET_CONFIRM=1.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-truncate
+
+_db-truncate: check
 	@test "$(RESET_CONFIRM)" = "1" || { echo "Refusing to truncate data. Re-run with RESET_CONFIRM=1."; exit 2; }
 	@test -f "$(ENV_FILE)" || { echo "Missing $(ENV_FILE). Copy .env.example to .env first."; exit 2; }
 	@set -a; \
@@ -78,7 +82,10 @@ db-truncate: check ## Clear user/app data, Auth, Storage and local Compose state
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans --volumes; \
 	python3 scripts/truncate_local_data.py --yes
 
-install_skill: check ## Validate every repository skill, rebuild the skill-bearing app images, and restart their services.
+install_skill: ## Validate every repository skill, rebuild the skill-bearing app images, and restart their services.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _install_skill
+
+_install_skill: check
 	@set -eu; \
 	test -n "$(strip $(SKILLS))" || { echo "No skills found under skills/."; exit 2; }; \
 	test -f "$(SKILL_PACKAGER)" || { echo "Missing skill packager: $(SKILL_PACKAGER)"; echo "Override SKILL_PACKAGER=/path/to/package_skill.py if needed."; exit 1; }; \
@@ -203,7 +210,10 @@ memoir-live-fifty-login: ## Create/confirm EVAL_USER_EMAIL and save a private UI
 	if test -n "$(EVAL_PROJECT_ID)"; then set -- "$$@" --project-id "$(EVAL_PROJECT_ID)"; fi; \
 	exec "$$@"
 
-memoir-live-fifty-backend: runtime-start ## Start the API and workers for a remote run; called by memoir-live-fifty-test.
+memoir-live-fifty-backend: ## Start the API and workers for a remote run; called by memoir-live-fifty-test.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _memoir-live-fifty-backend
+
+_memoir-live-fifty-backend: runtime-start
 	@test -n "$${MEMORY_SPARK_EVAL_RECALL_OWNER_ID:-}" || { echo "Use make memoir-live-fifty-test to configure its account allowance." >&2; exit 2; }
 	@MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)" $(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build api codex-worker photo-worker worker temporal
 	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
@@ -324,7 +334,10 @@ container-build: runtime-start ## Build the local images without changing runnin
 
 up: container-up ## Start the local stack (alias for container-up).
 
-container-up: runtime-start ## Start the local stack from cached images; use CONTAINER_BUILD=1 to rebuild.
+container-up: ## Start the local stack from cached images; use CONTAINER_BUILD=1 to rebuild.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-up
+
+_container-up: runtime-start
 	@mkdir -p var/memory-spark
 	@set -e; \
 	needs_build=0; \
@@ -380,7 +393,10 @@ container-shell: check ## Open a shell in SERVICE=api.
 
 down: container-down ## Stop and remove the stack (alias for container-down).
 
-container-down: check ## Stop and remove the stack.
+container-down: ## Stop and remove the stack.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-down
+
+_container-down: check
 	@$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans
 
 .PHONY: cloudflare-link cloudflare-unlink tunnel-plan tunnel-setup tunnel-start tunnel-stop tunnel-status tunnel-health

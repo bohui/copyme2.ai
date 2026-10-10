@@ -163,6 +163,15 @@ test('remote report links retained UI projects and private login without claimin
   assert.doesNotMatch(report, /disposable test projects|Native cleanup complete|request journal/);
 });
 
+test('report keeps the request failure and source validation failure visible together', () => {
+  const { plan, receipt } = remoteFixture();
+  receipt.stop_reason = 'HTTP request failed (RemoteProtocolError)';
+  receipt.source_validation_error = 'source_changed_during_run';
+  const report = renderReport(plan, receipt);
+  assert.match(report, /Stop reason: HTTP request failed \(RemoteProtocolError\)/);
+  assert.match(report, /Source validation error: source_changed_during_run/);
+});
+
 for (const selectedCase of ['', ...caseIds]) {
   test(`remote Make plan for ${selectedCase || 'all cases'} requires no credentials or native executable pins`, () => {
     const directory = mkdtempSync(join(tmpdir(), 'memoir-remote-plan-'));

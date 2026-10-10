@@ -32,10 +32,15 @@ from apps.api.namespaces import memoir_url
 from scripts.memoir_fifty_readback import CASE_IDS, CHECKPOINTS, DATASET_SHA256, FiftyReadback, case_plans_for_run
 from scripts.issue14_subscription_runner import _canonical_state, _saved_checkpoint, _readback_call
 from scripts.run_issue14_subscription_evaluation import local_checkout_snapshot, verify_execution_source
+from scripts.backend_operation_lock import BackendInUseError, LOCK_FD_ENV, backend_operation_lock
 
 
 class EvaluationError(ValueError):
     """Only fixed safe reasons enter stdout or saved evidence."""
+
+    def __init__(self, message, *, diagnostic=None):
+        super().__init__(message)
+        self.diagnostic = diagnostic
 
 
 def base_url(value):
@@ -146,14 +151,28 @@ class Requests:
             raise EvaluationError('Backend request or elapsed-time ceiling reached')
         self.reserved += 1
         timeout = min(kwargs.pop('timeout', 30), remaining)
+        started = time.monotonic()
+        response = None
         try:
             response = await self.client.request(method, url, timeout=timeout, **kwargs)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as error:
-            raise EvaluationError('HTTP request failed with status ' + str(error.response.status_code)) from None
-        except (httpx.RequestError, ValueError):
-            raise EvaluationError('HTTP request failed or returned invalid JSON') from None
+            reason = 'HTTP request failed with status ' + str(error.response.status_code)
+            failure_type = 'HTTPStatusError'
+        except httpx.RequestError as error:
+            failure_type = type(error).__name__
+            reason = 'HTTP request failed (' + failure_type + ')'
+        except ValueError:
+            failure_type = 'invalid_json'
+            reason = 'HTTP response was not valid JSON'
+        # Record only transport metadata; exception text, bodies and URL query
+        # strings can contain private testimony or authentication credentials.
+        raise EvaluationError(reason, diagnostic={
+            'failure_type': failure_type, 'method': method, 'path': urlsplit(url).path,
+            'http_status': response.status_code if response is not None else None,
+            'elapsed_ms': max(0, round((time.monotonic() - started) * 1000)),
+        }) from None
 
 
 @dataclass
@@ -371,6 +390,12 @@ async def run_cases(account, plan, directory, receipt):
 
 
 async def execute(plan, directory, settings, *, start_backend=False, create_confirm=False):
+    with backend_operation_lock() as descriptor:
+        return await _execute(plan, directory, settings, start_backend=start_backend,
+            create_confirm=create_confirm, backend_lock_fd=descriptor)
+
+
+async def _execute(plan, directory, settings, *, start_backend, create_confirm, backend_lock_fd):
     directory = output_directory(directory)
     save(directory / 'plan.json', plan)
     receipt = {'schema_version': 'memoir-supabase-evaluation-receipt/1',
@@ -401,12 +426,14 @@ async def execute(plan, directory, settings, *, start_backend=False, create_conf
                 environment = {**settings, 'MEMORY_SPARK_EVAL_RECALL_OWNER_ID': owner,
                     'MEMORY_SPARK_EVAL_RECALL_LIMIT': str(limit),
                     'SUPABASE_SECRET_KEY': account.secret_key,
+                    LOCK_FD_ENV: str(backend_lock_fd),
                     'MEMORY_SPARK_API_PORT': str(urlsplit(plan['api_base']).port or 80)}
                 if urlsplit(plan['api_base']).hostname not in {'localhost', '127.0.0.1'}:
                     raise EvaluationError('Automatic backend startup requires a local API origin')
                 result = await asyncio.to_thread(subprocess.run,
                     ['make', '--no-print-directory', 'memoir-live-fifty-backend'], cwd=ROOT,
                     env={k: str(v) for k, v in environment.items() if v is not None},
+                    pass_fds=(backend_lock_fd,),
                     stdout=sys.stderr, stderr=sys.stderr, timeout=min(180, requests.remaining()))
                 if result.returncode:
                     raise EvaluationError('Backend startup failed; see the backend output')
@@ -422,11 +449,15 @@ async def execute(plan, directory, settings, *, start_backend=False, create_conf
             receipt['status'] = receipt['evaluation']['status'] = 'incomplete'
             receipt['evaluation']['failure_stage'] = stage
             receipt['stop_reason'] = str(error) if isinstance(error, EvaluationError) else 'Backend evaluation failed; inspect retained evidence'
+            summary = {'reason': receipt['stop_reason']}
+            if isinstance(error, EvaluationError) and error.diagnostic:
+                summary['http_failure'] = error.diagnostic
+            receipt['evaluation']['failure_summary'] = summary
             cases = receipt['evaluation']['cases']
             if cases and cases[-1]['status'] != 'completed':
                 cases[-1]['status'] = 'incomplete'
                 if cases[-1]['rounds'] and cases[-1]['rounds'][-1]['status'] != 'completed':
-                    cases[-1]['rounds'][-1].update(status='incomplete', failure_summary={'reason': receipt['stop_reason']})
+                    cases[-1]['rounds'][-1].update(status='incomplete', failure_summary=summary)
         finally:
             requests.case_deadline = requests.deadline
             if 'account' in locals() and account.user:
@@ -445,7 +476,8 @@ async def execute(plan, directory, settings, *, start_backend=False, create_conf
             except Exception:
                 receipt['local_checkout_unchanged'] = False
                 receipt['status'] = receipt['evaluation']['status'] = 'incomplete'
-                receipt['stop_reason'] = 'source_changed_during_run'
+                receipt['source_validation_error'] = 'source_changed_during_run'
+                receipt.setdefault('stop_reason', 'source_changed_during_run')
             save(directory / 'receipt.json', receipt)
     return receipt
 
@@ -512,7 +544,7 @@ def main(argv=None):
                          'stop_reason': result.get('stop_reason'), 'projects': plan['cases']}))
         return 0 if result['status'] == 'completed' else 3
     except (Exception, KeyboardInterrupt) as error:
-        print(json.dumps({'status': 'blocked', 'reason': str(error) if isinstance(error, EvaluationError)
+        print(json.dumps({'status': 'blocked', 'reason': str(error) if isinstance(error, (EvaluationError, BackendInUseError))
                          else 'Remote evaluation configuration or preparation failed'}))
         return 3
 

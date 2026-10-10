@@ -62,6 +62,11 @@ manuscript before continuing. The final authenticated project recovery route is
 checked for UI reopening. Failed submissions are never automatically repeated;
 partial projects and evidence remain available for inspection. Stopping the
 client does not prove cancellation of already accepted background/provider work.
+HTTP failures retain the transport error type (or invalid JSON), status, method,
+route and elapsed time without response bodies, exception text or URL query
+strings. If the checkout also changes, the receipt and report preserve the
+original stop reason and record `source_changed_during_run` separately; the run
+remains incomplete.
 
 The runner prints project IDs and `/memoir/interview/<project-id>` URLs and restores
 the UI project adapter after the first delivered round. Start the
@@ -72,7 +77,12 @@ account:
 MEMORY_SPARK_API_ORIGIN=http://127.0.0.1:8010 npm --prefix apps/web run dev -- --port 3010
 ```
 
-Avoid `make container-up` during a live run, since it restarts the backend. To create a private, expiring, one-time sign-in link without email:
+Live execution holds a local backend lock. A second live evaluation, `container-up`,
+`container-down`, `install_skill`, or `db-truncate` fails before changing the stack
+while that lock is held. The evaluation's own backend startup inherits the lock;
+it is released when the run exits. Direct Mocker/Container commands remain outside
+this coordination, so avoid stopping or recreating these services during a run.
+To create a private, expiring, one-time sign-in link without email:
 
 ```sh
 make memoir-live-fifty-login

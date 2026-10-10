@@ -2,6 +2,8 @@
 import asyncio
 from copy import deepcopy
 import json
+import subprocess
+import sys
 from types import SimpleNamespace
 from uuid import uuid4
 from urllib.parse import urlencode
@@ -295,6 +297,102 @@ def test_source_change_retains_evidence_but_invalidates_completion(setup, tmp_pa
     result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
     assert len(remote.submitted) == 50 and result['status'] == 'incomplete'
     assert result['stop_reason'] == 'source_changed_during_run'
+
+
+def test_source_change_does_not_mask_an_earlier_conversation_failure(setup, tmp_path, monkeypatch):
+    plan, remote = setup()
+    handler = remote.handler
+
+    def interrupted(request):
+        if request.url.path.endswith('/agent/turn') and len(remote.submitted) == 6:
+            raise httpx.RemoteProtocolError('private response bytes', request=request)
+        return handler(request)
+
+    remote.handler = interrupted
+    checks = []
+
+    def changed(*args):
+        checks.append(args)
+        if len(checks) > 1:
+            raise ValueError('changed')
+
+    monkeypatch.setattr(module, 'verify_execution_source', changed)
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    rounds = result['evaluation']['cases'][0]['rounds']
+    assert [r['status'] for r in rounds] == ['completed'] * 6 + ['incomplete']
+    assert result['local_checkout_unchanged'] is False
+    assert result['source_validation_error'] == 'source_changed_during_run'
+    assert result['stop_reason'] == rounds[-1]['failure_summary']['reason']
+    diagnostic = rounds[-1]['failure_summary']['http_failure']
+    assert diagnostic['failure_type'] == 'RemoteProtocolError'
+    assert diagnostic['method'] == 'POST'
+    assert diagnostic['path'] == '/api/v1/memoir/agent/turn'
+    assert diagnostic['http_status'] is None
+    assert diagnostic['elapsed_ms'] >= 0
+    assert 'private response bytes' not in json.dumps(result)
+
+
+def test_invalid_json_response_is_distinct_from_a_transport_failure():
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, text='private malformed reply'))) as client:
+            requests = module.Requests(client, 1, 5)
+            with pytest.raises(module.EvaluationError) as failure:
+                await requests.json('GET', 'https://backend.example/result?token=private-token')
+            assert failure.value.diagnostic['failure_type'] == 'invalid_json'
+            assert failure.value.diagnostic['http_status'] == 200
+            assert failure.value.diagnostic['path'] == '/result'
+            assert 'private' not in str(failure.value) + json.dumps(failure.value.diagnostic)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('target', ['container-up', 'container-down', 'install_skill',
+    'db-truncate', 'memoir-live-fifty-backend'])
+def test_live_execution_blocks_a_concurrent_backend_stop(setup, tmp_path, target):
+    plan, remote = setup()
+    stopped = tmp_path / 'backend-stopped'
+    command = tmp_path / 'container-command'
+    command.write_text(f'#!{sys.executable}\nimport pathlib, sys\n'
+        f'if "compose" in sys.argv or "system" in sys.argv:\n'
+        f' pathlib.Path({str(stopped)!r}).touch(); sys.exit(7)\n')
+    command.chmod(0o700)
+    handler = remote.handler
+    attempts = []
+
+    def stop_during_turn(request):
+        if request.url.path.endswith('/agent/turn') and not attempts:
+            attempts.append(subprocess.run(['make', '--no-print-directory', target,
+                'MOCKER=' + str(command), 'APPLE_CONTAINER_BIN=' + str(command)],
+                cwd=module.ROOT, capture_output=True, text=True, timeout=10))
+        return handler(request)
+
+    remote.handler = stop_during_turn
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'completed'
+    assert len(attempts) == 1
+    assert attempts[0].returncode != 0
+    assert 'backend is in use' in attempts[0].stderr
+    assert not stopped.exists()
+
+
+def test_a_second_live_execution_cannot_restart_an_active_run(setup, tmp_path):
+    plan, remote = setup()
+    handler = remote.handler
+    checked = False
+
+    async def parallel_run(request):
+        nonlocal checked
+        if request.url.path.endswith('/agent/turn') and not checked:
+            checked = True
+            with pytest.raises(module.BackendInUseError, match='backend is in use'):
+                await module.execute(plan, tmp_path / 'second-run', SETTINGS, start_backend=True)
+        return handler(request)
+
+    remote.handler = parallel_run
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'completed'
+    assert checked and not (tmp_path / 'second-run').exists()
 
 
 @pytest.mark.parametrize('flag', ['--max-elapsed-seconds', '--max-backend-requests'])
