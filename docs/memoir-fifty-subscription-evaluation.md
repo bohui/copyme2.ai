@@ -6,6 +6,103 @@ subscription session and native bootstrap. The default remains the two-case
 30-minute ceiling. Historical five-turn live guards, ten-round proofs, strict
 budget adapters and all previous source proofs retain their own meaning.
 
+## Make commands and saved reports
+
+The Makefile exposes the existing launcher with all five cases selected, 50
+original inputs per case, ten saved checkpoints per case, and sequential
+execution by default. The read-only plan works directly:
+
+```sh
+make memoir-live-fifty-plan
+```
+
+When values are omitted, planning observes the current Git HEAD, finds Codex and
+Temporal on PATH (or the single existing SDK Temporal executable in
+`/tmp/memoir-issue6-temporal`), and hashes those files. It does not install or start
+them, read credentials, or certify those observed values as independently reviewed.
+Explicit values still take precedence. Live execution requires the reviewed
+source and executable pins configured once in your shell (replace the placeholders):
+
+```sh
+export EVAL_SOURCE_REVISION='<reviewed-main-commit>'
+export EVAL_CODEX_BINARY=/absolute/path/to/codex
+export EVAL_CODEX_SHA256='<reviewed-codex-sha256>'
+export EVAL_TEMPORAL_BINARY=/absolute/path/to/temporal
+export EVAL_TEMPORAL_SHA256='<reviewed-temporal-sha256>'
+
+make memoir-live-fifty-plan
+make memoir-live-fifty-test
+```
+
+To run each case independently, choose its ID. Each command creates a fresh
+run, executes that case's complete 50-round conversation in order, and saves
+its own report:
+
+```sh
+make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook
+make memoir-live-fifty-test EVAL_CASE_ID=chengdu-tea-ledger
+make memoir-live-fifty-test EVAL_CASE_ID=perth-workshop-compass
+make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
+make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
+```
+
+The same selector works with `memoir-live-fifty-plan`. Selection preserves the
+original case inputs, locale and all ten checkpoints. The existing single-case
+profile limits apply: 569 client requests and 7,200 seconds globally and for
+the selected case. Omitting `EVAL_CASE_ID` retains the five-case campaign.
+
+The equivalent existing `REVIEWED_MAIN_HEAD`, `REVIEWED_CODEX_BINARY`,
+`REVIEWED_CODEX_SHA256`, `REVIEWED_TEMPORAL_BINARY` and
+`REVIEWED_TEMPORAL_SHA256` environment variables are also accepted. Plan-only
+prints JSON and does not read `.env`, allocate native resources or call a model.
+The live command requires the launcher's clean fetched `main`, source audit,
+Mac resource checks, existing cached `postgres:18.3` image and pinned executables.
+The Make wrapper preserves those checks; changing local code requires the normal
+source review/commit workflow before execution can pass.
+
+For live execution, an existing `ENV_FILE` (default `.env`) is passed privately
+to the launcher's allowlisted provider-config loader. It must satisfy that
+loader's existing owner and 0400/0600 permission requirements. If the file is
+absent, the launcher uses the inherited provider configuration. The existing
+gateway route remains `http://192.168.66.1:4000/v1`; no Supabase endpoint is used.
+Node.js is required to render the saved report.
+
+Each invocation chooses a fresh UUID and an external evidence directory under
+`~/memoir-test-results/<run-id>`, printed before execution. Set
+`EVAL_RUN_ID` and `EVAL_RUN_DIR` for explicit identities, or set
+`EVAL_OUTPUT_ROOT` to an absolute location outside the checkout for durable
+storage. The directory must be fresh. For the five-case campaign, the four
+`EVAL_MAX_*` Make variables default to the global 3,000-request/36,000-second and
+per-case 600-request/7,200-second ceilings; selecting one case uses the smaller
+single-case bounds above. Smaller bounds may be supplied. The collector timeout is 180 seconds.
+These count client HTTP attempts, including background roles and continuations;
+250 conversation rounds are not necessarily 250 provider calls.
+
+Once native execution has created a receipt, the Make target renders
+`report.md` even if the run is incomplete, while preserving the launcher's
+failure exit status. Inspect these files after the database is removed:
+
+- `report.md`: per-case status, completed round counts, checkpoints, project IDs,
+  failure evidence, saved skill coverage and every retained checkpoint's draft text.
+- `receipt.json`: full saved round/canonical readbacks, checkpoint draft objects,
+  request accounting and native cleanup evidence. Partial progress survives failure.
+- `plan.json`: case/owner/project bindings, source revision and limits.
+- `journal/<run-id>.jsonl`: durable client-request reservations and settlement.
+
+To regenerate the readable report without making LLM calls:
+
+```sh
+make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/saved-run
+```
+
+Open the resulting `report.md` in Codex or a Markdown viewer. The report shows
+execution completion separately from semantic acceptance, which still requires
+human review. The raw JSON retains source references and structured evidence for
+closer inspection. Default runs do not produce browser screenshots; those
+require the optional isolated browser configuration below. Project IDs belong
+to the disposable database and cannot be reopened through the normal app UI
+after cleanup. The saved report is a review artifact, not a restored project.
+
 ## Approved bounds and original inputs
 
 The campaign uses exactly the original ordered `memoir-five-case/1` inputs:

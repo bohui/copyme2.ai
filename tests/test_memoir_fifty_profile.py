@@ -2,6 +2,7 @@
 from copy import deepcopy
 import hashlib
 from pathlib import Path
+import sys
 from uuid import uuid4
 
 import pytest
@@ -12,7 +13,7 @@ FIFTY = 'subscription_fifty'
 
 
 def plan(**changes):
-    binary = Path('/bin/true').resolve()
+    binary = Path(sys.executable).resolve()
     digest = hashlib.sha256(binary.read_bytes()).hexdigest()
     args = dict(run_id=str(uuid4()), source_revision='a' * 40,
         codex_binary=binary, codex_sha256=digest, temporal_binary=binary, temporal_sha256=digest,
@@ -111,7 +112,7 @@ def test_fifty_plan_only_never_reads_provider_env_or_allocates(tmp_path, monkeyp
 
 
 def test_public_photo_profile_requires_explicit_existing_interpreter_pin():
-    binary = Path('/bin/true').resolve()
+    binary = Path(sys.executable).resolve()
     digest = hashlib.sha256(binary.read_bytes()).hexdigest()
     with pytest.raises(ValueError):
         plan(enable_public_photo_research=True)
