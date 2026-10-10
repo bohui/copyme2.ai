@@ -482,10 +482,7 @@ async def native_resources(plan, run, directory, receipt):
             raise RuntimeError('Owned native cleanup incomplete') from None
 
 
-async def execute_native(plan, directory, api_key):
-    from scripts.issue14_subscription_transport import SubscriptionLimits, SubscriptionRun, SubscriptionTransport
-    from scripts.issue14_subscription_session import OwnedSubscriptionSession
-    from scripts.issue14_subscription_runner import SubscriptionProgressiveRunner
+def validate_native_plan(plan):
     from scripts.memoir_subscription_profiles import profile_for
     profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
     # Rebuild the full plan before any resource or output allocation. An edited
@@ -505,6 +502,15 @@ async def execute_native(plan, directory, api_key):
         enable_browser_readback='browser_readback' in plan, browser_config=plan.get('browser_readback'))
     if plan != validated:
         raise ValueError('Exact freshly validated evaluation plan required')
+
+
+async def execute_native(plan, directory, api_key):
+    from scripts.issue14_subscription_transport import SubscriptionLimits, SubscriptionRun, SubscriptionTransport
+    from scripts.issue14_subscription_session import OwnedSubscriptionSession
+    from scripts.issue14_subscription_runner import SubscriptionProgressiveRunner
+    from scripts.memoir_subscription_profiles import profile_for
+    profile = profile_for(plan.get('evaluation_profile', 'subscription_progressive'))
+    validate_native_plan(plan)
     verify_main_source(plan['source_revision'])
     if 'single_collector_observation' in plan:
         from scripts.single_collector_observation import execute

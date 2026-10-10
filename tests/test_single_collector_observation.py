@@ -202,13 +202,11 @@ def test_real_worker_boundary_four_requests_and_stream_failures_stop_once(tmp_pa
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize('outcome',['complete','execution_limit','cleanup_limit','close_failure','cancelled','external_cancel','setup_failure'])
-def test_executor_has_one_300_second_execution_and_one_60_second_cleanup_window(tmp_path,monkeypatch,outcome):
+@pytest.mark.parametrize('outcome',['complete','close_failure','cancelled','setup_failure','worker_timeout'])
+def test_child_seals_terminal_failure_and_accounting_before_cleanup(tmp_path,monkeypatch,outcome):
     from scripts import single_collector_observation as mode
     async def scenario():
-        p=plan();counts=[];waits=[];started=asyncio.Event();closing=asyncio.Event()
-        monkeypatch.setattr(launcher,'verify_main_source',lambda revision:counts.append('main_verified'))
-        monkeypatch.setattr(budget,'time',SimpleNamespace(monotonic=lambda:100.0))
+        p=plan();counts=[];directory=tmp_path/'run';directory.mkdir()
         @asynccontextmanager
         async def native(*args):
             receipt=args[-1];receipt['native']={'cleanup_complete':False}
@@ -219,51 +217,62 @@ def test_executor_has_one_300_second_execution_and_one_60_second_cleanup_window(
             finally:counts.append('resources_closed');receipt['native']['cleanup_complete']=True
         class Owner:
             async def close(self):
-                counts.append('session_closed');closing.set()
-                if outcome=='cleanup_limit':await asyncio.Event().wait()
+                counts.append('session_closed')
+                sealed=json.loads((directory/'receipt.json').read_text())
+                assert sealed['request_accounting']['client_requests_started']==0
+                assert 59<sealed['cleanup_deadline_monotonic']-asyncio.get_running_loop().time()<=60
+                if outcome=='cancelled':
+                    assert sealed['status']=='incomplete' and sealed['cancelled'] is True
+                    assert sealed['observation']['outcome']=='cancelled'
                 if outcome=='close_failure':raise RuntimeError('SYNTHETIC_PRIVATE_ERROR')
-            def worker_receipts(self):return []
+            def worker_receipts(self):
+                return [{'worker_deadline_expired':True}] if outcome=='worker_timeout' else []
         async def create(**kwargs):
             counts.append('session');assert kwargs['single_collector_observation'] is True
             assert kwargs['collector_timeout_seconds']==180
             return Owner()
         async def observe(owner):
-            counts.append('collector');started.set()
-            if outcome in {'execution_limit','external_cancel'}:await asyncio.Event().wait()
+            counts.append('collector')
             if outcome=='cancelled':raise asyncio.CancelledError()
+            if outcome=='worker_timeout':raise TimeoutError('SYNTHETIC_PRIVATE_ERROR')
             return {'outcome':'collector_completed','campaign_acceptance':False}
-        real_wait=asyncio.wait
-        async def wait(tasks,*,timeout,**kwargs):
-            waits.append(timeout)
-            if outcome=='execution_limit' and len(waits)==1:
-                await started.wait();return set(),set(tasks)
-            if outcome=='external_cancel' and len(waits)==1:
-                await started.wait();raise asyncio.CancelledError()
-            if outcome=='cleanup_limit' and len(waits)==2:
-                await closing.wait();return set(),set(tasks)
-            return await real_wait(tasks,timeout=.1,**kwargs)
         monkeypatch.setattr(launcher,'native_resources',native)
         monkeypatch.setattr(sessions.OwnedSubscriptionSession,'create',create)
         monkeypatch.setattr(mode,'observe',observe)
-        monkeypatch.setattr(mode.asyncio,'wait',wait)
-        result=await launcher.execute_native(p,tmp_path/'run','synthetic-token')
-        await asyncio.sleep(0)
-        assert len(waits)==2 and waits[0]==300 and 59<waits[1]<=60
+        result=await mode._execute_child(p,directory,'synthetic-token')
         assert counts.count('collector')<=1 and counts.count('session')<=1
-        assert counts[0]=='main_verified' and counts.count('main_verified')==1
         assert counts.count('resources_closed')==1
+        assert result['request_accounting']['limits']=={'max_requests':4,'max_elapsed_seconds':300}
         assert result['request_accounting']['client_requests_started']==0
         assert result['request_accounting']['closed'] is True
         assert result['cumulative_accounting']=={'charged':35,'unresolved':2,'prior_charged':35,'prior_unresolved':2}
         assert result['scope']['semantic_acceptance'] is False
         if outcome=='complete':assert result['observation']['outcome']=='collector_completed' and result['cleanup_complete']
-        if outcome=='execution_limit':assert result['observation']['outcome']=='limit_guard'
-        if outcome=='cleanup_limit':assert result['status']=='incomplete' and result['cleanup_limit_reached']
         if outcome=='close_failure':assert result['status']=='incomplete' and result['cleanup_complete'] is False
         if outcome=='setup_failure':assert result['observation']['outcome']=='setup_failed'
-        if outcome=='external_cancel':assert result['status']=='incomplete' and result['cancelled']
+        if outcome=='worker_timeout':assert result['observation']['outcome']=='worker_timeout'
+        if outcome=='cancelled':
+            assert result['status']=='incomplete' and result['cancelled'] is True
+            assert result['observation']['outcome']=='cancelled'
         assert 'SYNTHETIC_PRIVATE_ERROR' not in json.dumps(result)
     asyncio.run(scenario())
+
+
+def test_public_mode_uses_only_one_owned_child_with_fixed_budgets(tmp_path,monkeypatch):
+    from scripts import single_collector_observation as mode
+    seen=[]
+    async def supervised(command,payload,directory,**kwargs):
+        assert kwargs=={}  # Production defaults are exactly 300/60/5.
+        assert command[1:]==['-B','-m','scripts.single_collector_observation','--owned-child']
+        assert 'synthetic-private-token' not in ' '.join(command)
+        assert payload['api_key']=='synthetic-private-token' and payload['plan']==plan_value
+        assert json.loads((directory/'plan.json').read_text())==plan_value
+        seen.append(command)
+        return {'status':'incomplete','cancelled':True}
+    plan_value=plan()
+    monkeypatch.setattr(mode,'_supervise',supervised)
+    result=asyncio.run(mode.execute(plan_value,tmp_path/'run','synthetic-private-token'))
+    assert len(seen)==1 and result=={'status':'incomplete','cancelled':True}
 
 
 @pytest.mark.parametrize('branch,remote',[('codex/unmerged','a'*40),('main','b'*40),('HEAD','a'*40)])

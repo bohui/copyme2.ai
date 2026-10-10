@@ -55,6 +55,23 @@ Cleanup failures retain uncertainty and never authorize a replay. Independently
 verify owned process/container absence and lease release before treating cleanup
 as established. The parent's already approved observation is one attempt only.
 
+The CLI keeps its existing exclusive native lease while supervising one owned
+Python process. That child rechecks main, the saved plan, V6 and its parent's
+held lease before native allocation. Its private stdin carries the credential;
+the command line and receipt contain no credential. Cancellation is sealed as
+an incomplete outcome before cleanup. A terminal receipt records accounting and
+worker diagnostics before session/native teardown can block.
+
+The supervisor never joins a cancellation-suppressing setup thread in its own
+process. It sends one cooperative stop at cancellation or the execution limit.
+The same single cleanup deadline applies after repeated cancellations. Five
+seconds of that 60-second window are reserved to kill and reap the owned Python
+process group if cooperative teardown hangs. It reads the final receipt only
+after that writer exits. A forced stop is incomplete and does not prove native
+container removal, independently spawned native process absence, or upstream
+cancellation. Those remaining resources require the parent's owned cleanup
+verification before any later run; a hard stop grants no replay authority.
+
 After merge, use the parent's verified main revision, fresh run UUID/output
 directory, existing reviewed executable pins and existing subscription credential
 source. Do not print the credential or environment. The native invocation is:
