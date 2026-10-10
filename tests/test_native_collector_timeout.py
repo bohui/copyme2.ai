@@ -184,6 +184,7 @@ def test_execute_passes_validated_180_to_native_session_constructor(tmp_path, mo
     from scripts import issue14_subscription_runner as runners
     value = plan(collector_timeout_seconds=180)
     seen = []
+    monkeypatch.setattr(launcher, 'verify_main_source', lambda revision: None)
     @asynccontextmanager
     async def fake_resources(*args):
         yield {}

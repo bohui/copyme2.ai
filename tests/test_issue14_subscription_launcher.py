@@ -239,6 +239,7 @@ def test_native_artifact_limit_drift_prevents_probe(monkeypatch):
 
 
 def test_native_teardown_failure_invalidates_completed_evaluation(tmp_path,monkeypatch):
+    monkeypatch.setattr(module,'verify_main_source',lambda revision:None)
     import asyncio
     from contextlib import asynccontextmanager
     from types import SimpleNamespace
@@ -352,7 +353,10 @@ def test_memory_waiver_is_explicit_memoir_only_and_keeps_default_gate(monkeypatc
         launcher.memory_resource_check(waived=1)
 
 
-def test_explicit_memory_waiver_still_enters_owned_lease(monkeypatch, tmp_path):
+@pytest.mark.parametrize('branch,remote,status,expected',[
+    ('main','a'*40,'completed',0),('codex/unmerged','a'*40,'completed',3),
+    ('main','b'*40,'completed',3),('main','a'*40,'incomplete',3)])
+def test_explicit_memory_waiver_still_enters_owned_lease(monkeypatch, tmp_path, branch, remote, status, expected):
     from contextlib import contextmanager
     import scripts.run_issue14_subscription_evaluation as launcher
     import scripts.native_canary_launcher as native
@@ -366,14 +370,21 @@ def test_explicit_memory_waiver_still_enters_owned_lease(monkeypatch, tmp_path):
         yield
         events.append('lease_exit')
     async def execute(plan, directory, key):
-        assert events==['lease_enter'] and key=='synthetic-only'
+        assert events==['source_verified','credential','lease_enter'] and key=='synthetic-only'
         events.append('execute')
-        return {'run_id':plan['run_id'],'status':'completed'}
+        return {'run_id':plan['run_id'],'status':status,'cancelled':status=='incomplete'}
     monkeypatch.setattr(launcher, 'build_plan', plan)
-    monkeypatch.setattr(launcher, 'verify_source', lambda _revision: None)
+    monkeypatch.setattr(launcher, 'git_read', lambda *args: branch if args[0]=='symbolic-ref' else remote)
+    def verify(revision):
+        assert revision=='a'*40
+        events.append('source_verified')
+    monkeypatch.setattr(launcher, 'verify_source', verify)
     monkeypatch.setattr(launcher.sys, 'platform', 'darwin')
     monkeypatch.setattr(launcher.subprocess, 'run', lambda *args, **kwargs: None)
-    monkeypatch.setattr(launcher, 'configured_credential', lambda: 'synthetic-only')
+    def credential():
+        events.append('credential')
+        return 'synthetic-only'
+    monkeypatch.setattr(launcher, 'configured_credential', credential)
     monkeypatch.setattr(launcher, 'execute_native', execute)
     monkeypatch.setattr(native, 'native_resource_lease', lease)
     def blocked(): raise AssertionError('Waived pressure check was used')
@@ -384,4 +395,6 @@ def test_explicit_memory_waiver_still_enters_owned_lease(monkeypatch, tmp_path):
         '--temporal-binary','/synthetic/temporal','--temporal-sha256','c'*64,
         '--max-client-requests','160','--max-elapsed-seconds','1800',
         '--waive-memory-pressure-check','--execute-existing-subscription'])
-    assert result==0 and events==['lease_enter','execute','lease_exit']
+    assert result==expected
+    valid=branch=='main' and remote=='a'*40
+    assert events==(['source_verified','credential','lease_enter','execute','lease_exit'] if valid else [])
