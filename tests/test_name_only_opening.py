@@ -17,7 +17,10 @@ class Storage(ProjectStorage):
         self.data = profile or {}
 
     def profile(self): return deepcopy(self.data)
-    def save_profile(self, profile): self.data = deepcopy(profile)
+    def save_profile(self, profile, *, source_sequences=None):
+        self.data = deepcopy(profile)
+        if source_sequences is not None:
+            self.data['_agent_source_sequences'] = deepcopy(source_sequences)
     def interview_context(self, project): return {}
     def memory_events(self, project): return {'sources': [], 'events': []}
     def narrator_source_by_turn(self, *args): return deepcopy(self.turn['source'])
@@ -135,14 +138,111 @@ def test_retry_reuses_saved_work_plan_without_model_or_workspace(monkeypatch, tm
     assert again['cached'] and storage.rounds == 1 and len(calls) == 1
 
 
+def test_delayed_extraction_cannot_overwrite_new_preferred_name(monkeypatch, tmp_path):
+    monkeypatch.delenv('MEMORY_SPARK_TASK_DB', raising=False)
+    storage = Storage({'name': '旧名字', 'preferred_language': 'zh-CN',
+        '_agent_source_sequences': {'name': 3}})
+    runtime, _ = harness(monkeypatch, tmp_path, storage, proposal(), 'worker')
+    monkeypatch.setattr(runtime, '_next_turn_sequence', lambda user_id: 2)
+    commit = storage.commit_agent_turn
+
+    def commit_with_durable_sequence(*args, **kwargs):
+        memory = commit(*args, **kwargs)
+        memory['source_sequence'] = 20
+        return memory
+
+    monkeypatch.setattr(storage, 'commit_agent_turn', commit_with_durable_sequence)
+
+    async def run():
+        extracting, finish = asyncio.Event(), asyncio.Event()
+
+        async def delayed_extraction():
+            extracting.set()
+            await finish.wait()
+            return '[[MEMORY_SPARK_PROFILE]]\n{"name":"旧名字","childhood_place":"开封"}\n[[/MEMORY_SPARK_PROFILE]]'
+
+        extraction = asyncio.create_task(delayed_extraction())
+        workspace = asyncio.create_task(runtime._persist_workspace(
+            storage=storage, user_id=storage.user_id, project_id='project',
+            family_enabled=False, existing_family_context=None,
+            current_place_journey=None, parsed_place_journey=None,
+            parsed_family_context=None, family_skills=[], profile=storage.profile(),
+            profile_updates=None, task_requests=[], memories=[], text='我叫旧名字，小时候住在开封。',
+            language='zh-CN', turn_sequence=10, deferred_artifacts=[],
+            deferred_artifacts_task=None, deferred_home=None, memory={},
+            legacy_markers=False, turn_id='delayed', on_event=None,
+            trajectory=None, extraction_task=extraction))
+        try:
+            await extracting.wait()
+            result = await runtime.turn(storage, '我叫韩凤江', project_id='project',
+                client_turn_id=str(uuid4()))
+            assert result['source_sequence'] == 20
+            finish.set()
+            delayed = await workspace
+            assert storage.data['name'] == '韩凤江'
+            assert storage.data['childhood_place'] == '开封'
+            assert storage.data['_agent_source_sequences']['name'] == 20
+            assert delayed['profile_updates'] == {'childhood_place': '开封'}
+        finally:
+            finish.set()
+            await asyncio.gather(workspace, extraction, return_exceptions=True)
+
+    asyncio.run(run())
+
+
+def test_cached_retry_restores_name_after_profile_save_failure(monkeypatch, tmp_path):
+    storage = Storage({'name': '旧名字', 'preferred_language': 'zh-CN'})
+    runtime, calls = harness(monkeypatch, tmp_path, storage, proposal(), 'worker')
+    turn = str(uuid4())
+    save_profile = storage.save_profile
+    fail_once = True
+
+    def interrupted_save(profile, **kwargs):
+        nonlocal fail_once
+        if kwargs.get('source_sequences') and fail_once:
+            fail_once = False
+            raise OSError('controlled profile save failure')
+        save_profile(profile, **kwargs)
+
+    monkeypatch.setattr(storage, 'save_profile', interrupted_save)
+    with pytest.raises(OSError, match='controlled profile save failure'):
+        asyncio.run(runtime.turn(storage, '我叫韩凤江', project_id='project', client_turn_id=turn))
+    assert storage.memory and storage.data['name'] == '旧名字'
+    result = asyncio.run(runtime.turn(storage, '我叫韩凤江', project_id='project', client_turn_id=turn))
+    assert result['cached'] and len(calls) == 1 and storage.rounds == 1
+    assert storage.data['name'] == '韩凤江'
+    assert storage.data['_agent_source_sequences']['name'] == storage.memory['source_sequence']
+    assert result['profile_updates'] == {'name': '韩凤江'}
+    runtime._run_workspace_job.assert_not_called()
+
+
+def test_cached_retry_preserves_a_later_preferred_name(monkeypatch, tmp_path):
+    storage = Storage()
+    runtime, calls = harness(monkeypatch, tmp_path, storage, proposal(), 'worker')
+    turn = str(uuid4())
+    asyncio.run(runtime.turn(storage, '我叫韩凤江', project_id='project', client_turn_id=turn))
+    storage.data['name'] = '凤江'
+    storage.data['_agent_source_sequences']['name'] = storage.memory['source_sequence'] + 1
+    save_profile = storage.save_profile
+    monkeypatch.setattr(storage, 'save_profile', lambda *args, **kwargs:
+        pytest.fail('An older cached turn must not write the profile'))
+    result = asyncio.run(runtime.turn(storage, '我叫韩凤江', project_id='project', client_turn_id=turn))
+    assert result['cached'] and len(calls) == 1 and storage.data['name'] == '凤江'
+    assert 'profile_updates' not in result
+    monkeypatch.setattr(storage, 'save_profile', save_profile)
+
+
 def test_returning_simple_reply_uses_same_harness_and_continues_current_memory(monkeypatch, tmp_path):
     storage = Storage({'name': '韩凤江', 'preferred_language': 'zh-CN'})
     storage.memories = lambda: [{'id': 'earlier', 'kind': 'agent',
         'content': 'Storyteller: 我记得小时候的花园。\nMemory Spark: 花园里有什么？'}]
     response = proposal(name=None, question='您还记得花园里的什么？')
+    response['plan']['candidates'].append({**response['plan']['candidates'][0],
+        'id': 'garden-people', 'question': '当时是谁陪您在花园里玩？', 'order': 1})
     runtime, calls = harness(monkeypatch, tmp_path, storage, response, 'worker')
     result = asyncio.run(runtime.turn(storage, '想不起来了', project_id='project', client_turn_id=str(uuid4()), on_delta=AsyncMock()))
     assert len(calls) == 1 and calls[0]['interview_context']['opening_turn'] is False
     assert '花园' in result['reply'] and '最早' not in result['reply']
     assert storage.data['name'] == '韩凤江'
+    assert len(storage.saved_plan['candidates']) == 2
     runtime._run_workspace_job.assert_not_called()

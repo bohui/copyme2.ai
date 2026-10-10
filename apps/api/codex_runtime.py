@@ -1642,9 +1642,17 @@ class CodexRuntime:
                 previous_source = await asyncio.to_thread(storage.narrator_source_by_turn, project_id, client_turn_id)
                 _, previous_reply = visible_exchange(previous_turn, previous_source)
                 saved_interview = await asyncio.to_thread(storage.interview_turn_by_id, project_id, client_turn_id)
+                saved_work = ((saved_interview or {}).get('plan') or {}).get('work') or {}
+                saved_sequence = self._stored_memory_sequence(previous_turn)
+                restored_name = None
+                if saved_work.get('mode') == 'reply_only' and saved_work.get('name') and saved_sequence:
+                    async with self._storage_lease(storage, timeout=5) as lease:
+                        _, restored_name = await self._save_reply_only_name(
+                            storage, lease, saved_work['name'], saved_sequence)
                 entitlement = await asyncio.to_thread(storage.story_entitlement)
                 return {'project_id':project_id,'reply':previous_reply,'conversation_saved':True,'cached':True,
                         **public_interview_fields(saved_interview),
+                        **({'profile_updates': restored_name} if restored_name else {}),
                         'recall_status':await asyncio.to_thread(storage_recall_status,storage,entitlement)}
         correlation = normalise_correlation(evaluation)
         if trajectory is None and (correlation or include_trajectory):
@@ -1989,10 +1997,6 @@ class CodexRuntime:
                 # The model's preferred name is validated against the accepted
                 # narrator source. A minimal introduction needs no extractor.
                 profile_updates = {**(profile_updates or {}), 'name': turn_work['name']}
-                profile = {**profile, 'name': turn_work['name']}
-                await lease.check()
-                await lease.io(storage.save_profile, profile)
-                await lease.check()
 
             # The conversational exchange is the first durable boundary.
             # Workspace extraction and public-reference work below may be
@@ -2026,6 +2030,13 @@ class CodexRuntime:
             if recall_access is not None:
                 recall_access = recall_status(recall_access['rounds_completed'] + int(is_user_round), entitlement)
             turn_sequence = self._stored_memory_sequence(stored) or turn_sequence
+            if reply_only and turn_work.get('name'):
+                # Match delayed extraction's durable per-user ordering, never
+                # the provisional local clock or project interview sequence.
+                profile, accepted_name = await self._save_reply_only_name(
+                    storage, lease, turn_work['name'], turn_sequence)
+                profile_updates = {**{k: v for k, v in (profile_updates or {}).items() if k != 'name'},
+                    **accepted_name} or None
             if trajectory:
                 trajectory.record('application', 'memory.persist', output={
                     'source_path_count': len(paths),
@@ -2649,6 +2660,20 @@ class CodexRuntime:
         merged = merge_profile_updates(current, accepted)
         merged['_agent_source_sequences'] = sequence_map
         return merged, accepted
+
+    async def _save_reply_only_name(self, storage, lease, name, source_sequence):
+        profile = await lease.io(storage.profile)
+        # A retry may arrive after a later name correction. Do not replay an
+        # already applied turn or allow it to replace a newer field value.
+        if int((profile.get('_agent_source_sequences') or {}).get('name') or 0) >= source_sequence:
+            return profile, {}
+        profile, accepted = self._merge_profile_updates_if_newer(
+            profile, {'name': name}, source_sequence)
+        profile_to_save = dict(profile)
+        source_sequences = profile_to_save.pop('_agent_source_sequences')
+        await lease.io(storage.save_profile, profile_to_save, source_sequences=source_sequences)
+        await lease.check()
+        return profile, accepted
 
     async def _persist_workspace(self, *, storage, user_id, project_id,
                                  family_enabled, existing_family_context,

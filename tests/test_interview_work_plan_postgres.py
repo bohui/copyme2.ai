@@ -3,7 +3,7 @@ import pytest
 
 from test_interview_photos_postgres import (
     database, attachment_database, private_database, event_database, sql,
-    rpc, literal, accept, as_user, OLD, TURN, upload,
+    rpc, literal, accept, as_user, OWNER, OLD, TURN, upload,
 )
 
 
@@ -49,3 +49,22 @@ def test_reply_only_cannot_discard_an_accepted_photo(sql):
     accept(sql, '我叫韩凤江', photos=[photo['id']])
     assert save(sql, plan(), check=False).returncode != 0
     assert rpc(sql, 'read_user_interview_turn', f"'project','{TURN}'")['reply'] is None
+
+
+def test_returning_user_can_save_multiple_candidates_on_first_project_turn(sql):
+    from apps.api.interview_plan import validate_collector_result
+    from test_name_only_opening import proposal
+
+    previous = 'Storyteller: 我记得小时候的花园。\nMemory Spark: 花园里有什么？'
+    sql(f"insert into public.user_memory(user_id,kind,content) values "
+        f"('{OWNER}','agent',{literal(previous)});")
+    turn = accept(sql, '想不起来了')
+    assert turn['sequence'] == 1
+    response = proposal(name=None, question='您还记得花园里的什么？')
+    response['plan']['candidates'].append({**response['plan']['candidates'][0],
+        'id': 'garden-people', 'question': '当时是谁陪您在花园里玩？', 'order': 1})
+    validated = validate_collector_result(response, {'source': turn['source'],
+        'events': [], 'photo_context': [], 'opening_turn': False})
+    saved = save(sql, validated['plan'])
+    assert saved['plan'] == validated['plan']
+    assert len(saved['plan']['candidates']) == 2

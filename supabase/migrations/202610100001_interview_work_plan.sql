@@ -45,8 +45,10 @@ begin
       length(coalesce(p_plan->'work'->>'name',''))>120 then
       raise exception 'invalid interview work plan' using errcode='22023'; end if;
     if p_plan->'work'->>'mode'='reply_only' then
+      -- Prior narrator history determines opening_turn in collector validation.
+      -- A project's first turn can belong to a returning storyteller.
       if jsonb_array_length(p_associations)>0 or jsonb_array_length(p_response_photo_ids)>0 or
-        jsonb_array_length(turn.photo_context)>0 or (turn.sequence=1 and jsonb_array_length(p_plan->'candidates')>1) then
+        jsonb_array_length(turn.photo_context)>0 then
         raise exception 'reply-only work cannot discard accepted photo context' using errcode='22023'; end if;
       if p_plan->'work'->>'name' is not null then
         select * into current_source from public.user_narrator_source where user_id=v_owner and project_id=p_project_id
