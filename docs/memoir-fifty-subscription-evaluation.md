@@ -52,7 +52,7 @@ the account's actual entitlement and their availability is recorded in the
 report. Restart the normal API configuration to remove the evaluation allowance.
 
 Each round submits the original text once with a fresh client turn UUID to
-`/api/v1/agent/turn`, rejects cached/empty/failed delivery, then waits for canonical
+`/api/v1/memoir/agent/turn`, rejects cached/empty/failed delivery, then waits for canonical
 source extraction. At each five-round checkpoint it also waits for the saved
 manuscript before continuing. The final authenticated project recovery route is
 checked for UI reopening. Failed submissions are never automatically repeated;

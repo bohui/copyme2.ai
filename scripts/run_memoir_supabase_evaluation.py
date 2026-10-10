@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from apps.api.namespaces import memoir_url
 from scripts.memoir_fifty_readback import CASE_IDS, CHECKPOINTS, DATASET_SHA256, FiftyReadback, case_plans_for_run
 from scripts.issue14_subscription_runner import _canonical_state, _saved_checkpoint, _readback_call
 from scripts.run_issue14_subscription_evaluation import local_checkout_snapshot, verify_execution_source
@@ -236,7 +237,7 @@ class SupabaseAccount:
 
 
 async def backend(requests, account, plan, method, path, **kwargs):
-    return await requests.json(method, plan['api_base'] + '/api' + path,
+    return await requests.json(method, plan['api_base'] + memoir_url(path),
         headers=await account.headers(), **kwargs)
 
 

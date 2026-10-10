@@ -17,6 +17,33 @@ SETTINGS = {'SUPABASE_URL': 'https://supabase.example',
             'SUPABASE_PUBLISHABLE_KEY': 'public-key', 'SUPABASE_SECRET_KEY': 'admin-secret'}
 
 
+def test_preflight_reaches_real_backend_routes_without_model_calls(monkeypatch):
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+    from apps.api.story_payments import LocalStoryEntitlementStore
+    from test_recall import RecallStorage
+
+    for name, value in SETTINGS.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS', '250')
+    monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE', '5')
+    storage = RecallStorage()
+    memory = MemoryStore()
+    app = create_app(memory, story_storage_factory=lambda authorization: storage,
+                     story_entitlement_store=LocalStoryEntitlementStore(memory))
+    plan = {'api_base': 'http://backend.example', 'case_ids': list(module.CASE_IDS)}
+
+    async def check():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app)) as client:
+            account = module.SupabaseAccount(module.Requests(client, 5, 10), **{
+                'url': SETTINGS['SUPABASE_URL'], 'public_key': 'public-key', 'secret_key': 'admin-secret'},
+                user={'id': storage.user_id}, access_token='user-token', expires_at=float('inf'))
+            result = await module.preflight(account, plan)
+            assert result['backend_auth_mode'] == 'supabase'
+            assert result['recall_status']['free_rounds'] == 250
+    asyncio.run(check())
+
+
 class Remote:
     def __init__(self, plan):
         self.plan = plan
@@ -63,13 +90,13 @@ class Remote:
         else:
             assert request.headers['Authorization'] == 'Bearer user-token'
             assert request.headers['apikey'] == 'public-key'
-            if path == '/api/v1/agent/config':
+            if path == '/api/v1/memoir/agent/config':
                 result = {'auth_mode': 'supabase', 'supabase_url': SETTINGS['SUPABASE_URL'],
                           'private_draft_cadence': 5}
-            elif path == '/api/v1/story/state':
+            elif path == '/api/v1/memoir/story/state':
                 result = {'user_id': OWNER, 'is_anonymous': False, 'family_features_enabled': False,
                           'recall_status': {'paid': False, 'rounds_completed': 0, 'free_rounds': 250}}
-            elif path == '/api/v1/agent/turn':
+            elif path == '/api/v1/memoir/agent/turn':
                 self.submitted.append(payload)
                 if len(self.submitted) == self.fail_round:
                     return httpx.Response(502, json={'error': 'never retain arbitrary-secret'})
@@ -91,7 +118,7 @@ class Remote:
                 result = storage.saved_memoir_draft(payload['p_project_id'], payload['p_locale'])
                 if self.draft_failed:
                     result['status'] = 'failed'
-            elif path.startswith('/api/v1/projects/'):
+            elif path.startswith('/api/v1/memoir/projects/'):
                 project = path.rsplit('/', 1)[1]
                 self.recovered.append(project)
                 result = {'id': project, 'requires_supabase_auth': True}
