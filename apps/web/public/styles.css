@@ -573,7 +573,8 @@ h3 { line-height: 1.1; }
 .chat-bubble { max-width: min(680px, 100%); padding: 10px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .user-message { padding-left: 12%; }
 .user-message .chat-bubble { max-width: min(680px, 88%); padding: 11px 15px; border: 0; border-radius: 20px 20px 6px 20px; background: var(--ink); color: var(--white); }
-.assistant-message .chat-bubble { max-width: 680px; }
+.assistant-message .chat-bubble { width: 100%; max-width: 680px; min-width: 0; }
+.message-meta .listen-button { flex-shrink: 0; white-space: nowrap; }
 .message-meta { margin-bottom: 6px; }
 .message-text { font-size: clamp(15px, 1.05vw, 17px); line-height: 1.55; }
 .chat-scroll { padding: 8px clamp(16px, 3vw, 44px) 24px; }

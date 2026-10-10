@@ -28,11 +28,13 @@ def conversation_page():
         def api(route):
             path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             data = {}
-            if path == '/agent/config': data = {'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase'}
+            if path == '/agent/config': data = {'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase','show_thinking_steps':True}
             elif path in ('/agent/profile','/user/profile'): data = profile
             elif path == '/projects/scroll-project': data = {'id':'scroll-project','revision':1,'profile':profile,'mode':'self','workspace_unlocked':False}
             elif path == '/story/state': data = {'family_features_enabled':False,'recall_status':{'rounds_completed':0,'free_rounds':200,'paid':False,'payment_required':False}}
             elif path == '/user/conversations': data = {'items':[]}
+            elif path == '/user/projects/scroll-project/history':
+                data = {'project_id':'scroll-project', 'policy_epoch':'1', 'items':[], 'next_cursor':None}
             elif path == '/projects/scroll-project/journey': data = {'active_session':None}
             elif path == '/agent/place-journey': data = {'place_journey':None}
             elif path.endswith('/memory-sessions'): return route.fulfill(status=403,content_type='application/json',body='{}')
@@ -83,6 +85,36 @@ def screenshot(page, name):
 
 def expect_bottom(page):
     page.wait_for_function("(()=>{const e=document.querySelector('#chat-scroll');return e.scrollHeight-e.scrollTop-e.clientHeight<3})()")
+
+
+def test_read_aloud_headers_align_for_short_and_long_replies(conversation_page):
+    page = conversation_page
+    for width, height in [(390, 844), (1440, 1000)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        for label in ['◖ 朗读 · AI 语音', '◖ Listen · AI voice']:
+            page.evaluate("""label => {
+              const bubbles = [...document.querySelectorAll('.assistant-message .chat-bubble')];
+              bubbles.forEach((bubble, index) => {
+                bubble.querySelector('.message-text').textContent = index % 2
+                  ? '韩凤江，很高兴认识您。您最早记得的一段往事是什么？'
+                  : 'A longer memory of the childhood garden and the people who lived nearby. '.repeat(6);
+                bubble.querySelector('.listen-button').textContent = label;
+              });
+            }""", label)
+            boxes = page.locator('.assistant-message .chat-bubble').evaluate_all("""bubbles => bubbles.map(b => {
+              const header = b.querySelector('.message-meta').getBoundingClientRect();
+              const button = b.querySelector('.listen-button').getBoundingClientRect();
+              const name = b.querySelector('.message-label').getBoundingClientRect();
+              return {right: button.right, headerRight: header.right, nameRight: name.right,
+                left: button.left, center: button.y + button.height / 2,
+                nameCenter: name.y + name.height / 2};
+            })""")
+            assert len(boxes) > 1
+            assert max(b['right'] for b in boxes) - min(b['right'] for b in boxes) < 1
+            assert all(abs(b['right'] - b['headerRight']) < 1 for b in boxes)
+            assert all(b['left'] > b['nameRight'] for b in boxes)
+            assert all(abs(b['center'] - b['nameCenter']) < 1 for b in boxes)
+        screenshot(page, f'read-aloud-aligned-{width}')
 
 
 def test_viewport_resize_and_multiline_composer(conversation_page):
