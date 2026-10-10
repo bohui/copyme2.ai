@@ -112,7 +112,14 @@ class _ArmedRuntime:
         except BaseException as error:
             arm['state'] = 'failed'
             if not arm['future'].done():
-                arm['future'].set_result({'ok': False})
+                cause = None
+                try:
+                    readback = getattr(api._session, 'worker_failure_for', None)
+                    if callable(readback):
+                        cause = readback(arm['correlation'])
+                except Exception:
+                    pass
+                arm['future'].set_result({'ok': False, 'worker_failure': cause})
             if isinstance(error, asyncio.CancelledError):
                 raise
             # The production JSON handler formats RuntimeError text; never let
@@ -131,6 +138,13 @@ class _Entitlements:
         if owner != self.api._plans[self.case]['owner_id']:
             raise ValueError('Synthetic owner mismatch')
         return deepcopy(self.api._facades[self.case].entitlement)
+
+
+class OwnedBrowserTurnFailed(ValueError):
+    """Generic browser failure with a private, owned diagnostic sidecar."""
+    def __init__(self, worker_failure=None):
+        super().__init__('Owned browser turn failed')
+        self.worker_failure = deepcopy(worker_failure)
 
 
 class OwnedFiftyBrowserAPI:
@@ -454,14 +468,20 @@ class OwnedFiftyBrowserAPI:
         self._client_turn_ids.add(client_id)
 
     async def wait_turn(self, case, ordinal):
-        self._check()
         arm = self._armed
         if not arm or (arm['case_id'], arm['ordinal']) != (case, ordinal):
             raise ValueError('No matching owned browser turn')
+        # Failure evidence must remain readable after the shared gate stops.
+        # Completed/pending success still passes every original admission check.
+        if arm['future'].done() and not arm['future'].cancelled():
+            result = arm['future'].result()
+            if not result['ok']:
+                raise OwnedBrowserTurnFailed(result.get('worker_failure'))
+        self._check()
         async with asyncio.timeout(self._session.run.remaining_seconds()):
             result = await asyncio.shield(arm['future'])
         if not result['ok']:
-            raise ValueError('Owned browser turn failed')
+            raise OwnedBrowserTurnFailed(result.get('worker_failure'))
         return result['value']
 
     async def prepare_project(self, case):

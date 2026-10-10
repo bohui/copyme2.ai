@@ -10,9 +10,12 @@ from copy import deepcopy
 from contextvars import ContextVar
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import re
 import socket
+import time
 import weakref
 
 import httpx
@@ -22,6 +25,7 @@ import uvicorn
 from apps.api.agent_storage import UserStorage
 from apps.api.diagnostics import failure_class
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.codex_timeout_policy import WORKER_TIMEOUT, validate_native_collector_timeout
 from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback, case_plans_for_run
 from scripts.issue14_subscription_transport import SubscriptionRun, SubscriptionTransport, MAX_REQUEST_BYTES
@@ -201,22 +205,41 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                 worker = owner._workers[role]
                 owner._dispatch_role = role
                 owner._dispatch_correlation = deepcopy(expected)
+                before = owner.run.snapshot()
                 record = {'case_id': case_id, 'round': ordinal, 'role': role,
                           'phase': payload.composer_phase if role == 'composer' else None,
                           'correlation': deepcopy(expected), 'status': 'started',
-                          'client_requests_before': owner.run.snapshot()['client_requests_started'],
+                          'execution_timeout_seconds': worker._execution_timeout(role, payload.composer_phase),
+                          'started_at_monotonic': time.monotonic(),
+                          'client_requests_before': before['client_requests_started'],
+                          'completed_responses_before': before['completed_http_responses'],
                           'local_client_requests_seen': 0}
                 owner._worker_records.append(record)
+                diagnostic_context = [record, deepcopy(expected), role, None]
+                owner._worker_diagnostic_contexts.append(diagnostic_context)
+                del owner._worker_diagnostic_contexts[:-16]
                 owner._dispatch_record = record
                 try:
                     result = await worker.turn(payload)
                     record['status'] = 'completed'
                 except BaseException as error:
+                    expired = worker.execution_deadline_expired(payload)
                     record.update(status='failed', failure_stage='worker_turn',
-                                  failure_class=failure_class(error))
+                        failure_class=failure_class(error), worker_deadline_expired=expired,
+                        timeout_origin=('worker_execution_deadline' if expired else
+                            'transport_timeout' if isinstance(error, httpx.TimeoutException) else 'unknown_timeout'))
                     raise
                 finally:
-                    record['client_requests_after'] = owner.run.snapshot()['client_requests_started']
+                    progress = worker.execution_progress(payload)
+                    if progress is not None:
+                        record['worker_progress'] = progress
+                        diagnostic_context[3] = deepcopy(progress)
+                    finished = time.monotonic()
+                    after = owner.run.snapshot()
+                    record.update(finished_at_monotonic=finished,
+                        elapsed_ms=max(0, round((finished - record['started_at_monotonic']) * 1000)),
+                        client_requests_after=after['client_requests_started'],
+                        completed_responses_after=after['completed_http_responses'])
                     owner._dispatch_role = None
                     owner._dispatch_correlation = None
                     owner._dispatch_record = None
@@ -249,7 +272,9 @@ class OwnedSubscriptionSession:
     @classmethod
     async def create(cls, *, run, provider_transport, storages, broker, temporal_client,
                      home_root, codex_binary, codex_sha256, api_key,
-                     evaluation_profile='subscription_progressive', entitlement_facades=None):
+                     evaluation_profile='subscription_progressive', entitlement_facades=None,
+                     collector_timeout_seconds=WORKER_TIMEOUT):
+        collector_timeout_seconds = validate_native_collector_timeout(collector_timeout_seconds)
         if (type(run) is not SubscriptionRun or type(provider_transport) is not SubscriptionTransport
                 or provider_transport.run is not run or type(api_key) is not str or not api_key):
             raise ValueError('Explicit owned run, transport and existing credential required')
@@ -310,6 +335,7 @@ class OwnedSubscriptionSession:
         self._dispatch_record = None
         self._job_context = ContextVar('subscription_activity', default=None)
         self._worker_records = []
+        self._worker_diagnostic_contexts = []
         self._server = self._server_task = self._socket = None
         self._workflow = None
         self._workflow_ready = False
@@ -409,7 +435,8 @@ class OwnedSubscriptionSession:
             self._command = tuple(command)
             for role, (model, effort) in _PROFILES.items():
                 worker = CodexWorker(home_root=home / 'workers' / role, command=list(command),
-                    base_url=self._base_url, api_key=api_key, model=model, reasoning_effort=effort)
+                    base_url=self._base_url, api_key=api_key, model=model, reasoning_effort=effort,
+                    timeout=collector_timeout_seconds if role == 'collector' else WORKER_TIMEOUT)
                 worker.legacy_root = None
                 self._workers[role] = worker
             self.runtime = CodexRuntime(home_root=home / 'api', base_url=self._base_url,
@@ -470,6 +497,80 @@ class OwnedSubscriptionSession:
 
     def worker_receipts(self):
         return deepcopy(self._worker_records)
+
+    def worker_failure_for(self, correlation):
+        """Project a bounded timeout cause from owned records, never an error.
+
+        This is diagnostic readback only. The dispatch gate remains stopped,
+        and no receipt or HTTP/browser input can authorize another worker call.
+        """
+        assert_owned_subscription_session(self)
+        if type(correlation) is not dict:
+            return None
+        case, round_id = correlation.get('case_id'), correlation.get('round_id')
+        if (type(case) is not str or case not in self._plans or type(round_id) is not str
+                or not round_id.isascii() or not round_id.isdigit() or len(round_id) > 2):
+            return None
+        ordinal = int(round_id)
+        if not 1 <= ordinal <= self._profile.rounds:
+            return None
+        expected = self.bridge_for_case(case).before_round(case, ordinal)
+        if {k: v for k, v in correlation.items() if k not in ('job_id', 'checkpoint_id')} != expected:
+            return None
+        for record in reversed(self._worker_records[-16:]):
+            if (type(record) is not dict
+                    or record.get('case_id') != case or type(record.get('round')) is not int
+                    or record['round'] != ordinal or type(record.get('role')) is not str
+                    or record['role'] not in _PROFILES
+                    or record.get('status') != 'failed' or record.get('failure_stage') != 'worker_turn'
+                    or record.get('failure_class') != 'timeout'):
+                continue
+            context = next((ctx for ctx in self._worker_diagnostic_contexts
+                if ctx[0] is record), None)
+            if context is None or context[2] != record['role']:
+                continue
+            authorized = context[1]
+            extras = ({'job_id', 'checkpoint_id'} if record['role'] == 'composer' else
+                {'job_id'} if record['role'] == 'author_timeline' else set())
+            if (set(authorized) != set(expected) | extras
+                    or any(authorized.get(k) != v for k, v in expected.items())
+                    or record.get('correlation') != authorized
+                    or correlation != expected and correlation != authorized):
+                continue
+            if extras and (type(authorized.get('job_id')) is not str
+                    or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,256}', authorized['job_id'])):
+                continue
+            if record['role'] == 'composer' and (ordinal not in self._profile.checkpoints
+                    or authorized.get('checkpoint_id') != f'{case}:{ordinal}'):
+                continue
+            origin = record.get('timeout_origin', 'unknown_timeout')
+            expired = record.get('worker_deadline_expired', False)
+            if (type(origin) is not str or origin not in
+                    {'worker_execution_deadline', 'transport_timeout', 'unknown_timeout'}
+                    or type(expired) is not bool or expired != (origin == 'worker_execution_deadline')):
+                continue
+            seconds, elapsed = record.get('execution_timeout_seconds'), record.get('elapsed_ms')
+            counts = [record.get(key) for key in ('client_requests_before', 'client_requests_after',
+                'completed_responses_before', 'completed_responses_after')]
+            if (type(seconds) not in (int, float) or not .001 <= seconds <= 600 or not math.isfinite(seconds)
+                    or type(elapsed) is not int or not 0 <= elapsed < 2**53
+                    or any(type(n) is not int or not 0 <= n < 2**53 for n in counts)):
+                continue
+            started, completed = counts[1] - counts[0], counts[3] - counts[2]
+            if not 0 <= completed <= started:
+                continue
+            progress = record.get('worker_progress')
+            if (len(context) == 4 and context[3] is not None and progress != context[3]
+                    or progress is not None and (len(context) != 4 or progress != context[3])):
+                continue
+            return {'schema_version': 'memoir-worker-failure/1', 'correlation': deepcopy(authorized),
+                'role': record['role'], 'failure_class': 'timeout',
+                'timeout_origin': origin, 'worker_deadline_expired': expired,
+                'execution_timeout_seconds': seconds, 'elapsed_ms': elapsed,
+                'request_accounting': {'started': started, 'completed': completed,
+                    'unresolved': started - completed},
+                **({'worker_progress':deepcopy(progress)} if progress is not None else {})}
+        return None
 
     def bridge_for_case(self, case_id):
         return self._profile.bridge(case_id=case_id, run_id=self.run.run_id,

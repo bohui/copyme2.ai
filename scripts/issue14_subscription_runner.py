@@ -517,66 +517,77 @@ class SubscriptionProgressiveRunner:
                 async with asyncio.timeout(session.run.remaining_seconds()):
                     receipt['execution_stage'] = 'collector_turn'
                     browser = getattr(session, 'browser_readback', None)
-                    if browser is not None and browser.turns_enabled:
-                        record['turn_delivery'] = 'browser_form'
-                        value = await browser.turn(case, ordinal, text)
-                    else:
-                        record['turn_delivery'] = 'direct_api'
-                        value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
-                            language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
-                            evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
-                    receipt['execution_stage'] = 'runtime_readback'
-                    failure_summary = _runtime_failure_summary(value, correlation)
-                    if failure_summary is not None:
-                        record['failure_summary'] = failure_summary
-                    record.update(_readback_call(record, 'runtime', _runtime_readback, value, correlation), status='delivered')
-                    accepted.append(record['accepted_source_id'])
-                    receipt['execution_stage'] = 'background_dispatch'
-                    handles = await dispatch_memoir_lanes_once(session.temporal_client, session.broker,
-                                                             session.task_queue, single_attempt=True)
-                    receipt['execution_stage'] = 'background_settlement'
-                    for handle_index, handle in enumerate(handles):
-                        handle_id = _readback_call(record, 'settlement', _lane_identifier, handle, handle_index)
-                        if handle_id not in partial['workflow_ids']:
-                            partial['workflow_ids'].append(handle_id)
-                        outcome = await handle.result()
-                        _readback_call(record, 'settlement', _lane_outcome, outcome, handle_index)
-                    receipt['execution_stage'] = 'canonical_readback'
-                    view = await _storage_read(storage.memory_events, inputs['project_id'])
-                    _readback_call(record, 'canonical', _canonical_state, view, inputs, accepted)
-                    record['canonical_state'] = deepcopy(view)
-                    draft = None
-                    if ordinal in self._profile.checkpoints:
-                        receipt['execution_stage'] = 'checkpoint_readback'
-                        draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
-                        _readback_call(record, 'checkpoint', _saved_checkpoint, draft, ordinal, inputs['language'])
-                        partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
-                    if self._profile.name == 'subscription_fifty':
-                        from scripts.memoir_fifty_coverage import round_skill_coverage, runtime_family_decision
-                        receipt['execution_stage'] = 'skill_readback'
-                        profile = await _storage_read(storage.profile)
-                        family = await _storage_read(storage.family_context, inputs['project_id'])
-                        journey = await _storage_read(storage.place_journey)
-                        record['planned_family_enabled'] = self._profile.family_enabled_for_round(self._plans[case], ordinal)
-                        record['skill_coverage'] = round_skill_coverage(
-                            project_id=inputs['project_id'], round_number=ordinal,
-                            runtime_result=value, profile=profile, family_context=family,
-                            place_journey=journey, canonical_state=view, saved_draft=draft,
-                            family_enabled=runtime_family_decision(value))
-                    if self._profile.name == 'subscription_fifty' and getattr(session, 'photo_research', None) is not None:
-                        receipt['execution_stage'] = 'photo_research'
-                        record['photo_research'] = await session.photo_research.observe_round(
-                            case_id=case, ordinal=ordinal, runtime_result=value)
-                    # Extraction may create a bookkeeping outbox row. Drain it while
-                    # the same case/round owns the scope; never dispatch a retry.
-                    receipt['execution_stage'] = 'background_drain'
-                    await session.broker.drain_once()
-                    pending = await session.broker.rpc('pending_memoir_lanes', p_limit=100)
-                    _readback_call(record, 'settlement', _pending_lanes, pending)
-                    session.finish_round()
-                    record.update(background_settled=True, status='completed')
-                    receipt['execution_stage'] = 'progress_receipt'
-                    await self._emit(receipt)
+                    try:
+                        if browser is not None and browser.turns_enabled:
+                            record['turn_delivery'] = 'browser_form'
+                            value = await browser.turn(case, ordinal, text)
+                        else:
+                            record['turn_delivery'] = 'direct_api'
+                            value = await session.runtime.turn(storage, text, project_id=inputs['project_id'],
+                                language=inputs['language'], client_turn_id=str(uuid4()), include_trajectory=True,
+                                evaluation=deepcopy(correlation), conversation_text=text, source_kind='narrator_chat')
+                        receipt['execution_stage'] = 'runtime_readback'
+                        failure_summary = _runtime_failure_summary(value, correlation)
+                        if failure_summary is not None:
+                            record['failure_summary'] = failure_summary
+                        record.update(_readback_call(record, 'runtime', _runtime_readback, value, correlation), status='delivered')
+                        accepted.append(record['accepted_source_id'])
+                        receipt['execution_stage'] = 'background_dispatch'
+                        handles = await dispatch_memoir_lanes_once(session.temporal_client, session.broker,
+                                                                 session.task_queue, single_attempt=True)
+                        receipt['execution_stage'] = 'background_settlement'
+                        for handle_index, handle in enumerate(handles):
+                            handle_id = _readback_call(record, 'settlement', _lane_identifier, handle, handle_index)
+                            if handle_id not in partial['workflow_ids']:
+                                partial['workflow_ids'].append(handle_id)
+                            outcome = await handle.result()
+                            _readback_call(record, 'settlement', _lane_outcome, outcome, handle_index)
+                        receipt['execution_stage'] = 'canonical_readback'
+                        view = await _storage_read(storage.memory_events, inputs['project_id'])
+                        _readback_call(record, 'canonical', _canonical_state, view, inputs, accepted)
+                        record['canonical_state'] = deepcopy(view)
+                        draft = None
+                        if ordinal in self._profile.checkpoints:
+                            receipt['execution_stage'] = 'checkpoint_readback'
+                            draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
+                            _readback_call(record, 'checkpoint', _saved_checkpoint, draft, ordinal, inputs['language'])
+                            partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
+                        if self._profile.name == 'subscription_fifty':
+                            from scripts.memoir_fifty_coverage import round_skill_coverage, runtime_family_decision
+                            receipt['execution_stage'] = 'skill_readback'
+                            profile = await _storage_read(storage.profile)
+                            family = await _storage_read(storage.family_context, inputs['project_id'])
+                            journey = await _storage_read(storage.place_journey)
+                            record['planned_family_enabled'] = self._profile.family_enabled_for_round(self._plans[case], ordinal)
+                            record['skill_coverage'] = round_skill_coverage(
+                                project_id=inputs['project_id'], round_number=ordinal,
+                                runtime_result=value, profile=profile, family_context=family,
+                                place_journey=journey, canonical_state=view, saved_draft=draft,
+                                family_enabled=runtime_family_decision(value))
+                        if self._profile.name == 'subscription_fifty' and getattr(session, 'photo_research', None) is not None:
+                            receipt['execution_stage'] = 'photo_research'
+                            record['photo_research'] = await session.photo_research.observe_round(
+                                case_id=case, ordinal=ordinal, runtime_result=value)
+                        # Extraction may create a bookkeeping outbox row. Drain it while
+                        # the same case/round owns the scope; never dispatch a retry.
+                        receipt['execution_stage'] = 'background_drain'
+                        await session.broker.drain_once()
+                        pending = await session.broker.rpc('pending_memoir_lanes', p_limit=100)
+                        _readback_call(record, 'settlement', _pending_lanes, pending)
+                        session.finish_round()
+                        record.update(background_settled=True, status='completed')
+                        receipt['execution_stage'] = 'progress_receipt'
+                        await self._emit(receipt)
+                    except BaseException:
+                        try:
+                            readback = getattr(session, 'worker_failure_for', None)
+                            cause = readback(correlation) if callable(readback) else None
+                            if cause is not None:
+                                record['worker_failure'] = deepcopy(cause)
+                                receipt['worker_failure'] = deepcopy(cause)
+                        except Exception:
+                            pass
+                        raise
             partial['status'] = 'completed'
             partial['workflow_ids'].sort()
             receipt['execution_stage'] = 'case_observation'

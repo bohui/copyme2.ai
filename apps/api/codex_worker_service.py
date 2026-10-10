@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import asyncio
+from contextvars import ContextVar
 import fcntl
 import hashlib
 import hmac
@@ -23,6 +24,8 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
+from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
+from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
     AdmissionDenied, check_issue14_dispatch, issue14_connection_options,
     validate_optional_issue14_admission,
@@ -130,12 +133,14 @@ class CodexWorker:
         configured_timeout = timeout
         if configured_timeout is None:
             try:
-                configured_timeout = float(os.getenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", "120"))
+                configured_timeout = float(os.getenv("MEMORY_SPARK_CODEX_WORKER_TIMEOUT", str(WORKER_TIMEOUT)))
             except ValueError:
-                configured_timeout = 120
+                configured_timeout = WORKER_TIMEOUT
         # Keep explicit sub-second values available to unit tests; deployed
         # values are bounded above and the normal default remains 120s.
-        self.timeout = min(max(float(configured_timeout), 0.001), 240)
+        self.timeout = min(max(float(configured_timeout), 0.001), WORKER_MAX_TIMEOUT)
+        self._deadline_context = ContextVar('worker_execution_deadline', default=None)
+        self._progress_context = ContextVar('worker_execution_progress', default=None)
         self._locks: dict[str, object] = {}
         self._identity_lock = threading.Lock()
         self._identity_file = self.home_root / ".user-ids.json"
@@ -154,6 +159,13 @@ class CodexWorker:
         if agent_role == 'workspace':
             return WORKSPACE_TIMEOUT
         return self.timeout
+
+    def execution_deadline_expired(self, payload):
+        """Read this task's actual timeout context for this exact dispatch."""
+        evidence = self._deadline_context.get()
+        return bool(evidence is not None and evidence[0] is payload
+                    and evidence[2] is asyncio.current_task()
+                    and evidence[1] is not None and evidence[1].expired())
 
     @staticmethod
     def _refresh_collector_thread(payload: WorkerTurnInput) -> bool:
@@ -238,8 +250,13 @@ class CodexWorker:
         ]
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        deadline_payload = payload
+        self._progress_context.set(None)
+        self._deadline_context.set((deadline_payload, None, asyncio.current_task()))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
+        progress = WorkerProgress()
+        self._progress_context.set((deadline_payload, progress, asyncio.current_task()))
         user_id = str(payload.user_id)
         request_id = new_request_id(payload.diagnostic_request_id)
         if payload.diagnostic_request_id != request_id:
@@ -271,7 +288,8 @@ class CodexWorker:
                         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     except BlockingIOError:
                         raise AgentTurnBusyError('Codex worker is busy for this user') from None
-                    async with asyncio.timeout(self._execution_timeout(payload.agent_role, payload.composer_phase)):
+                    async with asyncio.timeout(self._execution_timeout(payload.agent_role, payload.composer_phase)) as execution_deadline:
+                        self._deadline_context.set((deadline_payload, execution_deadline, asyncio.current_task()))
                         options = {}
                         if on_delta:
                             options['on_delta'] = on_delta
@@ -303,6 +321,16 @@ class CodexWorker:
                 elapsed_ms=elapsed_ms(started),
             )
             raise
+
+        finally:
+            progress.close()
+
+    def execution_progress(self, payload):
+        evidence = self._progress_context.get()
+        if (evidence is None or evidence[0] is not payload or evidence[2] is not asyncio.current_task()
+                or type(evidence[1]) is not WorkerProgress):
+            return None
+        return evidence[1].snapshot()
 
     async def _ensure_composer_provider(self):
         check_issue14_dispatch(self._issue14_admission, role='composer')
@@ -410,6 +438,7 @@ class CodexWorker:
                 provider_env=environment,
                 timeout=self._execution_timeout(payload.agent_role, payload.composer_phase),
                 trajectory=trajectory,
+                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 **issue14_connection_options(self._issue14_admission),
             ) as connection:
                 if payload.thread_id and payload.agent_role == 'collector' and not self._refresh_collector_thread(payload):
