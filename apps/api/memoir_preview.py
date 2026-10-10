@@ -99,6 +99,43 @@ def normalize_composer_refs(value):
     return value
 
 
+def normalize_canonical_actions(draft):
+    """Choose a single action when a model emits update and carry-forward."""
+    chapter_ids = {chapter.get('id') for chapter in draft.get('chapters', [])
+                   if isinstance(chapter, dict) and chapter.get('id')}
+    if chapter_ids:
+        draft['carry_forward_chapter_ids'] = [chapter_id for chapter_id in draft.get('carry_forward_chapter_ids', [])
+                                              if chapter_id not in chapter_ids]
+    return draft
+
+
+def normalize_canonical_event_dispositions(draft):
+    """Keep included-event dispositions aligned with the rendered placement.
+
+    The model can mark an event as included while omitting it from every
+    active chapter/storyline. Demoting that orphaned disposition is a safe
+    metadata correction: it never changes evidence, IDs, or prose.
+    """
+    placed = set()
+    if draft.get('kind') == 'sample_storyline':
+        placed.update(draft.get('storyline', {}).get('event_ids', []))
+    else:
+        for chapter in draft.get('chapters', []):
+            if isinstance(chapter, dict):
+                placed.update(chapter.get('event_ids', []))
+    for entry in draft.get('event_dispositions', []):
+        if not isinstance(entry, dict) or entry.get('disposition') != 'included':
+            continue
+        if entry.get('event_id') in placed:
+            continue
+        entry['disposition'] = 'deferred'
+        entry['chapter_ids'] = []
+        reason = str(entry.get('reason') or '').strip()
+        suffix = '事件未在当前章节中落位，暂缓纳入本次样章。'
+        entry['reason'] = f'{reason} {suffix}'.strip()
+    return draft
+
+
 def composer_instructions(phase):
     if phase == 'prepare':
         return ('Prepare a concise context for this frozen canonical event/period using only its authorised original sources. '
@@ -622,6 +659,16 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
         if request.get('context', {}).get('canonical_event_index'):
             from .canonical_composer import restore_unchanged_sections
             draft = restore_unchanged_sections(request, draft)
+            # These fields describe the immutable host request. Pinning them
+            # after the model call prevents harmless stale-copy errors from
+            # consuming a full composition lane attempt; prose and evidence
+            # still go through the deterministic validator below.
+            draft['input_snapshot_id'] = request['snapshot']['id']
+            draft['input_fingerprint'] = plan['input_fingerprint']
+            draft['expected_manuscript_revision'] = request['prior_state']['revision']
+            draft['counter'] = plan['counter']
+            normalize_canonical_actions(draft)
+            normalize_canonical_event_dispositions(draft)
         validation = await skill_operation('validate', request, draft)
         if validation.get('ok') and request.get('context', {}).get('canonical_event_index'):
             from .canonical_composer import canonical_evidence_errors

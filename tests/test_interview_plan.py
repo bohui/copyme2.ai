@@ -120,6 +120,17 @@ def test_schema_and_instruction_keep_source_and_metadata_distinct():
     assert 'untrusted' in instruction and 'metadata' in instruction
 
 
+def test_collector_schema_requires_every_wire_field_and_keeps_work_nullable():
+    schema = collector_schema()
+    for value in [schema, *schema['$defs'].values()]:
+        if value.get('type') == 'object':
+            assert set(value['required']) == set(value['properties'])
+            assert value['additionalProperties'] is False
+    work = schema['$defs']['InterviewPlan']['properties']['work']
+    assert {'type': 'null'} in work['anyOf']
+    assert 'default' not in work
+
+
 def test_broad_quote_cannot_bind_a_photo_to_an_unrelated_event_in_same_answer():
     p=proposal();p['associations'][0]['event_id']='residence'
     context={**CONTEXT,'events':[{'id':'residence','status':'active','source_refs':[{'source_id':SOURCE['id'],'version':1,'quote':'小时候'}]}]}

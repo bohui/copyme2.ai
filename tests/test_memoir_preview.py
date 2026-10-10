@@ -61,6 +61,25 @@ def test_index_cannot_bind_unknown_or_ambiguous_source_references(sources):
         memoir_preview.bind_index_sources(request)
 
 
+def test_canonical_included_event_without_placement_is_deferred():
+    draft = {
+        'kind': 'sample_chapter',
+        'chapters': [{'id': 'chapter', 'event_ids': ['placed']}],
+        'storyline': {'event_ids': []},
+        'event_dispositions': [
+            {'event_id': 'placed', 'disposition': 'included', 'chapter_ids': ['chapter'],
+             'reason': 'Placed.'},
+            {'event_id': 'orphan', 'disposition': 'included', 'chapter_ids': ['chapter'],
+             'reason': 'Orphan.'},
+        ],
+    }
+    result = memoir_preview.normalize_canonical_event_dispositions(draft)
+    assert result['event_dispositions'][1] == {
+        'event_id': 'orphan', 'disposition': 'deferred', 'chapter_ids': [],
+        'reason': 'Orphan. 事件未在当前章节中落位，暂缓纳入本次样章。',
+    }
+
+
 def test_composition_retry_preserves_rejected_candidate_and_exact_validation(monkeypatch):
     request = {'sources': [], 'periods': [], 'events': []}
     checkpoint = {'request': request}

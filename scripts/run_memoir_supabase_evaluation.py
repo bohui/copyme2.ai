@@ -57,6 +57,26 @@ def save(path, value):
     os.replace(temporary, path)
 
 
+def _checkpoint_error_is_terminal(draft):
+    """Only stop on a durable checkpoint failure, not a retryable lane error."""
+    if draft.get('status') in {'failed', 'stale'}:
+        return True
+    composition = (draft.get('progress') or {}).get('composition') or {}
+    if composition.get('state') == 'retry_required':
+        return True
+    if not draft.get('error'):
+        return False
+    return not (draft.get('updating') is True
+                and composition.get('state') in {'pending', 'running'}
+                and composition.get('pending') is True)
+
+
+def _extraction_error_is_terminal(draft):
+    """Surface an exhausted extraction lane before the settle deadline."""
+    extraction = (draft.get('progress') or {}).get('extraction') or {}
+    return extraction.get('state') == 'retry_required'
+
+
 def output_directory(directory):
     directory = Path(directory).resolve()
     if directory == ROOT or ROOT in directory.parents or directory.exists():
@@ -306,6 +326,14 @@ async def run_cases(account, plan, directory, receipt):
             record.update(status='delivered', accepted_source_id=result['accepted_source_id'], reply=result['reply'])
             accepted.append(result['accepted_source_id'])
             save(directory / 'receipt.json', receipt)
+            if ordinal == 1:
+                # Restore the same authenticated adapter the UI uses for saved interviews.
+                shell = await backend(requests, account, plan, 'POST', '/v1/projects',
+                    json={'mode': 'self', 'restore_project_id': project, 'language': binding['language']})
+                if shell.get('id') != project or not shell.get('requires_supabase_auth'):
+                    raise EvaluationError('Normal UI project restoration did not match the retained project')
+                case['ui_adapter_restored'] = True
+                save(directory / 'receipt.json', receipt)
             settle_deadline = min(requests.case_deadline, time.monotonic() + plan['settle_seconds'])
             while True:
                 if time.monotonic() >= settle_deadline:
@@ -318,7 +346,7 @@ async def run_cases(account, plan, directory, receipt):
                     if ordinal in CHECKPOINTS:
                         draft = await account.rpc('read_user_memoir_draft',
                             p_project_id=project, p_locale=binding['language'], p_cadence=5)
-                        if draft.get('error') or draft.get('status') == 'failed':
+                        if _checkpoint_error_is_terminal(draft):
                             raise EvaluationError('Saved checkpoint failed; explicit review is required')
                         if draft.get('status') != 'ready' or draft.get('covered_round') != ordinal or draft.get('updating'):
                             await asyncio.sleep(min(plan['poll_seconds'], max(0, settle_deadline - time.monotonic())))
@@ -326,6 +354,10 @@ async def run_cases(account, plan, directory, receipt):
                         _readback_call(record, 'checkpoint', _saved_checkpoint, draft, ordinal, binding['language'])
                         case['checkpoints'].append({'milestone': ordinal, 'draft': draft})
                     break
+                draft = await account.rpc('read_user_memoir_draft',
+                    p_project_id=project, p_locale=binding['language'], p_cadence=5)
+                if _extraction_error_is_terminal(draft):
+                    raise EvaluationError('Background extraction failed; explicit review is required')
                 await asyncio.sleep(min(plan['poll_seconds'], max(0, settle_deadline - time.monotonic())))
             record.update(status='completed', background_settled=True, canonical_state=view)
             save(directory / 'receipt.json', receipt)

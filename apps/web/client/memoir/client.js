@@ -762,6 +762,28 @@ async function supabaseAuth(action) {
   toast(translate("Errors.memoryConnected"));
 }
 
+async function supabaseOAuthSignIn(provider) {
+  try {
+    if (state.authPromise) await state.authPromise;
+    if (state.loading) return;
+    if (!state.supabase?.client) return toast(translate("Errors.supabaseNotConfigured"));
+    if (state.supabase.user?.is_anonymous && state.project) {
+      await guestTransfer.signIn(provider);
+      return;
+    }
+    const { error } = await state.supabase.client.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}${MEMOIR_ROUTES.start}`,
+        ...(provider === "google" ? { queryParams: { prompt: "consent select_account" } } : {}),
+      },
+    });
+    if (error) throw error;
+  } catch {
+    toast(translate("Errors.authFailed"));
+  }
+}
+
 async function storySession() {
   if (state.supabase?.auth_mode === "test") return { access_token: "browser-test-token" };
   if (!state.supabase?.client) throw new Error(translate("Errors.supabaseNotConfigured"));
@@ -2809,17 +2831,22 @@ function renderMemoirLanding() {
           <summary>${t("connectSummary")}</summary>
           <p>${t("connectDescription")}</p>
           <form id="agent-auth-form">
+            <div class="agent-auth-actions">
+              <button type="button" class="button button-secondary button-small" data-auth-provider="google">${escapeHtml(translate("AuthReminder.google"))}</button>
+              <button type="button" class="button button-secondary button-small" data-auth-provider="facebook">${escapeHtml(translate("AuthReminder.facebook"))}</button>
+            </div>
             <input id="agent-email" type="email" autocomplete="email" placeholder="${t("emailPlaceholder")}" aria-label="${t("emailLabel")}" />
             <input id="agent-password" type="password" autocomplete="current-password" placeholder="${t("passwordPlaceholder")}" aria-label="${t("passwordLabel")}" />
             <div class="agent-auth-actions"><button type="button" class="button button-primary button-small" data-auth-action="signin">${t("signIn")}</button><button type="button" class="button button-secondary button-small" data-auth-action="signup">${t("createAccount")}</button></div>
           </form>
-          <small>${state.supabase?.accessToken ? t("connected") : t("required")}</small>
+          <small>${state.supabase?.accessToken && state.supabase.user && !state.supabase.user.is_anonymous ? t("connected") : t("required")}</small>
         </details>
         <section class="feature-row"><article class="feature"><div class="feature-icon">◌</div><h3>${t("featureTalkTitle")}</h3><p>${t("featureTalkBody")}</p></article><article class="feature"><div class="feature-icon">⌁</div><h3>${t("featureContextTitle")}</h3><p>${t("featureContextBody")}</p></article><article class="feature"><div class="feature-icon">▱</div><h3>${t("featureWorkspaceTitle")}</h3><p>${t("featureWorkspaceBody")}</p></article></section>
       </main>
     </div>`;
   document.querySelectorAll('[data-action="start-story"]').forEach((button) => button.addEventListener("click", () => startStory(button.dataset.mode || "self")));
   document.querySelectorAll("[data-auth-action]").forEach((button) => button.addEventListener("click", () => supabaseAuth(button.dataset.authAction)));
+  document.querySelectorAll("[data-auth-provider]").forEach((button) => button.addEventListener("click", () => supabaseOAuthSignIn(button.dataset.authProvider)));
 }
 
 async function startStory(mode = "self") {

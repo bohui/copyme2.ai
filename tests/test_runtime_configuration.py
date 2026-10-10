@@ -58,3 +58,20 @@ def test_temporal_worker_can_dispatch_supabase_memoir_lanes():
     assert 'SUPABASE_URL: ${SUPABASE_URL:-}' in worker
     assert 'SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}' in worker
     assert 'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-memoir-luna-low}' in worker
+
+
+def test_live_memoir_backend_raises_supported_provider_timeout_for_real_calls():
+    makefile = (Path(__file__).resolve().parents[1] / 'Makefile').read_text()
+    compose = (Path(__file__).resolve().parents[1] / 'compose.yml').read_text()
+    recipe = makefile.split('\nmemoir-live-fifty-backend:', 1)[1].split('\n\nmemoir-live-fifty-disposable-plan:', 1)[0]
+    assert 'MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)"' in recipe
+    assert 'MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}' in compose
+
+
+def test_codex_runtime_reads_the_bounded_provider_timeout_override(monkeypatch):
+    from apps.api.codex_runtime import CodexRuntime
+
+    monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_TIMEOUT', '240')
+    assert CodexRuntime().timeout == 240
+    monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_TIMEOUT', '999')
+    assert CodexRuntime().timeout == 240

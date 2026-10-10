@@ -35,6 +35,8 @@ class TaskQueue:
         finally:
             os.close(fd)
         with self._connect() as db:
+            db.execute('PRAGMA journal_mode=WAL')
+            db.execute('PRAGMA synchronous=NORMAL')
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, project_id TEXT NOT NULL,
@@ -69,6 +71,9 @@ class TaskQueue:
     def _connect(self):
         db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         db.row_factory = sqlite3.Row
+        # API and worker processes share this queue. A busy timeout keeps
+        # normal cross-process contention from surfacing as a request error.
+        db.execute('PRAGMA busy_timeout=30000')
         try:
             yield db
         finally:
@@ -289,7 +294,14 @@ class TaskQueue:
                 (job_id, token, now)).fetchone()
             if not row:
                 return False
-            status = 'SUCCEEDED' if error is None else ('QUEUED' if row['attempts'] < 3 else 'FAILED')
+            if error is None:
+                # The current request has already persisted the workspace.
+                # Successful jobs contain the full memory payload, so keeping
+                # them forever makes this disposable queue grow without bound.
+                db.execute('DELETE FROM workspace_jobs WHERE id=? AND lease_token=?',
+                           (job_id, token))
+                return True
+            status = 'QUEUED' if row['attempts'] < 3 else 'FAILED'
             db.execute('''UPDATE workspace_jobs SET status=?, error=?, available_at=?,
                 lease_token=NULL, lease_until=NULL, updated_at=? WHERE id=?''',
                 (status, error, now + (2 ** row['attempts'] if error else 0), now, job_id))

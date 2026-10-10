@@ -16,6 +16,41 @@ from .memory_events import validate_extraction
 from .recall import private_draft_cadence
 
 
+_SAFE_MEMORY_ERROR_KINDS = (
+    'authenticated user required', 'invalid extraction result', 'project unavailable',
+    'source unavailable', 'source revision conflict', 'invalid event proposal',
+    'ambiguous candidates must remain scoped and unresolved',
+    'person identity unavailable in this project', 'chronology target unavailable in this project',
+    'event unavailable', 'event revision conflict', 'event kind cannot change',
+    'chat correction requires explicit current original testimony', 'invalid life stage',
+    'extraction cannot grant visibility or print rights', 'invalid temporal placement',
+    'life stage requires evidence', 'removed source link requires an explicit author decision',
+    'event source unavailable', 'evidence revision conflict',
+    'evidence quote must match original testimony', 'evidence span must match original testimony',
+    'memoir run expired before commit',
+)
+
+
+def _safe_rpc_failure(failure):
+    """Return stable PostgREST diagnostics without copying private messages."""
+    if not isinstance(failure, httpx.HTTPStatusError):
+        return None, None
+    code = None
+    kind = None
+    try:
+        body = failure.response.json()
+        if isinstance(body, dict) and isinstance(body.get('code'), str):
+            candidate = body['code']
+            if len(candidate) <= 32 and candidate.replace('_', '').isalnum():
+                code = candidate
+        message = body.get('message', '') if isinstance(body, dict) else ''
+        if isinstance(message, str):
+            kind = next((value for value in _SAFE_MEMORY_ERROR_KINDS if value in message), None)
+    except (ValueError, TypeError):
+        pass
+    return code, kind
+
+
 class MemoirLaneBroker:
     def __init__(self, *, url=None, key=None, client=None):
         self.url = (url or os.environ['SUPABASE_URL']).rstrip('/')
@@ -60,7 +95,7 @@ class MemoryEventWorker:
 
     async def execute_lane(self, lane_id):
         started = time.monotonic()
-        run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '300'))
+        run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '900'))
         job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
         if not job:
             state = await self.broker.rpc('read_memoir_lane_state', p_lane_id=lane_id)
@@ -86,27 +121,49 @@ class MemoryEventWorker:
                 options = {'timeout': min(240, run_seconds)}
                 if self.worker_transport is not None:
                     options['transport'] = self.worker_transport
-                async with httpx.AsyncClient(**options) as client:
-                    response = await client.post(self.worker_url + '/internal/codex/turn',
-                        headers={'X-Codex-Worker-Secret': self.worker_secret}, json={
-                            'user_id': job['user_id'], 'project_id': job['project_id'], 'family_enabled': False,
-                            'agent_role': 'author_timeline', 'language': job['locale'],
-                            'text': json.dumps({'schema_version': 1, 'sources': job['sources'],
-                                'context_sources': job['context_sources'], 'events': job['events'],
-                                'interview_context': job.get('interview_context', {})}, ensure_ascii=False),
-                        })
-                    response.raise_for_status()
-                    proposed = json.loads(response.json()['reply'])
-                events = validate_extraction(proposed, job['context_sources'], job['events'])
-                return await self.broker.rpc('finish_memoir_timeline', p_lane_id=lane_id, p_token=job['token'], p_events=events)
+                request = {
+                    'user_id': job['user_id'], 'project_id': job['project_id'], 'family_enabled': False,
+                    'agent_role': 'author_timeline', 'language': job['locale'],
+                    'text': json.dumps({'schema_version': 1, 'sources': job['sources'],
+                        'context_sources': job['context_sources'], 'events': job['events'],
+                        'interview_context': job.get('interview_context', {})}, ensure_ascii=False),
+                }
+                # A provider 400/5xx or a model proposal rejected by the
+                # fenced commit gets a bounded fresh extraction before the
+                # durable lane attempt is consumed. The commit can reject a
+                # proposal after Python validation when PostgreSQL applies
+                # stricter evidence/temporal rules.
+                for extraction_attempt in range(3):
+                    proposed = None
+                    for provider_attempt in range(3):
+                        try:
+                            async with httpx.AsyncClient(**options) as client:
+                                response = await client.post(self.worker_url + '/internal/codex/turn',
+                                    headers={'X-Codex-Worker-Secret': self.worker_secret}, json=request)
+                                response.raise_for_status()
+                                proposed = json.loads(response.json()['reply'])
+                            break
+                        except httpx.HTTPStatusError as failure:
+                            if provider_attempt < 2 and failure.response.status_code in {400, 429, 502, 503, 504}:
+                                continue
+                            raise
+                    events = validate_extraction(proposed, job['context_sources'], job['events'])
+                    try:
+                        return await self.broker.rpc('finish_memoir_timeline', p_lane_id=lane_id,
+                            p_token=job['token'], p_events=events)
+                    except httpx.HTTPStatusError as failure:
+                        if extraction_attempt < 2 and failure.response.status_code == 400:
+                            continue
+                        raise
         except (ValueError, TimeoutError, httpx.HTTPError, RuntimeError) as failure:
             # Exception messages and response bodies can contain private story
             # text or credentials. Keep dispatch/provider failures diagnosable.
+            rpc_code, rpc_kind = _safe_rpc_failure(failure)
             logging.getLogger(__name__).warning(
-                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d',
+                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d rpc_code=%s rpc_kind=%s',
                 lane_id, job['skill'], type(failure).__name__,
                 failure.response.status_code if isinstance(failure, httpx.HTTPStatusError) else None,
-                int((time.monotonic() - started) * 1000))
+                int((time.monotonic() - started) * 1000), rpc_code, rpc_kind)
             return await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
                 p_error='MEMOIR_UNAVAILABLE', p_retryable=True)
         finally:

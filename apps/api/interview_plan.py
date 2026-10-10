@@ -69,7 +69,12 @@ class CollectorResult(StrictModel):
 
 
 def collector_schema():
-    return CollectorResult.model_json_schema()
+    schema = CollectorResult.model_json_schema()
+    # The provider requires every wire field; legacy saved plans may omit work.
+    plan = schema['$defs']['InterviewPlan']
+    plan['required'] = list(plan['properties'])
+    plan['properties']['work'].pop('default', None)
+    return schema
 
 
 def collector_instructions(context):

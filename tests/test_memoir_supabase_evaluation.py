@@ -50,8 +50,11 @@ class Remote:
         self.user = {'id': OWNER, 'email': 'test@test.com',
                      'email_confirmed_at': 'confirmed', 'is_anonymous': False}
         self.calls, self.submitted, self.recovered = [], [], []
+        self.restored = set()
         self.fail_round = None
         self.draft_failed = False
+        self.transient_draft_error_reads = 0
+        self.extraction_retry_required = False
         self.pending_reads = 0
         self.storages = {v['project_id']: Storage(SimpleNamespace(read_hook=None, draft_hook=None, events=[]),
             {**v, 'owner_id': OWNER}) for v in plan['cases'].values()}
@@ -113,13 +116,41 @@ class Remote:
                 if self.pending_reads and result['completed_rounds']:
                     self.pending_reads -= 1
                     result['processing']['pending_inputs'] = 1
+                if self.extraction_retry_required and result['completed_rounds']:
+                    result['processing']['pending_inputs'] = 1
             elif path == '/rest/v1/rpc/read_user_memoir_draft':
                 storage = self.storages[payload['p_project_id']]
                 result = storage.saved_memoir_draft(payload['p_project_id'], payload['p_locale'])
+                if self.transient_draft_error_reads:
+                    self.transient_draft_error_reads -= 1
+                    result.update(status='collecting', covered_round=0, milestone=0,
+                                  revision=0, updating=True, error='MEMOIR_UNAVAILABLE',
+                                  preview=None, sections=[], milestones=[])
+                    result['progress']['composition'] = {
+                        'state': 'pending', 'pending': True,
+                        'error': 'MEMOIR_UNAVAILABLE', 'covered_round': 0,
+                        'target_milestone': 5,
+                    }
+                if self.extraction_retry_required:
+                    result['updating'] = False
+                    result['error'] = 'MEMOIR_UNAVAILABLE'
+                    result['progress']['extraction'] = {
+                        'state': 'retry_required', 'pending': False,
+                        'error': 'MEMOIR_UNAVAILABLE', 'extracted_through': 0,
+                    }
                 if self.draft_failed:
                     result['status'] = 'failed'
+            elif path == '/api/v1/memoir/projects' and request.method == 'POST':
+                project = payload['restore_project_id']
+                assert payload == {'mode': 'self', 'restore_project_id': project,
+                                   'language': self.storages[project].plan['language']}
+                assert self.storages[project].sources, 'Restore requires owned saved history'
+                self.restored.add(project)
+                result = {'id': project, 'requires_supabase_auth': True}
             elif path.startswith('/api/v1/memoir/projects/'):
                 project = path.rsplit('/', 1)[1]
+                if project not in self.restored:
+                    return httpx.Response(404, json={'detail': 'Local project adapter not restored'})
                 self.recovered.append(project)
                 result = {'id': project, 'requires_supabase_auth': True}
             elif path == '/rest/v1/user_recall_usage':
@@ -162,6 +193,12 @@ def test_original_rounds_retained_for_real_owner_without_admin_application_write
         assert [p['text'] for p in sent] == [p['conversation_text'] for p in sent] == original
         assert binding['owner_id'] == OWNER
     assert remote.recovered == [p['project_id'] for p in plan['cases'].values()]
+    for binding in plan['cases'].values():
+        calls = [r for r in remote.calls if (json.loads(r.content) if r.content else {}).get('project_id') == binding['project_id']
+                 or (json.loads(r.content) if r.content else {}).get('restore_project_id') == binding['project_id']]
+        turn_calls = [i for i, r in enumerate(calls) if r.url.path.endswith('/agent/turn')]
+        restore_calls = [i for i, r in enumerate(calls) if r.url.path == '/api/v1/memoir/projects']
+        assert len(restore_calls) == 1 and turn_calls[0] < restore_calls[0] < turn_calls[1]
     assert all(c['ui_recovery_verified'] and len(c['rounds']) == 50
                and [v['milestone'] for v in c['checkpoints']] == list(module.CHECKPOINTS)
                for c in result['evaluation']['cases'])
@@ -195,6 +232,31 @@ def test_failed_checkpoint_stops_before_next_input_and_pending_readbacks_are_pol
     assert result['status'] == 'incomplete' and len(remote.submitted) == 5
     assert remote.pending_reads == 0
     assert 'checkpoint failed' in result['stop_reason']
+
+
+def test_retryable_checkpoint_error_is_polled_until_the_worker_saves(setup, tmp_path):
+    plan, remote = setup()
+    remote.transient_draft_error_reads = 2
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'completed', result
+    assert len(remote.submitted) == 50
+    assert result['evaluation']['cases'][0]['checkpoints']
+
+
+def test_terminal_extraction_error_stops_without_waiting_for_settle_deadline(setup, tmp_path):
+    plan, remote = setup()
+    remote.extraction_retry_required = True
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'incomplete'
+    assert len(remote.submitted) == 1
+    assert result['stop_reason'] == 'Background extraction failed; explicit review is required'
+
+
+def test_retry_required_lane_state_is_terminal_even_without_error_text():
+    assert module._extraction_error_is_terminal({'progress': {
+        'extraction': {'state': 'retry_required', 'error': None}}})
+    assert module._checkpoint_error_is_terminal({'progress': {
+        'composition': {'state': 'retry_required', 'error': None}}})
 
 
 @pytest.mark.parametrize('existing', [False, True])

@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 from unittest.mock import Mock
 
 import pytest
@@ -9,6 +10,14 @@ from temporalio.exceptions import ApplicationError
 from apps.api.memoir_tasks import MemoirTask
 from apps.api.task_queue import configured_queue
 from scripts import task_runtime
+
+
+def test_task_queue_io_errors_do_not_stop_temporal_worker_polling():
+    class BrokenQueue:
+        def pending_ids(self):
+            raise sqlite3.OperationalError('disk I/O error')
+
+    assert asyncio.run(task_runtime.safe_pending_task_ids(BrokenQueue())) == []
 
 
 def test_activity_replay_uses_saved_result(monkeypatch, tmp_path):

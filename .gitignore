@@ -41,3 +41,5 @@ apps/mobile/android/
 apps/mobile/.env*
 !apps/mobile/.env.example
 docs/mobile/evidence/
+
+.tmp*

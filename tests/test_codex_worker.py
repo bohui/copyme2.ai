@@ -67,6 +67,7 @@ def test_memory_context_pass_is_ephemeral_and_never_streams_or_exports_artifacts
         async def turn(self, thread_id, prompt, **kwargs):
             assert 'on_delta' not in kwargs
             assert kwargs['output_schema']['required'] == ['preferred_language']
+            assert kwargs['output_schema']['properties']['preferred_language']['type'] == ['string', 'null']
             assert '我叫慧博' in prompt
             return '{"preferred_language":"zh-CN"}'
 

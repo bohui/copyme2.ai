@@ -6,6 +6,7 @@ validates a proposal; it never manufactures testimony or performs fuzzy merges.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -64,6 +65,98 @@ class EventProposal(BaseModel):
 class ExtractionResult(BaseModel):
     model_config = ConfigDict(extra='forbid')
     events: list[EventProposal] = Field(max_length=100)
+
+
+_AGE_WORDS = {
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+    'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
+    'nineteen': 19,
+}
+_AGE_TENS = {'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+             'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90}
+_CN_AGE = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7,
+           '八': 8, '九': 9, '十': 10, '两': 2}
+_CN_YEAR_DIGITS = {'0': ('零', '〇'), '1': ('一',), '2': ('二',), '3': ('三',),
+                   '4': ('四',), '5': ('五',), '6': ('六',), '7': ('七',),
+                   '8': ('八',), '9': ('九',)}
+
+
+def _memory_age_number(text):
+    match = re.search(r'(?:at age |aged |age |when I was )([0-9]{1,3})', text, re.I)
+    if not match:
+        match = re.search(r'([0-9]{1,3})\s*(?:years old|岁)', text, re.I)
+    if match:
+        return int(match.group(1))
+    match = re.search(r'(?:at age|aged|age|at|when I was)\s+([a-z]+)(?:[-\s]+([a-z]+))?', text, re.I)
+    if match:
+        first, second = match.group(1).lower(), (match.group(2) or '').lower()
+        if first in _AGE_WORDS:
+            return _AGE_WORDS[first]
+        if first in _AGE_TENS:
+            return _AGE_TENS[first] + (_AGE_WORDS.get(second, 0) if second else 0)
+    match = re.search(r'([一二三四五六七八九十两]{1,3})岁', text)
+    if match:
+        word = match.group(1).replace('两', '二')
+        if '十' in word:
+            left, right = word.split('十', 1)
+            return (_CN_AGE.get(left, 1) if left else 1) * 10 + _CN_AGE.get(right, 0)
+        if len(word) == 1:
+            return _CN_AGE.get(word)
+    return None
+
+
+def _memory_birth_year(text):
+    patterns = (
+        r'\bI\s+(?:was\s+)?born\s+(?:in\s+)?([0-9]{4})',
+        r'\bmy\s+(?:birth year|year of birth)\s+(?:was|is)?\s*([0-9]{4})',
+        r'我(?:是|于|在)?([0-9]{4})年?(?:出生|生于)',
+        r'我(?:是)?(?:出生|生于)(?:于|在)?([0-9]{4})',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _year_is_present(target, text):
+    if re.search(rf'(?<![0-9]){target}(?![0-9])', text):
+        return True
+    # Chinese memoir inputs commonly preserve years as digit-by-digit words,
+    # for example 一九八八, 一九九三, or 二〇〇二. Match only the exact four
+    # digit rendering; do not interpret a partial number as a supported year.
+    digits = str(target)
+    if len(digits) != 4:
+        return False
+    forms = ['']
+    for digit in digits:
+        forms = [prefix + glyph for prefix in forms for glyph in _CN_YEAR_DIGITS[digit]]
+    return any(form in text for form in forms)
+
+
+def _numeric_temporal_evidence_is_supported(timing):
+    basis = timing.basis
+    targets = [value for value in (timing.year_start, timing.year_end) if value is not None]
+    if timing.precision == 'age' and len(targets) > 1:
+        # The contract permits a one-year uncertainty interval when only a
+        # birth year and an age are known. PostgreSQL validates the anchored
+        # lower bound; the upper bound records the narrator's uncertainty.
+        targets = targets[:1]
+    for target in targets:
+        if timing.precision == 'age':
+            supported = any(
+                _memory_age_number(age.quote) is not None
+                and _memory_birth_year(birth.quote) is not None
+                and _memory_birth_year(birth.quote) + _memory_age_number(age.quote) == target
+                for age in basis for birth in basis
+            )
+        else:
+            supported = any(_year_is_present(target, ref.quote) for ref in basis)
+        if not supported:
+            return False
+    return True
 
 
 def _source_ref_is_vetoed(ref: EvidenceRef, original: dict) -> bool:
@@ -149,6 +242,8 @@ def validate_extraction(raw, sources, saved_events):
                     raise ValueError('A supported year requires a date evidence basis')
                 if timing.year_start is not None and timing.year_end is not None and timing.year_start > timing.year_end:
                     raise ValueError('Date ranges must retain their original direction')
+                if not _numeric_temporal_evidence_is_supported(timing):
+                    raise ValueError('Numeric date requires supported original evidence')
             if timing.expression != 'unknown' and not any(timing.expression in r.quote for r in timing.basis):
                 raise ValueError('The original date expression must be retained in its evidence')
         # Withhold only the affected proposal. Independent allowed events in

@@ -30,7 +30,8 @@ the checkout during execution: a changed fingerprint marks the run incomplete.
 
 Execution requires Python with the repository dependencies, Node.js for reports,
 Mocker/Apple Container, cached app/worker images, the existing live LLM gateway,
-and migrated remote Supabase. `.env` must be an owned 0400/0600 regular file with
+and migrated remote Supabase. Run `make migrate` after pulling database changes.
+`.env` must be an owned 0400/0600 regular file with
 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` (or inherited
 `SUPABASE_SERVICE_ROLE_KEY`). The runner starts only API, Codex/photo workers,
 background worker and Temporal. It never starts PostgreSQL, the frontend, or a
@@ -62,7 +63,8 @@ checked for UI reopening. Failed submissions are never automatically repeated;
 partial projects and evidence remain available for inspection. Stopping the
 client does not prove cancellation of already accepted background/provider work.
 
-The runner prints project IDs and `/memoir/interview/<project-id>` URLs. Start the
+The runner prints project IDs and `/memoir/interview/<project-id>` URLs and restores
+the UI project adapter after the first delivered round. Start the
 frontend separately against the same backend, then sign in with the owning
 account:
 

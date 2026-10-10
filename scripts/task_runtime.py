@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import sqlite3
 
 from temporalio import activity
 from temporalio.client import Client, WorkflowExecutionStatus
@@ -15,6 +16,15 @@ from apps.api.temporal_workflows import MemoirTaskWorkflow, PrivateMemoirDraftWo
 from apps.api.private_draft_jobs import PrivateDraftJobs
 
 log = logging.getLogger(__name__)
+
+
+async def safe_pending_task_ids(queue):
+    """Keep the Temporal worker alive across transient local SQLite I/O errors."""
+    try:
+        return await asyncio.to_thread(queue.pending_ids)
+    except (OSError, sqlite3.Error):
+        log.warning('Task queue polling deferred')
+        return []
 
 
 @activity.defn(name='memoir.execute_lane')
@@ -117,7 +127,7 @@ async def run_task_worker(address, namespace, task_queue, interval):
                     pass
                 except Exception:
                     log.warning('Private draft dispatch deferred')
-            for task_id in await asyncio.to_thread(queue.pending_ids):
+            for task_id in await safe_pending_task_ids(queue):
                 try:
                     await client.start_workflow(
                         MemoirTaskWorkflow.run, task_id, id=f'memoir-task:{task_id}',

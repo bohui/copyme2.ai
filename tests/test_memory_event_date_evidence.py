@@ -31,3 +31,19 @@ def test_unknown_date_does_not_require_invented_evidence():
     saved = validate_extraction({'events': [event]},
                                 [{'id': 'source', 'version': 1, 'text': ref['quote']}], [])
     assert saved[0]['temporal'] == event['temporal']
+
+
+@pytest.mark.parametrize('year,expression', [
+    (1988, '一九八八年前后'),
+    (1993, '一九九三年'),
+    (2002, '二〇〇二年前后'),
+])
+def test_chinese_digit_years_support_numeric_temporal_evidence(year, expression):
+    text = f'我记得大约在{expression}参加过一次考试。'
+    ref = {'source_id': 'source', 'version': 1, 'quote': text}
+    event = {'kind': 'event', 'title': '考试', 'source_refs': [ref],
+             'temporal': {'expression': expression, 'precision': 'approximate',
+                          'year_start': year, 'year_end': year, 'basis': [ref]}}
+    saved = validate_extraction({'events': [event]},
+                                [{'id': 'source', 'version': 1, 'text': text}], [])
+    assert saved[0]['temporal']['year_start'] == year

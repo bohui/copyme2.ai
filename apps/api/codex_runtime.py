@@ -22,7 +22,7 @@ from .recall import recall_status, storage_recall_status
 from .stage_readiness import LIFE_STAGES
 from .agent_storage import UserStorage
 from .conversation_text import original_conversation_text
-from .codex_timeout_policy import WORKSPACE_TIMEOUT
+from .codex_timeout_policy import WORKER_MAX_TIMEOUT, WORKER_TIMEOUT, WORKSPACE_TIMEOUT
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
 from .issue14_execution_admission import (
@@ -248,7 +248,7 @@ def conversation_language_instruction(language: str | None) -> str:
 
 LANGUAGE_INTAKE_SCHEMA = {
     'type': 'object',
-    'properties': {'preferred_language': {'enum': ['en-AU', 'zh-CN', None]}},
+    'properties': {'preferred_language': {'type': ['string', 'null'], 'enum': ['en-AU', 'zh-CN', None]}},
     'required': ['preferred_language'],
     'additionalProperties': False,
 }
@@ -1515,7 +1515,7 @@ def build_loop_trace(*, memory_count: int, resumed: bool, saved_paths: int,
 
 class CodexRuntime:
     def __init__(self, *, home_root=None, command=None, provider_env=None, model=None,
-                 base_url=None, timeout=120, worker_url=None, worker_secret=None,
+                 base_url=None, timeout=None, worker_url=None, worker_secret=None,
                  worker_transport=None, task_publisher_enabled=None, issue14_admission=None):
         self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.home_root = Path(home_root or os.getenv('MEMORY_SPARK_CODEX_HOME', 'var/codex-users'))
@@ -1525,6 +1525,12 @@ class CodexRuntime:
         self.composer_model = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'legal2ai-luna-low')
         self.base_url = base_url or os.getenv('MEMORY_SPARK_LLM_BASE_URL', 'http://127.0.0.1:4000/v1')
         self.api_key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
+        if timeout is None:
+            try:
+                timeout = float(os.getenv('MEMORY_SPARK_CODEX_WORKER_TIMEOUT', str(WORKER_TIMEOUT)))
+            except ValueError:
+                timeout = WORKER_TIMEOUT
+            timeout = min(max(timeout, 0.001), WORKER_MAX_TIMEOUT)
         self.timeout = timeout
         self.worker_url = (worker_url or os.getenv('MEMORY_SPARK_CODEX_WORKER_URL', '')).rstrip('/') or None
         self.worker_secret = worker_secret or os.getenv('MEMORY_SPARK_CODEX_WORKER_SECRET', '')
