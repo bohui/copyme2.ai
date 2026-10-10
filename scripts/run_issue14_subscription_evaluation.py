@@ -46,10 +46,18 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
                max_case_client_requests=None, max_case_elapsed_seconds=None,
                enable_public_photo_research=False, photo_python_binary=None, photo_python_sha256=None,
                enable_browser_readback=False, browser_config=None,
-               collector_timeout_seconds=WORKER_TIMEOUT):
+               collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False):
     from apps.api.codex_timeout_policy import native_worker_deadlines
     from scripts.memoir_subscription_profiles import profile_for
     profile = profile_for(evaluation_profile)
+    if type(single_collector_observation) is not bool:
+        raise ValueError('Explicit single collector mode required')
+    if single_collector_observation:
+        from scripts.single_collector_observation import validate_observation_limits, observation_scope
+        validate_observation_limits(evaluation_profile,max_client_requests,max_elapsed_seconds,
+            max_case_client_requests,max_case_elapsed_seconds,collector_timeout_seconds)
+        if enable_browser_readback or enable_public_photo_research:
+            raise ValueError('Single collector observation excludes browser/photo execution')
     worker_deadlines = native_worker_deadlines(collector_timeout_seconds)
     profile.validate_limits(max_client_requests, max_elapsed_seconds,
                             max_case_client_requests, max_case_elapsed_seconds)
@@ -108,6 +116,8 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
         'codex_binary': _binary(codex_binary, codex_sha256), 'codex_sha256': codex_sha256,
         'temporal_binary': _binary(temporal_binary, temporal_sha256), 'temporal_sha256': temporal_sha256,
         'gateway_origin': EXISTING_ORIGIN, 'execution_started': False,
+        **({'single_collector_observation':observation_scope(profile.case_ids[0])}
+           if single_collector_observation else {}),
         'counted_boundary': 'client_to_existing_gateway_http_requests',
         'actual_upstream_provider_requests': None, 'hard_token_cap_verified': False,
         'hard_dollar_cap_verified': False, 'upstream_cancellation_verified': False,
@@ -143,6 +153,13 @@ def verify_source(revision):
         actual = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
         if actual.encode() != expected:
             raise ValueError('Tracked source differs from reviewed Git blob')
+
+
+def verify_main_source(revision):
+    if (git_read('symbolic-ref', '--short', 'HEAD') != 'main'
+            or git_read('rev-parse', 'refs/remotes/origin/main') != revision):
+        raise ValueError('Evaluation requires the exact fetched main branch')
+    verify_source(revision)
 
 
 def require_absent_container(name):
@@ -481,12 +498,16 @@ async def execute_native(plan, directory, api_key):
         max_case_client_requests=plan.get('max_case_client_requests'),
         max_case_elapsed_seconds=plan.get('max_case_elapsed_seconds'),
         collector_timeout_seconds=plan.get('collector_timeout_seconds', WORKER_TIMEOUT),
+        single_collector_observation='single_collector_observation' in plan,
         enable_public_photo_research=bool(plan.get('photo_research')),
         photo_python_binary=(plan.get('photo_research') or {}).get('python_binary'),
         photo_python_sha256=(plan.get('photo_research') or {}).get('python_sha256'),
         enable_browser_readback='browser_readback' in plan, browser_config=plan.get('browser_readback'))
     if plan != validated:
         raise ValueError('Exact freshly validated evaluation plan required')
+    if 'single_collector_observation' in plan:
+        from scripts.single_collector_observation import execute
+        return await execute(plan,directory,api_key)
     directory = Path(directory)
     if plan.get('browser_readback'):
         output = Path(plan['browser_readback']['output_root']).resolve()
@@ -573,6 +594,8 @@ def read_browser_config(path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-existing-subscription', action='store_true')
+    parser.add_argument('--single-collector-observation', action='store_true',
+        help='One collector observation only; requires exact 4-request/300-second/180-second limits')
     parser.add_argument('--waive-memory-pressure-check', action='store_true',
         help='Explicitly authorized one-shot Memoir memory waiver; keeps isolation and the native lease')
     parser.add_argument('--run-id', required=True)
@@ -606,11 +629,11 @@ def main(argv=None):
             'max_client_requests','max_elapsed_seconds','waive_memory_pressure_check',
             'evaluation_profile','max_case_client_requests','max_case_elapsed_seconds',
             'enable_public_photo_research','photo_python_binary','photo_python_sha256',
-            'enable_browser_readback','collector_timeout_seconds')})
+            'enable_browser_readback','collector_timeout_seconds','single_collector_observation')})
         if not args.execute_existing_subscription:
             print(json.dumps(plan, sort_keys=True))
             return 0
-        verify_source(args.source_revision)
+        verify_main_source(args.source_revision)
         if plan.get('evaluation_profile', 'subscription_progressive') == 'subscription_fifty':
             from scripts.issue14_subscription_source_contract_v6 import audit_subscription_source_v6
             audit_subscription_source_v6(ROOT)
@@ -642,7 +665,7 @@ def main(argv=None):
             result = asyncio.run(scenario())
         print(json.dumps({'run_id': result['run_id'], 'status': result['status'],
                           'receipt_path': str(args.run_dir / 'receipt.json')}))
-        return 0 if result['status'] == 'completed' else 3
+        return 0 if result['status'] in ('completed','observation') else 3
     except Exception:
         print(json.dumps({'status':'incomplete' if execution_started else 'blocked',
             'reason':'native_execution_failed' if execution_started else 'subscription_preflight_failed',

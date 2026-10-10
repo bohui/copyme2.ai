@@ -181,6 +181,9 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                 case_id, ordinal = scope
                 plan = owner._plans[case_id]
                 role = data.get('agent_role', 'collector')
+                observation = getattr(owner, '_collector_observation', None)
+                if observation is not None:
+                    observation.admit(role, scope)
                 expected = owner.bridge_for_case(case_id).before_round(case_id, ordinal)
                 job = owner._job_context.get()
                 if role in {'author_timeline', 'composer'}:
@@ -243,6 +246,8 @@ class _WorkerTransport(httpx.AsyncBaseTransport):
                     owner._dispatch_role = None
                     owner._dispatch_correlation = None
                     owner._dispatch_record = None
+                if observation is not None:
+                    observation.complete()
                 if 'application/x-ndjson' in request.headers.get('accept', ''):
                     # The evaluation is buffered, but the normal runtime still
                     # consumes its existing typed NDJSON worker protocol.
@@ -273,8 +278,15 @@ class OwnedSubscriptionSession:
     async def create(cls, *, run, provider_transport, storages, broker, temporal_client,
                      home_root, codex_binary, codex_sha256, api_key,
                      evaluation_profile='subscription_progressive', entitlement_facades=None,
-                     collector_timeout_seconds=WORKER_TIMEOUT):
+                     collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False):
         collector_timeout_seconds = validate_native_collector_timeout(collector_timeout_seconds)
+        if type(single_collector_observation) is not bool:
+            raise ValueError('Explicit single collector mode required')
+        if single_collector_observation:
+            from scripts.single_collector_observation import validate_observation_limits
+            validate_observation_limits(evaluation_profile,run.limits.max_requests,
+                run.limits.max_elapsed_seconds,run.case_limits.max_requests,
+                run.case_limits.max_elapsed_seconds,collector_timeout_seconds)
         if (type(run) is not SubscriptionRun or type(provider_transport) is not SubscriptionTransport
                 or provider_transport.run is not run or type(api_key) is not str or not api_key):
             raise ValueError('Explicit owned run, transport and existing credential required')
@@ -319,6 +331,10 @@ class OwnedSubscriptionSession:
             raise ValueError('Run deadline expired before allocation')
         self = object.__new__(cls)
         self.run, self.provider_transport = run, provider_transport
+        self._collector_observation = None
+        if single_collector_observation:
+            from scripts.single_collector_observation import CollectorObservationGate
+            self._collector_observation = CollectorObservationGate(run)
         self.photo_research = None
         self.browser_readback = None
         self._profile = profile
