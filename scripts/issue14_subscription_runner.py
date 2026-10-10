@@ -451,12 +451,14 @@ class SubscriptionProgressiveRunner:
     numerical limits are defaulted or inferred here.
     """
 
-    def __init__(self, session, *, evidence_mode=EVIDENCE_MODE):
+    def __init__(self, session, *, evidence_mode=EVIDENCE_MODE, selected_case_ids=None):
         _require(evidence_mode in (EVIDENCE_MODE, 'subscription_fifty'), 'evidence_mode_invalid')
-        self._profile = profile_for(evidence_mode)
+        self._profile = profile_for(evidence_mode, selected_case_ids=selected_case_ids)
         assert_owned_subscription_session(session)
         # No attribute on an unverified object is inspected above this line.
         _require(getattr(session, 'evaluation_profile', EVIDENCE_MODE) == evidence_mode, 'evidence_mode_invalid')
+        _require(getattr(session, 'selected_case_ids', None) == self._profile.selected_case_ids,
+                 'case_plan_invalid')
         case_ids = self._profile.case_ids
         canonical_plans = self._profile.plans(session.run.run_id)
         plans = session.case_plans
@@ -613,6 +615,7 @@ class SubscriptionProgressiveRunner:
         assert_owned_subscription_session(self._session)
         _require(self._session.case_plans == self._plans
                  and tuple(self._session.case_ids) == self._profile.case_ids
+                 and getattr(self._session, 'selected_case_ids', None) == self._profile.selected_case_ids
                  and getattr(self._session, 'evaluation_profile', EVIDENCE_MODE) == self._profile.name
                  and self._session.task_queue == self._queue
                  and self._session.run.run_id == self._run_id
@@ -629,6 +632,8 @@ class SubscriptionProgressiveRunner:
             **({'e2e_status': 'partial', 'e2e_passed': False} if self._profile.name == 'subscription_fifty' else {}),
             'semantic_acceptance': 'human_review_required', 'live_ready': False,
             'rounds_per_case': self._profile.rounds, 'checkpoints': list(self._profile.checkpoints),
+            **({'selected_case_ids': list(self._profile.selected_case_ids)}
+               if self._profile.selected_case_ids is not None else {}),
             'cases': [{**deepcopy(self._plans[case]), 'evidence_mode': self._profile.name,
                        'status': 'not_started', 'rounds': [], 'checkpoints': [], 'workflow_ids': [],
                        'observation': {'output': None, 'metadata': {'live_ready': False,
@@ -707,14 +712,20 @@ class SubscriptionProgressiveRunner:
                          and accounting.get('closed') is True
                          and accounting.get('counted_boundary') == 'client_to_existing_gateway_http_requests'
                          and _exact_integer(accounting.get('concurrency'), 1), 'accounting_unavailable')
+                if self._profile.selected_case_ids is not None:
+                    _require(accounting.get('selected_case_ids') == list(self._profile.selected_case_ids)
+                        and accounting.get('case_ids') == list(self._profile.case_ids), 'accounting_unavailable')
                 if receipt['status'] == 'completed':
                     _require(accounting.get('stop_reason') in (None, 'closed'), 'requests_stopped')
                     if self._profile.name == 'subscription_fifty':
                         cases = accounting.get('cases')
-                        _require(type(cases) is list and len(cases) == 5
+                        _require(type(cases) is list and len(cases) == len(self._profile.case_ids)
                             and [c.get('case_id') for c in cases] == list(self._profile.case_ids)
                             and all(c.get('status') == 'completed' and c.get('unresolved_requests') == 0
                                     for c in cases), 'accounting_unavailable')
+                        _require(accounting.get('selected_case_ids') == (
+                            None if self._profile.selected_case_ids is None else list(self._profile.selected_case_ids)),
+                            'accounting_unavailable')
             except SubscriptionRunnerError as error:
                 fail(_error_reason(error), 'validation')
             except Exception:

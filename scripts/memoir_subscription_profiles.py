@@ -13,7 +13,7 @@ class _Profile:
     case_ids: tuple
     rounds: int
     checkpoints: tuple
-    plans: object
+    _all_plans: object
     bridge: object
     max_requests: int
     max_seconds: int
@@ -21,6 +21,11 @@ class _Profile:
     case_max_seconds: int | None = None
     dataset_version: str | None = None
     dataset_sha256: str | None = None
+    selected_case_ids: tuple | None = None
+
+    def plans(self, run_id):
+        original = self._all_plans(run_id)
+        return {case: original[case] for case in self.case_ids}
 
     def validate_limits(self, requests, seconds, case_requests=None, case_seconds=None):
         def bounded(value, maximum, integer=False):
@@ -52,7 +57,19 @@ class _Profile:
                 'family_tree': True, 'timeline': True, 'expanded_details': True}
 
 
-def profile_for(name):
+def validate_case_selection(selected_case_ids):
+    from scripts.memoir_fifty_readback import CASE_IDS
+    if (type(selected_case_ids) is not tuple or len(selected_case_ids) != 1
+            or type(selected_case_ids[0]) is not str or selected_case_ids[0] not in CASE_IDS):
+        raise ValueError('Exactly one original fifty-case selection is required')
+    return selected_case_ids
+
+
+def profile_for(name, *, selected_case_ids=None):
+    if selected_case_ids is not None:
+        validate_case_selection(selected_case_ids)
+        if name != 'subscription_fifty':
+            raise ValueError('Case selection requires the explicit fifty profile')
     if name == 'subscription_progressive':
         from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback, case_plans_for_run
         return _Profile(name, CASE_IDS, 15, (5, 10, 15), case_plans_for_run,
@@ -60,7 +77,10 @@ def profile_for(name):
     if name == 'subscription_fifty':
         from scripts.memoir_fifty_readback import (
             CASE_IDS, CHECKPOINTS, FiftyReadback, case_plans_for_run, DATASET_SHA256)
-        return _Profile(name, CASE_IDS, 50, CHECKPOINTS, case_plans_for_run,
-                        FiftyReadback, 3000, 36000, 600, 7200,
-                        'memoir-five-case/1', DATASET_SHA256)
+        return _Profile(name, CASE_IDS if selected_case_ids is None else selected_case_ids,
+                        50, CHECKPOINTS, case_plans_for_run, FiftyReadback,
+                        3000 if selected_case_ids is None else 569,
+                        36000 if selected_case_ids is None else 7200,
+                        600 if selected_case_ids is None else 569, 7200,
+                        'memoir-five-case/1', DATASET_SHA256, selected_case_ids)
     raise ValueError('An explicit supported subscription evaluation profile is required')

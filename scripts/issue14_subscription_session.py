@@ -51,8 +51,10 @@ _OPTIONS = ('model_providers.llm_provider.request_max_retries=0',
 def assert_owned_subscription_session(value):
     if (type(value) is not OwnedSubscriptionSession or value not in _ISSUED or value._closed
             or not value._workflow_ready
-            or value._profile != profile_for(value._profile.name)
+            or value._profile != profile_for(value._profile.name, selected_case_ids=value._profile.selected_case_ids)
             or value._plans != value._profile.plans(value.run.run_id)
+            or value.run.selected_case_ids != value._profile.selected_case_ids
+            or (value._profile.name == 'subscription_fifty' and value.run.case_ids != value._profile.case_ids)
             or value.runtime.worker_transport is not value.worker_transport
             or value.runtime.worker_url != value.worker_url
             or value.provider_transport.run is not value.run
@@ -278,10 +280,13 @@ class OwnedSubscriptionSession:
     async def create(cls, *, run, provider_transport, storages, broker, temporal_client,
                      home_root, codex_binary, codex_sha256, api_key,
                      evaluation_profile='subscription_progressive', entitlement_facades=None,
-                     collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False):
+                     collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False,
+                     selected_case_ids=None):
         collector_timeout_seconds = validate_native_collector_timeout(collector_timeout_seconds)
         if type(single_collector_observation) is not bool:
             raise ValueError('Explicit single collector mode required')
+        if selected_case_ids is not None and (single_collector_observation or collector_timeout_seconds != 180):
+            raise ValueError('Selected fifty-case session requires the bounded full campaign')
         if single_collector_observation:
             from scripts.single_collector_observation import validate_observation_limits
             validate_observation_limits(evaluation_profile,run.limits.max_requests,
@@ -290,13 +295,15 @@ class OwnedSubscriptionSession:
         if (type(run) is not SubscriptionRun or type(provider_transport) is not SubscriptionTransport
                 or provider_transport.run is not run or type(api_key) is not str or not api_key):
             raise ValueError('Explicit owned run, transport and existing credential required')
-        profile = profile_for(evaluation_profile)
+        profile = profile_for(evaluation_profile, selected_case_ids=selected_case_ids)
         case_limits = run.case_limits
         profile.validate_limits(run.limits.max_requests, run.limits.max_elapsed_seconds,
             case_limits.max_requests if case_limits else None,
             case_limits.max_elapsed_seconds if case_limits else None)
         if tuple(run.case_ids or ()) != (profile.case_ids if profile.name == 'subscription_fifty' else ()):
             raise ValueError('Request gate does not match the explicit evaluation profile')
+        if run.selected_case_ids != profile.selected_case_ids:
+            raise ValueError('Request gate selection differs from the session')
         plans = profile.plans(run.run_id)
         # Validate the original dataset before starting listeners or workers.
         for case, plan in plans.items():
@@ -506,6 +513,10 @@ class OwnedSubscriptionSession:
     @property
     def evaluation_profile(self):
         return self._profile.name
+
+    @property
+    def selected_case_ids(self):
+        return self._profile.selected_case_ids
 
     @property
     def case_plans(self):
