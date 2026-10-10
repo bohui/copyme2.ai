@@ -239,6 +239,7 @@ def test_native_artifact_limit_drift_prevents_probe(monkeypatch):
 
 
 def test_native_teardown_failure_invalidates_completed_evaluation(tmp_path,monkeypatch):
+    monkeypatch.setattr(module,'verify_main_source',lambda revision:None)
     import asyncio
     from contextlib import asynccontextmanager
     from types import SimpleNamespace

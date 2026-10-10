@@ -207,6 +207,7 @@ def test_executor_has_one_300_second_execution_and_one_60_second_cleanup_window(
     from scripts import single_collector_observation as mode
     async def scenario():
         p=plan();counts=[];waits=[];started=asyncio.Event();closing=asyncio.Event()
+        monkeypatch.setattr(launcher,'verify_main_source',lambda revision:counts.append('main_verified'))
         monkeypatch.setattr(budget,'time',SimpleNamespace(monotonic=lambda:100.0))
         @asynccontextmanager
         async def native(*args):
@@ -249,6 +250,7 @@ def test_executor_has_one_300_second_execution_and_one_60_second_cleanup_window(
         await asyncio.sleep(0)
         assert len(waits)==2 and waits[0]==300 and 59<waits[1]<=60
         assert counts.count('collector')<=1 and counts.count('session')<=1
+        assert counts[0]=='main_verified' and counts.count('main_verified')==1
         assert counts.count('resources_closed')==1
         assert result['request_accounting']['client_requests_started']==0
         assert result['request_accounting']['closed'] is True
@@ -277,3 +279,13 @@ def test_verified_main_still_requires_full_exact_source_readback(monkeypatch):
     monkeypatch.setattr(launcher,'verify_source',lambda revision:seen.append(revision))
     launcher.verify_main_source('a'*40)
     assert seen==['a'*40]
+
+
+def test_native_executor_rejects_unmerged_source_before_output_or_resources(tmp_path,monkeypatch):
+    p=plan()
+    def reject(revision):raise ValueError('Evaluation requires the main branch')
+    monkeypatch.setattr(launcher,'verify_main_source',reject)
+    monkeypatch.setattr(launcher,'native_resources',lambda *a:pytest.fail('Native allocation'))
+    with pytest.raises(ValueError,match='main branch'):
+        asyncio.run(launcher.execute_native(p,tmp_path/'run','synthetic-token'))
+    assert not (tmp_path/'run').exists()

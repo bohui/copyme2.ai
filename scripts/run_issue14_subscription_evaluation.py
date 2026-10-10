@@ -505,6 +505,7 @@ async def execute_native(plan, directory, api_key):
         enable_browser_readback='browser_readback' in plan, browser_config=plan.get('browser_readback'))
     if plan != validated:
         raise ValueError('Exact freshly validated evaluation plan required')
+    verify_main_source(plan['source_revision'])
     if 'single_collector_observation' in plan:
         from scripts.single_collector_observation import execute
         return await execute(plan,directory,api_key)
