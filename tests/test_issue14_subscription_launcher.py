@@ -1,6 +1,7 @@
 """Offline launcher gates; no native container, Temporal or provider execution."""
 import hashlib
 from pathlib import Path
+import sys
 from uuid import uuid4
 
 import pytest
@@ -11,7 +12,7 @@ REVISION = '9895006f0aaec8425abb21a99f88e39a3a982c2f'
 
 
 def plan():
-    binary = Path('/bin/true').resolve()
+    binary = Path(sys.executable).resolve()
     digest = hashlib.sha256(binary.read_bytes()).hexdigest()
     return module.build_plan(run_id=str(uuid4()), source_revision=REVISION,
         codex_binary=binary, codex_sha256=digest, temporal_binary=binary, temporal_sha256=digest,
@@ -145,7 +146,7 @@ def get(name,default=None):
  return old(name,default)
 os.getenv=get
 from scripts.run_issue14_subscription_evaluation import build_plan
-b=Path('/bin/true').resolve();h=hashlib.sha256(b.read_bytes()).hexdigest()
+b=Path(sys.executable).resolve();h=hashlib.sha256(b.read_bytes()).hexdigest()
 build_plan(run_id=str(uuid4()),source_revision='a'*40,codex_binary=b,codex_sha256=h,
  temporal_binary=b,temporal_sha256=h,max_client_requests=160,max_elapsed_seconds=1800)
 print(json.dumps({'created':home.exists(),'reads':reads}))

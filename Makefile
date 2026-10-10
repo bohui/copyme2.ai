@@ -16,6 +16,7 @@ EVAL_CODEX_SHA256 ?= $(REVIEWED_CODEX_SHA256)
 EVAL_TEMPORAL_BINARY ?= $(REVIEWED_TEMPORAL_BINARY)
 EVAL_TEMPORAL_SHA256 ?= $(REVIEWED_TEMPORAL_SHA256)
 EVAL_CASE_ID ?=
+EVAL_SOURCE_MODE ?= local
 EVAL_RUN_ID ?=
 EVAL_RUN_DIR ?=
 EVAL_OUTPUT_ROOT ?= $(HOME)/memoir-test-results
@@ -144,7 +145,8 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 ##     make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
 ##     make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
 ##   Omit EVAL_CASE_ID to run all five cases (250 rounds total).
-##   Live runs require reviewed source/binary pins and clean main; planning detects local defaults.
+##   Defaults: current checkout (including local edits), detected binaries, existing .env.
+##   Strict reviewed-main run: add EVAL_SOURCE_MODE=reviewed (requires its fixed source proof).
 ##   Saved report: ~/memoir-test-results/<run-id>/report.md (default location).
 ##   Regenerate: make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/run
 ##   Setup details: docs/memoir-fifty-subscription-evaluation.md
@@ -159,18 +161,20 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 		""|harbour-copper-notebook|chengdu-tea-ledger|perth-workshop-compass|kunming-garden-lanterns|sydney-platform-letters) ;; \
 		*) echo "Unknown EVAL_CASE_ID. Choose harbour-copper-notebook, chengdu-tea-ledger, perth-workshop-compass, kunming-garden-lanterns or sydney-platform-letters." >&2; exit 2 ;; \
 	esac; \
+	case "$(EVAL_SOURCE_MODE)" in \
+		local|reviewed) ;; \
+		*) echo "EVAL_SOURCE_MODE must be local or reviewed." >&2; exit 2 ;; \
+	esac; \
 	source_revision="$(EVAL_SOURCE_REVISION)"; \
 	codex_binary="$(EVAL_CODEX_BINARY)"; codex_sha256="$(EVAL_CODEX_SHA256)"; \
 	temporal_binary="$(EVAL_TEMPORAL_BINARY)"; temporal_sha256="$(EVAL_TEMPORAL_SHA256)"; \
-	if test "$@" = "memoir-live-fifty-plan"; then \
-		if test -z "$$source_revision"; then source_revision="$$(git rev-parse HEAD)"; fi; \
-		if test -z "$$codex_binary"; then codex_binary="$$(command -v codex || true)"; fi; \
-		if test -z "$$temporal_binary"; then temporal_binary="$$(command -v temporal || true)"; fi; \
-		if test -z "$$temporal_binary"; then temporal_binary="$$(python3 -c 'import os; from pathlib import Path; paths=[p for p in Path("/tmp/memoir-issue6-temporal").glob("temporal-sdk-python-*") if p.is_file() and os.access(p, os.X_OK)]; print(paths[0].resolve() if len(paths)==1 else "")')"; fi; \
-		if test -n "$$codex_binary" && test -z "$$codex_sha256"; then codex_sha256="$$(python3 -c 'import hashlib,sys; from pathlib import Path; print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())' "$$codex_binary")"; fi; \
-		if test -n "$$temporal_binary" && test -z "$$temporal_sha256"; then temporal_sha256="$$(python3 -c 'import hashlib,sys; from pathlib import Path; print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())' "$$temporal_binary")"; fi; \
-	fi; \
-	test -n "$$source_revision" || { echo "Set EVAL_SOURCE_REVISION (or REVIEWED_MAIN_HEAD) to the reviewed main commit." >&2; exit 2; }; \
+	if test -z "$$source_revision"; then source_revision="$$(git rev-parse HEAD)"; fi; \
+	if test -z "$$codex_binary"; then codex_binary="$$(command -v codex || true)"; fi; \
+	if test -z "$$temporal_binary"; then temporal_binary="$$(command -v temporal || true)"; fi; \
+	if test -z "$$temporal_binary"; then temporal_binary="$$(python3 -c 'import os; from pathlib import Path; paths=[p for p in Path("/tmp/memoir-issue6-temporal").glob("temporal-sdk-python-*") if p.is_file() and os.access(p, os.X_OK)]; print(paths[0].resolve() if len(paths)==1 else "")')"; fi; \
+	if test -n "$$codex_binary" && test -z "$$codex_sha256"; then codex_sha256="$$(python3 -c 'import hashlib,sys; from pathlib import Path; print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())' "$$codex_binary")"; fi; \
+	if test -n "$$temporal_binary" && test -z "$$temporal_sha256"; then temporal_sha256="$$(python3 -c 'import hashlib,sys; from pathlib import Path; print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())' "$$temporal_binary")"; fi; \
+	test -n "$$source_revision" || { echo "Cannot detect Git HEAD; set EVAL_SOURCE_REVISION." >&2; exit 2; }; \
 	test -n "$$codex_binary" && test -n "$$codex_sha256" || { echo "Set EVAL_CODEX_BINARY and EVAL_CODEX_SHA256 (or REVIEWED_CODEX_*)." >&2; exit 2; }; \
 	test -n "$$temporal_binary" && test -n "$$temporal_sha256" || { echo "Set EVAL_TEMPORAL_BINARY and EVAL_TEMPORAL_SHA256 (or REVIEWED_TEMPORAL_*); no unique cached Temporal executable was found." >&2; exit 2; }; \
 	run_id="$(EVAL_RUN_ID)"; \
@@ -185,11 +189,13 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 		--max-client-requests "$(EVAL_MAX_CLIENT_REQUESTS)" --max-elapsed-seconds "$(EVAL_MAX_ELAPSED_SECONDS)" \
 		--max-case-client-requests "$(EVAL_MAX_CASE_CLIENT_REQUESTS)" --max-case-elapsed-seconds "$(EVAL_MAX_CASE_ELAPSED_SECONDS)" \
 		--collector-timeout-seconds 180; \
+	if test "$(EVAL_SOURCE_MODE)" = "local"; then set -- "$$@" --local-checkout; fi; \
 	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
 	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
 	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
 	if test -f "$(ENV_FILE)"; then set -- "$$@" --existing-app-env "$(abspath $(ENV_FILE))"; fi; \
 	set -- "$$@" --execute-existing-subscription; \
+	printf 'Source mode: %s; commit: %s\n' "$(EVAL_SOURCE_MODE)" "$$source_revision" >&2; \
 	if test -n "$(EVAL_CASE_ID)"; then \
 		printf 'Case %s, 50 rounds. Evidence directory: %s\n' "$(EVAL_CASE_ID)" "$$run_dir" >&2; \
 	else \

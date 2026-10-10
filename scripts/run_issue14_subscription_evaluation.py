@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Explicit, one-shot existing-subscription evaluation; default is plan only.
 
-Separate from the historical strict-budget launcher. Execution requires an exact
-reviewed clean source head, existing pinned binaries and existing app gateway
-configuration. No provider/account switching, installation or credential setup.
+Separate from the historical strict-budget launcher. Default execution requires
+reviewed main; --local-checkout records the current development tree instead.
+Both modes use existing pinned binaries and existing app gateway configuration.
+No provider/account switching, installation or credential setup.
 """
 import argparse
 import asyncio
@@ -47,7 +48,7 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
                enable_public_photo_research=False, photo_python_binary=None, photo_python_sha256=None,
                enable_browser_readback=False, browser_config=None,
                collector_timeout_seconds=WORKER_TIMEOUT, single_collector_observation=False,
-               selected_case_ids=None):
+               selected_case_ids=None, local_checkout_source=None):
     from apps.api.codex_timeout_policy import native_worker_deadlines
     from scripts.memoir_subscription_profiles import profile_for
     profile = profile_for(evaluation_profile, selected_case_ids=selected_case_ids)
@@ -70,6 +71,20 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
             or not re.fullmatch('[0-9a-f]{40}', source_revision)
             or type(waive_memory_pressure_check) is not bool):
         raise ValueError('Explicit approved case/request/time bounds required')
+    if local_checkout_source is not None:
+        if (profile.name != 'subscription_fifty' or single_collector_observation
+                or enable_browser_readback or enable_public_photo_research):
+            raise ValueError('Local checkout mode supports only full fifty-round conversations')
+        if (type(local_checkout_source) is not dict
+                or set(local_checkout_source) != {'head', 'branch', 'dirty', 'file_count', 'snapshot_sha256'}
+                or local_checkout_source['head'] != source_revision
+                or type(local_checkout_source['branch']) is not str
+                or type(local_checkout_source['dirty']) is not bool
+                or type(local_checkout_source['file_count']) is not int
+                or local_checkout_source['file_count'] <= 0
+                or type(local_checkout_source['snapshot_sha256']) is not str
+                or not re.fullmatch('[a-f0-9]{64}', local_checkout_source['snapshot_sha256'])):
+            raise ValueError('An observed local checkout snapshot is required')
     browser = None
     if type(enable_browser_readback) is not bool:
         raise ValueError('Explicit browser policy required')
@@ -103,6 +118,7 @@ def build_plan(*, run_id, source_revision, codex_binary, codex_sha256,
     return {'schema_version': 'memoir-subscription-evaluation-plan/1', 'run_id': run_id,
         'source_revision': source_revision, 'case_ids': list(cases), 'cases': cases,
         'evaluation_profile': profile.name, 'rounds_per_case': profile.rounds,
+        **({'local_checkout_source': dict(local_checkout_source)} if local_checkout_source is not None else {}),
         **({'selected_case_ids': list(selected_case_ids)} if selected_case_ids is not None else {}),
         'checkpoints': list(profile.checkpoints), 'concurrency': 1,
         'artifact_storage': {'backend': 'owned_disposable_postgres',
@@ -177,6 +193,44 @@ def verify_main_source(revision):
             or git_read('rev-parse', 'refs/remotes/origin/main') != revision):
         raise ValueError('Evaluation requires the exact fetched main branch')
     verify_source(revision)
+
+
+def local_checkout_snapshot(revision):
+    """Fingerprint Git-visible files, including local edits, without saving bodies.
+
+    This is developer-run provenance, not the historical reviewed-source proof.
+    Ignored files (including the private .env and installed dependencies) are
+    excluded. Recheck before allocation and after cleanup to detect tree changes.
+    """
+    head = git_read('rev-parse', 'HEAD')
+    if head != revision:
+        raise ValueError('Local checkout source revision must equal the current HEAD')
+    names = subprocess.check_output(
+        ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=ROOT)
+    digest = hashlib.sha256()
+    paths = sorted(set(names.split(b'\0')) - {b''})
+    for name in paths:
+        path = ROOT / os.fsdecode(name)
+        if path.is_symlink():
+            entry = ['symlink', os.readlink(path)]
+        elif path.is_file():
+            entry = ['file', path.stat().st_mode & 0o111,
+                     hashlib.sha256(path.read_bytes()).hexdigest()]
+        elif not path.exists():
+            entry = ['deleted']
+        else:
+            raise ValueError('Local checkout snapshot requires ordinary files')
+        digest.update(name + b'\0' + json.dumps(entry, separators=(',', ':')).encode() + b'\0')
+    return {'head': head, 'branch': git_read('rev-parse', '--abbrev-ref', 'HEAD'),
+            'dirty': bool(git_read('status', '--porcelain')), 'file_count': len(paths),
+            'snapshot_sha256': digest.hexdigest()}
+
+
+def verify_execution_source(revision, local_source=None):
+    if local_source is None:
+        verify_main_source(revision)
+    elif local_checkout_snapshot(revision) != local_source:
+        raise ValueError('Local checkout changed after the evaluation plan was created')
 
 
 def require_absent_container(name):
@@ -512,6 +566,7 @@ def validate_native_plan(plan):
         max_case_elapsed_seconds=plan.get('max_case_elapsed_seconds'),
         collector_timeout_seconds=plan.get('collector_timeout_seconds', WORKER_TIMEOUT),
         single_collector_observation='single_collector_observation' in plan,
+        local_checkout_source=plan.get('local_checkout_source'),
         enable_public_photo_research=bool(plan.get('photo_research')),
         photo_python_binary=(plan.get('photo_research') or {}).get('python_binary'),
         photo_python_sha256=(plan.get('photo_research') or {}).get('python_sha256'),
@@ -526,7 +581,7 @@ async def execute_native(plan, directory, api_key):
     from scripts.issue14_subscription_runner import SubscriptionProgressiveRunner
     profile = _profile_for_plan(plan)
     validate_native_plan(plan)
-    verify_main_source(plan['source_revision'])
+    verify_execution_source(plan['source_revision'], plan.get('local_checkout_source'))
     if 'single_collector_observation' in plan:
         from scripts.single_collector_observation import execute
         return await execute(plan,directory,api_key)
@@ -547,6 +602,8 @@ async def execute_native(plan, directory, api_key):
     receipt = {'schema_version': 'memoir-subscription-native-receipt/1', 'run_id': plan['run_id'],
         'source_revision': plan['source_revision'], 'status': 'incomplete', 'execution_started': True,
         'judge': 'not_run', 'langfuse': 'not_published', 'semantic_acceptance': 'human_review_required'}
+    if 'local_checkout_source' in plan:
+        receipt['local_checkout_source'] = dict(plan['local_checkout_source'])
     if profile.selected_case_ids is not None:
         receipt['selected_case_ids'] = list(profile.selected_case_ids)
     session = None
@@ -604,6 +661,13 @@ async def execute_native(plan, directory, api_key):
             receipt['photo_research'] = session.photo_research.snapshot()
         if session is not None and getattr(session, 'browser_readback', None) is not None:
             receipt['browser_readback'] = session.browser_readback.receipt()
+        if 'local_checkout_source' in plan:
+            try:
+                verify_execution_source(plan['source_revision'], plan['local_checkout_source'])
+                receipt['local_checkout_unchanged'] = True
+            except Exception:
+                receipt['local_checkout_unchanged'] = False
+                invalidate_native_receipt(receipt, 'source_changed_during_run')
         _save(directory / 'receipt.json', receipt)
     return receipt
 
@@ -626,6 +690,8 @@ def main(argv=None):
         help='Explicitly authorized one-shot Memoir memory waiver; keeps isolation and the native lease')
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--source-revision', required=True)
+    parser.add_argument('--local-checkout', action='store_true',
+        help='Test the current fifty-round development checkout; record local edits instead of requiring reviewed main')
     parser.add_argument('--run-dir', type=Path, required=True)
     parser.add_argument('--existing-app-env', type=Path)
     for name in ('codex', 'temporal'):
@@ -648,11 +714,13 @@ def main(argv=None):
         help='Explicit native collector execution budget (default 120; maximum 240 seconds)')
     args = parser.parse_args(argv)
     execution_started = False
+    preflight_stage = 'plan'
     try:
         if args.browser_config is not None and not args.enable_browser_readback:
             raise ValueError('Browser config requires explicit admission')
         browser_config = read_browser_config(args.browser_config) if args.browser_config is not None else None
-        plan = build_plan(browser_config=browser_config,
+        local_source = local_checkout_snapshot(args.source_revision) if args.local_checkout else None
+        plan = build_plan(browser_config=browser_config, local_checkout_source=local_source,
             selected_case_ids=tuple(args.selected_case_ids) if args.selected_case_ids is not None else None,
             **{key: getattr(args, key) for key in ('run_id','source_revision',
             'codex_binary','codex_sha256','temporal_binary','temporal_sha256',
@@ -663,20 +731,28 @@ def main(argv=None):
         if not args.execute_existing_subscription:
             print(json.dumps(plan, sort_keys=True))
             return 0
-        verify_main_source(args.source_revision)
-        if plan.get('evaluation_profile', 'subscription_progressive') == 'subscription_fifty':
+        preflight_stage = 'source_validation'
+        verify_execution_source(args.source_revision, local_source)
+        if (local_source is None
+                and plan.get('evaluation_profile', 'subscription_progressive') == 'subscription_fifty'):
+            preflight_stage = 'reviewed_source_audit'
             from scripts.issue14_subscription_source_contract_v6 import audit_subscription_source_v6
             audit_subscription_source_v6(ROOT)
+        preflight_stage = 'platform'
         if sys.platform != 'darwin':
             raise ValueError('This native bootstrap requires the authorized Mac fixture')
         from scripts.native_canary_launcher import native_resource_lease
+        preflight_stage = 'memory_pressure'
         memory_resource_check(waived=plan['memory_pressure_check_waived'])
+        preflight_stage = 'run_directory'
         if args.run_dir.exists() or args.run_dir.is_symlink() or ROOT in args.run_dir.resolve().parents:
             raise ValueError('A fresh task output directory outside the source checkout is required')
         # Refuse silent stock-image installation. The native preflight must have
         # the supported fixture image and both executable pins already present.
+        preflight_stage = 'postgres_image'
         subprocess.run(['container','image','inspect','postgres:18.3'], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        preflight_stage = 'provider_configuration'
         if args.existing_app_env is not None:
             load_existing_application_env(args.existing_app_env, **(
                 {'include_public_photo_settings': True} if args.enable_public_photo_research else {}))
@@ -689,7 +765,9 @@ def main(argv=None):
                 return await execute_native(plan, args.run_dir, api_key)
             finally:
                 loop.remove_signal_handler(signal.SIGTERM)
+        preflight_stage = 'native_lease'
         with native_resource_lease(args.run_id):
+            preflight_stage = 'memory_pressure'
             memory_resource_check(waived=plan['memory_pressure_check_waived'])
             execution_started = True
             result = asyncio.run(scenario())
@@ -697,8 +775,20 @@ def main(argv=None):
                           'receipt_path': str(args.run_dir / 'receipt.json')}))
         return 0 if result['status'] in ('completed','observation') else 3
     except Exception:
+        hints = {
+            'plan': 'Check case selection, request/time limits, executable paths/hashes and source revision.',
+            'source_validation': 'Local runs require an unchanged snapshot of the current HEAD; reviewed runs require clean fetched main.',
+            'reviewed_source_audit': 'The checkout does not match the fixed reviewed-source proof. Use local checkout mode for development tests.',
+            'platform': 'Native evaluation requires macOS.',
+            'memory_pressure': 'The existing native memory-pressure check did not pass.',
+            'run_directory': 'Use a fresh absolute output directory outside the checkout.',
+            'postgres_image': 'The Apple Container runtime must be available with the existing postgres:18.3 image.',
+            'provider_configuration': 'Check the private ENV_FILE ownership/permissions and the existing gateway model configuration.',
+            'native_lease': 'The exclusive native evaluation lease is unavailable.',
+        }
         print(json.dumps({'status':'incomplete' if execution_started else 'blocked',
             'reason':'native_execution_failed' if execution_started else 'subscription_preflight_failed',
+            **({'preflight_stage': preflight_stage, 'hint': hints[preflight_stage]} if not execution_started else {}),
             'execution_started':execution_started}))
         return 3
 

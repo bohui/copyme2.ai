@@ -16,23 +16,25 @@ execution by default. The read-only plan works directly:
 make memoir-live-fifty-plan
 ```
 
-When values are omitted, planning observes the current Git HEAD, finds Codex and
+When values are omitted, both targets observe the current Git HEAD, find Codex and
 Temporal on PATH (or the single existing SDK Temporal executable in
-`/tmp/memoir-issue6-temporal`), and hashes those files. It does not install or start
-them, read credentials, or certify those observed values as independently reviewed.
-Explicit values still take precedence. Live execution requires the reviewed
-source and executable pins configured once in your shell (replace the placeholders):
+`/tmp/memoir-issue6-temporal`), and hash those files. Planning does not install or
+start them, read credentials, or certify those values as independently reviewed.
+Explicit values still take precedence. The normal live command works without
+manually exporting source or executable pins:
 
 ```sh
-export EVAL_SOURCE_REVISION='<reviewed-main-commit>'
-export EVAL_CODEX_BINARY=/absolute/path/to/codex
-export EVAL_CODEX_SHA256='<reviewed-codex-sha256>'
-export EVAL_TEMPORAL_BINARY=/absolute/path/to/temporal
-export EVAL_TEMPORAL_SHA256='<reviewed-temporal-sha256>'
-
-make memoir-live-fifty-plan
-make memoir-live-fifty-test
+make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook
 ```
+
+The Make targets default to `EVAL_SOURCE_MODE=local`, which passes the launcher's
+explicit `--local-checkout` option. This tests your current development branch,
+including tracked edits and new non-ignored files. The plan, receipt and report
+record the Git HEAD, branch, dirty state and checkout fingerprint. The fingerprint
+is checked before allocation and after cleanup; detected source changes invalidate
+the run. Avoid editing the checkout during a live conversation. Ignored files,
+including private `.env` and installed dependencies, are outside this fingerprint.
+Local runs do not claim to pass the historical reviewed-source audit.
 
 To run each case independently, choose its ID. Each command creates a fresh
 run, executes that case's complete 50-round conversation in order, and saves
@@ -55,10 +57,27 @@ The equivalent existing `REVIEWED_MAIN_HEAD`, `REVIEWED_CODEX_BINARY`,
 `REVIEWED_CODEX_SHA256`, `REVIEWED_TEMPORAL_BINARY` and
 `REVIEWED_TEMPORAL_SHA256` environment variables are also accepted. Plan-only
 prints JSON and does not read `.env`, allocate native resources or call a model.
-The live command requires the launcher's clean fetched `main`, source audit,
-Mac resource checks, existing cached `postgres:18.3` image and pinned executables.
-The Make wrapper preserves those checks; changing local code requires the normal
-source review/commit workflow before execution can pass.
+For a local run, any explicitly supplied source revision must equal current HEAD.
+Both execution modes retain Mac resource checks, the exclusive native lease,
+the existing cached `postgres:18.3` image, exact executable hashes, model routing,
+request/time ceilings and disposable storage cleanup.
+
+Strict reviewed-source execution is still available with
+`EVAL_SOURCE_MODE=reviewed`. It requires clean fetched `main` and the launcher's
+fixed source proof; merely committing new code does not update that proof. The
+direct Python launcher keeps reviewed mode as its default. Explicit pins can be
+supplied in either mode, for example:
+
+```sh
+make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook \
+  EVAL_SOURCE_MODE=reviewed EVAL_SOURCE_REVISION='<reviewed-main-commit>' \
+  EVAL_CODEX_BINARY=/absolute/path/to/codex EVAL_CODEX_SHA256='<sha256>' \
+  EVAL_TEMPORAL_BINARY=/absolute/path/to/temporal EVAL_TEMPORAL_SHA256='<sha256>'
+```
+
+Preflight failures report a safe `preflight_stage` and hint, identifying source,
+memory pressure, cached-image, provider-config or native-lease problems without
+printing credentials or arbitrary exception bodies.
 
 For live execution, an existing `ENV_FILE` (default `.env`) is passed privately
 to the launcher's allowlisted provider-config loader. It must satisfy that
@@ -102,6 +121,14 @@ closer inspection. Default runs do not produce browser screenshots; those
 require the optional isolated browser configuration below. Project IDs belong
 to the disposable database and cannot be reopened through the normal app UI
 after cleanup. The saved report is a review artifact, not a restored project.
+
+Remote Supabase is not a backend option for this launcher. Its owned session
+requires synthetic authentication, owner-scoped entitlement facades and disposable
+PostgreSQL storage. A separate remote mode would need real authentication and
+project ownership, storage, entitlement and workflow integration. It could retain
+projects for normal UI access and avoid the local PostgreSQL container.
+`make db-truncate RESET_CONFIRM=1` clears application data, storage and all Supabase
+Auth users as well as local user state; it therefore removes retained UI access.
 
 ## Approved bounds and original inputs
 
@@ -176,9 +203,12 @@ Use the existing `scripts/run_issue14_subscription_evaluation.py` command with:
 The command remains plan-only unless `--execute-existing-subscription` is
 explicitly supplied by the separately authorized Mac task. Plan-only checks the
 original dataset and pins without loading provider credentials or allocating
-resources. Execution requires the entire clean, reviewed Git tree, without
-hidden index flags, and independently verifies every tracked blob. It rebuilds
-the plan before allocation so edited cases/checkpoints/limits cannot pass.
+resources. Default reviewed execution requires the entire clean, reviewed Git tree,
+without hidden index flags, and independently verifies every tracked blob. The
+explicit `--local-checkout` option instead records and verifies development
+provenance as described above; it applies only to full fifty-round conversations.
+Both modes rebuild the plan before allocation so edited cases/checkpoints/limits
+cannot pass.
 
 The one-shot Memoir `--waive-memory-pressure-check` flag records the approved
 memory waiver. The exclusive native lease, loopback listener/Temporal isolation,
