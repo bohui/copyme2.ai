@@ -167,6 +167,8 @@ def main():
     parser.add_argument('--candidate-model', help='Isolated conversation candidate route; normal service is unchanged')
     parser.add_argument('--candidate-effort', choices=['max', 'low'], default='max')
     parser.add_argument('--candidate-prompt-version', choices=['legacy', 'compact-v1'], default='compact-v1')
+    parser.add_argument('--extended', action='store_true',
+        help='Conversation: bounded 42-generation short/long-stress/Family/reference/rollback campaign')
     args = parser.parse_args()
     try:
         if args.mode == 'conversation':
@@ -175,10 +177,10 @@ def main():
             if args.model:
                 parser.error('--model is only supported in isolated collector mode')
             from scripts.profile_conversation_latency import campaign
-            _, results = asyncio.run(campaign(args.timeout, args.deadline, args.review,
+            frozen, results = asyncio.run(campaign(args.timeout, args.deadline, args.review,
                 candidate_model=args.candidate_model, candidate_effort=args.candidate_effort,
-                candidate_prompt_version=args.candidate_prompt_version))
-            if len(results) != 24 or any(r['status'] != 'saved' for r in results):
+                candidate_prompt_version=args.candidate_prompt_version, extended=args.extended))
+            if len(results) != frozen['foreground_generation_budget'] or any(r['status'] != 'saved' for r in results):
                 raise RuntimeError('Conversation comparison did not complete')
         else:
             asyncio.run(first_turn(args.origin, args.timeout) if args.mode == 'first-turn'

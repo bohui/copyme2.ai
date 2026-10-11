@@ -11,6 +11,12 @@ completed but increased median usable-save time. Configured same-model/effort po
 was verified read-only. Neither pilot passed release acceptance; do not enable a
 candidate or claim semantic equivalence from schema success alone.
 
+The [PR 58 follow-up](test-evidence/issue53-pr58-follow-up-20261012.md) fixes a
+fixed-introduction/save-readiness race and verifies first/later/resumed normal
+replies through a real production web proxy. It also confirms that the current
+low alias changes the Codex request shape. A compatible separate alias is proposed,
+not provisioned or approved for rollout. These findings do not pass the speed gate.
+
 Every future generated conversational turn resolves the server configuration,
 including persisted-thread resumes and server-owned conversational actions.
 The no-model introduction and committed-result replay stay unchanged. The
@@ -137,3 +143,22 @@ public replies to the checked-in synthetic cases. Settings and temporary homes
 are restored/removed on exit. Record provider retries/cache/load limitations and
 all failures; a successfully completed campaign is not by itself a passed quality
 or latency release gate.
+
+`--extended` adds matched short/long-stress/Family/public-reference cases and an
+actual candidate-history rollback per language: 42 foreground generations, at
+most 84 app-server turns, within the same timeout/deadline and failure gate.
+The two rollback generations are not matched latency pairs. This remains a small
+synthetic exploratory campaign, not representative semantic-quality acceptance.
+The freeze includes the local app-server version, or unavailable; pin it alongside
+the application source. Do not equate host and deployed Codex versions.
+
+For the secondary, opt-in normal-route real-proxy rendering/save/reload check:
+
+```sh
+python3 scripts/smoke_conversation_proxy.py --origin http://127.0.0.1:3010 --timeout 120
+```
+
+This freezes three generated replies and uses a fresh anonymous memoir. It leaves
+the synthetic account/project and saved replies available for readback. It does
+not change services, route settings or customer sessions. A passing smoke does
+not establish candidate latency/quality acceptance.

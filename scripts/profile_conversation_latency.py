@@ -46,6 +46,31 @@ CASES = {
 }
 PHOTO = {'photo_id': 'synthetic-family-photo', 'kind': 'personal', 'caption': 'Family photograph',
     'capture_date': None, 'url': 'https://synthetic.invalid/photo.jpg'}
+REFERENCE_PHOTO = {'photo_id': 'reference:synthetic-public-reference', 'kind': 'public_reference',
+    'title': 'Public reference: a river in 1972; not a personal photograph',
+    'capture_date': '1972', 'image_url': 'https://synthetic.invalid/reference.jpg'}
+EXTRA_CASES = {
+    'zh-CN': [
+        ('short', '父亲下班后常常修东西。'),
+        ('long', ('那条河让我想起很多家里的事。母亲很少责备我们，姐姐常陪我放学后慢慢走回家。'
+            '有时我们捡石头，有时只是听水声。我不记得年份，也不确定这些事发生的先后。'
+            '父亲修东西时我会坐在旁边看，并不是我自己会修。想到这些，我既怀念也难过。\n' * 35)
+            + '最后一个细节：母亲把那张字条放进蓝色信封。'),
+        ('family', '我的母亲叫美，姐姐叫诺拉。诺拉是姐姐，不是我的女儿。救我的是母亲，我仍记不起是哪一年。'),
+        ('public_reference', '这只是找到的公共参考照片，不是我家的照片。我不知道照片里的人是谁，也不能确定我去过那个地方或在1972年住在那里。'),
+    ],
+    'en-AU': [
+        ('short', 'Dad often repaired things after work.'),
+        ('long', ('The river brings back many memories of home. Mum rarely scolded us, and my sister often walked slowly home with me after school. '
+            'Sometimes we picked up stones; sometimes we just listened to the water. I cannot remember the year or be sure of the order of these memories. '
+            'When Dad repaired things, I sat beside him and watched; I was not the one who knew how to repair them. These memories make me feel both fondness and sadness.\n' * 12)
+            + 'One final detail: Mum put the note in a blue envelope.'),
+        ('family', 'My mother is Mei and my sister is Nora. Nora is my sister, not my daughter. Mum rescued me; I still cannot remember the year.'),
+        ('public_reference', 'This is only a public reference photograph, not our family photograph. I do not know the people in it. It does not mean I visited that place or lived there in 1972.'),
+    ],
+}
+ROLLBACK_TEXT = {'zh-CN': '我们继续吧。我还记得母亲握着我的手，但不记得那年的年份。',
+    'en-AU': 'Let us continue. I still remember Mum holding my hand, but not the year.'}
 
 
 class ProfileStorage(SyntheticStorage, UserStorage):
@@ -64,14 +89,15 @@ class ProfileStorage(SyntheticStorage, UserStorage):
                 'sequence': len(self.sources) + 1, 'language': options['language']}
             self.sources.append(source)
             self.turns[turn] = {'source': source, 'sequence': source['sequence'],
-                'client_turn_id': turn, 'photo_context': [deepcopy(PHOTO)] if options.get('uploaded_photo_ids') else []}
+                'client_turn_id': turn, 'photo_context': [deepcopy(PHOTO)] if options.get('uploaded_photo_ids')
+                    else [deepcopy(REFERENCE_PHOTO)] if options.get('photo_selection') else []}
         return deepcopy(self.turns[turn])
 
     def interview_turn_by_id(self, project, turn): return deepcopy(self.turns.get(turn))
     def narrator_source_by_turn(self, project, turn): return deepcopy(self.turns[turn]['source'])
     def interview_context(self, project):
-        return {'plan': deepcopy(self.plan), 'photos': [deepcopy(PHOTO)]
-            if any(t['photo_context'] for t in self.turns.values()) else []}
+        return {'plan': deepcopy(self.plan), 'photos': [deepcopy(photo)
+            for turn in self.turns.values() for photo in turn['photo_context']]}
     def memory_events(self, project): return {'sources': deepcopy(self.sources), 'events': []}
     def recall_rounds_completed(self): return self.rounds
     def first_narrator_reply(self):
@@ -126,7 +152,9 @@ async def measure(storage, worker, text, case, timeout, *, review=False, client_
         return await runtime.turn(storage, text, project_id=storage.project_id,
             language=storage.profile()['preferred_language'], client_turn_id=turn_id,
             on_delta=emit, on_event=emit.event, evaluation={'run_id': 'issue53-quality-first', 'case_id': case},
-            **({'uploaded_photo_ids': [str(uuid4())]} if case == 'photo' else {}))
+            **({'uploaded_photo_ids': [str(uuid4())]} if case == 'photo' else
+                {'photo_selection': {'key': REFERENCE_PHOTO['image_url'], 'revision': 'synthetic-reference-1'}}
+                if case == 'public_reference' else {}))
     visible, terminal, errors = '', None, 0
     async with asyncio.timeout(timeout + 15):
         async for line in turn_events(run):
@@ -169,8 +197,13 @@ def isolated_settings():
 
 
 async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=None,
-        candidate_effort='max', candidate_prompt_version='compact-v1'):
-    """24 foreground generations, <=48 app-server turns, no live workspace calls."""
+        candidate_effort='max', candidate_prompt_version='compact-v1', extended=False):
+    """24 (extended: 42) foreground generations; no live workspace calls.
+
+    Extended adds matched short/long-stress/Family/reference cases and one
+    unpaired, actual candidate-history rollback per language. It is not a
+    representative quality-equivalence or production-tail evaluation.
+    """
     source_root = Path(__file__).resolve().parents[1]
     source_files = ['apps/api/codex_runtime.py', 'apps/api/codex_worker_service.py',
         'apps/api/collector_configuration.py', 'apps/api/collector_prompt.py',
@@ -180,13 +213,23 @@ async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=
         'apps/api/evaluation_cases.py', 'apps/api/turn_stream.py',
         'scripts/profile_first_reply.py', 'scripts/profile_conversation_latency.py']
     model = os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
+    try:
+        version = subprocess.check_output([os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), '--version'],
+            text=True, stderr=subprocess.DEVNULL, timeout=5).strip()
+        version = version if version.startswith('codex-cli ') and len(version) < 80 else None
+    except (OSError, subprocess.SubprocessError):
+        version = None
     variants = {'baseline': {'model': model, 'requested_effort': 'max', 'prompt_version': 'legacy'},
         'candidate': {'model': candidate_model or model, 'requested_effort': candidate_effort,
             'prompt_version': candidate_prompt_version}}
-    frozen = {'dataset': 'issue53-quality-first/2', 'revision': subprocess.check_output(
-        ['git', 'rev-parse', 'HEAD'], text=True).strip(), 'cases_per_language': 6,
+    case_count = 10 if extended else 6
+    budget = case_count * 4 + (2 if extended else 0)
+    frozen = {'dataset': 'issue53-quality-first/3' if extended else 'issue53-quality-first/2', 'revision': subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'], text=True).strip(), 'cases_per_language': case_count,
+        'rollback_generations': 2 if extended else 0,
+        'appserver_version': version,
         'source_sha256': hashlib.sha256(b''.join((source_root / p).read_bytes() for p in source_files)).hexdigest(),
-        'foreground_generation_budget': 24, 'appserver_turn_budget': 48,
+        'foreground_generation_budget': budget, 'appserver_turn_budget': budget * 2,
         'per_generation_timeout_s': timeout, 'campaign_deadline_s': deadline,
         'variants': variants,
         'acceptance': 'Exploratory only: review grounding, identity, uncertainty, language, photo attribution, '
@@ -201,10 +244,20 @@ async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=
             root = Path(directory)
             root.chmod(0o711)
             for language, cases in CASES.items():
+                if extended:
+                    cases = cases[:-2] + EXTRA_CASES[language] + cases[-2:]
                 storage = ProfileStorage(language)
                 baseline = CodexWorker(home_root=root / language / 'baseline', model=model,
                     timeout=timeout, reasoning_effort='max')
                 for index, (case, text) in enumerate(cases):
+                    if case == 'family':
+                        storage._entitlement = {'status': 'paid', 'plan_key': 'family_memoir_v1',
+                            'family_tree': True, 'timeline': True,
+                            'stripe_price_id': os.getenv('STRIPE_PRICE_FAMILY', '').strip() or 'synthetic-family-price'}
+                        storage._family = {'project_id': storage.project_id, 'revision': 1,
+                            'people': [{'id': 'person-mother', 'name': '美' if language == 'zh-CN' else 'Mei', 'family_title': 'mother'},
+                                {'id': 'person-sister', 'name': '诺拉' if language == 'zh-CN' else 'Nora', 'family_title': 'sister'}],
+                            'relationships': [], 'timeline': []}
                     # Exact pre-turn copies: no independently generated history confound.
                     candidate_storage = deepcopy(storage)
                     candidate_root = root / language / f'candidate-{index}'
@@ -229,6 +282,22 @@ async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=
                         if result['status'] != 'saved':
                             print(json.dumps({'kind': 'campaign_stopped', 'reason': 'generation_failed'}), flush=True)
                             return frozen, results
+                if extended:
+                    # Resume the just-generated candidate, not the baseline's
+                    # thread copy. Roll back the operator overrides only.
+                    for key in ('MODEL', 'REASONING_EFFORT', 'PROMPT_VERSION'):
+                        os.environ.pop('MEMORY_SPARK_COLLECTOR_' + key, None)
+                    settings = variants['baseline']
+                    print(json.dumps({'kind': 'generation_start', 'language': language,
+                        'case': 'rollback', 'variant': 'rollback', **settings}), flush=True)
+                    result = await measure(candidate_storage, candidate, ROLLBACK_TEXT[language],
+                        'rollback', timeout, review=review)
+                    result.update(input_language=language, variant='rollback', **settings)
+                    results.append(result)
+                    print(json.dumps({'kind': 'generation_result', **result}, ensure_ascii=False), flush=True)
+                    if result['status'] != 'saved':
+                        print(json.dumps({'kind': 'campaign_stopped', 'reason': 'generation_failed'}), flush=True)
+                        return frozen, results
     return frozen, results
 
 

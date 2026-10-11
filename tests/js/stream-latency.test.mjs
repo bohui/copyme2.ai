@@ -7,6 +7,25 @@ import {mergePlaces} from '../../apps/web/client/memoir/places.mjs';
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
 
+test('fixed-introduction completion cannot unlock a generated reply already in flight', async () => {
+  let finishOpening;
+  const opening = new Promise(resolve => { finishOpening = resolve; });
+  const state = {project: {id: 'p'}, supabase: {user: {id: 'guest'}}, chat: [], loading: true};
+  const context = vm.createContext({state, streamAssistantMessage: () => opening,
+    conversationMessage: () => 'What would you like me to call you?', simulatedLoopTrace: () => [],
+    translate: value => value, render() {}});
+  vm.runInContext(extract('startCodexConversation'), context);
+  const pending = context.startCodexConversation();
+  assert.equal(state.loading, false, 'The no-model opening keeps the first-answer composer available');
+  // The storyteller sends while the fixed introduction is still painting.
+  state.loading = true;
+  state.chat.push({role: 'user', text: 'My name is Avery.'});
+  finishOpening();
+  await pending;
+  assert.equal(state.loading, true, 'Only conversation_saved or controlled failure can finish the generated turn');
+  assert.equal(state.codexReady, true);
+});
+
 test('map preview renders during text streaming without a profile write or photo wait', async () => {
   let renders = 0;
   const context = vm.createContext({
