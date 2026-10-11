@@ -1,0 +1,71 @@
+{
+  "campaign": "issue53-compatible-route-corrected-routing-only-20261012",
+  "frozen_before_dispatch": true,
+  "verified_application_revision": "641e9d31ae1f30d8073f37cb53ff8b9fb9cef23f",
+  "source_sha256": "78a4190ad112a16f8dbc60f6c5c47db57af07863870dac6858da4b54391ef5ab",
+  "source_files_matched_to_worker": 14,
+  "appserver_version": "codex-cli 0.156.1",
+  "gateway_revision_observed": "1a95ee07119bf66e91be7269b3109ebfc5d610c2",
+  "gateway_config_sha256_at_activation": "52ed4a6242a1d0f9658170770a1fe4ee55009fe9a0f44c19907b899e07f0056a",
+  "baseline": {
+    "alias": "gpt-5.6-luna-pooled",
+    "model": "gpt-5.6-luna",
+    "verified_upstream_effort": "max",
+    "prompt_version": "legacy"
+  },
+  "candidate": {
+    "alias": "gpt-5.6-luna-memoir-low",
+    "model": "gpt-5.6-luna",
+    "verified_upstream_effort": "low",
+    "prompt_version": "legacy"
+  },
+  "dataset": "issue53-quality-first/3",
+  "languages": [
+    "zh-CN",
+    "en-AU"
+  ],
+  "cases_per_language": [
+    "first",
+    "later",
+    "resumed_correction",
+    "photo",
+    "short",
+    "long",
+    "family",
+    "public_reference",
+    "language_change",
+    "pause"
+  ],
+  "matched_generation_budget": 40,
+  "unpaired_rollback_generation_budget": 2,
+  "foreground_generation_budget": 42,
+  "appserver_turn_budget": 84,
+  "exact_upstream_request_budget": null,
+  "per_generation_timeout_s": 120,
+  "campaign_deadline_s": 1200,
+  "failure_policy": "Stop at first failed generation or campaign deadline; no replacement samples or repeated campaigns.",
+  "decision_rule": {
+    "scope": "Exploratory candidate eligibility only, not release acceptance, semantic equivalence or a production SLA.",
+    "correctness": "All planned generations saved; one grounded question except pause; no observed public identity, actor, uncertainty, language, photo/reference or pause defect; actual candidate-history rollback works. Schema success alone does not prove semantic equivalence.",
+    "latency": "Both paired median meaningful-public-text and usable-save times must improve. First/later/resumed pairs must improve in both languages. No paired case may have candidate save time over 1.20 times baseline; this is a frozen exploratory regression guard, not a user-agreed SLA.",
+    "quality": "Retain the complete legacy prompt, current narration and matched pre-turn history. Any observed quality loss blocks promotion regardless of speed."
+  },
+  "measurement": "Existing backend streaming campaign, real private-worker Codex app-server and live gateway; in-memory external storage and controlled optional workspace adapters. No browser paint, durable SQL latency, live image perception or live workspace extraction is measured.",
+  "provider_limits": "Outer gateway retries stay zero. Exact per-generation upstream retry attribution may be unavailable; report allowlisted receipts separately, never assume one app-server turn means one provider request.",
+  "normal_service_settings_changed": false,
+  "local_gateway_changes": [
+    "Added one GPT-prefixed alias reusing existing low route/key and zero outer retry policy.",
+    "Added only that alias to the existing Memoir consumer model allowlist.",
+    "Restarted only LiteLLM with explicit user approval; verified existing max/low key policies read-only."
+  ],
+  "remaining_release_gates": [
+    "Representative semantic-quality and real extraction grounding evidence beyond this small synthetic/stress workload.",
+    "Final-head full-suite verification with required environment prerequisites.",
+    "Prompt-only/combined matched comparisons if pursuing prompt reduction.",
+    "Approval for an optimized default/rollout; normal collector remains max/legacy."
+  ],
+  "prior_stopped_campaign_retained": "issue53-compatible-route-stopped-20261012.json",
+  "fresh_corrected_campaign_explicitly_approved": true,
+  "profiler_only_change": "Archive copy preserves tenant ownership/modes in isolated candidate history. Normal worker permissions unchanged.",
+  "cumulative_foreground_generation_budget_including_stopped_run": 45
+}

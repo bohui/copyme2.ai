@@ -14,8 +14,19 @@ candidate or claim semantic equivalence from schema success alone.
 The [PR 58 follow-up](test-evidence/issue53-pr58-follow-up-20261012.md) fixes a
 fixed-introduction/save-readiness race and verifies first/later/resumed normal
 replies through a real production web proxy. It also confirms that the current
-low alias changes the Codex request shape. A compatible separate alias is proposed,
-not provisioned or approved for rollout. These findings do not pass the speed gate.
+low alias changes the Codex request shape. With explicit user approval, the local
+gateway now exposes the separate `gpt-5.6-luna-memoir-low` experiment, reusing the
+same underlying model and existing low-effort key. Normal collector defaults are
+unchanged. Provisioning the alias does not approve or establish a rollout.
+
+The [compatible-route comparison](test-evidence/issue53-compatible-route-report-20261012.md)
+then saved all 42 planned generations on pinned Linux Codex 0.156.1, including
+first/later/resumed, Family/reference/long-stress and rollback cases in both
+languages. With the full legacy prompt retained, its 20 matched pairs improved
+median first public text from 16.375s to 3.678s and in-memory save from 22.520s
+to 4.884s. This passes a frozen exploratory latency rule, not release acceptance:
+semantic-quality and candidate real API/SQL/proxy gates remain, as do context/cache
+confounds and the recorded full-suite verification limitations. Defaults stay off.
 
 Every future generated conversational turn resolves the server configuration,
 including persisted-thread resumes and server-owned conversational actions.
@@ -32,7 +43,7 @@ Set these on **both API and private worker** (Compose forwards the same values):
 
 | Variable | Default | Opt-in meaning |
 | --- | --- | --- |
-| `MEMORY_SPARK_COLLECTOR_MODEL` | empty | Override only collector route; `memoir-luna-low` is a candidate requiring provider verification |
+| `MEMORY_SPARK_COLLECTOR_MODEL` | empty | Override only collector route; `gpt-5.6-luna-memoir-low` is a local opt-in experiment requiring acceptance before rollout |
 | `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT` | empty | Override collector requested effort, e.g. `low`; otherwise preserve existing effort behavior |
 | `MEMORY_SPARK_COLLECTOR_PROMPT_VERSION` | `legacy` | `compact-v1` selects the reduced collector contract |
 
@@ -126,7 +137,7 @@ With the existing gateway environment configured for an isolated process, use:
 
 ```sh
 python3 scripts/profile_first_reply.py conversation --timeout 120 --deadline 1200 --review
-python3 scripts/profile_first_reply.py conversation --candidate-model memoir-luna-low --candidate-effort low --candidate-prompt-version legacy --timeout 120 --deadline 1200 --review
+python3 scripts/profile_first_reply.py conversation --candidate-model gpt-5.6-luna-memoir-low --candidate-effort low --candidate-prompt-version legacy --timeout 120 --deadline 1200 --review
 ```
 
 The first command compares max/legacy to max/compact. The second compares
@@ -150,7 +161,10 @@ most 84 app-server turns, within the same timeout/deadline and failure gate.
 The two rollback generations are not matched latency pairs. This remains a small
 synthetic exploratory campaign, not representative semantic-quality acceptance.
 The freeze includes the local app-server version, or unavailable; pin it alongside
-the application source. Do not equate host and deployed Codex versions.
+the application source. Do not equate host and deployed Codex versions. Images
+without Git report the revision as unavailable; independently verify the deployed
+source hash against a pinned checkout in the operator receipt. Matched history
+copies use archive semantics to retain Linux tenant ownership, not just modes.
 
 For the secondary, opt-in normal-route real-proxy rendering/save/reload check:
 
