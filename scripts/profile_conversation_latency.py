@@ -219,13 +219,20 @@ async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=
         version = version if version.startswith('codex-cli ') and len(version) < 80 else None
     except (OSError, subprocess.SubprocessError):
         version = None
+    try:
+        revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+            text=True, stderr=subprocess.DEVNULL, timeout=5).strip()
+    except (OSError, subprocess.SubprocessError):
+        # Deployed worker images have no Git metadata; retain the source hash
+        # and record the verified deployment revision in the operator receipt.
+        revision = None
     variants = {'baseline': {'model': model, 'requested_effort': 'max', 'prompt_version': 'legacy'},
         'candidate': {'model': candidate_model or model, 'requested_effort': candidate_effort,
             'prompt_version': candidate_prompt_version}}
     case_count = 10 if extended else 6
     budget = case_count * 4 + (2 if extended else 0)
-    frozen = {'dataset': 'issue53-quality-first/3' if extended else 'issue53-quality-first/2', 'revision': subprocess.check_output(
-        ['git', 'rev-parse', 'HEAD'], text=True).strip(), 'cases_per_language': case_count,
+    frozen = {'dataset': 'issue53-quality-first/3' if extended else 'issue53-quality-first/2',
+        'revision': revision, 'cases_per_language': case_count,
         'rollback_generations': 2 if extended else 0,
         'appserver_version': version,
         'source_sha256': hashlib.sha256(b''.join((source_root / p).read_bytes() for p in source_files)).hexdigest(),

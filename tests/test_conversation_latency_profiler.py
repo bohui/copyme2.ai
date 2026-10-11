@@ -95,13 +95,18 @@ def test_matched_campaign_has_same_history_and_no_live_workspace(monkeypatch, ca
     assert 'synthetic_visible_reply' not in output and '韩凤江' not in output
 
 
-def test_campaign_stops_at_failure_gate_and_keeps_receipt_without_exception_text(monkeypatch, capsys):
+@pytest.mark.parametrize('git_available', [True, False])
+def test_campaign_stops_at_failure_gate_and_keeps_receipt_without_exception_text(monkeypatch, capsys, git_available):
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
     for key in ('MODEL', 'REASONING_EFFORT', 'PROMPT_VERSION'):
         monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_' + key, '')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', '')
     monkeypatch.setenv('MEMORY_SPARK_LEGACY_CODEX_HOME', '')
     calls, homes = [], []
+    if not git_available:
+        def unavailable(*args, **kwargs):
+            raise FileNotFoundError('No Git or Codex version binary in fixture')
+        monkeypatch.setattr('scripts.profile_conversation_latency.subprocess.check_output', unavailable)
     class Connection:
         def __init__(self, command, home, **options): homes.append(home)
         async def __aenter__(self): return self
@@ -111,7 +116,10 @@ def test_campaign_stops_at_failure_gate_and_keeps_receipt_without_exception_text
             calls.append(kw)
             raise RuntimeError('private-fixture-credential')
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
-    _, results = asyncio.run(campaign(timeout=10, deadline=120))
+    frozen, results = asyncio.run(campaign(timeout=10, deadline=120))
+    if not git_available:
+        assert frozen['revision'] is None and frozen['appserver_version'] is None
+        assert len(frozen['source_sha256']) == 64
     assert len(calls) == len(results) == 1
     assert results[0]['status'] == 'failed' and results[0]['request_id']
     assert results[0]['appserver_turns'] is None and results[0]['provider_request_count'] is None
