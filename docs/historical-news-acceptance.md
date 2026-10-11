@@ -1,5 +1,13 @@
 # Issue 55: historical news acceptance evidence
 
+Subsequent merged-main verification is recorded in the
+[12 October live addendum](verification/issues53-55-live-20261012.md).
+The previously blocked rendered citation/control smoke now passes on macOS, as
+do all 44 historical PostgreSQL cases through the existing disposable-container
+transport. Live discovery returned unavailable with no eligible clue. Wider
+browser/aggregate gates remain unresolved; issue 55 remains open. The results
+below retain the original implementation-run scope and dates.
+
 The feature is disabled by default. No live provider calls, production migrations,
 deployment or real storyteller data were used. Synthetic tests establish tested
 relevance and non-leading invitation quality, not historical provider accuracy

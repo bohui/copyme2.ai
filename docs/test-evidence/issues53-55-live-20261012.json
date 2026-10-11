@@ -1,0 +1,3380 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-12",
+  "timezone": "Australia/Sydney",
+  "repository": "bohui/copyme2.ai",
+  "revision": "cc068523208842e2accde8d623a060a04143e78c",
+  "tree": "313a1e236b9d476250f5dd31f1a790af89eea9f8",
+  "issues": [
+    {
+      "number": 53,
+      "state_after_verification": "open",
+      "all_acceptance_satisfied": false,
+      "closed_by_this_verification": false,
+      "blockers": [
+        "Matched low-effort candidate not verified through real API/proxy and durable SQL",
+        "Wider browser recovery/navigation failures",
+        "Completed aggregate is not green"
+      ]
+    },
+    {
+      "number": 55,
+      "state_after_verification": "open",
+      "all_acceptance_satisfied": false,
+      "closed_by_this_verification": false,
+      "blockers": [
+        "Actual historical provider returned invalid_request_error: Unsupported parameter: max_tool_calls",
+        "No inspected sources or eligible historical clues",
+        "Running API/private worker missing historical-news-research skill directory",
+        "Completed aggregate is not green"
+      ]
+    }
+  ],
+  "collector_latency": {
+    "operator_freeze": {
+      "source_revision": "cc068523208842e2accde8d623a060a04143e78c",
+      "source_sha256": "54103531da9387d3138b2fbcb4258ece3d1a987e1371f0feaf25d890a2ad312b",
+      "files": {
+        "apps/api/codex_runtime.py": "6b9a9b9c886ed248547588f2003b12f1dd9dc91b5629bbc11632f162e9f4a954",
+        "apps/api/codex_worker_service.py": "b548716aa81e5551c3b9c1e402db34069ac55b320d97f35a816a87955346bd21",
+        "apps/api/collector_configuration.py": "c5353c41ba023bcd65042a63d2f2cc8fdc508831f6166e1a391d35e3d505fdd5",
+        "apps/api/collector_prompt.py": "27da8f8b8a0f60f2be4a804e0f738a864a2eb8f5c66d55e69b3a83f4dd3b44b4",
+        "apps/api/interview_plan.py": "5607880d3a4ddcbf856fc54cabaf85ec53672396d8f611ab8226a0cd559e3844",
+        "apps/api/conversation_locale.py": "2aa6bffdfd130e0cedaf32714423103a9bfe002b7260f542426d2c43664a2daa",
+        "apps/api/agent_lock.py": "8ff4166ca1078d00389a00a57c3971fc7b427d9ff17e43db076776a3a65d1c42",
+        "apps/api/task_queue.py": "466cca433aa2dbe019b93b0efd7726dc79761e943218c2115e2346e61c461a68",
+        "apps/api/codex_agent.py": "05c24ab1061000cc7ff17077098cf35fbadb3ac3c77aecf1cb6c316a2c47ced8",
+        "apps/api/trajectory_evaluation.py": "2c202805e1fabafce8c3ad5b6230f544d29011d1714fd3967067ee2878663b0a",
+        "apps/api/evaluation_cases.py": "23f02f24da1168cd5a25ec5c9da860806701efbbf0e3e0d6375225521b948d32",
+        "apps/api/turn_stream.py": "fc8ac8331e65189f9fd90d278fcda92c62d5ad65afecfb50153e5ed59517d24c",
+        "scripts/profile_first_reply.py": "aa6b3c00448ece4e6f2c0603493b0d9e950ba49b81a61dd033f4c8308d0d7e85",
+        "scripts/profile_conversation_latency.py": "6493105f76a2fcef438de779fb7b21d98352381103fb1bb9880ac6ab76e385f2"
+      },
+      "worker_codex_version": "0.156.1",
+      "worker_task_directory": "/tmp/memoir-issues53-55-c58604a5bf45",
+      "foreground_generation_budget": 42,
+      "appserver_turn_budget": 84,
+      "per_generation_timeout_s": 120,
+      "campaign_deadline_s": 1200,
+      "candidate": {
+        "model": "gpt-5.6-luna-memoir-low",
+        "effort": "low",
+        "prompt": "legacy"
+      },
+      "baseline": {
+        "model": "gpt-5.6-luna-pooled",
+        "effort": "max",
+        "prompt": "legacy"
+      },
+      "storage": "synthetic in-memory; no SQL claim",
+      "optional_workspace": "controlled; no live calls",
+      "stop": "first failed generation or deadline; no replacement campaign",
+      "global_service_changes": false
+    },
+    "worker_frozen_receipt": {
+      "kind": "frozen_campaign",
+      "dataset": "issue53-quality-first/3",
+      "revision": null,
+      "cases_per_language": 10,
+      "rollback_generations": 2,
+      "appserver_version": "codex-cli 0.156.1",
+      "source_sha256": "54103531da9387d3138b2fbcb4258ece3d1a987e1371f0feaf25d890a2ad312b",
+      "foreground_generation_budget": 42,
+      "appserver_turn_budget": 84,
+      "per_generation_timeout_s": 120.0,
+      "campaign_deadline_s": 1200.0,
+      "variants": {
+        "baseline": {
+          "model": "gpt-5.6-luna-pooled",
+          "requested_effort": "max",
+          "prompt_version": "legacy"
+        },
+        "candidate": {
+          "model": "gpt-5.6-luna-memoir-low",
+          "requested_effort": "low",
+          "prompt_version": "legacy"
+        }
+      },
+      "acceptance": "Exploratory only: review grounding, identity, uncertainty, language, photo attribution, pause and useful follow-up alongside first text, validated reply, save and failures. One pair per case cannot establish semantic equivalence or a production latency distribution.",
+      "measurement": "backend stream receipt with in-memory storage; not browser or SQL save latency"
+    },
+    "process": {
+      "exit_code": 0,
+      "elapsed_s": 626.584
+    },
+    "source_files_equal_before_after_and_freeze": true,
+    "source_file_count": 14,
+    "json_result_count": 42,
+    "non_json_log_lines": 530,
+    "results": [
+      {
+        "kind": "generation_result",
+        "case": "first",
+        "timings": {
+          "first_raw_delta_s": 8.626,
+          "first_visible_text_s": 8.799,
+          "validated_question_s": 11.485,
+          "conversation_saved_s": 11.485
+        },
+        "appserver_turns": 1,
+        "request_id": "581949e0-15c5-4a24-9b93-7cd15802f83c",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "reply_only",
+        "question_count": 1,
+        "candidate_count": 1,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "谢谢您告诉我，您叫韩凤江。\n\n您最早记得的一段往事是什么？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "first",
+        "timings": {
+          "first_raw_delta_s": 2.338,
+          "first_visible_text_s": 2.716,
+          "validated_question_s": 3.343,
+          "conversation_saved_s": 3.343
+        },
+        "appserver_turns": 1,
+        "request_id": "215a7730-fb6f-404f-adc0-da7cf7bdaaf7",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "reply_only",
+        "question_count": 1,
+        "candidate_count": 1,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "韩凤江，您好。我是Mira，您的AI回忆采访者。\n\n您最早记得的一段往事是什么？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "later",
+        "timings": {
+          "first_raw_delta_s": 4.224,
+          "first_visible_text_s": 4.291,
+          "validated_question_s": 5.309,
+          "conversation_saved_s": 5.309
+        },
+        "appserver_turns": 1,
+        "request_id": "ffd2feec-e989-466f-bf47-126ce4230dc7",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您记得小时候住在开封，也记得姐姐把您从浅水里拉了上来。\n\n姐姐当时是怎么把您拉上来的？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "later",
+        "timings": {
+          "first_raw_delta_s": 13.774,
+          "first_visible_text_s": 14.246,
+          "validated_question_s": 18.721,
+          "conversation_saved_s": 18.721
+        },
+        "appserver_turns": 1,
+        "request_id": "ceacee4b-7ad8-44e0-a25d-87b4f1614d11",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您记得小时候住在开封，放学后和姐姐一起到河边捉小鱼。\n\n您还记得那段河边是什么样的吗？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "resumed_correction",
+        "timings": {
+          "first_raw_delta_s": 30.041,
+          "first_visible_text_s": 30.557,
+          "validated_question_s": 37.128,
+          "conversation_saved_s": 37.128
+        },
+        "appserver_turns": 1,
+        "request_id": "d062cb4e-8b68-4023-9dfb-77601eac46bc",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您更正了：把您从浅水里拉上来的是母亲，不是姐姐；她没有责备您，只是握着您的手。\n\n那您说“回家后不敢告诉父母”，是指没有告诉父亲，还是这句话需要改一改？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "resumed_correction",
+        "timings": {
+          "first_raw_delta_s": 6.018,
+          "first_visible_text_s": 6.202,
+          "validated_question_s": 7.964,
+          "conversation_saved_s": 7.964
+        },
+        "appserver_turns": 1,
+        "request_id": "629676f8-2a80-408c-9c5a-7e71b59209fe",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "谢谢您纠正：把您从浅水里拉上来的是母亲，她没有责备您，只是握着您的手。\n\n您之前说“回家后不敢告诉父母”，现在想起是母亲把您拉上来；这句话需要改成没有告诉父亲吗？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "photo",
+        "timings": {
+          "first_raw_delta_s": 4.488,
+          "first_visible_text_s": 4.662,
+          "validated_question_s": 5.735,
+          "conversation_saved_s": 5.735
+        },
+        "appserver_turns": 1,
+        "request_id": "1c07ea60-8359-4c2c-b429-ea1ab5b34251",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您说明照片里是姐姐，不是您；照片是她后来在河边拍的，拍摄年份记不清。\n\n看到这张照片，您最先想起姐姐在河边的什么？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "photo",
+        "timings": {
+          "first_raw_delta_s": 28.817,
+          "first_visible_text_s": 29.334,
+          "validated_question_s": 38.466,
+          "conversation_saved_s": 38.466
+        },
+        "appserver_turns": 1,
+        "request_id": "73c70f34-6a78-40b2-ba99-29e18ccdd5e3",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您说明这张照片里是姐姐，不是您；照片是姐姐后来在河边拍的，拍摄年份记不清。\n\n看到这张照片，您最先想起姐姐在河边的什么？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "short",
+        "timings": {
+          "first_raw_delta_s": 27.712,
+          "first_visible_text_s": 27.942,
+          "validated_question_s": 34.356,
+          "conversation_saved_s": 34.356
+        },
+        "appserver_turns": 1,
+        "request_id": "61c94398-9f00-4ce7-b261-73e7045f55f0",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您记得父亲下班后常常修东西。\n\n父亲通常修些什么东西？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "short",
+        "timings": {
+          "first_raw_delta_s": 4.252,
+          "first_visible_text_s": 4.279,
+          "validated_question_s": 5.602,
+          "conversation_saved_s": 5.602
+        },
+        "appserver_turns": 1,
+        "request_id": "aca55dbf-0c5e-4f87-a5dc-63fab1387ae4",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您记得父亲下班后常常修东西。\n\n父亲通常修些什么东西？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "long",
+        "timings": {
+          "first_raw_delta_s": 7.51,
+          "first_visible_text_s": 7.694,
+          "validated_question_s": 9.044,
+          "conversation_saved_s": 9.044
+        },
+        "appserver_turns": 1,
+        "request_id": "a54d6fbf-1b85-4ecb-8867-88687ba2f6ae",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您还记得，母亲把那张字条放进了蓝色信封。\n\n您愿意说说那张字条是写给谁的吗？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "long",
+        "timings": {
+          "first_raw_delta_s": 37.488,
+          "first_visible_text_s": 37.872,
+          "validated_question_s": 44.174,
+          "conversation_saved_s": 44.174
+        },
+        "appserver_turns": 1,
+        "request_id": "54d904cb-f375-4d1d-98e2-fec5995c20e3",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您还记得，母亲把那张字条放进了蓝色信封。\n\n您愿意说说那张字条是写给谁的吗？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "family",
+        "timings": {
+          "first_raw_delta_s": 19.255,
+          "first_visible_text_s": 19.86,
+          "validated_question_s": 26.527,
+          "conversation_saved_s": 26.527
+        },
+        "appserver_turns": 1,
+        "request_id": "144e5098-5326-44ef-8047-13ea1e8921d1",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您补充了：母亲叫美，姐姐叫诺拉；诺拉是姐姐，不是您的女儿，救您的是母亲。\n\n您之前说“回家后不敢告诉父母”，既然救您的是母亲，这句话需要改成没有告诉父亲吗？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "family",
+        "timings": {
+          "first_raw_delta_s": 4.126,
+          "first_visible_text_s": 4.292,
+          "validated_question_s": 5.822,
+          "conversation_saved_s": 5.822
+        },
+        "appserver_turns": 1,
+        "request_id": "1251a154-525e-4b75-bee9-408bc7c064de",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您补充了母亲叫美、姐姐叫诺拉，也再次确认救您的是母亲；年份仍不确定。\n\n既然救您的是母亲，您之前说“回家后不敢告诉父母”，这句话需要改成没有告诉父亲吗？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "public_reference",
+        "timings": {
+          "first_raw_delta_s": 9.916,
+          "first_visible_text_s": 10.067,
+          "validated_question_s": 13.052,
+          "conversation_saved_s": 13.052
+        },
+        "appserver_turns": 1,
+        "request_id": "0f5346db-32b3-46d7-859e-8ed905c32742",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您说明这是一张公共参考照片，不是您家的照片；照片里的人、地点以及1972年的居住情况都无法确定。\n\n您和姐姐捡到石头后，通常会怎么做？",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "public_reference",
+        "timings": {
+          "first_raw_delta_s": 12.976,
+          "first_visible_text_s": 13.179,
+          "validated_question_s": 21.914,
+          "conversation_saved_s": 21.914
+        },
+        "appserver_turns": 1,
+        "request_id": "4c35c39f-eedc-4117-bb16-eb639490852a",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您说明这是一张公共参考照片，不是您家的照片；照片里的人、地点以及1972年的居住情况都无法确定。\n\n您和姐姐捡到石头后，通常会怎么做？",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "language_change",
+        "timings": {
+          "first_raw_delta_s": 18.097,
+          "first_visible_text_s": 18.496,
+          "validated_question_s": 25.617,
+          "conversation_saved_s": 25.617
+        },
+        "appserver_turns": 1,
+        "request_id": "9d17f71d-c245-4fc9-af1f-e62f3c400671",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 5,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "We can leave your sister’s words unknown. You do remember that your mother pulled you up and held your hand.\n\nWhat do you remember happening after your mother pulled you up?",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "language_change",
+        "timings": {
+          "first_raw_delta_s": 3.68,
+          "first_visible_text_s": 3.824,
+          "validated_question_s": 5.709,
+          "conversation_saved_s": 5.709
+        },
+        "appserver_turns": 1,
+        "request_id": "974c2c70-fca5-406e-aeec-ba060e296ca8",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "We can leave your sister’s words unknown. You remember that your mother pulled you up and held your hand.\n\nWhat do you remember happening after your mother pulled you up?",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "pause",
+        "timings": {
+          "first_raw_delta_s": 3.678,
+          "first_visible_text_s": 3.738,
+          "validated_question_s": 4.139,
+          "conversation_saved_s": 4.139
+        },
+        "appserver_turns": 1,
+        "request_id": "16a74e04-a3ea-4400-a666-c4f08b142165",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "reply_only",
+        "question_count": 0,
+        "candidate_count": 0,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Of course. We can stop here. Thank you for sharing part of your story.",
+        "input_language": "zh-CN",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "pause",
+        "timings": {
+          "first_raw_delta_s": 3.139,
+          "first_visible_text_s": 3.506,
+          "validated_question_s": 4.689,
+          "conversation_saved_s": 4.689
+        },
+        "appserver_turns": 1,
+        "request_id": "ed8e9ea2-fea9-409b-a89f-fe0af3705073",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "reply_only",
+        "question_count": 0,
+        "candidate_count": 0,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Of course. We can stop here. Thank you for sharing part of your story.",
+        "input_language": "zh-CN",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "rollback",
+        "timings": {
+          "first_raw_delta_s": 14.369,
+          "first_visible_text_s": 14.561,
+          "validated_question_s": 20.334,
+          "conversation_saved_s": 20.334
+        },
+        "appserver_turns": 1,
+        "request_id": "b0eb602b-9992-4c00-af32-72d131bc2291",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You still remember your mother holding your hand, while the year remains unknown.\n\nWhat do you remember happening after your mother held your hand?",
+        "input_language": "zh-CN",
+        "variant": "rollback",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "first",
+        "timings": {
+          "first_raw_delta_s": 7.78,
+          "first_visible_text_s": 7.869,
+          "validated_question_s": 10.286,
+          "conversation_saved_s": 10.286
+        },
+        "appserver_turns": 1,
+        "request_id": "bde7242e-7bd7-4bef-9a20-551237625d32",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "reply_only",
+        "question_count": 1,
+        "candidate_count": 1,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Thank you, Avery.\n\nWhat is one of your earliest memories?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "first",
+        "timings": {
+          "first_raw_delta_s": 2.83,
+          "first_visible_text_s": 2.918,
+          "validated_question_s": 3.971,
+          "conversation_saved_s": 3.971
+        },
+        "appserver_turns": 1,
+        "request_id": "c466e5e2-89d7-4b2c-b04e-54b35178cb0c",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "reply_only",
+        "question_count": 1,
+        "candidate_count": 1,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Thank you, Avery.\n\nWhat is the earliest memory that comes to mind?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "later",
+        "timings": {
+          "first_raw_delta_s": 4.165,
+          "first_visible_text_s": 4.342,
+          "validated_question_s": 5.434,
+          "conversation_saved_s": 5.434
+        },
+        "appserver_turns": 1,
+        "request_id": "dd66d7e7-2997-403c-9f19-f4d9e509d6b2",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Your sister pulled you from the shallow water, and you both kept it from your parents.\n\nWhat happened after your sister pulled you out of the water?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "later",
+        "timings": {
+          "first_raw_delta_s": 10.058,
+          "first_visible_text_s": 10.42,
+          "validated_question_s": 15.05,
+          "conversation_saved_s": 15.05
+        },
+        "appserver_turns": 1,
+        "request_id": "1aa57c38-4ac5-4557-9bbe-91a44bacca6a",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Your sister pulled you out of the shallow water, and you kept it from your parents.\n\nWhat happened after your sister pulled you out of the water?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "resumed_correction",
+        "timings": {
+          "first_raw_delta_s": 13.869,
+          "first_visible_text_s": 14.358,
+          "validated_question_s": 19.301,
+          "conversation_saved_s": 19.301
+        },
+        "appserver_turns": 1,
+        "request_id": "2a403726-4824-46d3-a46a-aa9f2fcd3c3a",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "I had that wrong earlier—your mother pulled you out, held your hand, and did not scold you.\n\nWhat happened after your mother pulled you out of the water?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "resumed_correction",
+        "timings": {
+          "first_raw_delta_s": 2.915,
+          "first_visible_text_s": 3.066,
+          "validated_question_s": 4.472,
+          "conversation_saved_s": 4.472
+        },
+        "appserver_turns": 1,
+        "request_id": "35ea01b4-74fb-4da0-a1f2-bc58f45d3a68",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "I had that wrong earlier—your mother pulled you out, held your hand, and did not scold you.\n\nWhat happened after your mother pulled you out of the water?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "photo",
+        "timings": {
+          "first_raw_delta_s": 8.883,
+          "first_visible_text_s": 9.045,
+          "validated_question_s": 10.731,
+          "conversation_saved_s": 10.731
+        },
+        "appserver_turns": 1,
+        "request_id": "7f7c266a-c7dd-4a6d-afde-481cabe9d9ae",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You identify the photograph as showing your sister, taken later by the river, though you do not remember when.\n\nWhat happened after your mother pulled you out of the water?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "photo",
+        "timings": {
+          "first_raw_delta_s": 9.248,
+          "first_visible_text_s": 9.665,
+          "validated_question_s": 16.453,
+          "conversation_saved_s": 16.453
+        },
+        "appserver_turns": 1,
+        "request_id": "7856671b-2a90-41ef-9aa2-5206df450cde",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 3,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You identify the photograph as showing your sister, taken later by the river, though you do not remember when.\n\nWhat happened after your mother pulled you out of the water?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "short",
+        "timings": {
+          "first_raw_delta_s": 27.59,
+          "first_visible_text_s": 27.724,
+          "validated_question_s": 33.154,
+          "conversation_saved_s": 33.154
+        },
+        "appserver_turns": 1,
+        "request_id": "1e519252-9bee-4065-9c05-f1b1a422d2f6",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You remember your dad repairing things after work.\n\nWhat kinds of things did your dad repair?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "short",
+        "timings": {
+          "first_raw_delta_s": 2.495,
+          "first_visible_text_s": 2.586,
+          "validated_question_s": 4.132,
+          "conversation_saved_s": 4.132
+        },
+        "appserver_turns": 1,
+        "request_id": "239cfc59-05fa-406d-ad11-c0e44fd607ad",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 5,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You remember your dad repairing things after work.\n\nWhat kinds of things did your dad repair?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "long",
+        "timings": {
+          "first_raw_delta_s": 5.496,
+          "first_visible_text_s": 5.583,
+          "validated_question_s": 6.878,
+          "conversation_saved_s": 6.878
+        },
+        "appserver_turns": 1,
+        "request_id": "a29b1f46-223d-416d-aabf-24eb61847f1c",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You remember Mum putting the note in a blue envelope.\n\nWhat do you remember about the note in the blue envelope?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "long",
+        "timings": {
+          "first_raw_delta_s": 16.93,
+          "first_visible_text_s": 17.187,
+          "validated_question_s": 22.677,
+          "conversation_saved_s": 22.678
+        },
+        "appserver_turns": 1,
+        "request_id": "d245fda6-6548-4960-ae7d-704a7e83f98f",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You remember Mum putting the note in a blue envelope.\n\nWhat do you remember about the note in the blue envelope?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "family",
+        "timings": {
+          "first_raw_delta_s": 16.125,
+          "first_visible_text_s": 16.525,
+          "validated_question_s": 22.062,
+          "conversation_saved_s": 22.062
+        },
+        "appserver_turns": 1,
+        "request_id": "049c2cae-7630-4f98-9e15-b2376436e631",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Your mother is Mei, your sister is Nora—not your daughter—and Mei rescued you; the year remains uncertain.\n\nWhat happened after Mei rescued you?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "family",
+        "timings": {
+          "first_raw_delta_s": 4.764,
+          "first_visible_text_s": 4.909,
+          "validated_question_s": 6.222,
+          "conversation_saved_s": 6.222
+        },
+        "appserver_turns": 1,
+        "request_id": "af0566af-e3af-48aa-b9a8-24c2fa45a93f",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "Your mother is Mei, your sister is Nora—not your daughter—and Mei rescued you; the year remains uncertain.\n\nWhat happened after Mei held your hand?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "public_reference",
+        "timings": {
+          "first_raw_delta_s": 6.049,
+          "first_visible_text_s": 6.223,
+          "validated_question_s": 8.252,
+          "conversation_saved_s": 8.252
+        },
+        "appserver_turns": 1,
+        "request_id": "1128a5e4-c791-45f2-9c11-4de2ee01b0e9",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You’re clear that this is a public reference photograph, not a family photograph, and that it does not establish a visit to that place in 1972.\n\nWhat happened after Mei held your hand?",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "public_reference",
+        "timings": {
+          "first_raw_delta_s": 7.498,
+          "first_visible_text_s": 8.092,
+          "validated_question_s": 16.054,
+          "conversation_saved_s": 16.054
+        },
+        "appserver_turns": 1,
+        "request_id": "e1ffcd68-eb3a-4fdd-a86a-099ee46a9681",
+        "status": "saved",
+        "errors": 0,
+        "language": "en-AU",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "You’re clear that this is a public reference photograph, not a family photograph, and that it does not establish a visit to that place in 1972.\n\nWhat happened after Mei rescued you?",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "language_change",
+        "timings": {
+          "first_raw_delta_s": 18.809,
+          "first_visible_text_s": 19.239,
+          "validated_question_s": 24.727,
+          "conversation_saved_s": 24.727
+        },
+        "appserver_turns": 1,
+        "request_id": "ead83f3c-8bf5-4cab-8304-025f04e32596",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您不记得姐姐那天说了什么；接下来我会用中文和您继续。\n\nMei救了您之后，发生了什么？",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "language_change",
+        "timings": {
+          "first_raw_delta_s": 3.645,
+          "first_visible_text_s": 3.79,
+          "validated_question_s": 5.02,
+          "conversation_saved_s": 5.02
+        },
+        "appserver_turns": 1,
+        "request_id": "205b38a0-72fb-49c0-9a15-c65161862342",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您不记得姐姐那天说了什么；接下来我会用中文和您继续。\n\nMei救了您之后，发生了什么？",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "pause",
+        "timings": {
+          "first_raw_delta_s": 3.883,
+          "first_visible_text_s": 3.991,
+          "validated_question_s": 4.477,
+          "conversation_saved_s": 4.477
+        },
+        "appserver_turns": 1,
+        "request_id": "778f979d-8fc4-4b3d-b963-52ff69381e75",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "reply_only",
+        "question_count": 0,
+        "candidate_count": 0,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "当然。我们先停在这里，不再问问题。",
+        "input_language": "en-AU",
+        "variant": "candidate",
+        "model": "gpt-5.6-luna-memoir-low",
+        "requested_effort": "low",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "pause",
+        "timings": {
+          "first_raw_delta_s": 3.539,
+          "first_visible_text_s": 3.813,
+          "validated_question_s": 5.035,
+          "conversation_saved_s": 5.035
+        },
+        "appserver_turns": 1,
+        "request_id": "04edfd6c-150e-4a8b-9f50-fdba52478cf9",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "reply_only",
+        "question_count": 0,
+        "candidate_count": 0,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "好的，我们先停在这里，不再问问题。",
+        "input_language": "en-AU",
+        "variant": "baseline",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      },
+      {
+        "kind": "generation_result",
+        "case": "rollback",
+        "timings": {
+          "first_raw_delta_s": 8.855,
+          "first_visible_text_s": 9.202,
+          "validated_question_s": 14.758,
+          "conversation_saved_s": 14.758
+        },
+        "appserver_turns": 1,
+        "request_id": "9d3cba01-f530-41ce-b940-9ddb5526b8f9",
+        "status": "saved",
+        "errors": 0,
+        "language": "zh-CN",
+        "work_mode": "extract",
+        "question_count": 1,
+        "candidate_count": 4,
+        "provider_request_count": null,
+        "effective_effort": null,
+        "synthetic_visible_reply": "您仍然记得Mum握着您的手，只是不记得年份。\n\nMum握着您的手之后，发生了什么？",
+        "input_language": "en-AU",
+        "variant": "rollback",
+        "model": "gpt-5.6-luna-pooled",
+        "requested_effort": "max",
+        "prompt_version": "legacy"
+      }
+    ],
+    "metrics": {
+      "first_visible_text_s": {
+        "baseline_median_s": 15.4415,
+        "candidate_median_s": 4.2915,
+        "candidate_improved_pairs": 18,
+        "matched_pairs": 20
+      },
+      "validated_question_s": {
+        "baseline_median_s": 21.988,
+        "candidate_median_s": 5.6555,
+        "candidate_improved_pairs": 20,
+        "matched_pairs": 20
+      },
+      "conversation_saved_s": {
+        "baseline_median_s": 21.988,
+        "candidate_median_s": 5.6555,
+        "candidate_improved_pairs": 20,
+        "matched_pairs": 20
+      }
+    },
+    "actual_appserver_turns": 42,
+    "manual_public_reply_review": {
+      "candidate_replies_reviewed": 20,
+      "dimensions": [
+        "grounding",
+        "identity and corrections",
+        "uncertain year",
+        "photo/public-reference boundary",
+        "complete long source final detail",
+        "selected language",
+        "pause",
+        "rollback continuity"
+      ],
+      "limits": "Bounded synthetic public-reply review; no comprehensive private-plan/workspace equivalence or real-person recall claim"
+    },
+    "measurement_limit": "Backend stream receipt with synthetic in-memory storage; no candidate browser or durable SQL improvement claim"
+  },
+  "historical_news": {
+    "result": {
+      "plan": {
+        "source_revision": "cc068523208842e2accde8d623a060a04143e78c",
+        "case": "synthetic_1960_new_york_birthplace_only",
+        "hypothesis": {
+          "start": 1968,
+          "end": 1975,
+          "place": "New York, USA",
+          "country": "USA",
+          "granularity": "unresolved",
+          "tentative": true,
+          "time_basis": "approximate_age_hypothesis",
+          "age_interval": [
+            8,
+            15
+          ]
+        },
+        "max_discovery_requests": 2,
+        "max_source_reads": 6,
+        "job_deadline_s": 45,
+        "max_retries": 1,
+        "project_or_service_changes": false
+      },
+      "elapsed_s": 6.33,
+      "status": "unavailable",
+      "accounting": {
+        "discovery_requests": 2,
+        "source_reads": 0,
+        "cache": "miss",
+        "cost": null,
+        "cost_status": "unavailable"
+      },
+      "failures": [
+        "provider_unavailable"
+      ],
+      "observations": [
+        {
+          "query": "New York, USA 1968–1975 civic culture sport public events",
+          "timeout_s": 45.0,
+          "status": "failed",
+          "failure_class": "OSError"
+        },
+        {
+          "query": "New York, USA 1968–1975 civic culture sport public events",
+          "timeout_s": 42.968,
+          "status": "failed",
+          "failure_class": "OSError"
+        }
+      ],
+      "clues": [],
+      "eligible_clue_count": 0,
+      "acceptance": "live_source_grounding_only; no interview or human recall claim"
+    },
+    "provider_errors": [
+      {
+        "id": 5198,
+        "error_code": "invalid_request_error",
+        "error_message": "Unsupported parameter: max_tool_calls",
+        "upstream_error_code": null
+      },
+      {
+        "id": 5199,
+        "error_code": "invalid_request_error",
+        "error_message": "Unsupported parameter: max_tool_calls",
+        "upstream_error_code": null
+      }
+    ],
+    "installed_skill_parity": {
+      "source_checkout_exists": true,
+      "running_api_exists": false,
+      "running_private_worker_exists": false
+    },
+    "running_api_feature_flag": "unset; remains default-disabled"
+  },
+  "normal_route_real_proxy": {
+    "records": [
+      {
+        "kind": "frozen_proxy_smoke",
+        "revision": "cc068523208842e2accde8d623a060a04143e78c",
+        "foreground_generation_budget": 3,
+        "source_sha256": "2b034f548a9d6bbcf41b43ae6691702615a6745040defcd10ffc329ec5406508",
+        "per_generation_timeout_s": 120,
+        "cases": [
+          "first",
+          "later_name_change",
+          "resumed_pause"
+        ],
+        "measurement": "Browser render + real proxy event receipt; normal service configuration"
+      },
+      {
+        "kind": "synthetic_test_project",
+        "path": "interview/project_e61e1fb7c6ae"
+      },
+      {
+        "kind": "proxy_smoke_receipt",
+        "case": "first",
+        "http_status": 200,
+        "content_type": "application/x-ndjson",
+        "events": {
+          "started": 0.33619999992847444,
+          "source_accepted": 0.8615,
+          "progress": 0.8615,
+          "heartbeat": 11.2155,
+          "text_delta": 11.9375,
+          "reply_complete": 13.112699999928475,
+          "conversation_saved": 13.113100000023842,
+          "result": 13.145699999928475
+        },
+        "first_rendered_text_s": 11.939600000023843,
+        "early_unlock": false,
+        "errors": 0,
+        "question_count": 1
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "first",
+        "status": "saved",
+        "timings": {
+          "started": 0.33619999992847444,
+          "source_accepted": 0.8615,
+          "progress": 0.8615,
+          "heartbeat": 11.2155,
+          "text_delta": 11.9375,
+          "reply_complete": 13.112699999928475,
+          "conversation_saved": 13.113100000023842,
+          "result": 13.145699999928475
+        },
+        "first_rendered_text_s": 11.939600000023843,
+        "early_unlock": false,
+        "duplicate_reply": false
+      },
+      {
+        "kind": "proxy_smoke_receipt",
+        "case": "later_name_change",
+        "http_status": 200,
+        "content_type": "application/x-ndjson",
+        "events": {
+          "started": 0.19019999992847442,
+          "source_accepted": 0.485,
+          "progress": 0.48510000002384185,
+          "text_delta": 7.509600000023842,
+          "reply_complete": 8.367699999928474,
+          "conversation_saved": 8.367899999976158
+        },
+        "first_rendered_text_s": 7.5105,
+        "early_unlock": false,
+        "errors": 0,
+        "question_count": 1
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "later_name_change",
+        "status": "saved",
+        "timings": {
+          "started": 0.19019999992847442,
+          "source_accepted": 0.485,
+          "progress": 0.48510000002384185,
+          "text_delta": 7.509600000023842,
+          "reply_complete": 8.367699999928474,
+          "conversation_saved": 8.367899999976158
+        },
+        "first_rendered_text_s": 7.5105,
+        "early_unlock": false,
+        "duplicate_reply": false
+      },
+      {
+        "kind": "proxy_smoke_reload",
+        "restored_match_count": 1,
+        "assistant_count": 3
+      },
+      {
+        "kind": "proxy_smoke_receipt",
+        "case": "resumed_pause",
+        "http_status": 200,
+        "content_type": "application/x-ndjson",
+        "events": {
+          "started": 0.22420000004768373,
+          "source_accepted": 0.5346000000238419,
+          "progress": 0.5432999999523163,
+          "text_delta": 3.1081000000238417,
+          "reply_complete": 3.6043999999761582,
+          "conversation_saved": 3.6043999999761582
+        },
+        "first_rendered_text_s": 3.108600000023842,
+        "early_unlock": false,
+        "errors": 0,
+        "question_count": 0
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "resumed_pause",
+        "status": "saved",
+        "timings": {
+          "started": 0.22420000004768373,
+          "source_accepted": 0.5346000000238419,
+          "progress": 0.5432999999523163,
+          "text_delta": 3.1081000000238417,
+          "reply_complete": 3.6043999999761582,
+          "conversation_saved": 3.6043999999761582
+        },
+        "first_rendered_text_s": 3.108600000023842,
+        "early_unlock": false,
+        "duplicate_reply": false
+      }
+    ],
+    "results_saved": 3,
+    "measurement": "Real production frontend/proxy/API/Linux worker/provider/Supabase; unchanged normal service configuration; synthetic anonymous project retained"
+  },
+  "python_checks": {
+    "focused": {
+      "file": "focused.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "215",
+          "time": "32.522",
+          "timestamp": "2026-10-12T10:04:37.109916+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 215,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 0
+      },
+      "unsuccessful_cases": [],
+      "skip_reasons": []
+    },
+    "native_configuration": {
+      "file": "native.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "88",
+          "time": "14.316",
+          "timestamp": "2026-10-12T10:02:16.667921+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 88,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 0
+      },
+      "unsuccessful_cases": [],
+      "skip_reasons": []
+    },
+    "development_browser_initial": {
+      "file": "browser.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "5",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "5",
+          "time": "157.627",
+          "timestamp": "2026-10-12T10:02:57.044222+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 0,
+        "failed": 0,
+        "errored": 5,
+        "skipped": 0
+      },
+      "unsuccessful_cases": [
+        {
+          "node_id": "tests.test_conversation_scroll_browser::test_read_aloud_headers_align_for_short_and_long_replies",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_conversation_scroll_browser::test_viewport_resize_and_multiline_composer",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_conversation_scroll_browser::test_send_stream_scrollback_late_content_and_keyboard",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_conversation_scroll_browser::test_mobile_voice_controls_with_synthetic_microphone",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_conversation_scroll_browser::test_saved_draft_stays_reachable_without_page_scroll",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        }
+      ],
+      "skip_reasons": []
+    },
+    "production_browser_focused": {
+      "file": "browser-production.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "7",
+          "time": "20.650",
+          "timestamp": "2026-10-12T10:08:05.501264+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 7,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 0
+      },
+      "unsuccessful_cases": [],
+      "skip_reasons": []
+    },
+    "production_navigation_recovery": {
+      "file": "readiness-browser.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "4",
+          "failures": "6",
+          "skipped": "0",
+          "tests": "6",
+          "time": "98.209",
+          "timestamp": "2026-10-12T10:09:43.294830+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 0,
+        "failed": 6,
+        "errored": 4,
+        "skipped": 0
+      },
+      "unsuccessful_cases": [
+        {
+          "node_id": "tests.test_navigation_history_browser::test_anonymous_history_survives_reload_and_a_new_tab[phone]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_anonymous_history_survives_reload_and_a_new_tab[phone]",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_anonymous_history_survives_reload_and_a_new_tab[desktop]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_leaving_during_a_reply_preserves_the_user_turn_and_partial_reply[phone]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_leaving_during_a_reply_preserves_the_user_turn_and_partial_reply[phone]",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_leaving_during_a_reply_preserves_the_user_turn_and_partial_reply[desktop]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_readable_durable_history_and_pointer_survive_write_quota[phone]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_readable_durable_history_and_pointer_survive_write_quota[phone]",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_readable_durable_history_and_pointer_survive_write_quota[desktop]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_navigation_history_browser::test_readable_durable_history_and_pointer_survive_write_quota[desktop]",
+          "failure": false,
+          "error": true,
+          "category": "unresolved assertion or runtime outcome"
+        }
+      ],
+      "skip_reasons": []
+    },
+    "browser_enabled_aggregate_interrupted": {
+      "file": "aggregate.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "6",
+          "skipped": "0",
+          "tests": "15",
+          "time": "173.631",
+          "timestamp": "2026-10-12T10:09:43.296080+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 10,
+        "failed": 6,
+        "errored": 0,
+        "skipped": 0
+      },
+      "unsuccessful_cases": [
+        {
+          "node_id": "tests.test_account_recovery_browser::test_login_restores_original_project_and_serves_reviewed_sample[missing-memory-saved-link]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_account_recovery_browser::test_login_restores_original_project_and_serves_reviewed_sample[missing-memory-landing]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_account_recovery_browser::test_login_restores_original_project_and_serves_reviewed_sample[missing-attachment-saved-link]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_account_recovery_browser::test_login_restores_original_project_and_serves_reviewed_sample[missing-attachment-landing]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_account_recovery_browser::test_login_restores_original_project_and_serves_reviewed_sample[transferred-guest-memory-saved-link]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        },
+        {
+          "node_id": "tests.test_account_recovery_browser::test_login_restores_original_project_and_serves_reviewed_sample[transferred-guest-memory-landing]",
+          "failure": true,
+          "error": false,
+          "category": "unresolved assertion or runtime outcome"
+        }
+      ],
+      "skip_reasons": []
+    },
+    "completed_backend_aggregate": {
+      "file": "aggregate-backend.xml",
+      "suite_counts": [
+        {
+          "name": "pytest",
+          "errors": "39",
+          "failures": "54",
+          "skipped": "208",
+          "tests": "4458",
+          "time": "593.690",
+          "timestamp": "2026-10-12T10:12:39.227937+11:00",
+          "hostname": "Bohuis-MacBook-Pro-2.local"
+        }
+      ],
+      "observed_case_outcomes": {
+        "passed": 4157,
+        "failed": 54,
+        "errored": 39,
+        "skipped": 208
+      },
+      "unsuccessful_cases": [
+        {
+          "node_id": "tests.test_canonical_native_launcher::test_five_native_case_owners_preserve_all_250_originals_and_50_checkpoints",
+          "failure": true,
+          "error": false,
+          "category": "canonical native collector/runtime failure"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_every_role_gets_owned_scope_and_one_shared_client_seam[collector]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_every_role_gets_owned_scope_and_one_shared_client_seam[workspace]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_every_role_gets_owned_scope_and_one_shared_client_seam[memory_context]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_every_role_gets_owned_scope_and_one_shared_client_seam[author_timeline]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_every_role_gets_owned_scope_and_one_shared_client_seam[composer]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_invalid_worker_scope_never_calls_worker_or_gateway[foreign_project]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_invalid_worker_scope_never_calls_worker_or_gateway[foreign_owner]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_invalid_worker_scope_never_calls_worker_or_gateway[judge]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_invalid_worker_scope_never_calls_worker_or_gateway[forged_correlation]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_invalid_worker_scope_never_calls_worker_or_gateway[wrong_url]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_runtime_binding_mutation_is_denied_before_worker",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_actual_runtime_streaming_abi_uses_ndjson_terminal",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_workflow_cleanup_failure_does_not_strand_listener_or_http_clients",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[top_level_only]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[encoded_object]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[missing]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[duplicate_key]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[wrong_round]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[wrong_revision]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[foreign_case]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[boolean_id]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[non_object]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[non_json]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[nan]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_pinned_codex_metadata_envelope_fails_closed_before_gateway[contradictory_top_level]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[delta-next-line]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[delta-line-separator]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[delta-paragraph-separator]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[delta-combined]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[event-next-line]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[event-line-separator]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[event-paragraph-separator]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[event-combined]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[both-next-line]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[both-line-separator]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[both-paragraph-separator]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_issue14_subscription_session::test_owned_ndjson_unicode_roundtrips_through_real_runtime_stream[both-combined]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_photo::test_owned_search_scope_dedupe_cap_and_shared_deadline",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_photo::test_mutated_executable_is_rejected_before_process_contact",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_photo::test_unconfigured_native_capability_records_requested_search_unavailable",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_round_fifty_preserves_trusted_wire_metadata_for_every_role[collector]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_round_fifty_preserves_trusted_wire_metadata_for_every_role[workspace]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_round_fifty_preserves_trusted_wire_metadata_for_every_role[memory_context]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_round_fifty_preserves_trusted_wire_metadata_for_every_role[author_timeline]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_round_fifty_preserves_trusted_wire_metadata_for_every_role[composer]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_campaign_entitlement_must_match_synthetic_owner_before_worker_start[<lambda>0]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_campaign_entitlement_must_match_synthetic_owner_before_worker_start[<lambda>1]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_campaign_entitlement_must_match_synthetic_owner_before_worker_start[<lambda>2]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_campaign_entitlement_must_match_synthetic_owner_before_worker_start[<lambda>3]",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_campaign_case_order_cannot_skip_the_original_first_case",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_memoir_fifty_session::test_original_chinese_family_transition_changes_only_owned_synthetic_facade",
+          "failure": true,
+          "error": false,
+          "category": "macOS fixture prerequisite: /bin/true absent"
+        },
+        {
+          "node_id": "tests.test_native_canary_launcher::test_actor_reconciliation_never_signals_an_unrelated_pid",
+          "failure": true,
+          "error": false,
+          "category": "native actor/PID reconciliation assertion"
+        },
+        {
+          "node_id": "tests.test_native_canary_launcher::test_actor_reconciliation_stops_only_the_exact_owned_script",
+          "failure": true,
+          "error": false,
+          "category": "native actor/PID reconciliation assertion"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_empty_account_has_no_preference",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_first_detection_is_frozen_and_returns_authoritative_record",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_manual_overrides_detection_and_blocks_later_detection",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_manual_first_blocks_detection_and_same_value_is_idempotent",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_same_locale_manual_promotes_provenance",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[None-manual]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[-manual]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[zh-manual]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[en-US-manual]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[ZH-CN-manual]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[zh-CN -manual]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[zh-CN-None]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[zh-CN-]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[zh-CN-browser]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_inputs_do_not_mutate_existing_preference[zh-CN-MANUAL]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_source_less_legacy_locale_is_established_manual_and_metadata_stays_intact",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_legacy_metadata_does_not_block_first_detection[None]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_legacy_metadata_does_not_block_first_detection[]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_legacy_metadata_does_not_block_first_detection[en-US]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_legacy_metadata_does_not_block_first_detection[123]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_invalid_legacy_metadata_does_not_block_first_detection[legacy4]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_preferences_are_own_user_and_authenticated_anonymous_users_work",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_unauthenticated_or_nonexistent_actor_cannot_call_rpcs[anon-None]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_unauthenticated_or_nonexistent_actor_cannot_call_rpcs[anon-11111111-1111-4111-8111-111111111111]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_unauthenticated_or_nonexistent_actor_cannot_call_rpcs[authenticated-None]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_unauthenticated_or_nonexistent_actor_cannot_call_rpcs[authenticated-44444444-4444-4444-8444-444444444444]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_authenticated_direct_writes_are_denied[insert into public.user_ui_locale_preference(user_id,locale,source) values ('22222222-2222-4222-8222-222222222222','zh-CN','manual');]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_authenticated_direct_writes_are_denied[update public.user_ui_locale_preference set locale='zh-CN';]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_authenticated_direct_writes_are_denied[delete from public.user_ui_locale_preference;]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_authenticated_direct_writes_are_denied[truncate public.user_ui_locale_preference;]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_rpc_security_contract_and_rls_are_explicit",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_competing_initializations_and_manual_detection_both_orders[first0-second0-expected0]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_competing_initializations_and_manual_detection_both_orders[first1-second1-expected1]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_competing_initializations_and_manual_detection_both_orders[first2-second2-expected2]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_competing_initializations_and_manual_detection_both_orders[first3-second3-expected3]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_concurrent_legacy_detection_cannot_replace_established_preference",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_deleting_account_cascades_preference",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_captured_actor_cannot_follow_switched_sdk_token[None]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        },
+        {
+          "node_id": "tests.test_ui_locale_preference_postgres::test_captured_actor_cannot_follow_switched_sdk_token[11111111-1111-4111-8111-111111111111]",
+          "failure": false,
+          "error": true,
+          "category": "native locale PostgreSQL initdb setup failure"
+        }
+      ],
+      "skip_reasons": [
+        {
+          "reason": "Actual disposable PostgreSQL artifact tests require explicit opt-in",
+          "count": 4
+        },
+        {
+          "reason": "Complete-round PostgreSQL gate requires explicit opt-in",
+          "count": 10
+        },
+        {
+          "reason": "Opt-in live model evaluation; requires the configured application provider",
+          "count": 4
+        },
+        {
+          "reason": "Requires a selected local source frontend",
+          "count": 21
+        },
+        {
+          "reason": "Requires an explicitly selected running browser test server",
+          "count": 14
+        },
+        {
+          "reason": "Requires isolated Next/Auth HTTP fixture; enable MEMOIR_LOCALE_HTTP=1",
+          "count": 8
+        },
+        {
+          "reason": "Requires isolated frontend",
+          "count": 33
+        },
+        {
+          "reason": "Requires isolated source frontend",
+          "count": 99
+        },
+        {
+          "reason": "Requires runnable Chromium; enable MEMOIR_LOCALE_BROWSER=1",
+          "count": 1
+        },
+        {
+          "reason": "Requires source frontend",
+          "count": 14
+        }
+      ]
+    }
+  },
+  "completed_aggregate_failure_categories": [
+    {
+      "category": "canonical native collector/runtime failure",
+      "failure_cases": 1,
+      "error_cases": 0
+    },
+    {
+      "category": "macOS fixture prerequisite: /bin/true absent",
+      "failure_cases": 51,
+      "error_cases": 0
+    },
+    {
+      "category": "native actor/PID reconciliation assertion",
+      "failure_cases": 2,
+      "error_cases": 0
+    },
+    {
+      "category": "native locale PostgreSQL initdb setup failure",
+      "failure_cases": 0,
+      "error_cases": 39
+    }
+  ],
+  "initial_native_attempt": {
+    "passed": 152,
+    "setup_errors": 44,
+    "observed_prerequisite": "macOS initdb shared memory allocation failed; no shared resources removed"
+  },
+  "native_fixture_adjustment": {
+    "historical_news": "Existing stock Apple-container database fixture substituted at collection time; same SQL and assertions",
+    "locale": "Separate locale_postgres fixture retained native initdb; database alias substitution did not replace it"
+  },
+  "node_checks": {
+    "targeted": {
+      "passed": 27,
+      "failed": 0,
+      "skipped": 0
+    },
+    "full_aggregate": {
+      "passed": 350,
+      "failed": 0,
+      "skipped": 0
+    },
+    "overlap": "Do not sum targeted and full counts"
+  },
+  "frontend_build": {
+    "outcome": "passed",
+    "node_version": "24.0.0",
+    "command": "npm --prefix apps/web run build -- --webpack"
+  },
+  "github_checks": {
+    "pr57_head": "cadc1ef5803486684e51b17952c8deef9d85d8c2",
+    "pr58_head": "f2b35a00b6eb2f6733d96ad829c58c8af2f36e26",
+    "both_pr_head_checks": [],
+    "both_pr_head_statuses": [],
+    "merged_commit_statuses": [],
+    "new_independent_cloud_review_performed": false,
+    "interpretation": "Empty collections do not establish CI success"
+  },
+  "gateway_model_policy": [
+    {
+      "alias": "gpt-5.6-luna-pooled",
+      "model": "openai/gpt-5.6-luna",
+      "reasoning_effort": "max",
+      "api_base": "os.environ/CODEX_LB_API_BASE",
+      "mode": null
+    },
+    {
+      "alias": "gpt-5.6-luna-memoir-low",
+      "model": "openai/gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "api_base": "os.environ/CODEX_LB_API_BASE",
+      "mode": null
+    }
+  ],
+  "upstream_key_policy": [
+    {
+      "name": "trading-gpt56-luna",
+      "enforced_model": "gpt-5.6-luna",
+      "enforced_reasoning_effort": "max",
+      "allowed_reasoning_efforts": null
+    },
+    {
+      "name": "memoir-background-luna-low",
+      "enforced_model": "gpt-5.6-luna",
+      "enforced_reasoning_effort": "low",
+      "allowed_reasoning_efforts": null
+    }
+  ],
+  "provider_observations": {
+    "since_utc": "2026-10-11 23:03:16",
+    "until_utc": "2026-10-11 23:14:02",
+    "association": "Time/order only; concurrent normal-route proxy smoke and any background provider work are included. No exact application UUID join or per-generation retry count.",
+    "rows": [
+      {
+        "id": 5200,
+        "requested_at": "2026-10-11 23:03:48.702824",
+        "request_id": "resp_004a652d7aa9966c016acc15cbf16887d0b4a06d23e774ea63",
+        "session_id": "http_turn_5fa53deaabbd4cb881399c2973e31c49",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 9580,
+        "cached_input_tokens": 0,
+        "output_tokens": 431,
+        "reasoning_tokens": 290,
+        "latency_first_token_ms": 6993,
+        "latency_ms": 9729,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5201,
+        "requested_at": "2026-10-11 23:03:52.121957",
+        "request_id": "resp_0ab6a005c72e3801016acc15d663088191a2eb9db1f821e0cd",
+        "session_id": "http_turn_c97e8bc093db40279cdec0f7cc66a596",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 9583,
+        "cached_input_tokens": 0,
+        "output_tokens": 185,
+        "reasoning_tokens": 38,
+        "latency_first_token_ms": 1750,
+        "latency_ms": 2609,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5202,
+        "requested_at": "2026-10-11 23:03:57.508279",
+        "request_id": "resp_004a652d7aa9966c016acc15d9e07087d09f82542e7927d60b",
+        "session_id": "http_turn_68066d6b226549fc913b9c2d5f78ce79",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 17262,
+        "cached_input_tokens": 0,
+        "output_tokens": 538,
+        "reasoning_tokens": 259,
+        "latency_first_token_ms": 3641,
+        "latency_ms": 4604,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5203,
+        "requested_at": "2026-10-11 23:04:16.272619",
+        "request_id": "resp_004a652d7aa9966c016acc15dea82887d08104c217b4b70784",
+        "session_id": "http_turn_471fcac1046747de85df8cdc15eae346",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 24748,
+        "cached_input_tokens": 2816,
+        "output_tokens": 942,
+        "reasoning_tokens": 670,
+        "latency_first_token_ms": 13331,
+        "latency_ms": 18158,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5204,
+        "requested_at": "2026-10-11 23:04:53.236687",
+        "request_id": "resp_004a652d7aa9966c016acc15f1fab087d0bb852d15c36cf531",
+        "session_id": "http_turn_b8e96be6755346e5ae932934672f7fe0",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 25999,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1916,
+        "reasoning_tokens": 1552,
+        "latency_first_token_ms": 29260,
+        "latency_ms": 35758,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5205,
+        "requested_at": "2026-10-11 23:05:01.596594",
+        "request_id": "resp_004a652d7aa9966c016acc161960e887d0a13ad7ac09c0ac08",
+        "session_id": "http_turn_fc988cc27da1448e985d7de760a743c7",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 35106,
+        "cached_input_tokens": 2816,
+        "output_tokens": 703,
+        "reasoning_tokens": 339,
+        "latency_first_token_ms": 3205,
+        "latency_ms": 4835,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 1
+      },
+      {
+        "id": 5206,
+        "requested_at": "2026-10-11 23:05:08.823272",
+        "request_id": "resp_004a652d7aa9966c016acc162097fc87d0824af483fdfd7378",
+        "session_id": "http_turn_156a0b8abeff40489d3786426895a1bc",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 36933,
+        "cached_input_tokens": 2816,
+        "output_tokens": 689,
+        "reasoning_tokens": 406,
+        "latency_first_token_ms": 3666,
+        "latency_ms": 4829,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5207,
+        "requested_at": "2026-10-11 23:05:47.131325",
+        "request_id": "resp_004a652d7aa9966c016acc16267e8087d0ba26e5f1045195a2",
+        "session_id": "http_turn_7fb2c611864146d988d850aad61314cf",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 45101,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1958,
+        "reasoning_tokens": 1439,
+        "latency_first_token_ms": 27949,
+        "latency_ms": 37301,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5208,
+        "requested_at": "2026-10-11 23:06:22.141868",
+        "request_id": "resp_004a652d7aa9966c016acc164d82a887d0b9fbfe8ab8b58a58",
+        "session_id": "http_turn_af6a2948eeca4c8e90e5e9e19a1cf3de",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 47208,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1758,
+        "reasoning_tokens": 1402,
+        "latency_first_token_ms": 26714,
+        "latency_ms": 33212,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5209,
+        "requested_at": "2026-10-11 23:06:27.948058",
+        "request_id": "resp_004a652d7aa9966c016acc16700cd487d0b65811fd73dcf875",
+        "session_id": "http_turn_11d984adc0ed44c1b178e4bc9a0b05d2",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 56565,
+        "cached_input_tokens": 2816,
+        "output_tokens": 613,
+        "reasoning_tokens": 257,
+        "latency_first_token_ms": 3492,
+        "latency_ms": 4795,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5210,
+        "requested_at": "2026-10-11 23:06:37.649384",
+        "request_id": "resp_004a652d7aa9966c016acc167650ac87d0b0ae736afc3ca07e",
+        "session_id": "http_turn_33407bf30f5949e79bc0c9c3481e4d7c",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 67393,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1188,
+        "reasoning_tokens": 831,
+        "latency_first_token_ms": 6667,
+        "latency_ms": 8074,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5211,
+        "requested_at": "2026-10-11 23:07:21.951245",
+        "request_id": "resp_004a652d7aa9966c016acc167f23ac87d08cfed554a16dcc0c",
+        "session_id": "http_turn_b671faabda3145bc9f18f83de781cd89",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 85587,
+        "cached_input_tokens": 2816,
+        "output_tokens": 2318,
+        "reasoning_tokens": 1948,
+        "latency_first_token_ms": 36947,
+        "latency_ms": 43540,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5212,
+        "requested_at": "2026-10-11 23:07:49.206408",
+        "request_id": "resp_004a652d7aa9966c016acc16ac8e5087d085b64ba3b13f3b01",
+        "session_id": "http_turn_e519dfeb2cf3466b8c77470e76f47939",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 86600,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1307,
+        "reasoning_tokens": 911,
+        "latency_first_token_ms": 18137,
+        "latency_ms": 25277,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5213,
+        "requested_at": "2026-10-11 23:07:55.021801",
+        "request_id": "resp_004a652d7aa9966c016acc16c6eae887d09f31c5b06b42d641",
+        "session_id": "http_turn_65d2c3cdf9cf49579fc48f4337ae539e",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 100507,
+        "cached_input_tokens": 2816,
+        "output_tokens": 679,
+        "reasoning_tokens": 288,
+        "latency_first_token_ms": 3584,
+        "latency_ms": 5113,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5214,
+        "requested_at": "2026-10-11 23:08:08.315997",
+        "request_id": "resp_004a652d7aa9966c016acc16ce433887d0a7cb5b7c182a71da",
+        "session_id": "http_turn_bb1a8b1cd6c7419da4777a25944e6010",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 102316,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1592,
+        "reasoning_tokens": 1079,
+        "latency_first_token_ms": 8643,
+        "latency_ms": 10839,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5215,
+        "requested_at": "2026-10-11 23:08:22.943726",
+        "request_id": "resp_0dc267b4fd628625016acc16e4a1d087d0acdc8b0f263395a4",
+        "session_id": "http_turn_99033ccbbda4458f86dd85848a5e2083",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 10552,
+        "cached_input_tokens": 3328,
+        "output_tokens": 69,
+        "reasoning_tokens": 53,
+        "latency_first_token_ms": 3538,
+        "latency_ms": 3677,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 1,
+        "latency_bridge_queue_wait_ms": 1
+      },
+      {
+        "id": 5216,
+        "requested_at": "2026-10-11 23:08:25.178889",
+        "request_id": "resp_09e8a41e484f5885016acc16e261488191bda28ef8d5db90ca",
+        "session_id": "http_turn_0ca42e1e051e409f8f24fb5150ab117c",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 9496,
+        "cached_input_tokens": 0,
+        "output_tokens": 1046,
+        "reasoning_tokens": 911,
+        "latency_first_token_ms": 7633,
+        "latency_ms": 8247,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 3,
+        "latency_bridge_queue_wait_ms": 3
+      },
+      {
+        "id": 5217,
+        "requested_at": "2026-10-11 23:08:30.414397",
+        "request_id": "resp_0187845b39b61334016acc16eca51487d094a5f4d906ab65d5",
+        "session_id": "http_turn_b26541bd1c1b40a79981a0b8786648a9",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 10813,
+        "cached_input_tokens": 3328,
+        "output_tokens": 34,
+        "reasoning_tokens": 18,
+        "latency_first_token_ms": 2496,
+        "latency_ms": 2735,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5218,
+        "requested_at": "2026-10-11 23:08:30.915032",
+        "request_id": "resp_004a652d7aa9966c016acc16dda09087d08234a4eebce4f9f7",
+        "session_id": "http_turn_365c9d3b8bc441bf9b2969c21246e39e",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 116807,
+        "cached_input_tokens": 2816,
+        "output_tokens": 893,
+        "reasoning_tokens": 380,
+        "latency_first_token_ms": 9718,
+        "latency_ms": 18593,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5219,
+        "requested_at": "2026-10-11 23:08:34.050638",
+        "request_id": "resp_09e8a41e484f5885016acc16ec1ee08191857d589872021d20",
+        "session_id": "http_turn_6eccb02f6d3c4d1ba4d0254ffac02a2d",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 10988,
+        "cached_input_tokens": 1792,
+        "output_tokens": 769,
+        "reasoning_tokens": 640,
+        "latency_first_token_ms": 5593,
+        "latency_ms": 6464,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5220,
+        "requested_at": "2026-10-11 23:08:40.009628",
+        "request_id": "resp_09e8a41e484f5885016acc16f674f4819193f5bf38930848ac",
+        "session_id": "http_turn_6053ea79b1404f3eb0da24c37d654cd9",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 11995,
+        "cached_input_tokens": 1792,
+        "output_tokens": 201,
+        "reasoning_tokens": 132,
+        "latency_first_token_ms": 1737,
+        "latency_ms": 2030,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5221,
+        "requested_at": "2026-10-11 23:08:40.416852",
+        "request_id": "resp_09dea56f7a9bb0ac016acc16f6f93887d0aaca84cfd5f7b3fe",
+        "session_id": "http_turn_c4e9602010974460a1ea4d656876ff9c",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 10982,
+        "cached_input_tokens": 3328,
+        "output_tokens": 38,
+        "reasoning_tokens": 22,
+        "latency_first_token_ms": 2195,
+        "latency_ms": 2324,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 10,
+        "latency_bridge_queue_wait_ms": 10
+      },
+      {
+        "id": 5222,
+        "requested_at": "2026-10-11 23:08:57.830961",
+        "request_id": "resp_004a652d7aa9966c016acc16f23f4487d0ad0c33db06c23e69",
+        "session_id": "http_turn_6e76654cc6b142678c62bc4918be51a4",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 117748,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1248,
+        "reasoning_tokens": 831,
+        "latency_first_token_ms": 16986,
+        "latency_ms": 24422,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5223,
+        "requested_at": "2026-10-11 23:09:03.084371",
+        "request_id": "resp_004a652d7aa9966c016acc170b970c87d0a9858d7002226e35",
+        "session_id": "http_turn_807cc63a62f84c25b261a84adeec435e",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 131907,
+        "cached_input_tokens": 2816,
+        "output_tokens": 492,
+        "reasoning_tokens": 147,
+        "latency_first_token_ms": 2975,
+        "latency_ms": 4354,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5224,
+        "requested_at": "2026-10-11 23:09:08.342530",
+        "request_id": "resp_004a652d7aa9966c016acc1712385c87d080bb3dca66d5144b",
+        "session_id": "http_turn_a47cf703513e4c86b880ffd7aec5eb0f",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 133353,
+        "cached_input_tokens": 2816,
+        "output_tokens": 195,
+        "reasoning_tokens": 117,
+        "latency_first_token_ms": 2672,
+        "latency_ms": 3045,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5225,
+        "requested_at": "2026-10-11 23:09:13.030702",
+        "request_id": "resp_004a652d7aa9966c016acc1716034487d0bf82134272d15d02",
+        "session_id": "http_turn_33927b782b794e9f8abab4e9388d0927",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 146599,
+        "cached_input_tokens": 2816,
+        "output_tokens": 92,
+        "reasoning_tokens": 14,
+        "latency_first_token_ms": 2577,
+        "latency_ms": 4001,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5226,
+        "requested_at": "2026-10-11 23:09:33.378856",
+        "request_id": "resp_004a652d7aa9966c016acc171ac38087d0829fc670448a7a7c",
+        "session_id": "http_turn_bc7c11170f354177ac2dcc16db143c58",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 147327,
+        "cached_input_tokens": 2816,
+        "output_tokens": 962,
+        "reasoning_tokens": 631,
+        "latency_first_token_ms": 13741,
+        "latency_ms": 19663,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5227,
+        "requested_at": "2026-10-11 23:09:43.632240",
+        "request_id": "resp_04fc06a67e6c2ea6016acc172f004087d094ed73935080202c",
+        "session_id": "http_turn_94760a594ab145cd926656edb6dfd361",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 9537,
+        "cached_input_tokens": 0,
+        "output_tokens": 429,
+        "reasoning_tokens": 303,
+        "latency_first_token_ms": 7194,
+        "latency_ms": 9517,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 14,
+        "latency_bridge_queue_wait_ms": 14
+      },
+      {
+        "id": 5228,
+        "requested_at": "2026-10-11 23:09:47.663284",
+        "request_id": "resp_0397cae914ec8683016acc1739bdd08191988afed84979db58",
+        "session_id": "http_turn_f1f82ef24fb84134892f58e91aa140d6",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 9540,
+        "cached_input_tokens": 0,
+        "output_tokens": 177,
+        "reasoning_tokens": 53,
+        "latency_first_token_ms": 2103,
+        "latency_ms": 3065,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5229,
+        "requested_at": "2026-10-11 23:09:53.185591",
+        "request_id": "resp_04fc06a67e6c2ea6016acc173e322087d0898e109a072a84fc",
+        "session_id": "http_turn_8a4aa579b58142a08a8c2773b07b07cc",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 17090,
+        "cached_input_tokens": 0,
+        "output_tokens": 421,
+        "reasoning_tokens": 154,
+        "latency_first_token_ms": 3244,
+        "latency_ms": 4328,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5230,
+        "requested_at": "2026-10-11 23:10:08.320509",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1742969c87d081d938c1d32dc398",
+        "session_id": "http_turn_4c2e026881014e8b82d66ef560abece2",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 24373,
+        "cached_input_tokens": 2816,
+        "output_tokens": 694,
+        "reasoning_tokens": 427,
+        "latency_first_token_ms": 9428,
+        "latency_ms": 14334,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5231,
+        "requested_at": "2026-10-11 23:10:28.039745",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1751cc5087d08c508e5e28022a5f",
+        "session_id": "http_turn_e16dd1f1de6b4e2182030525f28efffe",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 25367,
+        "cached_input_tokens": 2816,
+        "output_tokens": 945,
+        "reasoning_tokens": 671,
+        "latency_first_token_ms": 13387,
+        "latency_ms": 18709,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5232,
+        "requested_at": "2026-10-11 23:10:32.493446",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1765273087d09effeb7a3f644a39",
+        "session_id": "http_turn_9460a393ab3f451c848a521d1e6724fa",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 33412,
+        "cached_input_tokens": 2816,
+        "output_tokens": 409,
+        "reasoning_tokens": 135,
+        "latency_first_token_ms": 2494,
+        "latency_ms": 3893,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5233,
+        "requested_at": "2026-10-11 23:10:43.612367",
+        "request_id": "resp_04fc06a67e6c2ea6016acc176acbb087d0874ccef75ea90ac4",
+        "session_id": "http_turn_9607735960994f1baf04f7019f00d93d",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 34833,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1175,
+        "reasoning_tokens": 777,
+        "latency_first_token_ms": 7999,
+        "latency_ms": 9667,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5234,
+        "requested_at": "2026-10-11 23:11:00.104088",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1774cb4087d0bd6f81888668c589",
+        "session_id": "http_turn_4a3325f2b4e74a0b8f8feec1a6d3093c",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 43292,
+        "cached_input_tokens": 2816,
+        "output_tokens": 788,
+        "reasoning_tokens": 391,
+        "latency_first_token_ms": 8716,
+        "latency_ms": 15824,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5235,
+        "requested_at": "2026-10-11 23:11:33.787659",
+        "request_id": "resp_04fc06a67e6c2ea6016acc178623cc87d0a24c56cf2560d6de",
+        "session_id": "http_turn_e7cc64a4ea264674ae6817bf9bff97be",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 44175,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1602,
+        "reasoning_tokens": 1296,
+        "latency_first_token_ms": 26759,
+        "latency_ms": 32213,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 1
+      },
+      {
+        "id": 5236,
+        "requested_at": "2026-10-11 23:11:37.908502",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17a6fda087d0a2e43837a826ec79",
+        "session_id": "http_turn_b042936faf3d4309bbae73f10900a08d",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 53131,
+        "cached_input_tokens": 2816,
+        "output_tokens": 468,
+        "reasoning_tokens": 83,
+        "latency_first_token_ms": 1991,
+        "latency_ms": 3486,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5237,
+        "requested_at": "2026-10-11 23:11:45.179610",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17ab992487d083252faf7918ce7c",
+        "session_id": "http_turn_b1ba9b2134ca407d83940fd446d4953d",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 57857,
+        "cached_input_tokens": 0,
+        "output_tokens": 822,
+        "reasoning_tokens": 514,
+        "latency_first_token_ms": 4828,
+        "latency_ms": 6088,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5238,
+        "requested_at": "2026-10-11 23:12:07.816388",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17b2613887d0857d9643c757ad9a",
+        "session_id": "http_turn_e347933fc83d46d5b3e5e7df69d385a7",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 69489,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1090,
+        "reasoning_tokens": 782,
+        "latency_first_token_ms": 16449,
+        "latency_ms": 22062,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5239,
+        "requested_at": "2026-10-11 23:12:30.214881",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17c9948087d0979796a1af5c4ad8",
+        "session_id": "http_turn_38ae434fe9c042acbf9c82029f607f68",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 70102,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1071,
+        "reasoning_tokens": 753,
+        "latency_first_token_ms": 15406,
+        "latency_ms": 21183,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5240,
+        "requested_at": "2026-10-11 23:12:36.486029",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17dfa35087d0b07c79321b3ac33f",
+        "session_id": "http_turn_0e47aa756b264bdf87692144be6e3585",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 80387,
+        "cached_input_tokens": 2816,
+        "output_tokens": 700,
+        "reasoning_tokens": 383,
+        "latency_first_token_ms": 4196,
+        "latency_ms": 5480,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5241,
+        "requested_at": "2026-10-11 23:12:45.371880",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17e733e887d0bbb5a842ae60c527",
+        "session_id": "http_turn_31297cf4b767463fb0de959a1a1e03cd",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 82167,
+        "cached_input_tokens": 2816,
+        "output_tokens": 986,
+        "reasoning_tokens": 516,
+        "latency_first_token_ms": 4777,
+        "latency_ms": 6806,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5242,
+        "requested_at": "2026-10-11 23:13:01.458693",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17eeb66087d09d93458ee6de5a53",
+        "session_id": "http_turn_4898501df219460fb0706bf9df813f30",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 92622,
+        "cached_input_tokens": 2816,
+        "output_tokens": 749,
+        "reasoning_tokens": 278,
+        "latency_first_token_ms": 6936,
+        "latency_ms": 15371,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5243,
+        "requested_at": "2026-10-11 23:13:26.583673",
+        "request_id": "resp_04fc06a67e6c2ea6016acc17ff2b0487d0b402b1780c159ba5",
+        "session_id": "http_turn_b90babce15c04133a7def06b02abc452",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 93506,
+        "cached_input_tokens": 2816,
+        "output_tokens": 1220,
+        "reasoning_tokens": 896,
+        "latency_first_token_ms": 18305,
+        "latency_ms": 24128,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5244,
+        "requested_at": "2026-10-11 23:13:31.706073",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1817e89887d0ab8c281ceca71ebe",
+        "session_id": "http_turn_67415570388d46898f2438b6901ee1ac",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 104290,
+        "cached_input_tokens": 2816,
+        "output_tokens": 471,
+        "reasoning_tokens": 147,
+        "latency_first_token_ms": 3186,
+        "latency_ms": 4480,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5245,
+        "requested_at": "2026-10-11 23:13:36.445029",
+        "request_id": "resp_04fc06a67e6c2ea6016acc181dd47487d0a668a35733ec51d3",
+        "session_id": "http_turn_2cbfcf244eca4ea399570a978c598a02",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 105690,
+        "cached_input_tokens": 2816,
+        "output_tokens": 204,
+        "reasoning_tokens": 130,
+        "latency_first_token_ms": 2857,
+        "latency_ms": 3294,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5246,
+        "requested_at": "2026-10-11 23:13:41.467998",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1821ed7487d090fb8d480a8cc882",
+        "session_id": "http_turn_6e7567604f4c4cbf9e7d099ff0d002b4",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 115576,
+        "cached_input_tokens": 2816,
+        "output_tokens": 128,
+        "reasoning_tokens": 55,
+        "latency_first_token_ms": 2930,
+        "latency_ms": 4283,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5247,
+        "requested_at": "2026-10-11 23:13:56.171722",
+        "request_id": "resp_04fc06a67e6c2ea6016acc1826cb6c87d09165fb2de6a0cce5",
+        "session_id": "http_turn_6bda9276cb094412acf1f009f56a80a8",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 116398,
+        "cached_input_tokens": 2816,
+        "output_tokens": 668,
+        "reasoning_tokens": 349,
+        "latency_first_token_ms": 8351,
+        "latency_ms": 14097,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      }
+    ]
+  },
+  "request_accounting": {
+    "directly_admitted_foreground_generations": 45,
+    "historical_discovery_attempts": 2,
+    "exact_upstream_provider_request_count": null,
+    "limit": "App-server turns and time-associated provider rows are not exact per-generation upstream request/retry joins"
+  },
+  "worker_cleanup": {
+    "owned_task_directory": "/tmp/memoir-issues53-55-c58604a5bf45",
+    "removed": true,
+    "temporary_campaign_homes": "TemporaryDirectory context exited successfully; campaign process exit 0",
+    "shared_worker_running": true
+  },
+  "final_cleanup": {
+    "task_frontend_port": 3349,
+    "task_frontend_stopped": true,
+    "shared_services": {
+      "shared_api": {
+        "http_status": 200
+      },
+      "shared_web": {
+        "http_status": 200
+      }
+    },
+    "shared_private_worker_state": "running",
+    "fixture_container_ids_remaining": [],
+    "scope": "Task server stopped; no shared services stopped, restarted, or reconfigured."
+  },
+  "mutations": {
+    "product_code_changed": false,
+    "documentation_and_verification_evidence_added": true,
+    "issue_closed_or_commented": false,
+    "shared_services_reconfigured_or_restarted": false
+  },
+  "raw_evidence": {
+    "local_directory": "output/verification/issues53-55-20261012",
+    "retention": "Ignored local logs, JUnit, freezes and screenshots; machine receipt is a durable summarized record",
+    "sha256": {
+      "aggregate-backend.log": "bdc10097f8d8a6aedabed98e3187008c00996e4c1fa6420cc9ef2e223b089c6e",
+      "aggregate-backend.xml": "35eaaca79ba676f881db3e2ea47d28f21f5d203e34922aab3f4cf823fc26293b",
+      "aggregate.log": "bbae509dc887ab29209e6916da9d56e6541b841c24e1c486b8dab184d7d3dc8b",
+      "aggregate.xml": "150d35502c37459925e424e9d46757f219521bba838394f8f9b64695c7818e31",
+      "browser-diagnostic.json": "9273948531e45afa62349eec408b9a6b0d214977a72763c70c135003889e7eae",
+      "browser-diagnostic.png": "d39afe7ec3fe4b49559fae5e6eee8597db562963599d71804984dd367fac4bd1",
+      "browser-production.log": "018ee830e89d2622fa2d57e294d84f3dc26c950e6fd50f86d7294124356c59c2",
+      "browser-production.xml": "42066b29a417eeac827ccc60985a9e0768a1aaae0286364053a38809b60a31f6",
+      "browser.log": "d49a4a447e3736209ed79846067c6a7aae229323687ed19ea13d748d065c8296",
+      "browser.xml": "5d3494d6a321b75ca58c0b228b4b705c11a35a4b262193a96d2f3b4d052f4561",
+      "build.log": "fcbb61970ac279846694aa08cc250bd700a8356558c83d20428b5e69c13623f9",
+      "final-cleanup.json": "01b5b32422781b70ac5de2ff454cd77e41cf93859da38da6dabbf7473b8cf5b9",
+      "focused.log": "ebcdced879d15273e0e3d47c6d1b380014baa07bc8456405a249a4cf6d810b71",
+      "focused.xml": "d0ae7bd85640fe982b8deb301e1b03ad7dea13d9c3bb39e6f4201b7232ced1e9",
+      "frontend-production.log": "6485f1b8f5cb6eb6e7be9019b01a0e310402376b8f0162ae5603e9e99cca14ea",
+      "frontend.log": "1912d9a88deefd91f94596425e2f2e2e725295476b7f566057a1973251554453",
+      "gateway-models.json": "d1851ed83767e6fd27b32cfb88cef01fd8843c8fde5b51fa10c213f8c1a0364a",
+      "gateway-response-status.log": "2c205e8bbf7f2f9828246ecc8fad8a92a8cdcbde0b3ef7f1d3cc7c1bdcb2431c",
+      "historical-live-plan.json": "073d2c6f1e19042a9b159c241dadde39c1bc0804c0a3fc620959559f4452d089",
+      "historical-live-result.json": "2c7dd9b62a276d2a8e074e9f7e3f0d101721828be65c6611fc6ae1472faedb45",
+      "latency-live-freeze.json": "6c49819908c4c327aec8d2648236f4a111faaeab245d6ccc6aad36167e63a492",
+      "latency-live.jsonl": "356387b79064697ba959440db422d9c7ace6bae95240aceecc9e29a5f8d61eeb",
+      "latency-process-result.json": "7e5182323a34afa3e15b6ac8030b2dc2c65732e51ee8b6eca1b84e5736c12f63",
+      "latency-source-after.json": "a665cc831130d34968db691dd589649fb7aa433df44185ca9f5ca95d13d6b6f7",
+      "latency-source-before.json": "a665cc831130d34968db691dd589649fb7aa433df44185ca9f5ca95d13d6b6f7",
+      "native.log": "3afe39caa114591ac1a2727e31dffa8ea6999edccfe32fe7af01a857dbcb19b3",
+      "native.xml": "226c47876caa3f15866a192ae14afd1a081b1b5736bd824dba6bace9e3e2c64c",
+      "node-aggregate.log": "e7cd7ae5946f4187d1ff2c9402de5f8ed146eba226c5274ae3f138ec90e77c6a",
+      "node.log": "58a6f52fc9dd9a05da416f08614fad8e890b6ce2906cce79f637f2084e64effe",
+      "provider-failures.json": "da39f62d6bef532bb21eeb581f6a935f8abdbb8ae45993457a64492ff6a704d1",
+      "provider-observations-interim.json": "7daf90ca591a9182cae96b6a72296a68f1b8abf79f015bf70f8321b58f4dd8b4",
+      "provider-observations.json": "40848152f976c4b56ffc610875c5b7399f46f408749f6e86710b3fe6e454e501",
+      "provider-policy.json": "f545d3342e54d24b30eec093a2e2378936b9b0a6620f994689bb92ad57036761",
+      "proxy-smoke-production.jsonl": "6e8353b195d317a90b0a7103660d183a69d85c8ffd6adea4f48d0a61610212a5",
+      "proxy-smoke.jsonl": "19a9c9a6b5f11400dd766127fbd9846fb2409a94ad6dfd4aaf27a94215192e5a",
+      "readiness-browser.log": "135e4f91e3d11fef2f0547d73f7399d4fe74add983b4f545c9f1f8f239c9581d",
+      "readiness-browser.xml": "926498488631a2e817e640c0b5a01047089ace62ce5e9818c9a0c82d8aae7ceb",
+      "search-capability-diagnostic.log": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "search-error-details.json": "2fd9688becfb4326aad7b6f3518e35e5da9655925d445d771c82ef713d0de4f0",
+      "upstream-key-policy.json": "e09aa4e38f0f17f75f25e46803630507280ec547a15d30994036026047dfb168",
+      "worker-task-cleanup.json": "3e33df7a482c4a9cf72b8e7b2ef0f04210616820de4f69e4d6be535c5d941d98"
+    }
+  }
+}

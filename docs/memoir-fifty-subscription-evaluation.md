@@ -445,3 +445,17 @@ zero skips; explicitly requested but unavailable PostgreSQL is a failure. Offlin
 tests use a labelled in-memory storage double and cannot establish PostgreSQL
 correctness. These deterministic checks prove runtime/readback wiring, not model
 quality, live browser acceptance or the cause of an earlier unretained failure.
+
+## Issue 53 and 55 verification gates
+
+Live case verification also includes the every-turn collector latency and
+background historical-news acceptance gates in the
+[12 October 2026 verification addendum](verification/issues53-55-live-20261012.md).
+Track first meaningful streamed text, validated question, durable save and
+failures separately; the ordinary JSON fifty-round result cannot establish
+first-text latency. Historical news is disabled by default, so require explicit
+capability/preference evidence, a completed search receipt and an inspected source
+before crediting a live cited clue. Preserve public/personal evidence separation,
+neutral bilingual invitations, active-memory priority, controls, replay and RLS.
+Neither a completed fifty-round run nor a merged PR automatically closes these
+issues. The addendum records the bounded current-head runs and remaining gates.

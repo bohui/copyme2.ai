@@ -2,6 +2,13 @@
 
 ## Status and scope
 
+The [12 October merged-main verification](verification/issues53-55-live-20261012.md)
+adds a current-head 42-generation comparison, a real normal-route proxy/Supabase
+smoke, and explicit issue 55 discovery/citation cases. The matched pilot improved
+median first text from 15.4415s to 4.2915s and in-memory save from 21.988s to
+5.6555s. Candidate durable-SQL/proxy acceptance and broader browser checks remain
+open. Defaults remain disabled and issue 53 is not ready for closure.
+
 This change supplies **off-by-default candidates**, not release acceptance or a
 latency SLA. Normal generation retains its model, maximum effort and full legacy
 prompt. Gateway keys, credentials, other agent routes, customer data, schema and
