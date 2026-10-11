@@ -14,6 +14,7 @@ import os
 import re
 import socket
 import sqlite3
+import threading
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -23,6 +24,7 @@ import pytest
 from apps.api.agent_lock import AgentTurnLease
 from apps.api.agent_storage import UserStorage
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.task_queue import TaskQueue
 from apps.api.evaluation_cases import SyntheticStorage
 from apps.api.memory_event_worker import MemoirLaneBroker, MemoryEventWorker
 from scripts.issue14_subscription_runner import (
@@ -212,6 +214,22 @@ def round_environment(monkeypatch, tmp_path):
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(path))
     monkeypatch.setenv('STRIPE_PRICE_FAMILY', ENTITLEMENT['stripe_price_id'])
     monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE', '5')
+    # Observe actual queue cleanup without substituting persistence or completion.
+    # These tables/triggers exist only in this disposable test database.
+    TaskQueue(path)
+    with sqlite3.connect(path) as db:
+        db.executescript('''
+            CREATE TABLE completed_workspace_audit (
+                id TEXT, user_id TEXT, project_id TEXT, turn_id TEXT,
+                status TEXT, attempts INTEGER, error TEXT, lease_token TEXT
+            );
+            CREATE TRIGGER audit_completed_workspace AFTER DELETE ON workspace_jobs
+            BEGIN
+                INSERT INTO completed_workspace_audit
+                VALUES (OLD.id, OLD.user_id, OLD.project_id, OLD.turn_id,
+                        OLD.status, OLD.attempts, OLD.error, OLD.lease_token);
+            END;
+        ''')
     return path
 
 
@@ -258,7 +276,16 @@ def assert_workspace_persisted(result, reader, task_db, *, family):
     assert memories[0]['content'] == 'Storyteller: ' + TEXT + '\nMemory Spark: ' + result['reply']
     with sqlite3.connect(task_db) as db:
         jobs = db.execute('select status,attempts,error,lease_token from workspace_jobs').fetchall()
-    assert jobs == [('SUCCEEDED', 1, None, None)]
+        completed = db.execute('SELECT * FROM completed_workspace_audit').fetchall()
+    # Successful payloads are intentionally removed by finish_workspace (08e697).
+    # Empty alone is insufficient: prove this exact owned turn was claimed and
+    # completed once while preserving every durable readback assertion above.
+    assert jobs == []
+    assert len(completed) == 1
+    job_id, owner, project, turn, status, attempts, error, token = completed[0]
+    assert (owner, project, turn) == (reader.user_id, PROJECT, result['turn_id'])
+    assert (status, attempts, error) == ('RUNNING', 1, None)
+    assert str(UUID(job_id)) == job_id and str(UUID(token)) == token
 
 
 @pytest.mark.parametrize('streaming', [False, True])
@@ -508,3 +535,97 @@ def test_postgres_complete_runtime_round_strict_and_canonical_readback(
         raise
     finally:
         _cleanup_round_owner(sql, owner, storages, failure=failure)
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+def test_workspace_cleanup_waits_for_durable_artifact_links(round_environment, tmp_path, streaming):
+    storage, worker = OfflineStorage(family=True), DeterministicWorker(family=True)
+    entered, release = threading.Event(), threading.Event()
+    original = storage.update_agent_memory_source_paths
+
+    def delayed_link(*args, **kwargs):
+        entered.set()
+        assert release.wait(5), 'Test did not release the durable-link barrier'
+        return original(*args, **kwargs)
+
+    storage.update_agent_memory_source_paths = delayed_link
+
+    async def scenario():
+        running = asyncio.create_task(run_round(storage, worker, streaming=streaming, tmp_path=tmp_path))
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            assert not running.done()
+            with sqlite3.connect(round_environment) as db:
+                before = db.execute('SELECT id,user_id,project_id,turn_id,status,attempts,error,lease_token '
+                                    'FROM workspace_jobs').fetchall()
+                assert db.execute('SELECT * FROM completed_workspace_audit').fetchall() == []
+            assert len(before) == 1
+            assert before[0][1:3] == (storage.user_id, PROJECT)
+            assert before[0][4:7] == ('RUNNING', 1, None)
+            assert str(UUID(before[0][7])) == before[0][7]
+        finally:
+            release.set()
+            result, _ = await running
+        assert_workspace_persisted(result, storage, round_environment, family=True)
+        with sqlite3.connect(round_environment) as db:
+            assert db.execute('SELECT * FROM completed_workspace_audit').fetchall() == before
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('failure', ['wrong_token', 'expired_token', 'error', 'cancelled'])
+def test_unsuccessful_workspace_completion_never_deletes_payload(round_environment, monkeypatch, failure):
+    queue = TaskQueue(round_environment)
+    entry = queue.submit_workspace('owner', PROJECT, 'turn', {'text': TEXT})
+    claim = queue.claim_workspace('owner', lease_seconds=10)
+    token, error = claim['lease_token'], None
+    if failure == 'wrong_token':
+        token = str(uuid4())
+    elif failure == 'expired_token':
+        import time
+        now = time.time()
+        monkeypatch.setattr('apps.api.task_queue.time.time', lambda: now + 11)
+    else:
+        error = 'CANCELLED' if failure == 'cancelled' else 'RuntimeError'
+    assert queue.finish_workspace(entry['id'], token, error=error) is (error is not None)
+    with sqlite3.connect(round_environment) as db:
+        rows = db.execute('SELECT status,attempts,error,lease_token,payload FROM workspace_jobs').fetchall()
+        assert db.execute('SELECT * FROM completed_workspace_audit').fetchall() == []
+    assert len(rows) == 1 and json.loads(rows[0][4]) == {'text': TEXT}
+    expected = ('QUEUED', 1, error, None) if error else ('RUNNING', 1, None, claim['lease_token'])
+    assert rows[0][:4] == expected
+
+
+@pytest.mark.parametrize('failure', ['error', 'cancelled'])
+def test_runtime_interrupted_workspace_persistence_keeps_retryable_job(
+        round_environment, tmp_path, failure):
+    storage, worker = OfflineStorage(family=True), DeterministicWorker(family=True)
+    entered, release = threading.Event(), threading.Event()
+    original = storage.upsert_family_context
+
+    def interrupted_family_write(*args, **kwargs):
+        entered.set()
+        assert release.wait(5), 'Test did not release persistence barrier'
+        if failure == 'error':
+            raise RuntimeError('Synthetic required family persistence failure')
+        return original(*args, **kwargs)
+    storage.upsert_family_context = interrupted_family_write
+
+    async def scenario():
+        running = asyncio.create_task(run_round(storage, worker, streaming=False, tmp_path=tmp_path))
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            if failure == 'cancelled':
+                running.cancel()
+        finally:
+            release.set()
+        if failure == 'cancelled':
+            with pytest.raises(asyncio.CancelledError):
+                await running
+        else:
+            result, _ = await running
+            assert result['conversation_saved'] is True
+        with sqlite3.connect(round_environment) as db:
+            rows = db.execute('SELECT status,attempts,error,lease_token FROM workspace_jobs').fetchall()
+            assert db.execute('SELECT * FROM completed_workspace_audit').fetchall() == []
+        assert rows == [('QUEUED', 1, 'CANCELLED' if failure == 'cancelled' else 'RuntimeError', None)]
+    asyncio.run(scenario())
