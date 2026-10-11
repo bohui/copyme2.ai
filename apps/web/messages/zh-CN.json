@@ -52,7 +52,8 @@
     "loadError": "无法加载回忆工作区。",
     "timelineArtwork": "时间线插画",
     "maleArtwork": "男性插画",
-    "femaleArtwork": "女性插画"
+    "femaleArtwork": "女性插画",
+    "languagePartiallySaved": "对话语言已保存，但账户语言未能保存。请重新选择语言以重试。"
   },
   "Errors": {
     "generic": "出了点问题，请再试一次。",
@@ -72,7 +73,8 @@
     "authConfirm": "账户已创建。请通过邮件验证邮箱，然后登录以查看和保存回忆。",
     "memoryConnected": "本次对话已关联您账户中的回忆。",
     "logoutFailed": "暂时无法退出登录，请稍后再试。",
-    "identityLinkFailed": "无法连接该登录方式，请稍后再试。"
+    "identityLinkFailed": "无法连接该登录方式，请稍后再试。",
+    "logoutStorageWarning": "已退出登录，但无法完全清除旧的浏览器登录数据。请先清除此网站的浏览器数据，再次登录。"
   },
   "Platform": {
     "brand": "CopyMe2",

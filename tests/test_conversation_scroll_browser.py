@@ -1,4 +1,6 @@
 """Viewport and streaming behavior using synthetic history/auth/model fixtures."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from pathlib import Path
@@ -23,7 +25,7 @@ def conversation_page():
           getSession:async()=>({{data:{{session:{{access_token:'fixture-only',user:{json.dumps(user)}}}}}}}),
           getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})
         }}}})}};"""
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda r:r.fulfill(content_type='text/javascript',body=script))
+        install_supabase_fixture(context, script)
         profile = {'preferred_language':'en-AU', 'name':'Fixture', 'conversation_language':{'initialized':True,'locale':'en-AU','source':'explicit','version':1,'revision':1}}
         def api(route):
             path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]

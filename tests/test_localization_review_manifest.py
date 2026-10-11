@@ -55,3 +55,9 @@ def test_all_package_claims_are_flagged_and_manifest_has_no_duplicate_keys():
     messages = leaves(json.loads((MESSAGES / "en-AU.json").read_text()))
     package_keys = {key for key in messages if key.startswith("Memoir.storyFlow.plans.")}
     assert package_keys and package_keys <= set(keys)
+
+
+def test_account_language_partial_save_and_logout_recovery_copy_need_review():
+    manifest = json.loads((MESSAGES / 'human-review.json').read_text())
+    assert manifest['status'] == 'requires-human-review'
+    assert {'Common.languagePartiallySaved', 'Errors.logoutStorageWarning'} <= set(manifest['keys'])

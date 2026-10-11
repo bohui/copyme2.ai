@@ -1,4 +1,6 @@
 """Real UI and project API; synthetic auth/history, with all provider calls intercepted."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from pathlib import Path
@@ -43,8 +45,7 @@ def navigation_browser(monkeypatch, request):
           signInWithOAuth:async options=>{window.fixtureOauth=options;return {}},
           onAuthStateChange:callback=>{window.fixtureAuthChanged=callback;return {}}
         }})};"""
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-                      lambda r: r.fulfill(content_type='text/javascript', body=script))
+        install_supabase_fixture(context, script)
         requests = []
 
         def api(route):
@@ -70,7 +71,7 @@ def navigation_browser(monkeypatch, request):
 
         context.route('**/api/v1/memoir/**', api)
         # Keep this regression hermetic: remote models, data, media and auth cannot be contacted.
-        context.route('https://**', lambda r: r.abort() if 'cdn.jsdelivr.net/npm/@supabase' not in r.request.url else r.fallback())
+        context.route('https://**', lambda r: r.abort() if 'auth.test/' not in r.request.url else r.fallback())
         page = context.new_page()
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))

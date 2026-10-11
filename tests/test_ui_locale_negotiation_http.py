@@ -1,6 +1,8 @@
 """Server-render contract for locale negotiation, without a browser dependency."""
 
 import os
+import json
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -49,7 +51,7 @@ def test_cookie_allowlist_precedes_browser_negotiation(cookie_locale, accept_lan
     response = httpx.get(
         os.environ["MEMOIR_BROWSER_URL"] + "/memoir",
         headers={"Accept-Language": accept_language},
-        cookies={"copyme2_ui_locale": cookie_locale}, timeout=30, trust_env=False,
+        cookies={"copyme2_ui_preference_v1": quote(json.dumps({"version":1,"locale":cookie_locale,"source":"manual","viewer":None}))}, timeout=30, trust_env=False,
     )
     assert response.status_code == 200
     assert f'<html lang="{expected_locale}"' in response.text

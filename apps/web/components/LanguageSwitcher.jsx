@@ -16,7 +16,6 @@ export default function LanguageSwitcher({
 
   async function changeLocale(event) {
     const nextLocale = event.target.value;
-    if (nextLocale === locale) return;
     const change = onLocaleChange || globalThis.__copyme2SetUiLocale;
     if (!change) {
       event.target.value = locale;

@@ -1,4 +1,6 @@
 """Exercise the actual interview UI against mocked auth/model/payment boundaries."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from pathlib import Path
@@ -35,8 +37,7 @@ def test_startup_does_not_wait_for_optional_font_stylesheet(locale):
                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base) else route.abort())
         page = context.new_page()
-        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
-            content_type='text/javascript', body='window.supabase = {};'))
+        install_supabase_fixture(page, 'window.supabase = {};')
         page.route('https://fonts.googleapis.com/**', lambda route: pending_fonts.append(route))
         page.route('**/api/v1/memoir/**', api)
         try:
@@ -107,8 +108,7 @@ def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, 
           getUser: async () => ({{data: {{user: {json.dumps(user)}}}}}),
           onAuthStateChange: () => ({{}}), updateUser: async () => ({{}})
         }}}})}};"""
-        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
-            content_type='text/javascript', body=auth_script))
+        install_supabase_fixture(page, auth_script)
         page.route('**/api/v1/memoir/**', api)
         page.goto(base + '/memoir/interview/' + project['id'], wait_until='networkidle')
         tabs = page.locator('[data-workspace-tab]')
@@ -213,8 +213,7 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
           getUser: async () => ({{data: {{user: {json.dumps(user)}}}}}),
           onAuthStateChange: () => ({{}}), updateUser: async () => ({{}})
         }}}})}};"""
-        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
-            content_type='text/javascript', body=auth_script))
+        install_supabase_fixture(page, auth_script)
         page.route('**/api/v1/memoir/**', api)
         page.goto(base + '/memoir')
         expect(page.get_by_text(copy['Memoir']['landing']['connectSummary'], exact=True)).to_be_visible(timeout=30000)
@@ -335,8 +334,7 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
           getSession: async () => ({data: {session: {access_token: 'token', user: {id: 'owner', is_anonymous: false}}}}),
           onAuthStateChange: () => ({})
         }})};'''
-        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
-            content_type='text/javascript', body=auth_script))
+        install_supabase_fixture(page, auth_script)
         page.route('**/api/v1/memoir/**', api)
         page.goto(os.environ['MEMOIR_BROWSER_URL'] + '/memoir/interview/history-project')
         page.get_by_role('button', name='Show all history', exact=True).click(timeout=30000)
@@ -420,8 +418,7 @@ def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
           getSession: async () => ({data: {session: {access_token: 'test-fixture', user: {id: 'owner', is_anonymous: false}}}}),
           onAuthStateChange: () => ({})
         }})};'''
-        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route: route.fulfill(
-            content_type='text/javascript', body=auth_script))
+        install_supabase_fixture(page, auth_script)
         page.route('**/api/v1/memoir/**', api)
         page.goto(base + '/memoir/interview/preview-fixture')
         page.wait_for_load_state('networkidle')

@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useLocale, useMessages, useTranslations } from "next-intl";
 
 import enAU from "../messages/en-AU.json";
 import zhCN from "../messages/zh-CN.json";
-import { localeCookie, localeSourceCookie, locales } from "../i18n/config";
+import { locales } from "../i18n/config";
 import { ensureMemoirFonts } from "../client/memoir/optional-fonts.mjs";
 import LanguageSwitcher from "./LanguageSwitcher";
+
+import { preferenceCookie, encodePreference } from "../i18n/preference.mjs";
 
 const messageCatalogues = { "en-AU": enAU, "zh-CN": zhCN };
 
 export default function MemoirClientShell() {
+  const localeRequest = useRef(0);
   const serverLocale = useLocale();
   const serverMessages = useMessages();
   const t = useTranslations("Common");
@@ -42,19 +45,22 @@ export default function MemoirClientShell() {
   async function changeLocale(nextLocale, {
     persistAccount = true,
     persistCookie = persistAccount,
-    source = "fixed",
+    source = "manual",
   } = {}) {
     if (!locales.includes(nextLocale) || !Object.prototype.hasOwnProperty.call(messageCatalogues, nextLocale)) return false;
-    if (nextLocale === activeLocale) return true;
+    const request = ++localeRequest.current;
+    let scope = globalThis.__copyme2UiLocaleScope?.();
     const beforeChange = globalThis.__copyme2BeforeUiLocaleChange;
     if (beforeChange) {
-      const allowed = await beforeChange(nextLocale, { persistAccount });
+      const allowed = await beforeChange(nextLocale, { persistAccount, source });
       if (allowed === false) return false;
+      if (allowed?.locale) { nextLocale = allowed.locale; source = allowed.source; scope = allowed.scope; }
     }
+    if (request !== localeRequest.current || (scope && !globalThis.__copyme2UiLocaleScopeCurrent?.(scope))) return false;
     const nextMessages = messageCatalogues[nextLocale];
     if (persistCookie) {
-      document.cookie = `${localeCookie}=${encodeURIComponent(nextLocale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-      document.cookie = `${localeSourceCookie}=${encodeURIComponent(source)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+      const value = encodePreference(nextLocale, source, scope?.viewer || null);
+      document.cookie = `${preferenceCookie}=${encodeURIComponent(value)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
     }
     globalThis.__copyme2Intl = { locale: nextLocale, messages: nextMessages };
     document.documentElement.lang = nextLocale;

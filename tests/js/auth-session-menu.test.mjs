@@ -1,3 +1,4 @@
+import { createPreferenceSession } from "../../apps/web/i18n/session.mjs";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,6 +10,7 @@ test('successful OAuth updates the visible guest menu without another chat turn'
   const state = { chat: [], supabase: { user: { id: 'guest', is_anonymous: true } } };
   let menu = '';
   const context = vm.createContext({
+    uiPreferenceSession: createPreferenceSession(), clearDerivedUiPreference() {},
     state, authReminder: { tick() {} }, UI_LOCALES: new Set(),
     refreshProfileMenu() { menu = context.profileMenu(); },
     persistChatHistory() {}, profile: () => ({}), escapeHtml: String, translate: key => key,

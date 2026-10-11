@@ -1,3 +1,7 @@
+import { restoreLegacyBrowserSession, signOutBrowserSession } from "../../auth/browser.mjs";
+import { createBrowserClient } from "@supabase/ssr";
+import { createPreferenceSession, firstReplyUiCandidate } from "../../i18n/session.mjs";
+import { preferenceCookie, readPreference } from "../../i18n/preference.mjs";
 import { createAuthReminder } from "./auth-reminder.js";
 import { linkSocialIdentity } from "./social-auth.mjs";
 import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
@@ -154,10 +158,17 @@ const guestTransfer = createGuestConversationTransfer({
   },
   getRedirectTo: () => window.location.origin + window.location.pathname,
   onMerged: async result => {
+    const scope = uiPreferenceSession.capture();
     const { data, error } = await state.supabase.client.auth.getUser();
     if (error) throw error;
+    if (!uiPreferenceSession.current(scope) || data?.user?.id !== scope.viewer) return;
     if (data?.user) state.supabase.user = data.user;
-    await applyProfileUiLocale(result.ui_locale || result.profile?.preferred_language);
+    uiPreferenceSession.setSession(state.supabase.client, state.supabase.user);
+    await syncAccountUiLocale();
+    const transferredLocale = result.ui_locale || result.profile?.preferred_language;
+    if (uiPreferenceSession.current(scope) && !uiPreferenceSession.preference && UI_LOCALES.has(transferredLocale)) {
+      await globalThis.__copyme2SetUiLocale?.(transferredLocale, {persistAccount:true, persistCookie:true, source:"first_reply"});
+    }
   },
 });
 
@@ -382,7 +393,7 @@ async function consumePhotoStream(response, onPage) {
 function readCookie(name) {
   const prefix = `${name}=`;
   const match = document.cookie.split("; ").find((item) => item.startsWith(prefix));
-  return match ? decodeURIComponent(match.slice(prefix.length)) : "";
+  try { return match ? decodeURIComponent(match.slice(prefix.length)) : ""; } catch { return ""; }
 }
 
 function chatHistoryStorageKey(projectId = state.project?.id) {
@@ -551,18 +562,35 @@ function restoreChatHistory(projectId) {
   }
 }
 
-const UI_LOCALES = new Set(["en-AU", "zh-CN"]);
-const UI_LOCALE_COOKIE = "copyme2_ui_locale";
-const UI_LOCALE_SOURCE_COOKIE = "copyme2_ui_locale_source";
+const uiPreferenceSession = createPreferenceSession();
 
-function writeUiLocaleCookie(locale) {
-  if (!UI_LOCALES.has(locale)) return;
-  document.cookie = `${UI_LOCALE_COOKIE}=${encodeURIComponent(locale)}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+const UI_LOCALES = new Set(["en-AU", "zh-CN"]);
+
+function currentUiPreference() {
+  return uiPreferenceSession.preference || readPreference(readCookie(preferenceCookie), state.supabase?.user?.id || null);
 }
 
-function writeUiLocaleSource(source = "fixed") {
-  if (!["fixed", "automatic", "profile"].includes(source)) return;
-  document.cookie = `${UI_LOCALE_SOURCE_COOKIE}=${source}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+function clearDerivedUiPreference() {
+  uiPreferenceSession.invalidate();
+  document.cookie = `${preferenceCookie}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+async function syncAccountUiLocale() {
+  if (uiPreferenceSession.busy) return;
+  const scope = uiPreferenceSession.capture();
+  let preference = await uiPreferenceSession.refresh();
+  if (!uiPreferenceSession.current(scope) || uiPreferenceSession.busy) return;
+  if (!preference && state.supabase?.user?.is_anonymous) {
+    const beforeSignIn = readPreference(readCookie(preferenceCookie), null);
+    if (beforeSignIn?.source === "manual") {
+      preference = await uiPreferenceSession.choose(beforeSignIn.locale, "manual");
+      if (!preference) return;
+    }
+  }
+  if (!preference) return;
+  await globalThis.__copyme2SetUiLocale?.(preference.locale, {
+    persistAccount: false, persistCookie: true, source: preference.source,
+  });
 }
 
 function firstReplyLanguage(text) {
@@ -576,13 +604,12 @@ function firstReplyLanguage(text) {
 }
 
 function hasFixedUiLocale() {
-  if (["fixed", "profile"].includes(readCookie(UI_LOCALE_SOURCE_COOKIE))) return true;
-  const accountLocale = state.supabase?.user?.user_metadata?.ui_locale;
-  return UI_LOCALES.has(accountLocale);
+  const preference = currentUiPreference();
+  return Boolean(preference && ["manual", "first_reply", "profile"].includes(preference.source));
 }
 
 async function applyProfileUiLocale(locale) {
-  if (!UI_LOCALES.has(locale) || readCookie(UI_LOCALE_SOURCE_COOKIE) === "fixed" || currentUiLocale() === locale) return false;
+  if (!UI_LOCALES.has(locale) || uiPreferenceSession.busy || uiPreferenceSession.preference || currentUiPreference()?.source === "manual" || currentUiLocale() === locale) return false;
   const setUiLocale = globalThis.__copyme2SetUiLocale;
   if (typeof setUiLocale !== "function") return false;
   const changed = await setUiLocale(locale, {
@@ -594,64 +621,98 @@ async function applyProfileUiLocale(locale) {
 }
 
 async function applyFirstReplyLocalization(locale) {
-  if (!UI_LOCALES.has(locale) || hasFixedUiLocale()) return false;
+  if (!UI_LOCALES.has(locale) || uiPreferenceSession.busy || hasFixedUiLocale()) return false;
   const setUiLocale = globalThis.__copyme2SetUiLocale;
   if (typeof setUiLocale !== "function") return false;
   // This is the explicitly requested product exception: only the first
   // narrator answer may provide a bounded UI-language signal. It changes
-  // the current session and never writes account metadata.
-  const changed = await setUiLocale(locale, { persistAccount: false, persistCookie: true, source: "automatic" });
-  if (changed) writeUiLocaleSource("automatic");
+  // the durable viewer UI preference, only if no established preference wins.
+  const changed = await setUiLocale(locale, { persistAccount: true, persistCookie: true, source: "first_reply" });
   return changed;
+}
+
+async function persistCommittedFirstReplyUiLocale(privateProfile) {
+  const locale = firstReplyUiCandidate(privateProfile);
+  if (!locale || uiPreferenceSession.busy || uiPreferenceSession.preference || currentUiPreference()?.source === "manual") return false;
+  return globalThis.__copyme2SetUiLocale?.(locale, {persistAccount:true, persistCookie:true, source:"first_reply"});
 }
 
 async function syncProfileUiLocale() {
   const scope = captureProjectScope();
-  if (readCookie(UI_LOCALE_SOURCE_COOKIE) === "fixed" || UI_LOCALES.has(state.supabase?.user?.user_metadata?.ui_locale)) return false;
-  let preferredLanguage = state.project?.profile?.preferred_language;
+  if (uiPreferenceSession.preference || currentUiPreference()?.source === "manual") return false;
+  let privateProfile = state.project?.profile;
+  let preferredLanguage = privateProfile?.preferred_language;
   if (!preferredLanguage && state.supabase?.accessToken) {
     try {
-      preferredLanguage = (await storyApi("/v1/agent/profile")).preferred_language;
+      privateProfile = await storyApi("/v1/agent/profile");
+      preferredLanguage = privateProfile.preferred_language;
     } catch {
       // The profile endpoint is optional during boot; conversation still works.
     }
   }
+  if (!isCurrentProjectScope(scope)) return false;
+  await persistCommittedFirstReplyUiLocale(privateProfile);
   if (isCurrentProjectScope(scope)) return applyProfileUiLocale(preferredLanguage);
 }
 
 function installUiLocaleBridge() {
-  globalThis.__copyme2BeforeUiLocaleChange = async (nextLocale, { persistAccount = true } = {}) => {
+  let writeTail = Promise.resolve();
+  globalThis.__copyme2UiLocaleScope = () => uiPreferenceSession.capture();
+  globalThis.__copyme2UiLocaleScopeCurrent = (scope) => uiPreferenceSession.current(scope)
+    && !state.recording && !state.storyRecording && !state.voiceModeRecorder;
+  globalThis.__copyme2BeforeUiLocaleChange = async (nextLocale, { persistAccount = true, source = "manual" } = {}) => {
     if (!UI_LOCALES.has(nextLocale)) return false;
+    if (uiPreferenceSession.busy && (!persistAccount || source !== "manual")) return false;
     if (state.recording || state.storyRecording || state.voiceModeRecorder) {
       toast(translate("Common.finishRecordingFirst"));
       return false;
     }
-    const client = state.supabase?.client;
-    const user = state.supabase?.user;
-    if (persistAccount && state.project && state.supabase?.accessToken) {
-      const projectId = state.project.id;
-      const ownerId = user?.id;
-      try {
-        const saved = await storyApi("/v1/agent/profile", {method:"PATCH", body:JSON.stringify({preferred_language:nextLocale})});
-        if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return false;
-        state.project = {...state.project, profile:preserveConversationLocale({...profile(), ...saved}, profile())};
-      } catch {
-        toast(translate("Profile.saveError"));
+    if (persistAccount) uiPreferenceSession.beginIntent();
+    const scope = uiPreferenceSession.capture();
+    const projectId = state.project?.id;
+    const navigationGeneration = state.navigationGeneration;
+    const perform = async () => {
+      if (!uiPreferenceSession.current(scope) || state.project?.id !== projectId
+        || state.navigationGeneration !== navigationGeneration
+        || state.recording || state.storyRecording || state.voiceModeRecorder) {
+        uiPreferenceSession.cancelIntent(scope);
         return false;
       }
-    }
-    if (!persistAccount || !client || !user || user.is_anonymous) return true;
-    try {
-      const result = await client.auth.updateUser({
-        data: { ...(user.user_metadata || {}), ui_locale: nextLocale },
-      });
-      if (result.error) throw result.error;
-      if (result.data?.user) state.supabase.user = result.data.user;
-    } catch (error) {
-      // Keep the device choice usable even if the account metadata update is unavailable.
-      console.warn("Unable to persist the UI locale to the account; keeping the device preference.", error);
-    }
-    return true;
+      let conversationSaved = persistAccount && source === "manual"
+        && profile().preferred_language === nextLocale && profile().conversation_language?.source === "explicit";
+      if (persistAccount && source === "manual" && !conversationSaved && state.project && state.supabase?.accessToken) {
+        try {
+          const saved = await storyApi("/v1/agent/profile", {method:"PATCH", body:JSON.stringify({preferred_language:nextLocale})});
+          if (state.project?.id !== projectId || state.navigationGeneration !== navigationGeneration || !uiPreferenceSession.current(scope)) {
+            uiPreferenceSession.cancelIntent(scope);
+            return false;
+          }
+          state.project = {...state.project, profile:preserveConversationLocale({...profile(), ...saved}, profile())};
+          conversationSaved = true;
+        } catch {
+          if (uiPreferenceSession.current(scope)) toast(translate("Profile.saveError"));
+          uiPreferenceSession.cancelIntent(scope);
+          return false;
+        }
+      }
+      if (!uiPreferenceSession.current(scope)) return false;
+      if (!persistAccount) return { locale: nextLocale, source, scope };
+      try {
+        const preference = await uiPreferenceSession.choose(nextLocale, source);
+        if (!preference) return false;
+        return { ...preference, scope: uiPreferenceSession.capture() };
+      } catch {
+        toast(translate(conversationSaved ? "Common.languagePartiallySaved" : "Profile.saveError"));
+        return false;
+      }
+    };
+    if (!persistAccount) return perform();
+    // Serialize the conversation PATCH together with its account write. A newer
+    // intent supersedes queued work, while an in-flight older PATCH finishes
+    // before the newer action is dispatched to either persistence destination.
+    const operation = writeTail.then(perform);
+    writeTail = operation.catch(() => {});
+    return operation;
   };
 }
 
@@ -662,9 +723,10 @@ async function ensureAuth() {
     return;
   }
   if (!state.supabase?.client) throw new Error(translate("Errors.supabaseNotConfigured"));
-  const { data, error } = await state.supabase.client.auth.getSession();
-  if (error) throw new Error(translate("Errors.sessionUnavailable"));
-  let session = data.session;
+  const authScope = uiPreferenceSession.capture();
+  let session;
+  try { session = await restoreLegacyBrowserSession(state.supabase.client, state.supabase.supabase_url, globalThis.localStorage); }
+  catch { throw new Error(translate("Errors.sessionUnavailable")); }
   if (!session) {
     const signedIn = await state.supabase.client.auth.signInAnonymously();
     if (signedIn.error) {
@@ -676,7 +738,9 @@ async function ensureAuth() {
     }
     session = signedIn.data.session;
   }
+  if (!uiPreferenceSession.current(authScope) && uiPreferenceSession.viewer !== (session?.user?.id || null)) return;
   syncSupabaseSession(session);
+  await syncAccountUiLocale();
 }
 
 async function loadSupabaseConfig() {
@@ -687,16 +751,18 @@ async function loadSupabaseConfig() {
     state.supabase = config;
     return;
   }
-  if (!config.supabase_url || !config.supabase_publishable_key || !globalThis.supabase?.createClient) {
+  if (!config.supabase_url || !config.supabase_publishable_key) {
     state.supabase = config;
     return;
   }
-  const client = globalThis.supabase.createClient(config.supabase_url, config.supabase_publishable_key, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  const client = createBrowserClient(config.supabase_url, config.supabase_publishable_key, {
+    cookieOptions: { path: "/", sameSite: "lax", secure: window.location.protocol === "https:" },
   });
   state.supabase = { ...config, client };
   client.auth.onAuthStateChange((_event, session) => {
     syncSupabaseSession(session);
+    // Do not await another Auth call inside its locked callback.
+    setTimeout(() => { syncAccountUiLocale().catch(() => {}); }, 0);
     if (state.story && session) refreshStoryState().catch(() => {});
   });
 }
@@ -706,10 +772,11 @@ function syncSupabaseSession(session) {
   if (!state.supabase) return;
   const previousUser = state.supabase.user;
   const principalChanged = Boolean(previousUser?.id && previousUser.id !== session?.user?.id);
-  if (principalChanged) invalidateProjectNavigation();
+  if (principalChanged) { clearDerivedUiPreference(); invalidateProjectNavigation(); }
   state.supabase.accessToken = session?.access_token || null;
   state.supabase.refreshToken = session?.refresh_token || null;
   state.supabase.user = session?.user || null;
+  uiPreferenceSession.setSession(state.supabase.client, state.supabase.user);
   if (principalChanged) {
     // Keep the previous principal's durable cache, and let boot authorize the
     // next principal before any project or transcript can be shown again.
@@ -717,7 +784,7 @@ function syncSupabaseSession(session) {
     state.projectPrincipalId = null;
     state.chat = [];
     globalThis.document?.querySelector("#app")?.replaceChildren();
-    globalThis.location?.reload();
+    if (!state.explicitSignOutInProgress) globalThis.location?.reload();
   }
   authReminder.tick();
   const user = state.supabase.user;
@@ -725,14 +792,7 @@ function syncSupabaseSession(session) {
       || previousUser?.email !== user?.email
       || previousUser?.user_metadata?.full_name !== user?.user_metadata?.full_name
       || previousUser?.user_metadata?.name !== user?.user_metadata?.name) refreshProfileMenu();
-  const accountLocale = session?.user?.user_metadata?.ui_locale;
-  if (UI_LOCALES.has(accountLocale) && !readCookie(UI_LOCALE_COOKIE)) {
-    writeUiLocaleCookie(accountLocale);
-    writeUiLocaleSource("fixed");
-    if (globalThis.__copyme2Intl?.locale && globalThis.__copyme2Intl.locale !== accountLocale) {
-      window.location.reload();
-    }
-  }
+
 }
 
 async function supabaseAuth(action) {
@@ -2210,6 +2270,7 @@ async function applyCommittedConversationLocale(updates) {
   const merged = mergeProfileUpdates({preferred_language:updates.preferred_language,
     conversation_language:updates.conversation_language});
   if (merged) state.project = {...state.project, profile:merged};
+  await persistCommittedFirstReplyUiLocale(profile());
   await applyProfileUiLocale(conversationLanguage());
 }
 
@@ -2308,7 +2369,8 @@ function bindProfileMenu() {
           state.project = { ...state.project, ...saved,
             profile:preserveConversationLocale({...saved.profile, ...settings}, profile()) };
         }
-        await applyProfileUiLocale(conversationLanguage());
+        await persistCommittedFirstReplyUiLocale(profile());
+  await applyProfileUiLocale(conversationLanguage());
         render();
       },
       onClose: () => $("[data-profile-trigger]")?.focus(),
@@ -2335,15 +2397,23 @@ async function reviewCollection() {
 }
 
 async function signOut() {
+  state.explicitSignOutInProgress = true;
+  let legacyRetired = true;
   closeProfileMenu();
+  clearDerivedUiPreference();
   try {
     persistChatHistory();
     if (state.supabase?.client) {
-      const { error } = await state.supabase.client.auth.signOut();
+      let storage;
+      try { storage = globalThis.localStorage; } catch { /* revocation still runs */ }
+      const result = await signOutBrowserSession(state.supabase.client, state.supabase.supabase_url, storage);
+      legacyRetired = result.legacyRetired;
+      const { error } = result;
       if (error) throw new Error(translate("Errors.logoutFailed"));
     }
     state.recordingStream?.getTracks().forEach((track) => track.stop());
     state.supabase = null;
+    uiPreferenceSession.setSession(null, null);
     state.supabaseSession = null;
     state.accountId = null;
     state.csrfToken = "";
@@ -2401,9 +2471,16 @@ async function signOut() {
       sessionStorage.removeItem("memory-spark-supabase-session");
     } catch { /* private browsing or storage restrictions */ }
     navigateTo(MEMOIR_ROUTES.home, true);
+    if (!legacyRetired) {
+      renderLanding();
+      toast(translate("Errors.logoutStorageWarning"));
+      return;
+    }
     await boot();
   } catch (error) {
     toast(error.message || translate("Errors.logoutFailed"));
+  } finally {
+    state.explicitSignOutInProgress = false;
   }
 }
 

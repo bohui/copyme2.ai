@@ -13,7 +13,7 @@ const record=(locale,revision=1,kind='first_reply')=>({version:1,initialized:tru
 function harness(profile){
   const state={project:{id:'fixture',profile},supabase:{user:{id:'owner'},accessToken:'fixture-only'}};
   const applied=[];
-  const context=vm.createContext({state,applyProfileUiLocale:async language=>applied.push(language)});
+  const context=vm.createContext({state,persistCommittedFirstReplyUiLocale:async()=>{},applyProfileUiLocale:async language=>applied.push(language)});
   vm.runInContext(['profile','conversationLanguage','mergeProfileUpdates','applyCommittedConversationLocale','preserveConversationLocale'].map(extract).join('\n'),context);
   return {context,state,applied};
 }

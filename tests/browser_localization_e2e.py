@@ -155,8 +155,7 @@ def main() -> None:
         voice_page = voice_context.new_page()
         voice_page.add_init_script(
             """
-            document.cookie = 'copyme2_ui_locale=en-AU; Path=/; SameSite=Lax';
-            document.cookie = 'copyme2_ui_locale_source=fixed; Path=/; SameSite=Lax';
+            document.cookie = 'copyme2_ui_preference_v1='+encodeURIComponent(JSON.stringify({version:1,locale:'en-AU',source:'manual',viewer:null}))+'; Path=/; SameSite=Lax';
             let recorderStarts = 0;
             class FakeTrack { stop() {} }
             class FakeStream {

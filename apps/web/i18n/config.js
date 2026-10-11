@@ -1,3 +1,4 @@
+import { readPreference } from "./preference.mjs";
 export const locales = ["en-AU", "zh-CN"];
 export const defaultLocale = "en-AU";
 export const localeCookie = "copyme2_ui_locale";
@@ -40,8 +41,12 @@ function browserLocalePreferences(acceptLanguage = "") {
     .map(({ locale }) => locale);
 }
 
-export function resolveUiLocale({ cookieLocale, acceptLanguage, matchLocale }) {
-  if (isUiLocale(cookieLocale)) return cookieLocale;
+export function resolveUiLocale({ preferenceValue, viewer = null, accountLocale, acceptLanguage, matchLocale }) {
+  // Persisted viewer preference outranks every old browser choice. A fresh
+  // manual action updates that account preference before changing the UI.
+  if (isUiLocale(accountLocale)) return accountLocale;
+  const preference = readPreference(preferenceValue, viewer);
+  if (preference) return preference.locale;
   const requested = browserLocalePreferences(acceptLanguage);
   for (const locale of requested) {
     // Best-fit distance across a whole list can let a lower-priority exact

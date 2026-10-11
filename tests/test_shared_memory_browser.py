@@ -3,6 +3,8 @@
 Authentication/project metadata is controlled at the external API boundary.
 Event edits and saved-draft reads go through the actual application router/RPC.
 """
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 import socketserver
@@ -103,7 +105,7 @@ def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tm
                             {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         user = {'id':OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':'en-AU'}}
         script = f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'synthetic-author',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',lambda route:route.fulfill(content_type='text/javascript',body=script))
+        install_supabase_fixture(context, script)
         context.route('**/api/v1/memoir/**',api)
         context.add_init_script("localStorage.setItem('memory-spark-project','project');sessionStorage.setItem('memory-spark-chat-history:project','[{\"role\":\"user\",\"text\":\"A saved synthetic memory.\"}]');")
         page = context.new_page()
@@ -240,7 +242,7 @@ def test_authenticated_browser_send_persists_the_original_and_its_input_kind(sql
                                 {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
             user = {'id':OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':'en-AU'}}
             script = f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'synthetic-author',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
-            context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route:route.fulfill(content_type='text/javascript', body=script))
+            install_supabase_fixture(context, script)
             context.route('**/api/v1/memoir/**', api)
             context.add_init_script("localStorage.setItem('memory-spark-project','project');sessionStorage.setItem('memory-spark-chat-history:project','[{\"role\":\"user\",\"text\":\"A saved synthetic memory.\"}]');")
             context.add_init_script("""
@@ -328,7 +330,7 @@ def test_saved_coverage_and_timeline_tag_edit_survive_browser_reload(sql, tmp_pa
         context.add_cookies([{'name':'copyme2_ui_locale','value':'en-AU','url':base},{'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         user={'id':OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':'en-AU'}}
         script=f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'synthetic-author',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',lambda route:route.fulfill(content_type='text/javascript',body=script))
+        install_supabase_fixture(context, script)
         context.route('**/api/v1/memoir/**',api)
         context.add_init_script("localStorage.setItem('memory-spark-project','project');sessionStorage.setItem('memory-spark-chat-history:project','[{\"role\":\"user\",\"text\":\"A saved synthetic memory.\"}]');")
         page=context.new_page()

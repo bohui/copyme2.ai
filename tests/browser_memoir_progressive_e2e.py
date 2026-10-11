@@ -8,6 +8,8 @@ composer worker would return, including structured chapter blocks.
 
 from __future__ import annotations
 
+from browser_supabase_fixture import install_supabase_fixture
+
 import argparse
 import json
 from pathlib import Path
@@ -338,9 +340,7 @@ def run_case(browser, base_url: str, locale: str) -> None:
     page.route("**/api/v1/memoir/**", api)
     page.route("**/api/v1/memoir/memory-sessions/*/answers", memory_answer)
     page.route("**/api/v1/memoir/agent/turn", agent_turn)
-    page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", lambda route: route.fulfill(content_type="text/javascript", body=(
-        "window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{access_token:'fixture-only',user:{id:'progressive-user',is_anonymous:false,user_metadata:{}}}}}),getUser:async()=>({data:{user:{id:'progressive-user',is_anonymous:false,user_metadata:{}}}}),onAuthStateChange:()=>({})}})};"
-    )))
+    install_supabase_fixture(page, "window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{access_token:'fixture-only',user:{id:'progressive-user',is_anonymous:false,user_metadata:{}}}}}),getUser:async()=>({data:{user:{id:'progressive-user',is_anonymous:false,user_metadata:{}}}}),onAuthStateChange:()=>({})}})};")
     page.route("**/unpkg.com/**", lambda route: route.abort())
 
     try:

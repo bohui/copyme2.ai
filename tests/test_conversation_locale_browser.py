@@ -1,4 +1,6 @@
 """Real browser locale lifecycle; auth/model boundaries use synthetic fixtures."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from pathlib import Path
@@ -79,7 +81,7 @@ def test_first_reply_locale_survives_followups_reload_and_explicit_choice(locale
           getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}}),
           updateUser:async()=>({{data:{{user:{json.dumps(user)}}}}})
         }}}})}};"""
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda route:route.fulfill(content_type='text/javascript',body=script))
+        install_supabase_fixture(context, script)
         context.route('**/api/v1/memoir/**', api)
         context.add_init_script("localStorage.setItem('memory-spark-project','locale-project');")
         page = context.new_page()

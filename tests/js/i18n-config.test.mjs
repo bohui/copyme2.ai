@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultLocale, resolveUiLocale } from '../../apps/web/i18n/config.js';
 
+const preferenceValue = locale => JSON.stringify({version:1,locale,source:'manual',viewer:null});
 const { match: matchLocale } = createRequire(new URL('../../apps/web/package.json', import.meta.url))('@formatjs/intl-localematcher');
 
-test('explicit UI cookie wins over browser negotiation', () => {
+test('versioned anonymous manual cookie wins over browser negotiation', () => {
   assert.equal(resolveUiLocale({
-    cookieLocale: 'zh-CN',
+    preferenceValue: preferenceValue('zh-CN'),
     acceptLanguage: 'en-AU,en;q=0.8',
     matchLocale,
   }), 'zh-CN');
@@ -15,12 +16,12 @@ test('explicit UI cookie wins over browser negotiation', () => {
 
 test('browser negotiation respects quality order and falls back safely', () => {
   assert.equal(resolveUiLocale({
-    cookieLocale: 'unsupported',
+    preferenceValue: preferenceValue('unsupported'),
     acceptLanguage: 'en-AU;q=0.4, zh-CN;q=0.9',
     matchLocale,
   }), 'zh-CN');
   assert.equal(resolveUiLocale({
-    cookieLocale: '',
+    preferenceValue: preferenceValue(''),
     acceptLanguage: 'fr-FR, de;q=0.8',
     matchLocale,
   }), defaultLocale);
@@ -46,7 +47,7 @@ test('HTTP quality values exclude invalid, unacceptable and duplicate weights', 
 test('real matcher negotiates supported preferences after unsupported languages', () => {
   assert.equal(resolveUiLocale({ acceptLanguage: 'fr-FR,zh-CN;q=0.8,en-AU;q=0.5', matchLocale }), 'zh-CN');
   assert.equal(resolveUiLocale({ acceptLanguage: 'en-US,en;q=0.8', matchLocale }), 'en-AU');
-  assert.equal(resolveUiLocale({ cookieLocale: 'zh-CN', acceptLanguage: 'invalid_locale', matchLocale }), 'zh-CN');
+  assert.equal(resolveUiLocale({ preferenceValue: preferenceValue('zh-CN'), acceptLanguage: 'invalid_locale', matchLocale }), 'zh-CN');
 });
 
 for (const [acceptLanguage, expected] of [
@@ -66,10 +67,20 @@ for (const [acceptLanguage, expected] of [
 }
 
 test('weighted regional choices retain cookie priority and strict quality validation', () => {
-  assert.equal(resolveUiLocale({ cookieLocale: 'zh-CN', acceptLanguage: 'en-US;q=1,zh-CN;q=0.1', matchLocale }), 'zh-CN');
-  assert.equal(resolveUiLocale({ cookieLocale: 'en-AU', acceptLanguage: 'zh-SG;q=1,en-AU;q=0.1', matchLocale }), 'en-AU');
+  assert.equal(resolveUiLocale({ preferenceValue: preferenceValue('zh-CN'), acceptLanguage: 'en-US;q=1,zh-CN;q=0.1', matchLocale }), 'zh-CN');
+  assert.equal(resolveUiLocale({ preferenceValue: preferenceValue('en-AU'), acceptLanguage: 'zh-SG;q=1,en-AU;q=0.1', matchLocale }), 'en-AU');
   for (const quality of ['0', '.9', '1.1', 'NaN', '1;q=0']) {
     assert.equal(resolveUiLocale({ acceptLanguage: `en-US;q=${quality},zh-CN;q=0.1`, matchLocale }), 'zh-CN');
   }
   assert.equal(resolveUiLocale({ acceptLanguage: 'invalid_locale;q=1,fr-FR;q=0.9,zh-SG;q=0.8,en-AU;q=0.1', matchLocale }), 'zh-CN');
+});
+
+
+test('persisted account preference wins even a versioned manual cache',()=>{
+ assert.equal(resolveUiLocale({viewer:'a',accountLocale:'zh-CN',preferenceValue:JSON.stringify({version:1,locale:'en-AU',source:'manual',viewer:'a'}),acceptLanguage:'en-AU',matchLocale}),'zh-CN');
+});
+test('legacy and other-viewer cookies never establish explicit intent',()=>{
+ for(const value of [undefined,'bad',JSON.stringify({version:1,locale:'zh-CN',source:'manual',viewer:'a'})]) {
+ assert.equal(resolveUiLocale({cookieLocale:'zh-CN',preferenceValue:value,viewer:'b',acceptLanguage:'en-AU',matchLocale}),'en-AU');
+ }
 });
