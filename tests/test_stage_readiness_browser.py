@@ -1,4 +1,6 @@
 """Source UI checks with synthetic auth, stages and saved private draft."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from pathlib import Path
@@ -54,7 +56,7 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         page.add_init_script("localStorage.setItem('memory-spark-project','stage-project');")
         user={'id':'fixture-owner','is_anonymous':False,'user_metadata':{'ui_locale':locale}}
         script=f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'fixture-only',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
-        page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',lambda route:route.fulfill(content_type='text/javascript',body=script))
+        install_supabase_fixture(page, script)
         page.route('**/api/v1/memoir/**',api)
         page.goto(base+'/memoir/interview/stage-project')
         if not mapped:

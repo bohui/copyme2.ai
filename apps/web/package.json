@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "^0.6.2",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "next": "16.3.6",
     "next-intl": "^4.14.7",
     "react": "19.3.0",

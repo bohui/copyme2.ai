@@ -52,7 +52,8 @@
     "loadError": "The Memoir workspace could not be loaded.",
     "timelineArtwork": "Timeline artwork",
     "maleArtwork": "Male illustrations",
-    "femaleArtwork": "Female illustrations"
+    "femaleArtwork": "Female illustrations",
+    "languagePartiallySaved": "Conversation language saved, but your account language could not be saved. Choose the language again to retry."
   },
   "Errors": {
     "generic": "Something went wrong. Please try again.",
@@ -72,7 +73,8 @@
     "authConfirm": "Account created. Confirm the email, then sign in to connect your private memory.",
     "memoryConnected": "Private memory is connected for this session.",
     "logoutFailed": "Unable to log out right now. Please try again.",
-    "identityLinkFailed": "Unable to connect that sign-in provider. Please try again."
+    "identityLinkFailed": "Unable to connect that sign-in provider. Please try again.",
+    "logoutStorageWarning": "Signed out, but old browser sign-in data could not be fully cleared. Clear this site’s browser data before signing in again."
   },
   "Platform": {
     "brand": "CopyMe2",

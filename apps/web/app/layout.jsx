@@ -1,8 +1,9 @@
-import Script from "next/script";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import MemoirClientShell from "../components/MemoirClientShell";
+
+export const dynamic = "force-dynamic";
 
 export const viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
@@ -30,10 +31,7 @@ export default async function RootLayout({ children }) {
       </head>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>{children}</NextIntlClientProvider>
-        <Script
-          src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-          strategy="beforeInteractive"
-        />
+
       </body>
     </html>
   );

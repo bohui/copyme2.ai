@@ -3,6 +3,8 @@
 The source frontend, Chromium, PostgreSQL, story API and composer worker are real.
 External authentication/project metadata/model/photo/imagery boundaries are controlled.
 """
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 
@@ -104,8 +106,7 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
         context.route("**/api/v1/memoir/**", api)
         user = {"id": OWNER, "is_anonymous": False, "user_metadata": {"ui_locale": locale}}
         sdk = f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'synthetic-author',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
-        context.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", lambda route:
-            route.fulfill(content_type="text/javascript", body=sdk))
+        install_supabase_fixture(context, sdk)
         # Seed only the first visit. Reload/new-tab acceptance cannot recreate the
         # history through an init script or a mocked history response.
         initial = json.dumps([{"id": "original-memory", "role": "user", "text": original}])

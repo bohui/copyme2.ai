@@ -1,4 +1,6 @@
 """Family tree selection with synthetic people and the actual pinned renderer."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from io import BytesIO
@@ -79,7 +81,7 @@ def test_person_introductions_and_author_marker(locale, width, renderer_availabl
                             {"name": "copyme2_ui_locale_source", "value": "fixed", "url": base}])
         user = {"id": "family-fixture-owner", "is_anonymous": False, "user_metadata": {}}
         script = f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'fixture-only',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
-        context.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", lambda route: route.fulfill(content_type="text/javascript", body=script))
+        install_supabase_fixture(context, script)
         for url, body in chart_assets.items():
             if renderer_available:
                 context.route(url, lambda route, request, body=body: route.fulfill(content_type="text/css" if request.url.endswith(".css") else "text/javascript", body=body))

@@ -1,4 +1,6 @@
 """Shipped UI + real recovery/history/sample routes; external auth/data are fixtures."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 import time
@@ -73,8 +75,7 @@ def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch,
           getSession:async()=>({data:{session:{access_token:'fixture-session',user:{id:'fixture-owner',is_anonymous:false}}}}),
           getUser:async()=>({data:{user:{id:'fixture-owner',is_anonymous:false}}}),onAuthStateChange:()=>({})
         }})};"""
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-                      lambda r: r.fulfill(content_type='text/javascript', body=auth_script))
+        install_supabase_fixture(context, auth_script)
         sample_times = []
         requests = []
         def api(route):

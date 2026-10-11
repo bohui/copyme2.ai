@@ -1,4 +1,6 @@
 """Shipped interview UI, isolated synthetic API/media and no provider/model calls."""
+
+from browser_supabase_fixture import install_supabase_fixture
 import base64
 import json
 import os
@@ -35,7 +37,7 @@ def photo_page(request):
         script = """const session=()=>({access_token:'fixture-'+(localStorage.getItem('fixture-owner')||'owner'),user:{id:localStorage.getItem('fixture-owner')||'owner',is_anonymous:true}});
           window.fixturePrincipal=id=>{localStorage.setItem('fixture-owner',id);window.fixtureAuth?.('SIGNED_IN',session())};
           window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:session()}}),getUser:async()=>({data:{user:session().user}}),onAuthStateChange:fn=>{window.fixtureAuth=fn;return {}}}})};"""
-        context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', lambda r:r.fulfill(content_type='text/javascript',body=script))
+        install_supabase_fixture(context, script)
         def api(route):
             path=route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             calls.append((path,route.request.headers,route.request.post_data_buffer))

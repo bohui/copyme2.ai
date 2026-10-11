@@ -38,12 +38,12 @@ def main() -> None:
         expect(automatic_page.get_by_text("我会陪你慢慢回忆。")).to_be_visible(timeout=15000)
         assert automatic_requests[-1].get("language") == "zh-CN"
         assert automatic_requests[-1].get("first_reply_localization") is True
-        assert any(cookie["name"] == "copyme2_ui_locale_source" and cookie["value"] == "automatic" for cookie in automatic.cookies())
+        assert any(cookie["name"] == "copyme2_ui_preference_v1" and 'first_reply' in __import__('urllib.parse',fromlist=['unquote']).unquote(cookie["value"]) for cookie in automatic.cookies())
         automatic.close()
 
         fixed = browser.new_context(locale="en-AU")
         fixed.add_init_script(
-            "document.cookie = 'copyme2_ui_locale=en-AU; Path=/; SameSite=Lax'; document.cookie = 'copyme2_ui_locale_source=fixed; Path=/; SameSite=Lax';"
+            "document.cookie = 'copyme2_ui_preference_v1='+encodeURIComponent(JSON.stringify({version:1,locale:'en-AU',source:'manual',viewer:null}))+'; Path=/; SameSite=Lax';"
         )
         fixed_page = fixed.new_page()
         fixed_requests = []
