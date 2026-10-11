@@ -225,6 +225,7 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "rubric_version": "rubric_version",
         "judge_rubric_version": "judge_rubric_version",
         "model": "model",
+        "requested_model": "requested_model",
         "provider": "provider",
         "variant": "variant",
         "request_id": "request_id",
@@ -245,6 +246,17 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         if text:
             result[target_key] = text[:256]
     return result
+
+
+def execution_correlation(value: Mapping[str, Any] | None, model: str) -> dict[str, str]:
+    """Attribute a dispatch to its actual route without losing the experiment label."""
+    correlation = normalise_correlation(value)
+    requested = correlation.get('model')
+    if requested is not None:
+        if requested != model:
+            correlation.setdefault('requested_model', requested)
+        correlation['model'] = model
+    return correlation
 
 
 def build_skill_manifest(skill_root: str | Path) -> dict[str, Any]:

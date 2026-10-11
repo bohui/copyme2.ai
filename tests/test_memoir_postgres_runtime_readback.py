@@ -586,6 +586,8 @@ def test_unsuccessful_workspace_completion_never_deletes_payload(round_environme
         monkeypatch.setattr('apps.api.task_queue.time.time', lambda: now + 11)
     else:
         error = 'CANCELLED' if failure == 'cancelled' else 'RuntimeError'
+    if error is None:
+        assert queue.checkpoint_workspace_artifacts(entry['id'], token, ['unowned/path']) is False
     assert queue.finish_workspace(entry['id'], token, error=error) is (error is not None)
     with sqlite3.connect(round_environment) as db:
         rows = db.execute('SELECT status,attempts,error,lease_token,payload FROM workspace_jobs').fetchall()
@@ -628,4 +630,45 @@ def test_runtime_interrupted_workspace_persistence_keeps_retryable_job(
             rows = db.execute('SELECT status,attempts,error,lease_token FROM workspace_jobs').fetchall()
             assert db.execute('SELECT * FROM completed_workspace_audit').fetchall() == []
         assert rows == [('QUEUED', 1, 'CANCELLED' if failure == 'cancelled' else 'RuntimeError', None)]
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+def test_failed_artifact_link_is_retryable_without_losing_uploaded_paths(
+        round_environment, tmp_path, monkeypatch, streaming):
+    storage, worker = OfflineStorage(family=False), DeterministicWorker(family=False)
+    original = storage.update_agent_memory_source_paths
+    def failed_link(*a, **kw):
+        raise RuntimeError('Synthetic artifact link failure')
+    storage.update_agent_memory_source_paths = failed_link
+
+    async def scenario():
+        result, _ = await run_round(storage, worker, streaming=streaming, tmp_path=tmp_path)
+        assert result['conversation_saved'] is True
+        first_memory = storage.memories()[0]['id']
+        with sqlite3.connect(round_environment) as db:
+            rows = db.execute('SELECT status,error,payload FROM workspace_jobs').fetchall()
+            assert db.execute('SELECT * FROM completed_workspace_audit').fetchall() == []
+        assert len(rows) == 1 and rows[0][:2] == ('QUEUED', 'RuntimeError')
+        paths = json.loads(rows[0][2])['artifact_source_paths']
+        assert len(paths) == 1 and storage.get_agent_file(paths[0]) == ARTIFACT
+
+        # The next normal generated turn recovers the pending job through the
+        # same runtime, not a direct invocation of a private persistence helper.
+        import time
+        now = time.time()
+        monkeypatch.setattr('apps.api.task_queue.time.time', lambda: now + 5)
+        storage.update_agent_memory_source_paths = original
+        storage.turn = None
+        runtime = CodexRuntime(worker_url='http://synthetic-worker.invalid', worker_secret='synthetic',
+            worker_transport=httpx.MockTransport(worker.handle), model='synthetic-no-provider')
+        next_reply = await runtime.turn(storage, TEXT, project_id=PROJECT, language='en-AU',
+            client_turn_id=str(uuid4()))
+        assert next_reply['conversation_saved'] is True
+        restored = next(row for row in storage.memories() if row['id'] == first_memory)
+        assert restored['source_paths'] == paths
+        with sqlite3.connect(round_environment) as db:
+            assert db.execute('SELECT * FROM workspace_jobs').fetchall() == []
+            attempts = db.execute('SELECT attempts FROM completed_workspace_audit ORDER BY attempts').fetchall()
+        assert attempts == [(1,), (2,)]
     asyncio.run(scenario())

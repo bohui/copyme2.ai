@@ -327,7 +327,8 @@ def test_judge_calibration_requires_explicit_human_review():
         })
 
 
-def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
+@pytest.mark.parametrize('routed', [False, True])
+def test_codex_turn_forwards_evaluation_metadata_to_responses_api(routed):
     async def run():
         connection = CodexConnection([], ".")
 
@@ -339,6 +340,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
                 "request_id": "diag-test-1",
+                **({'model': 'collector-route', 'requested_model': 'legacy-route'} if routed else {}),
             }
             connection.events.append({
                 "method": "item/completed",
@@ -363,6 +365,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
                 "request_id": "diag-test-1",
+                **({'model': 'collector-route', 'requested_model': 'legacy-route'} if routed else {}),
             },
         ) == "done"
 

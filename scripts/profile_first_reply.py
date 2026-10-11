@@ -155,17 +155,34 @@ async def collector(efforts, timeout, case='introduction', model_override=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['first-turn', 'collector'])
+    parser.add_argument('mode', choices=['first-turn', 'collector', 'conversation'])
     parser.add_argument('--origin', default='http://localhost:3010')
     parser.add_argument('--efforts', nargs='+', choices=['low', 'medium', 'high', 'max'], default=['max', 'low', 'low', 'max'])
     parser.add_argument('--case', choices=['introduction', 'story'], default='introduction',
         help='Synthetic collector input; first-turn always uses the introduction')
     parser.add_argument('--model', help='Collector route override; does not change the shared service')
     parser.add_argument('--timeout', type=float, default=120)
+    parser.add_argument('--deadline', type=float, default=1200, help='Bounded conversation campaign deadline')
+    parser.add_argument('--review', action='store_true', help='Include public synthetic replies in conversation comparison')
+    parser.add_argument('--candidate-model', help='Isolated conversation candidate route; normal service is unchanged')
+    parser.add_argument('--candidate-effort', choices=['max', 'low'], default='max')
+    parser.add_argument('--candidate-prompt-version', choices=['legacy', 'compact-v1'], default='compact-v1')
     args = parser.parse_args()
     try:
-        asyncio.run(first_turn(args.origin, args.timeout) if args.mode == 'first-turn'
-            else collector(args.efforts, args.timeout, args.case, args.model))
+        if args.mode == 'conversation':
+            if not 0 < args.timeout <= 120 or not 0 < args.deadline <= 1200:
+                parser.error('Conversation timeout/deadline exceed the bounded campaign')
+            if args.model:
+                parser.error('--model is only supported in isolated collector mode')
+            from scripts.profile_conversation_latency import campaign
+            _, results = asyncio.run(campaign(args.timeout, args.deadline, args.review,
+                candidate_model=args.candidate_model, candidate_effort=args.candidate_effort,
+                candidate_prompt_version=args.candidate_prompt_version))
+            if len(results) != 24 or any(r['status'] != 'saved' for r in results):
+                raise RuntimeError('Conversation comparison did not complete')
+        else:
+            asyncio.run(first_turn(args.origin, args.timeout) if args.mode == 'first-turn'
+                else collector(args.efforts, args.timeout, args.case, args.model))
     except Exception as error:
         # Provider/auth exception text can include private headers or output.
         report(kind='profile_failed', failure_class=type(error).__name__)

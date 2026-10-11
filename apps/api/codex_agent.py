@@ -155,7 +155,7 @@ class CodexConnection:
                     'run_id', 'case_id', 'dataset', 'dataset_version',
                     'application_revision', 'skill_hash', 'generation_name',
                     'evaluator_version', 'rubric_version', 'judge_rubric_version',
-                    'model', 'provider', 'variant',
+                    'model', 'requested_model', 'provider', 'variant',
                     'round_id',
                     'trace_id', 'observation_id', 'job_id', 'checkpoint_id',
                     'request_id',

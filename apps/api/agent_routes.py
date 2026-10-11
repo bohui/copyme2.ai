@@ -14,6 +14,7 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .agent_routes_support import authenticated_storage
 from .codex_runtime import CodexRuntime
+from .collector_configuration import CollectorConfigurationError
 from .conversation_recovery import PROJECT_ID_PATTERN, TurnReceipt, turn_receipt
 from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
@@ -274,6 +275,9 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     except AgentTurnBusyError as error:
         raise HTTPException(409, str(error), headers={'X-Error-Code': 'AGENT_TURN_IN_PROGRESS'}) from None
+    except CollectorConfigurationError:
+        raise HTTPException(503, 'Conversational generation is temporarily unavailable',
+                            headers={'X-Error-Code': 'COLLECTOR_CONFIGURATION_INVALID'}) from None
     except RuntimeError as error:
         raise HTTPException(502, f'Codex agent failed: {error}') from None
     finally:
@@ -360,6 +364,9 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     except AgentTurnBusyError as error:
         raise HTTPException(409, str(error), headers={'X-Error-Code': 'AGENT_TURN_IN_PROGRESS'}) from None
+    except CollectorConfigurationError:
+        raise HTTPException(503, 'Conversational generation is temporarily unavailable',
+                            headers={'X-Error-Code': 'COLLECTOR_CONFIGURATION_INVALID'}) from None
     except RuntimeError as error:
         raise HTTPException(502, f'Codex agent failed: {error}') from None
     finally:
