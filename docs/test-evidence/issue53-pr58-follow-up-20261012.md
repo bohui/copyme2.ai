@@ -131,3 +131,155 @@ verification. Representative matched first/later/resumed quality and latency,
 long/Family/reference/rollback live evidence, and a resolved final verification
 position remain necessary. The no-normal-response-quality-loss requirement is
 unchanged. Issue 53 must stay open until those gates genuinely pass.
+
+## Replacement cloud verification and repairs — 12 October 2026 (Sydney)
+
+This addendum supersedes any inference that the earlier failed suite was cleared
+by a partial baseline comparison. The original 69-failure/39-error raw log and
+node list were not available. The earlier aggregate is retained above as
+historical evidence, not relabelled as a pass.
+
+### Revisions and isolation
+
+- Original PR head: `ba9abfe5c405ca29752c4872389057ee88ed048b`.
+- Original base: `20dbeb40143409ca7882756dcf7281309c9b94ab`.
+- Concurrent main update integrated without conflicts:
+  `5c11fb5b2ce9497651ca9f262ff5afe41254639b` (historical-news PR #57).
+- Source candidate: `b4abd390e2b79a73aa69f53423d70233d0a57111`,
+  tree `4e07114370cd8c74a7a4c551e75ce5686bf20201`.
+- The comprehensive run collected at `f2f79eb304a2c6ee8cf44ae4f4ff6b8135bef2cc`;
+  later changes are whitespace/test-fixture cleanup and the explicitly rerun
+  legacy/candidate trajectory assertion, not new production behavior.
+
+Verification uses a fresh task-owned HOME and explicit environment allowlist,
+no inherited provider credentials, fresh PostgreSQL clusters, loopback-only
+services, synthetic narrators, and controlled provider boundaries. No live LLM
+or paid provider request, deployment, remote migration, or production data change
+was made. Collector candidates remain disabled by default.
+
+Native PostgreSQL is 17.11, not the historical container pin 17.6. Temporal CLI
+1.9.1 (server 1.32.0) was obtained from its official GitHub release and verified
+against the published SHA-256:
+`09a0326a51db84d02735e53542b9ebd8c4758daf47482a9ab0abce15844e60d5`.
+Node is 24.19.0; the production frontend build uses Next.js 16.3.6.
+These are functional regression pins, not a matched live latency experiment.
+
+### Reproduced issues and fixes
+
+1. Native PostgreSQL setup required Unix-domain sockets unavailable in this
+   executor. An explicit `native-tcp` fixture option uses a randomly allocated
+   loopback port and disables Unix sockets. It sanitizes inherited `PG*` settings,
+   specifies the owned superuser/database, reports startup logs, and stops partial
+   or completed clusters. Real multi-session RLS, locking and atomicity remain
+   enabled. UTF-8 is explicit rather than the previous SQL_ASCII default.
+2. Locale collection generated a random UUID in a node ID. Two collections
+   demonstrated different IDs. A fixed nonexistent synthetic actor preserves
+   rejection coverage and makes all 39 IDs reproducible.
+3. The candidate route assertion was genuinely stale: its default run passed,
+   while the configured collector correctly selected `memoir-luna-low`. The test
+   now explicitly covers both legacy and overridden routes; it does not compute
+   expectations from the implementation or enable a production candidate.
+4. Four photo-browser fixture JS tests pass the exact original base and fail the
+   original PR head: the new origin guard requires `location.protocol`, missing
+   from the Node browser context. The context now supplies it, with additional
+   tests proving opaque origins never touch storage.
+5. `test_single_collector_observation::test_original_source_preparation_reaches_only_the_owned_collector_boundary`
+   passes the exact original base and fails the head because its synthetic lease
+   lacks the new parallel-read interface. The synthetic seam was updated while
+   independent real lease/concurrency tests remain intact. This is a concrete
+   base-pass/head-fail node; absent the old raw log, it cannot be asserted to be
+   the anonymous one in the prior report.
+6. Older native provider fixtures emitted unstructured collector text, bypassed
+   required app-state initialization, or implicitly downloaded Temporal. They now
+   use schema-valid extraction proposals only at the controlled collector seam,
+   explicitly initialize their in-memory API fixture, and can use an existing
+   official Temporal executable. Real runtime, worker, database, workflow,
+   validation, persistence, and existing assertions still run.
+7. A baseline production defect prevented Chinese/emoji-first completed exchanges
+   from entering the private-round ledger under the C locale. The original
+   `[:print:]` check is locale-dependent even with UTF-8. An additive migration
+   replaces it with an exact prefix check while retaining the delimiter,
+   nonempty narrator/reply checks, advisory lock, deduplication and outbox
+   semantics. Red Chinese/emoji tests reproduce the loss; English and malformed
+   exchange coverage is retained. No historical rows are rewritten and this
+   migration has not been applied to a remote database.
+8. A baseline production defect retained an unchanged passage in the section
+   ledger yet rendered a provider rewrite after withdrawal changed a sample
+   between chapter and storyline. Restoration now preserves eligible immutable
+   blocks across that narrow presentation change. Full event-set containment,
+   unique destination ownership, collision rejection and existing canonical
+   evidence validation prevent unrelated, mixed/withdrawn, empty-scope or
+   ambiguous sections from being imported.
+9. The migration harness assumed the entire directory still contained the
+   original eight files and replayed every later one-shot DDL. It now preserves
+   the exact foundational prefix/replay checks, exercises all forward migrations,
+   and checks source/ID/private/RLS preservation. Data-importer idempotence is
+   tested separately on the current schema. Native evidence is labelled 17.11;
+   the explicit Apple-container path still enforces its requested 17.6 pin.
+10. Remote Make report tests now create an empty synthetic environment file
+    rather than depend on an untracked developer `.env`. Missing Python/Next
+    dependencies were supplied from matching existing local installations.
+
+### Verification status
+
+Counts overlap and must not be added as unique tests.
+
+- Original-head production code with native transport fixture adaptation: 4,093 passed, 22 failed, 198 skipped,
+  2 setup errors, 450.71 seconds. Raw node IDs and traces are retained in the
+  accompanying machine-readable verification evidence. This was not green.
+- Native lease/locale preflight: 45 passed, including all 39 locale SQL cases.
+- Repaired native canary/canonical/Temporal/private-round set: 41 passed.
+- Repaired existing API/provider/lease contract set: 51 passed.
+- Candidate-enabled backend/configuration/real-PG set: 245 passed. A broader
+  candidate run first exposed one further legacy-only trajectory model assertion
+  (243 passed, one failed); explicit legacy/override cases repair it. Final
+  trajectory file on the committed candidate: 35 passed.
+- Final provenance and real withdrawal regression set: 45 passed.
+- Independent provenance/transport/Temporal-option review probes: 47 passed.
+- Integrated JS plus historical-news rendering: 350 passed, zero skips.
+- Production frontend build: passed; only non-fatal next-intl cache warnings.
+- Specification audit: all 63 specified routes represented (125 application routes).
+- Mobile OpenAPI snapshot: 36 operations match.
+- Named deterministic acceptance catalogue: 55/55 passed.
+
+Comprehensive integrated run with browser gates enabled: **4,283 passed,
+71 failed, 94 setup errors, 8 skipped**, 642.55 seconds. All 165 unsuccessful
+cases were independently classified from their exact JUnit outcomes:
+
+- 129 missing Playwright headless-browser executable (55 failures, 74 errors).
+- 32 Chromium Unix-socket launch denials (16 failures, 16 errors).
+- 4 pinned family-renderer fixture DNS setup errors.
+
+No remaining backend assertion failure was observed in this run. The overall
+suite is **not green**. The eight skips are one Apple-native campaign, three
+Mocker compose checks, and four explicitly opt-in live-provider followups.
+They were not added by these repairs. Installing the official Playwright
+headless runtime also failed because its download was not a valid ZIP archive.
+The owned production frontend was stopped after the run; PostgreSQL and Temporal
+fixtures completed their cleanup.
+
+[Machine-readable outcomes, every unsuccessful node/skip reason, and trace/log
+hashes](issue53-pr58-verification-20261012.json) accompany the
+[initial native reproduction log](issue53-pr58-head-native-20261012.log.gz) and
+[comprehensive integrated log](issue53-pr58-integrated-full-20261012.log.gz).
+The logs are gzip-compressed, retain the original tracebacks, and contain only
+task-owned synthetic test data.
+
+No GitHub check runs or status entries were reported for the original head;
+that is not a CI pass. Legacy branch-protection metadata returned 403 to the
+integration. The published candidate's checks must be rechecked separately.
+
+### Remaining acceptance gates
+
+Chromium launch in this executor fails before browser assertions with
+`process_singleton_posix: socket() failed: Operation not permitted`. An approved
+escalation with a fresh task-owned HOME produces the same result. Browser tests
+were attempted with gates enabled, not altered to skip or weakened. Successful
+Node/HTTP/build checks do not substitute for real browser acceptance.
+
+Issue #53 remains open. The earlier negative routing pilot and prompt timeout
+are still negative evidence. Normal-route 3/3 saved smoke is not proof of
+candidate improvement. Representative matched first/later/resumed semantic
+quality and latency, long/Family/reference/rollback live evaluation, and the
+extended live campaign remain unrun. No new such campaign is authorized here.
+Do not merge or enable the candidate on the strength of this repair slice.

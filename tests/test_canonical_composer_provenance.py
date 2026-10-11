@@ -181,3 +181,45 @@ def controlled_draft(packet, prose, title):
         'event_dispositions': [{'event_id': event['id'], 'disposition': 'included',
             'chapter_ids': [] if storyline else [chapter_id], 'reason': 'Original evidence.'}],
         'questions_for_mira': [], 'review_flags': [], 'next_action': 'review_preview'}
+
+
+@pytest.mark.parametrize('kind', ['sample_chapter', 'sample_storyline'])
+def test_preserved_block_survives_presentation_identity_change(kind):
+    from apps.api.canonical_composer import restore_unchanged_sections
+    from copy import deepcopy
+    block = {'id': 'stable-block', 'type': 'paragraph', 'text': 'Original authorised passage.',
+             'source_refs': [{'source_id': 'source', 'version': 1}]}
+    request = {'events': [{'id': 'move', 'source_refs': block['source_refs']}],
+               'context': {'preserved_sections': [
+                   {'chapter_id': 'sample_storyline' if kind == 'sample_chapter' else 'previous-presentation', 'event_ids': ['move'], 'block': block},
+                   {'chapter_id': 'other-chapter', 'event_ids': ['unrelated'],
+                    'block': {**block, 'id': 'unrelated-block', 'text': 'Must not be copied.'}}]}}
+    body = {'id': 'current-presentation', 'event_ids': ['move'], 'source_refs': block['source_refs'],
+            'blocks': [{**block, 'text': 'Unsolicited rewrite.'}]}
+    draft = {'kind': kind, 'chapters': [body] if kind == 'sample_chapter' else [],
+             'storyline': body if kind == 'sample_storyline' else {}, 'outline': []}
+    restored = restore_unchanged_sections(request, deepcopy(draft))
+    actual = restored['chapters'][0] if kind == 'sample_chapter' else restored['storyline']
+    assert actual['blocks'] == [block]
+
+
+@pytest.mark.parametrize('events', [[], ['unrelated'], ['move', 'withdrawn']])
+def test_presentation_change_never_copies_unrelated_or_partial_evidence(events):
+    from apps.api.canonical_composer import restore_unchanged_sections
+    block = {'id': 'old', 'text': 'Must not be copied.', 'source_refs': []}
+    request = {'events': [], 'context': {'preserved_sections': [
+        {'chapter_id': 'old-chapter', 'event_ids': events, 'block': block}]}}
+    draft = {'kind': 'sample_storyline', 'chapters': [], 'outline': [],
+        'storyline': {'event_ids': ['move'], 'source_refs': [], 'blocks': []}}
+    assert restore_unchanged_sections(request, draft)['storyline']['blocks'] == []
+
+
+def test_presentation_change_rejects_colliding_old_block_ids():
+    from apps.api.canonical_composer import restore_unchanged_sections
+    block = {'id': 'same', 'text': 'Original.', 'source_refs': []}
+    request = {'events': [], 'context': {'preserved_sections': [
+        {'chapter_id': chapter, 'event_ids': ['move'], 'block': block} for chapter in ['one', 'two']]}}
+    draft = {'kind': 'sample_storyline', 'chapters': [], 'outline': [],
+        'storyline': {'event_ids': ['move'], 'source_refs': [], 'blocks': []}}
+    with pytest.raises(ValueError, match='Ambiguous preserved block'):
+        restore_unchanged_sections(request, draft)

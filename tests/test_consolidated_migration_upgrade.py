@@ -1,5 +1,6 @@
-"""Exact committed eight-file chain on an isolated stock PostgreSQL 17.6."""
+"""Foundational chain and subsequent upgrades on disposable PostgreSQL 17."""
 import json
+import os
 from pathlib import Path
 import time
 
@@ -21,12 +22,15 @@ ROOT = Path(__file__).resolve().parents[1] / 'supabase/migrations'
 
 @pytest.fixture
 def consolidated_database():
-    # Reuse UUID ownership, bounded setup, no TCP/ports/mounts and exact cleanup.
+    # Reuse isolated ownership, bounded setup and exact cleanup.
     fixture = database.__wrapped__(deadline=time.monotonic() + 180,
         legacy_schema=False, postgres_image='postgres:17.6')
     try:
         sql = next(fixture)
-        assert sql('show server_version;').stdout.strip().startswith('17.6')
+        version = sql('show server_version;').stdout.strip()
+        assert int(sql('show server_version_num;').stdout.strip()) // 10000 == 17
+        if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container':
+            assert version.startswith('17.6')
         sql('create role service_role bypassrls; alter table storage.objects add column owner_id text;')
         yield sql
     finally:
@@ -37,7 +41,8 @@ def consolidated_database():
 def test_exact_consolidated_chain_preserves_originals_and_backfills_canonical_evidence(
         consolidated_database, seed_legacy):
     sql = consolidated_database
-    assert tuple(path.name for path in sorted(ROOT.glob('*.sql'))) == MIGRATIONS
+    migrations = tuple(path.name for path in sorted(ROOT.glob('*.sql')))
+    assert migrations[:len(MIGRATIONS)] == MIGRATIONS
     for name in MIGRATIONS[:6]:
         sql((ROOT / name).read_text())
     original = 'I started school in 1983.'
@@ -66,4 +71,16 @@ def test_exact_consolidated_chain_preserves_originals_and_backfills_canonical_ev
         assert sql('select evidence->>\'quote\' from public.user_memory_event_source;').stdout.strip() == original
         assert sql('select count(*) from public.user_memory;').stdout.strip() == '1'
         assert sql('select count(*) from public.place_photo_searches;').stdout.strip() == '1'
+        assert sql(as_user('select count(*) from public.user_narrator_source;', OTHER)).stdout.splitlines()[-1] == '0'
+
+    # Preserve foundational schema replay coverage before forward upgrades.
+    sql((ROOT / '202610040001_shared_memory_events.sql').read_text())
+    # Exercise every later committed migration too; adding a migration must not
+    # make this historical foundation test obsolete or silently omit upgrades.
+    for name in migrations[len(MIGRATIONS):]:
+        sql((ROOT / name).read_text())
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip() == ('1' if seed_legacy else '0')
+    if seed_legacy:
+        assert sql('select text from public.user_narrator_source;').stdout.strip() == original
+        assert sql('select count(*) from public.user_memory;').stdout.strip() == '1'
         assert sql(as_user('select count(*) from public.user_narrator_source;', OTHER)).stdout.splitlines()[-1] == '0'

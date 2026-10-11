@@ -88,7 +88,23 @@ def restore_unchanged_sections(request, draft):
         bodies.append(('sample_storyline', draft['storyline']))
     for chapter_id, chapter in bodies:
         prior = [s for s in preserved if s['chapter_id'] == chapter_id]
-        blocks = [s for s in prior if 'block' in s]
+        # Preserve an unchanged passage when a one-body sample changes between
+        # chapter and storyline. Do not reassign prose among arbitrary chapters.
+        blocks = []
+        for section in preserved:
+            if 'block' not in section:
+                continue
+            if section['chapter_id'] == chapter_id:
+                blocks.append(section)
+                continue
+            events = set(section['event_ids'])
+            eligible = [(identity, body) for identity, body in bodies
+                if events and events.issubset(set(body['event_ids'])) and
+                (identity == 'sample_storyline' or section['chapter_id'] == 'sample_storyline')]
+            if len(eligible) == 1 and eligible[0][0] == chapter_id:
+                blocks.append(section)
+        if len({s['block']['id'] for s in blocks}) != len(blocks):
+            raise ValueError('Ambiguous preserved block identity across sample presentations')
         by_id = {s['block']['id']: s['block'] for s in blocks}
         preserved_events = {event_id for section in blocks for event_id in section['event_ids']}
         chapter['blocks'] = [copy.deepcopy(by_id.get(block['id'], block)) for block in chapter['blocks']

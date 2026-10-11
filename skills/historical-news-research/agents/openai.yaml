@@ -1,0 +1,5 @@
+interface:
+  display_name: "Historical context research"
+  short_description: "Prepare cited public-history clues after the reply is saved"
+policy:
+  allow_implicit_invocation: false

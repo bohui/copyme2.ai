@@ -135,6 +135,8 @@ def test_original_source_preparation_reaches_only_the_owned_collector_boundary(t
             monkeypatch.setattr(owner.runtime,'_resolve_language',lambda *a,**k:pytest.fail('Language model'))
             class Lease:
                 async def io(self,fn,*args,**kwargs):return fn(*args,**kwargs)
+                async def reads(self,*functions):
+                    return await asyncio.gather(*(self.io(fn) for fn in functions))
                 async def check(self):pass
             @asynccontextmanager
             async def lease(*a,**k):yield Lease()

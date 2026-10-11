@@ -299,5 +299,3 @@ async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=
                         print(json.dumps({'kind': 'campaign_stopped', 'reason': 'generation_failed'}), flush=True)
                         return frozen, results
     return frozen, results
-
-
