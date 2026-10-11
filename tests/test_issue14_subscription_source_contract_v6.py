@@ -1,4 +1,4 @@
-"""Five-case/fifty-input source integrity leaves older evidence frozen."""
+"""Frozen fifty-input evidence remains valid; changed checkouts fail closed."""
 import hashlib
 import json
 import os
@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from frozen_subscription_source import materialize_frozen_v6
 from scripts import issue14_subscription_source_contract_v5 as v5
 from scripts import issue14_subscription_source_contract_v6 as v6
 
@@ -14,19 +15,25 @@ ROOT = Path(__file__).resolve().parents[1]
 PROOF = v6.PROOF_PATH
 
 
+def test_changed_checkout_is_rejected_by_frozen_v6_before_any_network(monkeypatch):
+    import socket
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail('Source integrity auditing must make zero network contacts')
+
+    monkeypatch.setattr(socket, 'socket', forbidden)
+    with pytest.raises(v6.SourceContractError,
+                       match='^(source_inventory_invalid|current_source_mismatch)$'):
+        v6.audit_subscription_source_v6(ROOT)
+
+
 def copy_scope(tmp_path):
-    names = set(json.loads((ROOT / PROOF).read_text())['current_snapshot']['files'])
-    names.update(v6.TOOLING_PATHS)
-    names.update({PROOF, v5.PROOF_PATH, v5.v4.PROOF_PATH, v5.v3.PROOF_PATH, v5.v2.PROOF_PATH})
-    for name in names:
-        target = tmp_path / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((ROOT / name).read_bytes())
-    return tmp_path
+    return materialize_frozen_v6(tmp_path)
 
 
-def test_current_fifty_source_preserves_all_history_without_execution_authority():
-    result = v6.audit_subscription_source_v6(ROOT)
+def test_frozen_fifty_source_preserves_all_history_without_execution_authority(tmp_path):
+    root = copy_scope(tmp_path)
+    result = v6.audit_subscription_source_v6(root)
     assert result['schema_version'] == 'memoir-subscription-source-audit/6'
     assert result['source_gate_passed'] is True
     for version in ('derivation', 'v2', 'v3', 'v4', 'v5'):
@@ -34,9 +41,9 @@ def test_current_fifty_source_preserves_all_history_without_execution_authority(
     assert result['current_snapshot_revision'] == v6.CURRENT_REVISION
     assert result['current_snapshot_tree'] == v6.CURRENT_TREE
     assert result['current_source_file_count'] == 303
-    monitored=json.loads((ROOT/PROOF).read_text())['current_snapshot']['files']
+    monitored=json.loads((root/PROOF).read_text())['current_snapshot']['files']
     observation='scripts/single_collector_observation.py'
-    assert monitored[observation]['sha256']==hashlib.sha256((ROOT/observation).read_bytes()).hexdigest()
+    assert monitored[observation]['sha256']==hashlib.sha256((root/observation).read_bytes()).hexdigest()
     assert result['historical_v5_snapshot_revision'] == '3d0e157f0835a72c3fb3aa9ec6766f8c2aaaa67b'
     assert result['historical_v5_matches_current_source'] is False
     assert result['newly_monitored_source_paths'] == [

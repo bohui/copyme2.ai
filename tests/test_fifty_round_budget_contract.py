@@ -139,12 +139,13 @@ def test_outputs_are_independent_and_assessment_does_not_mutate_inputs():
     assert proposal()['routing']['stages']['collector']['configuration_reasoning'] == 'max'
 
 
-def test_audit_source_pins_match_this_reviewed_derivation():
+def test_audit_source_pins_match_frozen_reviewed_derivation(tmp_path):
     # V1 is an immutable historical derivation, not a hash lock on all future
-    # checkouts. Keep this existing gate strict: validate its original Git
-    # objects AND the separately reviewed versioned current source contract.
+    # checkouts. Validate the original Git objects against the exact frozen v6
+    # source, without claiming that the current checkout has been reviewed.
+    from frozen_subscription_source import materialize_frozen_v6
     from scripts.issue14_subscription_source_contract_v6 import audit_subscription_source_v6
-    root = Path(__file__).resolve().parents[1]
+    root = materialize_frozen_v6(tmp_path)
     report = audit_subscription_source_v6(root)
     assert report['historical_derivation_integrity_verified'] is True
     assert report['current_source_matches_reviewed_snapshot'] is True

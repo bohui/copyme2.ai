@@ -48,9 +48,10 @@ def test_v1_export_cannot_relabel_current_source_or_create_output(tmp_path):
     assert 'synthetic-must-not-be-printed' not in result.stdout + result.stderr
 
 
-def test_current_source_gate_is_separate_from_historical_publication_permission():
+def test_frozen_source_gate_is_separate_from_historical_publication_permission(tmp_path):
+    from frozen_subscription_source import materialize_frozen_v6
     from scripts.issue14_subscription_source_contract_v6 import audit_subscription_source_v6
-    report = audit_subscription_source_v6(ROOT)
+    report = audit_subscription_source_v6(materialize_frozen_v6(tmp_path))
     assert report['source_gate_passed'] is True
     assert report['historical_publication_test_source_verified'] is True
     assert report['live_execution_authorized'] is report['provider_capability_verified'] is False
