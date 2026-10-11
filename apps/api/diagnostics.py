@@ -187,6 +187,7 @@ def log_diagnostic(logger: logging.Logger, event: str, request_id: Any, **fields
         "component", "agent_role", "model", "status", "terminal_event",
         "terminal_status", "failure_class", "http_status", "error_code",
         "elapsed_ms", "streaming", "call_type",
+        "prompt_version", "requested_effort", "effective_effort",
     }
     for key, value in fields.items():
         if key not in allowed or value is None:

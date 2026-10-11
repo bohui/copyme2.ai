@@ -24,6 +24,7 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
+from .collector_configuration import collector_configuration
 from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
@@ -264,6 +265,9 @@ class CodexWorker:
         started = time.perf_counter()
         model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
                                   if payload.agent_role in {'composer', 'author_timeline'} else self.model)
+        collector = collector_configuration(model) if payload.agent_role == 'collector' else None
+        if collector:
+            model = collector.model
         log_diagnostic(
             diagnostic_logger,
             'worker_turn_start',
@@ -358,9 +362,12 @@ class CodexWorker:
             correlation=payload.evaluation)
         user_id = str(payload.user_id)
         uid = self._uid_for(user_id)
-        home = self._home(user_id, uid, self._execution_role(payload))
         model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
                                   if payload.agent_role in {'composer', 'author_timeline'} else self.model)
+        collector = collector_configuration(model) if payload.agent_role == 'collector' else None
+        if collector:
+            model = collector.model
+        home = self._home(user_id, uid, self._execution_role(payload))
         correlation = normalise_correlation(payload.evaluation)
         request_id = new_request_id(payload.diagnostic_request_id)
         started = time.perf_counter()
@@ -372,6 +379,11 @@ class CodexWorker:
             agent_role=payload.agent_role,
             model=model,
         )
+        if collector:
+            log_diagnostic(diagnostic_logger, 'collector_configuration', request_id,
+                agent_role='collector', model=model, prompt_version=collector.prompt_version,
+                requested_effort=collector.effort or self.reasoning_effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max'),
+                effective_effort='unavailable')
         trajectory = None
         if correlation:
             trajectory = TrajectoryRecorder(
@@ -396,6 +408,7 @@ class CodexWorker:
                 language=language,
                 conversation_rounds_completed=payload.conversation_rounds_completed,
                 interview_context=payload.interview_context,
+                prompt_version=collector.prompt_version,
             )
         elif payload.agent_role == 'workspace':
             instructions = build_workspace_extraction_prompt(
@@ -474,7 +487,8 @@ class CodexWorker:
                        if payload.agent_role == 'collector' and payload.interview_context is not None else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),
-                    **({'effort': self.reasoning_effort} if self.reasoning_effort is not None else
+                    **({'effort': collector.effort} if collector and collector.effort else
+                       {'effort': self.reasoning_effort} if self.reasoning_effort is not None else
                        {'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}
                        if payload.agent_role == 'composer' else
                        {'effort': os.getenv('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'low')}
