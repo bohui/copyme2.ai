@@ -195,7 +195,7 @@ def test_preferences_are_own_user_and_authenticated_anonymous_users_work(sql):
 
 
 @pytest.mark.parametrize('role,owner', [('anon', None), ('anon', OWNER),
-                                       ('authenticated', None), ('authenticated', str(uuid4()))])
+                                       ('authenticated', None), ('authenticated', '44444444-4444-4444-8444-444444444444')])
 def test_unauthenticated_or_nonexistent_actor_cannot_call_rpcs(sql, role, owner):
     for query in (f'select public.read_ui_locale_preference({literal(OWNER)});',
                   f"select public.set_ui_locale_preference('zh-CN','manual',{literal(OWNER)});"):

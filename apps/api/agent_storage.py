@@ -456,6 +456,22 @@ class UserStorage:
             'p_plan':plan, 'p_associations':associations, 'p_lease_token':str(UUID(lease_token)),
             'p_reply':reply, 'p_response_photo_ids':response_photo_ids or [], 'p_thread_id':thread_id}).json()
 
+    def historical_news_basis(self, project_id):
+        return self.request('POST', '/rest/v1/rpc/read_user_historical_news_basis', json={
+            'p_project_id':project_id}).json()
+
+    def begin_historical_news(self, project_id, hypothesis, snapshot):
+        return self.request('POST', '/rest/v1/rpc/begin_user_historical_news', json={
+            'p_project_id':project_id, 'p_hypothesis':hypothesis, 'p_snapshot':snapshot}).json()
+
+    def finish_historical_news(self, project_id, job_id, result):
+        return self.request('POST', '/rest/v1/rpc/finish_user_historical_news', json={
+            'p_project_id':project_id, 'p_job_id':str(UUID(job_id)), 'p_result':result}).json()
+
+    def set_historical_news(self, project_id, enabled, reject_id=None):
+        return self.request('POST', '/rest/v1/rpc/set_user_historical_news', json={
+            'p_project_id':project_id, 'p_enabled':enabled, 'p_reject_id':reject_id}).json()
+
     def unlink_interview_photo(self, project_id, association_id):
         return self.request('POST', '/rest/v1/rpc/unlink_user_interview_photo', json={
             'p_project_id':project_id, 'p_association_id':str(UUID(association_id))}).json()

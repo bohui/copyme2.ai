@@ -7,6 +7,8 @@ import httpx
 from fastapi import FastAPI
 from temporalio import activity
 from temporalio.testing import WorkflowEnvironment
+from temporal_test_server import local_options
+from controlled_collector import extraction_proposal
 from temporalio.worker import Worker
 
 from test_shared_memory_events_postgres import (
@@ -121,6 +123,8 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                     options = {'reply': {'events': events}}
                 elif payload.agent_role == 'composer':
                     options = {'mode': 'composer', 'calls': str(tmp_path / 'composer.jsonl')}
+                elif payload.agent_role == 'collector':
+                    options = {'reply': extraction_proposal(payload.language)}
                 else:
                     options = {'reply': 'Tell me more.'}
                 control.write_text(json.dumps(options))
@@ -132,8 +136,7 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
             runtime = CodexRuntime(home_root=tmp_path / 'api-homes', base_url=base_url,
                 worker_url='http://controlled.invalid', worker_secret='synthetic',
                 worker_transport=transport, task_publisher_enabled=False)
-            options = {'download_dest_dir': '/tmp/memoir-issue6-temporal',
-                'dev_server_database_filename': str(tmp_path / 'temporal.sqlite'), 'ip': '127.0.0.1', 'ui': False}
+            options = local_options(tmp_path / 'temporal.sqlite')
             async with await WorkflowEnvironment.start_local(**options) as env:
                 async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql, OWNER, service=True).handle)) as db:
                     broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic-service', client=db)

@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 
+from controlled_collector import extraction_proposal
+from apps.api.store import MemoryStore
+
 from test_agent_commit_postgres import database, as_user, OWNER, OTHER
 from test_guest_conversation_transfer import attachment_database
 from test_private_rounds_postgres import private_database
@@ -509,12 +512,14 @@ def run_controlled_composer(sql, tmp_path, monkeypatch, lane, *, prose='I starte
             command=[sys.executable, str(ROOT / 'tests/fixtures/issue6_controlled_app_server.py'), str(control)])
         if chat_during_preparation:
             chat_control=tmp_path/'chat-provider.json'
-            chat_control.write_text(json.dumps({'reply':'Tell me more.'}))
             chat_provider=CodexWorker(home_root=tmp_path/'chat-worker-homes',base_url=provider.base_url,
                 command=[sys.executable,str(ROOT/'tests/fixtures/issue6_controlled_app_server.py'),str(chat_control)])
         @app.post('/internal/codex/turn')
         async def turn(payload: WorkerTurnInput):
             if chat_during_preparation and payload.agent_role!='composer':
+                controlled_reply = (extraction_proposal(payload.language)
+                    if payload.agent_role == 'collector' else 'Tell me more.')
+                chat_control.write_text(json.dumps({'reply': controlled_reply}))
                 return await chat_provider.turn(payload)
             return await provider.turn(payload)
         try:
@@ -539,7 +544,7 @@ def run_controlled_composer(sql, tmp_path, monkeypatch, lane, *, prose='I starte
                     runtime=CodexRuntime(home_root=tmp_path/'chat-api-homes',worker_url=worker.worker_url,
                         worker_secret=worker.worker_secret,worker_transport=worker.worker_transport)
                     reply=await runtime.turn(storage,'The yellow boat crossed the bay.',project_id='project',client_turn_id='00000000-0000-4000-8000-000000000007')
-                    assert reply['reply']=='Tell me more.' and not composition.done()
+                    assert reply['reply']=='Thank you for sharing that memory.\n\nWhat other details do you remember?' and not composition.done()
                     view=rpc(sql,'read_user_memory_events',"'project'")
                     assert view['completed_rounds']==7 and view['processing']['pending_inputs']==1
                 finally:
@@ -985,7 +990,9 @@ def test_story_workspace_only_dispatches_relationship_tree_and_never_duplicate_t
         if '1950' in payload.text:
             person.update(existing_id=storage.family_context('project')['people'][0]['id'],birth_date_expression='1950')
         marker = '[[MEMORY_SPARK_FAMILY_TREE]]'+json.dumps({'people':[person],'relationships':[]})+'[[/MEMORY_SPARK_FAMILY_TREE]]'
-        control.write_text(json.dumps({'reply': marker if payload.extraction_focus == 'family_tree' else 'Tell me more.'}))
+        controlled_reply = (extraction_proposal(payload.language) if payload.agent_role == 'collector'
+            else marker if payload.extraction_focus == 'family_tree' else 'Tell me more.')
+        control.write_text(json.dumps({'reply': controlled_reply}))
         return await provider.turn(payload)
     runtime = CodexRuntime(home_root=tmp_path / 'api-homes', worker_url='http://controlled-worker.invalid',
         worker_secret='synthetic-worker-secret', worker_transport=httpx.ASGITransport(app=app))
@@ -1143,6 +1150,7 @@ def test_authenticated_voice_turn_retains_original_chinese_and_failed_reply_does
     monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(home_root=tmp_path/'api-homes',
         worker_url='http://controlled-model.invalid', worker_secret='synthetic-worker-secret', worker_transport=provider))
     app = FastAPI()
+    app.state.store = MemoryStore()
     app.include_router(agent_routes.router)
     with TestClient(app) as client:
         response = client.post('/v1/agent/turn', headers={'Authorization':'Bearer synthetic-author','Accept':accept},
@@ -1209,10 +1217,9 @@ def test_legacy_migration_preserves_ids_original_evidence_and_private_flags_on_r
     # The existing ledger recognises this completed narrator/reply pair. The
     # migration must preserve its one round, never manufacture another.
     assert before['completed_rounds'] == 1
-    for path in sorted((ROOT/'supabase/migrations').glob('*.sql')):
-        if path.name < '202610040001_shared_memory_events.sql':
-            continue
-        sql(path.read_text())
+    # Replay the data importer on the current schema, not one-shot DDL from
+    # unrelated subsequent feature migrations.
+    rpc(sql, 'migrate_user_memory_events', "'project'")
     rpc(sql, 'migrate_user_memory_events', "'project'")
     assert rpc(sql, 'read_user_memory_events', "'project'") == before
 

@@ -1025,6 +1025,8 @@ def create_app(
     app.include_router(agent_router)
     from .interview_photos import router as interview_photo_router
     app.include_router(interview_photo_router)
+    from .historical_news_routes import router as historical_news_router
+    app.include_router(historical_news_router)
     from .collection_routes import router as collection_router
     app.include_router(collection_router)
     from .internal_tasks import router as internal_task_router

@@ -207,6 +207,7 @@ for (const [exitCode, startBackend] of [[0, 1], [3, 0]]) {
       const { plan, receipt } = remoteFixture();
       const bin = join(directory, 'bin');
       mkdirSync(bin);
+      writeFileSync(join(directory, 'fixture.env'), '');
       writeFileSync(join(directory, 'plan.json'), JSON.stringify(plan));
       writeFileSync(join(directory, 'receipt.json'), JSON.stringify(receipt));
       writeFileSync(join(bin, 'python3'), `#!/usr/bin/env node
@@ -222,7 +223,7 @@ process.exit(Number(process.env.MEMOIR_REPORT_TEST_EXIT));
 `, {mode: 0o700});
       const result = spawnSync('make', ['--no-print-directory', 'memoir-live-fifty-test',
         `EVAL_RUN_ID=${plan.run_id}`, `EVAL_RUN_DIR=${join(directory, 'run')}`,
-        'EVAL_CASE_ID=harbour-copper-notebook', 'EVAL_USER_EMAIL=test@test.com', `EVAL_START_BACKEND=${startBackend}`],
+        'EVAL_CASE_ID=harbour-copper-notebook', 'EVAL_USER_EMAIL=test@test.com', `EVAL_START_BACKEND=${startBackend}`, `ENV_FILE=${join(directory, 'fixture.env')}`],
       {cwd: root, encoding: 'utf8', env: {...process.env, PATH: `${bin}:${process.env.PATH}`,
         MEMOIR_REPORT_TEST_FIXTURE: directory, MEMOIR_REPORT_TEST_EXIT: String(exitCode)}});
       assert.equal(result.status, exitCode === 0 ? 0 : 2, result.stderr || result.stdout);

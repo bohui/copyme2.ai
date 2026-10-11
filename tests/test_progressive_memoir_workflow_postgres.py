@@ -12,6 +12,8 @@ from test_shared_memory_events_postgres import (
     ROOT, OWNER, OTHER, TURN, rpc, deliver_latest,
 )
 from memoir_postgres_workflow import PostgresRest
+from controlled_collector import extraction_proposal
+from apps.api.store import MemoryStore
 
 
 @pytest.mark.parametrize("locale", ["en-AU", "zh-CN"])
@@ -44,10 +46,13 @@ def test_authenticated_story_saves_scoped_canonical_drafts_at_rounds_five_ten_an
 
     monkeypatch.setattr(agent_routes, "authenticated_storage", storage)
     app = FastAPI()
+    app.state.store = MemoryStore()
     app.include_router(agent_routes.router)
     app.include_router(build_router(storage))
     controls = {role: tmp_path / (role + ".json") for role in ("collector", "workspace", "author_timeline", "composer")}
-    controls["collector"].write_text(json.dumps({"reply": reply}))
+    collector = extraction_proposal(locale)
+    reply = collector["acknowledgement"] + "\n\n" + collector["plan"]["candidates"][0]["question"]
+    controls["collector"].write_text(json.dumps({"reply": collector}, ensure_ascii=False))
     controls["workspace"].write_text(json.dumps({"reply": {
         "people": [], "relationships": [], "timeline": [], "place_journeys": []}}))
 

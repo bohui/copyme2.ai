@@ -8,6 +8,7 @@ import httpx
 from fastapi import FastAPI
 from temporalio import activity
 from temporalio.testing import WorkflowEnvironment
+from temporal_test_server import local_options
 from temporalio.worker import Worker
 
 from test_shared_memory_events_postgres import (
@@ -51,7 +52,7 @@ def test_real_worker_and_temporal_coalesce_busy_lane_to_latest_available_inputs(
             await writer.wait_closed()
         readiness=await asyncio.start_server(readiness_connection,'127.0.0.1',0)
         provider.base_url=f'http://127.0.0.1:{readiness.sockets[0].getsockname()[1]}/v1'
-        options={'download_dest_dir':'/tmp/memoir-issue6-temporal','dev_server_database_filename':str(tmp_path/'temporal.sqlite'),'ip':'127.0.0.1','ui':False}
+        options=local_options(tmp_path/'temporal.sqlite')
         async with await WorkflowEnvironment.start_local(**options) as env:
             async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql,OWNER,service=True).handle)) as client:
                 broker=MemoirLaneBroker(url='http://synthetic.invalid',key='synthetic-service',client=client)
@@ -117,8 +118,7 @@ def test_real_temporal_dispatch_commits_evidence_without_story_text_in_history(s
     async def worker_turn(payload: WorkerTurnInput):
         return await provider_worker.turn(payload)
     async def scenario():
-        options = {'download_dest_dir': '/tmp/memoir-issue6-temporal',
-                   'dev_server_database_filename': str(tmp_path / 'temporal.sqlite'), 'ip': '127.0.0.1', 'ui': False}
+        options = local_options(tmp_path / 'temporal.sqlite')
         async with await WorkflowEnvironment.start_local(**options) as env:
             transport = httpx.MockTransport(PostgresRest(sql, OWNER, service=True).handle)
             async with httpx.AsyncClient(transport=transport) as client:
@@ -180,7 +180,7 @@ def test_real_temporal_worker_interruption_recovers_failed_range_without_new_tur
                 from fastapi.responses import JSONResponse
                 return JSONResponse(status_code=503, content={'detail': 'Unrelated controlled provider unavailable'})
             return await provider.turn(payload)
-        options={'download_dest_dir':'/tmp/memoir-issue6-temporal','dev_server_database_filename':str(tmp_path/'recovery-temporal.sqlite'),'ip':'127.0.0.1','ui':False}
+        options=local_options(tmp_path/'recovery-temporal.sqlite')
         async with await WorkflowEnvironment.start_local(**options) as env:
             async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql,OWNER,service=True).handle)) as client:
                 broker=MemoirLaneBroker(url='http://synthetic.invalid',key='synthetic',client=client)
@@ -246,7 +246,7 @@ def test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry(sql,t
     @app.post('/internal/codex/turn')
     async def turn(payload:WorkerTurnInput): return await provider.turn(payload)
     async def scenario():
-        options={'download_dest_dir':'/tmp/memoir-issue6-temporal','dev_server_database_filename':str(tmp_path/'temporal.sqlite'),'ip':'127.0.0.1','ui':False}
+        options=local_options(tmp_path/'temporal.sqlite')
         async with await WorkflowEnvironment.start_local(**options) as env:
             async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql,OWNER,service=True).handle)) as client:
                 broker=MemoirLaneBroker(url='http://synthetic.invalid',key='synthetic',client=client)
