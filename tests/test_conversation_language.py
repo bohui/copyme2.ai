@@ -246,6 +246,42 @@ def test_greeting_does_not_consume_first_reply_and_explicit_request_overrides_on
     assert storage.data['conversation_language']['first_reply_locale']=='zh-CN'
 
 
+@pytest.mark.parametrize('initial,text,expected', [
+    ('zh-CN', 'Please continue in English. I do not remember what my sister said that day.', 'en-AU'),
+    ('en-AU', '请接下来用中文。我不记得姐姐那天说了什么。', 'zh-CN'),
+    ('zh-CN', '"Please continue in English." My mother said that in class.', 'zh-CN'),
+    ('en-AU', '母亲说“请接下来用中文。”我记得那堂课。', 'en-AU'),
+    ('zh-CN', 'We continued in English. I remember the classroom.', 'zh-CN'),
+    ('zh-CN', 'Please continue in English class. That is what the teacher said.', 'zh-CN'),
+])
+def test_leading_language_directive_with_testimony_persists_on_next_streamed_turn(monkeypatch, initial, text, expected):
+    import json
+    from apps.api.conversation_locale import explicit_profile
+    from apps.api.turn_stream import turn_events
+    storage = Storage(explicit_profile({}, initial))
+    runtime = CodexRuntime(worker_url='http://worker', worker_secret='fixture')
+    seen = []
+    async def worker(**kwargs):
+        if kwargs.get('agent_role', 'collector') != 'collector':
+            return {'thread_id': 'controlled-workspace', 'reply': '', 'artifacts': []}
+        seen.append(kwargs['language'])
+        assert kwargs['language'] == storage.data['preferred_language'] == expected
+        if len(seen) == 1:
+            assert text in kwargs['text'], 'Do not remove testimony when recognizing the directive'
+        await kwargs['on_delta']('Synthetic grounded reply.')
+        return {'thread_id': 'fixture', 'reply': 'Synthetic grounded reply.', 'artifacts': []}
+    monkeypatch.setattr(runtime, '_worker_turn', worker)
+    async def run():
+        for message in (text, '后来我又回到河边。'):
+            async def turn(emit):
+                return await runtime.turn(storage, message, on_delta=emit, on_event=emit.event)
+            packets = [json.loads(line) async for line in turn_events(turn)]
+            assert packets[-1]['type'] == 'result'
+            assert packets[-1]['data']['conversation_saved'] is True
+        assert seen == [expected, expected]
+    asyncio.run(run())
+
+
 def test_cross_replica_concurrent_first_turn_uses_durable_fenced_decision(monkeypatch):
     import threading
     from apps.api.agent_lock import AgentTurnBusyError

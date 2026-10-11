@@ -981,7 +981,14 @@ def test_cancellation_during_spawn_still_reaps_the_child(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
-def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(monkeypatch):
+@pytest.mark.parametrize('collector_model,expected_model', [(None, 'test-model'), ('memoir-luna-low', 'memoir-luna-low')])
+def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(monkeypatch, collector_model, expected_model):
+    # Freeze both operator policies explicitly; an inherited candidate must not
+    # silently change the legacy case's expectation or its coverage.
+    if collector_model is None:
+        monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_MODEL', raising=False)
+    else:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', collector_model)
     class Storage:
         user_id = "11111111-1111-4111-8111-111111111111"
 
@@ -1180,6 +1187,6 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
         "family_enabled": False,
         "project_id": None,
         "text": "I was a child in Geelong. Please use the female timeline illustrations.",
-        "model": "test-model",
+        "model": expected_model,
         "language": "en-AU",
     }

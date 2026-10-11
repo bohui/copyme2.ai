@@ -2143,7 +2143,8 @@ async function startCodexConversation({ resume = false } = {}) {
       if (!isCurrentProjectScope(scope)) return;
       state.codexStarting = false;
       state.codexReady = true;
-      state.loading = false;
+      // The first answer can start while this fixed opening is painting.
+      // Its generated turn owns loading until save or controlled failure.
       render();
     }
     return;

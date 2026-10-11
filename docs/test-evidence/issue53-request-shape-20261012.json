@@ -1,0 +1,25 @@
+{
+  "revision": "d7eb7af87600e9e56a5fff2c86d6562a41b5c8bc",
+  "measurement": "Real CodexWorker and Codex app-server against a task-owned loopback HTTP provider returning 400; only request shape retained",
+  "codex_version": "0.156.1",
+  "platform": "running Linux private-worker image; fresh temporary homes and normal tenant privilege drop",
+  "provider_requests": 0,
+  "provider_policy_receipt": {
+    "source": "read-only local gateway /model/info",
+    "gpt-5.6-luna-pooled": {"underlying_model": "openai/gpt-5.6-luna", "effort": "max"},
+    "memoir-luna-low": {"underlying_model": "openai/gpt-5.6-luna", "effort": "low"}
+  },
+  "request_shapes": [
+    {"route": "gpt-5.6-luna-pooled", "requested_effort": "max", "input_chars": 43046, "instructions_chars": 0, "tools": []},
+    {"route": "memoir-luna-low", "requested_effort": "low", "input_chars": 3914, "instructions_chars": 27794,
+      "tools": ["request_user_input", "view_image", "multi_agent_v1", "get_goal", "create_goal", "update_goal", "web_search"]},
+    {"route": "gpt-5.6-luna-memoir-low", "requested_effort": "low", "input_chars": 43046, "instructions_chars": 0, "tools": []}
+  ],
+  "proposed_alias_provisioned": false,
+  "limitations": [
+    "Character counts are not provider token counts or latency measurements.",
+    "The proposed alias was tested only against the local rejecting provider; it has no verified live gateway route or effort policy yet.",
+    "The shape difference is a confirmed comparison confound, not proof of the cause of every previous latency regression.",
+    "No gateway policy, service configuration, production default, customer data or normal reasoning effort was changed."
+  ]
+}

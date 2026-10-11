@@ -14,9 +14,10 @@ PHOTO_ID = '11111111-1111-4111-8111-111111111111'
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9lcAAAAASUVORK5CYII=')
 
 
-PROJECT_STORAGE_INIT = """localStorage.setItem('memory-spark-project:owner',JSON.stringify({projectId:'photos',updatedAt:1}));"""
+PROJECT_STORAGE_INIT = """if (location.protocol === 'http:' || location.protocol === 'https:') localStorage.setItem('memory-spark-project:owner',JSON.stringify({projectId:'photos',updatedAt:1}));"""
 PRODUCT_OPENING = json.loads((Path(__file__).resolve().parents[1] / 'apps/web/messages/en-AU.json').read_text())['Memoir']['conversation']['opening']
 CHAT_STORAGE_INIT = """(() => {
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
   const key = 'memory-spark-chat-history:owner:photos';
   if (sessionStorage.getItem(key) !== null || localStorage.getItem(key) !== null) return;
   sessionStorage.setItem(key, JSON.stringify([{id:'opening',role:'assistant',text:__PRODUCT_OPENING__}]));
@@ -37,7 +38,8 @@ def photo_page(request):
         script = """const session=()=>({access_token:'fixture-'+(localStorage.getItem('fixture-owner')||'owner'),user:{id:localStorage.getItem('fixture-owner')||'owner',is_anonymous:true}});
           window.fixturePrincipal=id=>{localStorage.setItem('fixture-owner',id);window.fixtureAuth?.('SIGNED_IN',session())};
           window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:session()}}),getUser:async()=>({data:{user:session().user}}),onAuthStateChange:fn=>{window.fixtureAuth=fn;return {}}}})};"""
-        install_supabase_fixture(context, script)
+        # Init scripts also run in opaque-origin frames; seed only web documents.
+        install_supabase_fixture(context, "if (location.protocol === 'http:' || location.protocol === 'https:') {" + script + "}")
         def api(route):
             path=route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             calls.append((path,route.request.headers,route.request.post_data_buffer))
@@ -73,7 +75,7 @@ def photo_page(request):
           return Promise.resolve(new Response(new ReadableStream({start(controller){window.turnController=controller}}),{headers:{'Content-Type':'application/x-ndjson'}}));};
           window.turnEvent=(type,data)=>turnController.enqueue(new TextEncoder().encode(JSON.stringify({type,data})+'\\n'));
           window.finishTurn=data=>{turnEvent('conversation_saved',{conversation_saved:true,...data});turnController.close()};""")
-        context.on('page',lambda new_page:new_page.on('pageerror',lambda error:errors.append(str(error))))
+        context.on('page',lambda new_page:new_page.on('pageerror',lambda error:errors.append(error.stack)))
         page=context.new_page()
         # Seed only the original page and retain its real cache on reload.
         page.add_init_script(CHAT_STORAGE_INIT.replace('__PRODUCT_OPENING__',json.dumps(PRODUCT_OPENING)))
@@ -120,6 +122,33 @@ def test_acceptance_clears_cue_shows_response_card_and_keeps_only_one_question(p
     expect(page.locator('.assistant-message .response-photo-card')).to_have_count(1)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     out=Path('/tmp/issue41-ui');out.mkdir(exist_ok=True);page.screenshot(path=str(out/f'{viewport}-response.png'))
+
+
+def test_acknowledgement_and_validated_reply_do_not_unlock_until_save(photo_page):
+    page, _, _, _ = photo_page
+    send(page)
+    page.evaluate('(data)=>turnEvent("source_accepted",data)', receipt())
+    acknowledgement = 'You remember catching insects by the river.'
+    reply = acknowledgement + '\n\nWhat did you catch first?'
+    page.evaluate('''text => turnController.enqueue(new TextEncoder().encode(
+        JSON.stringify({type:'text_delta',text})+'\\n'))''', acknowledgement)
+    expect(page.locator('.assistant-message .message-text').last).to_have_text(acknowledgement)
+    expect(page.locator('#chat-form button[type=submit]')).to_be_disabled()
+    page.evaluate('(data)=>turnEvent("reply_complete",data)', {'reply': reply})
+    expect(page.locator('#chat-form button[type=submit]')).to_be_disabled()
+    page.evaluate('(data)=>{window.firstController=turnController;turnEvent("conversation_saved",data)}',
+        {'reply': reply, 'conversation_saved': True, **receipt()})
+    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
+    expect(page.locator('.assistant-message .message-text').last).to_contain_text('What did you catch first?')
+    assert ' '.join(page.locator('.assistant-message .message-text').last.inner_text().split()) == ' '.join(reply.split())
+    send(page, 'We caught small fish.')
+    page.wait_for_function('sentTurns.length===2')
+    page.evaluate('firstController.close()')
+    page.evaluate('(data)=>finishTurn(data)', {'reply': 'You caught small fish. What happened next?',
+        'conversation_saved': True})
+    expect(page.locator('.assistant-message .message-text').filter(has_text='What did you catch first?')).to_have_count(1)
+    expect(page.locator('.assistant-message .message-text').last).to_have_text('You caught small fish. What happened next?')
+    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
 
 
 def test_failed_send_retains_cue_and_retry_identity_across_reload(photo_page):

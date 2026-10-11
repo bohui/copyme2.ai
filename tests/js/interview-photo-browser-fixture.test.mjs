@@ -11,7 +11,7 @@ const scripts=Object.fromEntries([...fixture.matchAll(/((?:PROJECT|CHAT)_STORAGE
 const registrations=[...fixture.matchAll(/\b(context|page)\.add_init_script\(((?:PROJECT|CHAT)_STORAGE_INIT)\b/g)].map(match=>({scope:match[1],script:scripts[match[2]]}));
 const key='memory-spark-chat-history:owner:photos';
 const storage=()=>{const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)}};
-function bootstrap(tab,original){for(const {scope,script} of registrations)if(scope==='context'||original)vm.runInNewContext(script,tab)}
+function bootstrap(tab,original){for(const {scope,script} of registrations)if(scope==='context'||original)vm.runInNewContext(script,{location:{protocol:'http:'},...tab})}
 
 
 test('the original photo test page seeds its opening without overwriting saved history on reload',()=>{
@@ -46,4 +46,9 @@ test('the actual fixture opening stays ahead of the restored canonical reply and
  assert.equal(state.chat.filter(message=>message.role==='assistant').at(-1).text,'What did you grow there?');
  assert.equal(state.chat.filter(message=>message.responsePhotos?.length).length,1);
  assert.equal(state.chat.length,3);
+});
+
+for (const protocol of ['about:', 'data:', 'file:']) test(`opaque ${protocol} page never touches browser storage`,()=>{
+ const forbidden={getItem(){assert.fail('opaque page read storage')},setItem(){assert.fail('opaque page wrote storage')}};
+ bootstrap({location:{protocol},localStorage:forbidden,sessionStorage:forbidden},true);
 });

@@ -1,0 +1,223 @@
+[
+  {
+    "kind": "frozen_campaign",
+    "dataset": "issue53-quality-first/1",
+    "revision": "20dbeb40143409ca7882756dcf7281309c9b94ab",
+    "cases_per_language": 6,
+    "source_sha256": "7462ed45b9241c7dea912ddad1206ef9902a7818464045fdab9dfbebcff107c8",
+    "foreground_generation_budget": 24,
+    "appserver_turn_budget": 48,
+    "per_generation_timeout_s": 120,
+    "campaign_deadline_s": 1200,
+    "model": "gpt-5.6-luna-pooled",
+    "requested_effort": "max",
+    "versions": [
+      "legacy",
+      "compact-v1"
+    ],
+    "measurement": "backend stream receipt with in-memory storage; not browser or SQL save latency"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "first",
+    "prompt_version": "legacy"
+  },
+  {
+    "kind": "generation_result",
+    "case": "first",
+    "timings": {
+      "first_raw_delta_s": 9.217,
+      "first_visible_text_s": 9.399,
+      "validated_question_s": 11.495,
+      "conversation_saved_s": 11.495
+    },
+    "appserver_turns": 1,
+    "request_id": "add8a095-f8c8-4166-b803-839e99f7d20a",
+    "status": "saved",
+    "errors": 0,
+    "language": "zh-CN",
+    "work_mode": "reply_only",
+    "question_count": 1,
+    "candidate_count": 1,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "韩凤江，认识您了。\n\n您最早记得的一段往事是什么？",
+    "input_language": "zh-CN",
+    "prompt_version": "legacy"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "first",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_result",
+    "case": "first",
+    "timings": {
+      "first_raw_delta_s": 12.589,
+      "first_visible_text_s": 12.596,
+      "validated_question_s": 14.158,
+      "conversation_saved_s": 14.158
+    },
+    "appserver_turns": 1,
+    "request_id": "957b243f-555a-41c2-9ab2-977f317f5cb2",
+    "status": "saved",
+    "errors": 0,
+    "language": "zh-CN",
+    "work_mode": "reply_only",
+    "question_count": 1,
+    "candidate_count": 1,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "韩凤江，您好。\n\n您最早记得的一段往事是什么？",
+    "input_language": "zh-CN",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "later",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_result",
+    "case": "later",
+    "timings": {
+      "first_raw_delta_s": 29.641,
+      "first_visible_text_s": 30.41,
+      "validated_question_s": 34.606,
+      "conversation_saved_s": 34.606
+    },
+    "appserver_turns": 1,
+    "request_id": "7f99ea33-969e-4ed0-af28-f3693b6614e0",
+    "status": "saved",
+    "errors": 0,
+    "language": "zh-CN",
+    "work_mode": "extract",
+    "question_count": 1,
+    "candidate_count": 3,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "您记得小时候住在开封，和姐姐放学后去河边捉小鱼；那次掉进浅水里，是姐姐把您拉了上来。\n\n姐姐把您拉上来以后，您们是怎么回家的？",
+    "input_language": "zh-CN",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "later",
+    "prompt_version": "legacy"
+  },
+  {
+    "kind": "generation_result",
+    "case": "later",
+    "timings": {
+      "first_raw_delta_s": 29.936,
+      "first_visible_text_s": 30.714,
+      "validated_question_s": 34.717,
+      "conversation_saved_s": 34.717
+    },
+    "appserver_turns": 1,
+    "request_id": "8aac6cb5-5cd0-4129-adf4-2e674542135f",
+    "status": "saved",
+    "errors": 0,
+    "language": "zh-CN",
+    "work_mode": "extract",
+    "question_count": 1,
+    "candidate_count": 3,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "您记得小时候住在开封，放学后和姐姐去河边捉小鱼；那次掉进浅水里，是姐姐把您拉了上来。\n\n姐姐把您拉上来以后，您和姐姐是怎么回家的？",
+    "input_language": "zh-CN",
+    "prompt_version": "legacy"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "resumed_correction",
+    "prompt_version": "legacy"
+  },
+  {
+    "kind": "generation_result",
+    "case": "resumed_correction",
+    "timings": {
+      "first_raw_delta_s": 27.705,
+      "first_visible_text_s": 28.717,
+      "validated_question_s": 33.003,
+      "conversation_saved_s": 33.003
+    },
+    "appserver_turns": 1,
+    "request_id": "33a5b83e-ac72-4881-a4fb-833e19450c42",
+    "status": "saved",
+    "errors": 0,
+    "language": "zh-CN",
+    "work_mode": "extract",
+    "question_count": 1,
+    "candidate_count": 4,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "您纠正了刚才的说法：把您拉上来的是母亲，不是姐姐。您一直记得她没有责备您，只是握着您的手。\n\n母亲把您拉上来以后，您和她是怎么回家的？",
+    "input_language": "zh-CN",
+    "prompt_version": "legacy"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "resumed_correction",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_result",
+    "case": "resumed_correction",
+    "timings": {
+      "first_raw_delta_s": 13.455,
+      "first_visible_text_s": 14.254,
+      "validated_question_s": 19.261,
+      "conversation_saved_s": 19.261
+    },
+    "appserver_turns": 1,
+    "request_id": "2c32b76d-b726-4638-aec6-82d2a7b8716c",
+    "status": "saved",
+    "errors": 0,
+    "language": "zh-CN",
+    "work_mode": "extract",
+    "question_count": 1,
+    "candidate_count": 4,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "您纠正了刚才的说法：把您拉上来的是母亲，不是姐姐。您一直记得她没有责备您，只是握着您的手。\n\n母亲把您拉上来以后，您和她是怎么回家的？",
+    "input_language": "zh-CN",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_start",
+    "language": "zh-CN",
+    "case": "photo",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "generation_result",
+    "case": "photo",
+    "timings": {
+      "first_raw_delta_s": 109.617,
+      "first_visible_text_s": 110.459
+    },
+    "status": "failed",
+    "errors": 1,
+    "language": "zh-CN",
+    "work_mode": null,
+    "question_count": 0,
+    "candidate_count": 0,
+    "provider_request_count": null,
+    "effective_effort": null,
+    "synthetic_visible_reply": "您说明这张照片里是姐姐，不是您；是她后来在河边拍的，拍摄年份记不清。",
+    "input_language": "zh-CN",
+    "prompt_version": "compact-v1"
+  },
+  {
+    "kind": "campaign_stopped",
+    "reason": "generation_failed"
+  }
+]

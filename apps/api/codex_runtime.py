@@ -68,6 +68,7 @@ from .memoir_tasks import MemorySource
 from .trajectory_evaluation import (
     TrajectoryRecorder,
     build_skill_manifest,
+    execution_correlation,
     normalise_correlation,
 )
 
@@ -1743,12 +1744,11 @@ class CodexRuntime:
                 if isinstance(recall_access, dict) else None
             )
             await progress.update('context', 'Loading saved conversation context', '正在加载已保存的对话背景')
-            prior = await lease.io(storage.agent_session)
-            memories = await lease.io(storage.memories)
+            profile_reader = getattr(storage, "profile", None)
+            prior, memories, profile = await lease.reads(storage.agent_session, storage.memories,
+                profile_reader if callable(profile_reader) else lambda: {})
             if trajectory:
                 trajectory.record('application', 'memory.search', output={'count': len(memories), 'resumed': bool(prior)})
-            profile_reader = getattr(storage, "profile", None)
-            profile = await lease.io(profile_reader) if callable(profile_reader) else {}
             language_updates = None
             from .conversation_locale import (FIELD, LOCALES, state as locale_state,
                 record as locale_record, eligible_reply, first_narrator_reply,
@@ -1909,6 +1909,10 @@ class CodexRuntime:
                 paths = []
             else:
                 collector = collector_configuration(self.model)
+                correlation = execution_correlation(correlation, collector.model)
+                if trajectory:
+                    trajectory.correlation.update(execution_correlation(trajectory.correlation, collector.model))
+                    trajectory.set_context(model=collector.model, collector_prompt_version=collector.prompt_version)
                 log_diagnostic(diagnostic_logger, 'collector_configuration', turn_id,
                     agent_role='collector', model=collector.model,
                     prompt_version=collector.prompt_version, requested_effort=collector.effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max'),
@@ -2355,7 +2359,7 @@ class CodexRuntime:
                 **(workspace_kwargs or {}), on_event=on_event, trajectory=trajectory
             )
         if workspace_kwargs is None:
-            payload = job['payload']
+            payload = {k: v for k, v in job['payload'].items() if k != 'artifact_source_paths'}
             kwargs = {
                 **payload,
                 'storage': storage,
@@ -2375,6 +2379,7 @@ class CodexRuntime:
             ) if callable(entitlement_reader) else False
         else:
             kwargs = {**workspace_kwargs, 'on_event': on_event, 'trajectory': trajectory}
+        kwargs['workspace_job'] = job
         queue = await asyncio.to_thread(self._workspace_queue)
         error = None
         try:
@@ -2742,7 +2747,7 @@ class CodexRuntime:
                                  text, language, turn_sequence,
                                  deferred_artifacts, deferred_artifacts_task, deferred_home, memory,
                                  legacy_markers, turn_id, on_event, trajectory, progress=None,
-                                 extraction_task=None, parsed_place_journeys=None):
+                                 extraction_task=None, parsed_place_journeys=None, workspace_job=None):
         """Persist optional workspace state after the conversation is safe."""
         # The conversation lease is intentionally not held here. Workspace
         # enrichment is optional and may include slow provider/task work. The
@@ -3002,19 +3007,24 @@ class CodexRuntime:
         if deferred_artifacts_task is not None:
             deferred_artifacts = await deferred_artifacts_task
 
-        source_paths = []
-        if deferred_artifacts or deferred_home is not None:
+        source_paths = list(((workspace_job or {}).get('payload') or {}).get('artifact_source_paths') or [])
+        if source_paths or deferred_artifacts or deferred_home is not None:
             try:
                 async with self._storage_lease(storage) as lease:
-                    if deferred_artifacts:
+                    if not source_paths and deferred_artifacts:
                         source_paths = await lease.io(
                             self._save_worker_artifacts,
                             storage,
                             deferred_artifacts,
                             lease,
                         )
-                    elif deferred_home is not None:
+                    elif not source_paths and deferred_home is not None:
                         source_paths = await lease.io(self.sync_artifacts, storage, deferred_home, lease)
+                    if source_paths and workspace_job:
+                        queue = await asyncio.to_thread(self._workspace_queue)
+                        if queue is None or not await asyncio.to_thread(queue.checkpoint_workspace_artifacts,
+                                workspace_job['id'], workspace_job['lease_token'], source_paths):
+                            raise RuntimeError('Workspace artifact checkpoint lease is unavailable')
                     memory_id = self._stored_memory_id(memory)
                     updater = getattr(storage, 'update_agent_memory_source_paths', None)
                     if memory_id and source_paths and callable(updater):
@@ -3022,10 +3032,12 @@ class CodexRuntime:
                 if trajectory:
                     trajectory.record('application', 'artifact.sync', output={'count': len(source_paths)})
             except (AgentTurnBusyError, httpx.HTTPError, OSError, RuntimeError) as error:
-                # Artifact synchronization is recoverable enrichment. Do not
-                # turn a saved conversational exchange into a failed reply.
+                # Keep claimed jobs retryable; the outer turn still preserves
+                # the independently saved conversational exchange.
                 if trajectory:
                     trajectory.record('application', 'artifact.sync.failed', output={'error': type(error).__name__})
+                if workspace_job is not None:
+                    raise
 
         tasks = []
         task_errors = []
@@ -3170,6 +3182,10 @@ class CodexRuntime:
         model = self.composer_model if agent_role == 'composer' else self.model
         if agent_role == 'collector':
             model = collector_configuration(model).model
+        evaluation = execution_correlation(evaluation, model)
+        if trajectory and agent_role == 'collector':
+            trajectory.correlation.update(execution_correlation(trajectory.correlation, model))
+            trajectory.set_context(model=model)
         log_diagnostic(
             diagnostic_logger,
             'worker_request_start',

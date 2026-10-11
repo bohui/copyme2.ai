@@ -11,6 +11,8 @@ from uuid import uuid4
 
 import httpx
 from temporalio.testing import WorkflowEnvironment
+from temporal_test_server import local_options
+from controlled_collector import extraction_proposal
 
 from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database, sql
 from memoir_postgres_workflow import PostgresRest, quoted
@@ -53,6 +55,8 @@ def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, 
                     control = {'mode': 'composer', 'calls': str(tmp_path / 'composer.jsonl'),
                                'prose': originals[payload.project_id], 'summary': originals[payload.project_id],
                                'title': '回忆' if payload.language == 'zh-CN' else 'Memory'}
+                elif payload.agent_role == 'collector':
+                    control = {'reply': extraction_proposal(payload.language)}
                 else:
                     control = {'reply': '请继续说。' if payload.language == 'zh-CN' else 'Tell me more.'}
                 control_path.write_text(json.dumps(control, ensure_ascii=False))
@@ -62,8 +66,7 @@ def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, 
             writer.close()
             await writer.wait_closed()
         server = await asyncio.start_server(ready, '127.0.0.1', 0)
-        options = {'download_dest_dir': '/tmp/memoir-issue6-temporal',
-                   'dev_server_database_filename': str(tmp_path / 'temporal.sqlite'), 'ip': '127.0.0.1', 'ui': False}
+        options = local_options(tmp_path / 'temporal.sqlite')
         try:
             worker = ControlledWorker(home_root=tmp_path / 'worker-homes',
                 base_url=f'http://127.0.0.1:{server.sockets[0].getsockname()[1]}/v1',

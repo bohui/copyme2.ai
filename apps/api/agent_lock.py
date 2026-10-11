@@ -45,6 +45,24 @@ class AgentTurnLease:
                 task.exception()  # Retrieve any IO failure; preserve cancellation.
             raise
 
+    @staticmethod
+    async def reads(*functions):
+        """Overlap independent reads, settling every thread before propagating failure."""
+        tasks = [asyncio.create_task(AgentTurnLease.io(function)) for function in functions]
+        try:
+            return await asyncio.gather(*tasks)
+        except BaseException:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            settled = asyncio.gather(*tasks, return_exceptions=True)
+            while not settled.done():
+                try:
+                    await asyncio.shield(settled)
+                except asyncio.CancelledError:
+                    continue
+            raise
+
     async def __aenter__(self):
         try:
             acquired = await self.io(

@@ -24,7 +24,7 @@ from .turn_stream import STREAM_HEADERS, turn_events
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
-from .collector_configuration import collector_configuration
+from .collector_configuration import CollectorConfigurationError, collector_configuration
 from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
@@ -43,7 +43,7 @@ from .codex_runtime import (
 )
 from .codex_worker_files import migrate_home, write_config
 from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
-from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, normalise_correlation
+from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, execution_correlation
 from .agent_lock import AgentTurnBusyError
 from .agent_tasks import organiser_prompt
 from .memoir_tasks import MemorySource, PublishTaskInput
@@ -90,7 +90,7 @@ class WorkerTurnInput(BaseModel):
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
     # Present only for local/CI evaluation. Normal product turns do not carry
     # evaluation IDs and therefore do not return trajectory evidence.
-    evaluation: dict[str, str] = Field(default_factory=dict, max_length=12)
+    evaluation: dict[str, str] = Field(default_factory=dict, max_length=13)
     # Internal-only correlation for bounded service diagnostics. It is never
     # included in the storyteller prompt or reply.
     diagnostic_request_id: str | None = Field(default=None, min_length=1, max_length=96)
@@ -368,7 +368,7 @@ class CodexWorker:
         if collector:
             model = collector.model
         home = self._home(user_id, uid, self._execution_role(payload))
-        correlation = normalise_correlation(payload.evaluation)
+        correlation = execution_correlation(payload.evaluation, model)
         request_id = new_request_id(payload.diagnostic_request_id)
         started = time.perf_counter()
         log_diagnostic(
@@ -624,6 +624,9 @@ async def turn(payload: WorkerTurnInput, request: Request,
     except ComposerProviderUnavailable:
         raise HTTPException(status_code=503, detail='The model provider is unavailable',
                             headers={'X-Error-Code': 'COMPOSER_PROVIDER_UNAVAILABLE'}) from None
+    except CollectorConfigurationError:
+        raise HTTPException(status_code=503, detail='Conversational generation is temporarily unavailable',
+                            headers={'X-Error-Code': 'COLLECTOR_CONFIGURATION_INVALID'}) from None
     except TimeoutError:
         raise HTTPException(status_code=504, detail='Codex worker turn timed out') from None
     except WorkerTurnError as error:

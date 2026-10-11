@@ -4,6 +4,7 @@ import queue
 import re
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import tempfile
 import threading
@@ -22,8 +23,9 @@ NEW = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 class ProcessDeadline:
     """Bound task-owned commands, including pipe I/O, and poll cancellation."""
 
-    def __init__(self, deadline=None, cancellation=None):
+    def __init__(self, deadline=None, cancellation=None, environment=None):
         self.deadline = deadline
+        self.environment = environment
         self.cancellation = cancellation
 
     def remaining(self):
@@ -39,7 +41,7 @@ class ProcessDeadline:
     def run(self, command, *, check=False, text=False, input=None):
         self.remaining()
         process = subprocess.Popen(command, stdin=subprocess.PIPE if input is not None else None,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text, env=self.environment)
         try:
             first = True
             while True:
@@ -177,7 +179,8 @@ class ContainerSql:
 @pytest.fixture(scope='module')
 def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None,
              legacy_schema=True, postgres_image='postgres:18.3'):
-    commands = ProcessDeadline(deadline, cancellation)
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("PG")}
+    commands = ProcessDeadline(deadline, cancellation, environment=environment)
     if postgres_image not in {'postgres:18.3', 'postgres:17.6'}:
         raise ValueError('Only the supported stock PostgreSQL fixture images are allowed')
     container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container'
@@ -219,10 +222,33 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 raise
             command = ['container', 'exec', '--interactive', pg_container_name, 'psql', '-U', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres']
         else:
-            commands.run(['initdb', '-D', data, '-A', 'trust', '--no-locale'], check=True)
-            commands.run(['pg_ctl', '-D', data, '-l', str(Path(directory) / 'server.log'),
-                            '-o', f"-k {directory} -h ''", '-w', 'start'], check=True)
-            command = ['psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-h', directory, '-d', 'postgres']
+            # native-tcp supports hosts that permit loopback but not Unix sockets.
+            # Both modes use a fresh cluster and real, independent SQL sessions.
+            tcp = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'native-tcp'
+            if tcp:
+                with socket.socket() as listener:
+                    listener.bind(('127.0.0.1', 0))
+                    port = listener.getsockname()[1]
+                options = f"-h 127.0.0.1 -p {port} -k ''"
+                target = ['-h', '127.0.0.1', '-p', str(port)]
+            else:
+                options = f"-k {directory} -h ''"
+                target = ['-h', directory]
+            log = Path(directory) / 'server.log'
+            try:
+                commands.run(['initdb', '-D', data, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], check=True)
+                commands.run(['pg_ctl', '-D', data, '-l', str(log),
+                              '-o', options, '-w', 'start'], check=True)
+            except BaseException as error:
+                if (Path(data) / 'postmaster.pid').exists():
+                    ProcessDeadline(time.monotonic() + 10, environment=environment).run(
+                        ['pg_ctl', '-D', data, '-m', 'immediate', '-w', 'stop'], check=True)
+                if isinstance(error, subprocess.CalledProcessError):
+                    raise RuntimeError('Disposable PostgreSQL startup failed: ' +
+                        (log.read_text() if log.exists() else str(error.stderr))) from error
+                raise
+            command = ['psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', *target,
+                       '-U', 'postgres', '-d', 'postgres']
         container_sql = ContainerSql(command, deadline=commands) if container_backend else None
         def sql(query, *, check=True):
             result = container_sql(query) if container_sql else commands.run(command, input=query, text=True)
@@ -230,6 +256,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 assert result.returncode == 0, result.stderr
             return result
         sql.command = command
+        sql.env = environment
         try:
             sql('''
                 create role anon;
@@ -257,7 +284,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 if container_sql:
                     container_sql.close()
             finally:
-                ProcessDeadline(time.monotonic() + 10).run(['container', 'stop', pg_container_name] if container_backend else
+                ProcessDeadline(time.monotonic() + 10, environment=environment).run(['container', 'stop', pg_container_name] if container_backend else
                                ['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'], check=True)
 
 
@@ -329,7 +356,7 @@ def test_commit_only_publishes_its_own_staged_paths(sql):
 def test_commit_rechecks_expiry_after_waiting_for_row_lock(sql):
     sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
     sql("update public.user_agent_turn_lease set expires_at = clock_timestamp() + interval '0.5 seconds';")
-    holder = subprocess.Popen(sql.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    holder = subprocess.Popen(sql.command, env=sql.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, text=True)
     try:
         holder.stdin.write("begin; select 'locked' from public.user_agent_turn_lease for update;\n"

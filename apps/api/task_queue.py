@@ -286,6 +286,21 @@ class TaskQueue:
                 'payload': json.loads(row['payload']),
             }
 
+    def checkpoint_workspace_artifacts(self, job_id, token, source_paths):
+        """Retain uploaded paths under the job lease until their memory link is durable."""
+        now = time.time()
+        with self._transaction() as db:
+            row = db.execute('''SELECT payload FROM workspace_jobs
+                WHERE id=? AND lease_token=? AND status='RUNNING' AND lease_until>?''',
+                (job_id, token, now)).fetchone()
+            if not row:
+                return False
+            payload = json.loads(row['payload'])
+            payload['artifact_source_paths'] = list(source_paths)
+            db.execute('UPDATE workspace_jobs SET payload=?, updated_at=? WHERE id=? AND lease_token=?',
+                (json.dumps(payload, ensure_ascii=False, sort_keys=True), now, job_id, token))
+            return True
+
     def finish_workspace(self, job_id, token, *, error=None):
         now = time.time()
         with self._transaction() as db:

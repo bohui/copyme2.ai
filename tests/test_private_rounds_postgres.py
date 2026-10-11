@@ -12,6 +12,7 @@ def private_database(attachment_database):
     attachment_database((root/'supabase/legacy-migrations/202609300003_recall_usage.sql').read_text())
     attachment_database((root/'supabase/migrations/202610020002_private_draft_rounds.sql').read_text())
     attachment_database((root/'supabase/migrations/202610020004_response_stage_index.sql').read_text())
+    attachment_database((root/'supabase/migrations/202610120001_locale_independent_private_rounds.sql').read_text())
     return attachment_database
 
 
@@ -111,3 +112,19 @@ def test_guest_transfer_preserves_private_round_identity_and_stage_once(sql):
     assert sql(f"select count(*) from public.user_completed_round where user_id='{OTHER}' and project_id='project-guest';").stdout.strip()=='5'
     assert sql(f"select count(*) from public.user_private_draft_outbox where user_id='{OTHER}';").stdout.strip()=='5'
     assert sql(f"select count(*) from public.user_memory where user_id='{OTHER}' and life_stage='childhood' and client_turn_id is not null;").stdout.strip()=='5'
+
+
+@pytest.mark.parametrize('narrator,reply', [('I remember school.', 'Please continue.'), ('我记得小时候。', '请继续。'), ('🎂 My birthday', 'What happened?')])
+def test_unicode_exchange_counts_without_locale_character_classes(sql, narrator, reply):
+    content = ('Storyteller: ' + narrator + '\nMemory Spark: ' + reply).replace("'", "''")
+    statement = f"insert into public.user_memory(user_id,kind,content,project_id) values('{OWNER}','agent','{content}','unicode');"
+    sql(statement)
+    assert sql("select count(*) from public.user_completed_round where project_id='unicode';").stdout.strip() == '1'
+    assert sql("select count(*) from public.user_private_draft_outbox where project_id='unicode' and change_kind='round';").stdout.strip() == '1'
+
+
+@pytest.mark.parametrize('content', ['Storyteller: \nMemory Spark: Reply', 'Storyteller: Memory\nMemory Spark: ', 'Memory Spark: Greeting', 'Storyteller: Memory only', 'Wrong prefix: Memory\nMemory Spark: Reply'])
+def test_incomplete_exchange_still_does_not_count(sql, content):
+    content = content.replace("'", "''")
+    sql(f"insert into public.user_memory(user_id,kind,content,project_id) values('{OWNER}','agent','{content}','unicode');")
+    assert sql("select count(*) from public.user_completed_round where project_id='unicode';").stdout.strip() == '0'

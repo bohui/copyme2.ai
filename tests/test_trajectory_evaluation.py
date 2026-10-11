@@ -327,7 +327,8 @@ def test_judge_calibration_requires_explicit_human_review():
         })
 
 
-def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
+@pytest.mark.parametrize('routed', [False, True])
+def test_codex_turn_forwards_evaluation_metadata_to_responses_api(routed):
     async def run():
         connection = CodexConnection([], ".")
 
@@ -339,6 +340,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
                 "request_id": "diag-test-1",
+                **({'model': 'collector-route', 'requested_model': 'legacy-route'} if routed else {}),
             }
             connection.events.append({
                 "method": "item/completed",
@@ -363,6 +365,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api():
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
                 "request_id": "diag-test-1",
+                **({'model': 'collector-route', 'requested_model': 'legacy-route'} if routed else {}),
             },
         ) == "done"
 
@@ -810,7 +813,12 @@ def test_worker_turn_adds_evaluation_envelope_only_when_requested(monkeypatch):
     asyncio.run(run())
 
 
-def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
+@pytest.mark.parametrize('collector_model,expected_model', [(None, 'legacy-test-route'), ('memoir-luna-low', 'memoir-luna-low')])
+def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch, collector_model, expected_model):
+    if collector_model is None:
+        monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_MODEL', raising=False)
+    else:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', collector_model)
     class Storage:
         user_id = "11111111-1111-4111-8111-111111111111"
 
@@ -867,7 +875,7 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
 
         client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
         monkeypatch.setattr("apps.api.codex_runtime.httpx.AsyncClient", lambda **kwargs: client)
-        runtime = CodexRuntime(worker_url="http://worker", worker_secret="secret")
+        runtime = CodexRuntime(worker_url="http://worker", worker_secret="secret", model="legacy-test-route")
         result = await runtime.turn(
             Storage(),
             "hello",
@@ -883,7 +891,7 @@ def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch):
         assert captured["evaluation"] == {"run_id": "run-1", "case_id": "case-1"}
         assert result["trajectory"]["context"]["task"] == "hello"
         assert result["trajectory"]["context"]["project_id"] is None
-        assert result["trajectory"]["context"]["model"] == runtime.model
+        assert result["trajectory"]["context"]["model"] == expected_model
         assert result["trajectory"]["context"]["enabled_skills"] == ["memoir-memory-context"]
         assert sum(step["action"] == "turn.received" for step in result["trajectory"]["steps"]) == 1
 
