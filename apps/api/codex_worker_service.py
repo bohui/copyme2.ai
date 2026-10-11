@@ -483,7 +483,7 @@ class CodexWorker:
                     **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else
                        {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else
                        {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else
-                       {'output_schema': collector_schema()}
+                       {'output_schema': collector_schema(payload.interview_context)}
                        if payload.agent_role == 'collector' and payload.interview_context is not None else {}),
                     **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
                     **({'on_event': on_event} if on_event else {}),

@@ -51,6 +51,16 @@
           "created_at": {
             "type": "string"
           },
+          "historical_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicHistoricalContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "kind": {
             "enum": [
               "agent",
@@ -643,6 +653,78 @@
         ],
         "type": "object"
       },
+      "PublicHistoricalContext": {
+        "additionalProperties": false,
+        "properties": {
+          "event_end": {
+            "maximum": 9999.0,
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "event_start": {
+            "maximum": 9999.0,
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "id": {
+            "pattern": "^news-[a-f0-9]{24}$",
+            "type": "string"
+          },
+          "place": {
+            "type": "string"
+          },
+          "precision": {
+            "type": "string"
+          },
+          "publication_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publisher": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "source_title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "source_url": {
+            "pattern": "^https?://",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_end",
+          "event_start",
+          "id",
+          "place",
+          "precision",
+          "publisher",
+          "source_title",
+          "source_url",
+          "summary",
+          "title"
+        ],
+        "type": "object"
+      },
       "RecallStatus": {
         "properties": {
           "free_rounds": {
@@ -943,6 +1025,16 @@
             "const": "unknown",
             "default": "unknown",
             "type": "string"
+          },
+          "historical_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicHistoricalContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "narrator_text": {
             "anyOf": [

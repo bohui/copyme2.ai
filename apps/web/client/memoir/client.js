@@ -2,6 +2,7 @@ import { restoreLegacyBrowserSession, signOutBrowserSession } from "../../auth/b
 import { createBrowserClient } from "@supabase/ssr";
 import { createPreferenceSession, firstReplyUiCandidate } from "../../i18n/session.mjs";
 import { preferenceCookie, readPreference } from "../../i18n/preference.mjs";
+import { historicalContext, historicalContextMarkup, bindHistoricalControls } from "./historical-news.mjs";
 import { createAuthReminder } from "./auth-reminder.js";
 import { linkSocialIdentity } from "./social-auth.mjs";
 import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
@@ -118,7 +119,7 @@ const state = {
 state.photoTurns = createInterviewPhotoState({state, scope:captureProjectScope, render, api,
   onRecovered: async (turn, receipt) => {
     const saved = {role:"assistant", text:receipt.reply, clientTurnId:turn.id,
-      responsePhotos:receipt.response_photos, streaming:false, error:"", failed:false};
+      historicalContext:receipt.historical_context ? historicalContext(receipt.historical_context) : null, responsePhotos:receipt.response_photos, streaming:false, error:"", failed:false};
     const existing = state.chat.find(message => message.clientTurnId === turn.id && message.role === "assistant");
     if (existing) Object.assign(existing, saved);
     else state.chat.push({id:nextAssistantMessageId(), ...saved});
@@ -493,6 +494,7 @@ function persistChatHistory() {
         error: message.error || "",
       };
       if (message.clientTurnId) saved.clientTurnId = message.clientTurnId;
+      if (message.historicalContext) saved.historicalContext = historicalContext(message.historicalContext);
       if (message.responsePhotos?.length) saved.responsePhotos = state.photoTurns?.cards(message.responsePhotos);
       if (Array.isArray(message.cues) && message.cues.length) saved.cues = message.cues;
       if (Array.isArray(message.trace) && message.trace.length) {
@@ -545,6 +547,7 @@ function restoreChatHistory(projectId) {
           error: typeof message.error === "string" ? message.error : "",
           clientTurnId: typeof message.clientTurnId === "string" ? message.clientTurnId : undefined,
           responsePhotos: state.photoTurns?.cards(message.responsePhotos),
+          historicalContext: message.historicalContext ? historicalContext(message.historicalContext) : null,
           cues: Array.isArray(message.cues) ? message.cues : undefined,
           trace: Array.isArray(message.trace) ? message.trace : undefined,
           traceMode: typeof message.traceMode === "string" ? message.traceMode : undefined,
@@ -1103,12 +1106,13 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     if (streamedMessage) {
       streamedMessage.clientTurnId = requestTurn.id;
       streamedMessage.responsePhotos = state.photoTurns?.cards(body.response_photos);
+      streamedMessage.historicalContext = body.historical_context ? historicalContext(body.historical_context) : null;
       if (body.reply) streamedMessage.text = body.reply;
     }
     // Persist the final visible reply and its cards before dropping the receipt
     // recovery key. Optional locale/workspace calls above may be interrupted.
     state.photoTurns?.finish(requestTurn, body);
-    return { responsePhotos:state.photoTurns?.cards(body.response_photos), clientTurnId:requestTurn.id, blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
+    return { historicalContext:body.historical_context ? historicalContext(body.historical_context) : null, responsePhotos:state.photoTurns?.cards(body.response_photos), clientTurnId:requestTurn.id, blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     if (!current()) return detached();
     if (state.project?.id === streamProjectId && state.placeJourney === previewJourney && previewJourney) {
@@ -3135,7 +3139,7 @@ async function hydrateAccountHistory(history = null) {
         id:`history-${item.server_turn_id}-user`, role:"user", text:item.narrator_text}] : []),
       ...(typeof item.reply === "string" && item.reply ? [{...shared,
         id:`history-${item.server_turn_id}-assistant`, role:"assistant", text:cleanAssistantText(item.reply),
-        responsePhotos:state.photoTurns?.cards(item.response_photos)}] : []),
+        historicalContext:item.historical_context ? historicalContext(item.historical_context) : null, responsePhotos:state.photoTurns?.cards(item.response_photos)}] : []),
     ];
   });
   const canonicalMessages = new Set(messages);
@@ -3212,7 +3216,7 @@ function renderStory() {
     ? `<button type="button" class="button button-secondary button-small chat-history-toggle" data-action="toggle-chat-history" aria-expanded="${!state.chatHistoryCollapsed}" aria-controls="chat-history">${historyToggleLabel}</button>`
     : "";
   const headerActions = !isFreshAnonymousSession()
-    ? `<div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}</div>`
+    ? `<div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}<button type="button" class="button button-secondary button-small" data-news-enable>${currentUiLocale() === "zh-CN" ? "允许历史线索" : "Allow historical clues"}</button></div>`
     : "";
   activeWorkspaceTab();
   $("#app").innerHTML = `
@@ -4372,7 +4376,7 @@ async function retryInterviewTurn() {
       turn.language, turn.firstReplyLocalization, turn.conversationText, turn.serverAction, turn.sourceKind, {retry:turn});
     if (result.detached || !isCurrentProjectScope(scope)) return;
     await streamAssistantMessage(result.reply, {scope, streamedMessage:result.streamedMessage,
-      trace:result.trace, traceMode:result.traceMode, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId});
+      trace:result.trace, traceMode:result.traceMode, historicalContext:result.historicalContext, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId});
     if (state.voiceMode && !result.failed) await speakVoiceReply(result.reply);
   } finally {
     if (isCurrentProjectScope(scope)) { state.loading = false; render(); }
@@ -4390,7 +4394,7 @@ function renderMessage(message) {
   const action = !streaming && message.action && message.action.name !== "save-memory" ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !visibleText);
   const listen = streaming || state.voiceMode ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
+  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.historicalContext ? historicalContextMarkup(message.historicalContext, currentUiLocale()) : ""}${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated", expanded = false) {
@@ -4450,6 +4454,8 @@ function bindViewActions() {
     render();
   });
   $("[data-all-places]")?.addEventListener("click", () => { state.lifeStage = "all"; state.selectedPlace = null; render(); });
+  bindHistoricalControls(document, {scope:captureProjectScope, current:isCurrentProjectScope,
+    api:supabaseApi, notify:toast, locale:currentUiLocale});
   document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => selectPlace(button.dataset.placeChoice)));
   $("[data-action='toggle-workspace']")?.addEventListener("click", () => {
     state.workspaceCollapsed = !state.workspaceCollapsed;
@@ -4716,7 +4722,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       return;
     }
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
-    await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
+    await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, historicalContext:result.historicalContext, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
     if (!isCurrentProjectScope(scope)) return;
     if (state.voiceMode && !result.failed) await speakVoiceReply(result.reply || fallback);
   } catch (error) {

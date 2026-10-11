@@ -1640,6 +1640,12 @@ class CodexRuntime:
 
         async def emit_visible(text):
             chunk = collector_visible.feed(text) if interview_context is not None else visible.feed(text)
+            if chunk and interview_context is not None:
+                from .interview_plan import historical_acknowledgement_allowed
+                if not historical_acknowledgement_allowed(chunk, interview_context):
+                    collector_visible.emitted = False
+                    collector_visible.rejected = True
+                    chunk = ''
             if chunk:
                 await on_delta(chunk)
 
@@ -1719,6 +1725,10 @@ class CodexRuntime:
                     uploaded_photo_ids=uploaded_photo_ids, photo_selection=photo_selection)
                 accepted_source = interview_turn.get('source')
                 saved_context = await lease.io(storage.interview_context, project_id)
+                from .historical_news import ready_projection
+                if 'historical_news' in saved_context:
+                    saved_context['historical_news'] = ready_projection(saved_context['historical_news'],
+                        enabled=os.getenv('MEMORY_SPARK_HISTORICAL_NEWS', '').lower() in {'1','true','yes'})
                 canonical = await lease.io(storage.memory_events, project_id)
                 interview_context = {**saved_context, 'source': accepted_source,
                     'photo_context': interview_turn.get('photo_context', []),
@@ -1792,6 +1802,8 @@ class CodexRuntime:
                 await lease.check()
                 await lease.io(storage.save_profile, profile)
                 await lease.check()
+            if interview_context is not None:
+                interview_context['interview_language'] = language
             progress.language = language
             # Project history is extraction context, never a user-profile write.
             workspace_profile = {**profile, 'memory_places': saved_place_hints} if saved_place_hints else profile
@@ -1858,6 +1870,7 @@ class CodexRuntime:
                 paths = []
                 collector_result = {'reply': reply, 'plan': interview_turn['plan'],
                     'response_photos': interview_turn.get('response_photos', []),
+                    **({'historical_context': interview_turn['historical_context']} if interview_turn.get('historical_context') else {}),
                     'associations': []}
             elif self.worker_url:
                 result = await self._worker_turn(
@@ -1945,7 +1958,7 @@ class CodexRuntime:
                         prompt,
                         interview_context=interview_context,
                         **({'effort': collector.effort} if collector.effort else {}),
-                        **({'output_schema': collector_schema()} if interview_context is not None else {}),
+                        **({'output_schema': collector_schema(interview_context)} if interview_context is not None else {}),
                         **({'on_delta': emit_visible} if on_delta else {}),
                         **({'on_event': progress.harness_event} if on_event else {}),
                         responsesapi_client_metadata={**correlation, 'request_id': turn_id},
@@ -1960,6 +1973,8 @@ class CodexRuntime:
                         collector_result = validate_collector_result(reply, interview_context)
                     except (ValueError, TypeError, KeyError):
                         raise RuntimeError('The interview response could not be validated; please retry the accepted turn') from None
+                    if collector_result.get('stopped') and os.getenv('MEMORY_SPARK_HISTORICAL_NEWS', '').lower() in {'1','true','yes'}:
+                        await lease.io(storage.set_historical_news, project_id, False)
                     interview_turn = await lease.io(storage.save_interview_plan,
                         project_id, client_turn_id, collector_result['plan'], collector_result['associations'],
                         lease.lease_token, reply=collector_result['reply'],
@@ -2212,6 +2227,13 @@ class CodexRuntime:
                     'task_errors': [],
                     'source_paths': paths,
                 }
+            # Independent optional enrichment starts only after durable reply
+            # and release of the conversation lease. It never edits the reply.
+            if project_id and isinstance(storage, UserStorage) and not reply_only:
+                try:
+                    await self._historical_news_enrichment(storage, project_id)
+                except Exception:
+                    pass  # Public-history failure is not interview failure.
             paths = workspace.get('source_paths', paths)
             place_journey = workspace['place_journey']
             place_journey_change = workspace['place_journey_change']
@@ -2277,6 +2299,15 @@ class CodexRuntime:
             return None
         from .task_queue import configured_queue
         return configured_queue()
+
+    async def _historical_news_enrichment(self, storage, project_id):
+        if os.getenv('MEMORY_SPARK_HISTORICAL_NEWS', '').lower() not in {'1','true','yes'}:
+            return
+        from .historical_news import enrich, HistoricalResearch
+        from .historical_news_provider import GatewayHistoricalProvider
+        if not hasattr(self, '_news_engine'):
+            self._news_engine = HistoricalResearch(GatewayHistoricalProvider())
+        await enrich(storage, project_id, self._news_engine)
 
     async def _enqueue_workspace_intent(self, *, user_id, project_id, turn_id,
                                         family_enabled,
