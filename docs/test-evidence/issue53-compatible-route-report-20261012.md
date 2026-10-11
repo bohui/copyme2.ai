@@ -138,6 +138,35 @@ The previously reported whole-repository run was **not green**: 4,009 passed,
 status is claimed. The partial base comparison did not prove every failure
 unrelated. The prior real-proxy smoke used normal max/legacy, not this candidate.
 
+### Concurrent PR integration
+
+Before publishing, remote PR 58 advanced to
+`0f7af90269c5aacbb971e33701cbbb134797ff9e`, integrating historical-news main
+changes and a separate verification repair slice. Those changes were preserved
+in merge `b777cd5f82aff860b52fd500e876f68a369636b6`, without conflicts or a force
+push. The profiler overlap only removed trailing blank lines; both profiler
+fixes and their regression tests remain intact.
+
+On that combined revision, **317 focused backend tests passed in 26.62s**
+(the 193-test set above plus historical-news/provider and collector-boundary
+checks), and **71 frontend Node tests passed** on Node 24.19.0 (the 59-test set
+plus photo-browser fixtures and historical-news rendering). Counts overlap;
+do not add them to the earlier totals. A first attempt to launch Homebrew Node
+24.4.1 failed before test execution because its simdjson library was missing;
+the bundled Node 24.19.0 completed the checks. No further live calls were made.
+
+The imported [verification addendum](issue53-pr58-follow-up-20261012.md) records
+an additional comprehensive cloud run: 4,283 passed, 71 failed, 94 setup errors
+and 8 skipped, with unsuccessful cases classified there as browser-runtime,
+Chromium socket or renderer-DNS prerequisites. That is inherited evidence,
+not a new local full-suite pass, and the overall run remains **not green**.
+
+The combined head changes runtime/schema/frontend source beyond the live
+campaign's pinned `641e9d3` revision. Its historical-news behavior was not in
+that campaign. Neither the campaign latency nor the earlier real-proxy smoke
+is final-head live acceptance; candidate real API/SQL/proxy and semantic-quality
+verification must use the combined release candidate before rollout.
+
 | Acceptance area | Current evidence / remaining gate |
 | --- | --- |
 | Every-turn path, first/later/resumed, both languages | Shared implementation and focused tests pass; matched live latency positive; normal default not enabled. |

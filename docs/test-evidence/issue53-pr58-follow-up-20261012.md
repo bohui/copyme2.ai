@@ -283,3 +283,18 @@ candidate improvement. Representative matched first/later/resumed semantic
 quality and latency, long/Family/reference/rollback live evaluation, and the
 extended live campaign remain unrun. No new such campaign is authorized here.
 Do not merge or enable the candidate on the strength of this repair slice.
+
+### Subsequent local compatible-route pilot
+
+The separately approved [compatible-route campaign](issue53-compatible-route-report-20261012.md)
+now supplies matched first/later/resumed, long/Family/reference and actual
+rollback evidence in both languages, on pinned revision `641e9d3`. All 42
+foreground generations saved; the 20 matched pairs improved median first text
+and in-memory save by roughly 78% while retaining the full legacy prompt.
+This supersedes the statement above that those cases remain unrun, not the
+quality-preserving release gate. The report retains the earlier failed run,
+one photo-follow-up wording concern, context/cache confounds, limited semantic
+review and the lack of candidate real-SQL/proxy acceptance. The concurrent
+verification/main changes were then integrated and focused checks rerun;
+the live campaign was not repeated on the combined head. Defaults remain
+unchanged and issue 53 remains open.
