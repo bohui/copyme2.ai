@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 import time
@@ -268,7 +267,9 @@ async def campaign(timeout=120, deadline=1200, review=False, *, candidate_model=
                     # Exact pre-turn copies: no independently generated history confound.
                     candidate_storage = deepcopy(storage)
                     candidate_root = root / language / f'candidate-{index}'
-                    shutil.copytree(baseline.home_root, candidate_root)
+                    # The Linux supervisor must preserve tenant file ownership
+                    # as well as mode; copytree makes saved histories root-owned.
+                    subprocess.run(['cp', '-a', str(baseline.home_root), str(candidate_root)], check=True)
                     # Change only collector overrides, not other role defaults.
                     candidate = CodexWorker(home_root=candidate_root, model=model,
                         timeout=timeout, reasoning_effort='max')

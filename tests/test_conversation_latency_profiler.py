@@ -27,7 +27,21 @@ def test_matched_campaign_has_same_history_and_no_live_workspace(monkeypatch, ca
             self.home = home
             self.trajectory = options['trajectory']
             homes.append(home)
-        async def __aenter__(self): return self
+        async def __aenter__(self):
+            # Linux's supervisor copies histories owned by tenant UIDs, not
+            # root. A resumed copy must retain readable directories/files.
+            checkpoint = self.home / 'owned-history' / 'saved.jsonl'
+            uid = 20000 if os.geteuid() == 0 else os.geteuid()
+            if checkpoint.exists():
+                assert checkpoint.stat().st_uid == checkpoint.parent.stat().st_uid == uid
+            else:
+                checkpoint.parent.mkdir(mode=0o700)
+                checkpoint.write_text('synthetic persisted history')
+                checkpoint.chmod(0o600)
+                if os.geteuid() == 0:
+                    os.chown(checkpoint.parent, uid, uid)
+                    os.chown(checkpoint, uid, uid)
+            return self
         async def __aexit__(self, *a): pass
         async def request(self, method, params):
             assert method in {'thread/start', 'thread/resume'}

@@ -1,0 +1,208 @@
+{
+  "campaign": "issue53-compatible-route-routing-only-20261012",
+  "status": "stopped_failed",
+  "records": [
+    {
+      "kind": "frozen_campaign",
+      "dataset": "issue53-quality-first/3",
+      "revision": null,
+      "cases_per_language": 10,
+      "rollback_generations": 2,
+      "appserver_version": "codex-cli 0.156.1",
+      "source_sha256": "73efa3e99650610bf4aae46bb1c61ea629d05eab2b1922d6cfa6149195fac1e5",
+      "foreground_generation_budget": 42,
+      "appserver_turn_budget": 84,
+      "per_generation_timeout_s": 120,
+      "campaign_deadline_s": 1200,
+      "variants": {
+        "baseline": {
+          "model": "gpt-5.6-luna-pooled",
+          "requested_effort": "max",
+          "prompt_version": "legacy"
+        },
+        "candidate": {
+          "model": "gpt-5.6-luna-memoir-low",
+          "requested_effort": "low",
+          "prompt_version": "legacy"
+        }
+      },
+      "acceptance": "Exploratory only: review grounding, identity, uncertainty, language, photo attribution, pause and useful follow-up alongside first text, validated reply, save and failures. One pair per case cannot establish semantic equivalence or a production latency distribution.",
+      "measurement": "backend stream receipt with in-memory storage; not browser or SQL save latency"
+    },
+    {
+      "kind": "generation_start",
+      "language": "zh-CN",
+      "case": "first",
+      "variant": "baseline",
+      "model": "gpt-5.6-luna-pooled",
+      "requested_effort": "max",
+      "prompt_version": "legacy"
+    },
+    {
+      "kind": "generation_result",
+      "case": "first",
+      "timings": {
+        "first_raw_delta_s": 4.792,
+        "first_visible_text_s": 4.896,
+        "validated_question_s": 5.454,
+        "conversation_saved_s": 5.455
+      },
+      "appserver_turns": 1,
+      "request_id": "f4568683-26e9-44e1-9f33-43a952492b73",
+      "status": "saved",
+      "errors": 0,
+      "language": "zh-CN",
+      "work_mode": "reply_only",
+      "question_count": 1,
+      "candidate_count": 1,
+      "provider_request_count": null,
+      "effective_effort": null,
+      "synthetic_visible_reply": "韩凤江，您好。\n\n您最早记得的一段往事是什么？",
+      "input_language": "zh-CN",
+      "variant": "baseline",
+      "model": "gpt-5.6-luna-pooled",
+      "requested_effort": "max",
+      "prompt_version": "legacy"
+    },
+    {
+      "kind": "generation_start",
+      "language": "zh-CN",
+      "case": "first",
+      "variant": "candidate",
+      "model": "gpt-5.6-luna-memoir-low",
+      "requested_effort": "low",
+      "prompt_version": "legacy"
+    },
+    {
+      "kind": "generation_result",
+      "case": "first",
+      "timings": {
+        "first_raw_delta_s": 2.737,
+        "first_visible_text_s": 2.957,
+        "validated_question_s": 4.981,
+        "conversation_saved_s": 4.981
+      },
+      "appserver_turns": 1,
+      "request_id": "e4e28f98-303c-42ba-9cfb-a3a68ebdb14b",
+      "status": "saved",
+      "errors": 0,
+      "language": "zh-CN",
+      "work_mode": "reply_only",
+      "question_count": 1,
+      "candidate_count": 1,
+      "provider_request_count": null,
+      "effective_effort": null,
+      "synthetic_visible_reply": "韩凤江，欢迎您。\n\n您最早记得的一段往事是什么？",
+      "input_language": "zh-CN",
+      "variant": "candidate",
+      "model": "gpt-5.6-luna-memoir-low",
+      "requested_effort": "low",
+      "prompt_version": "legacy"
+    },
+    {
+      "kind": "generation_start",
+      "language": "zh-CN",
+      "case": "later",
+      "variant": "candidate",
+      "model": "gpt-5.6-luna-memoir-low",
+      "requested_effort": "low",
+      "prompt_version": "legacy"
+    },
+    {
+      "kind": "generation_result",
+      "case": "later",
+      "timings": {},
+      "appserver_turns": null,
+      "request_id": "cad1462b-349e-482f-8a88-63451075a104",
+      "status": "failed",
+      "errors": 1,
+      "language": "zh-CN",
+      "work_mode": null,
+      "question_count": 0,
+      "candidate_count": 0,
+      "provider_request_count": null,
+      "effective_effort": null,
+      "synthetic_visible_reply": "",
+      "input_language": "zh-CN",
+      "variant": "candidate",
+      "model": "gpt-5.6-luna-memoir-low",
+      "requested_effort": "low",
+      "prompt_version": "legacy"
+    },
+    {
+      "kind": "campaign_stopped",
+      "reason": "generation_failed"
+    },
+    {
+      "kind": "profile_failed",
+      "failure_class": "RuntimeError"
+    }
+  ],
+  "provider_receipts": {
+    "correlation": "Time-window/order only; no exact application-request-to-upstream join.",
+    "rows": [
+      {
+        "id": 5154,
+        "requested_at": "2026-10-11 22:01:11.980850",
+        "request_id": "resp_06cbc36b7c8adfc4016acc072553b4819188b7c084b918baca",
+        "session_id": "http_turn_a8eba830d94243cf8312a3b80af86189",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "input_tokens": 9246,
+        "cached_input_tokens": 0,
+        "output_tokens": 329,
+        "reasoning_tokens": 205,
+        "latency_first_token_ms": 3168,
+        "latency_ms": 3678,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      },
+      {
+        "id": 5155,
+        "requested_at": "2026-10-11 22:01:16.965690",
+        "request_id": "resp_0bdf8d62c70172f7016acc072960d087d0bcbdde8354e9dfb9",
+        "session_id": "http_turn_2b652501ae6047b3b52feb6888c9c81e",
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "low",
+        "input_tokens": 9249,
+        "cached_input_tokens": 0,
+        "output_tokens": 156,
+        "reasoning_tokens": 35,
+        "latency_first_token_ms": 2396,
+        "latency_ms": 4499,
+        "status": "success",
+        "error_code": null,
+        "latency_response_create_gate_wait_ms": 0,
+        "latency_bridge_queue_wait_ms": 0
+      }
+    ]
+  },
+  "failure_investigation": {
+    "observation": "Candidate's first resumed turn failed before raw/public text; no subsequent upstream request was observed in the campaign time window.",
+    "linux_copy_reproduction": {
+      "original_tenant_uid": 20000,
+      "copytree_copied_file_uid": 0,
+      "original_tenant_read_exit": 0,
+      "copytree_tenant_read_exit": 1,
+      "archive_copy_file_uid": 20000,
+      "archive_copy_directory_uid": 20000,
+      "archive_copy_tenant_read_exit": 0
+    },
+    "interpretation": "Consistent with profiler-only ownership loss on copied persisted thread files, not evidence of a provider quality defect. Record as failed; do not exclude or replace this run.",
+    "production_worker_permissions_changed": false
+  },
+  "opening_observation": {
+    "baseline_first_text_s": 4.896,
+    "candidate_first_text_s": 2.957,
+    "baseline_save_s": 5.455,
+    "candidate_save_s": 4.981,
+    "baseline_input_tokens": 9246,
+    "candidate_input_tokens": 9249,
+    "baseline_cache_tokens": 0,
+    "candidate_cache_tokens": 0,
+    "meaning": "One pair only; not acceptance or a latency distribution."
+  },
+  "additional_live_campaign_requires_fresh_approval": true
+}
