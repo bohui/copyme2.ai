@@ -20,6 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(params=[(390, 844), (1440, 1000)], ids=['phone', 'desktop'])
 def navigation_browser(monkeypatch, request):
+    initial_principal = getattr(request.node.callspec, 'params', {}).get('principal', 'guest')
+    assert initial_principal in NAVIGATION_USERS, 'Unsupported navigation fixture principal'
     store = MemoryStore()
     saved_turns = {}
     def authenticated(authorization):
@@ -37,7 +39,7 @@ def navigation_browser(monkeypatch, request):
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': 'zh-CN', 'url': base},
                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         script = """const fixtureIds=__FIXTURE_IDS__;
-        const fixtureSession=()=>{const principal=localStorage.getItem('fixture-principal')||'guest';const id=fixtureIds[principal];return {
+        const fixtureSession=()=>{const principal=localStorage.getItem('fixture-principal')||__INITIAL_PRINCIPAL__;const id=fixtureIds[principal];return {
           access_token:'fixture-'+principal,refresh_token:'fixture-refresh-'+principal,user:{id,is_anonymous:principal==='guest'}}};
         window.fixtureSetPrincipal=id=>{localStorage.setItem('fixture-principal',id);window.fixtureAuthChanged?.('SIGNED_IN',fixtureSession())};
         window.supabase={createClient:()=>({auth:{
@@ -46,7 +48,10 @@ def navigation_browser(monkeypatch, request):
           signInWithOAuth:async options=>{window.fixtureOauth=options;return {}},
           onAuthStateChange:callback=>{window.fixtureAuthChanged=callback;return {}}
         }})};"""
-        install_supabase_fixture(context, script.replace('__FIXTURE_IDS__', json.dumps(NAVIGATION_USERS)))
+        # Cookie seeding and the first SDK session must select the same actor.
+        # Separate page/context init scripts have no guaranteed evaluation order.
+        script = script.replace('__FIXTURE_IDS__', json.dumps(NAVIGATION_USERS))
+        install_supabase_fixture(context, script.replace('__INITIAL_PRINCIPAL__', json.dumps(initial_principal)))
         requests = []
 
         def api(route):
@@ -154,7 +159,6 @@ def test_login_returns_to_project_started_from_homepage(navigation_browser, prov
 @pytest.mark.parametrize('principal', ['guest', 'other'], ids=['anonymous', 'account'])
 def test_reentry_resumes_the_same_conversation(navigation_browser, principal):
     page, _, store, requests, _, _ = navigation_browser
-    page.add_init_script(f"localStorage.setItem('fixture-principal',{json.dumps(principal)})")
     interview = start_conversation(page)
     page.locator('.story-topbar .brand-mark').click()
     page.locator('[data-action="open-memoir"]').click()
@@ -162,6 +166,7 @@ def test_reentry_resumes_the_same_conversation(navigation_browser, principal):
     show_history(page)
     assert len(store.projects) == 1
     assert sum(method == 'POST' and path == '/projects' for method, path, _ in requests) == 1
+    assert next(iter(store.projects.values()))['owner_id'] == NAVIGATION_USERS[principal]
 
 
 def test_anonymous_history_survives_reload_and_a_new_tab(navigation_browser):

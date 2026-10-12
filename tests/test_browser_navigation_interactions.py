@@ -130,7 +130,9 @@ class EntryPage:
 def test_navigation_scenarios_use_available_entry_controls(monkeypatch, client_proof, scenario):
     page = EntryPage(client_proof)
     project_count = 2 if scenario == 'family' else 1
-    values = (page, None, SimpleNamespace(projects=[None] * project_count), [('POST', '/projects', 201)], 'phone', None)
+    owner = NAVIGATION_USERS['other' if scenario == 'account' else 'guest']
+    projects = {str(index): {'owner_id': owner} for index in range(project_count)}
+    values = (page, None, SimpleNamespace(projects=projects), [('POST', '/projects', 201)], 'phone', None)
     monkeypatch.setattr(browser, 'expect', Expect)
     monkeypatch.setattr(browser, 'start_conversation', lambda _: BASE + client_proof['stack'][0])
     monkeypatch.setattr(browser, 'show_history', lambda p: None)
@@ -174,3 +176,90 @@ def test_cache_baseline_rejects_unsettled_or_cross_project_content(monkeypatch, 
     page.frames[-1]['cache'] = cache
     with pytest.raises(AssertionError):
         browser.settled_history_cache(page, 'project-b')
+
+
+def run_auth_probe(payload):
+    result = subprocess.run(['node', 'tests/browser_navigation_auth_probe.mjs'], cwd=ROOT,
+                            input=json.dumps(payload), text=True, capture_output=True, check=True, timeout=30)
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize('principal', ['guest', 'other'], ids=['anonymous', 'account'])
+@pytest.mark.parametrize('order', ['context-first', 'page-first'])
+def test_initial_principal_cookie_and_auth_route_agree_in_either_script_order(monkeypatch, principal, order):
+    from test_browser_recovery_routes import BrowserTransport, Route, replace_playwright
+
+    class AuthTransport(BrowserTransport):
+        def __init__(self): super().__init__(); self.scripts = []
+        def add_init_script(self, script): self.scripts.append(script)
+
+    class BeforeInitialNavigation(Exception): pass
+
+    def stop_before_navigation(_page): raise BeforeInitialNavigation
+
+    transport = AuthTransport()
+    replace_playwright(monkeypatch, browser, transport)
+    request = SimpleNamespace(param=(390, 844), node=SimpleNamespace(
+        callspec=SimpleNamespace(id='phone', params={'principal': principal})))
+    fixture = browser.navigation_browser.__wrapped__(monkeypatch, request)
+    values = next(fixture)
+    try:
+        monkeypatch.setattr(browser, 'start_conversation', stop_before_navigation)
+        with pytest.raises(BeforeInitialNavigation):
+            browser.test_reentry_resumes_the_same_conversation(values, principal)
+        # Before the fix, these were two independently ordered context/page
+        # scripts. Both allowed orders must now yield the intended SDK principal.
+        payload = {'scripts': transport.scripts, 'order': order, 'phase': 'seed'}
+        seeded = run_auth_probe(payload)
+        current, cookie = seeded['current'], seeded['cookie']
+
+        def auth_request(path, token, arguments):
+            route = Route('', method='POST', token=token, payload=arguments)
+            route.request.url = 'https://auth.test' + path
+            route.request.post_data_json = arguments
+
+            def current_session(expression):
+                assert expression == 'async () => (await window.supabase.createClient().auth.getSession()).data.session'
+                return current
+
+            route.request.frame = SimpleNamespace(evaluate=current_session)
+            transport.handlers['https://auth.test/**'](route)
+            return {'status': route.status, 'body': route.body, 'arguments': arguments}
+
+        responses = {}
+        for rpc, arguments in [
+            ('read_ui_locale_preference', {'p_expected_viewer': cookie['user']['id']}),
+            ('set_ui_locale_preference', {'p_locale': 'zh-CN', 'p_source': 'manual',
+                                          'p_expected_viewer': cookie['user']['id']}),
+        ]:
+            path = '/rest/v1/rpc/' + rpc
+            key = json.dumps([path, 'POST', 'Bearer ' + cookie['access_token']], separators=(',', ':'))
+            responses[key] = auth_request(path, cookie['access_token'], arguments)
+        payload.update(phase='boot', responses=responses, config=transport.request('/agent/config').body)
+        result = run_auth_probe(payload)
+        assert 'data-action="start-story" data-mode="self"' in result['html'], result['html']
+        assert current['user']['id'] == cookie['user']['id'] == result['clientUser']['id'] == NAVIGATION_USERS[principal]
+        assert current['user']['is_anonymous'] == (principal == 'guest')
+        assert all(response['status'] == 200 for response in responses.values())
+        wrong_token = 'fixture-other' if principal == 'guest' else 'fixture-guest'
+        denied = auth_request('/rest/v1/rpc/read_ui_locale_preference', wrong_token,
+                              {'p_expected_viewer': NAVIGATION_USERS[principal]})
+        assert denied['status'] == 401 and denied['body'] == {'message': 'Invalid synthetic session'}
+        wrong_owner = NAVIGATION_USERS['other' if principal == 'guest' else 'guest']
+        denied = auth_request('/rest/v1/rpc/read_ui_locale_preference', current['access_token'],
+                              {'p_expected_viewer': wrong_owner})
+        assert denied['status'] == 403 and denied['body']['code'] == '42501'
+        switched_principal = 'other' if principal == 'guest' else 'guest'
+        switched = run_auth_probe({**payload, 'phase': 'seed', 'switchPrincipal': switched_principal})
+        assert switched['current']['user']['id'] == switched['cookie']['user']['id'] == NAVIGATION_USERS[switched_principal]
+        assert switched['current']['user']['is_anonymous'] == (switched_principal == 'guest')
+    finally:
+        with pytest.raises(StopIteration): next(fixture)
+
+
+def test_initial_navigation_principal_must_be_explicitly_known(monkeypatch):
+    request = SimpleNamespace(param=(390, 844), node=SimpleNamespace(
+        callspec=SimpleNamespace(id='phone', params={'principal': 'unknown'})))
+    fixture = browser.navigation_browser.__wrapped__(monkeypatch, request)
+    with pytest.raises(AssertionError, match='Unsupported navigation fixture principal'):
+        next(fixture)

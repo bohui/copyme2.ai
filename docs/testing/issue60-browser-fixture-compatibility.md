@@ -77,3 +77,27 @@ client rendering/start/cache functions. Controlled locators reproduce delayed
 paint and available entry controls; they do not establish browser execution or
 replace the original UI/privacy assertions. The exact Mac navigation rerun is
 still required. The round-five policy gap documented above remains open.
+
+## Authenticated initial-entry fixture ordering
+
+The exact `197ecb8`/`b4d55860` Mac navigation run passed 36 of 38 cases, with no
+skips. Only the phone/desktop authenticated reentry cases timed out on their
+initial self-start button. Their empty project/history request ledger did not
+establish that config or Auth requests were absent; that ledger records only
+project and history routes.
+
+The scenario installed its principal override as a separate page init script.
+Playwright does not guarantee ordering between page and context init scripts.
+Executing the actual scripts in context-first order reproduced a guest SDK cookie
+alongside the account fixture principal. The actual Auth fixture rejected both
+preference RPCs with 401. With the installed Supabase SDK and unchanged
+`boot`/`ensureAuth`/preference code, the page rendered
+`UI preference could not be saved` instead of its start button. Reverse order and
+both anonymous orders passed. These 401s are offline reproduction evidence, not
+captured Mac responses.
+
+The fixture now selects its validated initial principal in the same script that
+seeds the SDK cookie. Intentional account-switch overrides still update both the
+session and cookie. The reentry case retains all original assertions and adds an
+explicit project-owner UUID assertion. Auth and expected-viewer failures stay
+strict. The actual Mac rerun remains required.
