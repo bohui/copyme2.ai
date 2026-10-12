@@ -370,3 +370,27 @@ barrier fixture initially locked a deleted lease row. The corrected obligation a
 after-selection race and both pending-table fairness cases. Immutable combined
 review and the refreshed native aggregate remain required before acceptance. No
 production data, deployment, clearance or historical reconciliation was changed.
+
+### Full atomic-policy checkpoint regression result
+
+The independent clean `1c64005` native gate passed 163 cases in 54.17 seconds.
+Remote `cfcacfa89f8bc1ceb939c17811c151fadfdc70bd` was independently verified to
+have the same tree, `4b2c5a9105c799bfea46ec0572abdc54b0059cb9`.
+
+The full native aggregate on that source completed with 5,388 passed, 213 skipped
+and three failed in 1,270.65 seconds. The mapped-home fixture still expected
+private access despite its new historical-policy inventory marker. Two read-lock
+fixtures assumed source acceptance left no profile, although atomic acceptance now
+creates one. Their corrected setup must explicitly remove only the synthetic
+owner's profile after acceptance and before read capture, preserving the original
+read-only and first-profile lock assertions. These failed runs are retained as
+failed evidence; targeted repair and final aggregate results are recorded separately.
+
+The reviewed read/home repair passes 136 native cases with zero skips (20.91s),
+including all three failures above. An exact pending-policy exception now produces
+a fixed 503, `LIFETIME_POLICY_PENDING`, Retry-After and no-store only before any
+response-start attempt. It emits neither the private snapshot nor its headers.
+ASGI 2.3/2.4 tests prove that uncertain/partial starts, body errors and guard-exit
+errors never cause a second response; unrelated errors and cancellation retain
+their original behavior. The source repair still requires the final pinned
+independent rerun and refreshed full native aggregate.
