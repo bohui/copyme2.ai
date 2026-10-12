@@ -8,11 +8,14 @@ create table public.user_lifetime_continuity (
   kind text not null check(kind in ('chosen_name','language','active_question','unresolved_reference',
     'paused_topic','excluded_topic','commitment','person')),
   revision bigint not null check(revision>0),
+  last_source_sequence bigint not null default 0 check(last_source_sequence>=0),
   policy_epoch bigint not null check(policy_epoch>0),
   data jsonb not null check(jsonb_typeof(data)='object'),
   primary key(user_id,conversation_id,record_id),
   foreign key(user_id,conversation_id) references public.user_lifetime_conversation(user_id,conversation_id) on delete cascade
 );
+create index lifetime_continuity_working_set on public.user_lifetime_continuity(user_id,conversation_id,
+ (case kind when 'unresolved_reference' then 0 when 'commitment' then 1 else 2 end),last_source_sequence desc,record_id);
 alter table public.user_lifetime_continuity enable row level security;
 revoke all on public.user_lifetime_continuity from public,anon,authenticated;
 -- No direct SELECT: policy/source dependencies must be checked by the reader RPC.
@@ -21,7 +24,7 @@ create function public.save_lifetime_continuity(p_conversation_id uuid,p_record_
   p_expected_revision bigint,p_policy_epoch bigint,p_lease_token uuid,p_data jsonb)
 returns jsonb language plpgsql security definer set search_path=public,auth as $$
 declare owner uuid:=auth.uid(); project text; epoch bigint; ref jsonb; source public.user_narrator_source%rowtype;
-  saved public.user_lifetime_continuity%rowtype;
+  saved public.user_lifetime_continuity%rowtype; last_sequence bigint:=0;
 begin
   if owner is null then raise exception 'authenticated owner required'; end if;
   select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
@@ -54,18 +57,19 @@ begin
       or (ref->>'char_end')::integer>length(source.text)
       or substring(source.text from (ref->>'char_start')::integer+1 for (ref->>'char_end')::integer-(ref->>'char_start')::integer)
          is distinct from ref->>'quote' then raise exception 'invalid source evidence'; end if;
+    last_sequence:=greatest(last_sequence,source.sequence);
     if not (ref ?& array['source_id','version','char_start','char_end','quote']) then raise exception 'complete evidence required'; end if;
   end loop;
   if p_expected_revision is null or p_expected_revision<0 then raise exception 'revision required'; end if;
-  insert into public.user_lifetime_continuity(user_id,conversation_id,record_id,kind,revision,policy_epoch,data)
-    select owner,p_conversation_id,p_record_id,p_kind,1,epoch,p_data where p_expected_revision=0
+  insert into public.user_lifetime_continuity(user_id,conversation_id,record_id,kind,revision,policy_epoch,data,last_source_sequence)
+    select owner,p_conversation_id,p_record_id,p_kind,1,epoch,p_data,last_sequence where p_expected_revision=0
     on conflict do nothing returning * into saved;
   if not found then
-    update public.user_lifetime_continuity set kind=p_kind,revision=revision+1,policy_epoch=epoch,data=p_data
+    update public.user_lifetime_continuity set kind=p_kind,revision=revision+1,policy_epoch=epoch,data=p_data,last_source_sequence=last_sequence
       where user_id=owner and conversation_id=p_conversation_id and record_id=p_record_id and revision=p_expected_revision returning * into saved;
     if not found then raise exception 'continuity revision conflict' using errcode='40001'; end if;
   end if;
-  return to_jsonb(saved)-'user_id'-'conversation_id';
+  return to_jsonb(saved)-'user_id'-'conversation_id'-'last_source_sequence';
 end;
 $$;
 
@@ -78,7 +82,7 @@ begin
   select policy_epoch into epoch from public.user_memoir_project where user_id=owner and project_id=project for share;
   if epoch is distinct from p_policy_epoch then raise exception 'stale policy' using errcode='40001'; end if;
   if p_limit is null or p_limit not between 1 and 100 or p_after is null then raise exception 'invalid page'; end if;
-  select coalesce(jsonb_agg(to_jsonb(r)-'user_id'-'conversation_id' order by r.record_id),'[]') into records from (
+  select coalesce(jsonb_agg(to_jsonb(r)-'user_id'-'conversation_id'-'last_source_sequence' order by r.record_id),'[]') into records from (
     select c.* from public.user_lifetime_continuity c where c.user_id=owner and c.conversation_id=p_conversation_id
       and c.policy_epoch=epoch and c.record_id>p_after
       and not exists(select 1 from jsonb_array_elements(c.data->'source_refs') ref where not exists(

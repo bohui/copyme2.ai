@@ -13,8 +13,9 @@ from test_shared_memory_events_postgres import event_database, rpc, literal
 @pytest.fixture
 def sql(event_database):
     event_database('truncate public.user_memoir_project cascade;')
-    event_database('truncate public.user_memory, public.user_agent_turn_lease, public.user_agent_session cascade;')
+    event_database('truncate public.user_memory, public.user_agent_turn_lease, public.user_agent_session, public.user_recall_usage cascade;')
     event_database('update auth.users set is_anonymous=false;')
+    event_database("update public.user_profile set profile='{}';")
     return event_database
 
 
@@ -71,7 +72,7 @@ def test_identity_rls_and_direct_write_protection(sql):
 
 def test_explicit_synthetic_mapping_preserves_source_turn_and_profile_revisions(sql):
     source = rpc(sql, 'accept_user_narrator_source', "'original', '00000000-0000-4000-8000-000000000001', 'I lived in Chengde'")
-    profile = {'preferred_language':'zh-CN', 'conversation_phase':{'schema_version':1,'phase':'shape','selection':'explicit','preferred_phase':'shape','paused':True,'revision':7,'reason':'fixture','source_turn_id':None}}
+    profile = {'preferred_language':'zh-CN', 'conversation_phase':{'schema_version':1,'phase':'shape','selection':'explicit','preferred_phase':'shape','revision':7,'reason':'narrator_choice','source_turn_id':None}}
     sql(f"insert into public.user_profile(user_id,profile) values('{OWNER}',{literal(profile)}::jsonb) on conflict(user_id) do update set profile=excluded.profile;")
     # Explicit fixture mapping simulates a separately approved operator action.
     sql(f"insert into public.user_lifetime_conversation(user_id,project_id,preference_revision) values('{OWNER}','original',9);")

@@ -24,9 +24,17 @@ def sql(event_database):
 
 def setup(sql):
     identity=resolve(sql)
-    source=rpc(sql,'accept_user_narrator_source',f"{literal(identity['project_id'])},'{UUID(int=1)}','Original exact wording'")
+    source=rpc(sql,'accept_user_interview_turn',f"{literal(identity['project_id'])},'{UUID(int=1)}','Original exact wording','narrator_chat','en-AU'")['source']
     rpc(sql,'acquire_user_agent_turn_lease',f"'{OLD}'")
     return identity,source,current(sql,identity)
+
+
+
+def save_reply(sql,source,fence):
+    from test_interview_work_plan_postgres import plan
+    value=plan(mode='extract',name=None)
+    value['phase_update']={'expected_revision':fence['phase_revision'],'phase':'comfort'}
+    return rpc(sql,'commit_lifetime_turn',f"{literal(fence)}::jsonb,'{source['client_turn_id']}',{literal(value)}::jsonb,'[]','Tell me more.','[]','thread','lifetime-v1','fixture-model'")
 
 
 def current(sql,identity,token=OLD):
@@ -43,9 +51,8 @@ def test_source_and_reply_commit_enqueue_once_with_unchanged_receipts_and_counte
     identity,source,fence=setup(sql)
     rpc(sql,'accept_user_narrator_source',f"{literal(identity['project_id'])},'{UUID(int=1)}','Original exact wording'")
     assert sql('select count(*) from public.user_lifetime_memory_obligation;').stdout.strip()=='1'
-    args=f"'{OLD}','thread','Storyteller: Original exact wording\nMemory Spark: Tell me more.',array[]::text[],1,{literal(identity['project_id'])},'{UUID(int=1)}',true,'unplaced'"
-    first=rpc(sql,'commit_user_agent_turn',args)
-    assert rpc(sql,'commit_user_agent_turn',args)==first
+    first=save_reply(sql,source,fence)
+    assert save_reply(sql,source,first['fence'])['memory']==first['memory']
     assert sql('select count(*) from public.user_lifetime_memory_obligation;').stdout.strip()=='2'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='1'
     assert sql('select rounds_completed from public.user_recall_usage;').stdout.strip()=='1'

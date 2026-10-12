@@ -302,7 +302,9 @@ class FiftyRoundSyntheticAdapter(httpx.AsyncBaseTransport):
         try:
             if str(request.url) != SYNTHETIC_ORIGIN+'/internal/codex/turn' or request.method != 'POST':
                 self._reject('synthetic_endpoint_required')
-            data = json.loads(request.content)
+            # Consume guarded async bodies before decoding; this is the actual
+            # synthetic transport admission boundary, not a cached request body.
+            data = json.loads(await request.aread())
             stage = classify_worker_request(data)
             case, correlation = self._plan['cases'][0], self.correlation()
             # Canonical broad extraction deliberately disables legacy Family

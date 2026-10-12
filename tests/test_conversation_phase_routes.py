@@ -16,5 +16,5 @@ def test_control_api_is_typed_and_not_a_narrator_turn(monkeypatch):
     assert client.patch(url,json={'action':'shape','expected_revision':0}).json()['conversation_phase']['phase']=='shape'
     storage.change_conversation_phase.assert_called_once_with('project','shape',0)
     storage.accept_interview_turn.assert_not_called(); storage.commit_agent_turn.assert_not_called()
-    for data in ({'action':'trust','expected_revision':1},{'action':'shape','expected_revision':-1},{'action':'pause','expected_revision':0,'owner':'other'}):
+    for data in ({'action':'trust','expected_revision':1},{'action':'shape','expected_revision':-1},{'action':'shape','expected_revision':0,'owner':'other'}, {'action':'pause','expected_revision':1}, {'action':'resume','expected_revision':1}):
         assert client.patch(url,json=data).status_code==422

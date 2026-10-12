@@ -304,21 +304,88 @@ export const ReadinessSchema = z
   })
   .passthrough();
 export type Readiness = z.infer<typeof ReadinessSchema>;
+export const DraftPreviewSchema = z
+  .object({ title: z.string(), text: z.string() })
+  .passthrough();
+export const PrivateDraftRecordSchema = z
+  .object({
+    id: z.string(),
+    preview: DraftPreviewSchema.nullish(),
+    proposed_preview: DraftPreviewSchema.nullish(),
+    source_refs: z.array(RecordSchema).optional(),
+    proposal_digest: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullish(),
+    approval_required: z.boolean().optional(),
+    original_withheld: z.boolean().optional(),
+  })
+  .passthrough();
 export const PrivateDraftSchema = z
   .object({
-    preview: z
-      .object({ title: z.string(), text: z.string() })
-      .passthrough()
-      .nullable(),
+    preview: DraftPreviewSchema.nullable(),
     updating: z.boolean().optional(),
     error: z.unknown().optional(),
     revision: SafeIntegerSchema.optional(),
     milestone: SafeIntegerSchema.optional(),
     covered_round: SafeIntegerSchema.optional(),
     status: z.string().optional(),
+    locale: LocaleSchema.optional(),
+    snapshot_id: z.uuid().nullish(),
+    root_digest: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullish(),
+    next_cursor: z.uuid().nullish(),
+    page_complete: z.boolean().nullish(),
+    retrieval_complete: z.boolean().optional(),
+    legacy: z.boolean().optional(),
+    coverage_scope: z.string().optional(),
+    coverage_round: SafeIntegerSchema.nullish(),
+    first_record: PrivateDraftRecordSchema.nullish(),
+    proposed_preview: DraftPreviewSchema.nullish(),
+    approval_required: z.boolean().nullish(),
+    original_withheld: z.boolean().nullish(),
+    publication_approved: z.literal(false).optional(),
   })
   .passthrough();
 export type PrivateDraft = z.infer<typeof PrivateDraftSchema>;
+export const ReadPageOptionsSchema = z.object({
+  cursor: z.uuid().optional(),
+  limit: z.number().int().min(1).max(8).optional(),
+});
+export const PrivateDraftPageSchema = z
+  .object({
+    snapshot_id: z.uuid(),
+    records: z.array(PrivateDraftRecordSchema).max(8),
+    complete: z.boolean(),
+    next_cursor: z.uuid().nullable(),
+    legacy: z.boolean().optional(),
+    publication_approved: z.literal(false).optional(),
+  })
+  .passthrough();
+export type PrivateDraftPage = z.infer<typeof PrivateDraftPageSchema>;
+export const EventPageSchema = z
+  .object({
+    events: z.array(RecordSchema),
+    complete: z.boolean().optional(),
+    next_cursor: z.uuid().nullish(),
+  })
+  .passthrough();
+export const EventEvidencePageSchema = z
+  .object({
+    source_refs: z.array(RecordSchema).max(8),
+    complete: z.boolean(),
+    next_cursor: z.uuid().nullable(),
+  })
+  .passthrough();
+export const EventDetailsPageSchema = z
+  .object({
+    details: z.array(RecordSchema).max(8),
+    complete: z.boolean(),
+    next_cursor: z.uuid().nullable(),
+  })
+  .passthrough();
 export const PreviewInputSchema = z.object({
   project_id: ProjectIdSchema.refine((value) => value.length <= 100),
   language: LocaleSchema.nullish(),
@@ -376,6 +443,9 @@ export const TaskSchema = z
     kind: z.string(),
     status: z.string(),
     result: optionalRecord,
+    complete: z.boolean().optional(),
+    next_cursor: z.uuid().nullish(),
+    root_digest: z.string().optional(),
   })
   .passthrough();
 export type MemoirTask = z.infer<typeof TaskSchema>;
@@ -388,7 +458,11 @@ export const CollectionSchema = z
       .array(z.object({ id: z.string(), content: z.string() }).passthrough())
       .optional(),
     tasks: z.array(TaskSchema).optional(),
-    source_fingerprint: z.string().optional(),
+    source_fingerprint: z.string().nullish(),
+    complete: z.boolean().optional(),
+    next_cursor: z.uuid().nullish(),
+    tasks_complete: z.boolean().optional(),
+    tasks_next_cursor: z.uuid().nullish(),
   })
   .passthrough();
 export type Collection = z.infer<typeof CollectionSchema>;

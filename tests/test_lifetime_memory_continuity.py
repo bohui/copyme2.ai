@@ -235,14 +235,13 @@ def test_model_and_literal_fallback_deduplicate_same_control():
 
 def test_phase_validation_is_still_owned_by_existing_collector():
     ctx = context('My brother Ming moved to Perth.')
-    ctx['conversation_phase'] = PhaseState(paused=True, reason='pause').model_dump(mode='json')
-    with pytest.raises(ValueError, match='paused'):
-        validate_governed_collector_result(reply([update(ctx)]), ctx)
+    ctx['conversation_phase'] = PhaseState(phase='shape',selection='explicit',preferred_phase='shape',reason='narrator_choice').model_dump(mode='json')
     raw = reply([update(ctx)])
-    raw.update(stopped=True)
-    raw['plan'].update(candidates=[], chosen_id=None)
+    raw['plan']['conversation_phase']='explore'
     got = validate_governed_collector_result(raw, ctx)
     assert got['plan'] == validate_collector_result(reply_without_updates(raw), ctx)['plan']
+    assert got['plan']['phase_update']['phase'] is None
+
 
 
 def reply_without_updates(raw):

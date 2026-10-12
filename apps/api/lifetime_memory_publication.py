@@ -73,3 +73,29 @@ async def send_governed(send, message, *, publisher, fence):
     snapshot = ExecutionFence.model_validate(fence).model_dump(mode='json')
     async with publisher.guard(snapshot):
         await send(message)
+
+
+class GovernedRequestBody:
+    """One HTTP body guarded until the transport has consumed/sent its bytes.
+
+    httpcore requests the next chunk after completing the previous socket write.
+    The guard is released at that boundary, before waiting for response headers or
+    generation. A correction after release treats this request as already admitted.
+    """
+    def __init__(self, content, *, publisher, fence):
+        from copy import deepcopy
+        self.content=bytes(content);self.publisher=publisher
+        self.fence=ExecutionFence.model_validate(deepcopy(fence)).model_dump(mode='json')
+        self._iterator=None
+
+    async def _chunks(self):
+        async with self.publisher.guard(self.fence):
+            yield self.content
+
+    def __aiter__(self):
+        if self._iterator is not None:raise RuntimeError('Governed request bodies cannot be replayed')
+        self._iterator=self._chunks()
+        return self._iterator
+
+    async def aclose(self):
+        if self._iterator is not None:await self._iterator.aclose()

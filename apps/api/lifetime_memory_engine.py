@@ -114,6 +114,9 @@ class GovernedCollectorInput(Contract):
     @model_validator(mode='after')
     def validate_packet(self):
         packet = _parse_packet(self.packet)
+        if (self.budget.context_window > 131072 or self.budget.input_budget > 65536
+                or (self.budget.model != 'synthetic-byte-bpe' and self.budget.framing_headroom < 2048)):
+            raise ValueError('Governed collector budget exceeds the reviewed transport limits')
         if self.budget.model not in SUPPORTED_BYTE_BOUND_MODELS:
             raise ValueError('No reviewed tokenizer bound for governed model')
         if self.prompt_version not in SUPPORTED_PROMPT_VERSIONS:
@@ -122,6 +125,8 @@ class GovernedCollectorInput(Contract):
             raise ValueError('Governed model or prompt is incompatible')
         if packet.fence != self.fence or packet.identity != self.fence.identity or packet.policy_epoch != self.fence.policy_epoch:
             raise ValueError('Governed packet fence does not match')
+        if not packet.pinned.privacy_complete:
+            raise ValueError('Governed privacy constraints are incomplete')
         if packet.pinned.preference_revision != self.fence.preference_revision:
             raise ValueError('Governed preferences are stale')
         phase = packet.pinned.conversation_phase
@@ -257,6 +262,8 @@ async def run_governed_collector(*, command, home_root, base_url, api_key, model
     The admission guard covers delivery into app-server, not opaque downstream
     provider HTTP timing. Admitted work is in flight; output stays separately fenced.
     """
+    from .lifetime_memory_lane_engine import check_lane_generation, _admission
+    check_lane_generation()
     packet = validate_governed_context(governed, interview_context, model=model)
     check_issue14_dispatch(issue14_admission, role='collector', correlation=responsesapi_client_metadata)
     if publisher is None:
@@ -270,7 +277,7 @@ async def run_governed_collector(*, command, home_root, base_url, api_key, model
     def request_admission():
         # Each guard gets a fresh detached copy of the original exact fence.
         # A later publication-phase setter cannot relabel this packet.
-        return publisher.guard(json.loads(fence_snapshot))
+        return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
     root = Path(home_root).expanduser().resolve()

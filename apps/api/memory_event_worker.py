@@ -80,13 +80,22 @@ class MemoirLaneBroker:
                 page_budget -= used
                 if not complete:
                     break
-            queued = await self.rpc('queue_memoir_receipt', p_receipt_id=receipt, p_cadence=private_draft_cadence())
+            try:
+                queued = await self.rpc('queue_memoir_receipt', p_receipt_id=receipt, p_cadence=private_draft_cadence())
+            except httpx.HTTPStatusError as error:
+                from .private_draft_broker import receipt_scope_conflict
+                if not (scope and scope.get('conversation_id') and receipt_scope_conflict(error)):
+                    raise
+                from .private_draft_jobs import PrivateDraftJobs
+                await asyncio.to_thread(PrivateDraftJobs(os.environ['MEMORY_SPARK_TASK_DB']).restart_page,receipt)
+                break
+
             if queued:
                 lanes.extend(v for k, v in queued.items() if k.endswith('_lane_id') and v)
         return list(dict.fromkeys(lanes))
 
     async def _checkpoint_lifetime_receipt(self,receipt,budget):
-        from .private_draft_broker import PrivateDraftBroker
+        from .private_draft_broker import PrivateDraftBroker,receipt_scope_conflict
         from .private_draft_jobs import PrivateDraftJobs
         path=os.getenv('MEMORY_SPARK_TASK_DB')
         if not path:
@@ -104,7 +113,7 @@ class MemoirLaneBroker:
             try:
                 page=await self.rpc('private_draft_event_page',p_event_id=receipt,p_cursor=cursor)
             except httpx.HTTPStatusError as error:
-                if cursor is None or error.response.status_code not in {400,409}:
+                if cursor is None or not (error.response.status_code in {400,409} or receipt_scope_conflict(error,snapshot=True)):
                     raise
                 # Retry a changed policy from its newly authorised first page
                 # on the next bounded iteration, never continue stale bytes.
@@ -151,6 +160,9 @@ class MemoryEventWorker:
         renewal = asyncio.create_task(heartbeat())
         try:
             async with asyncio.timeout(run_seconds):
+                if job.get('protocol') == 'lifetime_composer_pages':
+                    from .lifetime_memory_composer import execute_lifetime_lane
+                    return await execute_lifetime_lane(job, self)
                 if job['skill'] == 'composer':
                     from .canonical_composer import compose_shared_snapshot
                     bundle = await compose_shared_snapshot(job, self)

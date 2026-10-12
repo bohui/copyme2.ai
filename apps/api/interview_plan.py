@@ -120,10 +120,10 @@ def collector_instructions(context):
         'the question being answered instead of forcing the photo topic. At a natural pause choose an '
         'important mentioned event, deferred photo, or life-stage/year gap with a concrete conversational '
         'bridge only when returning to a different earlier topic. Do not assign unsupported dates or stages. An open '
-        'invitation to another period uses null year/stage. Stop or pause means stopped=true, no candidates '
+        'invitation to another period uses null year/stage. A wish to finish this exchange means stopped=true, no candidates '
         'and chosen_id=null. Candidate question text contains at most one question.\n'
         'For every turn, choose plan.work.mode from the ENTIRE narrator message and saved context. '
-        'Use "reply_only" for a name-only introduction, greeting, pause, or similarly minimal '
+        'Use "reply_only" for a name-only introduction, greeting, farewell, or similarly minimal '
         'conversational reply with no new memory details or other workspace actions to process. '
         'A brief sentence can still be a rich clue: a birthplace, date, person, activity, '
         'or event calls for "extract" and normal interview planning. Corrections, privacy requests '
@@ -173,13 +173,16 @@ def collector_instructions(context):
         'life stage, extraction work, language, usage and draft access. Three gentle opening exchanges '
         'and the first-five low-pressure guidance are optional pacing, never gates. Follow a rich first '
         'story immediately. Short answers and silence do not imply reluctance or readiness. '
-        'Set plan.conversation_phase to comfort or explore only when helpful, otherwise null. '
-        'Explicit selection and pause in conversation_phase are authoritative; do not override them. '
-        'The current narrator may choose comfort/explore/shape/automatic, skip or pause/resume. '
+        'Automatic guidance can move from comfort to explore as narration develops; returning '
+        'to comfort requires the storyteller to choose it. Set plan.conversation_phase to explore '
+        'only for that forward transition, otherwise null, including during corrections. '
+        'Explicit selection in conversation_phase is authoritative; do not override it. '
+        'The current narrator may choose comfort/explore/shape/automatic or skip. '
         'If phase_control_current=false, a newer accepted choice supersedes control words in this '
         'older source; respect effective_conversation_phase rather than replaying the old request. '
-        'A paused conversation requires stopped=true with no candidates until explicit resume. '
-        'Skip and redirect leave the old question behind. Distress offers pause/skip/continue without '
+        'Conversation continues naturally across visits without a pause/resume state. '
+        'A later correction updates only the affected year/event; it does not reset the mode or journey. '
+        'Skip and redirect leave the old question behind. Distress offers skip/continue without '
         'probing. Immediate safety concerns take priority over interviewing. '
         'Shape means discuss organisation or corrections of supplied material, never compose or '
         'expose a draft here. If no eligible draft is supplied, honestly explain that a draft is not '
@@ -215,19 +218,15 @@ def validate_collector_result(value, context):
     if _questions(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
-    from .conversation_phase import PhaseState, explicit_action, resolve_phase
+    from .conversation_phase import PhaseState, resolve_phase
     phase = PhaseState.model_validate(context['conversation_phase']) if 'conversation_phase' in context else None
-    action = explicit_action((context.get('source') or {}).get('text')) if context.get('phase_control_current', True) else None
-    effective = resolve_phase(phase, {'action': action}, has_narration=context.get('has_accepted_narration', False)) if phase else None
-    if effective and effective.paused and not result.stopped:
-        raise ValueError('A paused conversation cannot ask another question')
     ids = [item.id for item in plan.candidates]
     questions = [item.question.strip().casefold() for item in plan.candidates]
     if len(ids) != len(set(ids)) or len(questions) != len(set(questions)):
         raise ValueError('Question candidates must be distinct')
     if result.stopped:
         if plan.candidates or plan.chosen_id is not None:
-            raise ValueError('A pause cannot force another question')
+            raise ValueError('A finished exchange cannot force another question')
     elif not plan.candidates or plan.chosen_id not in ids:
         raise ValueError('Choose one current candidate')
     photos = authorized_photos(context)
@@ -325,7 +324,9 @@ def validate_collector_result(value, context):
     saved_plan = plan.model_dump()
     saved_plan.pop('conversation_phase')
     if phase is not None:
-        saved_plan['phase_update'] = {'expected_revision': phase.revision, 'phase': plan.conversation_phase}
+        proposed = resolve_phase(phase, {'phase': plan.conversation_phase})
+        saved_plan['phase_update'] = {'expected_revision': phase.revision,
+            'phase': proposed.phase if proposed.phase != phase.phase else None}
 
     for candidate in saved_plan['candidates']:
         if candidate['context']['historical_clue_id'] is None:

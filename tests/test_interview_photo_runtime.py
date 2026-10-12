@@ -240,6 +240,7 @@ def test_local_collector_invalid_correction_returns_controlled_retry_response(tm
 
     storage = Storage()
     storage.client = Mock()
+    storage.lifetime_rpc = Mock(return_value=None)  # Explicit unmapped legacy fixture.
     runtime, _ = harness(monkeypatch, storage)
     runtime.worker_url = None
     monkeypatch.setattr(runtime, '_home', lambda *args: tmp_path)

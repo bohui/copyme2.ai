@@ -33,7 +33,7 @@ begin
   if auth.uid() is null then raise exception 'authenticated owner required' using errcode='42501'; end if;
   return (select jsonb_build_object('schema_version',1,'owner_id',user_id,
     'conversation_id',conversation_id,'product',product,'project_id',project_id)
-    from public.user_lifetime_conversation where user_id=auth.uid() and project_id=p_project_id and product='memoir');
+    from public.user_lifetime_conversation where user_id=auth.uid() and (p_project_id is null or project_id=p_project_id) and product='memoir');
 end $$;
 create function public.capture_lifetime_read_fence(p_project_id text)
 returns jsonb language plpgsql security definer set search_path='' set lock_timeout='2s' as $$

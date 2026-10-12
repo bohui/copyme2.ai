@@ -236,7 +236,7 @@ def test_fifty_round_real_canonical_driver_with_synthetic_dependencies(tmp_path,
 def test_production_collector_payload_defaults_and_normalized_correlation(tmp_path, monkeypatch):
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.trajectory_evaluation import normalise_correlation
-    monkeypatch.setattr('os.getenv', lambda key, default=None: default)
+    monkeypatch.setattr('os.getenv', lambda key, default=None: '1' if key=='MEMOIR_LEGACY_ONLY_DEPLOYMENT' else default)
     async def scenario():
         a=create(tmp_path); c=a.before_round(a.plan['cases'][0]['case_id'],1)
         assert normalise_correlation(c)==c

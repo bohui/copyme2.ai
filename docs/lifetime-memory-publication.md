@@ -1,4 +1,4 @@
-# Governed publication boundary (W2 adapter, not activated)
+# Governed publication boundary (opt-in integration, not activated)
 
 The opt-in adapter requires a server-owned transactional PostgreSQL connection.
 PostgREST alone cannot keep a transaction open across an HTTP send. Deployment and
@@ -22,20 +22,23 @@ locks. Never wait for producer work or another RPC while holding the send guard.
 Lock graph:
 - publication/capture: project -> profile -> lease; read identity after locks
 - existing interview acceptance: project -> profile
-- existing phase/plan publication: project -> lease (and its existing profile reads)
+- phase/plan publication: project -> profile -> lease
 - direct preference write: profile -> identity revision, never project
-- policy invalidation: project -> identity -> disposable continuity
+- policy invalidation: project -> profile -> identity -> disposable continuity
 No identity mutator may subsequently acquire profile. A fresh empty profile row is
 created under project before the fence is captured, so absence cannot bypass locking.
 
 The additive epoch trigger clears the disposable execution pointer and removes typed
 continuity projections when policy changes. It does not erase canonical sources,
 receipts, or historical backups. Prior user-wide unprovenanced generated memory must
-not be fed to governed execution. Pending integration must guard all relevant routes,
-worker/in-process publication, checkpoint/extraction/composer/artifact jobs and
-conservatively disable direct personal-context WebRTC until equivalently revocable.
+not be fed to governed execution. Collector integration guards actual outer ASGI sends and both worker/in-process
+request admission. Direct personal-context WebRTC is disabled in the governed mode
+until equivalently revocable. Composer, collection jobs and additional read routes
+have their own acceptance gates in `lifetime-memory-integration.md`.
 
-The cold-open helper attempts one compatible resume, then at most one canonical
-cold start for a typed missing/corrupt/incompatible state error. Authentication and
-provider errors propagate explicitly. Returned thread IDs are only candidates;
-installation must occur in the same valid fenced transaction as the reply commit.
+The isolated cold-open helper supports one compatible resume and one canonical
+cold fallback for typed state errors. The integrated collector currently always
+uses canonical cold execution in a fresh ephemeral home; it does not claim compatible
+engine resume has been demonstrated. Authentication/provider errors remain explicit.
+Returned thread IDs are only candidates; installation occurs in the same valid
+fenced transaction as the reply commit.

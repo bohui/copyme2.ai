@@ -8,6 +8,16 @@ from .recall import free_recall_rounds,private_draft_cadence
 from .codex_runtime import normalize_conversation_language
 
 
+def receipt_scope_conflict(error, *, snapshot=False):
+    """Only the database's explicit stale-scope fence discards a checkpoint."""
+    try:
+        detail=error.response.json()
+    except (ValueError,AttributeError):
+        return False
+    message='stale private draft snapshot' if snapshot else 'private draft receipt scope stale'
+    return isinstance(detail,dict) and detail.get('code')=='40001' and detail.get('message')==message
+
+
 class PrivateDraftBroker:
     def __init__(self, *, client=None):
         self.url=os.environ['SUPABASE_URL'].rstrip('/')
@@ -40,6 +50,16 @@ class PrivateDraftBroker:
             snapshot['rounds'],source_snapshot(snapshot['memories'],snapshot['project_id']),completed=snapshot['completed'],
             free_limit=free_recall_rounds(),cadence=private_draft_cadence(),enabled=enabled(),authorization_event_id=snapshot['event_id'])
 
+    async def acknowledge(self,event_id,queue):
+        try:
+            await self.request('PATCH','user_private_draft_outbox',params={'id':f'eq.{event_id}'},json={'delivered':True})
+        except httpx.HTTPStatusError as error:
+            if not receipt_scope_conflict(error):
+                raise
+            await asyncio.to_thread(queue.restart_page,event_id)
+            return False
+        return True
+
     async def drain_once(self):
         result=await self.request('GET','user_private_draft_outbox',params={
             'select':'id','delivered':'eq.false','order':'created_at.asc,id.asc','limit':'50'})
@@ -52,12 +72,13 @@ class PrivateDraftBroker:
                 break
             resume=await asyncio.to_thread(queue.page_resume,event['id'])
             if resume and resume['complete']:
-                await self.request('PATCH','user_private_draft_outbox',params={'id':f'eq.{event["id"]}'},json={'delivered':True})
+                if not await self.acknowledge(event['id'],queue):
+                    return
                 continue
             try:
                 snapshot=await self.snapshot(event['id'],resume['next_cursor'] if resume else None)
             except httpx.HTTPStatusError as error:
-                if not resume or error.response.status_code not in {400,409}:
+                if not resume or not (error.response.status_code in {400,409} or receipt_scope_conflict(error,snapshot=True)):
                     raise
                 # A revoked epoch invalidates the opaque continuation. Start
                 # one freshly authorised receipt, never retry stale content.
@@ -72,7 +93,8 @@ class PrivateDraftBroker:
                 snapshot=await self.snapshot(event['id'],view['next_cursor'])
             # Only the complete, durable receipt permits acknowledgement.
             # Draft composition remains a distinct pending/approved operation.
-            await self.request('PATCH','user_private_draft_outbox',params={'id':f'eq.{event["id"]}'},json={'delivered':True})
+            if not await self.acknowledge(event['id'],queue):
+                return
 
     async def run(self):
         while True:

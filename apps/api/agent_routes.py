@@ -10,10 +10,10 @@ import httpx
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import StreamingResponse
-from .lifetime_memory_publication import PublicationUnavailable
 from .turn_stream import STREAM_HEADERS, turn_events
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
+from .lifetime_memory_publication import PublicationUnavailable
 from .agent_routes_support import authenticated_storage
 from .codex_runtime import CodexRuntime
 from .collector_configuration import CollectorConfigurationError
@@ -85,7 +85,7 @@ GREETING_PROMPTS = {
 
 class ConversationPhaseControl(BaseModel):
     model_config = {'extra': 'forbid'}
-    action: Literal['comfort', 'explore', 'shape', 'automatic', 'pause', 'resume', 'skip']
+    action: Literal['comfort', 'explore', 'shape', 'automatic', 'skip']
     expected_revision: int = Field(ge=0, strict=True)
 
 
@@ -125,8 +125,7 @@ async def change_conversation_phase(project_id: str, payload: ConversationPhaseC
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         from .conversation_phase import PhaseState
-        # The RPC locks this owned project and compares revisions. It must be
-        # able to pause an in-flight turn without waiting for its model lease.
+        # The RPC locks this owned project and compares preference revisions.
         state = await asyncio.to_thread(storage.change_conversation_phase,
             project_id, payload.action, payload.expected_revision)
         return {'conversation_phase': PhaseState.model_validate(state).model_dump(mode='json')}
@@ -144,10 +143,20 @@ class ProfileSettingsInput(BaseModel):
     childhood_place: str | None = Field(default=None, max_length=160)
 
 
+def _profile_settings_response(profile):
+    return {key: profile.get(key) for key in ProfileSettingsInput.model_fields}
+
+
 @router.get('/profile')
 async def read_profile_settings(authorization: str | None = Header(default=None)):
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
+        if callable(getattr(storage,'lifetime_rpc',None)):
+            from .lifetime_memory_reads import find_lifetime_read_identity,snapshot_lifetime_read
+            identity=await asyncio.to_thread(find_lifetime_read_identity,storage,None)
+            if identity is not None:
+                return await asyncio.to_thread(snapshot_lifetime_read,storage,identity.project_id,
+                    lambda fence: _profile_settings_response(storage.profile()))
         profile = await asyncio.to_thread(storage.profile)
         from .conversation_locale import restore_from_history
         profile = await restore_from_history(storage, profile)
@@ -161,6 +170,21 @@ async def update_profile_settings(payload: ProfileSettingsInput, authorization: 
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         async with AgentTurnLease(storage) as lease:
+            if callable(getattr(storage,'lifetime_rpc',None)):
+                from .lifetime_memory_reads import find_lifetime_read_identity,snapshot_lifetime_read
+                identity=await lease.io(find_lifetime_read_identity,storage,None)
+                if identity is not None:
+                    patch={key:(value.strip() or None) if isinstance(value,str) else value
+                        for key,value in payload.model_dump(exclude_unset=True).items()}
+                    await lease.io(storage.lifetime_rpc,'set_lifetime_profile_settings',
+                        p_patch=patch,p_lease_token=lease.lease_token)
+                    # Capture before rereading, never attach a newer fence to
+                    # the original RPC response after a concurrent correction.
+                    def current_settings(fence):
+                        current=storage.profile()
+                        return {**_profile_settings_response(current),
+                            'conversation_language':current.get('conversation_language')}
+                    return await lease.io(snapshot_lifetime_read,storage,identity.project_id,current_settings)
             profile = await lease.io(storage.profile)
             for key, value in payload.model_dump(exclude_unset=True).items():
                 if isinstance(value, str):
@@ -273,8 +297,7 @@ def read_turn_receipt(client_turn_id: UUID,
     """Reconcile a lost response without admitting or generating another turn."""
     storage = authenticated_storage(authorization)
     try:
-        from .lifetime_memory_runtime import lifetime_enabled
-        if lifetime_enabled():
+        if callable(getattr(storage,'lifetime_rpc',None)):
             from .lifetime_memory_reads import snapshot_lifetime_read
             return snapshot_lifetime_read(storage,project_id,lambda fence:turn_receipt(storage,project_id,str(client_turn_id)))
         return turn_receipt(storage, project_id, str(client_turn_id))
@@ -283,6 +306,21 @@ def read_turn_receipt(client_turn_id: UUID,
                             headers={'X-Error-Code': 'TURN_RECEIPT_UNAVAILABLE'}) from None
     finally:
         storage.client.close()
+
+
+async def _legacy_publication(storage):
+    """Classify before old execution and fence its eventual actual body sends."""
+    import os
+    from .lifetime_memory_legacy import LegacyPublication,LegacyMappingConflict,LegacyAuthorityUnavailable
+    try:
+        publisher=LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=storage.user_id)
+        async with publisher.guard():
+            pass
+        return publisher
+    except (LegacyMappingConflict,LegacyAuthorityUnavailable) as error:
+        await asyncio.to_thread(storage.client.close)
+        raise HTTPException(409 if isinstance(error,LegacyMappingConflict) else 503,
+            'Conversation authority changed; reload the saved journey',headers={'X-Error-Code':error.code}) from None
 
 
 @router.post('/greeting')
@@ -299,6 +337,13 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     prompt = GREETING_PROMPTS[payload.action]
+    from .lifetime_memory_runtime import lifetime_admission,lifetime_http_turn
+    if await lifetime_admission(storage,payload.project_id):
+        return await lifetime_http_turn(runtime,storage,prompt,accept=accept,options={
+            'project_id':payload.project_id,'language':payload.language,'user_response':False,
+            'client_turn_id':str(payload.client_turn_id) if payload.client_turn_id else None})
+    publisher=await _legacy_publication(storage)
+    from .lifetime_memory_legacy import LegacyJSONResponse,LegacyStreamingResponse
     if 'application/x-ndjson' in accept:
         async def run_stream(emit):
             options = {
@@ -314,10 +359,10 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
                 options['client_turn_id'] = str(payload.client_turn_id)
             return await runtime.turn(storage, prompt, **options)
 
-        return StreamingResponse(
+        return LegacyStreamingResponse(
             turn_events(run_stream,
                         cleanup=lambda: asyncio.to_thread(storage.client.close)),
-            media_type='application/x-ndjson', headers=STREAM_HEADERS,
+            media_type='application/x-ndjson', headers=STREAM_HEADERS,publisher=publisher,
         )
     try:
         options = {
@@ -329,7 +374,7 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
             options['first_reply_localization'] = True
         if payload.client_turn_id:
             options['client_turn_id'] = str(payload.client_turn_id)
-        return await runtime.turn(storage, prompt, **options)
+        return LegacyJSONResponse(await runtime.turn(storage, prompt, **options),publisher=publisher)
     except (httpx.HTTPStatusError, httpx.RequestError) as error:
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     except AgentTurnBusyError as error:
@@ -367,6 +412,16 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
     if payload.project_id is not None and valid_family_project_id(payload.project_id) is None:
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
+    from .lifetime_memory_runtime import lifetime_admission,lifetime_http_turn
+    if await lifetime_admission(storage,payload.project_id):
+        return await lifetime_http_turn(runtime,storage,payload.text,accept=accept,options={
+            'project_id':payload.project_id,'language':payload.language,
+            'client_turn_id':str(payload.client_turn_id) if payload.client_turn_id else None,
+            'conversation_text':payload.conversation_text,'source_kind':payload.source_kind,
+            'uploaded_photo_ids':[str(id) for id in payload.uploaded_photo_ids],
+            'photo_selection':payload.photo_selection})
+    publisher=await _legacy_publication(storage)
+    from .lifetime_memory_legacy import LegacyJSONResponse,LegacyStreamingResponse
     try:
         place_hints = await asyncio.to_thread(_project_place_hints,
             request.app.state.store, payload.project_id, storage.user_id) if payload.project_id else []
@@ -397,10 +452,10 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
                 options['client_turn_id'] = str(payload.client_turn_id)
             return await runtime.turn(storage, payload.text, **options)
 
-        return StreamingResponse(
+        return LegacyStreamingResponse(
             turn_events(run_stream,
                         cleanup=lambda: asyncio.to_thread(storage.client.close)),
-            media_type='application/x-ndjson', headers=STREAM_HEADERS,
+            media_type='application/x-ndjson', headers=STREAM_HEADERS,publisher=publisher,
         )
     try:
         options = {'project_id': payload.project_id, 'language': payload.language}
@@ -418,7 +473,7 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
             options['conversation_text'] = payload.conversation_text
         if payload.client_turn_id:
             options['client_turn_id'] = str(payload.client_turn_id)
-        return await runtime.turn(storage, payload.text, **options)
+        return LegacyJSONResponse(await runtime.turn(storage, payload.text, **options),publisher=publisher)
     except (httpx.HTTPStatusError, httpx.RequestError) as error:
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     except AgentTurnBusyError as error:

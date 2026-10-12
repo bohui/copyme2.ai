@@ -367,6 +367,27 @@ export function createMemoirApi(options: ApiClientOptions) {
         undefined,
         request,
       ),
+    privateDraftPage: (
+      projectId: string,
+      snapshotId: string,
+      options: z.infer<typeof C.ReadPageOptionsSchema> & {
+        legacy?: boolean;
+      } = {},
+      request?: RequestOptions,
+    ) =>
+      json(
+        "/story/private-draft/page" +
+          query({
+            project_id: C.ProjectIdSchema.parse(projectId),
+            snapshot_id: z.uuid().parse(snapshotId),
+            ...C.ReadPageOptionsSchema.parse(options),
+            legacy: options.legacy ? "true" : undefined,
+          }),
+        C.PrivateDraftPageSchema,
+        "GET",
+        undefined,
+        request,
+      ),
     retryPrivateDraft: (
       input: z.infer<typeof C.PreviewInputSchema>,
       request?: RequestOptions,
@@ -381,6 +402,30 @@ export function createMemoirApi(options: ApiClientOptions) {
     collection: (projectId: string, request?: RequestOptions) =>
       json(
         `/agent/collection/${encoded(C.ProjectIdSchema.parse(projectId))}`,
+        C.CollectionSchema,
+        "GET",
+        undefined,
+        request,
+      ),
+    collectionPage: (
+      projectId: string,
+      cursor: string,
+      request?: RequestOptions,
+    ) =>
+      json(
+        `/agent/collection/${encoded(C.ProjectIdSchema.parse(projectId))}${query({ cursor: z.uuid().parse(cursor), limit: 8 })}`,
+        C.CollectionSchema,
+        "GET",
+        undefined,
+        request,
+      ),
+    collectionTaskPage: (
+      projectId: string,
+      cursor: string,
+      request?: RequestOptions,
+    ) =>
+      json(
+        `/agent/collection/${encoded(C.ProjectIdSchema.parse(projectId))}${query({ task_cursor: z.uuid().parse(cursor), limit: 8 })}`,
         C.CollectionSchema,
         "GET",
         undefined,
@@ -430,6 +475,73 @@ export function createMemoirApi(options: ApiClientOptions) {
         undefined,
         request,
       ),
+    taskPage: (taskId: string, cursor: string, request?: RequestOptions) =>
+      json(
+        `/agent/tasks/${encoded(taskId)}${query({ cursor: z.uuid().parse(cursor), limit: 8 })}`,
+        C.TaskSchema,
+        "GET",
+        undefined,
+        request,
+      ),
+    retryTask: (taskId: string, request?: RequestOptions) =>
+      json(
+        `/agent/tasks/${encoded(z.uuid().parse(taskId))}/retry`,
+        C.TaskSchema,
+        "POST",
+        undefined,
+        request,
+      ),
+    completeTaskResult: async (
+      taskId: string,
+      request?: RequestOptions,
+    ): Promise<Record<string, unknown>> => {
+      let cursor: string | undefined;
+      let root: string | undefined;
+      let result: Record<string, unknown> | undefined;
+      const seen = new Set<string>();
+      do {
+        if (request?.signal?.aborted)
+          throw new MemoirApiError("REQUEST_CANCELLED", 0, "reconcile", false);
+        const page = await json(
+          `/agent/tasks/${encoded(taskId)}${query({ cursor, limit: 8 })}`,
+          C.TaskSchema,
+          "GET",
+          undefined,
+          request,
+        );
+        if (request?.signal?.aborted)
+          throw new MemoirApiError("REQUEST_CANCELLED", 0, "reconcile", false);
+        if (
+          page.status !== "SUCCEEDED" ||
+          !page.result ||
+          (root && root !== page.root_digest)
+        ) {
+          throw new MemoirApiError("TASK_INCOMPLETE", 409, "reconcile", true);
+        }
+        const sources = Array.isArray(page.result.sources)
+          ? page.result.sources
+          : [];
+        const blocks = Array.isArray(page.result.blocks)
+          ? page.result.blocks
+          : [];
+        if (!result) {
+          root = page.root_digest;
+          result = {
+            ...page.result,
+            sources: [...sources],
+            blocks: [...blocks],
+          };
+        } else {
+          (result.sources as unknown[]).push(...sources);
+          (result.blocks as unknown[]).push(...blocks);
+        }
+        if (page.complete !== false) return result;
+        if (!page.next_cursor || seen.has(page.next_cursor))
+          throw new MemoirApiError("TASK_INCOMPLETE", 409, "reconcile", true);
+        cursor = page.next_cursor;
+        seen.add(cursor);
+      } while (true);
+    },
     transcribe: (input: C.TranscriptionInput, request?: RequestOptions) =>
       json(
         "/story/transcriptions",
@@ -509,7 +621,51 @@ export function createMemoirApi(options: ApiClientOptions) {
       json(
         "/story/events" +
           query({ project_id: C.ProjectIdSchema.parse(projectId) }),
-        C.RecordSchema,
+        C.EventPageSchema,
+        "GET",
+        undefined,
+        request,
+      ),
+    eventsPage: (
+      projectId: string,
+      options: z.infer<typeof C.ReadPageOptionsSchema> = {},
+      request?: RequestOptions,
+    ) =>
+      json(
+        "/story/events" +
+          query({
+            project_id: C.ProjectIdSchema.parse(projectId),
+            ...C.ReadPageOptionsSchema.parse(options),
+          }),
+        C.EventPageSchema,
+        "GET",
+        undefined,
+        request,
+      ),
+    eventEvidencePage: (
+      projectId: string,
+      eventId: string,
+      options: z.infer<typeof C.ReadPageOptionsSchema> = {},
+      request?: RequestOptions,
+    ) =>
+      json(
+        `/story/events/${encoded(C.ProjectIdSchema.parse(projectId))}/${encoded(eventId)}/sources` +
+          query(C.ReadPageOptionsSchema.parse(options)),
+        C.EventEvidencePageSchema,
+        "GET",
+        undefined,
+        request,
+      ),
+    eventDetailsPage: (
+      projectId: string,
+      eventId: string,
+      options: z.infer<typeof C.ReadPageOptionsSchema> = {},
+      request?: RequestOptions,
+    ) =>
+      json(
+        `/story/events/${encoded(C.ProjectIdSchema.parse(projectId))}/${encoded(eventId)}/details` +
+          query(C.ReadPageOptionsSchema.parse(options)),
+        C.EventDetailsPageSchema,
         "GET",
         undefined,
         request,

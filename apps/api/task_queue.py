@@ -16,15 +16,18 @@ from uuid import uuid4, uuid5, NAMESPACE_URL
 from .memoir_tasks import MemoirTask
 
 
-def configured_queue():
+def configured_queue(*, busy_timeout=30):
     path = os.getenv('MEMORY_SPARK_TASK_DB')
     if not path:
         raise RuntimeError('MEMORY_SPARK_TASK_DB is required for background tasks')
-    return TaskQueue(path)
+    return TaskQueue(path, busy_timeout=busy_timeout)
 
 
 class TaskQueue:
-    def __init__(self, path):
+    def __init__(self, path, *, busy_timeout=30):
+        if not 0 < busy_timeout <= 30:
+            raise ValueError('Task queue busy timeout must be positive and at most 30 seconds')
+        self.busy_timeout = busy_timeout
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         # Named-volume roots can be normalized to 0755. Create the DB privately
@@ -69,11 +72,11 @@ class TaskQueue:
 
     @contextmanager
     def _connect(self):
-        db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
+        db = sqlite3.connect(self.path, timeout=self.busy_timeout, isolation_level=None)
         db.row_factory = sqlite3.Row
         # API and worker processes share this queue. A busy timeout keeps
         # normal cross-process contention from surfacing as a request error.
-        db.execute('PRAGMA busy_timeout=30000')
+        db.execute(f'PRAGMA busy_timeout={int(self.busy_timeout * 1000)}')
         try:
             yield db
         finally:
@@ -160,7 +163,8 @@ class TaskQueue:
             db.execute("""UPDATE tasks SET status='RUNNING', attempts=attempts+1,
                 lease_token=?, lease_until=?, updated_at=? WHERE id=?""",
                 (token, now + lease_seconds, now, row['id']))
-            return {'id': row['id'], 'lease_token': token, 'task': MemoirTask.model_validate_json(row['payload'])}
+            return {'id': row['id'], 'user_id': row['user_id'], 'lease_token': token,
+                    'task': MemoirTask.model_validate_json(row['payload'])}
 
     def finish(self, task_id, token, *, result=None, error=None):
         now = time.time()

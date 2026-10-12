@@ -505,9 +505,6 @@ def test_flag_on_unmapped_legacy_gets_keep_original_owned_read_contract(recovery
     client, rows, calls, _ = recovery
     rows['user_narrator_source'].append(source())
     rows['user_memory'].append(memory())
-    expected = client.get(BASE + path, headers={'Authorization': 'Bearer owner'})
-    assert expected.status_code == 200
-    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     mappings = []
     def rpc(self, name, **kwargs):
         assert name == 'read_lifetime_project_identity'
@@ -515,6 +512,10 @@ def test_flag_on_unmapped_legacy_gets_keep_original_owned_read_contract(recovery
         mappings.append(name)
         return None
     monkeypatch.setattr(UserStorage, 'lifetime_rpc', rpc)
+    expected = client.get(BASE + path, headers={'Authorization': 'Bearer owner'})
+    assert expected.status_code == 200
+    mappings.clear()
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     monkeypatch.setattr(lifetime_memory_reads, 'ReadPublication',
         lambda *a, **kw: pytest.fail('unmapped legacy read cannot invent a fence'))
     actual = client.get(BASE + path, headers={'Authorization': 'Bearer owner'})
@@ -554,3 +555,21 @@ def test_repeated_cancellation_does_not_interrupt_database_close(monkeypatch):
         with pytest.raises(asyncio.CancelledError): await task
         assert connection.closes == 1
     execute(scenario())
+
+
+@pytest.mark.parametrize('configured_dsn,legacy_only,allowed',[(True,True,False),(False,False,False),(False,True,True)])
+def test_rest_schema_cache_miss_never_proves_unmapped_mixed_cohort(monkeypatch,configured_dsn,legacy_only,allowed):
+    import httpx
+    from types import SimpleNamespace
+    from apps.api.lifetime_memory_reads import find_lifetime_read_identity
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+    monkeypatch.setenv('MEMOIR_LEGACY_ONLY_DEPLOYMENT','true' if legacy_only else 'false')
+    if configured_dsn:monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','synthetic-authority')
+    else:monkeypatch.delenv('MEMOIR_PUBLICATION_DATABASE_URL',raising=False)
+    response=httpx.Response(404,request=httpx.Request('POST','https://synthetic.invalid/rpc'),
+        json={'code':'PGRST202','message':'Could not find read_lifetime_project_identity in the schema cache'})
+    def rpc(*args,**kwargs):response.raise_for_status()
+    service=SimpleNamespace(user_id=OWNER,is_anonymous=False,lifetime_rpc=rpc)
+    if allowed:assert find_lifetime_read_identity(service,None) is None
+    else:
+        with pytest.raises(httpx.HTTPStatusError):find_lifetime_read_identity(service,None)

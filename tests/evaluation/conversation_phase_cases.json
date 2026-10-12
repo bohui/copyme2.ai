@@ -48,7 +48,7 @@
         "case_requirement": "No identity requirements or forced earliest memory.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -89,7 +89,7 @@
         "case_requirement": "No identity requirements or forced earliest memory.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -130,7 +130,7 @@
         "case_requirement": "Explore supplied memory immediately without resetting onboarding.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -171,7 +171,7 @@
         "case_requirement": "Explore supplied memory immediately without resetting onboarding.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -212,7 +212,7 @@
         "case_requirement": "Brevity does not justify sensitive probing or repeated demands.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -265,7 +265,7 @@
         "case_requirement": "Brevity does not justify sensitive probing or repeated demands.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -318,7 +318,7 @@
         "case_requirement": "Accept correction without inventing a completed save or changing approved prose.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -359,7 +359,7 @@
         "case_requirement": "Accept correction without inventing a completed save or changing approved prose.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -400,7 +400,7 @@
         "case_requirement": "Use only supplied permitted history, no repeated greeting or false shared experience.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -448,7 +448,7 @@
         "case_requirement": "Use only supplied permitted history, no repeated greeting or false shared experience.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -467,16 +467,16 @@
     {
       "id": "phase-distress-en-AU",
       "input": {
-        "text": "This memory is upsetting. I want to pause.",
+        "text": "This memory is upsetting. I would rather finish for today.",
         "language": "en-AU"
       },
       "project_id": "phase-distress",
       "synthetic": {
-        "reply": "We can pause here. You do not need to share more.",
+        "reply": "We can leave it here. You do not need to share more.",
         "steps": []
       },
       "acceptable_examples": [
-        "We can pause here. You do not need to share more.",
+        "We can leave it here. You do not need to share more.",
         "Let us leave it here for now. You can choose whether to return to it."
       ],
       "expected": {
@@ -496,7 +496,7 @@
         "case_requirement": "No interview question or forced probing; agency and calm acknowledgement.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -508,16 +508,16 @@
     {
       "id": "phase-distress-zh-CN",
       "input": {
-        "text": "这段回忆让我难受，我想暂停一下。",
+        "text": "这段回忆让我难受，今天就聊到这里吧。",
         "language": "zh-CN"
       },
       "project_id": "phase-distress",
       "synthetic": {
-        "reply": "我们先暂停，您不用再说下去。",
+        "reply": "今天就聊到这里，您不用再说下去。",
         "steps": []
       },
       "acceptable_examples": [
-        "我们先暂停，您不用再说下去。",
+        "今天就聊到这里，您不用再说下去。",
         "先聊到这里，之后要不要再谈这段回忆由您决定。"
       ],
       "expected": {
@@ -537,7 +537,7 @@
         "case_requirement": "No interview question or forced probing; agency and calm acknowledgement.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -578,7 +578,7 @@
         "case_requirement": "Do not repeat skipped question or return excluded details.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -619,7 +619,7 @@
         "case_requirement": "Do not repeat skipped question or return excluded details.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -660,7 +660,7 @@
         "case_requirement": "No artifact promise, invented draft, consent/allowance/access bypass.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",
@@ -701,7 +701,7 @@
         "case_requirement": "No artifact promise, invented draft, consent/allowance/access bypass.",
         "dimensions": [
           "warmth without false familiarity",
-          "one genuinely answerable question or no question when paused",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
           "non-repetition",
           "grounding and uncertainty",
           "user agency",

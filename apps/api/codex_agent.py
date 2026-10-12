@@ -94,7 +94,7 @@ class CodexConnection:
         # response receipt. A completed drain admits in-flight work; public
         # chunks and commit still require their separate publication fences.
         data = (json.dumps(message) + '\n').encode()
-        if self.request_admission is not None and message.get('method') in {'thread/start', 'turn/start'}:
+        if self.request_admission is not None and message.get('method') in {'thread/start', 'thread/resume', 'turn/start'}:
             async with self.request_admission():
                 self.process.stdin.write(data)
                 await self.process.stdin.drain()

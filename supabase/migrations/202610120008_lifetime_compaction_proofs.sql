@@ -35,9 +35,9 @@ begin
   if predecessor is not null then select coverage_end into start_sequence from public.user_lifetime_checkpoint where id=predecessor and published; end if;
   start_sequence:=coalesce(start_sequence,0);
   if p_through_sequence is null or p_through_sequence<=start_sequence or p_through_sequence>(p_fence->>'source_revision')::bigint then raise exception 'invalid maintenance interval'; end if;
-  if (select count(*) from public.user_lifetime_source_position where user_id=owner and project_id=project
-      and sequence>start_sequence and sequence<=p_through_sequence)<>p_through_sequence-start_sequence then
-    raise exception 'historical position inventory is incomplete; explicit mapping inventory required';
+  if not exists(select 1 from public.user_lifetime_source_inventory where user_id=owner and project_id=project
+      and record_count=(p_fence->>'source_revision')::bigint and max_sequence=(p_fence->>'source_revision')::bigint) then
+    raise exception 'LIFETIME_INVENTORY_REQUIRED: historical position inventory is incomplete' using errcode='40001';
   end if;
   -- One existing matching session is sufficient after an uncertain response.
   select * into saved from public.user_lifetime_compaction where user_id=owner and conversation_id=conversation

@@ -35,6 +35,14 @@ class PrivateDraftJobs(TaskQueue):
                 job_id TEXT NOT NULL,cursor_key TEXT NOT NULL,page_digest TEXT NOT NULL,
                 next_cursor TEXT,record_count INTEGER NOT NULL,
                 PRIMARY KEY(job_id,cursor_key));
+              CREATE TABLE IF NOT EXISTS private_draft_page_state (
+                user_id TEXT NOT NULL,project_id TEXT NOT NULL,conversation_id TEXT NOT NULL,
+                policy_epoch INTEGER NOT NULL,preference_revision INTEGER NOT NULL,
+                round_revision INTEGER NOT NULL,locale TEXT NOT NULL,
+                PRIMARY KEY(user_id,project_id));
+              CREATE INDEX IF NOT EXISTS private_draft_snapshot_key ON private_draft_jobs(source_key);
+              CREATE INDEX IF NOT EXISTS private_draft_receipt_event ON private_draft_jobs(
+                json_extract(payload,'$.authorization_event_id'),created_at DESC);
             ''')
 
     def synchronize(self, owner, project, locale, rounds, sources, *, completed, free_limit, cadence, enabled=True, authorization_event_id=None):
@@ -136,8 +144,28 @@ class PrivateDraftJobs(TaskQueue):
                     raise ValueError('Invalid completed round')
             else:
                 raise ValueError('Unknown private draft record')
+        coverage_fields=('coverage_schema_version','base_snapshot_id','source_after','round_after','round_revision')
+        inherited=any(field in page for field in coverage_fields)
+        source_after=round_after=round_revision=0
+        if inherited:
+            if not all(field in page for field in coverage_fields):
+                raise ValueError('Incomplete private draft coverage contract')
+            if type(page.get('coverage_schema_version')) is not int or page['coverage_schema_version']!=1:
+                raise ValueError('Unknown private draft coverage contract')
+            for field,maximum in (('source_after',page['source_revision']),('round_after',page['round_high_water']),('round_revision',None)):
+                if type(page.get(field)) is not int or page[field]<0 or (maximum is not None and page[field]>maximum):
+                    raise ValueError('Invalid inherited private draft coverage')
+            source_after,round_after,round_revision=(page[field] for field in ('source_after','round_after','round_revision'))
+            base=page.get('base_snapshot_id')
+            if (source_after or round_after):
+                if not isinstance(base,str) or not 1<=len(base)<=128 or base==page['snapshot_id']:
+                    raise ValueError('Acknowledged prefix receipt required')
+            elif base is not None:
+                raise ValueError('Unexpected empty prefix receipt')
         fields=('schema_version','protocol','snapshot_id','event_id','user_id','project_id','conversation_id',
             'policy_epoch','preference_revision','source_revision','event_revision','round_high_water','completed','locale')
+        if inherited:
+            fields+=coverage_fields
         metadata={field:page[field] for field in fields}
         payload={**metadata,'free_limit':free_limit,'cadence':cadence,'enabled':enabled,
             'authorization_event_id':page['event_id']}
@@ -148,7 +176,8 @@ class PrivateDraftJobs(TaskQueue):
             row=db.execute('SELECT * FROM private_draft_jobs WHERE source_key=?',(key,)).fetchone()
             if row:
                 old_payload=json.loads(row['payload'])
-                if row['status']=='STALE' or any(old_payload.get(field)!=metadata[field] for field in fields):
+                if (row['status']=='STALE' or any(field in old_payload for field in coverage_fields)!=inherited
+                        or any(old_payload.get(field)!=metadata[field] for field in fields)):
                     raise ValueError('Private draft snapshot scope or policy changed')
                 if old_payload != payload:
                     db.execute('UPDATE private_draft_jobs SET payload=?,milestone=? WHERE id=?',
@@ -167,24 +196,41 @@ class PrivateDraftJobs(TaskQueue):
             else:
                 if page.get('cursor') is not None:
                     raise ValueError('Private draft first page required')
-                current=db.execute("SELECT max(source_epoch),max(json_extract(payload,'$.preference_revision')) FROM private_draft_jobs WHERE user_id=? AND project_id=? AND json_extract(payload,'$.protocol')='lifetime_draft_pages'",
+                state=db.execute('SELECT * FROM private_draft_page_state WHERE user_id=? AND project_id=?',
                     (owner,project)).fetchone()
-                if ((current[0] is not None and current[0] > page['policy_epoch'])
-                        or (current[1] is not None and current[1] > page['preference_revision'])):
-                    raise ValueError('Stale private draft policy or preferences')
-                if db.execute("SELECT 1 FROM private_draft_jobs WHERE user_id=? AND project_id=? AND json_extract(payload,'$.protocol')='lifetime_draft_pages' AND json_extract(payload,'$.preference_revision')=? AND locale<>? LIMIT 1",
-                        (owner,project,page['preference_revision'],locale)).fetchone():
+                if state is None:
+                    # One compatibility scan when upgrading a pre-coverage
+                    # store. Subsequent receipts use this constant-sized fence.
+                    previous=db.execute("SELECT payload FROM private_draft_jobs WHERE user_id=? AND project_id=? AND json_extract(payload,'$.protocol')='lifetime_draft_pages' ORDER BY source_epoch DESC,created_at DESC LIMIT 1",
+                        (owner,project)).fetchone()
+                    if previous:
+                        prior=json.loads(previous['payload'])
+                        state={'conversation_id':prior['conversation_id'],'policy_epoch':prior['policy_epoch'],
+                            'preference_revision':prior['preference_revision'],'round_revision':prior.get('round_revision',0),'locale':prior['locale']}
+                if state and (state['conversation_id']!=page['conversation_id'] or state['policy_epoch']>page['policy_epoch']
+                        or state['preference_revision']>page['preference_revision'] or state['round_revision']>round_revision):
+                    raise ValueError('Stale private draft identity, policy or preferences')
+                if state and state['preference_revision']==page['preference_revision'] and state['locale']!=locale:
                     raise ValueError('Private draft locale conflicts with its preference revision')
-                # Unknown legacy projections may not be relabelled canonical.
-                db.execute("""UPDATE private_draft_jobs SET status='STALE',payload='{}',checkpoint='{}',lease_token=NULL,lease_until=NULL
-                    WHERE user_id=? AND project_id=? AND status IN ('PAGING','BLOCKED','QUEUED','RUNNING')
-                    AND (json_extract(payload,'$.protocol') IS NOT 'lifetime_draft_pages' OR source_epoch<>?
-                      OR json_extract(payload,'$.preference_revision')<>? OR locale<>?)""",
-                    (owner,project,page['policy_epoch'],page['preference_revision'],locale))
-                db.execute('UPDATE private_draft_projects SET stale=1 WHERE user_id=? AND project_id=?',(owner,project))
+                changed=state is None or any(state[field]!=value for field,value in (
+                    ('policy_epoch',page['policy_epoch']),('preference_revision',page['preference_revision']),
+                    ('round_revision',round_revision),('locale',locale)))
+                if changed:
+                    # Invalidation scales with policy changes, never with each
+                    # appended turn or repeated receipt at the same generation.
+                    db.execute("""UPDATE private_draft_jobs SET status='STALE',payload='{}',checkpoint='{}',lease_token=NULL,lease_until=NULL
+                        WHERE user_id=? AND project_id=? AND status IN ('PAGING','BLOCKED','QUEUED','RUNNING')
+                        AND (json_extract(payload,'$.protocol') IS NOT 'lifetime_draft_pages' OR source_epoch<>?
+                          OR json_extract(payload,'$.preference_revision')<>? OR locale<>?
+                          OR coalesce(json_extract(payload,'$.round_revision'),0)<>?)""",
+                        (owner,project,page['policy_epoch'],page['preference_revision'],locale,round_revision))
+                    db.execute('UPDATE private_draft_projects SET stale=1 WHERE user_id=? AND project_id=?',(owner,project))
+                db.execute('INSERT INTO private_draft_page_state VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,project_id) DO UPDATE SET policy_epoch=excluded.policy_epoch,preference_revision=excluded.preference_revision,round_revision=excluded.round_revision,locale=excluded.locale',
+                    (owner,project,page['conversation_id'],page['policy_epoch'],page['preference_revision'],round_revision,locale))
                 job_id=str(uuid4())
                 checkpoint={'next_cursor':None,'complete':False,'page_count':0,'record_count':0,'digest':'',
-                    'last_source_sequence':0,'last_source_offset':-1,'last_round':0}
+                    'last_source_sequence':source_after,'last_source_offset':2147483647 if source_after else -1,
+                    'last_round':round_after,'rounds_started':False}
                 db.execute("""INSERT INTO private_draft_jobs(id,user_id,project_id,locale,source_key,source_epoch,milestone,payload,
                     status,phase,error,available_at,created_at) VALUES(?,?,?,?,?,?,?,?, 'PAGING','retrieving',NULL,?,?)""",
                     (job_id,owner,project,locale,key,page['policy_epoch'],(page['round_high_water']//cadence)*cadence,json.dumps(payload),now,now))
@@ -193,6 +239,7 @@ class PrivateDraftJobs(TaskQueue):
                     if record['ordinal'] <= checkpoint['last_round']:
                         raise ValueError('Completed rounds must be strictly ordered')
                     checkpoint['last_round']=record['ordinal']
+                    checkpoint['rounds_started']=True
                     existing=db.execute('SELECT ordinal FROM private_draft_rounds WHERE user_id=? AND project_id=? AND turn_id=?',
                         (owner,project,record['turn_id'])).fetchone()
                     if existing and existing['ordinal'] != record['ordinal']:
@@ -201,8 +248,10 @@ class PrivateDraftJobs(TaskQueue):
                         (owner,project,record['turn_id'],record['ordinal'],record.get('memory_id')))
                 else:
                     position=(record['sequence'],record['char_start'])
-                    if checkpoint['last_round'] or position <= (checkpoint['last_source_sequence'],checkpoint['last_source_offset']):
+                    if checkpoint.get('rounds_started',bool(checkpoint['last_round'])) or position <= (checkpoint['last_source_sequence'],checkpoint['last_source_offset']):
                         raise ValueError('Canonical chunks must be strictly ordered')
+                    if record['sequence'] > checkpoint['last_source_sequence']+1:
+                        raise ValueError('Canonical source position coverage is incomplete')
                     checkpoint['last_source_sequence'],checkpoint['last_source_offset']=position
             if page['complete'] and (checkpoint['last_source_sequence'] != page['source_revision']
                     or checkpoint['last_round'] != page['round_high_water']):
@@ -226,7 +275,9 @@ class PrivateDraftJobs(TaskQueue):
             'error':row['error'],'retrieval_complete':checkpoint['complete'],
             'next_cursor':checkpoint['next_cursor'],'page_count':checkpoint['page_count'],
             'record_count':checkpoint['record_count'],'snapshot_digest':checkpoint['digest'],
-            'round_high_water':payload['round_high_water'],'milestone':row['milestone']}
+            'round_high_water':payload['round_high_water'],'milestone':row['milestone'],
+            'source_after':payload.get('source_after',0),'round_after':payload.get('round_after',0),
+            'base_snapshot_id':payload.get('base_snapshot_id')}
 
     def page_resume(self,event_id):
         with self._connect() as db:
@@ -237,6 +288,13 @@ class PrivateDraftJobs(TaskQueue):
             checkpoint=json.loads(row['checkpoint'])
             return {**self._page_view(dict(row),checkpoint),'complete':checkpoint['complete'],
                 'snapshot_id':row['source_key']}
+
+    def restart_page(self,event_id):
+        """Discard only a receipt rejected by the authoritative scope fence."""
+        with self._transaction() as db:
+            db.execute("""UPDATE private_draft_jobs SET status='STALE',payload='{}',checkpoint='{}',
+                lease_token=NULL,lease_until=NULL WHERE json_extract(payload,'$.authorization_event_id')=?
+                AND json_extract(payload,'$.protocol')='lifetime_draft_pages'""",(event_id,))
 
     def _view(self, db, owner, project, locale):
         row=db.execute('SELECT * FROM private_draft_projects WHERE user_id=? AND project_id=? AND locale=?',

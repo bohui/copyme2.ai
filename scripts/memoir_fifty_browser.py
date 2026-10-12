@@ -30,7 +30,8 @@ from fastapi.responses import JSONResponse
 _READ_TABLES = frozenset({'user_profile', 'user_memory', 'user_recall_usage',
     'user_completed_round', 'user_place_journey', 'user_family_context',
     'user_memoir_project', 'user_narrator_source', 'story_entitlements'})
-_READ_RPCS = frozenset({'read_user_memory_events', 'read_user_memoir_draft', 'read_user_interview_turn'})
+_READ_RPCS = frozenset({'read_user_memory_events', 'read_user_memoir_draft', 'read_user_interview_turn',
+    'read_lifetime_project_identity'})
 _AGENT_READS = frozenset({'/v1/agent/profile', '/v1/agent/place-journey',
     '/v1/agent/family-context', '/v1/agent/turns/{client_turn_id}'})
 _USER_READS = frozenset({'/v1/user/projects', '/v1/user/projects/{project_id}/history',
@@ -226,7 +227,12 @@ class OwnedFiftyBrowserAPI:
             if allowed:
                 import json
                 data = dict(url.params) if request.method == 'GET' else json.loads(request.content)
-                allowed = data.get('p_project_id') == plan['project_id']
+                if rpc == 'read_lifetime_project_identity':
+                    # Cohort selection may inspect this verified owner without
+                    # adopting or selecting any different historical project.
+                    allowed = set(data) == {'p_project_id'} and data['p_project_id'] in (None, plan['project_id'])
+                else:
+                    allowed = data.get('p_project_id') == plan['project_id']
         for key, value in url.params.multi_items():
             if key == 'user_id' and value != 'eq.' + plan['owner_id']:
                 allowed = False
@@ -235,6 +241,12 @@ class OwnedFiftyBrowserAPI:
         if not allowed:
             return httpx.Response(403, json={'detail': 'Read-only fixture denies this storage operation'})
         response = self._facades[case].handle(request)
+        if path == '/rest/v1/rpc/read_lifetime_project_identity' and response.status_code == 200:
+            identity = response.json()
+            if identity is not None and (not isinstance(identity, dict)
+                    or identity.get('owner_id') != plan['owner_id']
+                    or identity.get('project_id') != plan['project_id']):
+                return httpx.Response(403, json={'detail': 'Readback identity scope denied'})
         # UserStorage's production read method migrates legacy caches at revision
         # zero. Stop before that branch, including any local cache inspection.
         if path == '/rest/v1/rpc/read_user_memoir_draft' and response.status_code == 200:
@@ -251,6 +263,8 @@ class OwnedFiftyBrowserAPI:
                 or request.url.port not in (None, 80)
                 or request.headers.get('authorization') != 'Bearer ' + owner):
             raise HTTPException(403, 'Owned turn storage scope denied')
+        if request.url.path == '/rest/v1/rpc/read_lifetime_project_identity':
+            return self._handle_read(case, request)
         data = json.loads(request.content) if request.content and request.headers.get('content-type', '').startswith('application/json') else {}
         if isinstance(data, dict):
             if any(data.get(key, owner) != owner for key in ('user_id', 'p_user_id', 'owner_id', 'p_owner_id')):

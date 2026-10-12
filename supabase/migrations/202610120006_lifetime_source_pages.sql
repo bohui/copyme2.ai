@@ -3,7 +3,7 @@ begin;
 -- Position metadata contains no narrator bytes. Updates preserve the old
 -- sequence as a superseded tombstone instead of making compaction infer a gap.
 create table public.user_lifetime_source_position (
-  user_id uuid not null, project_id text not null, sequence bigint not null,
+  user_id uuid not null, project_id text not null, sequence bigint not null check(sequence>0),
   source_id uuid not null, version bigint not null,
   primary key(user_id,project_id,sequence),
   foreign key(user_id,project_id) references public.user_memoir_project on delete cascade
@@ -22,6 +22,34 @@ end $$;
 create trigger lifetime_source_position after insert or update of version,sequence on public.user_narrator_source
  for each row execute function public.record_lifetime_source_position();
 revoke all on function public.record_lifetime_source_position() from public,anon,authenticated;
+-- Constant-size mechanically maintained inventory proof. Historical rows are
+-- deliberately not backfilled: an approved mapping must first reconcile them.
+create table public.user_lifetime_source_inventory (
+ user_id uuid not null, project_id text not null, record_count bigint not null check(record_count>=0),
+ max_sequence bigint not null check(max_sequence>=0), primary key(user_id,project_id),
+ foreign key(user_id,project_id) references public.user_memoir_project on delete cascade
+);
+alter table public.user_lifetime_source_inventory enable row level security;
+revoke all on public.user_lifetime_source_inventory from public,anon,authenticated;
+create function public.track_lifetime_source_inventory() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+ if tg_op='INSERT' then
+   insert into public.user_lifetime_source_inventory values(new.user_id,new.project_id,1,new.sequence)
+   on conflict(user_id,project_id) do update set record_count=public.user_lifetime_source_inventory.record_count+1,
+     max_sequence=greatest(public.user_lifetime_source_inventory.max_sequence,excluded.max_sequence);
+ else
+   update public.user_lifetime_source_inventory set record_count=record_count-1,
+     max_sequence=case when max_sequence=old.sequence then coalesce((select max(sequence) from public.user_lifetime_source_position
+       where user_id=old.user_id and project_id=old.project_id),0) else max_sequence end
+     where user_id=old.user_id and project_id=old.project_id;
+ end if;
+ return coalesce(new,old);
+end $$;
+create trigger lifetime_source_inventory after insert or delete on public.user_lifetime_source_position
+ for each row execute function public.track_lifetime_source_inventory();
+revoke all on function public.track_lifetime_source_inventory() from public,anon,authenticated;
+
 create table public.user_lifetime_source_cursor (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
@@ -52,6 +80,10 @@ begin
   select policy_epoch,source_sequence into epoch,high_water from public.user_memoir_project
     where user_id=owner and project_id=project for share;
   if epoch is distinct from p_policy_epoch then raise exception 'stale source policy' using errcode='40001'; end if;
+  if high_water>0 and not exists(select 1 from public.user_lifetime_source_inventory where user_id=owner and project_id=project
+    and record_count=high_water and max_sequence=high_water) then
+    raise exception 'LIFETIME_INVENTORY_REQUIRED: historical source positions are incomplete' using errcode='40001';
+  end if;
   if p_cursor is not null then
     select * into cursor_row from public.user_lifetime_source_cursor where id=p_cursor
       and user_id=owner and conversation_id=p_conversation_id and policy_epoch=epoch

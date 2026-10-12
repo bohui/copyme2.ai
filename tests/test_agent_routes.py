@@ -11,7 +11,7 @@ from apps.api.store import MemoryStore
 @pytest.mark.parametrize('accept', ['application/json', 'application/x-ndjson'])
 def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, accept):
     from unittest.mock import Mock
-    storage = Mock()
+    storage = Mock(user_id='11111111-1111-4111-8111-111111111111',lifetime_rpc=None)
     captured = {}
 
     class Runtime:
@@ -30,7 +30,7 @@ def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, a
 
 
 def test_greeting_route_uses_only_server_owned_prompt_and_marks_assistant_only(monkeypatch):
-    storage = type('Storage', (), {'client': type('Client', (), {'close': lambda self: None})()})()
+    storage = type('Storage', (), {'user_id':'11111111-1111-4111-8111-111111111111','client': type('Client', (), {'close': lambda self: None})()})()
     captured = {}
 
     class Runtime:
@@ -53,7 +53,7 @@ def test_greeting_route_uses_only_server_owned_prompt_and_marks_assistant_only(m
 
 
 def test_free_form_opening_prefix_on_public_turn_is_not_an_assistant_only_action(monkeypatch):
-    storage = type('Storage', (), {'client': type('Client', (), {'close': lambda self: None})()})()
+    storage = type('Storage', (), {'user_id':'11111111-1111-4111-8111-111111111111','client': type('Client', (), {'close': lambda self: None})()})()
     captured = {}
 
     class Runtime:

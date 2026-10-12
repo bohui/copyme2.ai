@@ -23,7 +23,7 @@ revoke all on public.user_lifetime_checkpoint from public,anon,authenticated;
 create function public.read_lifetime_pinned(p_conversation_id uuid) returns jsonb
 language plpgsql security definer set search_path=public,auth as $$
 declare owner uuid:=auth.uid(); identity public.user_lifetime_conversation%rowtype; profile jsonb;
-  phase jsonb; question text; plan jsonb; continuity jsonb; epoch bigint; record jsonb; selected_bytes integer:=0; omitted boolean:=false;
+  phase jsonb; question text; plan jsonb; continuity jsonb; epoch bigint; record jsonb; selected_bytes integer:=0; omitted boolean:=false; policy_record record; policy_bytes integer:=0; privacy_complete boolean:=true; paused jsonb; excluded jsonb; unresolved jsonb;
 begin
   select * into identity from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
   if not found then raise exception 'conversation unavailable'; end if;
@@ -38,25 +38,41 @@ begin
   -- language, exclusions, phase and active question below are authoritative pins
   -- and are never selected by lexical relevance.
   continuity:='[]'::jsonb;
-  for record in select to_jsonb(c)-'user_id'-'conversation_id' from public.user_lifetime_continuity c
+  for record in select to_jsonb(c)-'user_id'-'conversation_id'-'last_source_sequence' from public.user_lifetime_continuity c
     where c.user_id=owner and c.conversation_id=p_conversation_id and c.policy_epoch=epoch
       and not exists(select 1 from jsonb_array_elements(c.data->'source_refs') ref where not exists(
         select 1 from public.user_narrator_source s where s.user_id=owner and s.project_id=identity.project_id
           and s.id=(ref->>'source_id')::uuid and s.version=(ref->>'version')::bigint and s.status='active'))
     order by case c.kind when 'unresolved_reference' then 0 when 'commitment' then 1 else 2 end,
-      (select max(s.sequence) from jsonb_array_elements(c.data->'source_refs') ref
-        join public.user_narrator_source s on s.id=(ref->>'source_id')::uuid and s.user_id=owner) desc,c.record_id
+      c.last_source_sequence desc,c.record_id
     limit 9
   loop
     if jsonb_array_length(continuity)>=8 or selected_bytes+octet_length(record::text)>8000 then omitted:=true;
     else continuity:=continuity||jsonb_build_array(record);selected_bytes:=selected_bytes+octet_length(record::text); end if;
   end loop;
+  paused:=coalesce(profile->'memory_preferences'->'paused_topics','[]');
+  excluded:=coalesce(profile->'memory_preferences'->'excluded_topics','[]');
+  unresolved:=coalesce(profile->'memory_preferences'->'unresolved_references','[]');
+  policy_bytes:=octet_length(paused::text)+octet_length(excluded::text)+octet_length(unresolved::text);
+  privacy_complete:=policy_bytes<=16384;
+  if privacy_complete then
+    for policy_record in select kind,data->>'text' as text from public.user_lifetime_continuity
+      where user_id=owner and conversation_id=p_conversation_id and policy_epoch=epoch and kind in ('paused_topic','excluded_topic')
+      order by record_id limit 16385 loop
+      policy_bytes:=policy_bytes+octet_length(to_jsonb(policy_record.text)::text)+1;
+      if policy_bytes>16384 then privacy_complete:=false;exit;end if;
+      if policy_record.kind='paused_topic' then paused:=paused||to_jsonb(policy_record.text);
+      else excluded:=excluded||to_jsonb(policy_record.text);end if;
+    end loop;
+  end if;
+  -- Never send a partial policy to a model. The coordinator returns an accepted
+  -- maintenance receipt when this active configuration exceeds one request.
+  if not privacy_complete then paused:='[]';excluded:='[]';unresolved:='[]';end if;
   return jsonb_build_object('schema_version',1,'known_continuity',continuity,'known_continuity_complete',not omitted,
     'continuity_retrieval','read_lifetime_continuity','preference_revision',identity.preference_revision,'conversation_phase',phase,
     'chosen_name',profile->>'name','language',case when profile->>'preferred_language' in ('en-AU','zh-CN') then profile->>'preferred_language' else 'en-AU' end,
-    'active_question',question,'unresolved_references',coalesce(profile->'memory_preferences'->'unresolved_references','[]'),
-    'paused_topics',coalesce(profile->'memory_preferences'->'paused_topics','[]'),
-    'excluded_topics',coalesce(profile->'memory_preferences'->'excluded_topics','[]'));
+    'active_question',question,'privacy_complete',privacy_complete,'unresolved_references',unresolved,
+    'paused_topics',paused,'excluded_topics',excluded);
 end $$;
 
 create function public.create_lifetime_checkpoint(p_fence jsonb,p_coverage_end bigint,p_model text,

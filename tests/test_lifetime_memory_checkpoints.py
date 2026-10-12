@@ -122,13 +122,16 @@ def test_more_than_100_historical_records_keep_recent_pronoun_context_bounded(sq
     statement=''.join(f"select public.save_lifetime_continuity('{identity['conversation_id']}','person-{n:03d}','person',0,1,'{OLD}',{literal(data)}::jsonb);" for n in range(120))
     sql(as_user(statement))
     rpc(sql,'save_lifetime_continuity',f"'{identity['conversation_id']}','active-pronoun','unresolved_reference',0,1,'{OLD}',{literal(data)}::jsonb")
+    rpc(sql,'save_lifetime_continuity',f"'{identity['conversation_id']}','privacy-exclusion','excluded_topic',0,1,'{OLD}',{literal({**data,'text':'Do not discuss the private school incident.'})}::jsonb")
     pins=rpc(sql,'read_lifetime_pinned',f"'{identity['conversation_id']}'")
+    assert 'Do not discuss the private school incident.' in pins['excluded_topics']
     assert len(pins['known_continuity'])<=8 and not pins['known_continuity_complete']
     assert pins['known_continuity'][0]['record_id']=='active-pronoun'
     assert pins['known_continuity'][0]['data']['uncertainty']=='Two people may share this name'
     assert pins['continuity_retrieval']=='read_lifetime_continuity'
     page=rpc(sql,'read_lifetime_continuity',f"'{identity['conversation_id']}',1,'',100")
     assert len(page['records'])==100 and not page['complete']
+    fence=rpc(sql,'capture_lifetime_fence',f"'{identity['conversation_id']}','{OLD}'")
     candidate=create(sql,fence,evidence)
     rpc(sql,'publish_lifetime_checkpoint',f"'{candidate}',{literal(fence)}::jsonb")
     restored=ContextCheckpoint.model_validate(read(sql,identity))

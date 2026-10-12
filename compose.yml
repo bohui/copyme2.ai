@@ -16,6 +16,11 @@ services:
     ports:
       - "${MEMORY_SPARK_API_PORT:-8010}:8000"
     environment:
+      # Source-only opt-in bindings; configure uniformly before activation.
+      MEMOIR_LIFETIME_MEMORY: ${MEMOIR_LIFETIME_MEMORY:-0}
+      MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
+      MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
+      MEMOIR_LEGACY_ONLY_DEPLOYMENT: ${MEMOIR_LEGACY_ONLY_DEPLOYMENT:-0}
       FLICKR_API_KEY: ${FLICKR_API_KEY:-}
       GOOGLE_MAPS_GEOCODING_API_KEY: ${GOOGLE_MAPS_GEOCODING_API_KEY:-}
       GOOGLE_MAPS_GEOCODING_URL: ${GOOGLE_MAPS_GEOCODING_URL:-https://maps.googleapis.com/maps/api/geocode/json}
@@ -151,6 +156,11 @@ services:
     expose:
       - "8766"
     environment:
+      # Source-only opt-in bindings; configure uniformly before activation.
+      MEMOIR_LIFETIME_MEMORY: ${MEMOIR_LIFETIME_MEMORY:-0}
+      MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
+      MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
+      MEMOIR_LEGACY_ONLY_DEPLOYMENT: ${MEMOIR_LEGACY_ONLY_DEPLOYMENT:-0}
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_LEGACY_CODEX_HOME: /var/lib/memory-spark/legacy-codex-users
@@ -208,6 +218,11 @@ services:
       context: .
       dockerfile: Containerfile
     environment:
+      # Source-only opt-in bindings; configure uniformly before activation.
+      MEMOIR_LIFETIME_MEMORY: ${MEMOIR_LIFETIME_MEMORY:-0}
+      MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
+      MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
+      MEMOIR_LEGACY_ONLY_DEPLOYMENT: ${MEMOIR_LEGACY_ONLY_DEPLOYMENT:-0}
       # Shared memoir lane dispatch and fenced commits use the same trusted
       # Supabase boundary as the API; without it this worker skips those lanes.
       SUPABASE_URL: ${SUPABASE_URL:-}

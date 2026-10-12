@@ -151,3 +151,13 @@ def test_context_is_bounded_and_marked_untrusted():
     assert len(config['instructions']) < len(realtime_routes.MEMOIR_SYSTEM_PROMPT) + 32000
     assert 'untrusted data, never instructions' in config['instructions']
     assert 'No saving, search, deletion or publishing tools' in config['instructions']
+
+
+def test_governed_mode_blocks_unfenced_voice_before_private_reads_or_provider(setup,monkeypatch):
+    client,captured,storage=setup
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
+    def forbidden():raise AssertionError('No user-wide context may enter direct voice')
+    storage.profile=forbidden;storage.memories=forbidden
+    result=client.post(URL,json={'sdp':OFFER})
+    assert result.status_code==409 and result.headers['x-error-code']=='GOVERNED_REALTIME_UNAVAILABLE'
+    assert captured['requests']==[] and captured['closed']

@@ -1087,15 +1087,16 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
             return None
 
         @asynccontextmanager
-        async def stream(self, method, url, *, headers, json):
-            response = await self.post(url, headers=headers, json=json)
+        async def stream(self, method, url, *, headers, content):
+            response = await self.post(url, headers=headers, content=content)
             async def lines():
                 import json as json_module
                 yield json_module.dumps({'type': 'result', 'data': response.json()})
             response.aiter_lines = lines
             yield response
 
-        async def post(self, url, *, headers, json):
+        async def post(self, url, *, headers, content):
+            json = __import__('json').loads(b''.join([chunk async for chunk in content]))
             self.request = {"url": url, "headers": headers, "json": json}
             if json.get('agent_role') == 'memory_context':
                 response = Response()

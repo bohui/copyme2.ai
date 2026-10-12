@@ -31,10 +31,12 @@ class LifetimeMemoryService:
     def __init__(self,rpc,*,budget,prompt_version='lifetime-v1'):
         self.rpc=rpc;self.budget=budget;self.prompt_version=prompt_version
 
-    def assemble(self,*,fence,current,instructions,tail,tail_coverage):
+    def assemble(self,*,fence,current,instructions,tail,tail_coverage,interview_context=None):
         """Tail must be a complete bounded canonical page result, not a guess."""
         identity=IdentityEnvelope.model_validate(fence['identity']);epoch=fence['policy_epoch']
         pins=PinnedContinuity.model_validate(self.rpc('read_lifetime_pinned',p_conversation_id=str(identity.conversation_id)))
+        if not pins.privacy_complete:
+            raise MaintenancePending('The source is accepted; active privacy constraints need maintenance before another model request')
         saved=self.rpc('read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
             p_model=self.budget.model,p_prompt_version=self.prompt_version)
         checkpoint=ContextCheckpoint.model_validate(saved) if saved else None
@@ -58,7 +60,7 @@ class LifetimeMemoryService:
                     retrieved.append(ContextSource(identity=identity,policy_epoch=epoch,source_id=row['source_id'],version=row['version'],
                         sequence=row['sequence'],original=row['text'],char_start=row['char_start'],language=row['language'],kind=row['kind']))
         args=dict(identity=identity,policy_epoch=epoch,pinned=pins,instructions=instructions,current=current,
-            retrieved=retrieved,budget=self.budget,prompt_version=self.prompt_version,retrieval_complete=complete)
+            retrieved=retrieved,budget=self.budget,prompt_version=self.prompt_version,retrieval_complete=complete,fence=fence,interview_context=interview_context)
         try:
             if not tail_coverage.complete:raise CheckpointRequired('Incomplete local tail requires a complete canonical maintenance proof')
             return build_context(**args,tail=tail,tail_coverage=tail_coverage,checkpoint=checkpoint)

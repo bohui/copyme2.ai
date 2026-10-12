@@ -1,5 +1,11 @@
 export type Locale = "en-AU" | "zh-CN";
 const en = {
+  collectionMoreSources: "Load more saved memories",
+  collectionPartial:
+    "More saved memories are available. Only your selections are included.",
+  collectionSelectionLimit: "Select up to 1,000 original memories per task.",
+  exportPartial:
+    "Showing one result page. Download retrieves every selected-source page.",
   discard: "Discard local copy",
   discardWarning:
     "This removes only the pending copy on this device. A memory already accepted by the server may still exist.",
@@ -50,6 +56,26 @@ const en = {
     "Start anywhere. What is a place, person, or moment you’d like to remember?",
   prompt: "There’s no right place to begin.",
   draft: "Private draft",
+  draftEditionLanguage: "Draft language",
+  draftPagesPartial:
+    "Showing part of this saved draft. More sections are available.",
+  loadMoreDraft: "Load more draft sections",
+  savedPageChanged:
+    "This view changed or could not be loaded. Refresh before trying again.",
+  draftProposalReadOnly:
+    "Proposed changes, not approved. Review decisions are available on the web.",
+  draftOriginalWithheld:
+    "An earlier section is hidden because its source permissions or evidence changed.",
+  timelinePagesPartial:
+    "Showing part of the timeline. More memories are available.",
+  loadMoreEvents: "Load more memories",
+  loadMoreEvidence: "Load more original evidence",
+  loadMoreEventContext: "Load more event context",
+  eventInferred: "This claim is inferred.",
+  eventUnresolved: "This event is not yet resolved.",
+  eventConflictingDates: "Sources give conflicting dates.",
+  eventRecordedContext: "Recorded context",
+
   draftBody: "The beginnings of your memoir, drawn from your saved memories.",
   draftEmpty:
     "Your draft will appear here after an eligible storytelling milestone. Keep talking at your own pace.",
@@ -180,6 +206,10 @@ const en = {
   confirm: "Confirm",
 };
 const zh: Record<keyof typeof en, string> = {
+  collectionMoreSources: "加载更多已保存的回忆",
+  collectionPartial: "还有更多已保存的回忆，只会包含您选择的回忆。",
+  collectionSelectionLimit: "每个任务最多选择1,000条原始回忆。",
+  exportPartial: "目前仅显示部分结果，下载时会获取所有已选原始资料页面。",
   discard: "移除本地副本",
   discardWarning:
     "这只移除本设备上等待处理的副本。服务器已接收的回忆可能仍然存在。",
@@ -227,6 +257,21 @@ const zh: Record<keyof typeof en, string> = {
   emptyTalk: "从哪里说起都可以。你想起了哪个地方、哪位亲人，或哪个瞬间？",
   prompt: "从你想说的地方开始。",
   draft: "私人草稿",
+  draftEditionLanguage: "草稿语言",
+  draftPagesPartial: "当前仅显示部分已保存草稿，还有更多章节。",
+  loadMoreDraft: "加载更多草稿章节",
+  savedPageChanged: "此内容已更新或暂时无法加载，请刷新后重试。",
+  draftProposalReadOnly: "这些是尚未批准的建议修改，可在网页版审阅并决定。",
+  draftOriginalWithheld: "由于原始依据或使用权限已变更，先前的章节暂不显示。",
+  timelinePagesPartial: "当前仅显示部分时间线，还有更多回忆。",
+  loadMoreEvents: "加载更多回忆",
+  loadMoreEvidence: "加载更多原始依据",
+  loadMoreEventContext: "加载更多事件背景",
+  eventInferred: "此信息属于推断。",
+  eventUnresolved: "此事件尚未确定。",
+  eventConflictingDates: "原始依据中的日期存在冲突。",
+  eventRecordedContext: "已记录的背景",
+
   draftBody: "根据已保存的回忆，逐渐写成你的故事。",
   draftEmpty: "达到相应讲述阶段后，草稿会显示在这里。请按自己的节奏继续。",
   draftSaved: "已保存的草稿",

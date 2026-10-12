@@ -233,8 +233,19 @@ class GovernedStreamingResponse(StreamingResponse):
                 if envelope.fence is None:
                     await _send_generic(send, message, self.publisher)
                 else:
-                    await send_governed(send, message, publisher=self.publisher,
-                                        fence=envelope.fence)
+                    try:
+                        await send_governed(send, message, publisher=self.publisher,
+                                            fence=envelope.fence)
+                    except Exception as error:
+                        # A stale database fence drops this and all queued private
+                        # bodies. Only a fixed, non-personal reconciliation notice
+                        # is allowed after the failed publication attempt.
+                        if getattr(error, 'sqlstate', None) != '40001':
+                            raise
+                        await _send_generic(send, {'type': 'http.response.body',
+                            'body': (json.dumps({'type': 'error', 'message': _ERROR}, separators=(',', ':')) + '\n').encode('utf-8'),
+                            'more_body': True}, self.publisher)
+                        break
             await _send_generic(send, {'type': 'http.response.body', 'body': b'',
                                       'more_body': False}, self.publisher)
         finally:

@@ -116,6 +116,7 @@ def test_public_misconfiguration_has_controlled_http_failure(monkeypatch, tmp_pa
 
     storage = Storage({'preferred_language': 'zh-CN'})
     storage.client = Mock()
+    storage.lifetime_rpc = Mock(return_value=None)  # Reach the intended legacy collector failure.
     runtime, calls = harness(monkeypatch, tmp_path, storage, proposal(), 'local')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'invalid')
     monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda *a: storage)

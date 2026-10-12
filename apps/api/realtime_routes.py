@@ -107,6 +107,12 @@ async def exchange_offer(sdp, config, user_id):
 async def create_call(request: Request, authorization: str | None = Header(default=None)):
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
+        from .lifetime_memory_runtime import lifetime_enabled
+        from .lifetime_memory_reads import find_lifetime_read_identity
+        if lifetime_enabled() or await asyncio.to_thread(find_lifetime_read_identity,storage,None) is not None:
+            # Direct WebRTC has no revocable per-output publication boundary.
+            raise HTTPException(409, 'Governed realtime voice is not available; use the saved conversation',
+                                headers={'X-Error-Code':'GOVERNED_REALTIME_UNAVAILABLE'})
         if request.headers.get('content-type', '').split(';')[0].strip() != 'application/json':
             raise HTTPException(415, 'Expected application/json with sdp and language')
         body = bytearray()

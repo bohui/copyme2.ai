@@ -269,6 +269,22 @@ process.stdout.write(JSON.stringify(result));
 async def composer_call(runtime, storage, project_id, language, phase, packet):
     if not runtime.worker_url or not runtime.worker_secret:
         raise RuntimeError('Memoir composer is unavailable')
+    if getattr(runtime, 'lifetime_bounded', False):
+        from .lifetime_memory_composer import check_model_packet
+        check_model_packet(packet, composer_instructions(phase), composer_output_schema(phase))
+        from .lifetime_memory_composer import lane_model_budget
+        from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
+        bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
+        result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
+            bounded_lane=bounded, worker_transport=runtime.worker_transport,
+            publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
+        from .lifetime_memory_lane_engine import lane_artifact_digest
+        artifact = json_reply(result['reply'])
+        await runtime.lane_broker.rpc('record_lifetime_lane_output',
+            p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
+            p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
+            p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
+        return normalize_composer_refs(artifact)
     started = time.monotonic()
     record_worker_request = getattr(runtime, 'record_worker_request', None)
     if callable(record_worker_request):

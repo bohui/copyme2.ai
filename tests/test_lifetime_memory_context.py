@@ -99,3 +99,16 @@ def test_multiple_exact_spans_of_one_source_are_not_silently_discarded():
     result=packet(source(9900),retrieved=[first,later])
     assert len(result['retrieved'])==2
     assert [row['char_start'] for row in result['retrieved']]==[0,4000]
+
+
+@pytest.mark.parametrize('turns',[100,1000,10000])
+def test_every_synthetic_packet_in_growing_mixed_language_fixture_is_bounded(turns):
+    largest=0
+    for n in range(1,turns+1):
+        result=packet(source(n, '我在北京的花园散步。' if n%2 else 'I walked in the Sydney garden.'),
+            retrieved=[source(3,'I carried a rare blue umbrella.')] if n>3 else [])
+        largest=max(largest,result['input_tokens_upper_bound'])
+        assert result['input_tokens_upper_bound']<=BUDGET.input_budget
+        assert len(result['retrieved'])<=1 and result['tail']==[]
+        assert result['current']['narrator']['original']
+    assert largest<BUDGET.input_budget

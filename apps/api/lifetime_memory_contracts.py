@@ -208,6 +208,7 @@ class PinnedContinuity(Contract):
     chosen_name: str | None = Field(default=None, max_length=200)
     language: Literal['en-AU', 'zh-CN']
     active_question: str | None = Field(default=None, max_length=2000)
-    unresolved_references: list[str] = Field(default_factory=list, max_length=100)
-    paused_topics: list[str] = Field(default_factory=list, max_length=100)
-    excluded_topics: list[str] = Field(default_factory=list, max_length=100)
+    privacy_complete: bool = True
+    unresolved_references: list[str] = Field(default_factory=list)
+    paused_topics: list[str] = Field(default_factory=list)
+    excluded_topics: list[str] = Field(default_factory=list)

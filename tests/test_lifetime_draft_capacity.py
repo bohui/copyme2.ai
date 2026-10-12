@@ -122,11 +122,23 @@ def test_governed_collection_and_preview_never_start_full_history_reads(tmp_path
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'jobs.sqlite'))
     def forbidden(*args,**kwargs):raise AssertionError('unbounded read attempted')
     head={'status':'pending','error':'LIFETIME_COMPOSER_PENDING','retrieval_complete':False}
-    storage=SimpleNamespace(lifetime_rpc=lambda *a,**k:head,private_draft_rounds=forbidden,
+    identity={'owner_id':'11111111-1111-4111-8111-111111111111',
+        'conversation_id':'cccccccc-cccc-4ccc-8ccc-cccccccccccc','project_id':'project'}
+    calls=[]
+    def lifetime_rpc(name,**parameters):
+        calls.append(name)
+        assert parameters=={'p_project_id':'project'}
+        if name=='read_lifetime_project_identity':return identity
+        if name=='read_lifetime_private_draft_head':return head
+        raise AssertionError('Unexpected lifetime RPC: '+name)
+    storage=SimpleNamespace(user_id=identity['owner_id'],is_anonymous=False,
+        lifetime_rpc=lifetime_rpc,private_draft_rounds=forbidden,
         memories=forbidden,all_memories=forbidden,composition_memories=forbidden)
     assert synchronize(storage,'project')==head
     with pytest.raises(HTTPException) as error:_sources(storage,'project')
-    assert error.value.headers['X-Error-Code']=='LIFETIME_COMPOSER_PENDING'
+    assert error.value.status_code==409
+    assert error.value.headers['X-Error-Code']=='LIFETIME_COLLECTION_JOB_UNSUPPORTED'
+    assert calls==['read_lifetime_private_draft_head','read_lifetime_project_identity']
     class Lease:
         async def io(self,operation,*args):return operation(*args)
     with pytest.raises(LifetimeDraftPending):asyncio.run(compose_preview(storage,Lease(),'project'))
@@ -229,12 +241,14 @@ def test_database_governed_legacy_entrypoints_fail_closed_without_changing_histo
     current=json.loads(sql(f"select public.private_draft_event_snapshot('{event}');").stdout.strip())
     assert current['protocol']=='lifetime_draft_pages'
     head=rpc(sql,'read_lifetime_private_draft_head',literal(identity['project_id']))
-    assert head['error']=='LIFETIME_COMPOSER_PENDING'
+    assert head['error']=='LIFETIME_COMPOSITION_PENDING'
     assert rpc(sql,'read_lifetime_private_draft_head',literal('arbitrary-project'))['error']=='LIFETIME_PROJECT_REQUIRED'
     assert rpc(sql,'read_lifetime_private_draft_head',literal(identity['project_id']),owner=OTHER) is None
     lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,pending) values('{OWNER}',{literal(identity['project_id'])},'timeline',true) returning id;").stdout.splitlines()[0]
-    assert sql(f"select coalesce(public.claim_memoir_lane('{lane}'),'null'::jsonb);").stdout.strip()=='null'
-    assert sql(f"select error from public.user_memoir_lane where id='{lane}';").stdout.strip()=='LIFETIME_COMPOSER_PENDING'
+    claim=json.loads(sql(f"select public.claim_memoir_lane('{lane}');").stdout.strip())
+    assert claim['protocol']=='lifetime_composer_pages'
+    assert len(claim['source']['text'])<=2304 and 'context_sources' not in claim
+    assert claim['previous'] is None and claim['complete'] is False
     # A historical account stays on the old adapter without being mapped.
     legacy=rpc(sql,'accept_user_narrator_source',f"'historical','{uuid4()}','Existing legacy account'",owner=OTHER)
     old_event=sql(f"insert into public.user_private_draft_outbox(user_id,project_id,change_kind) values('{OTHER}','historical','accepted') returning id;").stdout.splitlines()[0]

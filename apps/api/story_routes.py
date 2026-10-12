@@ -11,11 +11,12 @@ import logging
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from typing import Any, Callable
+from uuid import UUID
 
 import httpx
 
-from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Header, HTTPException, Request, Query
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
@@ -30,6 +31,7 @@ from .memoir_preview import (compose_preview, source_snapshot, snapshot_key, cac
                              normalize_conversation_language, PreviewSourceChanged)
 from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
+from .lifetime_memory_read_api import read_mapped, draft_head, draft_page, retry_draft, collection_page, canonical_only, mapped_identity
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -51,6 +53,15 @@ class StoryEventCorrection(BaseModel):
     expected_revision: int = Field(ge=1)
     patch: dict[str, Any]
     statement: str = Field(min_length=1, max_length=2000)
+
+
+class PrivateDraftDecision(BaseModel):
+    project_id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
+    snapshot_id: UUID
+    root_digest: str = Field(pattern=r'^[a-f0-9]{64}$')
+    partition_id: str = Field(min_length=1, max_length=512)
+    expected_proposal_digest: str = Field(pattern=r'^[a-f0-9]{64}$')
+    accept: bool
 
 
 class StoryRoundInput(BaseModel):
@@ -293,9 +304,12 @@ def build_router(
     async def context_readiness(project_id: str, authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
-            rows = await asyncio.to_thread(getattr(storage, 'all_memories', storage.memories))
-            return {'project_id': project_id, 'stages': stage_readiness(rows, project_id),
-                    'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}
+            def legacy():
+                rows = getattr(storage, 'all_memories', storage.memories)()
+                return {'project_id': project_id, 'stages': stage_readiness(rows, project_id),
+                        'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: storage.lifetime_rpc('read_lifetime_stage_readiness', p_project_id=project_id), legacy)
         finally:
             await asyncio.to_thread(_close, storage)
 
@@ -304,48 +318,121 @@ def build_router(
                                   authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
-            from .memoir_preview import lifetime_draft_head
-            governed=await asyncio.to_thread(lifetime_draft_head,storage,project_id)
-            if governed:
-                return governed
-            if isinstance(storage, UserStorage):
-                return await asyncio.to_thread(storage.saved_memoir_draft, project_id, language)
-            from .private_drafts import synchronize
-            # Every render rechecks source authorization and versions using a
-            # fresh RLS read, including changes made while the tab was closed.
-            return await asyncio.to_thread(synchronize, storage, project_id, language)
+            def legacy():
+                if isinstance(storage, UserStorage):
+                    return storage.saved_memoir_draft(project_id, language)
+                from .private_drafts import synchronize
+                return synchronize(storage, project_id, language)
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: draft_head(storage, project_id, language=language), legacy)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/private-draft/page')
+    async def private_draft_page(project_id: str, snapshot_id: UUID,
+                                 cursor: UUID | None = None, limit: int = Query(default=8, ge=1, le=8),
+                                 legacy: bool = False, section_id: str | None = Query(default=None, max_length=128),
+                                 authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: draft_page(storage, project_id, snapshot_id, cursor, limit,
+                                          legacy=legacy, section_id=section_id), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.post('/private-draft/proposal')
+    async def private_draft_decision(payload: PrivateDraftDecision,
+                                     authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            if await asyncio.to_thread(mapped_identity, storage, payload.project_id) is None:
+                canonical_only()
+            result = await asyncio.to_thread(storage.lifetime_rpc, 'set_lifetime_private_draft_proposal',
+                p_project_id=payload.project_id, p_snapshot_id=str(payload.snapshot_id),
+                p_root_digest=payload.root_digest, p_partition_id=payload.partition_id,
+                p_expected_proposal_digest=payload.expected_proposal_digest, p_accept=payload.accept)
+            return await asyncio.to_thread(read_mapped, storage, payload.project_id,
+                lambda fence: draft_head(storage, payload.project_id, language=result.get('locale')), canonical_only)
+        except httpx.HTTPStatusError:
+            raise HTTPException(409, 'This proposal changed. Reload it before deciding.',
+                headers={'X-Error-Code': 'LIFETIME_PROPOSAL_STALE'}) from None
         finally:
             await asyncio.to_thread(_close, storage)
 
     @router.post('/private-draft/retry')
-    async def retry_private_draft(payload: StoryPreviewCreate,authorization: str | None = Header(default=None)):
-        storage=await asyncio.to_thread(storage_for,authorization)
+    async def retry_private_draft(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
         try:
-            from .memoir_preview import lifetime_draft_head
-            governed=await asyncio.to_thread(lifetime_draft_head,storage,payload.project_id)
-            if governed:
-                return governed
-            if isinstance(storage, UserStorage):
-                await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'timeline')
-                await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'composer')
-                return await asyncio.to_thread(storage.saved_memoir_draft, payload.project_id, payload.language)
-            from .private_drafts import synchronize
-            from .private_draft_jobs import PrivateDraftJobs
-            view=await asyncio.to_thread(synchronize,storage,payload.project_id,payload.language)
-            language=payload.language or normalize_conversation_language((await asyncio.to_thread(storage.profile)).get('preferred_language'))
-            await asyncio.to_thread(PrivateDraftJobs(os.environ['MEMORY_SPARK_TASK_DB']).retry,
-                                   storage.user_id,payload.project_id,language)
-            return view
+            def legacy():
+                if isinstance(storage, UserStorage):
+                    storage.retry_memoir_lane(payload.project_id, 'timeline')
+                    storage.retry_memoir_lane(payload.project_id, 'composer')
+                    return storage.saved_memoir_draft(payload.project_id, payload.language)
+                from .private_drafts import synchronize
+                from .private_draft_jobs import PrivateDraftJobs
+                view = synchronize(storage, payload.project_id, payload.language)
+                language = payload.language or normalize_conversation_language(storage.profile().get('preferred_language'))
+                PrivateDraftJobs(os.environ['MEMORY_SPARK_TASK_DB']).retry(storage.user_id, payload.project_id, language)
+                return view
+            if await asyncio.to_thread(mapped_identity, storage, payload.project_id) is not None:
+                await asyncio.to_thread(retry_draft, storage, payload.project_id, payload.language)
+                return await asyncio.to_thread(read_mapped, storage, payload.project_id,
+                    lambda fence: draft_head(storage, payload.project_id, language=payload.language), canonical_only)
+            return await asyncio.to_thread(legacy)
         finally:
-            await asyncio.to_thread(_close,storage)
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/sources')
+    async def memory_sources(project_id: str, cursor: UUID | None = None,
+                             limit: int = Query(default=8, ge=1, le=8),
+                             authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: collection_page(storage, project_id, kind='sources', cursor=cursor, limit=limit), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
 
     @router.get('/events')
-    async def memory_events(project_id: str, authorization: str | None = Header(default=None)):
+    async def memory_events(project_id: str, cursor: UUID | None = None,
+                            limit: int = Query(default=8, ge=1, le=8),
+                            authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
             if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
                 raise HTTPException(403, 'Timeline display requires Family legacy access')
-            return await asyncio.to_thread(storage.memory_events, project_id)
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit),
+                lambda: storage.memory_events(project_id))
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/events/{project_id}/{event_id}/sources')
+    async def event_sources(project_id: str, event_id: str, cursor: UUID | None = None,
+                            limit: int = Query(default=8, ge=1, le=8),
+                            authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
+                raise HTTPException(403, 'Timeline display requires Family legacy access')
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: collection_page(storage, project_id, kind='event_sources', cursor=cursor,
+                                               limit=limit, event_id=event_id), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/events/{project_id}/{event_id}/details')
+    async def event_details(project_id: str, event_id: str, cursor: UUID | None = None,
+                            limit: int = Query(default=8, ge=1, le=8),
+                            authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
+                raise HTTPException(403, 'Timeline display requires Family legacy access')
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: collection_page(storage, project_id, kind='event_details', cursor=cursor,
+                                               limit=limit, event_id=event_id), canonical_only)
         finally:
             await asyncio.to_thread(_close, storage)
 
@@ -356,6 +443,14 @@ def build_router(
         try:
             if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
                 raise HTTPException(403, 'Timeline editing requires Family legacy access')
+            if await asyncio.to_thread(mapped_identity, storage, project_id) is not None:
+                # The correction increments policy. Capture the read only after
+                # it commits, rather than relabelling the pre-correction body.
+                await asyncio.to_thread(storage.lifetime_rpc, 'set_lifetime_event_correction',
+                    p_project_id=project_id, p_event_id=event_id, p_expected_revision=payload.expected_revision,
+                    p_patch=payload.patch, p_statement=payload.statement)
+                return await asyncio.to_thread(read_mapped, storage, project_id,
+                    lambda fence: collection_page(storage, project_id, kind='events'), canonical_only)
             return await asyncio.to_thread(storage.correct_memory_event, project_id, event_id,
                                            payload.expected_revision, payload.patch, payload.statement)
         except httpx.HTTPStatusError as failure:
@@ -609,10 +704,11 @@ def build_router(
         if not access or access['rounds_completed'] < access['free_rounds']:
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
-        from .memoir_preview import lifetime_draft_head
-        governed=await AgentTurnLease.io(lifetime_draft_head,storage,project_id)
-        if governed:
-            return governed
+        if await AgentTurnLease.io(mapped_identity, storage, project_id) is not None:
+            if retry:
+                await AgentTurnLease.io(retry_draft, storage, project_id, language)
+            return await AgentTurnLease.io(read_mapped, storage, project_id,
+                lambda fence: draft_head(storage, project_id, language=language), canonical_only)
         profile = await AgentTurnLease.io(storage.profile)
         locale = normalize_conversation_language(language or profile.get('preferred_language'))
         saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
@@ -639,6 +735,8 @@ def build_router(
         try:
             if isinstance(storage, UserStorage):
                 result = await shared_preview_response(storage, payload.project_id, payload.language, retry=True)
+                if isinstance(result, Response):
+                    return result
                 return JSONResponse(status_code=202 if result['status']=='pending' else 200, content=result)
             rows, sources, key, language = await preview_snapshot(storage, payload.project_id, payload.language)
             existing = cached_preview(rows, key)

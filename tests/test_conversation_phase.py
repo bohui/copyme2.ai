@@ -21,18 +21,13 @@ def test_explicit_preferences_survive_automatic_proposals_and_reload(phase):
     assert apply(restored,phase='explore',narration=True)==restored
 
 
-def test_shape_needs_explicit_choice_and_correction_retains_preference():
+def test_shape_needs_explicit_choice():
     with pytest.raises(ValueError): apply(phase='shape')
-    state=apply(action='shape')
-    corrected=apply(state,action='correction')
-    assert corrected.phase=='explore' and corrected.preferred_phase=='shape'
-    assert corrected.selection=='explicit'
 
 
-def test_pause_persists_until_explicit_resume():
-    paused=apply(action='pause')
-    assert apply(paused,phase='explore')==paused
-    assert not apply(paused,action='resume').paused
+@pytest.mark.parametrize('action', ['pause', 'resume', 'correction'])
+def test_pause_and_event_correction_are_not_phase_actions(action):
+    with pytest.raises(ValidationError): apply(action=action)
 
 
 def test_replay_and_stale_proposals_do_not_increment_or_overwrite():
@@ -47,11 +42,18 @@ def test_automatic_mode_is_an_explicit_choice():
     assert state.selection=='automatic' and state.preferred_phase is None and state.phase=='explore'
 
 
+def test_automatic_exploration_cannot_be_reset_by_a_correction_proposal():
+    state=apply(phase='explore')
+    assert state.selection=='automatic' and state.revision==1
+    assert apply(state,phase='comfort')==state
+    assert apply(state,action='comfort').phase=='comfort'
+
+
 @pytest.mark.parametrize('value',[{'phase':'trust'}, {'revision':-1}, {'paused':'false'}, {'schema_version':2}, {'private_reasoning':'secret'}])
 def test_envelope_rejects_unknown_or_untyped_state(value):
     with pytest.raises(ValidationError): PhaseState.model_validate(value)
 
-@pytest.mark.parametrize('text,action', [('pause','pause'),('请暂停一下。','pause'),('Shape my story','shape'),('帮我整理故事','shape'),('Keep talking','comfort'),('换个话题','skip')])
+@pytest.mark.parametrize('text,action', [('Shape my story','shape'),('帮我整理故事','shape'),('Keep talking','comfort'),('继续聊聊','comfort'),('Explore a memory','explore'),('聊聊一段回忆','explore'),('换个话题','skip')])
 def test_explicit_current_controls(text,action):
     from apps.api.conversation_phase import explicit_action
     assert explicit_action(text)==action
@@ -65,27 +67,55 @@ def test_reports_quotes_and_negation_do_not_change_preference(text):
 def test_incoherent_preferences_are_rejected(value):
     with pytest.raises(ValidationError): PhaseState.model_validate(value)
 
-@pytest.mark.parametrize('text',["I want to pause", "Let's pause", 'Can we stop for now?', '我想暂停一下', '先不聊了', 'Pause?'])
-def test_ordinary_direct_pause_requests(text):
+@pytest.mark.parametrize('text',["I want to pause", "Let's continue", 'resume', '我想暂停一下', '继续'])
+def test_leaving_or_returning_does_not_change_mode(text):
     from apps.api.conversation_phase import explicit_action
-    assert explicit_action(text)=='pause'
+    assert explicit_action(text) is None
 
-@pytest.mark.parametrize('text',['This memory is upsetting. I want to pause.', '这段回忆很难受。请暂停一下。'])
-def test_pause_after_current_disclosure(text):
-    from apps.api.conversation_phase import explicit_action
-    assert explicit_action(text)=='pause'
-
-@pytest.mark.parametrize('text',['这段回忆让我难受，我想暂停一下。','This is upsetting, I want to pause.'])
-def test_direct_trailing_first_person_pause(text):
-    from apps.api.conversation_phase import explicit_action
-    assert explicit_action(text)=='pause'
-
-@pytest.mark.parametrize('text',['他说，我想暂停一下。','He said, I want to pause.', '她说“我想暂停一下。”'])
+@pytest.mark.parametrize('text',['他说，我想整理我的故事。','He said, shape my story.', '她说“整理我的故事。”'])
 def test_reported_trailing_request_is_not_control(text):
     from apps.api.conversation_phase import explicit_action
     assert explicit_action(text) is None
 
-@pytest.mark.parametrize('text',['She said:\nI want to pause.\nThose were her words.','她说：\n我想暂停一下。\n这是她的原话。'])
+@pytest.mark.parametrize('text',['She said:\nShape my story.\nThose were her words.','她说：\n整理我的故事。\n这是她的原话。'])
 def test_multiline_report_does_not_gain_current_user_authority(text):
     from apps.api.conversation_phase import explicit_action
     assert explicit_action(text) is None
+
+
+CONTROL_ATTRIBUTION_CASES = [
+    ('My mother said we moved in 1964. Please shape my story.', 'shape'),
+    ('母亲说我们1964年搬家了。请整理我的故事。', 'shape'),
+    ('My mother said: “We moved in 1964.” Please shape my story.', 'shape'),
+    ("My mother said: 'We moved in 1964.' Please shape my story.", 'shape'),
+    ('母亲说：“我们1964年搬家了。”请整理我的故事。', 'shape'),
+    ('She said:\nShape my story.\n\nPlease explore my memories.', 'explore'),
+    ("The garden was small. Let's explore.", 'explore'),
+    ('Mum said, I want to shape my story.', None),
+    ('妈妈说，我想整理我的故事。', None),
+    ('She said\nShape my story.\nThose were her words.', None),
+    ('她说\n整理我的故事。\n这是她的原话。', None),
+    ('“A memory.\nPlease shape my story.', None),
+    ('"Shape my story.\nKeep talking."', None),
+    ("'Shape my story.\nKeep talking.'", None),
+    ("'Mum's garden. Please shape my story.'", None),
+    ('‘Mum’s garden. Please shape my story.’', None),
+    ('She said,\nShape my story.\nThose were her words.', None),
+    ('她说，\n整理我的故事。\n这是她的原话。', None),
+    ('She said that\nShape my story.\nThose were her words.', None),
+    ('She told me:\nShape my story.\nThose were her words.', None),
+    ('母亲告诉我：\n整理我的故事。\n这是她的原话。', None),
+    ('She told me: “We moved in 1964.” Please shape my story.', 'shape'),
+    ("'Our parents' garden. Please shape my story.'", None),
+    ('‘Our parents’ garden. Please shape my story.’', None),
+    ('母亲说：‘我们1964年搬家了。’请整理我的故事。', 'shape'),
+    ('My mother said we moved at 12:30. Please shape my story.', 'shape'),
+    ('母亲说我们12：30出发。请整理我的故事。', 'shape'),
+    ('My mother said we moved at 12 : 30. Please shape my story.', 'shape'),
+]
+
+
+@pytest.mark.parametrize('text,expected', CONTROL_ATTRIBUTION_CASES)
+def test_only_the_current_request_controls_mode_after_narration(text,expected):
+    from apps.api.conversation_phase import explicit_action
+    assert explicit_action(text)==expected

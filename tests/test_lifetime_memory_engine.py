@@ -89,6 +89,7 @@ class FakeConnection:
 
 @pytest.fixture(autouse=True)
 def reset_fake(monkeypatch):
+    monkeypatch.setenv("MEMOIR_LIFETIME_MEMORY","true")
     FakeConnection.instances = []
     FakeConnection.failure = None
     FakeConnection.reply = None
@@ -100,10 +101,11 @@ def reset_fake(monkeypatch):
 def run(tmp_path, governed=None, context=None, **options):
     default_governed, default_context = fixture()
     options.setdefault('publisher', FakePublisher())
+    options.setdefault('connection_factory', FakeConnection)
     return asyncio.run(run_governed_collector(command=['fake-codex'], home_root=tmp_path,
         base_url='http://provider.invalid/v1', api_key='transient-test-secret', model=BUDGET.model,
         governed=governed or default_governed, interview_context=context or default_context,
-        connection_factory=FakeConnection, **options))
+        **options))
 
 
 def test_governed_config_disables_both_memory_paths_without_changing_legacy():
@@ -513,3 +515,45 @@ def test_governed_continuity_schema_is_budgeted_and_current_proposal_is_validate
     assert governed_request_overhead(context,BUDGET) == (
         BUDGET.count(GOVERNED_TURN_PROMPT) + BUDGET.count(serialize_packet(schema))
         + BUDGET.framing_headroom)
+
+
+@pytest.mark.parametrize('changes',[{'context_window':131073},{'input_budget':65537,'context_window':131072}])
+def test_collector_transport_cannot_expand_reviewed_input_bound(changes):
+    governed,_=fixture();raw=governed.model_dump(mode='json');raw['budget'].update(changes)
+    with pytest.raises(ValueError,match='reviewed'):GovernedCollectorInput.model_validate(raw)
+
+
+def test_production_collector_transport_cannot_shrink_protocol_framing():
+    governed,_=fixture();raw=governed.model_dump(mode='json')
+    raw['budget']['model']='gpt-5.6-luna-pooled';raw['budget']['framing_headroom']=2047
+    packet=json.loads(raw['packet']);packet['model']=raw['budget']['model']
+    for _ in range(8):
+        count=len(serialize_packet(packet).encode())
+        if count==packet['input_tokens_upper_bound']:break
+        packet['input_tokens_upper_bound']=count
+    raw['packet']=serialize_packet(packet)
+    with pytest.raises(ValueError,match='reviewed'):GovernedCollectorInput.model_validate(raw)
+
+
+def test_disabled_rollout_blocks_governed_collector_before_home(tmp_path,monkeypatch):
+    from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+    with pytest.raises(LaneGenerationPaused):run(tmp_path)
+    assert not FakeConnection.instances and not list(tmp_path.iterdir())
+
+
+def test_collector_rollout_rechecked_inside_actual_pipe_admission(tmp_path,monkeypatch):
+    from contextlib import asynccontextmanager
+    from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
+    class PausingPublisher(FakePublisher):
+        @asynccontextmanager
+        async def guard(self,fence):
+            async with super().guard(fence):
+                monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+                yield
+    class AdmittedConnection(FakeConnection):
+        async def request(self,method,params):
+            async with self.options['request_admission']():
+                return await super().request(method,params)
+    with pytest.raises(LaneGenerationPaused):run(tmp_path,publisher=PausingPublisher(),connection_factory=AdmittedConnection)
+    assert FakeConnection.instances[0].requests==[]

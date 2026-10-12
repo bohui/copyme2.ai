@@ -12,7 +12,7 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 
 def phase(**overrides):
     return {**dict(schema_version=1, phase='comfort', selection='automatic', preferred_phase=None,
-                   paused=False, revision=0, reason='initial', source_turn_id=None), **overrides}
+                   revision=0, reason='initial', source_turn_id=None), **overrides}
 
 
 @pytest.fixture(params=[('en-AU', 1440, 1000), ('zh-CN', 390, 844)], ids=['english-desktop', 'chinese-phone'])
@@ -73,8 +73,6 @@ def phase_page(request):
                         value.update(phase=action, selection='explicit', preferred_phase=action)
                     elif action == 'automatic':
                         value.update(selection='automatic', preferred_phase=None)
-                    elif action in ['pause', 'resume']:
-                        value['paused'] = action == 'pause'
                 data = dict(conversation_phase=dict(value))
             elif path.startswith('/projects/') and len(path.split('/')) == 3:
                 data = dict(id=path.split('/')[-1], mode='self', profile=dict(name='Fixture', preferred_language=locale), revision=1)
@@ -117,15 +115,13 @@ def test_controls_are_accessible_localized_and_never_submit_narration(phase_page
         click(page, action)
         if action != 'skip':
             expect(page.locator(f'[data-phase-action={action}]')).to_have_attribute('aria-pressed', 'true')
-    click(page, 'pause')
-    expect(page.locator('#chat-input')).to_be_enabled()
-    expect(page.locator('[data-action=voice-input]')).to_have_count(0)
-    expect(page.locator('.phase-status')).to_have_text(copy['paused'])
-    resume = page.get_by_role('button', name=copy['resume'], exact=True)
-    expect(resume).to_be_focused()
-    resume.press('Enter')
+    expect(page.locator('[data-phase-action=pause]')).to_have_count(0)
+    expect(page.locator('[data-phase-action=resume]')).to_have_count(0)
+    expect(page.locator('[data-action=voice-input]')).to_be_visible()
+    shape = page.get_by_role('button', name=copy['shape'], exact=True)
+    shape.focus(); shape.press('Enter')
+    expect(page.locator('[data-phase-action=shape]')).to_be_focused()
     expect(page.locator('#chat-input')).to_have_value('A thought I have not sent yet.')
-    expect(page.locator('[data-phase-action=pause]')).to_be_focused()
     assert page.locator('#chat-history').inner_text() == previous
     assert page.evaluate('sentTurns.length') == 0
     assert not any(path in ['/story/rounds', '/agent/turn'] or path.endswith('/answers') for path, *_ in calls)
@@ -134,16 +130,15 @@ def test_controls_are_accessible_localized_and_never_submit_narration(phase_page
     assert page.locator('.conversation-phase [role=progressbar]').count() == 0
 
 
-def test_pause_and_explicit_choice_survive_reload_and_resume_is_control_only(phase_page):
+def test_explicit_choice_survives_reload_without_a_resume_step(phase_page):
     page, _, _, copy, _, _ = phase_page
-    click(page, 'shape'); click(page, 'pause')
+    click(page, 'shape')
     page.reload(wait_until='networkidle')
     expect(page.locator('[data-phase-action=shape]')).to_have_attribute('aria-pressed', 'true')
-    expect(page.locator('.phase-status')).to_have_text(copy['paused'])
+    expect(page.locator('.phase-status')).to_have_text(copy['shapeStatus'])
     expect(page.locator('#chat-input')).to_be_enabled()
-    expect(page.locator('[data-action=voice-input]')).to_have_count(0)
-    click(page, 'resume')
-    expect(page.locator('#chat-input')).to_be_enabled()
+    expect(page.locator('[data-action=voice-input]')).to_be_visible()
+    expect(page.locator('[data-phase-action=resume]')).to_have_count(0)
     assert page.evaluate('sentTurns.length') == 0
 
 
@@ -152,27 +147,26 @@ def test_stale_tab_reconciles_without_replaying_or_overwriting_the_newer_choice(
     other = context.new_page()
     other.goto(base + '/memoir/interview/phases', wait_until='networkidle')
     expect(other.locator('[data-phase-action=shape]')).to_be_enabled()
-    click(other, 'shape'); click(other, 'pause')
+    click(other, 'shape'); click(other, 'comfort')
     before = sum(method == 'PATCH' for _, method, *_ in calls)
     # Programmatic click keeps the first page stale without focus revalidation.
     page.locator('[data-phase-action=comfort]').evaluate('button => button.click()')
     expect(page.locator('.phase-status')).to_have_text(copy['conflict'])
-    expect(page.locator('[data-phase-action=shape]')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('[data-phase-action=comfort]')).to_have_attribute('aria-pressed', 'true')
     expect(page.locator('#chat-input')).to_be_enabled()
-    expect(page.locator('[data-action=voice-input]')).to_have_count(0)
+    expect(page.locator('[data-action=voice-input]')).to_be_visible()
     assert sum(method == 'PATCH' for _, method, *_ in calls) == before + 1
-    assert states[('owner', 'phases')]['phase'] == 'shape'
-    assert states[('owner', 'phases')]['paused'] is True
+    assert states[('owner', 'phases')]['phase'] == 'comfort'
 
 
 def test_project_and_account_switches_use_their_own_authoritative_state(phase_page):
     page, _, _, _, _, base = phase_page
-    click(page, 'pause')
+    click(page, 'comfort')
     page.evaluate("history.pushState({},'', '/memoir/interview/other');window.dispatchEvent(new PopStateEvent('popstate'))")
     expect(page.locator('[data-phase-action=shape]')).to_have_attribute('aria-pressed', 'true')
     expect(page.locator('#chat-input')).to_be_enabled()
     page.goto(base + '/memoir/interview/phases', wait_until='networkidle')
-    expect(page.locator('[data-phase-action=resume]')).to_be_visible()
+    expect(page.locator('[data-phase-action=comfort]')).to_have_attribute('aria-pressed', 'true')
     page.evaluate('fixturePrincipal("other")')
     expect(page.locator('[data-phase-action=explore]')).to_have_attribute('aria-pressed', 'true')
     expect(page.locator('#chat-input')).to_be_enabled()
@@ -195,46 +189,48 @@ def test_saved_turn_updates_phase_before_workspace_finishes_without_delaying_nex
     assert page.evaluate('sentTurns.length') == 1
 
 
-def test_pause_interrupts_inflight_reply_and_text_can_explicitly_resume(phase_page):
+def test_guidance_changes_wait_for_saved_reply_and_next_message_needs_no_resume(phase_page):
     page, states, _, copy, _, _ = phase_page
     page.locator('#chat-input').fill('I remember the garden.')
     page.locator('#chat-form button[type=submit]').click()
     page.wait_for_function('sentTurns.length === 1')
     expect(page.locator('#chat-form button[type=submit]')).to_be_disabled()
-    click(page, 'pause')
-    expect(page.locator('.phase-status')).to_have_text(copy['paused'])
-    page.evaluate('() => {try {turnController.enqueue(new TextEncoder().encode(JSON.stringify({type:"text_delta",text:"An old question?"})+"\\n"))} catch {window.lateWriteRejected=true}}')
-    assert page.evaluate('cancelledTurns > 0 && lateWriteRejected')
-    expect(page.locator('#chat-history')).not_to_contain_text('An old question?')
-    page.locator('#chat-input').fill('请继续采访' if page.locator('html').get_attribute('lang') == 'zh-CN' else 'Please resume')
+    for action in ['comfort','explore','shape','automatic','skip']:
+        expect(page.locator(f'[data-phase-action={action}]')).to_be_disabled()
+    expect(page.locator('[data-phase-action=pause]')).to_have_count(0)
+    saved = phase(phase='explore', revision=1, reason='narration')
+    states[('owner', 'phases')] = saved
+    page.evaluate('(conversation_phase) => {turnEvent("conversation_saved", {conversation_saved:true, reply:"What grew there?", conversation_phase});turnController.close()}', saved)
+    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
+    click(page, 'shape')
+    page.locator('#chat-input').fill('Actually, the year was 1966.')
     page.locator('#chat-form button[type=submit]').click()
     page.wait_for_function('sentTurns.length === 2')
-    saved = dict(states[('owner', 'phases')], paused=False, revision=2)
-    states[('owner', 'phases')] = saved
-    page.evaluate('(conversation_phase) => {turnEvent("conversation_saved", {conversation_saved:true, reply:"We can continue.", conversation_phase});turnController.close()}', saved)
-    expect(page.locator('[data-phase-action=pause]')).to_be_enabled()
+    saved = dict(states[('owner', 'phases')])
+    page.evaluate('(conversation_phase) => {turnEvent("conversation_saved", {conversation_saved:true, reply:"The garden year is 1966.", conversation_phase});turnController.close()}', saved)
+    expect(page.locator('[data-phase-action=shape]')).to_have_attribute('aria-pressed','true')
+    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
     expect(page.locator('[data-action=voice-input]')).to_be_visible()
 
 
-def test_durable_natural_pause_finalizes_at_recall_limit_and_controls_remain_available(phase_page):
+def test_correction_finishes_at_recall_limit_and_guidance_controls_remain_available(phase_page):
     page, states, _, copy, _, _ = phase_page
-    page.locator('#chat-input').fill('Please pause')
+    click(page, 'shape')
+    page.locator('#chat-input').fill('Actually, the year was 1966.')
     page.locator('#chat-form button[type=submit]').click()
     page.wait_for_function('sentTurns.length === 1')
-    saved = phase(paused=True, revision=1, reason='pause', source_turn_id=page.evaluate('sentTurns[0].client_turn_id'))
-    states[('owner', 'phases')] = saved
+    saved = dict(states[('owner', 'phases')])
     page.evaluate('''(conversation_phase) => {
-      turnEvent('conversation_saved', {conversation_saved:true, reply:'We can pause here.', conversation_phase,
+      turnEvent('conversation_saved', {conversation_saved:true, reply:'The year is 1966.', conversation_phase,
         recall_status:{rounds_completed:20, payment_required:true}});
       turnController.close();
     }''', saved)
-    expect(page.locator('.assistant-message .message-text').last).to_have_text('We can pause here.')
-    expect(page.locator('.phase-status')).to_have_text(copy['paused'])
+    expect(page.locator('.assistant-message .message-text').last).to_have_text('The year is 1966.')
+    expect(page.locator('.phase-status')).to_have_text(copy['shapeStatus'])
     expect(page.locator('#chat-form')).to_have_count(0)
     assert page.evaluate("Object.keys(sessionStorage).filter(key => key.startsWith('memory-spark-pending-turn:')).length") == 0
-    click(page, 'shape')
-    expect(page.locator('[data-phase-action=shape]')).to_have_attribute('aria-pressed', 'true')
-    click(page, 'resume')
-    expect(page.locator('[data-phase-action=pause]')).to_be_enabled()
+    click(page, 'comfort')
+    expect(page.locator('[data-phase-action=comfort]')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('[data-phase-action=pause]')).to_have_count(0)
     expect(page.locator('#chat-form')).to_have_count(0)
     assert page.evaluate('sentTurns.length') == 1

@@ -121,7 +121,11 @@ export function inspectEvidence(r, ref, category='personal', stack=[]) {
   if(s.project_id!==r.project_id) err('CROSS_PROJECT_SOURCE');
   if(!s.allowed || s.status!=='active') err('INELIGIBLE_SOURCE');
   if(('char_start' in ref)!==('char_end' in ref)) err('INCOMPLETE_SPAN');
-  if('char_start' in ref && (!(ref.char_start<ref.char_end) || ref.char_end>[...s.text].length)) err('INVALID_SPAN');
+  const window=r.context?.lifetime_page ? r.context?.source_windows?.[s.id] : null;
+  const offset=window?.char_start ?? 0;
+  if(window && (!Number.isSafeInteger(offset) || offset<0 || window.char_end!==offset+[...s.text].length)) err('INVALID_SOURCE_WINDOW');
+  if(window && !('char_start' in ref)) err('PAGE_SPAN_REQUIRED');
+  if('char_start' in ref && (!(ref.char_start<ref.char_end) || ref.char_start<offset || ref.char_end>offset+[...s.text].length)) err('INVALID_SPAN');
   if(s.kind==='assistant_message') err('ASSISTANT_IS_NOT_TESTIMONY');
   if(s.kind==='derived_memory') {
     if(!s.derived_from.length) err('MISSING_ORIGINAL_EVIDENCE');
@@ -286,7 +290,8 @@ export function validateDraft(r,d) {
         const exact=b.source_refs.some(ref=>{
           const s=r.sources.find(s=>sourceKey(s)===sourceKey(ref));
           return s && s.kind!=='derived_memory' && 'char_start'in ref && 'char_end'in ref &&
-            [...s.text].slice(ref.char_start,ref.char_end).join('')===b.text;
+            [...s.text].slice(ref.char_start-(r.context?.lifetime_page ? r.context?.source_windows?.[s.id]?.char_start??0 : 0),
+              ref.char_end-(r.context?.lifetime_page ? r.context?.source_windows?.[s.id]?.char_start??0 : 0)).join('')===b.text;
         });
         if(!exact) add('QUOTE_MISMATCH',bp,'Quote must match an original immutable source span exactly');
       }

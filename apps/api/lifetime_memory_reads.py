@@ -14,6 +14,7 @@ import os
 from uuid import UUID
 
 import anyio
+import httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import Field
 from starlette.responses import JSONResponse
@@ -29,6 +30,8 @@ class ReadFence(Contract):
     execution_generation: int = Field(ge=1, strict=True)
     phase_revision: int = Field(ge=0, strict=True)
     preference_revision: int = Field(ge=0, strict=True)
+    draft_revision: int = Field(default=0, ge=0, strict=True)
+    event_revision: int = Field(default=0, ge=0, strict=True)
     captured_at_ms: int = Field(ge=1, strict=True)
 
 
@@ -144,12 +147,34 @@ class ReadJSONResponse(JSONResponse):
 
 def find_lifetime_read_identity(service, project_id):
     """Read an existing mapping; never create identity or select a legacy project."""
-    owner = UUID(str(service.user_id))
-    value = service.lifetime_rpc('read_lifetime_project_identity', p_project_id=project_id)
+    rpc = getattr(service, 'lifetime_rpc', None)
+    if not callable(rpc) or getattr(service, 'is_anonymous', False) is True:
+        return None
+    try:
+        value = rpc('read_lifetime_project_identity', p_project_id=project_id)
+    except httpx.HTTPStatusError as error:
+        # Only explicit pre-canonical deployments may classify a missing RPC as legacy.
+        # A REST schema cache miss is not proof of absent mapping when a DSN exists.
+        # An outage, malformed result,
+        # missing row or other SQL error never blesses a mapped legacy fallback.
+        from .lifetime_memory_runtime import lifetime_enabled
+        try:
+            detail = error.response.json()
+        except ValueError:
+            detail = {}
+        if (not lifetime_enabled()
+                and not os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')
+                and os.getenv('MEMOIR_LEGACY_ONLY_DEPLOYMENT','').lower() in {'1','true','yes'}
+                and error.response.status_code == 404
+                and detail.get('code') == 'PGRST202'
+                and 'read_lifetime_project_identity' in str(detail.get('message', ''))):
+            return None
+        raise
     if value is None:
         return None
+    owner = UUID(str(service.user_id))
     identity = IdentityEnvelope.model_validate(value)
-    if identity.owner_id != owner or identity.project_id != project_id:
+    if identity.owner_id != owner or (project_id is not None and identity.project_id != project_id):
         raise PublicationUnavailable('Read identity owner or project mismatch')
     return identity
 
@@ -162,7 +187,6 @@ def snapshot_lifetime_read(service, project_id, reader, *, publisher=None):
     project never falls back on capture/publication failure. No GET creates an
     identity, chooses a historical project or acquires a generation lease.
     """
-    owner = UUID(str(service.user_id))
     identity = find_lifetime_read_identity(service, project_id)
     absent = object()
     previous = getattr(service, 'lifetime_read_identity', absent)
@@ -170,6 +194,8 @@ def snapshot_lifetime_read(service, project_id, reader, *, publisher=None):
         if identity is None:
             service.lifetime_read_identity = None
             return reader(None)
+        owner = UUID(str(service.user_id))
+        project_id = identity.project_id
         publisher = publisher or ReadPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
             authenticated_owner=owner)
         fence = _copy_fence(service.lifetime_rpc('capture_lifetime_read_fence', p_project_id=project_id))

@@ -31,6 +31,7 @@ class ContextSource(Contract):
     kind: Literal['narrator_chat','narrator_transcript'] = 'narrator_chat'
     status: Literal['active'] = 'active'
     policy_epoch: int = Field(ge=1,strict=True)
+    conversation_saved: bool = False
     assistant_reply: str | None = Field(default=None,max_length=100000)
     reply_policy_epoch: int | None = Field(default=None,ge=1,strict=True)
 
@@ -75,12 +76,14 @@ def _measure(packet,budget):
 def build_context(*,identity:IdentityEnvelope,policy_epoch:int,pinned:PinnedContinuity,
                   instructions:str,current:ContextSource,tail,retrieved,budget:ContextBudget,
                   checkpoint:ContextCheckpoint | None=None,tail_coverage:TailCoverage,
-                  retrieval_complete:bool=True,prompt_version:str='lifetime-v1'):
+                  retrieval_complete:bool=True,prompt_version:str='lifetime-v1',fence=None,interview_context=None):
     """Mandatory pins/current/tail fit first; optional retrieval may be incomplete.
 
     coverage_end is from a separately validated published checkpoint. Lifetime
     round count is neither supplied nor used. All emitted source spans are exact.
     """
+    if not pinned.privacy_complete:
+        raise InputLimitExceeded('Active privacy constraints do not fit the request; no partial policy can be used')
     coverage_end=checkpoint.coverage_end if checkpoint else 0
     if coverage_end>=current.sequence:
         raise ValueError('checkpoint must precede current accepted source')
@@ -114,13 +117,16 @@ def build_context(*,identity:IdentityEnvelope,policy_epoch:int,pinned:PinnedCont
             char_end=source.char_start+len(source.original),original=source.original,language=source.language,
             assertion='asserted',allowed_use=['conversation'],policy_epoch=policy_epoch).model_dump(mode='json')
     def exchange(source):
-        item={'sequence':source.sequence,'narrator':evidence(source),'conversation_saved':False}
+        item={'sequence':source.sequence,'narrator':evidence(source),'conversation_saved':source.conversation_saved}
         if source.assistant_reply is not None:
             if source.reply_policy_epoch!=policy_epoch:
                 raise ValueError('assistant repetition has stale or absent provenance')
             item.update(assistant={'role':'assistant','text':source.assistant_reply,'personal_testimony':False},conversation_saved=True)
         return item
-    packet={'schema_version':1,'identity':identity.model_dump(mode='json'),'policy_epoch':policy_epoch,
+    packet={'schema_version':1,'model':budget.model,'prompt_version':prompt_version,
+            **({'fence':fence} if fence is not None else {}),
+            **({'interview_context':{k:v for k,v in interview_context.items() if k not in {'source','sources'}}} if interview_context is not None else {}),
+            'identity':identity.model_dump(mode='json'),'policy_epoch':policy_epoch,
         'instructions':instructions,'pinned':pinned.model_dump(mode='json'),'coverage_end':coverage_end,
         'checkpoint':checkpoint.model_dump(mode='json') if checkpoint else None,
         'current':exchange(current),'tail':[],'retrieved':[],'source_ids':[str(current.source_id)],
