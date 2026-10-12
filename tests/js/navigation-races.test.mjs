@@ -193,3 +193,157 @@ test('same-route photo album Back/Forward keeps the active reply and project rec
   assert.equal(state.loading, true);
   assert.equal(state.chat[0].text, 'A memory');
 });
+
+function reentryHarness({anonymous = true, saved = 'a', denied = null, historyDenied = false} = {}) {
+  const recovery = deferred(), creates = [], starts = [], notices = [], hydrations = [], events = new Map();
+  let path = '/', pointer = saved;
+  const app = {innerHTML: ''};
+  const state = {chat: [], navigationGeneration: 0, compositionStage: 0,
+    supabase: {user: {id: 'owner', is_anonymous: anonymous}, accessToken: 'session'}};
+  const context = vm.createContext({state, FALLBACK_STORY_PLANS: [],
+    MEMOIR_ROUTES: {home: '/memoir', start: '/memoir/start', interview: '/memoir/interview'},
+    PLACE_JOURNEY_PROJECT_STORAGE_KEY: 'places',
+    localStorage: {removeItem() {}}, sessionStorage: {getItem: () => null},
+    currentPath: () => path, window: {history: {
+      pushState: (_state, _title, next) => {path = next;}, replaceState: (_state, _title, next) => {path = next;},
+    }, addEventListener: (name, callback) => events.set(name, callback)},
+    document: {querySelectorAll: () => []},
+    $: selector => selector === '#app' ? app : selector.includes('open-memoir')
+      ? {addEventListener: (_name, callback) => events.set('begin', callback)} : null,
+    ensureAuth: async () => {}, guestTransfer: {complete: async () => false},
+    syncProfileUiLocale: async () => events.get('copyme2:ui-locale-change')(),
+    savedProjectId: () => pointer, rememberProject: id => {pointer = id;},
+    restoreChatHistory: id => [{role: 'user', text: `${id} private history`}],
+    hydrateAccountHistory: async () => {hydrations.push(state.project?.id); if (historyDenied) throw new Error('History denied');},
+    hydratePlaceJourney: async () => {}, refreshFamilyEntitlement: async () => {}, profileHasContext: () => true,
+    conversationLanguage: () => 'en-AU', currentUiLocale: () => 'en-AU',
+    preserveConversationLocale: incoming => incoming, mergePlaces: places => places,
+    refreshStageReadiness() {}, refreshPrivateDraft() {},
+    startCodexConversation: async () => {starts.push(state.project?.id);},
+    renderStory() {}, conversationScroll: {mount() {}}, disposeCesiumPlaceJourney() {}, closeProfileMenu() {},
+    persistChatHistory() {}, stopVoiceMode() {}, cancelDictation() {}, setLoading: value => {state.loading = value;},
+    toast: value => notices.push(value), translate: String, escapeHtml: String,
+    api: async (url, options = {}) => {
+      if (url === '/v1/projects') {
+        const body = JSON.parse(options.body);
+        if (body.restore_project_id) throw Object.assign(new Error('Recovery denied'), {status: 403});
+        creates.push(body);
+        return {id: `new-${creates.length}`, mode: body.mode, profile: {}, requires_supabase_auth: true};
+      }
+      if (url.endsWith('/consents')) return {};
+      if (url.endsWith('/journey')) return {};
+      const id = url.slice('/v1/projects/'.length);
+      if (id === 'a') {await recovery.promise; if (denied) throw denied;}
+      return {id, mode: 'self', profile: {}, requires_supabase_auth: true};
+    },
+    storyApi: async url => {
+      assert.ok(['/v1/user/conversations', '/v1/user/profile'].includes(url));
+      return url.endsWith('/conversations') ? {items: []} : {};
+    },
+  });
+  load(context, 'render', 'renderLanding', 'renderPlatformLanding', 'renderMemoirLanding',
+    'navigateTo', 'refreshProject', 'boot', 'startMemoirStory', 'startStory');
+  vm.runInContext(source.match(/window.addEventListener\("copyme2:ui-locale-change", \(\) => \{[^]*?\n\}\);/)[0], context);
+  return {context, state, recovery, creates, starts, notices, hydrations, events, app, path: () => path,
+    setPath: next => {path = next;}};
+}
+
+for (const anonymous of [true, false]) test(`early Begin waits for ${anonymous ? 'guest' : 'account'} recovery and keeps one journey`, async () => {
+  const h = reentryHarness({anonymous});
+  const boot = h.context.boot();
+  await tick();
+  assert.match(h.app.innerHTML, /data-action="open-memoir"/);
+  assert.equal(h.state.project.id, 'a');
+  assert.equal(h.state.project.mode, undefined); // Recovery has not authorized its metadata yet.
+  const begin = h.events.get('begin')();
+  const repeated = h.events.get('begin')();
+  try {
+    await tick();
+    assert.equal(h.creates.length, 0);
+  } finally {
+    h.recovery.resolve();
+    await Promise.all([boot, begin, repeated]);
+  }
+  assert.equal(h.state.project.id, 'a');
+  assert.equal(h.state.projectPrincipalId, 'owner');
+  assert.equal(h.path(), '/memoir/interview/a');
+  assert.equal(h.creates.length, 0);
+  assert.deepEqual(h.hydrations, ['a', 'a']); // Boot plus one coalesced resume.
+});
+
+for (const denied of [new Error('Recovery unavailable'), Object.assign(new Error('Denied'), {status: 403})]) {
+  test(`failed saved recovery cannot silently create a self project: ${denied.message}`, async () => {
+    const h = reentryHarness({denied});
+    const boot = h.context.boot(); await tick();
+    const begin = h.context.startStory();
+    h.recovery.resolve(); await Promise.all([boot, begin]);
+    await h.context.startStory(); // A later repeated click remains an explicit recovery failure.
+    assert.equal(h.creates.length, 0);
+    assert.equal(h.state.projectRecoveryBlocked, 'a');
+    assert.equal(h.state.project, null);
+  });
+}
+
+test('denied canonical history keeps saved self recovery blocked instead of allocating a replacement', async () => {
+  const h = reentryHarness({historyDenied: true}); h.recovery.resolve();
+  await h.context.boot();
+  await h.context.startStory();
+  await h.context.startStory();
+  assert.equal(h.creates.length, 0);
+  assert.equal(h.state.projectRecoveryBlocked, 'a');
+});
+
+test('cold Begin coalesces to one fresh self project without a saved pointer', async () => {
+  const h = reentryHarness({saved: null});
+  await h.context.boot();
+  await Promise.all([h.context.startStory(), h.context.startStory()]);
+  assert.equal(h.creates.length, 1);
+  assert.equal(h.creates[0].mode, 'self');
+  assert.equal(h.path(), '/memoir/interview/new-1');
+});
+
+test('an explicit family start waits for recovery and then deliberately creates its own project', async () => {
+  const h = reentryHarness(); const boot = h.context.boot(); await tick();
+  const family = h.context.startStory('family');
+  try {await tick(); assert.equal(h.creates.length, 0);}
+  finally {h.recovery.resolve(); await Promise.all([boot, family]);}
+  assert.equal(h.creates.length, 1);
+  assert.equal(h.creates[0].mode, 'family');
+  assert.equal(h.path(), '/memoir/interview/new-1');
+});
+
+for (const replacement of ['owner', 'session', 'logout', 'navigation']) {
+  test(`a waiting Begin cannot survive ${replacement} replacement`, async () => {
+    const h = reentryHarness(); const boot = h.context.boot(); await tick();
+    const begin = h.context.startStory();
+    if (replacement === 'owner') {
+      h.context.invalidateProjectNavigation();
+      h.state.supabase.user = {id: 'other', is_anonymous: false};
+      h.state.supabase.accessToken = 'other-session';
+      h.state.project = null;
+    } else if (replacement === 'session') h.state.supabase.accessToken = 'new-session';
+    else if (replacement === 'logout') h.state.explicitSignOutInProgress = true;
+    else {
+      h.setPath('/memoir/interview/b');
+      await h.context.boot();
+    }
+    h.recovery.resolve(); await Promise.all([boot, begin]);
+    assert.equal(h.creates.length, 0);
+    if (replacement === 'owner') assert.equal(h.state.project, null);
+    if (replacement === 'navigation') assert.equal(h.state.project.id, 'b');
+  });
+}
+
+test('recovery completion does not wait for the subsequent greeting before admitting Begin', async () => {
+  const h = reentryHarness(), greeting = deferred();
+  let greetingStarted;
+  const entered = new Promise(resolve => {greetingStarted = resolve;});
+  h.context.startCodexConversation = async () => {greetingStarted(); await greeting.promise;};
+  const boot = h.context.boot(); await tick();
+  const begin = h.context.startStory();
+  h.recovery.resolve(); await entered; await tick();
+  // The recovered identity is already authoritative even if opening copy is streaming.
+  assert.equal(h.creates.length, 0);
+  assert.equal(h.state.projectRecovery, null);
+  greeting.resolve(); await Promise.all([boot, begin]);
+});

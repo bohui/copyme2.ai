@@ -101,3 +101,37 @@ seeds the SDK cookie. Intentional account-switch overrides still update both the
 session and cookie. The reentry case retains all original assertions and adds an
 explicit project-owner UUID assertion. Auth and expected-viewer failures stay
 strict. The actual Mac rerun remains required.
+
+## Inherited product races found after fixture repair
+
+The exact `f429e337`/`f3c0922a` Mac navigation run passed 33 of 38 cases, with
+no skips. Its retained response bodies establish two different same-owner self
+projects and wrong reentry URLs; the three login traces establish a detached
+menu item followed by a hidden replacement. No request bodies, saved pointers,
+transport/click timestamps, or screenshots of these failures were retained.
+Those gaps do not establish the precise historical callback schedule.
+
+Independent deterministic reproductions used unchanged current and `cc068523`
+client code. Both reproduced these inherited defects:
+
+- The real locale-change callback can render platform Begin while saved-project
+  recovery has only `{id: A}`. Begin awaited Auth but not project recovery and
+  could allocate B. A controlled response barrier, the installed Supabase SDK,
+  real fixture Auth handlers and real project TestClient routes reproduced the
+  second HTTP 201 for both anonymous and authenticated principals.
+- A normal greeting/readiness/private-draft repaint rebuilt an open profile
+  dropdown as hidden, replacing the pending login target and losing focus.
+
+The authorized product fix fences start admission behind current project/history
+recovery, coalesces repeated Begin, and checks navigation, owner, session and
+logout state after the wait. Recovery finishes before opening-copy streaming;
+failed or denied saved-self recovery does not allocate a replacement. Cold
+starts and intentional family-project creation retain their separate behavior.
+Profile-menu intent and focus survive only same-scope story paints, and explicit
+close, Escape, navigation, logout and principal/project changes discard them.
+No original browser assertion was removed or delayed to hide either defect.
+
+These changes affect production client code and require fresh source validation;
+prior fixture-only tree equivalence is not evidence for this delta. The Mac went
+offline before a rerun, so actual browser acceptance remains blocked until that
+same machine reconnects. The round-five draft-access gap remains open.
