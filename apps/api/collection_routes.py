@@ -70,7 +70,12 @@ def _queue():
     return configured_queue()
 
 
-def _sources(storage):
+def _sources(storage, project_id=None):
+    from .memoir_preview import lifetime_draft_head
+    governed=lifetime_draft_head(storage,project_id) if project_id else None
+    if governed:
+        raise HTTPException(409,'Use the canonical conversation; bounded collection composition remains pending',
+            headers={'X-Error-Code':governed['error']})
     reader = getattr(storage, 'all_memories', storage.memories)
     try:
         return CodexRuntime._task_sources(reader())
@@ -89,7 +94,7 @@ def collection(project_id: str, authorization: str | None = Header(default=None)
     storage = authenticated_storage(authorization)
     try:
         return {**_queue().collection(storage.user_id, project_id),
-                'sources': [source.model_dump() for source in _sources(storage)],
+                'sources': [source.model_dump() for source in _sources(storage, project_id)],
                 'tasks': _queue().list(storage.user_id, project_id)}
     finally:
         storage.client.close()
@@ -102,7 +107,7 @@ async def update_collection(project_id: str, payload: CollectionUpdate,
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         async with AgentTurnLease(storage) as lease:
-            sources = await lease.io(_sources, storage)
+            sources = await lease.io(_sources, storage, project_id)
             source_ids = {source.id for source in sources}
             requested = {key for period in payload.periods.values() for key in period.memory_ids}
             if not requested.issubset(source_ids):
@@ -125,7 +130,7 @@ async def publish_collection_task(project_id: str, payload: TaskRequest,
     _queue()
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
-        task = resolve_task(payload, await asyncio.to_thread(_sources, storage))
+        task = resolve_task(payload, await asyncio.to_thread(_sources, storage, project_id))
         return await CodexRuntime().publish_task(storage.user_id, project_id, task)
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
@@ -162,7 +167,7 @@ async def organise(project_id: str, payload: OrganiseInput,
             if getattr(storage, 'is_anonymous', False) or not entitlement or entitlement.get('status') != 'paid':
                 raise HTTPException(402, 'A paid memoir entitlement is required for book organisation',
                                     headers={'X-Error-Code': 'PAYMENT_REQUIRED'})
-            sources = await lease.io(_sources, storage)
+            sources = await lease.io(_sources, storage, project_id)
             if document.get('source_fingerprint') != _source_fingerprint(sources):
                 raise HTTPException(409, 'Saved memories changed; review and confirm the collection again')
             chosen = {key for period in document['periods'].values() for key in period['memory_ids']}

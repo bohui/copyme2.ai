@@ -19,9 +19,12 @@ configure_diagnostic_logger(diagnostic_logger)
 
 class CodexConnection:
     def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None,
-                 issue14_admission=None, progress=None):
+                 issue14_admission=None, progress=None, request_admission=None):
         if progress is not None and type(progress) is not WorkerProgress:
             raise TypeError('Owned protocol progress required')
+        if request_admission is not None and not callable(request_admission):
+            raise TypeError('Request admission must be a context manager factory')
+        self.request_admission = request_admission
         self.progress = progress
         self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.command = command
@@ -86,8 +89,18 @@ class CodexConnection:
 
     async def send(self, message):
         check_issue14_dispatch(self._issue14_admission, role='native')
-        self.process.stdin.write((json.dumps(message) + '\n').encode())
-        await self.process.stdin.drain()
+        # Freeze bytes before awaiting admission. The guard serializes actual
+        # pipe delivery against canonical policy changes, never generation or
+        # response receipt. A completed drain admits in-flight work; public
+        # chunks and commit still require their separate publication fences.
+        data = (json.dumps(message) + '\n').encode()
+        if self.request_admission is not None and message.get('method') in {'thread/start', 'turn/start'}:
+            async with self.request_admission():
+                self.process.stdin.write(data)
+                await self.process.stdin.drain()
+        else:
+            self.process.stdin.write(data)
+            await self.process.stdin.drain()
 
     async def receive(self):
         line = await self.process.stdout.readline()
@@ -246,14 +259,15 @@ class CodexConnection:
                     return '\n'.join(messages)
 
 
-def provider_config(base_url, model):
-    """Generate TOML without embedding gateway credentials in persisted config."""
+def provider_config(base_url, model, *, governed=False):
+    """Generate credential-free config; governed homes cannot create/use memories."""
     return '\n'.join([
         'model_provider = "llm_provider"',
         'model = ' + json.dumps(model),
         'model_reasoning_effort = ' + json.dumps(os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max')),
         'approval_policy = "never"',
         'sandbox_mode = "read-only"',
+        *(['project_doc_max_bytes = 0'] if governed else []),
         '[model_providers.llm_provider]',
         'name = "Local llm_provider"',
         'base_url = ' + json.dumps(base_url.rstrip('/')),
@@ -261,10 +275,10 @@ def provider_config(base_url, model):
         'env_key = "MEMORY_SPARK_LLM_API_KEY"',
         'requires_openai_auth = false',
         '[features]',
-        'memories = true',
+        'memories = ' + ('false' if governed else 'true'),
         'shell_tool = false',
         '[memories]',
-        'generate_memories = true',
-        'use_memories = true',
+        'generate_memories = ' + ('false' if governed else 'true'),
+        'use_memories = ' + ('false' if governed else 'true'),
         '',
     ])

@@ -50,6 +50,9 @@ from .memoir_tasks import MemorySource, PublishTaskInput
 from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
 from .memory_events import extraction_instructions, extraction_schema
 from .interview_plan import collector_schema, run_collector_turn
+from .lifetime_memory_engine import (
+    GovernedCollectorInput, run_governed_collector, validate_governed_context,
+)
 
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
@@ -70,6 +73,7 @@ class WorkerTurnError(RuntimeError):
 
 class WorkerTurnInput(BaseModel):
     user_id: UUID
+    governed: GovernedCollectorInput | None = None
     thread_id: str | None = Field(default=None, min_length=1, max_length=256)
     memories: list[str] = Field(default_factory=list, max_length=20)
     profile: dict[str, Any] = Field(default_factory=dict)
@@ -96,8 +100,30 @@ class WorkerTurnInput(BaseModel):
     diagnostic_request_id: str | None = Field(default=None, min_length=1, max_length=96)
 
 
+    @model_validator(mode='before')
+    @classmethod
+    def reject_unknown_governed_fields(cls, value):
+        if isinstance(value, dict) and value.get('governed') is not None:
+            if set(value) - set(cls.model_fields):
+                raise ValueError('Governed turns reject unknown legacy context fields')
+        return value
+
     @model_validator(mode='after')
     def bound_conversation_input(self):
+        if self.governed is not None:
+            if (self.agent_role != 'collector' or self.text or self.memories or self.profile
+                    or self.place_journey or self.family_context or self.family_enabled
+                    or self.canonical_events or self.task_sources or self.extraction_focus
+                    or self.conversation_rounds_completed is not None):
+                raise ValueError('Governed turns cannot mix legacy collector context')
+            identity = self.governed.fence.identity
+            if self.user_id != identity.owner_id or (self.project_id is not None and self.project_id != identity.project_id):
+                raise ValueError('Governed collector identity mismatch')
+            packet = validate_governed_context(self.governed, self.interview_context, model=self.model)
+            if self.language is not None and self.language != packet.pinned.language:
+                raise ValueError('Governed collector language mismatch')
+            return self
+
         if not self.text and not (self.agent_role == 'collector' and self.interview_context and self.interview_context.get('photo_context')):
             raise ValueError('A collector turn needs narration or an accepted photo cue')
         if self.agent_role not in {'composer', 'author_timeline'} and len(self.text) > 100000:
@@ -358,6 +384,8 @@ class CodexWorker:
         return payload.agent_role
 
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        if payload.governed is not None:
+            payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
         user_id = str(payload.user_id)
@@ -367,6 +395,22 @@ class CodexWorker:
         collector = collector_configuration(model) if payload.agent_role == 'collector' else None
         if collector:
             model = collector.model
+        if payload.governed is not None:
+            # Do not visit or migrate any legacy home. Both transports use the
+            # identical packet and fresh-home execution/budget validation seam.
+            return await run_governed_collector(
+                command=self._run_command(uid), home_root=self.home_root,
+                base_url=self.base_url, api_key=self.api_key, model=model,
+                governed=payload.governed, interview_context=payload.interview_context,
+                thread_id=payload.thread_id, timeout=self._execution_timeout('collector'),
+                on_delta=on_delta, on_event=on_event,
+                effort=collector.effort or self.reasoning_effort,
+                responsesapi_client_metadata={**execution_correlation(payload.evaluation, model),
+                    'request_id':new_request_id(payload.diagnostic_request_id)},
+                connection_factory=CodexConnection, issue14_admission=self._issue14_admission,
+                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
+                uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
+            )
         home = self._home(user_id, uid, self._execution_role(payload))
         correlation = execution_correlation(payload.evaluation, model)
         request_id = new_request_id(payload.diagnostic_request_id)

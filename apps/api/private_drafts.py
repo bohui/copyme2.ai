@@ -19,6 +19,10 @@ def synchronize(storage, project, locale=None):
     reader=getattr(storage,'private_draft_rounds',None)
     if not path or not callable(reader) or not project:
         return {'status':'collecting','preview':None,'updating':False,'revision':0}
+    from .memoir_preview import lifetime_draft_head
+    governed=lifetime_draft_head(storage,project)
+    if governed:
+        return governed
     rounds=reader(project)
     reader=getattr(storage,'composition_memories',None) or getattr(storage,'all_memories',storage.memories)
     rows=reader()
@@ -42,6 +46,9 @@ async def validate_job(job_id):
 
 def request_for_job(job):
     payload=job['payload']
+    if payload.get('protocol') == 'lifetime_draft_pages':
+        from .memoir_preview import LifetimeDraftPending
+        raise LifetimeDraftPending('LIFETIME_COMPOSER_PENDING')
     previous=job['previous']
     key=job['source_key']
     if previous:
@@ -85,7 +92,10 @@ async def execute(job_id):
     queue=PrivateDraftJobs(os.environ['MEMORY_SPARK_TASK_DB'])
     job=queue.claim(job_id)
     if not job:
-        return {'status':'deferred' if queue.status(job_id) in {'QUEUED','RUNNING'} else 'finished'}
+        status=queue.status(job_id)
+        if status in {'PAGING','BLOCKED'}:
+            return {'status':'deferred','reason':'LIFETIME_COMPOSER_PENDING'}
+        return {'status':'deferred' if status in {'QUEUED','RUNNING'} else 'finished'}
     checkpoint=dict(job['checkpoint'])
     async def progress(phase):
         queue.checkpoint(job_id,job['lease_token'],phase,checkpoint)

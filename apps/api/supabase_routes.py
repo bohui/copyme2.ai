@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
 from .conversation_text import original_conversation_text
+from .lifetime_memory_publication import PublicationUnavailable
+from .lifetime_memory_reads import snapshot_lifetime_read
 from .conversation_recovery import (PROJECT_ID_PATTERN, ConversationHistory, ProjectList,
     NarratorSourceDetail, conversation_history, narrator_source_detail, project_snapshot)
 
@@ -156,18 +158,23 @@ def read_project_source(project_id: str, source_id: UUID,
         raise HTTPException(422, 'Invalid project id')
     service = storage(authorization)
     try:
-        # The source FK and RLS bind it to an existing canonical owner/project.
-        source = service.narrator_source_by_id(project_id, str(source_id))
-        if source is None:
-            raise HTTPException(404, 'Source not found')
-        if source['status'] == 'withdrawn':
-            raise HTTPException(410, 'This source has been withdrawn',
-                                headers={'X-Error-Code': 'SOURCE_WITHDRAWN'})
-        if expected_version is not None and expected_version != str(source['version']):
-            raise HTTPException(409, 'The cited source has changed; refresh the draft or source reference',
-                                headers={'X-Error-Code': 'SOURCE_REVISION_CONFLICT'})
-        return narrator_source_detail(source)
-    except (httpx.HTTPStatusError, httpx.RequestError):
+        def read_source(_fence=None):
+            # The source FK and RLS bind it to an existing canonical owner/project.
+            source = service.narrator_source_by_id(project_id, str(source_id))
+            if source is None:
+                raise HTTPException(404, 'Source not found')
+            if source['status'] == 'withdrawn':
+                raise HTTPException(410, 'This source has been withdrawn',
+                                    headers={'X-Error-Code': 'SOURCE_WITHDRAWN'})
+            if expected_version is not None and expected_version != str(source['version']):
+                raise HTTPException(409, 'The cited source has changed; refresh the draft or source reference',
+                                    headers={'X-Error-Code': 'SOURCE_REVISION_CONFLICT'})
+            return narrator_source_detail(source)
+        from .lifetime_memory_runtime import lifetime_enabled
+        if lifetime_enabled():
+            return snapshot_lifetime_read(service, project_id, read_source)
+        return read_source()
+    except (httpx.HTTPStatusError, httpx.RequestError, PublicationUnavailable):
         raise HTTPException(503, 'Source temporarily unavailable',
                             headers={'X-Error-Code': 'SOURCE_UNAVAILABLE'}) from None
     finally:
@@ -184,13 +191,17 @@ def read_project_history(project_id: str,
         raise HTTPException(422, 'Invalid project id')
     service = storage(authorization)
     try:
+        from .lifetime_memory_runtime import lifetime_enabled
+        if lifetime_enabled():
+            return snapshot_lifetime_read(service, project_id,
+                lambda fence: conversation_history(service, project_id, limit, cursor))
         return conversation_history(service, project_id, limit, cursor)
     except ValueError:
         raise HTTPException(422, 'Invalid or differently scoped conversation cursor',
                             headers={'X-Error-Code': 'INVALID_HISTORY_CURSOR'}) from None
     except LookupError:
         raise HTTPException(404, 'Project not found') from None
-    except (httpx.HTTPStatusError, httpx.RequestError):
+    except (httpx.HTTPStatusError, httpx.RequestError, PublicationUnavailable):
         raise HTTPException(503, 'Project history temporarily unavailable',
                             headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
     finally:

@@ -20,6 +20,7 @@ dependencies = [
 packages = ["apps", "apps.api"]
 
 [project.optional-dependencies]
+lifetime-memory = ["psycopg[binary]>=3.3,<4"]
 photo-browser = [
   "crawl4ai>=0.8.0,<0.9",
 ]

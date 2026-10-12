@@ -10,6 +10,7 @@ import httpx
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import StreamingResponse
+from .lifetime_memory_publication import PublicationUnavailable
 from .turn_stream import STREAM_HEADERS, turn_events
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
@@ -272,8 +273,12 @@ def read_turn_receipt(client_turn_id: UUID,
     """Reconcile a lost response without admitting or generating another turn."""
     storage = authenticated_storage(authorization)
     try:
+        from .lifetime_memory_runtime import lifetime_enabled
+        if lifetime_enabled():
+            from .lifetime_memory_reads import snapshot_lifetime_read
+            return snapshot_lifetime_read(storage,project_id,lambda fence:turn_receipt(storage,project_id,str(client_turn_id)))
         return turn_receipt(storage, project_id, str(client_turn_id))
-    except (httpx.HTTPStatusError, httpx.RequestError):
+    except (httpx.HTTPStatusError, httpx.RequestError, PublicationUnavailable):
         raise HTTPException(503, 'Conversation receipt temporarily unavailable',
                             headers={'X-Error-Code': 'TURN_RECEIPT_UNAVAILABLE'}) from None
     finally:

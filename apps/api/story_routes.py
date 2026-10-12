@@ -304,6 +304,10 @@ def build_router(
                                   authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
+            from .memoir_preview import lifetime_draft_head
+            governed=await asyncio.to_thread(lifetime_draft_head,storage,project_id)
+            if governed:
+                return governed
             if isinstance(storage, UserStorage):
                 return await asyncio.to_thread(storage.saved_memoir_draft, project_id, language)
             from .private_drafts import synchronize
@@ -317,6 +321,10 @@ def build_router(
     async def retry_private_draft(payload: StoryPreviewCreate,authorization: str | None = Header(default=None)):
         storage=await asyncio.to_thread(storage_for,authorization)
         try:
+            from .memoir_preview import lifetime_draft_head
+            governed=await asyncio.to_thread(lifetime_draft_head,storage,payload.project_id)
+            if governed:
+                return governed
             if isinstance(storage, UserStorage):
                 await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'timeline')
                 await asyncio.to_thread(storage.retry_memoir_lane, payload.project_id, 'composer')
@@ -528,6 +536,10 @@ def build_router(
         if not access or access['rounds_completed'] < access['free_rounds']:
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
+        from .memoir_preview import lifetime_draft_head
+        if await AgentTurnLease.io(lifetime_draft_head,storage,project_id):
+            raise HTTPException(409,'Canonical sample composition is pending bounded source/event assembly',
+                headers={'X-Error-Code':'LIFETIME_COMPOSER_PENDING'})
         reader = getattr(storage, 'composition_memories', None) or getattr(storage, 'all_memories', storage.memories)
         rows = await AgentTurnLease.io(reader)
         profile = await AgentTurnLease.io(storage.profile)
@@ -597,6 +609,10 @@ def build_router(
         if not access or access['rounds_completed'] < access['free_rounds']:
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
+        from .memoir_preview import lifetime_draft_head
+        governed=await AgentTurnLease.io(lifetime_draft_head,storage,project_id)
+        if governed:
+            return governed
         profile = await AgentTurnLease.io(storage.profile)
         locale = normalize_conversation_language(language or profile.get('preferred_language'))
         saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)

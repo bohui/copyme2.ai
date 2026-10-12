@@ -30,6 +30,19 @@ class PreviewSourceChanged(RuntimeError):
     pass
 
 
+class LifetimeDraftPending(RuntimeError):
+    """The governed collection awaits bounded canonical composition support."""
+
+
+def lifetime_draft_head(storage, project_id):
+    # Opt-in code must not introduce migration dependency on legacy deployments.
+    import os
+    if os.getenv('MEMOIR_LIFETIME_MEMORY','').lower() not in {'1','true','yes'}:
+        return None
+    rpc=getattr(storage,'lifetime_rpc',None)
+    return rpc('read_lifetime_private_draft_head',p_project_id=project_id) if callable(rpc) else None
+
+
 SKILL = Path(__file__).resolve().parents[2] / 'skills/memoir-composer'
 
 
@@ -505,6 +518,9 @@ def previous_preview_request(rows, project_id, language):
 
 async def compose_preview(storage, lease, project_id, *, language=None, runtime=None,
                           prepared=None, checkpoint=None, save_checkpoint=None):
+    governed = await lease.io(lifetime_draft_head, storage, project_id)
+    if governed:
+        raise LifetimeDraftPending('LIFETIME_COMPOSER_PENDING')
     reader = getattr(storage, 'composition_memories', None) or getattr(storage, 'all_memories', storage.memories)
     rows = await lease.io(reader)
     profile = await lease.io(storage.profile)
