@@ -21,6 +21,8 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
+from .lifetime_memory_activation import ActivationPublication, CanonicalActivationUnavailable
+from .lifetime_memory_policy import PolicyUnavailable
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
@@ -51,10 +53,25 @@ from .memoir_tasks import MemorySource, PublishTaskInput
 from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
 from .memory_events import extraction_instructions, extraction_schema
 from .interview_plan import collector_schema, run_collector_turn
+from .lifetime_memory_lane_engine import BoundedLaneInput, LaneGenerationPaused, run_bounded_lane
+from .lifetime_memory_job_engine import BoundedJobInput, JobOutputInvalid, run_bounded_job
+from .lifetime_memory_legacy import (
+    LegacyPublication, LegacyJSONResponse, LegacyStreamingResponse, LegacyRequestBody,
+    LegacyMappingConflict, LegacyAuthorityUnavailable,
+)
+from .lifetime_memory_engine import (
+    GovernedCollectorInput, run_governed_collector, validate_governed_context,
+)
 
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
 configure_diagnostic_logger(diagnostic_logger)
+
+
+def _legacy_publication(payload):
+    if any(value is not None for value in (payload.governed, payload.bounded_lane, payload.bounded_job)):
+        return None
+    return LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=payload.user_id)
 
 
 class ComposerProviderUnavailable(RuntimeError):
@@ -71,6 +88,9 @@ class WorkerTurnError(RuntimeError):
 
 class WorkerTurnInput(BaseModel):
     user_id: UUID
+    governed: GovernedCollectorInput | None = None
+    bounded_lane: BoundedLaneInput | None = None
+    bounded_job: BoundedJobInput | None = None
     thread_id: str | None = Field(default=None, min_length=1, max_length=256)
     memories: list[str] = Field(default_factory=list, max_length=20)
     profile: dict[str, Any] = Field(default_factory=dict)
@@ -98,8 +118,61 @@ class WorkerTurnInput(BaseModel):
     diagnostic_request_id: str | None = Field(default=None, min_length=1, max_length=96)
 
 
+    @model_validator(mode='before')
+    @classmethod
+    def reject_unknown_governed_fields(cls, value):
+        if isinstance(value, dict) and any(value.get(key) is not None for key in ('governed','bounded_lane','bounded_job')):
+            if set(value) - set(cls.model_fields):
+                raise ValueError('Governed turns reject unknown legacy context fields')
+        return value
+
     @model_validator(mode='after')
     def bound_conversation_input(self):
+        if sum(value is not None for value in (self.governed,self.bounded_lane,self.bounded_job))>1:
+            raise ValueError('Governed execution contracts cannot be combined')
+        if self.bounded_job is not None:
+            if (self.text or self.thread_id or self.memories or self.profile or self.place_journey
+                    or self.family_context or self.family_enabled or self.canonical_events
+                    or self.task_sources or self.extraction_focus or self.interview_context is not None
+                    or self.conversation_rounds_completed is not None or self.preparation_id is not None):
+                raise ValueError('Bounded collection jobs cannot mix legacy execution context')
+            job=self.bounded_job
+            if (self.agent_role!='organiser' or self.user_id!=job.fence.user_id
+                    or self.project_id!=job.fence.project_id
+                    or (self.model is not None and self.model!=job.budget.model)
+                    or (self.language is not None and self.language!=job.fence.locale)):
+                raise ValueError('Bounded collection job role, owner, project, language or model mismatch')
+            return self
+        if self.bounded_lane is not None:
+            if (self.governed is not None or self.text or self.thread_id or self.memories or self.profile
+                    or self.place_journey or self.family_context or self.family_enabled
+                    or self.canonical_events or self.task_sources or self.extraction_focus
+                    or self.interview_context is not None or self.conversation_rounds_completed is not None
+                    or self.preparation_id is not None):
+                raise ValueError('Bounded lanes cannot mix legacy execution context')
+            lane = self.bounded_lane
+            role = 'author_timeline' if lane.phase == 'extract' else 'composer'
+            if (self.agent_role != role or self.user_id != lane.fence.user_id
+                    or self.project_id != lane.fence.project_id
+                    or (self.model is not None and self.model != lane.budget.model)
+                    or (self.language is not None and self.language != lane.fence.locale)
+                    or (role == 'composer' and self.composer_phase != lane.phase)):
+                raise ValueError('Bounded lane role, identity, language or model mismatch')
+            return self
+        if self.governed is not None:
+            if (self.agent_role != 'collector' or self.text or self.memories or self.profile
+                    or self.place_journey or self.family_context or self.family_enabled
+                    or self.canonical_events or self.task_sources or self.extraction_focus
+                    or self.conversation_rounds_completed is not None):
+                raise ValueError('Governed turns cannot mix legacy collector context')
+            identity = self.governed.fence.identity
+            if self.user_id != identity.owner_id or (self.project_id is not None and self.project_id != identity.project_id):
+                raise ValueError('Governed collector identity mismatch')
+            packet = validate_governed_context(self.governed, self.interview_context, model=self.model)
+            if self.language is not None and self.language != packet.pinned.language:
+                raise ValueError('Governed collector language mismatch')
+            return self
+
         if not self.text and not (self.agent_role == 'collector' and self.interview_context and self.interview_context.get('photo_context')):
             raise ValueError('A collector turn needs narration or an accepted photo cue')
         if self.agent_role not in {'composer', 'author_timeline'} and len(self.text) > 100000:
@@ -253,9 +326,19 @@ class CodexWorker:
         ]
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        # Diagnostics remain bound to the caller's exact dispatch object; the
+        # separately detached execution payload cannot be mutated across awaits.
         deadline_payload = payload
         self._progress_context.set(None)
         self._deadline_context.set((deadline_payload, None, asyncio.current_task()))
+        payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
+        legacy_publication = _legacy_publication(payload)
+        if legacy_publication is not None:
+            async with legacy_publication.guard():
+                pass
+        else:
+            from .lifetime_memory_lane_engine import check_lane_generation
+            check_lane_generation()
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
         progress = WorkerProgress()
@@ -282,7 +365,7 @@ class CodexWorker:
         try:
             execution_role = self._execution_role(payload)
             async with self._lock(user_id, execution_role):
-                if payload.agent_role == 'composer':
+                if payload.agent_role == 'composer' and payload.bounded_lane is None:
                     await self._ensure_composer_provider()
                 # Shared-volume lock also covers API disconnect/lease expiry and
                 # multiple worker processes. Collector and workspace passes have
@@ -353,6 +436,10 @@ class CodexWorker:
 
     @staticmethod
     def _execution_role(payload):
+        if payload.bounded_job is not None:
+            return 'job-' + str(payload.bounded_job.fence.job_id)
+        if payload.bounded_lane is not None:
+            return 'bounded-' + str(payload.bounded_lane.fence.lane_id)
         if payload.agent_role == 'composer' and payload.composer_phase == 'prepare':
             if not payload.preparation_id:
                 raise ValueError('Preparation requires an opaque task ID')
@@ -360,6 +447,12 @@ class CodexWorker:
         return payload.agent_role
 
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        legacy_publication = _legacy_publication(payload)
+        if legacy_publication is not None:
+            async with legacy_publication.guard():
+                pass
+        if payload.governed is not None or payload.bounded_lane is not None or payload.bounded_job is not None:
+            payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
         user_id = str(payload.user_id)
@@ -369,6 +462,37 @@ class CodexWorker:
         collector = collector_configuration(model) if payload.agent_role == 'collector' else None
         if collector:
             model = collector.model
+        if payload.bounded_job is not None:
+            return await run_bounded_job(command=self._run_command(uid),home_root=self.home_root,
+                base_url=self.base_url,api_key=self.api_key,model=model,
+                bounded_job=payload.bounded_job,timeout=self._execution_timeout(payload.agent_role,payload.composer_phase),
+                connection_factory=CodexConnection,issue14_admission=self._issue14_admission,
+                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
+                uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',effort=self.reasoning_effort)
+        if payload.bounded_lane is not None:
+            return await run_bounded_lane(command=self._run_command(uid),home_root=self.home_root,
+                base_url=self.base_url,api_key=self.api_key,model=model,
+                bounded_lane=payload.bounded_lane,timeout=self._execution_timeout(payload.agent_role,payload.composer_phase),
+                connection_factory=CodexConnection,issue14_admission=self._issue14_admission,
+                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
+                uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
+                effort=self.reasoning_effort)
+        if payload.governed is not None:
+            # Do not visit or migrate any legacy home. Both transports use the
+            # identical packet and fresh-home execution/budget validation seam.
+            return await run_governed_collector(
+                command=self._run_command(uid), home_root=self.home_root,
+                base_url=self.base_url, api_key=self.api_key, model=model,
+                governed=payload.governed, interview_context=payload.interview_context,
+                thread_id=payload.thread_id, timeout=self._execution_timeout('collector'),
+                on_delta=on_delta, on_event=on_event,
+                effort=collector.effort or self.reasoning_effort,
+                responsesapi_client_metadata={**execution_correlation(payload.evaluation, model),
+                    'request_id':new_request_id(payload.diagnostic_request_id)},
+                connection_factory=CodexConnection, issue14_admission=self._issue14_admission,
+                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
+                uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
+            )
         home = self._home(user_id, uid, self._execution_role(payload))
         correlation = execution_correlation(payload.evaluation, model)
         request_id = new_request_id(payload.diagnostic_request_id)
@@ -454,6 +578,7 @@ class CodexWorker:
                 provider_env=environment,
                 timeout=self._execution_timeout(payload.agent_role, payload.composer_phase),
                 trajectory=trajectory,
+                request_admission=legacy_publication.guard,
                 progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 **issue14_connection_options(self._issue14_admission),
             ) as connection:
@@ -547,6 +672,8 @@ class CodexWorker:
                     raise WorkerTurnError('Codex worker turn failed', trajectory.payload()) from error
             raise
 
+        async with legacy_publication.guard():
+            pass
         artifacts = [
             {"path": path, "content": base64.b64encode(content).decode("ascii")}
             for path, content in (iter_artifacts(home) if payload.agent_role == 'collector' else [])
@@ -571,18 +698,32 @@ async def publish_task(payload: PublishTaskInput, x_codex_worker_secret: str | N
     except AdmissionDenied:
         raise HTTPException(status_code=403, detail='Issue 14 evaluation admission denied',
             headers={'X-Error-Code': 'ISSUE14_ADMISSION_DENIED'}) from None
-    target = os.getenv('MEMORY_SPARK_TASK_STORE_URL', '').rstrip('/')
-    if not target:
-        raise HTTPException(503, 'Task persistence is not configured')
+    payload = PublishTaskInput.model_validate(payload.model_dump(mode='json'))
+    publisher = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=payload.user_id)
+    encoded = json.dumps(payload.model_dump(mode='json'),ensure_ascii=False,separators=(',',':')).encode('utf-8')
+    body = LegacyRequestBody(encoded,publisher=publisher)
     try:
+        async with publisher.guard():
+            pass
+        target = os.getenv('MEMORY_SPARK_TASK_STORE_URL', '').rstrip('/')
+        if not target:
+            raise HTTPException(503, 'Task persistence is not configured')
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(target + '/internal/tasks',
-                headers={'X-Codex-Worker-Secret': x_codex_worker_secret},
-                json=payload.model_dump(mode='json'))
+                headers={'X-Codex-Worker-Secret': x_codex_worker_secret,
+                    'Content-Type':'application/json','Content-Length':str(len(encoded))}, content=body)
             response.raise_for_status()
-            return response.json()
+            return LegacyJSONResponse(response.json(),publisher=publisher,status_code=202)
+    except LegacyMappingConflict:
+        raise HTTPException(409, 'This owner requires governed execution',
+            headers={'X-Error-Code':LegacyMappingConflict.code}) from None
+    except (LegacyAuthorityUnavailable, TimeoutError):
+        raise HTTPException(503, 'Legacy task authority is unavailable',
+            headers={'X-Error-Code':LegacyAuthorityUnavailable.code}) from None
     except httpx.HTTPError:
         raise HTTPException(503, 'Task persistence unavailable; retry the same task') from None
+    finally:
+        await body.aclose()
 
 
 def _require_worker_secret(provided: str | None):
@@ -610,10 +751,38 @@ async def turn(payload: WorkerTurnInput, request: Request,
     request_id = new_request_id(x_memoir_request_id or payload.diagnostic_request_id)
     if payload.diagnostic_request_id != request_id:
         payload = payload.model_copy(update={'diagnostic_request_id': request_id})
+    legacy_publication = _legacy_publication(payload)
+    if legacy_publication is not None:
+        try:
+            async with legacy_publication.guard():
+                pass
+        except LegacyMappingConflict:
+            raise HTTPException(409, 'This owner requires governed execution',
+                headers={'X-Error-Code': LegacyMappingConflict.code}) from None
+        except LegacyAuthorityUnavailable:
+            raise HTTPException(503, 'Legacy identity authority is unavailable',
+                headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
+    else:
+        try:
+            from .lifetime_memory_lane_engine import check_lane_generation
+            check_lane_generation()
+            # Readiness preflight returns a fixed HTTP error before streaming
+            # headers. Every engine separately gates actual pipe admission.
+            async with ActivationPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
+                    authenticated_owner=payload.user_id).guard():
+                pass
+        except LaneGenerationPaused:
+            raise HTTPException(503, 'Bounded lifetime generation is paused; retry later',
+                headers={'X-Error-Code': LaneGenerationPaused.code, 'Retry-After': '60'}) from None
+        except CanonicalActivationUnavailable:
+            raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
+                headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     if 'application/x-ndjson' in request.headers.get('accept', ''):
-        return StreamingResponse(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
-                                                                        on_event=emit.event)),
-                                 media_type='application/x-ndjson', headers=STREAM_HEADERS)
+        response_type = LegacyStreamingResponse if legacy_publication is not None else StreamingResponse
+        return response_type(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
+                                                                    on_event=emit.event)),
+            **({'publisher':legacy_publication} if legacy_publication is not None else {}),
+            media_type='application/x-ndjson', headers=STREAM_HEADERS)
     task = asyncio.create_task(worker.turn(payload))
     try:
         while not task.done():
@@ -621,9 +790,28 @@ async def turn(payload: WorkerTurnInput, request: Request,
                 task.cancel()
                 break
             await asyncio.wait({task}, timeout=0.1)
-        return await task
+        result = await task
+        return LegacyJSONResponse(result,publisher=legacy_publication) if legacy_publication is not None else result
+    except LegacyMappingConflict:
+        raise HTTPException(409, 'This owner requires governed execution',
+            headers={'X-Error-Code': LegacyMappingConflict.code}) from None
+    except LegacyAuthorityUnavailable:
+        raise HTTPException(503, 'Legacy identity authority is unavailable',
+            headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
     except AgentTurnBusyError as error:
         raise HTTPException(status_code=409, detail=str(error)) from None
+    except PolicyUnavailable:
+        raise HTTPException(503, 'Accepted conversation policy requires maintenance before private content can be used',
+            headers={'X-Error-Code': PolicyUnavailable.code, 'Retry-After': '60'}) from None
+    except CanonicalActivationUnavailable:
+        raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
+            headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
+    except JobOutputInvalid:
+        raise HTTPException(status_code=502, detail='Collection output requires bounded repair',
+                            headers={'X-Error-Code': JobOutputInvalid.code, 'Retry-After': '60'}) from None
+    except LaneGenerationPaused:
+        raise HTTPException(status_code=503, detail='Bounded lifetime generation is paused; retry later',
+                            headers={'X-Error-Code': LaneGenerationPaused.code, 'Retry-After': '60'}) from None
     except ComposerProviderUnavailable:
         raise HTTPException(status_code=503, detail='The model provider is unavailable',
                             headers={'X-Error-Code': 'COMPOSER_PROVIDER_UNAVAILABLE'}) from None
@@ -633,9 +821,11 @@ async def turn(payload: WorkerTurnInput, request: Request,
     except TimeoutError:
         raise HTTPException(status_code=504, detail='Codex worker turn timed out') from None
     except WorkerTurnError as error:
-        return JSONResponse(
+        response_type = LegacyJSONResponse if legacy_publication is not None else JSONResponse
+        return response_type(
             status_code=502,
             content={'detail': 'Codex worker failed', 'trajectory': error.trajectory},
+            **({'publisher':legacy_publication} if legacy_publication is not None else {}),
         )
     except RuntimeError as error:
         raise HTTPException(status_code=502, detail='Codex worker failed') from None

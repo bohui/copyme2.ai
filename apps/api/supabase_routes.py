@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
 from .conversation_text import original_conversation_text
+from .lifetime_memory_publication import PublicationUnavailable
+from .lifetime_memory_reads import snapshot_lifetime_read
 from .conversation_recovery import (PROJECT_ID_PATTERN, ConversationHistory, ProjectList,
     NarratorSourceDetail, conversation_history, narrator_source_detail, project_snapshot)
 
@@ -16,6 +18,11 @@ router = APIRouter(prefix='/v1/user', tags=['Supabase user data'])
 
 
 storage = authenticated_storage
+
+
+def mapped_lifetime_identity(service):
+    from .lifetime_memory_reads import find_lifetime_read_identity
+    return find_lifetime_read_identity(service,None)
 
 
 class MemoryInput(BaseModel):
@@ -156,18 +163,20 @@ def read_project_source(project_id: str, source_id: UUID,
         raise HTTPException(422, 'Invalid project id')
     service = storage(authorization)
     try:
-        # The source FK and RLS bind it to an existing canonical owner/project.
-        source = service.narrator_source_by_id(project_id, str(source_id))
-        if source is None:
-            raise HTTPException(404, 'Source not found')
-        if source['status'] == 'withdrawn':
-            raise HTTPException(410, 'This source has been withdrawn',
-                                headers={'X-Error-Code': 'SOURCE_WITHDRAWN'})
-        if expected_version is not None and expected_version != str(source['version']):
-            raise HTTPException(409, 'The cited source has changed; refresh the draft or source reference',
-                                headers={'X-Error-Code': 'SOURCE_REVISION_CONFLICT'})
-        return narrator_source_detail(source)
-    except (httpx.HTTPStatusError, httpx.RequestError):
+        def read_source(_fence=None):
+            # The source FK and RLS bind it to an existing canonical owner/project.
+            source = service.narrator_source_by_id(project_id, str(source_id))
+            if source is None:
+                raise HTTPException(404, 'Source not found')
+            if source['status'] == 'withdrawn':
+                raise HTTPException(410, 'This source has been withdrawn',
+                                    headers={'X-Error-Code': 'SOURCE_WITHDRAWN'})
+            if expected_version is not None and expected_version != str(source['version']):
+                raise HTTPException(409, 'The cited source has changed; refresh the draft or source reference',
+                                    headers={'X-Error-Code': 'SOURCE_REVISION_CONFLICT'})
+            return narrator_source_detail(source)
+        return snapshot_lifetime_read(service, project_id, read_source)
+    except (httpx.HTTPStatusError, httpx.RequestError, PublicationUnavailable):
         raise HTTPException(503, 'Source temporarily unavailable',
                             headers={'X-Error-Code': 'SOURCE_UNAVAILABLE'}) from None
     finally:
@@ -184,13 +193,14 @@ def read_project_history(project_id: str,
         raise HTTPException(422, 'Invalid project id')
     service = storage(authorization)
     try:
-        return conversation_history(service, project_id, limit, cursor)
+        return snapshot_lifetime_read(service, project_id,
+            lambda fence: conversation_history(service, project_id, limit, cursor))
     except ValueError:
         raise HTTPException(422, 'Invalid or differently scoped conversation cursor',
                             headers={'X-Error-Code': 'INVALID_HISTORY_CURSOR'}) from None
     except LookupError:
         raise HTTPException(404, 'Project not found') from None
-    except (httpx.HTTPStatusError, httpx.RequestError):
+    except (httpx.HTTPStatusError, httpx.RequestError, PublicationUnavailable):
         raise HTTPException(503, 'Project history temporarily unavailable',
                             headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
     finally:
@@ -201,6 +211,15 @@ def read_project_history(project_id: str,
 def conversation_attachments(authorization: str | None = Header(default=None)):
     service = storage(authorization)
     try:
+        identity=mapped_lifetime_identity(service)
+        if identity is not None:
+            # Canonical history has its own owner-scoped paginated API. Do not
+            # reconstruct a second unbounded feed from legacy assistant mirrors.
+            return snapshot_lifetime_read(service,identity.project_id,lambda fence: {
+                'items':[{'id':str(identity.conversation_id),'project_id':identity.project_id,
+                    'messages':[],'workspace':{},'created_at':None}],
+                'resume_project_id':identity.project_id,
+                'history_url':f'/v1/user/projects/{identity.project_id}/history'})
         items = service.request('GET', '/rest/v1/user_conversation_attachment', params={
             'select': 'id,project_id,messages,workspace,created_at',
             'user_id': f'eq.{service.user_id}', 'order': 'created_at.desc', 'limit': '100',
@@ -248,8 +267,12 @@ def conversation_attachments(authorization: str | None = Header(default=None)):
 
 @router.put('/profile')
 async def save_profile(payload: dict, authorization: str | None = Header(default=None)):
+    from .agent_lock import AgentTurnLease, AgentTurnBusyError
     service = storage(authorization)
     try:
+        if mapped_lifetime_identity(service) is not None:
+            raise HTTPException(409,'Use explicit profile settings for a canonical conversation',
+                headers={'X-Error-Code':'LIFETIME_EXPLICIT_SETTINGS_REQUIRED'})
         from .agent_lock import AgentTurnLease, AgentTurnBusyError
         async with AgentTurnLease(service) as lease:
             current = await lease.io(service.profile)
@@ -277,6 +300,13 @@ async def read_workspace_profile(authorization: str | None = Header(default=None
     try:
         import asyncio
         from .conversation_locale import restore_from_history
+        identity=await asyncio.to_thread(mapped_lifetime_identity,service)
+        if identity is not None:
+            def current_profile(fence):
+                profile=service.profile()
+                return {**{key:value for key,value in profile.items() if not key.startswith('_')},
+                    'name':profile.get('name')}
+            return await asyncio.to_thread(snapshot_lifetime_read,service,identity.project_id,current_profile)
         profile = await asyncio.to_thread(service.profile)
         profile = await restore_from_history(service, profile)
         return {key: value for key, value in profile.items() if not key.startswith('_')}
@@ -307,6 +337,9 @@ async def upload_attachment(request: Request, filename: str,
 def list_memories(authorization: str | None = Header(default=None)):
     service = storage(authorization)
     try:
+        if mapped_lifetime_identity(service) is not None:
+            raise HTTPException(409,'Use canonical paginated conversation history',
+                headers={'X-Error-Code':'LIFETIME_CANONICAL_HISTORY_REQUIRED'})
         return {'items': service.memories()}
     finally:
         service.client.close()
@@ -316,6 +349,9 @@ def list_memories(authorization: str | None = Header(default=None)):
 def save_memory(payload: MemoryInput, authorization: str | None = Header(default=None)):
     service = storage(authorization)
     try:
+        if mapped_lifetime_identity(service) is not None:
+            raise HTTPException(409,'Use canonical narrator turn admission',
+                headers={'X-Error-Code':'LIFETIME_CANONICAL_ADMISSION_REQUIRED'})
         return service.save_memory(payload.content)
     finally:
         service.client.close()

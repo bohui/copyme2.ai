@@ -50,3 +50,23 @@ def test_checked_in_cases_pass_through_the_runtime_boundary():
         expected.update(case["expected"])
         scores = evaluate_trajectory(trajectory, expected=expected)
         assert all(score["value"] == 1 for score in scores), (case["id"], scores)
+
+
+def test_synthetic_owner_is_a_unique_authenticated_shape_per_case():
+    from uuid import UUID
+    from apps.api.evaluation_cases import SyntheticStorage
+    case=normalise_case(json.loads(CASES_PATH.read_text())['cases'][0])
+    first=SyntheticStorage(case,{'case_id':'same-case'})
+    second=SyntheticStorage(case,{'case_id':'same-case'})
+    assert str(UUID(first.user_id))==first.user_id
+    assert first.user_id!=second.user_id
+
+
+def test_offline_runner_explicitly_asserts_synthetic_legacy_without_inheriting_authority(monkeypatch,tmp_path):
+    from scripts.run_isolated_check import offline_environment
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','synthetic-must-not-leak')
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
+    monkeypatch.setenv('OPENAI_API_KEY','synthetic-must-not-leak')
+    env=offline_environment(tmp_path)
+    assert env['MEMOIR_LEGACY_ONLY_DEPLOYMENT']=='1'
+    assert all(key not in env for key in ('MEMOIR_PUBLICATION_DATABASE_URL','MEMOIR_LIFETIME_MEMORY','OPENAI_API_KEY'))

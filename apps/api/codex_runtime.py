@@ -25,6 +25,7 @@ from .conversation_text import original_conversation_text
 from .codex_timeout_policy import WORKER_MAX_TIMEOUT, WORKER_TIMEOUT, WORKSPACE_TIMEOUT
 from .codex_artifacts import iter_artifacts
 from .codex_agent import CodexConnection, provider_config
+from .lifetime_memory_legacy import LegacyPublication, LegacyRequestBody
 from .collector_configuration import collector_configuration
 from .issue14_execution_admission import (
     check_issue14_dispatch, issue14_connection_options, validate_optional_issue14_admission,
@@ -1637,7 +1638,14 @@ class CodexRuntime:
                    photo_selection: dict | None = None,
                    user_response: bool = True,
                    saved_place_hints: list | None = None,
-                   trajectory: TrajectoryRecorder | None = None):
+                   trajectory: TrajectoryRecorder | None = None,
+                   lifetime_context=None):
+        if lifetime_context is not None:
+            from .lifetime_memory_runtime import run_lifetime_turn
+            return await run_lifetime_turn(self,storage,conversation_text if conversation_text is not None else original_conversation_text(text),
+                publication=lifetime_context,project_id=project_id,language=language,client_turn_id=client_turn_id,
+                source_kind=source_kind,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
+                user_response=user_response,on_delta=on_delta,on_event=on_event)
         check_issue14_dispatch(self._issue14_admission, role='collector', correlation=evaluation)
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
         from .interview_plan import (CollectorVisibleStream, public_interview_fields,
@@ -1944,6 +1952,9 @@ class CodexRuntime:
                     agent_role='collector', model=collector.model,
                     prompt_version=collector.prompt_version, requested_effort=collector.effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max'),
                     effective_effort='unavailable')
+                legacy_publication = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=user_id)
+                async with legacy_publication.guard():
+                    pass
                 home = await asyncio.to_thread(self._home, user_id, 'collector')
                 deferred_home = home
                 environment = {'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env}
@@ -1967,6 +1978,7 @@ class CodexRuntime:
                     provider_env=environment,
                     timeout=self.timeout,
                     trajectory=trajectory,
+                    request_admission=legacy_publication.guard,
                     **issue14_connection_options(self._issue14_admission),
                 ) as connection:
                     if prior:
@@ -2662,6 +2674,9 @@ class CodexRuntime:
                     await result['_artifact_task']
                 return reply
 
+            legacy_publication = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=user_id)
+            async with legacy_publication.guard():
+                pass
             home = await asyncio.to_thread(self._home, user_id, 'workspace')
             context = self._memory_context(memories)
             instructions = build_workspace_extraction_prompt(
@@ -2683,6 +2698,7 @@ class CodexRuntime:
                 home,
                 provider_env={'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env},
                 timeout=WORKSPACE_TIMEOUT,
+                request_admission=legacy_publication.guard,
                 **issue14_connection_options(self._issue14_admission),
             ) as connection:
                 result = await connection.request('thread/start', {
@@ -3150,12 +3166,19 @@ class CodexRuntime:
         check_issue14_dispatch(self._issue14_admission, role='organiser')
         if not self.worker_url or not self.worker_secret:
             raise ValueError('Private Codex task publisher is unavailable')
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(f'{self.worker_url}/internal/tasks',
-                headers={'X-Codex-Worker-Secret': self.worker_secret},
-                json={'user_id': user_id, 'project_id': project_id, 'task': task.model_dump()})
-            response.raise_for_status()
-            return response.json()
+        publisher = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=user_id)
+        encoded = json.dumps({'user_id': str(publisher.owner), 'project_id': project_id,
+            'task': task.model_dump()}, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        body = LegacyRequestBody(encoded, publisher=publisher)
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.post(f'{self.worker_url}/internal/tasks',
+                    headers={'X-Codex-Worker-Secret': self.worker_secret,
+                        'Content-Type':'application/json','Content-Length':str(len(encoded))},content=body)
+                response.raise_for_status()
+                return response.json()
+        finally:
+            await body.aclose()
 
     async def _resolve_language(self, user_id, text, fallback):
         """Run the memory-context skill privately before any visible generation."""
@@ -3168,12 +3191,16 @@ class CodexRuntime:
             )
             reply = result['reply']
         else:
+            legacy_publication = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=user_id)
+            async with legacy_publication.guard():
+                pass
             home = await asyncio.to_thread(self._home, user_id)
             instructions = build_language_intake_prompt()
             async with CodexConnection(
                 self.command, home,
                 provider_env={'MEMORY_SPARK_LLM_API_KEY': self.api_key, **self.provider_env},
                 timeout=self.timeout,
+                request_admission=legacy_publication.guard,
                 **issue14_connection_options(self._issue14_admission),
             ) as connection:
                 result = await connection.request('thread/start', {
@@ -3202,7 +3229,7 @@ class CodexRuntime:
                            evaluation=None, agent_role='collector', on_event=None,
                            extraction_focus=None, diagnostic_request_id=None, interview_context=None,
                            conversation_phase=None,
-                           trajectory: TrajectoryRecorder | None = None, canonical_events=False):
+                           trajectory: TrajectoryRecorder | None = None, canonical_events=False, governed=None):
         check_issue14_dispatch(self._issue14_admission, role=agent_role, correlation=evaluation)
         if not self.worker_secret:
             raise RuntimeError('Codex worker secret is not configured')
@@ -3238,6 +3265,8 @@ class CodexRuntime:
             'language': language,
             'diagnostic_request_id': request_id,
         }
+        if governed is not None:
+            payload['governed'] = governed
         if interview_context is not None:
             payload['interview_context'] = interview_context
         if conversation_phase is not None:
@@ -3259,6 +3288,17 @@ class CodexRuntime:
             'X-Codex-Worker-Secret': self.worker_secret,
             'X-Memoir-Request-ID': request_id,
         }
+        encoded=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+        worker_headers={**worker_headers,'Content-Type':'application/json','Content-Length':str(len(encoded))}
+        if governed is None:
+            publisher=LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=user_id)
+            request_content={'content':LegacyRequestBody(encoded,publisher=publisher)}
+        else:
+            from .lifetime_memory_publication import GovernedRequestBody,ProviderPublication
+            encoded=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+            publisher=ProviderPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=user_id)
+            request_content={'content':GovernedRequestBody(encoded,publisher=publisher,fence=governed['fence'])}
+            worker_headers={**worker_headers,'Content-Type':'application/json','Content-Length':str(len(encoded))}
         result: Any = None
 
         def preserve_failure_trajectory(error: BaseException) -> None:
@@ -3307,7 +3347,7 @@ class CodexRuntime:
                                     **worker_headers,
                                     'Accept': 'application/x-ndjson',
                                 },
-                                json=payload,
+                                **request_content,
                             ) as response:
                                 if response.status_code >= 400:
                                     response.extensions[_WORKER_ERROR_BODY_EXTENSION] = (
@@ -3329,6 +3369,12 @@ class CodexRuntime:
                                     elif event['type'] == 'result':
                                         terminal = event['data']
                                     elif event['type'] == 'error':
+                                        from .lifetime_memory_policy import PolicyUnavailable
+                                        if governed is not None and event.get('code') == PolicyUnavailable.code:
+                                            raise PolicyUnavailable()
+                                        from .lifetime_memory_activation import CanonicalActivationUnavailable
+                                        if governed is not None and event.get('code') == CanonicalActivationUnavailable.code:
+                                            raise CanonicalActivationUnavailable()
                                         partial = event.get('trajectory')
                                         raise _WorkerStreamError(
                                             'Codex worker turn failed',
@@ -3360,11 +3406,19 @@ class CodexRuntime:
                     response = await client.post(
                         f'{self.worker_url}/internal/codex/turn',
                         headers=worker_headers,
-                        json=payload,
+                        **request_content,
                     )
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
+            from .lifetime_memory_policy import PolicyUnavailable
+            if (governed is not None and error.response.status_code == 503
+                    and error.response.headers.get('X-Error-Code') == PolicyUnavailable.code):
+                raise PolicyUnavailable() from None
+            from .lifetime_memory_activation import CanonicalActivationUnavailable
+            if (governed is not None and error.response.status_code == 503
+                    and error.response.headers.get('X-Error-Code') == CanonicalActivationUnavailable.code):
+                raise CanonicalActivationUnavailable() from None
             error_payload = _worker_error_payload(error.response)
             if isinstance(error_payload, Mapping):
                 partial = error_payload.get('trajectory')
@@ -3424,6 +3478,8 @@ class CodexRuntime:
                 elapsed_ms=elapsed_ms(started),
             )
             raise
+        finally:
+            await request_content['content'].aclose()
         if not isinstance(result, dict) or not isinstance(result.get('thread_id'), str) or not isinstance(result.get('reply'), str):
             log_diagnostic(
                 diagnostic_logger,

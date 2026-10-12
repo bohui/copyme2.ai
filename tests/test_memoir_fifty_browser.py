@@ -20,7 +20,9 @@ def owned(monkeypatch):
     queries = []
     def sql(query, **kwargs):
         queries.append(query)
-        if 'read_user_memoir_draft' in query:
+        if 'read_lifetime_project_identity' in query:
+            value = None  # Explicit pre-migration cohort; this read never adopts.
+        elif 'read_user_memoir_draft' in query:
             value = {'revision': 1, 'status': 'ready', 'preview': {'text': 'Saved draft'}}
         elif 'read_user_memory_events' in query:
             value = {'events': [], 'sources': [], 'completed_rounds': 5}
@@ -118,7 +120,8 @@ def test_draft_readback_uses_saved_rpc_and_denies_legacy_fallback(owned, monkeyp
     from apps.api import legacy_memoir
     monkeypatch.setattr(legacy_memoir, 'import_saved_cache', lambda *a: pytest.fail('No legacy cache read or migration'))
     original = session._entitlement_facades[case].sql
-    session._entitlement_facades[case].sql = lambda *a, **k: SimpleNamespace(returncode=0, stdout='{"revision":0}', stderr='')
+    session._entitlement_facades[case].sql = lambda query, **k: SimpleNamespace(returncode=0,
+        stdout='null' if 'read_lifetime_project_identity' in query else '{"revision":0}', stderr='')
     result = request(api, case, 'GET', '/story/private-draft', **kwargs)
     assert result.status_code == 409
     session._entitlement_facades[case].sql = original
@@ -175,7 +178,9 @@ def test_hidden_locale_restore_cannot_acquire_lease_or_write(owned):
     def sql(query, **kwargs):
         queries.append(query)
         assert 'acquire_user_agent_lease' not in query and 'insert into' not in query
-        if 'user_profile' in query:
+        if 'read_lifetime_project_identity' in query:
+            value = None
+        elif 'user_profile' in query:
             value = [{'profile': {}}]
         else:
             value = [{'kind': 'agent', 'id': str(uuid4()), 'created_at': '2026-10-09T00:00:00Z',
@@ -185,7 +190,8 @@ def test_hidden_locale_restore_cannot_acquire_lease_or_write(owned):
     api = browser.OwnedFiftyBrowserAPI.build(session)
     response = request(api, case, 'GET', '/agent/profile', headers=auth(session, case))
     assert response.status_code in {403, 409, 502, 503}
-    assert len(queries) == 2
+    assert len(queries) == 3
+    assert sum('read_lifetime_project_identity' in query for query in queries) == 1
 
 
 def test_actual_history_source_and_receipt_read_contract(owned):
@@ -200,7 +206,9 @@ def test_actual_history_source_and_receipt_read_contract(owned):
     def sql(query, **kwargs):
         queries.append(query)
         assert f"request.jwt.claim.sub='{owner}'" in query
-        if 'read_user_interview_turn' in query:
+        if 'read_lifetime_project_identity' in query:
+            value = None
+        elif 'read_user_interview_turn' in query:
             assert 'p_client_turn_id=>' in query and turn in query
             value = None
         elif 'user_memoir_project' in query:
@@ -443,7 +451,13 @@ def test_concurrent_duplicate_never_dispatches_second_runtime(turn_owned):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url='http://127.0.0.1:12345') as client:
             path = f'/cases/{case}/api/v1/memoir/agent/turn'
             first = asyncio.create_task(client.post(path, headers=auth(session, case), json=payload))
-            await started.wait()
+            try:
+                await asyncio.wait_for(started.wait(), timeout=2)
+            except BaseException:
+                release.set()
+                first.cancel()
+                await asyncio.gather(first, return_exceptions=True)
+                raise
             duplicate = await client.post(path, headers=auth(session, case), json=payload)
             assert duplicate.status_code == 409 and calls == []
             release.set()
@@ -521,3 +535,35 @@ def test_start_failure_closes_its_socket_without_caller_cleanup(owned, monkeypat
                 await api.start()
         assert sockets[0].closed and api.receipt()['closed'] is True
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('scope',['owner_lookup','exact_project','foreign_project','foreign_owner','mutation'])
+def test_readonly_identity_rpc_keeps_exact_browser_owner_and_project_scope(owned,scope):
+    session,queries=owned;case=session.case_ids[0];plan=session.case_plans[case]
+    api=browser.OwnedFiftyBrowserAPI.build(session)
+    rpc='resolve_lifetime_conversation' if scope=='mutation' else 'read_lifetime_project_identity'
+    project=None if scope=='owner_lookup' else 'foreign' if scope=='foreign_project' else plan['project_id']
+    owner=session.case_plans[session.case_ids[1]]['owner_id'] if scope=='foreign_owner' else plan['owner_id']
+    response=api._handle_read(case,httpx.Request('POST','http://synthetic.invalid/rest/v1/rpc/'+rpc,
+        headers={'Authorization':'Bearer '+owner},json={'p_project_id':project}))
+    allowed=scope in {'owner_lookup','exact_project'}
+    assert response.status_code==(200 if allowed else 403)
+    assert len(queries)==int(allowed)
+    if allowed:
+        assert response.json() is None
+        assert "request.jwt.claim.sub='"+plan['owner_id']+"'" in queries[0]
+        assert 'read_lifetime_project_identity' in queries[0] and 'resolve_lifetime' not in queries[0]
+
+
+@pytest.mark.parametrize('wrong_field',['owner_id','project_id'])
+def test_readonly_identity_rpc_rejects_authority_outside_owned_browser_plan(owned,wrong_field):
+    session,queries=owned;case=session.case_ids[0];plan=session.case_plans[case]
+    identity={'owner_id':plan['owner_id'],'project_id':plan['project_id']}
+    identity[wrong_field]=str(uuid4())
+    session._entitlement_facades[case].sql=lambda *args,**kwargs:SimpleNamespace(
+        returncode=0,stdout=json.dumps(identity),stderr='')
+    api=browser.OwnedFiftyBrowserAPI.build(session)
+    response=api._handle_read(case,httpx.Request('POST',
+        'http://synthetic.invalid/rest/v1/rpc/read_lifetime_project_identity',
+        headers=auth(session,case),json={'p_project_id':None}))
+    assert response.status_code==403

@@ -795,7 +795,7 @@ def test_worker_turn_adds_evaluation_envelope_only_when_requested(monkeypatch):
         monkeypatch.setattr("apps.api.codex_runtime.httpx.AsyncClient", lambda **kwargs: client)
         runtime = CodexRuntime(worker_url="http://worker", worker_secret="secret")
         result = await runtime._worker_turn(
-            user_id="user",
+            user_id="11111111-1111-4111-8111-111111111111",
             prior=None,
             memories=[],
             profile={},

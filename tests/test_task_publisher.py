@@ -15,7 +15,11 @@ def test_private_publisher_auth_validation_and_deduplication(monkeypatch, tmp_pa
     persistence = TestClient(create_app(MemoryStore()))
     async def forward(url, **kwargs):
         assert url == 'http://api:8000/internal/tasks'
-        return persistence.post('/internal/tasks', **kwargs)
+        # Model the async transport consuming its guarded body before the
+        # synchronous in-process persistence client receives those bytes.
+        body = kwargs.pop('content')
+        content = b''.join([chunk async for chunk in body])
+        return persistence.post('/internal/tasks', content=content, **kwargs)
     monkeypatch.setattr(httpx.AsyncClient, 'post', AsyncMock(side_effect=forward))
     client = TestClient(app)
     payload = {'user_id': '11111111-1111-4111-8111-111111111111', 'project_id': 'project',

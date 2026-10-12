@@ -6,7 +6,8 @@ import os
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .agent_lock import AgentTurnLease, AgentTurnBusyError
@@ -16,6 +17,8 @@ from .codex_runtime import CodexRuntime
 from .memoir_tasks import MemoirTask, MemorySource
 from .profile_intake import LIFE_STAGES
 from .task_queue import configured_queue
+from .lifetime_memory_read_api import read_mapped, canonical_collection, unsupported_collection_job, mapped_identity
+from .lifetime_memory_collection_jobs import update_selection, submit_selected_job, selected_job_result
 
 router = APIRouter(prefix='/v1/agent', tags=['Memory collection'])
 
@@ -70,7 +73,9 @@ def _queue():
     return configured_queue()
 
 
-def _sources(storage):
+def _sources(storage, project_id=None):
+    if project_id:
+        unsupported_collection_job(storage, project_id)
     reader = getattr(storage, 'all_memories', storage.memories)
     try:
         return CodexRuntime._task_sources(reader())
@@ -84,13 +89,17 @@ def _source_fingerprint(sources):
 
 
 @router.get('/collection/{project_id}')
-def collection(project_id: str, authorization: str | None = Header(default=None)):
+def collection(project_id: str, cursor: UUID | None = None, task_cursor: UUID | None = None, limit: int = Query(default=8, ge=1, le=8),
+               authorization: str | None = Header(default=None)):
     _project(project_id)
     storage = authenticated_storage(authorization)
     try:
-        return {**_queue().collection(storage.user_id, project_id),
-                'sources': [source.model_dump() for source in _sources(storage)],
-                'tasks': _queue().list(storage.user_id, project_id)}
+        def legacy():
+            return {**_queue().collection(storage.user_id, project_id),
+                    'sources': [source.model_dump() for source in _sources(storage, project_id)],
+                    'tasks': _queue().list(storage.user_id, project_id)}
+        return read_mapped(storage, project_id,
+            lambda fence: canonical_collection(storage, project_id, cursor=cursor, task_cursor=task_cursor, limit=limit), legacy)
     finally:
         storage.client.close()
 
@@ -102,7 +111,9 @@ async def update_collection(project_id: str, payload: CollectionUpdate,
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         async with AgentTurnLease(storage) as lease:
-            sources = await lease.io(_sources, storage)
+            if await lease.io(mapped_identity, storage, project_id) is not None:
+                return await lease.io(update_selection, storage, project_id, payload)
+            sources = await lease.io(_sources, storage, project_id)
             source_ids = {source.id for source in sources}
             requested = {key for period in payload.periods.values() for key in period.memory_ids}
             if not requested.issubset(source_ids):
@@ -122,10 +133,12 @@ async def update_collection(project_id: str, payload: CollectionUpdate,
 async def publish_collection_task(project_id: str, payload: TaskRequest,
                                   authorization: str | None = Header(default=None)):
     _project(project_id)
-    _queue()
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
-        task = resolve_task(payload, await asyncio.to_thread(_sources, storage))
+        if await asyncio.to_thread(mapped_identity, storage, project_id) is not None:
+            return await asyncio.to_thread(submit_selected_job, storage, project_id, payload)
+        _queue()
+        task = resolve_task(payload, await asyncio.to_thread(_sources, storage, project_id))
         return await CodexRuntime().publish_task(storage.user_id, project_id, task)
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
@@ -136,9 +149,13 @@ async def publish_collection_task(project_id: str, payload: TaskRequest,
 
 
 @router.get('/tasks/{task_id}')
-def task_result(task_id: str, authorization: str | None = Header(default=None)):
+def task_result(task_id: str, cursor: UUID | None = None, limit: int = Query(default=8, ge=1, le=8),
+                authorization: str | None = Header(default=None)):
     storage = authenticated_storage(authorization)
     try:
+        governed = selected_job_result(storage, task_id, cursor=cursor, limit=limit)
+        if governed is not None:
+            return governed
         task = _queue().get(storage.user_id, task_id)
         if task is None:
             raise HTTPException(404, 'Task not found')
@@ -147,14 +164,35 @@ def task_result(task_id: str, authorization: str | None = Header(default=None)):
         storage.client.close()
 
 
+@router.post('/tasks/{task_id}/retry', status_code=202)
+def retry_collection_task(task_id: UUID, authorization: str | None = Header(default=None)):
+    storage = authenticated_storage(authorization)
+    try:
+        if mapped_identity(storage, None) is None:
+            raise HTTPException(404, 'Task not found')
+        from .lifetime_memory_collection_jobs import _owner_rpc
+        value = _owner_rpc(storage, 'set_lifetime_collection_job_retry', p_job_id=str(task_id))
+        return {key: value[key] for key in ('id', 'project_id', 'kind', 'status', 'attempts', 'error')}
+    finally:
+        storage.client.close()
+
+
 @router.post('/collection/{project_id}/organise', status_code=202)
 async def organise(project_id: str, payload: OrganiseInput,
                    authorization: str | None = Header(default=None)):
     _project(project_id)
-    queue = _queue()
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         async with AgentTurnLease(storage) as lease:
+            if await lease.io(mapped_identity, storage, project_id) is not None:
+                # Preserve the paid gate in the route and recheck it atomically
+                # in SQL on admission, every model dispatch and result send.
+                entitlement = await lease.io(storage.story_entitlement)
+                if getattr(storage, 'is_anonymous', False) or not entitlement or entitlement.get('status') != 'paid':
+                    raise HTTPException(402, 'A paid memoir entitlement is required for book organisation',
+                                        headers={'X-Error-Code': 'PAYMENT_REQUIRED'})
+                return await lease.io(submit_selected_job, storage, project_id, payload, organise=True)
+            queue = _queue()
             document = await asyncio.to_thread(queue.collection, storage.user_id, project_id)
             if not document['ready'] or document['revision'] != payload.expected_revision:
                 raise HTTPException(409, 'Confirm the current timeline before organising the book')
@@ -162,7 +200,7 @@ async def organise(project_id: str, payload: OrganiseInput,
             if getattr(storage, 'is_anonymous', False) or not entitlement or entitlement.get('status') != 'paid':
                 raise HTTPException(402, 'A paid memoir entitlement is required for book organisation',
                                     headers={'X-Error-Code': 'PAYMENT_REQUIRED'})
-            sources = await lease.io(_sources, storage)
+            sources = await lease.io(_sources, storage, project_id)
             if document.get('source_fingerprint') != _source_fingerprint(sources):
                 raise HTTPException(409, 'Saved memories changed; review and confirm the collection again')
             chosen = {key for period in document['periods'].values() for key in period['memory_ids']}

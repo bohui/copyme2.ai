@@ -52,7 +52,7 @@ class SyntheticStorage:
     """A per-case private storage boundary with no shared user/project data."""
 
     def __init__(self, case: Mapping[str, Any], correlation: Mapping[str, str]) -> None:
-        self.user_id = f"synthetic-user-{correlation.get('case_id', uuid4().hex)}-{uuid4().hex[:8]}"
+        self.user_id = str(uuid4())
         self.project_id = str(case.get("project_id") or f"synthetic-project-{correlation.get('case_id', uuid4().hex)}")
         self._profile = deepcopy(case.get("profile") or {})
         self._memories = deepcopy(case.get("memories") or [])

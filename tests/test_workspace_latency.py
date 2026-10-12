@@ -106,7 +106,7 @@ def test_workspace_transport_allows_the_worker_extraction_budget(stream):
         runtime = CodexRuntime(worker_url='http://worker', worker_secret='test',
                                worker_transport=httpx.MockTransport(handler))
         async def event(value): pass
-        result = await runtime._worker_turn(user_id='test', prior=None, memories=[], profile={},
+        result = await runtime._worker_turn(user_id='11111111-1111-4111-8111-111111111111', prior=None, memories=[], profile={},
             place_journey=None, family_enabled=False, family_context=None, project_id=None,
             text='memory', language='zh-CN', agent_role='workspace',
             **({'on_event': event} if stream else {}))

@@ -36,6 +36,7 @@ def canonical_evidence_errors(request, draft):
     """Validate actual prose evidence, regardless of how old text is reused."""
     events = {event['id']: event['source_refs'] for event in request['events']}
     sources = {(source['id'], str(source['version'])): source['text'] for source in request['sources']}
+    windows = request.get('context', {}).get('source_windows', {})
     errors = []
 
     def supported(ref, event_ids):
@@ -45,7 +46,10 @@ def canonical_evidence_errors(request, draft):
             return False
         # Omitting offsets cites the whole source, not any convenient matching
         # occurrence. It cannot widen a narrow authorised canonical reference.
-        start, end = ref.get('char_start', 0), ref.get('char_end', len(text))
+        offset = windows.get(ref['source_id'], {}).get('char_start', 0)
+        start, end = ref.get('char_start', offset), ref.get('char_end', offset + len(text))
+        if start < offset or end > offset + len(text):
+            return False
         ranges = sorted((evidence['char_start'], evidence['char_end'])
             for event_id in event_ids for evidence in events.get(event_id, [])
             if (evidence['source_id'], str(evidence['version'])) == key)
@@ -177,13 +181,15 @@ def composer_request(job):
                 # Earlier Python/SQL validation allowed an oversized suffix
                 # end because slicing clamps. Preserve its proven start and
                 # quote, but emit a bounded span for the composer contract.
-                end = min(end, len(source['text']))
-                if start >= end or source['text'][start:end] != quote:
+                offset = job.get('source_windows', {}).get(source['id'], {}).get('char_start', 0)
+                end = min(end, offset + len(source['text']))
+                if start < offset or start >= end or source['text'][start-offset:end-offset] != quote:
                     continue
             else:
                 start = source['text'].find(quote)
                 if start < 0:
                     continue
+                start += job.get('source_windows', {}).get(source['id'], {}).get('char_start', 0)
                 end = start + len(quote)
             values.append({'source_id': source['id'], 'version': source['version'],
                            'char_start': start, 'char_end': end})
@@ -220,7 +226,9 @@ def composer_request(job):
                 continue
             evidence = [ref for ref in refs(original_event)
                 if ref['source_id'] == original['id'] and ref['version'] == original['version']
-                and quote in original['text'][ref['char_start']:ref['char_end']]]
+                and quote in original['text'][
+                    ref['char_start']-job.get('source_windows', {}).get(original['id'], {}).get('char_start', 0):
+                    ref['char_end']-job.get('source_windows', {}).get(original['id'], {}).get('char_start', 0)] ]
             if not evidence:
                 continue
             photo_associations.append({'id': association['id'], 'photo_id': association['photo_id'],
@@ -229,7 +237,8 @@ def composer_request(job):
                 'derived': True})
     key = fingerprint({'sources': job['source_manifest'], 'events': job['event_manifest'],
                        'photos': photo_associations,
-                       'policy': job['policy_epoch'], 'locale': job['locale'], 'base': job['base_revision']})
+                       'policy': job['policy_epoch'], 'locale': job['locale'], 'base': job['base_revision'],
+                       **({'lifetime_page': [job['snapshot_id'], job['page_number'], job['input_digest'], job['preference_revision']]} if job.get('governed_page') else {})})
     # Revocation may purge the prior bytes without resetting the authoritative
     # manuscript revision. A fresh supported candidate still fences that base.
     prior = {'kind': 'sample_chapter' if job['base_revision'] else 'none',
@@ -272,6 +281,10 @@ def composer_request(job):
         'sources': sources, 'events': events, 'periods': periods, 'assets': [],
         'prior_state': prior, 'authorised_retirements': [],
         'context': {'canonical_event_index': True, 'dirty_event_ids': dirty, 'style': 'plain, warm, faithful',
+                    **({'lifetime_page': {'schema_version': 1, 'snapshot_id': job['snapshot_id'],
+                        'page_number': job['page_number'], 'coverage_scope': 'canonical_evidence_partition',
+                        'snapshot_complete': False}, 'source_windows': job['source_windows'],
+                        'preferences': job['preferences']} if job.get('governed_page') else {}),
                     'photo_associations': photo_associations,
                     'photo_association_manifest': photo_manifest, 'photo_dirty_event_ids': photo_dirty,
                     'incremental_model_context': 'compact', 'affected_source_ids': affected_sources,
@@ -315,15 +328,22 @@ async def compose_shared_snapshot(job, worker):
     runtime = SimpleNamespace(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
                               worker_transport=worker.worker_transport)
     storage = SimpleNamespace(user_id=job['user_id'])
+    if job.get('governed_page'):
+        runtime.lifetime_bounded = True
+        runtime.lifetime_page = job['authoritative_page']
+        runtime.lane_broker = worker.broker
+        runtime.lane_publisher = getattr(worker, 'lane_publisher', None)
     checkpoint_key = fingerprint({'snapshot': request['snapshot'], 'config': config})
     checkpoint = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=checkpoint_key) or {}
     async def progress(phase):
         await worker.broker.rpc('save_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'],
-                               p_key=checkpoint_key, p_kind='compose', p_value=checkpoint)
+                               p_key=checkpoint_key, p_kind='compose', p_value=checkpoint,
+                               **({'p_page_digest': job['page_digest']} if job.get('governed_page') else {}))
     limit = min(max(int(os.getenv('MEMORY_SPARK_MEMOIR_PREPARATION_CONCURRENCY', '3')), 1), 4)
     semaphore = asyncio.Semaphore(limit)
     async def prepare(event):
-        key = fingerprint({'event': event, 'config': config, 'policy_epoch': job['policy_epoch'], 'base': job['base_revision']})
+        key = fingerprint({'event': event, 'config': config, 'policy_epoch': job['policy_epoch'], 'base': job['base_revision'],
+            **({'lifetime_page': [job['snapshot_id'], job['page_number'], job['input_digest'], job['preference_revision']]} if job.get('governed_page') else {})})
         saved = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=key)
         if saved:
             return saved
@@ -339,11 +359,24 @@ async def compose_shared_snapshot(job, worker):
             if actual != expected:
                 raise ValueError('Prepared evidence differs from the canonical partition')
             await worker.broker.rpc('save_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'],
-                                   p_key=key, p_kind='prepare', p_value=result)
+                                   p_key=key, p_kind='prepare', p_value=result,
+                                   **({'p_page_digest': job['page_digest']} if job.get('governed_page') else {}))
             return result
     prepared = await asyncio.gather(*(prepare(e) for e in job['events'] if e['id'] in request['context']['dirty_event_ids'] and e['status'] == 'active'), return_exceptions=True)
     failures = [result for result in prepared if isinstance(result, BaseException)]
     if failures:
+        if job.get('governed_page'):
+            from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+            if any(is_policy_pending(error) for error in failures):
+                raise PolicyUnavailable() from None
+            from .lifetime_memory_lane_engine import LaneGenerationPaused
+            from .lifetime_memory_activation import CanonicalActivationUnavailable
+            deferred = next((error for error in failures if isinstance(error, (LaneGenerationPaused, CanonicalActivationUnavailable))), None)
+            if deferred is not None:
+                raise deferred
+            budget_failure = next((error for error in failures if isinstance(error, ValueError) and 'budget' in str(error).lower()), None)
+            if budget_failure is not None:
+                raise budget_failure
         raise RuntimeError('Partition preparation needs retry') from None
     request['context']['prepared_partitions'] = prepared
     bundle = await compose_candidate(request, runtime, storage, job['project_id'], job['locale'],

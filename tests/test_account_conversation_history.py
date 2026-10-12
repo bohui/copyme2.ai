@@ -9,7 +9,8 @@ from apps.api.store import MemoryStore
 
 def test_history_includes_saved_oauth_account_turns_and_attached_transcripts(monkeypatch):
     storage = Mock()
-    storage.user_id = 'owner'
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    storage.lifetime_rpc = Mock(return_value=None)  # Explicit unmapped legacy fixture.
     attachment = {'id': 'attachment', 'project_id': 'guest-project',
                   'created_at': '2026-09-30', 'workspace': {'memory_id_map': {'old': 'imported'}},
                   'messages': [{'role': 'user', 'text': 'Guest childhood'}]}
@@ -32,7 +33,7 @@ def test_history_includes_saved_oauth_account_turns_and_attached_transcripts(mon
     assert sum(message['text'] == 'Guest childhood' for message in messages) == 1
     assert all(message['text'] != 'A collected memory' for message in messages)
     storage.client.close.assert_called_once()
-    assert storage.request.call_args.kwargs['params']['user_id'] == 'eq.owner'
+    assert storage.request.call_args.kwargs['params']['user_id'] == 'eq.11111111-1111-4111-8111-111111111111'
 
 
 def test_conversation_history_requires_authentication(monkeypatch):
@@ -44,7 +45,8 @@ def test_conversation_history_requires_authentication(monkeypatch):
 
 def test_history_returns_original_message_without_profile_instructions(monkeypatch):
     storage = Mock()
-    storage.user_id = 'owner'
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    storage.lifetime_rpc = Mock(return_value=None)  # Explicit unmapped legacy fixture.
     storage.request.return_value.json.return_value = []
     original = '我叫小林\n我小时候住在北京。'
     storage.all_memories.return_value = [{

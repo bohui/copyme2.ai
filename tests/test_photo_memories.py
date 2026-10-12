@@ -1,5 +1,6 @@
 from copy import deepcopy
 from unittest.mock import Mock
+from uuid import UUID
 
 import httpx
 import pytest
@@ -11,9 +12,18 @@ from apps.api.photo_memories import PhotoMemoryInput, update_photo_memory
 from apps.api.store import MemoryStore
 
 
+PRINCIPALS = {label: str(UUID(int=index)) for index, label in enumerate(
+    ('owner', 'storyteller', 'member', 'outsider'), start=1)}
+
 PHOTO = {'asset_id': 'street', 'image_url': 'https://images.example/street.jpg',
          'source_url': 'https://archive.example/street', 'title': 'Old street',
          'date_expression': '1983', 'attribution': 'Public archive', 'place': 'Chengde'}
+
+
+def _unmapped_identity(name, **parameters):
+    assert name == 'read_lifetime_project_identity', 'Unexpected lifetime operation in legacy fixture'
+    assert set(parameters) == {'p_project_id'}
+    return None
 
 
 def test_favorites_and_selection_survive_restart_and_remain_project_scoped(tmp_path):
@@ -44,7 +54,8 @@ def test_favorites_and_selection_survive_restart_and_remain_project_scoped(tmp_p
 def test_supabase_save_uses_latest_profile_and_does_not_claim_success_on_failure(monkeypatch):
     saved = {'name': 'Storyteller', 'photo_memories': {'other': {'favorites': [], 'selected': None}}}
     service = Mock()
-    service.user_id = 'owner'
+    service.user_id = PRINCIPALS['owner']
+    service.lifetime_rpc = Mock(side_effect=_unmapped_identity)
     service.profile.side_effect = lambda: deepcopy(saved)
     service.save_profile.side_effect = lambda value: saved.update(deepcopy(value))
     service.acquire_agent_turn_lease.return_value = True
@@ -53,9 +64,9 @@ def test_supabase_save_uses_latest_profile_and_does_not_claim_success_on_failure
     monkeypatch.setattr(supabase_routes, 'storage', lambda _: service)
     memory = MemoryStore()
     client = TestClient(main.create_app(memory))
-    headers = {'X-Account-Id': 'owner'}
+    headers = {'X-Account-Id': PRINCIPALS['owner']}
     project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()
-    memory.projects[project['id']]['supabase_owner_id'] = 'owner'
+    memory.projects[project['id']]['supabase_owner_id'] = PRINCIPALS['owner']
     headers['Authorization'] = 'Bearer fixture-token'
     url = f'/v1/projects/{project["id"]}/photo-memories'
     response = client.put(url, headers=headers, json={'action': 'select', 'photo': PHOTO})
@@ -119,8 +130,9 @@ def principal_photo_storage(monkeypatch):
     services = {}
     for user in profiles:
         service = Mock()
-        service.user_id = user
-        service.user = {'id': user, 'app_metadata': {}}
+        service.user_id = PRINCIPALS[user]
+        service.lifetime_rpc = Mock(side_effect=_unmapped_identity)
+        service.user = {'id': service.user_id, 'app_metadata': {}}
         service.profile.side_effect = lambda user=user: deepcopy(profiles[user])
         service.save_profile.side_effect = lambda value, user=user: profiles[user].update(deepcopy(value))
         service.acquire_agent_turn_lease.return_value = True
@@ -141,8 +153,8 @@ def test_authenticated_family_photos_belong_to_principal_and_project_after_reloa
     with TestClient(main.create_app(store)) as client:
         private = client.post('/v1/projects', headers=headers('owner'), json={'mode': 'self'}).json()['id']
         shared = client.post('/v1/projects', headers=headers('owner'), json={
-            'mode': 'family', 'storyteller_account_id': 'storyteller'}).json()['id']
-        store.projects[shared]['members']['member'] = {'role': 'collaborator', 'capabilities': ['read']}
+            'mode': 'family', 'storyteller_account_id': PRINCIPALS['storyteller']}).json()['id']
+        store.projects[shared]['members'][PRINCIPALS['member']] = {'role': 'collaborator', 'capabilities': ['read']}
         store.save()
         for project, actor, photo in [(private, 'owner', private_photo), (shared, 'owner', PHOTO),
                                        (shared, 'storyteller', storyteller_photo)]:
@@ -205,7 +217,7 @@ def test_legacy_contaminated_project_profile_is_never_a_photo_read_fallback(prin
         owner = {'Authorization': 'Bearer owner'}
         storyteller = {'Authorization': 'Bearer storyteller'}
         project = client.post('/v1/projects', headers=owner, json={
-            'mode': 'family', 'storyteller_account_id': 'storyteller'}).json()['id']
+            'mode': 'family', 'storyteller_account_id': PRINCIPALS['storyteller']}).json()['id']
         leaked, _ = update_photo_memory({}, 'private', PhotoMemoryInput(action='select', photo=PHOTO))
         leaked, _ = update_photo_memory(leaked, project, PhotoMemoryInput(action='select', photo=PHOTO))
         store.projects[project]['profile'].update(leaked)

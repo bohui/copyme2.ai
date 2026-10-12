@@ -9,30 +9,43 @@ from apps.api import main, supabase_routes
 from apps.api.store import MemoryStore
 
 
+OWNER_ID = '11111111-1111-4111-8111-111111111111'
+OTHER_ID = '22222222-2222-4222-8222-222222222222'
+USER_IDS = {'support': '33333333-3333-4333-8333-333333333333',
+            'finance': '44444444-4444-4444-8444-444444444444'}
+
 OWNER = {'Authorization': 'Bearer owner-session'}
 OTHER = {'Authorization': 'Bearer other-session'}
 OPERATOR = {'Authorization': 'Bearer support-session'}
 FINANCE = {'Authorization': 'Bearer finance-session'}
 
 
+def _unmapped_identity(name, **parameters):
+    assert name == 'read_lifetime_project_identity', 'Unexpected lifetime operation in legacy fixture'
+    assert set(parameters) == {'p_project_id'}
+    return None
+
+
 @pytest.fixture
 def recovery(monkeypatch, request):
-    tables = {'owner': {'user_memoir_project': ['project_saved']}, 'other': {}, 'support': {}, 'finance': {}}
+    tables = {OWNER_ID: {'user_memoir_project': ['project_saved']}, OTHER_ID: {}, 'support': {}, 'finance': {}}
     services = {}
     for user in tables:
         service = Mock()
-        service.user_id = user
+        service.user_id = USER_IDS.get(user, user)
+        service.lifetime_rpc = Mock(side_effect=_unmapped_identity)  # Explicit unmapped legacy fixture.
         roles = {'support': ['operator'], 'finance': ['finance']}.get(user, [])
-        service.user = {'id': user, 'app_metadata': {'roles': roles},
+        service.user = {'id': service.user_id, 'app_metadata': {'roles': roles},
                         'user_metadata': {}, 'is_anonymous': False}
-        if user == 'other' and hasattr(request, 'param'):
+        if user == OTHER_ID and hasattr(request, 'param'):
             service.user.update(request.param)
-        service.profile.return_value = {'name': f'{user} private profile'}
+        label = {OWNER_ID: 'owner', OTHER_ID: 'other'}.get(user, user)
+        service.profile.return_value = {'name': f'{label} private profile'}
         service.all_memories.return_value = []
 
         def request(method, path, *, params=None, user=user):
             assert method == 'GET'
-            assert params['user_id'] == f'eq.{user}'
+            assert params['user_id'] == f'eq.{USER_IDS.get(user, user)}'
             ids = tables[user].get(path.rsplit('/', 1)[-1], [])
             wanted = params.get('project_id', '').removeprefix('eq.')
             rows = [{'id': project, 'project_id': project, 'created_at': '2026-10-07',
@@ -44,9 +57,9 @@ def recovery(monkeypatch, request):
 
     def authenticated(authorization):
         if authorization == OWNER['Authorization']:
-            return services['owner']
+            return services[OWNER_ID]
         if authorization == OTHER['Authorization']:
-            return services['other']
+            return services[OTHER_ID]
         if authorization == OPERATOR['Authorization']:
             return services['support']
         if authorization == FINANCE['Authorization']:
@@ -70,9 +83,9 @@ def restore(client, headers=OWNER, **fields):
 @pytest.mark.parametrize('headers,expected', [
     ({}, 401),
     ({'X-Account-Id': 'demo-storyteller'}, 401),
-    ({'X-Account-Id': 'owner'}, 401),
+    ({'X-Account-Id': OWNER_ID}, 401),
     (OTHER, 403),
-    ({**OTHER, 'X-Account-Id': 'owner'}, 403),
+    ({**OTHER, 'X-Account-Id': OWNER_ID}, 403),
 ])
 def test_recovered_profile_requires_its_verified_principal(recovery, method, headers, expected):
     client, store, _ = recovery
@@ -89,9 +102,9 @@ def test_verified_owner_can_read_and_mutate_without_an_account_header(recovery):
     client, store, _ = recovery
     result = restore(client)
     assert result.status_code == 201
-    assert result.json()['owner_id'] == 'owner'
-    assert result.json()['storyteller_id'] == 'owner'
-    assert set(store.projects['project_saved']['members']) == {'owner'}
+    assert result.json()['owner_id'] == OWNER_ID
+    assert result.json()['storyteller_id'] == OWNER_ID
+    assert set(store.projects['project_saved']['members']) == {OWNER_ID}
     assert client.get('/v1/projects/project_saved', headers=OWNER).status_code == 200
     changed = client.patch('/v1/projects/project_saved', headers=OWNER, json={'profile': {'name': 'Owner edit'}})
     assert changed.status_code == 200
@@ -103,7 +116,7 @@ def test_verified_owner_can_read_and_mutate_without_an_account_header(recovery):
     {}, {'X-Role': 'operator'}, {'X-Account-Id': 'ops-attacker'},
     {'X-Account-Id': 'operator-attacker'}, {**OTHER, 'X-Role': 'operator'},
     {**OTHER, 'X-Role': 'admin'}, {**OTHER, 'X-Role': 'finance'},
-    {**OWNER, 'X-Role': 'operator'}, {**OTHER, 'X-Account-Id': 'owner', 'X-Role': 'operator'},
+    {**OWNER, 'X-Role': 'operator'}, {**OTHER, 'X-Account-Id': OWNER_ID, 'X-Role': 'operator'},
 ])
 @pytest.mark.parametrize('operation', ['list', 'retry', 'cancel'])
 def test_forged_operator_identity_cannot_read_or_mutate_recovered_jobs(recovery, headers, operation):
@@ -225,11 +238,11 @@ def test_scoped_support_metadata_requires_the_verified_grant_recipient(recovery)
     client, _, _ = recovery
     assert restore(client).status_code == 201
     created = client.post('/v1/ops/support-grants', headers=OPERATOR,
-                          json={'project_id': 'project_saved', 'account_id': 'other',
+                          json={'project_id': 'project_saved', 'account_id': OTHER_ID,
                                 'capabilities': ['read_metadata']})
     assert created.status_code == 201
     path = '/v1/ops/support-grants/' + created.json()['id'] + '/projects/project_saved/metadata'
-    assert client.get(path, headers={'X-Account-Id': 'other'}).status_code == 401
+    assert client.get(path, headers={'X-Account-Id': OTHER_ID}).status_code == 401
     assert client.get(path, headers=OWNER).status_code == 403
     granted = client.get(path, headers=OTHER)
     assert granted.status_code == 200 and granted.json()['project_id'] == 'project_saved'
@@ -238,13 +251,13 @@ def test_scoped_support_metadata_requires_the_verified_grant_recipient(recovery)
 
 def test_restore_cannot_assign_the_private_profile_to_another_account(recovery):
     client, store, _ = recovery
-    assert restore(client, {**OWNER, 'X-Account-Id': 'other'}).status_code == 403
+    assert restore(client, {**OWNER, 'X-Account-Id': OTHER_ID}).status_code == 403
     assert not store.projects
 
 
 @pytest.mark.parametrize('fields', [
-    {'mode': 'family', 'storyteller_account_id': 'other'},
-    {'storyteller_account_id': 'other'},
+    {'mode': 'family', 'storyteller_account_id': OTHER_ID},
+    {'storyteller_account_id': OTHER_ID},
 ])
 def test_recovery_does_not_grant_caller_selected_storyteller_membership(recovery, fields):
     client, store, _ = recovery
@@ -255,10 +268,10 @@ def test_recovery_does_not_grant_caller_selected_storyteller_membership(recovery
 def test_repeated_restore_rejects_another_verified_owner_even_if_ids_collide(recovery):
     client, store, tables = recovery
     assert restore(client).status_code == 201
-    tables['other']['user_memoir_project'] = ['project_saved']
+    tables[OTHER_ID]['user_memoir_project'] = ['project_saved']
     assert restore(client, OTHER).status_code == 403
     assert store.projects['project_saved']['profile']['name'] == 'owner private profile'
-    assert store.projects['project_saved']['owner_id'] == 'owner'
+    assert store.projects['project_saved']['owner_id'] == OWNER_ID
 
 
 def test_recovery_does_not_copy_private_profile_into_an_unbound_local_collision(recovery):
@@ -277,19 +290,19 @@ def test_recovery_does_not_copy_private_profile_into_an_unbound_local_collision(
 def test_secondary_and_canonical_routes_enforce_recovered_ownership(recovery, path):
     client, _, _ = recovery
     assert restore(client).status_code == 201
-    assert client.get(path, headers={'X-Account-Id': 'owner'}).status_code == 401
+    assert client.get(path, headers={'X-Account-Id': OWNER_ID}).status_code == 401
     assert client.get(path, headers=OTHER).status_code == 403
     assert client.get(path, headers=OWNER).status_code == 200
 
 
 def test_attachment_only_resume_id_can_be_recovered_by_its_verified_owner(recovery):
     client, store, tables = recovery
-    tables['owner'] = {'user_conversation_attachment': ['project_saved']}
+    tables[OWNER_ID] = {'user_conversation_attachment': ['project_saved']}
     history = client.get('/v1/user/conversations', headers=OWNER)
     assert history.json()['resume_project_id'] == 'project_saved'
     assert restore(client, OTHER).status_code == 404
     assert restore(client).status_code == 201
-    assert store.projects['project_saved']['owner_id'] == 'owner'
+    assert store.projects['project_saved']['owner_id'] == OWNER_ID
 
 
 def test_invitation_cannot_mutate_recovered_membership_before_authorization(recovery):
@@ -299,9 +312,9 @@ def test_invitation_cannot_mutate_recovered_membership_before_authorization(reco
         json={'intended_role': 'contributor', 'capability_set': ['record']})
     assert invitation.status_code == 201
     response = client.post('/v1/invitations/' + invitation.json()['token'] + '/accept',
-                           headers={'X-Account-Id': 'owner'})
+                           headers={'X-Account-Id': OWNER_ID})
     assert response.status_code == 401
-    assert set(store.projects['project_saved']['members']) == {'owner'}
+    assert set(store.projects['project_saved']['members']) == {OWNER_ID}
     assert not store.invitations[invitation.json()['id']]['redeemed_at']
 
 
@@ -311,7 +324,7 @@ def test_indirect_session_routes_keep_the_verified_project_boundary(recovery):
     session = client.post('/v1/projects/project_saved/memory-sessions', headers=OWNER, json={})
     assert session.status_code == 201
     path = '/v1/memory-sessions/' + session.json()['id']
-    assert client.get(path, headers={'X-Account-Id': 'owner'}).status_code == 401
+    assert client.get(path, headers={'X-Account-Id': OWNER_ID}).status_code == 401
     assert client.get(path, headers=OTHER).status_code == 403
     assert client.get(path, headers=OWNER).status_code == 200
 
@@ -322,7 +335,7 @@ def test_explicitly_authenticated_creation_retains_its_authentication_contract(r
     assert result.status_code == 201
     assert result.json()['requires_supabase_auth'] is True
     path = '/v1/projects/' + result.json()['id']
-    assert client.get(path, headers={'X-Account-Id': 'owner'}).status_code == 401
+    assert client.get(path, headers={'X-Account-Id': OWNER_ID}).status_code == 401
     assert client.get(path, headers=OWNER).status_code == 200
 
 
@@ -337,12 +350,12 @@ def test_direct_resource_routes_reject_forged_owner_headers(recovery, operation)
     project['audio_links'] = {link['id']: link}
     grant = client.post('/v1/audio-links/audio-fixture/grants', headers=OWNER, json={}).json()
     store.orders['order-fixture'] = {'id': 'order-fixture', 'beneficiary_project_id': 'project_saved',
-                                     'payer_account_id': 'owner'}
-    print_order = {'id': 'print-fixture', 'project_id': 'project_saved', 'payer_account_id': 'owner',
+                                     'payer_account_id': OWNER_ID}
+    print_order = {'id': 'print-fixture', 'project_id': 'project_saved', 'payer_account_id': OWNER_ID,
                    'supplier_manifest_hash': 'before', 'status': 'CUSTOMER_APPROVED', 'proof_approval': {'approved': True},
                    'proof': {'manifest_hash': 'before'}}
     store.print_orders['print-fixture'] = print_order
-    headers = {'X-Account-Id': 'owner'}
+    headers = {'X-Account-Id': OWNER_ID}
     path = '/v1/audio-links/audio-fixture'
     if operation == 'resolve': response = client.get(path, headers=headers)
     elif operation == 'grant': response = client.post(path + '/grants', headers=headers, json={})
@@ -370,7 +383,7 @@ def test_authorized_audio_share_token_remains_readable_without_owner_identity(re
     grant = client.post(path + '/grants', headers=OWNER, json={})
     assert grant.status_code == 201
     assert client.get(path, params={'token': grant.json()['token']}).status_code == 200
-    assert client.get(path, params={'token': 'invalid'}, headers={'X-Account-Id': 'owner'}).status_code == 401
+    assert client.get(path, params={'token': 'invalid'}, headers={'X-Account-Id': OWNER_ID}).status_code == 401
     assert client.post(path + '/grants/' + grant.json()['id'] + '/revoke', headers=OWNER).status_code == 200
     assert client.get(path, params={'token': grant.json()['token']}).status_code == 401
 
@@ -378,11 +391,11 @@ def test_authorized_audio_share_token_remains_readable_without_owner_identity(re
 def test_authenticated_family_creation_preserves_verified_storyteller_access(recovery):
     client, _, _ = recovery
     created = client.post('/v1/projects', headers=OWNER,
-        json={'mode': 'family', 'storyteller_account_id': 'other', 'storyteller_name': 'Shared family profile'})
+        json={'mode': 'family', 'storyteller_account_id': OTHER_ID, 'storyteller_name': 'Shared family profile'})
     assert created.status_code == 201
     path = '/v1/projects/' + created.json()['id']
     assert client.get(path, headers=OTHER).status_code == 200
-    assert client.get(path, headers={'X-Account-Id': 'other'}).status_code == 401
+    assert client.get(path, headers={'X-Account-Id': OTHER_ID}).status_code == 401
 
 
 def test_authenticated_creation_idempotency_does_not_bypass_identity(recovery):
@@ -391,7 +404,7 @@ def test_authenticated_creation_idempotency_does_not_bypass_identity(recovery):
     first = client.post('/v1/projects', headers=headers, json={})
     assert first.status_code == 201
     forged = client.post('/v1/projects', json={},
-        headers={'X-Account-Id': 'owner', 'Idempotency-Key': 'same-creation'})
+        headers={'X-Account-Id': OWNER_ID, 'Idempotency-Key': 'same-creation'})
     assert forged.status_code == 401
     assert client.post('/v1/projects', headers=headers, json={}).json()['id'] == first.json()['id']
 
@@ -409,14 +422,14 @@ def test_parallel_requests_do_not_share_verified_principals(recovery):
 def test_family_membership_does_not_authorize_same_id_recovery_as_another_owner(recovery):
     client, store, tables = recovery
     created = client.post('/v1/projects', headers=OWNER,
-                         json={'mode': 'family', 'storyteller_account_id': 'other'}).json()
+                         json={'mode': 'family', 'storyteller_account_id': OTHER_ID}).json()
     project = store.projects.pop(created['id'])
     project['id'] = 'project_saved'
     store.projects['project_saved'] = project
-    tables['other']['user_memoir_project'] = ['project_saved']
+    tables[OTHER_ID]['user_memoir_project'] = ['project_saved']
     assert client.get('/v1/projects/project_saved', headers=OTHER).status_code == 200
     assert restore(client, OTHER).status_code == 403
-    assert project['supabase_owner_id'] == 'owner'
+    assert project['supabase_owner_id'] == OWNER_ID
 
 
 def test_registered_external_payer_retains_order_access_with_verified_identity(recovery):
@@ -427,7 +440,7 @@ def test_registered_external_payer_retains_order_access_with_verified_identity(r
     assert checkout.status_code == 201
     path = '/v1/orders/' + checkout.json()['id']
     assert client.get(path, headers=OTHER).status_code == 200
-    assert client.get(path, headers={'X-Account-Id': 'other'}).status_code == 401
+    assert client.get(path, headers={'X-Account-Id': OTHER_ID}).status_code == 401
 
 
 def test_prototype_cookie_cannot_replace_the_recovered_supabase_principal(recovery):
@@ -435,7 +448,7 @@ def test_prototype_cookie_cannot_replace_the_recovered_supabase_principal(recove
     client, store, _ = recovery
     assert restore(client).status_code == 201
     store.auth_sessions[main._token_hash('prototype-cookie')] = {
-        'account_id': 'owner', 'csrf_token_hash': main._token_hash('csrf'),
+        'account_id': OWNER_ID, 'csrf_token_hash': main._token_hash('csrf'),
         'expires_at': (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         'revoked_at': None}
     client.cookies.set('memory_spark_session', 'prototype-cookie')

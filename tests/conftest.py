@@ -11,3 +11,7 @@ import os
 
 os.environ.setdefault("MEMORY_SPARK_ENTITLEMENT_MODEL", "legacy")
 os.environ.setdefault("MEMORY_SPARK_TEST_MODE", "1")
+
+# Original worker acceptance fixtures deliberately represent pre-migration-only
+# deployments. Security/adoption tests explicitly remove this assertion.
+os.environ.setdefault("MEMOIR_LEGACY_ONLY_DEPLOYMENT", "1")

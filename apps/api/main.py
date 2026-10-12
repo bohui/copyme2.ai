@@ -533,13 +533,15 @@ def _entitlement_response(project: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _project_response(project: dict[str, Any]) -> dict[str, Any]:
+def _project_response(project: dict[str, Any], *, authoritative_profile: dict[str, Any] | None = None) -> dict[str, Any]:
     _require_project_access(project)
     # Authenticated favourites belong to the viewer, including in family
     # projects. The collector uses that same principal's UserStorage profile.
     # Never keep an account-wide (or another member's) map in the shared
     # adapter, including snapshots saved by older versions of this route.
-    if project.get('supabase_owner_id'):
+    if authoritative_profile is not None:
+        photo_profile = authoritative_profile
+    elif project.get('supabase_owner_id'):
         project['profile'].pop('photo_memories', None)
         service = authenticated_storage(_request_principal.get()['authorization'])
         try:
@@ -550,7 +552,14 @@ def _project_response(project: dict[str, Any]) -> dict[str, Any]:
             service.client.close()
     else:
         photo_profile = project['profile']
-    profile = deepcopy(project['profile'])
+    if authoritative_profile is not None:
+        # Absence is authoritative too: cleared settings and withdrawn generated
+        # fields cannot return from the disposable adapter on a warm home visit.
+        profile = deepcopy({key: value for key, value in authoritative_profile.items()
+            if not key.startswith('_')})
+        profile.setdefault('name', None)
+    else:
+        profile = deepcopy(project['profile'])
     profile.pop('photo_memories', None)
     if project['id'] in (photo_profile.get('photo_memories') or {}):
         profile['photo_memories'] = {project['id']: photo_memory_state(photo_profile, project['id'])}
@@ -584,6 +593,28 @@ def _project_response(project: dict[str, Any]) -> dict[str, Any]:
         "deletion_state": project.get("deletion_state", "ACTIVE"),
         "created_at": project["created_at"],
     }
+
+
+def _project_public_response(project: dict[str, Any], *, status_code: int = 200, build=None):
+    """Freeze mapped home data under its original pre-read publication fence."""
+    build = build or (lambda value: value)
+    if not project.get('supabase_owner_id') or project.get('mode') != 'self':
+        return build(_project_response(project))
+    service = authenticated_storage(_request_principal.get()['authorization'])
+    try:
+        from .lifetime_memory_reads import snapshot_lifetime_read
+        from .lifetime_memory_publication import PublicationUnavailable
+        def read(fence):
+            return build(_project_response(project,
+                authoritative_profile=service.profile() if fence is not None else None))
+        result = snapshot_lifetime_read(service, project['id'], read)
+        if isinstance(result, Response):
+            result.status_code = status_code
+        return result
+    except (httpx.HTTPError, PublicationUnavailable):
+        raise HTTPException(503, 'Project profile could not be loaded safely') from None
+    finally:
+        service.client.close()
 
 
 def _session_response(store: MemoryStore, session: dict[str, Any]) -> dict[str, Any]:
@@ -1050,73 +1081,98 @@ def create_app(
     request_transaction_lock = asyncio.Lock() if getattr(memory, "request_transaction_enabled", False) else None
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:8000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-    @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next: Any) -> Response:
-        canonical_memoir_request = rewrite_memoir_path(request.scope)
-        supplied = request.headers.get("X-Request-ID", "")
-        request_id = supplied if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", supplied) else new_id("req")
-        request.state.request_id = request_id
-        database_transaction = request_transaction_lock is not None
-        if database_transaction:
-            await request_transaction_lock.acquire()
-            memory.begin_request()
-        else:
-            # Refresh before dispatch and persist after dispatch. The JSON API
-            # process remains the single in-process writer; worker-side
-            # mutations use its explicit transaction context.
-            memory.reload()
-        principal_token = _request_principal.set({'authorization': request.headers.get('Authorization')})
-        try:
-            session_token = request.cookies.get("memory_spark_session")
-            session = memory.auth_sessions.get(_token_hash(session_token)) if session_token else None
-            cookie_authenticated = bool(
-                session
-                and not request.url.path.startswith('/v1/user/')
-                and not session.get("revoked_at")
-                and datetime.fromisoformat(session["expires_at"]) > datetime.now(timezone.utc)
-                and not request.headers.get("X-Account-Id")
-                and not request.headers.get('Authorization')
-            )
-            if cookie_authenticated:
-                if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not request.url.path.startswith("/v1/auth/"):
-                    csrf = request.headers.get("X-CSRF-Token")
-                    if not csrf or not hmac.compare_digest(_token_hash(csrf), session.get("csrf_token_hash", "")):
-                        response = JSONResponse(
-                            status_code=403,
-                            content={
-                                "detail": "CSRF verification is required for cookie-authenticated mutations",
-                                "error": {
-                                    "code": "CSRF_REQUIRED",
-                                    "message": "CSRF verification is required for cookie-authenticated mutations",
-                                    "retryable": False,
-                                    "request_id": request_id,
-                                },
-                            },
-                            headers={"X-Request-ID": request_id, "X-Error-Code": "CSRF_REQUIRED"},
-                        )
+    class RequestContextMiddleware:
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            if scope['type'] != 'http':
+                return await self.app(scope, receive, send)
+            request = Request(scope, receive=receive)
+            canonical_memoir_request = rewrite_memoir_path(request.scope)
+            supplied = request.headers.get("X-Request-ID", "")
+            request_id = supplied if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", supplied) else new_id("req")
+            request.state.request_id = request_id
+            database_transaction = request_transaction_lock is not None
+            if database_transaction:
+                await request_transaction_lock.acquire()
+                try:
+                    memory.begin_request()
+                except BaseException:
+                    request_transaction_lock.release()
+                    raise
+            else:
+                # Refresh before dispatch and persist after dispatch. The JSON API
+                # process remains the single in-process writer; worker-side
+                # mutations use its explicit transaction context.
+                memory.reload()
+            settled = False
+            released = False
+
+            async def send_response(message):
+                nonlocal settled, released
+                if message['type'] == 'http.response.start':
+                    if not settled:
                         if database_transaction:
                             memory.commit_request()
+                            request_transaction_lock.release()
+                            released = True
                         else:
                             memory.save()
-                        return response
-                request.scope["headers"] = list(request.scope["headers"]) + [(b"x-account-id", session["account_id"].encode())]
-            response = await call_next(request)
-            if database_transaction:
-                memory.commit_request()
-            else:
-                memory.save()
-            response.headers["X-Request-ID"] = request_id
-            if canonical_memoir_request:
-                response.headers["X-API-Namespace"] = "memoir"
-            return response
-        except BaseException:
-            if database_transaction:
-                memory.rollback_request()
-            raise
-        finally:
-            _request_principal.reset(principal_token)
-            if database_transaction:
-                request_transaction_lock.release()
+                        settled = True
+                    headers = [(key, value) for key, value in message.get('headers', [])
+                               if key.lower() != b'x-request-id' and not (canonical_memoir_request and key.lower() == b'x-api-namespace')]
+                    headers.append((b'x-request-id', request_id.encode()))
+                    if canonical_memoir_request:
+                        headers.append((b'x-api-namespace', b'memoir'))
+                    message = {**message, 'headers': headers}
+                # No queue/buffer: governed response locks cover the outer ASGI
+                # send completion, including socket backpressure/disconnect.
+                await send(message)
+
+            principal_token = _request_principal.set({'authorization': request.headers.get('Authorization')})
+            try:
+                session_token = request.cookies.get("memory_spark_session")
+                session = memory.auth_sessions.get(_token_hash(session_token)) if session_token else None
+                cookie_authenticated = bool(
+                    session
+                    and not request.url.path.startswith('/v1/user/')
+                    and not session.get("revoked_at")
+                    and datetime.fromisoformat(session["expires_at"]) > datetime.now(timezone.utc)
+                    and not request.headers.get("X-Account-Id")
+                    and not request.headers.get('Authorization')
+                )
+                if cookie_authenticated:
+                    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not request.url.path.startswith("/v1/auth/"):
+                        csrf = request.headers.get("X-CSRF-Token")
+                        if not csrf or not hmac.compare_digest(_token_hash(csrf), session.get("csrf_token_hash", "")):
+                            response = JSONResponse(
+                                status_code=403,
+                                content={
+                                    "detail": "CSRF verification is required for cookie-authenticated mutations",
+                                    "error": {
+                                        "code": "CSRF_REQUIRED",
+                                        "message": "CSRF verification is required for cookie-authenticated mutations",
+                                        "retryable": False,
+                                        "request_id": request_id,
+                                    },
+                                },
+                                headers={"X-Request-ID": request_id, "X-Error-Code": "CSRF_REQUIRED"},
+                            )
+                            await response(scope, receive, send_response)
+                            return
+                    request.scope["headers"] = list(request.scope["headers"]) + [(b"x-account-id", session["account_id"].encode())]
+                await self.app(scope, receive, send_response)
+            except BaseException:
+                if database_transaction and not settled:
+                    memory.rollback_request()
+                raise
+            finally:
+                _request_principal.reset(principal_token)
+                if database_transaction and request_transaction_lock.locked() and not released:
+                    request_transaction_lock.release()
+
+    app.add_middleware(RequestContextMiddleware)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -1290,6 +1346,8 @@ def create_app(
         actor = _account_id(x_account_id)
         restored_profile = None
         transferred_guest_id = None
+        selected_project_id = payload.restore_project_id
+        canonical_identity = None
         if payload.restore_project_id:
             # Only recreate the local interview adapter after verifying the
             # original project in the signed-in user's RLS-protected history.
@@ -1322,10 +1380,41 @@ def create_app(
                 restored_profile = service.profile()
             finally:
                 service.client.close()
+        elif payload.mode == 'self' and authorization:
+            from .lifetime_memory_runtime import lifetime_enabled
+            # The product home must resolve identity before allocating its
+            # disposable local adapter. A browser's proposed project or
+            # conversation ID is never authority for a canonical mapping.
+            service = authenticated_storage(authorization)
+            try:
+                from .lifetime_memory_reads import find_lifetime_read_identity
+                if not service.is_anonymous and (lifetime_enabled() or find_lifetime_read_identity(service,None) is not None):
+                    if payload.storyteller_account_id not in {None, actor}:
+                        raise HTTPException(422, 'Lifetime interviews belong to the signed-in storyteller')
+                    from .lifetime_memory_contracts import IdentityEnvelope
+                    resolved = service.lifetime_rpc('resolve_lifetime_conversation')
+                    if not isinstance(resolved, dict):
+                        raise ValueError('Lifetime identity response is invalid')
+                    if resolved.get('outcome') == 'mapping_required':
+                        raise HTTPException(409, resolved,
+                            headers={'X-Error-Code': 'LIFETIME_MAPPING_REQUIRED'})
+                    if resolved.get('outcome') != 'resolved':
+                        raise ValueError('Lifetime identity was not resolved')
+                    canonical_identity = IdentityEnvelope.model_validate(
+                        {key: value for key, value in resolved.items() if key != 'outcome'})
+                    if str(canonical_identity.owner_id) != actor:
+                        raise ValueError('Lifetime identity owner differs from the signed-in storyteller')
+                    selected_project_id = canonical_identity.project_id
+                    restored_profile = service.profile()
+            except (httpx.HTTPError, ValueError):
+                raise HTTPException(503, 'Lifetime conversation could not be loaded',
+                    headers={'X-Error-Code': 'LIFETIME_IDENTITY_UNAVAILABLE'}) from None
+            finally:
+                service.client.close()
         memory.ensure_account(actor)
         with memory.lock:
-            if payload.restore_project_id in memory.projects:
-                existing = memory.projects[payload.restore_project_id]
+            if selected_project_id in memory.projects:
+                existing = memory.projects[selected_project_id]
                 if not existing.get('supabase_owner_id'):
                     raise HTTPException(409, 'Saved interview conflicts with an existing local project')
                 if transferred_guest_id:
@@ -1336,9 +1425,11 @@ def create_app(
                         raise _unauthorised() from None
                 if existing['supabase_owner_id'] != actor:
                     raise _unauthorised()
-                return _project_response(_project(memory, payload.restore_project_id, actor))
+                if canonical_identity is not None and restored_profile is not None:
+                    existing['profile'].update(restored_profile)
+                return _project_public_response(_project(memory, selected_project_id, actor), status_code=201)
             request_hash = sha256_json(payload.model_dump())
-            operation_key = f"project-create:{actor}:{idempotency_key}" if idempotency_key else None
+            operation_key = f"project-create:{actor}:{idempotency_key}" if idempotency_key and canonical_identity is None else None
             if operation_key:
                 prior = memory.idempotency.get(operation_key)
                 if prior:
@@ -1348,7 +1439,7 @@ def create_app(
                     if cached.get('requires_supabase_auth') and _verified_account_id() != cached['owner_id']:
                         raise _unauthorised()
                     return deepcopy(prior["response"])
-            project_id = payload.restore_project_id or new_id("project")
+            project_id = selected_project_id or new_id("project")
             storyteller = actor if payload.mode == "self" else (payload.storyteller_account_id or new_id("storyteller"))
             storyteller_account = memory.ensure_account(storyteller)
             members = {actor: {"role": "organiser" if payload.mode == "family" else "storyteller", "capabilities": ["manage_project", "purchase"]}}
@@ -1382,11 +1473,11 @@ def create_app(
         response = _project_response(project)
         if operation_key:
             memory.idempotency[operation_key] = {"request_hash": request_hash, "response": deepcopy(response)}
-        return response
+        return _project_public_response(project, status_code=201)
 
     @app.get("/v1/projects/{project_id}")
     def get_project(project_id: str, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
-        return _project_response(_project(memory, project_id, _account_id(x_account_id), allow_deleted=True))
+        return _project_public_response(_project(memory, project_id, _account_id(x_account_id), allow_deleted=True))
 
     @app.patch("/v1/projects/{project_id}")
     def patch_project(project_id: str, payload: LooseModel, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
@@ -1437,7 +1528,7 @@ def create_app(
         project["revision"] = project.get("revision", 1) + 1
         memory.audit("project.updated", actor, project_id, revision=project["revision"])
         memory.emit(project, "project.updated", revision=project["revision"])
-        return _project_response(project)
+        return _project_public_response(project)
 
     @app.delete("/v1/projects/{project_id}/members/{member_account_id}")
     def remove_member(project_id: str, member_account_id: str, x_account_id: str | None = Header(default=None)) -> Response:
@@ -1527,7 +1618,7 @@ def create_app(
         invitation["redeemed_at"] = now_iso()
         memory.audit("invitation.accepted", actor, project["id"], invitation_id=invitation["id"])
         memory.emit(project, "member.joined", account_id=actor, role=invitation["intended_role"])
-        return {"accepted": True, "project": _project_response(project), "role": invitation["intended_role"]}
+        return _project_public_response(project, build=lambda value: {"accepted": True, "project": value, "role": invitation["intended_role"]})
 
     @app.get("/v1/projects/{project_id}/journey")
     def journey(project_id: str, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
@@ -1541,13 +1632,13 @@ def create_app(
             active_response.pop("turns", None)
             active_response.pop("draft", None)
             active_response.pop("claims", None)
-        response = {**_project_response(project), "active_session": active_response, "memory_ids": memories, "next_action": "resume_session" if active else ("read_preview" if project.get("preview") else "start_memory")}
+        response = {"active_session": active_response, "memory_ids": memories, "next_action": "resume_session" if active else ("read_preview" if project.get("preview") else "start_memory")}
         if private_progress:
             response["private_progress"] = True
             response["completed_sessions"] = None
             response["trial_units_remaining"] = None
             response["entitlements"] = {"redacted": True, "reason": "storyteller_progress_is_private"}
-        return response
+        return _project_public_response(project, build=lambda value: {**value, **response})
 
     @app.get("/v1/projects/{project_id}/entitlements")
     def entitlements(project_id: str, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:

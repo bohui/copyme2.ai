@@ -17,6 +17,7 @@ from apps.api.task_queue import configured_queue
 def setup(monkeypatch, tmp_path):
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'tasks.sqlite'))
     storage = Mock()
+    storage.lifetime_rpc = None  # Explicitly unmapped legacy adapter; Mock must not invent an RPC.
     storage.user_id = '11111111-1111-4111-8111-111111111111'
     storage.is_anonymous = False
     storage.all_memories.return_value = [{'id': 'one', 'kind': 'agent',

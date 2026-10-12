@@ -105,7 +105,8 @@ def test_paid_family_turn_returns_validated_context_and_strips_the_marker(monkey
         async def __aexit__(self, exc_type, exc, tb):
             return None
 
-        async def post(self, url, *, headers, json):
+        async def post(self, url, *, headers, content):
+            json = __import__('json').loads(b''.join([chunk async for chunk in content]))
             assert json["family_enabled"] is True
             assert json["project_id"] == "project-family"
             assert json["family_context"] == {}

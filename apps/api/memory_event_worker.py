@@ -66,15 +66,66 @@ class MemoirLaneBroker:
     async def drain_once(self):
         receipts = await self.rpc('pending_memoir_receipts', p_limit=50)
         lanes = []
+        page_budget = 8
         for receipt in receipts:
             scope = await self.rpc('read_memoir_receipt_scope', p_receipt_id=receipt)
             if scope and scope['change_kind'] in {'revocation', 'delete'}:
                 from .legacy_memoir import prune_saved_cache
-                await asyncio.to_thread(prune_saved_cache, scope['user_id'], scope['project_id'])
-            queued = await self.rpc('queue_memoir_receipt', p_receipt_id=receipt, p_cadence=private_draft_cadence())
+                await asyncio.to_thread(prune_saved_cache, scope['user_id'], scope['project_id'],
+                    preserve_lifetime_pages=bool(scope.get('conversation_id')))
+            if scope and scope.get('conversation_id'):
+                if page_budget <= 0:
+                    break
+                complete,used = await self._checkpoint_lifetime_receipt(receipt,page_budget)
+                page_budget -= used
+                if not complete:
+                    break
+            try:
+                queued = await self.rpc('queue_memoir_receipt', p_receipt_id=receipt, p_cadence=private_draft_cadence())
+            except httpx.HTTPStatusError as error:
+                from .private_draft_broker import receipt_scope_conflict
+                if not (scope and scope.get('conversation_id') and receipt_scope_conflict(error)):
+                    raise
+                from .private_draft_jobs import PrivateDraftJobs
+                await asyncio.to_thread(PrivateDraftJobs(os.environ['MEMORY_SPARK_TASK_DB']).restart_page,receipt)
+                break
+
             if queued:
                 lanes.extend(v for k, v in queued.items() if k.endswith('_lane_id') and v)
         return list(dict.fromkeys(lanes))
+
+    async def _checkpoint_lifetime_receipt(self,receipt,budget):
+        from .private_draft_broker import PrivateDraftBroker,receipt_scope_conflict
+        from .private_draft_jobs import PrivateDraftJobs
+        path=os.getenv('MEMORY_SPARK_TASK_DB')
+        if not path:
+            # Leave the required PostgreSQL receipt undelivered. No local
+            # fallback may acknowledge work it cannot checkpoint durably.
+            raise RuntimeError('Governed draft receipt store unavailable')
+        queue=PrivateDraftJobs(path)
+        resume=await asyncio.to_thread(queue.page_resume,receipt)
+        if resume and resume['complete']:
+            return True,0
+        cursor=resume['next_cursor'] if resume else None
+        used=0
+        while used<budget:
+            used+=1
+            try:
+                page=await self.rpc('private_draft_event_page',p_event_id=receipt,p_cursor=cursor)
+            except httpx.HTTPStatusError as error:
+                if cursor is None or not (error.response.status_code in {400,409} or receipt_scope_conflict(error,snapshot=True)):
+                    raise
+                # Retry a changed policy from its newly authorised first page
+                # on the next bounded iteration, never continue stale bytes.
+                cursor=None
+                continue
+            if not page:
+                raise RuntimeError('Governed draft receipt unavailable')
+            result=await asyncio.to_thread(PrivateDraftBroker.reconcile,page)
+            if result['retrieval_complete']:
+                return True,used
+            cursor=result['next_cursor']
+        return False,used
 
     async def run(self):
         interval = min(max(float(os.getenv('MEMORY_SPARK_OUTBOX_POLL_SECONDS', '2')), 1), 60)
@@ -96,7 +147,15 @@ class MemoryEventWorker:
     async def execute_lane(self, lane_id):
         started = time.monotonic()
         run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '900'))
-        job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
+        try:
+            job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
+        except Exception as error:
+            from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+            if not is_policy_pending(error):
+                raise
+            # A rejected claim is rolled back atomically: there is no lease or
+            # body authority to release and no generation failure to count.
+            return {'status':'pending','error':PolicyUnavailable.code,'retrieval_complete':False}
         if not job:
             state = await self.broker.rpc('read_memoir_lane_state', p_lane_id=lane_id)
             return {'status': 'retry_required' if state and state['state']=='retry_required'
@@ -109,6 +168,9 @@ class MemoryEventWorker:
         renewal = asyncio.create_task(heartbeat())
         try:
             async with asyncio.timeout(run_seconds):
+                if job.get('protocol') == 'lifetime_composer_pages':
+                    from .lifetime_memory_composer import execute_lifetime_lane
+                    return await execute_lifetime_lane(job, self)
                 if job['skill'] == 'composer':
                     from .canonical_composer import compose_shared_snapshot
                     bundle = await compose_shared_snapshot(job, self)

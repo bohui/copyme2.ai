@@ -7,7 +7,8 @@ import {
 } from "@memoir/contracts";
 import type { MessageKey } from "@memoir/i18n";
 import { useMemoir } from "../src/context";
-import { useScopedState, useResource } from "../src/resource";
+import { useScopedState } from "../src/resource";
+import { useCollectionPages } from "../src/collection-pages";
 import {
   Body,
   Button,
@@ -21,7 +22,7 @@ import {
 } from "../src/ui";
 export default function Collection() {
   const { api, projectId, locale, t } = useMemoir();
-  const r = useResource(() => api!.collection(projectId), [projectId]);
+  const r = useCollectionPages();
   const [periods, setPeriods] = useScopedState<Record<string, PeriodCoverage>>(
     {},
   );
@@ -46,6 +47,9 @@ export default function Collection() {
         note: "",
         ...current[stage],
         ...patch,
+        ...(patch.status && patch.status !== "recorded"
+          ? { memory_ids: [] }
+          : {}),
       },
     }));
     setConfirmed(false);
@@ -65,7 +69,7 @@ export default function Collection() {
       const result = await api!.updateCollection(projectId, checked.data);
       setRevision(result.revision);
       setDirty(false);
-      r.setValue({ ...result, sources: r.value?.sources });
+      r.setValue({ ...r.value, ...result, sources: r.value?.sources });
       setNotice(t("saved"));
     } catch {
       setNotice(t("revisionConflict"));
@@ -93,6 +97,18 @@ export default function Collection() {
       <Text style={styles.small}>{t("accountWide")}</Text>
       {r.error && <Notice text={r.error} />}{" "}
       {notice && <Notice text={notice} />}{" "}
+      <Body muted>{t("collectionSelectionLimit")}</Body>
+      {r.value?.complete === false && (
+        <Body muted>{t("collectionPartial")}</Body>
+      )}
+      {r.pageError && <Notice text={r.pageError} />}
+      {r.value?.next_cursor && (
+        <Button
+          title={t("collectionMoreSources")}
+          loading={r.loadingMore}
+          onPress={() => void r.loadMore()}
+        />
+      )}
       {LIFE_STAGES.map((stage) => {
         const period = periods[stage];
         const key = stage === "childhood" ? "childhoodStage" : stage;
@@ -119,7 +135,7 @@ export default function Collection() {
                 {r.value?.sources?.map((source) => (
                   <Check
                     key={source.id}
-                    label={source.content}
+                    label={source.content.slice(0, 180)}
                     checked={period.memory_ids.includes(source.id)}
                     onPress={() =>
                       update(stage, {

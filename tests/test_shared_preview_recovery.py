@@ -10,7 +10,9 @@ from apps.api.story_routes import build_router
 
 def preview_storage(**view):
     storage = Mock(spec=UserStorage)
-    storage.user_id = 'owner'
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    # Explicitly unmapped legacy account; do not let Mock invent a canonical identity.
+    storage.lifetime_rpc.return_value = None
     storage.recall_rounds_completed.return_value = 21
     storage.story_entitlement.return_value = None
     storage.profile.return_value = {'preferred_language': 'zh-CN'}

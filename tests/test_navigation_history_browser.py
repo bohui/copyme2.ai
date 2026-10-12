@@ -2,16 +2,17 @@
 
 from browser_supabase_fixture import install_supabase_fixture
 import json
+from copy import deepcopy
 import os
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
 from playwright.sync_api import expect, sync_playwright
 
-from apps.api import main
+from apps.api import main, supabase_routes
 from apps.api.store import MemoryStore
+from browser_recovery_fixture import navigation_storage, NAVIGATION_USERS, forward_project_history, save_navigation_turn
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,25 +20,27 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(params=[(390, 844), (1440, 1000)], ids=['phone', 'desktop'])
 def navigation_browser(monkeypatch, request):
+    initial_principal = getattr(request.node.callspec, 'params', {}).get('principal', 'guest')
+    assert initial_principal in NAVIGATION_USERS, 'Unsupported navigation fixture principal'
+    store = MemoryStore()
+    saved_turns = {}
     def authenticated(authorization):
         if authorization not in {'Bearer fixture-guest', 'Bearer fixture-other'}:
             raise main.HTTPException(401, 'Missing synthetic session')
-        service = Mock()
-        service.user_id = authorization.removeprefix('Bearer fixture-')
-        service.profile.return_value = {'preferred_language': 'zh-CN'}
-        service.request.return_value.json.return_value = []
-        return service
+        return navigation_storage(authorization.removeprefix('Bearer fixture-'), store.projects, saved_turns)
 
     monkeypatch.setattr(main, 'authenticated_storage', authenticated)
-    store = MemoryStore()
+    monkeypatch.setattr(supabase_routes, 'storage', authenticated)
     with TestClient(main.create_app(store)) as client, sync_playwright() as pw:
+        client.app.state.navigation_fixture_history = saved_turns
         browser = pw.chromium.launch()
         context = browser.new_context(viewport={'width': request.param[0], 'height': request.param[1]}, reduced_motion='reduce')
         base = os.environ['MEMOIR_BROWSER_URL']
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': 'zh-CN', 'url': base},
                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
-        script = """const fixtureSession=()=>{const id=localStorage.getItem('fixture-principal')||'guest';return {
-          access_token:'fixture-'+id,refresh_token:'fixture-refresh-'+id,user:{id,is_anonymous:id==='guest'}}};
+        script = """const fixtureIds=__FIXTURE_IDS__;
+        const fixtureSession=()=>{const principal=localStorage.getItem('fixture-principal')||__INITIAL_PRINCIPAL__;const id=fixtureIds[principal];return {
+          access_token:'fixture-'+principal,refresh_token:'fixture-refresh-'+principal,user:{id,is_anonymous:principal==='guest'}}};
         window.fixtureSetPrincipal=id=>{localStorage.setItem('fixture-principal',id);window.fixtureAuthChanged?.('SIGNED_IN',fixtureSession())};
         window.supabase={createClient:()=>({auth:{
           getSession:async()=>({data:{session:fixtureSession()}}),
@@ -45,10 +48,15 @@ def navigation_browser(monkeypatch, request):
           signInWithOAuth:async options=>{window.fixtureOauth=options;return {}},
           onAuthStateChange:callback=>{window.fixtureAuthChanged=callback;return {}}
         }})};"""
-        install_supabase_fixture(context, script)
+        # Cookie seeding and the first SDK session must select the same actor.
+        # Separate page/context init scripts have no guaranteed evaluation order.
+        script = script.replace('__FIXTURE_IDS__', json.dumps(NAVIGATION_USERS))
+        install_supabase_fixture(context, script.replace('__INITIAL_PRINCIPAL__', json.dumps(initial_principal)))
         requests = []
 
         def api(route):
+            if forward_project_history(route, client, store.projects, requests):
+                return
             path = route.request.url.split('/api/v1/memoir')[-1]
             endpoint = path.split('?')[0]
             if endpoint == '/projects' or endpoint.startswith('/projects/'):
@@ -93,8 +101,24 @@ def start_conversation(page):
 def show_history(page):
     expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
     toggle = page.locator('[data-action="toggle-chat-history"]')
-    if toggle.count() and toggle.get_attribute('aria-expanded') == 'false': toggle.click()
+    # Background readiness/draft paints can expose the composer before history.
+    expect(toggle).to_be_visible(timeout=30000)
+    if toggle.get_attribute('aria-expanded') == 'false': toggle.click()
+    expect(toggle).to_have_attribute('aria-expanded', 'true')
     expect(page.get_by_text('Synthetic private garden memory.', exact=True)).to_be_visible()
+
+
+def settled_history_cache(page, project_id):
+    # A recovered empty B first renders its composer, then streams its ordinary
+    # greeting. Its empty placeholder can legitimately persist [] during setup.
+    expect(page.locator('#chat-history .assistant-message:not(.message-streaming)')).to_have_count(1, timeout=30000)
+    expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
+    cached = page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)",
+                           [NAVIGATION_USERS['guest'], project_id])
+    assert cached is not None
+    messages = json.loads(cached)
+    assert messages and all(message['role'] == 'assistant' for message in messages)
+    return cached
 
 
 def capture(page, name):
@@ -135,15 +159,14 @@ def test_login_returns_to_project_started_from_homepage(navigation_browser, prov
 @pytest.mark.parametrize('principal', ['guest', 'other'], ids=['anonymous', 'account'])
 def test_reentry_resumes_the_same_conversation(navigation_browser, principal):
     page, _, store, requests, _, _ = navigation_browser
-    page.add_init_script(f"localStorage.setItem('fixture-principal',{json.dumps(principal)})")
     interview = start_conversation(page)
     page.locator('.story-topbar .brand-mark').click()
     page.locator('[data-action="open-memoir"]').click()
-    page.locator('[data-action="start-story"][data-mode="self"]').click()
     expect(page).to_have_url(interview)
     show_history(page)
     assert len(store.projects) == 1
     assert sum(method == 'POST' and path == '/projects' for method, path, _ in requests) == 1
+    assert next(iter(store.projects.values()))['owner_id'] == NAVIGATION_USERS[principal]
 
 
 def test_anonymous_history_survives_reload_and_a_new_tab(navigation_browser):
@@ -216,7 +239,9 @@ def test_back_forward_restores_the_project_named_by_the_url(navigation_browser):
     page, _, store, _, _, _ = navigation_browser
     interview = start_conversation(page)
     page.locator('.story-topbar .brand-mark').click()
-    page.locator('[data-action="open-memoir"]').click()
+    # Begin on the platform resumes self; family choice lives at /memoir.
+    # The family action naturally replaces this new /memoir entry with B.
+    page.goto(os.environ['MEMOIR_BROWSER_URL'] + '/memoir')
     page.locator('[data-action="start-story"][data-mode="family"]').click()
     expect(page.locator('#chat-input')).to_be_visible()
     family_interview = page.url
@@ -249,7 +274,6 @@ def test_leaving_during_a_reply_preserves_the_user_turn_and_partial_reply(naviga
     expect(page.get_by_text('Synthetic partial reply.', exact=True)).to_be_visible()
     page.locator('.story-topbar .brand-mark').click()
     page.locator('[data-action="open-memoir"]').click()
-    page.locator('[data-action="start-story"][data-mode="self"]').click()
     expect(page).to_have_url(interview)
     show_history(page)
     expect(page.get_by_text('An interrupted synthetic memory.', exact=True)).to_be_visible()
@@ -310,6 +334,7 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     page.evaluate("""()=>{const nativeFetch=window.fetch;window.fetch=(url,options)=>{
       if(!String(url).endsWith('/agent/turn')) return nativeFetch(url,options);
       window.fixtureStreamSignal=options.signal;
+      window.fixturePendingTurn=JSON.parse(options.body);
       let deliver;
       const reader={read:()=>new Promise(resolve=>{deliver=resolve}),cancel:async()=>{window.fixtureCanceled=true},releaseLock(){}};
       window.fixtureEvent=event=>deliver({done:false,value:new TextEncoder().encode(JSON.stringify(event)+'\\n')});
@@ -321,6 +346,8 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     page.evaluate("fixtureEvent({type:'text_delta',text:'A accepted partial reply.'})")
     expect(page.get_by_text('A accepted partial reply.', exact=True)).to_be_visible()
     if ending == 'workspace-tail':
+        save_navigation_turn(client.app.state.navigation_fixture_history, interview_a.rsplit('/', 1)[-1],
+                             page.evaluate('fixturePendingTurn'), 'A accepted partial reply.')
         page.evaluate("fixtureEvent({type:'conversation_saved',data:{conversation_saved:true,reply:'A accepted partial reply.'}})")
         expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
     # Add B once, then exercise actual Back/Forward events in this document.
@@ -328,15 +355,21 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     expect(page.locator('#chat-input')).to_be_enabled()
     assert page.evaluate('fixtureStreamSignal.aborted') is True
     assert page.evaluate('fixtureCanceled') is True
-    before_b = page.evaluate("id=>localStorage.getItem('memory-spark-chat-history:guest:'+id)", project_b)
+    before_b = settled_history_cache(page, project_b)
+    # This is a stale transport callback, not a second server commit. Only the
+    # explicit pre-detach saved event above has a durable fixture counterpart.
+    saved_before_late = deepcopy(client.app.state.navigation_fixture_history)
     late = {'type': 'error', 'message': 'A late synthetic error'} if ending == 'error' else {
         'type': 'result', 'data': {'conversation_saved': True, 'reply': 'A late complete reply.',
                                  'composition_stage': 3, 'recall_status': {'payment_required': True}}}
     page.evaluate('event=>fixtureEvent(event)', late)
+    assert client.app.state.navigation_fixture_history == saved_before_late
+    if ending != 'workspace-tail':
+        assert interview_a.rsplit('/', 1)[-1] not in saved_before_late
     expect(page.get_by_text('A late complete reply.', exact=True)).to_have_count(0)
     expect(page.get_by_text('A late synthetic error', exact=True)).to_have_count(0)
     expect(page.locator('#chat-input')).to_be_enabled()
-    assert page.evaluate("id=>localStorage.getItem('memory-spark-chat-history:guest:'+id)", project_b) == before_b
+    assert page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)", [NAVIGATION_USERS['guest'], project_b]) == before_b
     page.go_back()
     expect(page).to_have_url(interview_a)
     show_history(page)

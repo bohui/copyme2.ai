@@ -3,21 +3,23 @@ import { Text } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useMemoir } from "../src/context";
 import { useResource } from "../src/resource";
-import { Body, Heading, Card, Notice, Screen, styles } from "../src/ui";
+import { useCollectionPages } from "../src/collection-pages";
+import { Body, Button, Heading, Card, Notice, Screen, styles } from "../src/ui";
 export default function Sources() {
   const { api, projectId, t } = useMemoir();
   const { id, version } = useLocalSearchParams<{
     id?: string;
     version?: string;
   }>();
+  const pages = useCollectionPages(!id);
   const r = useResource(async () => {
     if (id) {
       const source = await api!.sourceDetail(projectId, id, version);
       return [{ id: source.id, content: source.text, version: source.version }];
     }
-    return (await api!.collection(projectId)).sources ?? [];
+    return [];
   }, [projectId, id, version]);
-  const sources = r.value ?? [];
+  const sources = id ? (r.value ?? []) : (pages.value?.sources ?? []);
   return (
     <Screen>
       <Heading
@@ -32,6 +34,19 @@ export default function Sources() {
         />
       )}{" "}
       {r.loading && <Body>{t("loading")}</Body>}
+      {!id && pages.value?.complete === false && (
+        <Body muted>{t("collectionPartial")}</Body>
+      )}
+      {!id && (pages.error || pages.pageError) && (
+        <Notice text={pages.error || pages.pageError} />
+      )}
+      {!id && pages.value?.next_cursor && (
+        <Button
+          title={t("collectionMoreSources")}
+          loading={pages.loadingMore}
+          onPress={() => void pages.loadMore()}
+        />
+      )}
       {sources.map((source) => (
         <Card key={source.id}>
           <Text style={styles.eyebrow}>{t("source")}</Text>

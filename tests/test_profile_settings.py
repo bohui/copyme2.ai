@@ -8,11 +8,18 @@ from apps.api.main import create_app
 from apps.api.store import MemoryStore
 
 
+def _unmapped_identity(name, **parameters):
+    assert name == 'read_lifetime_project_identity', 'Unexpected lifetime operation in legacy fixture'
+    assert set(parameters) == {'p_project_id'}
+    return None
+
+
 def test_profile_settings_merge_clear_and_preserve_private_context(monkeypatch):
     saved = {'name': '慧博', 'preferred_language': 'zh-CN', 'avatar_style': 'male',
              'story_focus': {'where': '开封'}, 'story_flow': {'chapter': 2}}
     storage = Mock()
-    storage.user_id = 'profile-user'
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    storage.lifetime_rpc = Mock(side_effect=_unmapped_identity)
     storage.profile.side_effect = lambda: deepcopy(saved)
     storage.save_profile.side_effect = lambda profile: (saved.clear(), saved.update(profile))
     storage.acquire_agent_turn_lease.return_value = True
@@ -51,7 +58,8 @@ def test_explicit_locale_preserves_first_reply_and_blocks_stale_workspace_write(
     from apps.api import supabase_routes
     from apps.api.conversation_locale import record
     saved={'preferred_language':'zh-CN','conversation_language':record('zh-CN',source='first_reply',detected='zh-CN')}
-    storage=Mock();storage.user_id='owner'
+    storage=Mock();storage.user_id='11111111-1111-4111-8111-111111111111'
+    storage.lifetime_rpc = Mock(side_effect=_unmapped_identity)
     storage.profile.side_effect=lambda:deepcopy(saved)
     storage.save_profile.side_effect=lambda p:(saved.clear(),saved.update(p))
     storage.acquire_agent_turn_lease.return_value=True;storage.renew_agent_turn_lease.return_value=True

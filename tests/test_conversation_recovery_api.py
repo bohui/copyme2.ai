@@ -41,6 +41,10 @@ def recovery(monkeypatch):
 
         def server(request):
             calls.append(request)
+            if request.url.path == '/rest/v1/rpc/read_lifetime_project_identity':
+                assert request.method == 'POST'  # Read-only RPC transport, never adoption.
+                assert set(json.loads(request.content)) == {'p_project_id'}
+                return httpx.Response(200, content='null')
             assert request.method == 'GET', 'Recovery must never mutate or generate'
             if request.url.path == '/auth/v1/user':
                 return httpx.Response(200, json={'id': owner})

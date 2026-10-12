@@ -13,6 +13,7 @@ import time
 def offline_environment(root):
     keep = {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SHELL'}
     keep.update({'MEMOIR_TEST_POSTGRES_BACKEND', 'MEMOIR_BROWSER_URL', 'MEMOIR_TEST_URL',
+                 'MEMOIR_TEST_PUBLICATION_TCP',
                  'MEMORY_SPARK_API_ORIGIN', 'PLAYWRIGHT_BROWSERS_PATH',
                  'MEMORY_SPARK_SHOW_THINKING_STEPS', 'MEMORY_SPARK_TASK_DB',
                  'MEMORY_SPARK_DATABASE', 'MEMOIR_RENDERER_FIXTURES',
@@ -20,7 +21,10 @@ def offline_environment(root):
     env = {key: value for key, value in os.environ.items() if key in keep}
     env['PATH'] = (str(root / 'output/mac-validation/node-runtime/node_modules/.bin') + ':'
                    + str(root / '.venv/bin') + ':' + env.get('PATH', ''))
+    # This runner strips database/provider authority and explicitly models a
+    # pre-canonical synthetic deployment. Governed fixtures opt in separately.
     env.update(MEMORY_SPARK_TEST_MODE='1', MEMORY_SPARK_ENTITLEMENT_MODEL='legacy',
+               MEMOIR_LEGACY_ONLY_DEPLOYMENT='1',
                NEXT_TELEMETRY_DISABLED='1')
     return env
 

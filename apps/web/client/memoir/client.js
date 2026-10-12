@@ -28,6 +28,9 @@ const state = {
   project: null,
   projectPrincipalId: null,
   projectRecoveryBlocked: null,
+  projectRecovery: null,
+  storyStart: null,
+  profileMenuScope: null,
   navigationGeneration: 0,
   navigationPath: null,
   session: null,
@@ -39,6 +42,8 @@ const state = {
   timeline: [],
   stageReadiness: {},
   privateDraft: null,
+  privateDraftLocale: null,
+  memoryEventPage: null,
   pendingConversationTurn: null,
   preview: null,
   chat: [],
@@ -330,6 +335,8 @@ function invalidateProjectNavigation() {
   for (const message of state.chat) if (message.streaming) message.streaming = false;
   persistChatHistory();
   state.navigationGeneration = (state.navigationGeneration || 0) + 1;
+  state.projectRecovery?.finish();
+  state.profileMenuScope = null;
   for (const stream of state.conversationStreams || []) stream.abort();
   state.conversationStreams?.clear();
   state.photoRequests?.clear();
@@ -1887,6 +1894,7 @@ async function refreshFamilyContext() {
     if (!isCurrentProjectScope(scope)) return null;
     if (Array.isArray(snapshot?.events)) {
       state.memoryEventProject = projectId;
+      state.memoryEventPage = snapshot;
       state.timeline = snapshot.events.map(event => ({ ...event,
         date_expression: event.temporal?.expression || "unknown",
         start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
@@ -1901,6 +1909,7 @@ async function refreshFamilyContext() {
     if (failure.status === 403 && isCurrentProjectScope(scope)) {
       state.familyFeaturesEnabled = false;
       state.timeline = [];
+      state.memoryEventPage = null;
       state.familyContext = null;
       state.people = [];
       state.relationships = [];
@@ -2330,6 +2339,7 @@ function profileMenu() {
 }
 
 function closeProfileMenu(restoreFocus = false) {
+  state.profileMenuScope = null;
   const menu = $("[data-profile-menu]");
   const trigger = menu?.querySelector("[data-profile-trigger]");
   const dropdown = menu?.querySelector(".profile-dropdown");
@@ -2343,7 +2353,8 @@ function closeProfileMenu(restoreFocus = false) {
 function refreshProfileMenu() {
   const menu = $("[data-profile-menu]");
   if (!menu) return;
-  const open = menu.querySelector("[data-profile-trigger]")?.getAttribute("aria-expanded") === "true";
+  const open = state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)
+    && menu.querySelector("[data-profile-trigger]")?.getAttribute("aria-expanded") === "true";
   menu.outerHTML = profileMenu();
   bindProfileMenu();
   if (open) $("[data-profile-trigger]")?.click();
@@ -2360,6 +2371,7 @@ function bindProfileMenu() {
       closeProfileMenu();
       return;
     }
+    state.profileMenuScope = captureProjectScope();
     menu.classList.add("is-open");
     trigger.setAttribute("aria-expanded", "true");
     dropdown.hidden = false;
@@ -2941,19 +2953,46 @@ function renderMemoirLanding() {
 }
 
 async function startStory(mode = "self") {
-  await startMemoirStory(mode);
+  const ownerId = state.supabase?.user?.id;
+  const token = state.supabase?.accessToken;
+  const generation = state.navigationGeneration || 0;
+  const pending = state.storyStart;
+  if (pending && pending.mode === mode && pending.ownerId === ownerId
+      && pending.token === token && pending.generation === generation) return pending.promise;
+  const operation = {mode, ownerId, token, generation};
+  state.storyStart = operation;
+  try {
+    operation.promise = startMemoirStory(mode);
+    return await operation.promise;
+  } finally {
+    if (state.storyStart === operation) state.storyStart = null;
+  }
 }
 
 async function startMemoirStory(mode = "self") {
   let generation = state.navigationGeneration || 0;
   let ownerId = state.supabase?.user?.id;
-  const current = () => generation === (state.navigationGeneration || 0) && ownerId === state.supabase?.user?.id;
+  let token = state.supabase?.accessToken;
+  const current = () => generation === (state.navigationGeneration || 0) && ownerId === state.supabase?.user?.id
+    && !state.explicitSignOutInProgress;
   try {
     stopVoiceMode({ silent: true });
     if (state.authPromise) await state.authPromise;
     if (generation !== (state.navigationGeneration || 0)) return;
     ownerId = state.supabase?.user?.id;
-    if (state.loading) return;
+    token = state.supabase?.accessToken;
+    // Auth readiness is earlier than saved-project authorization/history. A
+    // locale repaint may already have exposed Begin while boot is recovering.
+    const recovery = state.projectRecovery;
+    if (recovery?.generation === generation) {
+      await recovery.promise;
+      if (!current() || token !== state.supabase?.accessToken) return;
+      if (recovery.failed && mode === "self") {
+        toast(translate("AuthReminder.historyError"));
+        return;
+      }
+    }
+    if (!current() || state.loading) return;
     if (mode === "self" && state.projectRecoveryBlocked) {
       toast(translate("AuthReminder.historyError"));
       return;
@@ -3042,6 +3081,7 @@ async function refreshProject() {
   const projectId = state.project.id;
   state.stageReadiness = {};
   state.privateDraft = null;
+  state.memoryEventPage = null;
   let base;
   try {
     base = await api(`/v1/projects/${projectId}`);
@@ -3197,6 +3237,8 @@ async function hydrateAccountHistory(history = null) {
 }
 
 function renderStory() {
+  const profileFocus = document.activeElement?.dataset?.profileAction;
+  const profileTriggerFocused = document.activeElement?.hasAttribute?.("data-profile-trigger");
   if (state.project?.id && state.supabase?.accessToken) void state.conversationPhase.ensure();
   const phaseFocus = document.activeElement?.dataset?.phaseAction;
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
@@ -3248,6 +3290,15 @@ function renderStory() {
     </div>`;
   bindViewActions();
   bindProfileMenu();
+  if (state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)) {
+    // Background greeting/readiness/draft paints must not dismiss an in-flight
+    // menu choice. Navigation, owner changes and explicit close discard intent.
+    $("[data-profile-trigger]")?.click();
+    const focus = profileTriggerFocused ? $("[data-profile-trigger]")
+      : ["settings", "collection", "attached-history", "login", "logout"].includes(profileFocus)
+        ? $(`[data-profile-action="${profileFocus}"]`) : null;
+    focus?.focus({preventScroll: true});
+  } else state.profileMenuScope = null;
   const nextMap = $("[data-cesium-place]");
   if (previousMap && nextMap && JSON.stringify(previousMap.dataset) === JSON.stringify(nextMap.dataset)) {
     nextMap.closest(".place-journey-scene").replaceWith(previousScene);
@@ -3343,9 +3394,12 @@ async function refreshPrivateDraft() {
   const projectId=state.project?.id;
   if (!projectId || !state.supabase?.accessToken) return;
   try {
-    const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(profile().preferred_language || currentUiLocale())}`);
-    if (!isCurrentProjectScope(scope)) return;
-    state.privateDraft=result;
+    const requestId = state.privateDraftRequest = (state.privateDraftRequest || 0) + 1;
+    const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
+    const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(language)}`);
+    if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
+    // Refresh always replaces the frozen root and clears old page content.
+    state.privateDraft={...result, pages: []};
     render();
     if (result.updating) privateDraftTimer=setTimeout(refreshPrivateDraft,15000);
   } catch (_) { /* Quiet background work never hides a saved interview. */ }
@@ -3353,19 +3407,156 @@ async function refreshPrivateDraft() {
 
 async function retryPrivateDraft() {
   await storyApi('/v1/story/private-draft/retry',{method:'POST',body:JSON.stringify({
-    project_id:state.project.id,language:profile().preferred_language || currentUiLocale()})});
+    project_id:state.project.id,language:state.privateDraftLocale || profile().preferred_language || currentUiLocale()})});
   await refreshPrivateDraft();
+}
+
+async function selectPrivateDraftLocale(language) {
+  if (!["en-AU", "zh-CN"].includes(language)) return;
+  state.privateDraftLocale = language;
+  state.privateDraft = null;
+  await refreshPrivateDraft();
+}
+
+async function decidePrivateDraftProposal(partitionId, accept) {
+  const scope = captureProjectScope();
+  const saved = state.privateDraft;
+  const record = [saved?.first_record,...(saved?.pages || [])].find(item => item?.id === partitionId);
+  if (!record?.proposal_digest || saved.deciding || saved.loading_page) return;
+  saved.deciding = true;
+  saved.decision_error = false;
+  render();
+  try {
+    const result = await storyApi('/v1/story/private-draft/proposal', {method: 'POST', body: JSON.stringify({
+      project_id: state.project.id, snapshot_id: saved.snapshot_id, root_digest: saved.root_digest,
+      partition_id: partitionId, expected_proposal_digest: record.proposal_digest, accept})});
+    if (!isCurrentProjectScope(scope) || state.privateDraft !== saved) return;
+    state.privateDraft = {...result, pages: []};
+  } catch (_) {
+    if (isCurrentProjectScope(scope) && state.privateDraft === saved) saved.decision_error = true;
+  } finally {
+    saved.deciding = false;
+    if (isCurrentProjectScope(scope)) render();
+  }
+}
+
+async function loadMorePrivateDraft() {
+  const scope = captureProjectScope();
+  const saved = state.privateDraft;
+  if (!saved?.snapshot_id || !saved.next_cursor || saved.loading_page || saved.deciding) return;
+  saved.loading_page = true;
+  saved.page_error = false;
+  render();
+  try {
+    const query = new URLSearchParams({project_id: state.project.id,
+      snapshot_id: saved.snapshot_id, cursor: saved.next_cursor});
+    if (saved.legacy) query.set('legacy', 'true');
+    const page = await storyApi(`/v1/story/private-draft/page?${query}`);
+    if (!isCurrentProjectScope(scope) || state.privateDraft !== saved || page.snapshot_id !== saved.snapshot_id) return;
+    saved.pages = [...(saved.pages || []), ...(page.records || [])];
+    saved.next_cursor = page.next_cursor || null;
+    saved.page_complete = page.complete === true;
+  } catch (_) {
+    if (isCurrentProjectScope(scope) && state.privateDraft === saved) saved.page_error = true;
+  } finally {
+    saved.loading_page = false;
+    if (isCurrentProjectScope(scope) && state.privateDraft === saved) render();
+  }
+}
+
+async function loadMoreMemoryEvents() {
+  const scope = captureProjectScope();
+  const saved = state.memoryEventPage;
+  if (!state.familyFeaturesEnabled || !saved?.next_cursor || saved.loading_page) return;
+  saved.loading_page = true;
+  saved.page_error = false;
+  render();
+  try {
+    const query = new URLSearchParams({project_id: state.project.id, cursor: saved.next_cursor});
+    const page = await storyApi(`/v1/story/events?${query}`);
+    if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
+    const known = new Set(state.timeline.map(event => event.id));
+    state.timeline.push(...(page.events || []).filter(event => !known.has(event.id)).map(event => ({...event,
+      date_expression: event.temporal?.expression || "unknown",
+      start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
+      end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
+      precision: event.temporal?.precision || "unknown", canonical: true})));
+    saved.next_cursor = page.next_cursor || null;
+    saved.complete = page.complete === true;
+  } catch (_) {
+    if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) saved.page_error = true;
+  } finally {
+    saved.loading_page = false;
+    if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) render();
+  }
+}
+
+async function loadMoreEventEvidence(eventId) {
+  const scope = captureProjectScope();
+  const saved = state.memoryEventPage;
+  const event = state.timeline.find(item => item.id === eventId);
+  if (!state.familyFeaturesEnabled || !event?.evidence_next_cursor || event.loading_evidence) return;
+  event.loading_evidence = true;
+  event.evidence_error = false;
+  render();
+  try {
+    const query = new URLSearchParams({cursor: event.evidence_next_cursor});
+    const page = await storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/sources?${query}`);
+    if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
+    event.source_refs.push(...(page.source_refs || []));
+    event.evidence_next_cursor = page.next_cursor || null;
+    event.evidence_complete = page.complete === true;
+  } catch (_) {
+    if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) event.evidence_error = true;
+  } finally {
+    event.loading_evidence = false;
+    if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) render();
+  }
+}
+
+async function loadMoreEventDetails(eventId) {
+  const scope = captureProjectScope();
+  const saved = state.memoryEventPage;
+  const event = state.timeline.find(item => item.id === eventId);
+  if (!state.familyFeaturesEnabled || !event || event.details_complete || event.loading_details) return;
+  event.loading_details = true;
+  event.details_error = false;
+  render();
+  try {
+    const query = new URLSearchParams();
+    if (event.details_next_cursor) query.set('cursor', event.details_next_cursor);
+    const page = await storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/details?${query}`);
+    if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
+    event.detail_records = [...(event.detail_records || []), ...(page.details || [])];
+    event.details_next_cursor = page.next_cursor || null;
+    event.details_complete = page.complete === true;
+  } catch (_) {
+    if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) event.details_error = true;
+  } finally {
+    event.loading_details = false;
+    if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) render();
+  }
 }
 
 function privateDraftPreview({ inChapters = false } = {}) {
   if (!state.showThinkingSteps && !(inChapters && freeRecallFinished())) return "";
   const saved=state.privateDraft;
-  if (!saved || !saved.preview && !saved.error &&
+  if (!saved || !saved.preview && !saved.error && !saved.approval_required && !saved.original_withheld &&
       (!saved.updating || !saved.progress?.composition?.target_milestone)) return "";
   const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
   const preview=saved.preview;
-  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
-  return `<section class="private-draft-status"><p>${status}</p>${preview ? `<details><summary>${t('readSavedDraft')}</summary><h3>${escapeHtml(preview.title)}</h3>${formatText(preview.text)}</details>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
+  const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.coverage_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
+  const pages = (saved.pages || []).map(section => section.preview).filter(Boolean);
+  const proposalRecords = [saved.first_record || {proposed_preview:saved.proposed_preview},...(saved.pages || [])].filter(section => section.proposed_preview);
+  const proposalMarkup = proposalRecords.length ? `<details><summary>${t('draftProposalReview')}</summary>${proposalRecords.map(section => `<h3>${escapeHtml(section.proposed_preview.title)}</h3>${formatText(section.proposed_preview.text)}${section.proposal_digest ? `<div><button type="button" class="text-button" data-proposal-id="${escapeHtml(section.id)}" data-proposal-accept="true" ${saved.deciding || saved.loading_page ? "disabled" : ""}>${t('acceptDraftProposal')}</button><button type="button" class="text-button" data-proposal-id="${escapeHtml(section.id)}" data-proposal-accept="false" ${saved.deciding || saved.loading_page ? "disabled" : ""}>${t('rejectDraftProposal')}</button></div>` : ""}`).join("")}</details>` : "";
+  const protectedNotice = saved.approval_required || (saved.pages || []).some(section => section.proposed_preview) ? `<p role="status">${t('draftApprovalRequired')}</p>` : "";
+  const withheldNotice = saved.original_withheld || (saved.pages || []).some(section => section.original_withheld) ? `<p role="status">${t('draftOriginalWithheld')}</p>` : "";
+  const partial = saved.snapshot_id && saved.page_complete === false;
+  const pagination = partial ? `<p role="status">${t('draftPagesPartial')}</p><button type="button" class="button button-secondary button-small" data-action="load-more-private-draft" ${saved.loading_page ? "disabled" : ""}>${t(saved.loading_page ? 'loadingSavedPage' : 'loadMoreDraft')}</button>` : "";
+  const locale = saved.locale || state.privateDraftLocale || "en-AU";
+  const edition = saved.snapshot_id || saved.error ? `<label>${t('draftEditionLanguage')} <select data-draft-locale ${saved.deciding || saved.loading_page ? "disabled" : ""}><option value="en-AU" ${locale === "en-AU" ? "selected" : ""}>English</option><option value="zh-CN" ${locale === "zh-CN" ? "selected" : ""}>简体中文</option></select></label>` : "";
+  const decisionError = saved.decision_error ? `<p role="status">${t('draftProposalChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : "";
+  return `<section class="private-draft-status">${edition}<p>${status}</p>${preview ? `<details><summary>${t('readSavedDraft')}</summary>${[preview,...pages].map(part => `<h3>${escapeHtml(part.title)}</h3>${formatText(part.text)}`).join("")}</details>` : ""}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
 }
 
 function workspaceProgressSummary() {
@@ -3833,10 +4024,17 @@ function timelineWorkspace() {
     }
     const stage = item.life_stage ? (item.life_stage === "unplaced" ? t("unplacedStage") : escapeHtml(lifeStageText(item.life_stage,"label"))) : "";
     const edit = item.canonical && state.familyFeaturesEnabled ? `<button type="button" class="text-button" data-edit-memory-event="${escapeHtml(item.id)}">${t("editEventTags")}</button>` : "";
-    const evidence = item.canonical && item.source_refs?.length ? `<details><summary>${t("eventOriginalEvidence")}</summary>${item.source_refs.map(ref => `<p>${escapeHtml(ref.quote || "")}</p>`).join("")}</details>` : "";
-    return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}${stage ? ` · ${stage}` : ""}</small>${edit}${evidence}${state.memoryEventEdit?.id === item.id ? memoryEventEditForm() : ""}</div></article>`;
+    const evidence = item.canonical && item.source_refs?.length ? `<details><summary>${t("eventOriginalEvidence")}</summary>${item.source_refs.map(ref => `<p>${escapeHtml(ref.quote || "")}</p>`).join("")}${item.evidence_next_cursor ? `<button type="button" class="text-button" data-more-event-evidence="${escapeHtml(item.id)}" ${item.loading_evidence ? "disabled" : ""}>${t(item.loading_evidence ? "loadingSavedPage" : "loadMoreEvidence")}</button>` : ""}${item.evidence_error ? `<p role="status">${t("savedPageChanged")}</p>` : ""}</details>` : "";
+    const uncertainty = [item.uncertainty, item.assertion === "inferred" ? t("eventInferred") : "", item.status === "unresolved" ? t("eventUnresolved") : "", item.timing_conflict ? t("eventConflictingDates") : ""].filter(Boolean);
+    const contextRecords = (item.detail_records || []).map(record => `<p>${t(`eventDetailKinds.${record.kind}`)}: ${escapeHtml(typeof record.value === "string" ? record.value : record.value?.expression || `${record.value?.kind || ""} ${record.value?.event_id || ""}`)}</p>`).join("");
+    const contextButton = item.details_complete === false ? `<button type="button" class="text-button" data-more-event-details="${escapeHtml(item.id)}" ${item.loading_details ? "disabled" : ""}>${t(item.loading_details ? "loadingSavedPage" : "loadMoreEventContext")}</button>` : "";
+    const qualifications = `${uncertainty.map(note => `<p class="event-uncertainty">${escapeHtml(note)}</p>`).join("")}${contextRecords}${contextButton}${item.details_error ? `<p role="status">${t("savedPageChanged")}</p>` : ""}`;
+    return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}${stage ? ` · ${stage}` : ""}</small>${qualifications}${edit}${evidence}${state.memoryEventEdit?.id === item.id ? memoryEventEditForm() : ""}</div></article>`;
   }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
-  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="timeline-list">${items}</div></div>${referencesWorkspace()}</div>`;
+  const page = state.memoryEventPage;
+  const pagination = page?.next_cursor ? `<p role="status">${t("timelinePagesPartial")}</p><button type="button" class="button button-secondary button-small" data-action="load-more-memory-events" ${page.loading_page ? "disabled" : ""}>${t(page.loading_page ? "loadingSavedPage" : "loadMoreEvents")}</button>` : "";
+  const pageError = page?.page_error ? `<p role="status">${t("savedPageChanged")}</p><button type="button" class="text-button" data-action="refresh-memory-events">${t("reloadSavedPages")}</button>` : "";
+  return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-action="add-timeline">${t("addMoment")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="timeline-list">${items}</div></div>${pagination}${pageError}${referencesWorkspace()}</div>`;
 }
 
 function memoryEventEditForm() {
@@ -4530,6 +4728,10 @@ function bindViewActions() {
   });
   document.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
   document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
+  document.querySelectorAll("[data-draft-locale]").forEach(select => select.addEventListener("change", () => selectPrivateDraftLocale(select.value)));
+  document.querySelectorAll("[data-proposal-id]").forEach(button => button.addEventListener("click", () => decidePrivateDraftProposal(button.dataset.proposalId, button.dataset.proposalAccept === "true")));
+  document.querySelectorAll("[data-more-event-details]").forEach(button => button.addEventListener("click",() => loadMoreEventDetails(button.dataset.moreEventDetails)));
+  document.querySelectorAll("[data-more-event-evidence]").forEach(button => button.addEventListener("click",() => loadMoreEventEvidence(button.dataset.moreEventEvidence)));
   document.querySelectorAll("[data-edit-memory-event]").forEach(button => button.addEventListener("click",() => openMemoryEventEdit(button.dataset.editMemoryEvent)));
   $("#memory-event-edit-form")?.addEventListener("input",event => { Object.assign(state.memoryEventEdit,Object.fromEntries(new FormData(event.currentTarget))); });
   $("#memory-event-edit-form")?.addEventListener("submit",saveMemoryEventEdit);
@@ -4562,6 +4764,10 @@ function bindViewActions() {
     "add-person": addPerson,
     "add-timeline": addTimeline,
     "retry-private-draft": retryPrivateDraft,
+    "load-more-private-draft": loadMorePrivateDraft,
+    "refresh-private-draft": refreshPrivateDraft,
+    "load-more-memory-events": loadMoreMemoryEvents,
+    "refresh-memory-events": refreshFamilyContext,
     "cancel-event-edit": () => { state.memoryEventEdit = null; render(); },
   };
   document.querySelectorAll("[data-action]").forEach((button) => {
@@ -5243,6 +5449,13 @@ async function addTimeline() {
 
 async function boot() {
   const generation = invalidateProjectNavigation();
+  let releaseRecovery;
+  const recovery = {generation, failed: true, promise: new Promise(resolve => {releaseRecovery = resolve;})};
+  recovery.finish = () => {
+    if (state.projectRecovery === recovery) state.projectRecovery = null;
+    releaseRecovery();
+  };
+  state.projectRecovery = recovery;
   const path = currentPath();
   state.navigationPath = path;
   const current = () => generation === state.navigationGeneration;
@@ -5310,7 +5523,12 @@ async function boot() {
           // Canonical source masking must run before a pending receipt can
           // render any locally cached history during reconnect.
           await state.photoTurns?.recover();
-        } catch { if (current()) toast(translate("AuthReminder.historyError")); }
+        } catch {
+          if (current()) {
+            state.projectRecoveryBlocked = saved;
+            toast(translate("AuthReminder.historyError"));
+          }
+        }
         if (!current()) return;
         await syncProfileUiLocale();
         if (!current()) return;
@@ -5320,6 +5538,8 @@ async function boot() {
         if (!current()) return;
         state.profileIntakePending = !profileHasContext(state.project.profile);
         if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
+        recovery.failed = Boolean(state.projectRecoveryBlocked);
+        recovery.finish(); // Do not couple start admission to subsequent opening-copy streaming.
         render();
         await startCodexConversation({ resume: true });
         return;
@@ -5327,15 +5547,18 @@ async function boot() {
       catch {
         if (!current()) return;
         // Preserve an unavailable saved interview rather than silently making a replacement.
-        state.projectRecoveryBlocked = cachedProject === saved ? saved : null;
+        state.projectRecoveryBlocked = saved;
         state.project = null; state.projectPrincipalId = null; state.chat = [];
       }
     }
+    if (!saved) recovery.failed = false;
+    recovery.finish();
     if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
   } catch (error) {
     if (current()) $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
   } finally {
+    recovery.finish();
     if (current() && state.authPromise === authPromise) state.authPromise = null;
   }
 }

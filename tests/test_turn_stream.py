@@ -212,7 +212,7 @@ def test_worker_stream_failure_preserves_outer_trace_lineage():
         )
         with pytest.raises(RuntimeError) as caught:
             await runtime._worker_turn(
-                user_id='test', prior=None, memories=[], profile={}, place_journey={},
+                user_id='11111111-1111-4111-8111-111111111111', prior=None, memories=[], profile={}, place_journey={},
                 family_enabled=False, family_context={}, project_id=None, text='Hi',
                 language='en-AU', on_event=lambda _event: asyncio.sleep(0),
                 trajectory=outer,
@@ -257,7 +257,7 @@ def test_worker_nonstream_failure_preserves_outer_trace_lineage():
         )
         with pytest.raises(RuntimeError) as caught:
             await runtime._worker_turn(
-                user_id='test', prior=None, memories=[], profile={}, place_journey={},
+                user_id='11111111-1111-4111-8111-111111111111', prior=None, memories=[], profile={}, place_journey={},
                 family_enabled=False, family_context={}, project_id=None, text='Hi',
                 language='en-AU', trajectory=outer,
             )
@@ -310,7 +310,7 @@ def test_worker_http_status_errors_map_after_reading_streamed_error_body(status_
             worker_transport=httpx.MockTransport(handle),
         )
         kwargs = {
-            'user_id': 'test', 'prior': None, 'memories': [], 'profile': {},
+            'user_id': '11111111-1111-4111-8111-111111111111', 'prior': None, 'memories': [], 'profile': {},
             'place_journey': {}, 'family_enabled': False, 'family_context': {},
             'project_id': None, 'text': 'Hi', 'language': 'en-AU',
             'trajectory': outer,
@@ -358,7 +358,7 @@ def test_worker_malformed_or_oversized_error_body_still_maps_status(streaming, b
             worker_transport=httpx.MockTransport(handle),
         )
         kwargs = {
-            'user_id': 'test', 'prior': None, 'memories': [], 'profile': {},
+            'user_id': '11111111-1111-4111-8111-111111111111', 'prior': None, 'memories': [], 'profile': {},
             'place_journey': {}, 'family_enabled': False, 'family_context': {},
             'project_id': None, 'text': 'Hi', 'language': 'en-AU',
         }
@@ -414,7 +414,7 @@ def test_worker_http_stream_forwards_delta_before_final_artifacts(monkeypatch):
         async def emit(text):
             chunks.append(text)
         runtime = CodexRuntime(worker_url='http://worker', worker_secret='test-secret')
-        result = await runtime._worker_turn(user_id='test', prior=None, memories=[], profile={},
+        result = await runtime._worker_turn(user_id='11111111-1111-4111-8111-111111111111', prior=None, memories=[], profile={},
             place_journey={}, family_enabled=False, family_context={}, project_id=None,
             text='Hi', language='en-AU', on_delta=emit)
         assert result['reply'] == 'Hello'
@@ -466,7 +466,7 @@ def test_worker_stream_forwards_harness_activity_without_text_callback():
             events.append(event)
         runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret',
                                worker_transport=httpx.MockTransport(handle))
-        result = await runtime._worker_turn(user_id='test', prior=None, memories=[], profile={},
+        result = await runtime._worker_turn(user_id='11111111-1111-4111-8111-111111111111', prior=None, memories=[], profile={},
             place_journey={}, family_enabled=False, family_context={}, project_id=None,
             text='Hi', language='en-AU', on_event=emit)
         await result['_artifact_task']

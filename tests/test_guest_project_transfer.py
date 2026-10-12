@@ -21,6 +21,7 @@ def transfer(monkeypatch):
     for user in ('guest', 'owner', 'other'):
         user_id = {'guest': GUEST, 'owner': OWNER, 'other': OTHER}[user]
         service = Mock(user_id=user_id, is_anonymous=user == 'guest')
+        service.lifetime_rpc = Mock(return_value=None)  # Explicit unmapped legacy fixture.
         service.user = {'id': user_id, 'is_anonymous': user == 'guest'}
         service.profile.return_value = {'name': f'{user} narrator'}
 

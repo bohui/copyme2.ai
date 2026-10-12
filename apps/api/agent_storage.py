@@ -27,6 +27,11 @@ class UserStorage:
             or claims.get('is_anonymous')
         )
 
+    def lifetime_rpc(self, name, **parameters):
+        if not name.startswith(('read_lifetime_', 'resolve_lifetime_', 'capture_lifetime_', 'begin_lifetime_', 'step_lifetime_', 'create_lifetime_', 'publish_lifetime_', 'commit_lifetime_', 'claim_lifetime_', 'complete_lifetime_', 'fail_lifetime_', 'cancel_lifetime_', 'inspect_lifetime_', 'link_lifetime_', 'validate_lifetime_', 'set_lifetime_', 'persist_lifetime_')):
+            raise ValueError('Unknown lifetime operation')
+        return self.request('POST', '/rest/v1/rpc/' + name, json=parameters).json()
+
     @staticmethod
     def _jwt_claims(access_token):
         try:

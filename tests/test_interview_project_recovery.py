@@ -8,7 +8,8 @@ from apps.api.store import MemoryStore
 
 def test_authenticated_history_recovers_original_project_shell_after_restart(monkeypatch):
     storage = Mock()
-    storage.user_id = 'owner'
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    storage.lifetime_rpc = Mock(return_value=None)  # Explicit unmapped legacy fixture.
     storage.request.return_value.json.return_value = [{'project_id': 'project_saved'}]
     storage.profile.return_value = {'name': 'Saved narrator', 'preferred_language': 'zh-CN'}
     monkeypatch.setattr(main, 'authenticated_storage', lambda _: storage)
@@ -25,13 +26,14 @@ def test_authenticated_history_recovers_original_project_shell_after_restart(mon
                                json={'restore_project_id': 'project_saved'})
         assert repeated.json()['id'] == 'project_saved'
         assert list(store.projects) == ['project_saved']
-    assert storage.request.call_args.kwargs['params']['user_id'] == 'eq.owner'
+    assert storage.request.call_args.kwargs['params']['user_id'] == 'eq.11111111-1111-4111-8111-111111111111'
     storage.client.close.assert_called()
 
 
 def test_project_shell_recovery_requires_owned_persisted_history(monkeypatch):
     storage = Mock()
-    storage.user_id = 'owner'
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    storage.lifetime_rpc = Mock(return_value=None)  # Explicit unmapped legacy fixture.
     storage.request.return_value.json.return_value = []
     monkeypatch.setattr(main, 'authenticated_storage', lambda _: storage)
     store = MemoryStore()
