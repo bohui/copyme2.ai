@@ -96,8 +96,24 @@ def start_conversation(page):
 def show_history(page):
     expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
     toggle = page.locator('[data-action="toggle-chat-history"]')
-    if toggle.count() and toggle.get_attribute('aria-expanded') == 'false': toggle.click()
+    # Background readiness/draft paints can expose the composer before history.
+    expect(toggle).to_be_visible(timeout=30000)
+    if toggle.get_attribute('aria-expanded') == 'false': toggle.click()
+    expect(toggle).to_have_attribute('aria-expanded', 'true')
     expect(page.get_by_text('Synthetic private garden memory.', exact=True)).to_be_visible()
+
+
+def settled_history_cache(page, project_id):
+    # A recovered empty B first renders its composer, then streams its ordinary
+    # greeting. Its empty placeholder can legitimately persist [] during setup.
+    expect(page.locator('#chat-history .assistant-message:not(.message-streaming)')).to_have_count(1, timeout=30000)
+    expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
+    cached = page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)",
+                           [NAVIGATION_USERS['guest'], project_id])
+    assert cached is not None
+    messages = json.loads(cached)
+    assert messages and all(message['role'] == 'assistant' for message in messages)
+    return cached
 
 
 def capture(page, name):
@@ -142,7 +158,6 @@ def test_reentry_resumes_the_same_conversation(navigation_browser, principal):
     interview = start_conversation(page)
     page.locator('.story-topbar .brand-mark').click()
     page.locator('[data-action="open-memoir"]').click()
-    page.locator('[data-action="start-story"][data-mode="self"]').click()
     expect(page).to_have_url(interview)
     show_history(page)
     assert len(store.projects) == 1
@@ -219,7 +234,9 @@ def test_back_forward_restores_the_project_named_by_the_url(navigation_browser):
     page, _, store, _, _, _ = navigation_browser
     interview = start_conversation(page)
     page.locator('.story-topbar .brand-mark').click()
-    page.locator('[data-action="open-memoir"]').click()
+    # Begin on the platform resumes self; family choice lives at /memoir.
+    # The family action naturally replaces this new /memoir entry with B.
+    page.goto(os.environ['MEMOIR_BROWSER_URL'] + '/memoir')
     page.locator('[data-action="start-story"][data-mode="family"]').click()
     expect(page.locator('#chat-input')).to_be_visible()
     family_interview = page.url
@@ -252,7 +269,6 @@ def test_leaving_during_a_reply_preserves_the_user_turn_and_partial_reply(naviga
     expect(page.get_by_text('Synthetic partial reply.', exact=True)).to_be_visible()
     page.locator('.story-topbar .brand-mark').click()
     page.locator('[data-action="open-memoir"]').click()
-    page.locator('[data-action="start-story"][data-mode="self"]').click()
     expect(page).to_have_url(interview)
     show_history(page)
     expect(page.get_by_text('An interrupted synthetic memory.', exact=True)).to_be_visible()
@@ -334,7 +350,7 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     expect(page.locator('#chat-input')).to_be_enabled()
     assert page.evaluate('fixtureStreamSignal.aborted') is True
     assert page.evaluate('fixtureCanceled') is True
-    before_b = page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)", [NAVIGATION_USERS['guest'], project_b])
+    before_b = settled_history_cache(page, project_b)
     # This is a stale transport callback, not a second server commit. Only the
     # explicit pre-detach saved event above has a durable fixture counterpart.
     saved_before_late = deepcopy(client.app.state.navigation_fixture_history)

@@ -43,3 +43,37 @@ scoped attachment. Raw aggregate account history is not re-enabled.
 
 Actual browser reruns are still required after publication. Offline runtime-route
 and client-function checks are evidence of fixture wiring, not browser passes.
+
+## Navigation interactions after scoped-history repair
+
+The exact `7a9b5b5f` Mac run passed 16 of 38 navigation cases, with 22 failures
+and no skips. The captured history responses were valid HTTP 200, project-scoped
+empty snapshots. Those failures are separate from the repaired history DTO:
+
+- Six self-start timeouts followed a redundant second start action. Platform
+  Begin already starts/resumes self. Two family-start timeouts also used Begin,
+  which does not open the self/family chooser. This entry behavior exists in
+  baseline `cc068523`.
+- Nine cases found the garden narration in the DOM but hidden. Recovery begins
+  with collapsed history. Background readiness/private-draft renders can expose
+  the composer before the history toggle exists, so the old immediate
+  `toggle.count()` check could skip expansion. The corrected helper waits for
+  the real toggle and verifies expansion before the original narration check.
+- Five detached-stream cases captured B's cache before its ordinary greeting
+  started: `null` then became `[]` for the empty streaming placeholder. Unchanged
+  `streamAssistantMessage` and `persistChatHistory` reproduce this transition
+  without any late packet. The test now waits for B's completed greeting, requires
+  a nonempty assistant-only cache, then retains exact byte-for-byte equality
+  after delivering the adversarial packet. The unchanged canonical-ledger,
+  abort/cancel, hidden late-reply/error, and A/B recovery assertions remain.
+
+Family navigation uses a real `page.goto('/memoir')` after the platform visit and
+then its family button. Unchanged `startMemoirStory` and `navigateTo` prove that
+only the chooser entry is replaced, leaving `[interview A, platform, interview B]`
+for the original Back/Forward assertions. No test-side history mutation is added.
+
+The offline interaction tests execute the actual registered route and unchanged
+client rendering/start/cache functions. Controlled locators reproduce delayed
+paint and available entry controls; they do not establish browser execution or
+replace the original UI/privacy assertions. The exact Mac navigation rerun is
+still required. The round-five policy gap documented above remains open.
