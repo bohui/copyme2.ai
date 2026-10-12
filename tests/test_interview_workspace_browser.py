@@ -1,4 +1,7 @@
-"""Interview regression checks through the browser and HTTP boundary.
+"""Workspace UI with real demo project/session persistence over HTTP.
+
+Authentication, collector replies and their account history are controlled
+external boundaries. This suite does not exercise Supabase history/RLS.
 
 Run against the local source server:
 MEMOIR_BROWSER_URL=http://localhost:3011 python3 -m pytest tests/test_interview_workspace_browser.py -q
@@ -10,6 +13,7 @@ import re
 import pytest
 from playwright.sync_api import expect, sync_playwright
 from browser_optional_fonts import control_optional_fonts
+from browser_workspace_history import WorkspaceHistory, mock_workspace_turn
 
 pytestmark = pytest.mark.skipif(not os.environ.get("MEMOIR_BROWSER_URL"), reason="Requires an explicitly selected running browser test server")
 
@@ -23,11 +27,11 @@ def interview():
         page.set_default_timeout(8000)
         # Product routes use the isolated API's demo principal; the synthetic
         # browser token belongs only to the mocked authentication boundary.
-        def demo_project_request(route):
-            headers = {key: value for key, value in route.request.headers.items() if key != 'authorization'}
-            route.continue_(headers={**headers, 'x-account-id': 'demo-storyteller'})
-        page.route("**/api/v1/memoir/projects**", demo_project_request)
-        page.route("**/api/v1/memoir/memory-sessions/**", demo_project_request)
+        page.workspace_history = WorkspaceHistory()
+        page.route("**/api/v1/memoir/projects**", page.workspace_history.project_request)
+        page.route("**/api/v1/memoir/memory-sessions/**", page.workspace_history.project_request)
+        page.route(re.compile(r"^.*/api/v1/memoir/user/projects/[^/?]+/history(?:\?.*)?$"),
+                   page.workspace_history.history_request)
         # Authentication and model output are external boundaries. Avoid creating
         # a new real anonymous Supabase account for every regression scenario.
         page.route("**/api/v1/memoir/agent/config", lambda route: route.fulfill(
@@ -61,7 +65,7 @@ def interview():
                    "place": "Chengde", "hierarchy": ["Earth", "China", "Hebei", "Chengde"],
                    "granularity": "city", "latitude": 40.9515, "longitude": 117.9634,
                    "duration_ms": 2800, "life_stage": "childhood"}
-        page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(
+        mock_workspace_turn(page, lambda route: route.fulfill(
             content_type="application/json", body=json.dumps({
                 "reply": "What do you remember about the streets near your childhood home?",
                 "profile_updates": {"story_focus": {"life_stage": "childhood"}},
@@ -147,7 +151,7 @@ def test_life_stages_show_distinct_existing_avatar_images(interview):
 
 def test_places_follow_stage_and_survive_new_places(interview):
     page = interview
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(
+    mock_workspace_turn(page, lambda route: route.fulfill(
         content_type="application/json", body=json.dumps({
             "reply": "What do you remember about arriving there?",
             "profile_updates": {"story_focus": {"life_stage": "young_adulthood"}},
@@ -175,7 +179,7 @@ def test_places_follow_stage_and_survive_new_places(interview):
     page.get_by_role("button", name=re.compile(r'^Childhood:')).click()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible()
     expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(
+    mock_workspace_turn(page, lambda route: route.fulfill(
         content_type="application/json", body=json.dumps({
             "reply": "What else do you remember about Chengde?",
             "profile_updates": {"story_focus": {"life_stage": "childhood"}},
@@ -197,7 +201,7 @@ def test_places_follow_stage_and_survive_new_places(interview):
 
 
 def test_storyteller_artwork_preference_updates_timeline(interview):
-    interview.route('**/api/v1/memoir/agent/turn', lambda route: route.fulfill(json={
+    mock_workspace_turn(interview, lambda route: route.fulfill(json={
         'reply': 'I have updated the illustrations.',
         'profile_updates': {'avatar_style': 'female'}}))
     interview.get_by_role('textbox', name='Your message').fill('Please use female illustrations for my timeline.')
@@ -213,7 +217,7 @@ def test_place_photos_arrive_without_interrupting_reply_or_draft(interview):
         "attribution": "Example photographer", "license": "CC BY 4.0", "date_expression": "1985",
         "latitude": -33.8688, "longitude": 151.2093,
         "allowed_actions": {"embed": True}}]})))
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
+    mock_workspace_turn(page, lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What do you remember about the day you arrived? " * 12,
         "profile_updates": {"story_focus": {"life_stage": "young_adulthood"}},
         "place_journey": {"place": "Sydney", "hierarchy": ["Earth", "Australia", "Sydney"], "granularity": "city",
@@ -245,7 +249,7 @@ def test_workspace_refresh_keeps_existing_map_camera(interview):
 def test_saved_project_places_survive_reload_without_new_place_cue(interview):
     page = interview
     page.route("**/api/v1/memoir/agent/place-journey", lambda route: route.fulfill(content_type="application/json", body='{"place_journey":null}'))
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body='{"reply":"Where would you like to continue?"}'))
+    mock_workspace_turn(page, lambda route: route.fulfill(content_type="application/json", body='{"reply":"Where would you like to continue?"}'))
     page.reload()
     expect(page.get_by_role("heading", name="Chengde", exact=True)).to_be_visible(timeout=20000)
     expect(page.get_by_role("button", name="Childhood", exact=False)).to_have_attribute("aria-pressed", "true")
@@ -255,7 +259,7 @@ def test_unmapped_place_keeps_places_and_photos_available_after_round_five(inter
     page = interview
     page.route("**/place-map", lambda route: route.fulfill(
         content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None})))
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
+    mock_workspace_turn(page, lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What was your new neighbourhood like?",
         "composition_stage": 0,
         "profile_updates": {"story_focus": {"life_stage": "childhood"}},
@@ -299,7 +303,7 @@ def test_conversation_keeps_inviting_memories_after_session_followups(interview)
     def answer(route):
         captured.append(route.request.post_data_json['text'])
         route.fulfill(content_type="application/json", body='{"reply":"What happened next?"}')
-    interview.route("**/api/v1/memoir/agent/turn", answer)
+    mock_workspace_turn(interview, answer)
     interview.route("**/memory-sessions/*/answers", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "id": "session-finished", "status": "READY_TO_SAVE", "turns": [{}] * 10, "follow_ups_remaining": 0, "follow_ups_used": 100})))
     interview.get_by_role("textbox", name="Your message").fill("And then we went to school together.")
@@ -313,7 +317,7 @@ def test_places_without_a_map_keep_workspace_controls_and_later_composition(inte
     page = interview
     page.route("**/place-map", lambda route: route.fulfill(
         content_type="application/json", body=json.dumps({"status": "NO_MATCH", "target": None})))
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(content_type="application/json", body=json.dumps({
+    mock_workspace_turn(page, lambda route: route.fulfill(content_type="application/json", body=json.dumps({
         "reply": "What comes to mind about that place?",
         "place_journey": {"place": "Hobart", "hierarchy": ["Earth", "Australia", "Hobart"], "granularity": "city"},
         "place_journey_change": {"changed": True}})))
@@ -329,7 +333,7 @@ def test_places_without_a_map_keep_workspace_controls_and_later_composition(inte
     page.get_by_role("button", name="Show workspace").click()
     expect(page.locator(".workspace-media-gallery")).to_be_visible()
 
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(json={
+    mock_workspace_turn(page, lambda route: route.fulfill(json={
         "reply": "Your first chapter is ready. What else do you remember?",
         "composition_stage": 3,
         "chapters": [{"id": "first-chapter", "chapter_number": 1, "title": "Childhood", "text": "A remembered journey."}]}))
@@ -357,7 +361,7 @@ def test_city_alias_keeps_saved_photos_without_repeating_discovery(interview):
             "granularity": "city", "latitude": 40.9517, "longitude": 117.9632,
             "period": "1980s", "life_stage": "childhood", "revision": 2},
         "place_journey_change": {"changed": True}}
-    page.route("**/api/v1/memoir/agent/turn", lambda route: route.fulfill(json=turn))
+    mock_workspace_turn(page, lambda route: route.fulfill(json=turn))
     page.get_by_role("textbox", name="Your message").fill("I remember 承德市 in the 1980s.")
     page.get_by_role("button", name="Send message").click()
     expect(page.get_by_role("img", name="Chengde reference", exact=True)).to_be_visible(timeout=20000)

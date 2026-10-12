@@ -4,7 +4,6 @@ from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +11,7 @@ from playwright.sync_api import expect, sync_playwright
 
 from apps.api import main
 from apps.api.store import MemoryStore
+from browser_recovery_fixture import navigation_storage, NAVIGATION_USERS
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,25 +19,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(params=[(390, 844), (1440, 1000)], ids=['phone', 'desktop'])
 def navigation_browser(monkeypatch, request):
+    store = MemoryStore()
     def authenticated(authorization):
         if authorization not in {'Bearer fixture-guest', 'Bearer fixture-other'}:
             raise main.HTTPException(401, 'Missing synthetic session')
-        service = Mock()
-        service.user_id = authorization.removeprefix('Bearer fixture-')
-        service.profile.return_value = {'preferred_language': 'zh-CN'}
-        service.request.return_value.json.return_value = []
-        return service
+        return navigation_storage(authorization.removeprefix('Bearer fixture-'), store.projects)
 
     monkeypatch.setattr(main, 'authenticated_storage', authenticated)
-    store = MemoryStore()
     with TestClient(main.create_app(store)) as client, sync_playwright() as pw:
         browser = pw.chromium.launch()
         context = browser.new_context(viewport={'width': request.param[0], 'height': request.param[1]}, reduced_motion='reduce')
         base = os.environ['MEMOIR_BROWSER_URL']
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': 'zh-CN', 'url': base},
                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
-        script = """const fixtureSession=()=>{const id=localStorage.getItem('fixture-principal')||'guest';return {
-          access_token:'fixture-'+id,refresh_token:'fixture-refresh-'+id,user:{id,is_anonymous:id==='guest'}}};
+        script = """const fixtureIds=__FIXTURE_IDS__;
+        const fixtureSession=()=>{const principal=localStorage.getItem('fixture-principal')||'guest';const id=fixtureIds[principal];return {
+          access_token:'fixture-'+principal,refresh_token:'fixture-refresh-'+principal,user:{id,is_anonymous:principal==='guest'}}};
         window.fixtureSetPrincipal=id=>{localStorage.setItem('fixture-principal',id);window.fixtureAuthChanged?.('SIGNED_IN',fixtureSession())};
         window.supabase={createClient:()=>({auth:{
           getSession:async()=>({data:{session:fixtureSession()}}),
@@ -45,7 +42,7 @@ def navigation_browser(monkeypatch, request):
           signInWithOAuth:async options=>{window.fixtureOauth=options;return {}},
           onAuthStateChange:callback=>{window.fixtureAuthChanged=callback;return {}}
         }})};"""
-        install_supabase_fixture(context, script)
+        install_supabase_fixture(context, script.replace('__FIXTURE_IDS__', json.dumps(NAVIGATION_USERS)))
         requests = []
 
         def api(route):
@@ -328,7 +325,7 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     expect(page.locator('#chat-input')).to_be_enabled()
     assert page.evaluate('fixtureStreamSignal.aborted') is True
     assert page.evaluate('fixtureCanceled') is True
-    before_b = page.evaluate("id=>localStorage.getItem('memory-spark-chat-history:guest:'+id)", project_b)
+    before_b = page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)", [NAVIGATION_USERS['guest'], project_b])
     late = {'type': 'error', 'message': 'A late synthetic error'} if ending == 'error' else {
         'type': 'result', 'data': {'conversation_saved': True, 'reply': 'A late complete reply.',
                                  'composition_stage': 3, 'recall_status': {'payment_required': True}}}
@@ -336,7 +333,7 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     expect(page.get_by_text('A late complete reply.', exact=True)).to_have_count(0)
     expect(page.get_by_text('A late synthetic error', exact=True)).to_have_count(0)
     expect(page.locator('#chat-input')).to_be_enabled()
-    assert page.evaluate("id=>localStorage.getItem('memory-spark-chat-history:guest:'+id)", project_b) == before_b
+    assert page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)", [NAVIGATION_USERS['guest'], project_b]) == before_b
     page.go_back()
     expect(page).to_have_url(interview_a)
     show_history(page)
