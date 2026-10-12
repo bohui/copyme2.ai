@@ -25,8 +25,8 @@ def test_new_state_is_idempotent_and_control_does_not_spend_rounds(sql):
 
 def test_stale_control_and_cross_owner_access_fail(sql):
     accept(sql)
-    control(sql,'pause',0)
-    assert rpc(sql,'change_user_conversation_phase',"'project','resume',0",check=False).returncode!=0
+    control(sql,'shape',0)
+    assert rpc(sql,'change_user_conversation_phase',"'project','comfort',0",check=False).returncode!=0
     assert rpc(sql,'read_user_conversation_phase',"'project'",owner=OTHER,check=False).returncode!=0
     assert sql(as_user('select count(*) from public.user_conversation_phase;',OTHER)).stdout.strip()=='0'
     assert sql('set role anon; select * from public.user_conversation_phase;',check=False).returncode!=0
@@ -43,34 +43,31 @@ def test_phase_is_atomic_with_reply_and_replay_preserves_newer_control(sql):
     assert 'phase_update' not in result['plan']
 
 
-def test_late_automatic_save_cannot_overwrite_pause_or_lose_narration(sql):
+def test_late_automatic_save_cannot_overwrite_choice_or_lose_narration(sql):
     accept(sql,'I remember the garden.')
-    control(sql,'pause',0)
+    changed=control(sql,'shape',0)
     value=plan('extract',None); value['phase_update']={'expected_revision':0,'phase':'explore'}
     assert save(sql,value,check=False).returncode!=0
-    assert read(sql)['paused']
+    assert read(sql)==changed
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
     assert rpc(sql,'read_user_interview_turn',f"'project','{TURN}'")['reply'] is None
 
 
-@pytest.mark.parametrize('text,action',[('Shape my story','shape'),('帮我整理故事','shape'),('pause','pause'),('请暂停一下','pause')])
+@pytest.mark.parametrize('text,action',[('Shape my story','shape'),('帮我整理故事','shape'),('Explore a memory','explore'),('聊聊一段回忆','explore'),('继续聊聊','comfort')])
 def test_current_narrator_control_is_grounded_independently_in_sql(sql,text,action):
     accept(sql,text)
     value=plan('reply_only',None)
-    if action=='pause': value.update(candidates=[],chosen_id=None)
     value['phase_update']={'expected_revision':0,'phase':None}
     result=save(sql,value)
     state=result['conversation_phase']
-    assert state['paused'] if action=='pause' else state['preferred_phase']=='shape'
+    assert state['preferred_phase']==action
 
 
 def test_omitted_phase_update_cannot_bypass_newer_choice(sql):
     accept(sql,'Shape my story')
-    control(sql,'pause',0)
-    value=plan('reply_only',None); value.update(candidates=[],chosen_id=None)
-    assert save(sql,value)['conversation_phase']['paused']
-    assert read(sql)['preferred_phase'] is None
-    assert read(sql)['paused']
+    changed=control(sql,'comfort',0)
+    value=plan('reply_only',None)
+    assert save(sql,value)['conversation_phase']==changed
 
 
 def test_automatic_and_repeated_controls_align_with_policy(sql):
@@ -92,12 +89,12 @@ def test_additive_migration_can_be_replayed_without_rewrapping(sql):
     assert rpc(sql,'read_user_interview_context',"'project'")['conversation_phase']==state
 
 
-def test_source_correction_reopens_exploration_and_preserves_explicit_shape(sql):
+def test_source_correction_preserves_conversation_mode(sql):
     turn=accept(sql,'I started school in 1960.')
-    control(sql,'shape',0)
+    original=control(sql,'shape',0)
     rpc(sql,'change_user_narrator_source',f"'project','{turn['source']['id']}',1,'edit','I started school in 1961.'")
     state=read(sql)
-    assert state['phase']=='explore' and state['preferred_phase']=='shape' and state['revision']==2
+    assert state==original
 
 
 def test_legacy_saved_project_resumes_without_phase_state(sql):
@@ -175,16 +172,16 @@ def test_two_tabs_cas_accepts_only_one_choice(sql):
     def change(action):
         return rpc(sql,'change_user_conversation_phase',f"'project','{action}',0",check=False)
     with ThreadPoolExecutor(max_workers=2) as pool:
-        outcomes=list(pool.map(change,['shape','pause']))
+        outcomes=list(pool.map(change,['shape','comfort']))
     assert sorted(result.returncode==0 for result in outcomes)==[False,True]
     assert read(sql)['revision']==1
 
 
 @pytest.mark.parametrize('text,expected',[
-    ('这段回忆让我难受，我想暂停一下。','pause'),
-    ('This is upsetting, I want to pause.','pause'),
-    ('他说，我想暂停一下。',None),('He said, I want to pause.',None),
-    ('别暂停',None),("I don't want to pause",None),
+    ('这段回忆让我难受，我想整理我的故事。','shape'),
+    ('This is important, I want to shape my story.','shape'),
+    ('他说，整理我的故事。',None),('He said, shape my story.',None),
+    ('pause',None),('resume',None),
 ])
 def test_sql_current_intent_matches_application_without_reported_speech(sql,text,expected):
     # Helper is not callable by authenticated; exercise full public save RPC.
@@ -192,7 +189,8 @@ def test_sql_current_intent_matches_application_without_reported_speech(sql,text
     value=plan('reply_only',None); value.update(candidates=[],chosen_id=None)
     value['phase_update']={'expected_revision':0,'phase':None}
     result=save(sql,value)
-    assert result['conversation_phase']['paused']==(expected=='pause')
+    assert result['conversation_phase']['preferred_phase']==expected
+    assert 'paused' not in result['conversation_phase']
 
 
 def test_guest_transfer_preserves_explicit_choice_and_retry(sql):
@@ -205,32 +203,32 @@ def test_guest_transfer_preserves_explicit_choice_and_retry(sql):
     assert result['attached']
     transferred=read(sql,OTHER)
     assert transferred==original
-    changed=rpc(sql,'change_user_conversation_phase',"'project','pause',1",owner=OTHER)
+    changed=rpc(sql,'change_user_conversation_phase',"'project','comfort',1",owner=OTHER)
     rpc(sql,'attach_guest_conversation',f"'{TOKEN}'",owner=OTHER)
     assert read(sql,OTHER)==changed
 
 
-def test_admission_revision_never_refreshes_and_newer_pause_wins_retry(sql):
-    admitted=accept(sql,'resume')
+def test_admission_revision_never_refreshes_and_newer_choice_wins_retry(sql):
+    admitted=accept(sql,'Shape my story')
     assert admitted['phase_revision']==0
-    paused=control(sql,'pause',0)
-    assert accept(sql,'resume')['phase_revision']==0
-    value=plan('reply_only',None); value.update(candidates=[],chosen_id=None)
+    changed=control(sql,'comfort',0)
+    assert accept(sql,'Shape my story')['phase_revision']==0
+    value=plan('reply_only',None)
     value['phase_update']={'expected_revision':0,'phase':None}
     assert save(sql,value,check=False).returncode!=0
     value['phase_update']['expected_revision']=1
     finished=save(sql,value)
-    assert finished['conversation_phase']==paused
-    assert read(sql)['paused'] and read(sql)['revision']==1
+    assert finished['conversation_phase']==changed
+    assert read(sql)==changed
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
-    assert save(sql,value)['conversation_phase']==paused
+    assert save(sql,value)['conversation_phase']==changed
 
 
-@pytest.mark.parametrize('text',['She said:\nI want to pause.\nThose were her words.','她说：\n我想暂停一下。\n这是她的原话。'])
-def test_multiline_report_does_not_persist_pause(sql,text):
+@pytest.mark.parametrize('text',['She said:\nShape my story.\nThose were her words.','她说：\n整理我的故事。\n这是她的原话。'])
+def test_multiline_report_does_not_change_mode(sql,text):
     accept(sql,text)
     value=plan('reply_only',None); value['phase_update']={'expected_revision':0,'phase':None}
-    assert not save(sql,value)['conversation_phase']['paused']
+    assert save(sql,value)['conversation_phase']['selection']=='automatic'
 
 
 def test_three_five_twenty_rounds_do_not_force_phase_or_change_allowance(sql,tmp_path,monkeypatch):
@@ -329,17 +327,16 @@ def test_rich_save_precedes_stalled_background_disconnect_and_replay(sql,tmp_pat
     (tmp_path/'phase-timings.json').write_text(json.dumps({'provider':'controlled_no_live_call',**marks}))
 
 
-def test_explicit_event_correction_reopens_shape_without_overriding_later_choice(sql):
+def test_explicit_event_correction_preserves_shape_and_later_choice(sql):
     from test_shared_memory_events_postgres import extract
     turn=accept(sql,'I started school.')
     source=turn['source']
     event=extract(sql,[source],[{'kind':'event','title':'Started school','source_refs':[
         {'source_id':source['id'],'version':1,'quote':source['text']}]}])['events'][0]
-    control(sql,'shape',0)
+    original=control(sql,'shape',0)
     corrected=rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',1,'{{\"life_stage\":\"childhood\"}}'::jsonb,'I was a child then.'")
     state=read(sql)
-    assert state['phase']=='explore' and state['preferred_phase']=='shape' and state['reason']=='correction'
-    assert state['source_turn_id'] is not None
+    assert corrected['life_stage']=='childhood' and state==original
     state=control(sql,'shape',state['revision'])
     correction=accept(sql,'Actually, I was an adolescent then.',turn='00000000-0000-4000-8000-000000000099')
     state=control(sql,'comfort',state['revision'])
@@ -349,7 +346,7 @@ def test_explicit_event_correction_reopens_shape_without_overriding_later_choice
     assert read(sql)==state
 
 
-def test_current_chat_correction_reopens_shape_and_failed_correction_keeps_it(sql):
+def test_current_chat_correction_and_failed_correction_keep_mode(sql):
     from test_shared_memory_events_postgres import extract
     source=accept(sql,'I started school.')['source']
     event=extract(sql,[source],[{'kind':'event','title':'Started school','source_refs':[
@@ -359,6 +356,39 @@ def test_current_chat_correction_reopens_shape_and_failed_correction_keeps_it(sq
     assert failure.returncode != 0 and read(sql)==state
     correction=accept(sql,'Actually, I was a child then.',turn='00000000-0000-4000-8000-000000000098')
     rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',1,'{{\"life_stage\":\"childhood\"}}'::jsonb,'Actually, I was a child then.','chat','{correction['source']['id']}'")
-    state=read(sql)
-    assert state['phase']=='explore' and state['preferred_phase']=='shape' and state['reason']=='correction'
-    assert state['source_turn_id'] is not None
+    assert read(sql)==state
+
+
+@pytest.mark.parametrize('origin',['workspace','chat'])
+def test_year_correction_changes_only_the_affected_event_without_restarting(sql,origin):
+    from test_shared_memory_events_postgres import extract
+    source=accept(sql,'I started school in 1964. We moved in 1986.')['source']
+    reference={'source_id':source['id'],'version':1,'quote':source['text']}
+    events=extract(sql,[source],[
+        {'kind':'event','title':'Started school','source_refs':[reference],
+         'temporal':{'expression':'1964','precision':'year','year_start':1964,'year_end':1964,'basis':[reference]}},
+        {'kind':'event','title':'Moved','source_refs':[reference],
+         'temporal':{'expression':'1986','precision':'year','year_start':1986,'year_end':1986,'basis':[reference]}},
+    ])['events']
+    target=next(event for event in events if event['title']=='Started school')
+    other=next(event for event in events if event['title']=='Moved')
+    guidance=control(sql,'shape',0)
+    statement='Actually, the school year was 1966.'
+    source_id='null'
+    if origin=='chat':
+        correction=accept(sql,statement,turn='00000000-0000-4000-8000-000000000097')
+        source_id=literal(correction['source']['id'])
+    patch={'temporal':{'expression':'1966','precision':'year','year_start':1966,'year_end':1966}}
+    corrected=rpc(sql,'correct_user_memory_event',f"'project',{literal(target['id'])},1,{literal(patch)}::jsonb,{literal(statement)},{literal(origin)},{source_id}")
+    current=rpc(sql,'read_user_memory_events',"'project'")['events']
+    assert corrected['temporal']['year_start']==1966 and corrected['revision']==2
+    assert next(event for event in current if event['id']==other['id'])==other
+    assert read(sql)==guidance
+
+
+@pytest.mark.parametrize('action',['pause','resume'])
+def test_removed_controls_cannot_create_a_durable_pause(sql,action):
+    accept(sql)
+    original=read(sql)
+    assert rpc(sql,'change_user_conversation_phase',f"'project',{literal(action)},0",check=False).returncode!=0
+    assert read(sql)==original and 'paused' not in original

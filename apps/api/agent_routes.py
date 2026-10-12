@@ -84,7 +84,7 @@ GREETING_PROMPTS = {
 
 class ConversationPhaseControl(BaseModel):
     model_config = {'extra': 'forbid'}
-    action: Literal['comfort', 'explore', 'shape', 'automatic', 'pause', 'resume', 'skip']
+    action: Literal['comfort', 'explore', 'shape', 'automatic', 'skip']
     expected_revision: int = Field(ge=0, strict=True)
 
 
@@ -124,8 +124,7 @@ async def change_conversation_phase(project_id: str, payload: ConversationPhaseC
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         from .conversation_phase import PhaseState
-        # The RPC locks this owned project and compares revisions. It must be
-        # able to pause an in-flight turn without waiting for its model lease.
+        # The RPC locks this owned project and compares preference revisions.
         state = await asyncio.to_thread(storage.change_conversation_phase,
             project_id, payload.action, payload.expected_revision)
         return {'conversation_phase': PhaseState.model_validate(state).model_dump(mode='json')}

@@ -1232,7 +1232,6 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .phase-choice[aria-pressed="true"] { border-color: currentColor; background: var(--sage); font-weight: 600; }
 .phase-choice:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .phase-choice:disabled { opacity: .55; cursor: default; }
-.phase-paused-note { color: var(--muted); font-size: 14px; }
 @media (max-width: 760px) {
   .conversation-phase { padding-bottom: 8px; }
   .phase-choices { gap: 4px; }

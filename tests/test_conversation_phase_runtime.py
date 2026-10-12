@@ -28,21 +28,11 @@ def test_name_only_stream_is_gentle_and_has_one_collector(monkeypatch,tmp_path,l
     assert calls[0]['interview_context']['conversation_phase']['phase']=='comfort'
 
 
-@pytest.mark.parametrize('text',['pause','请暂停一下'])
-def test_natural_pause_suppresses_model_question(text):
-    response=proposal(name=None); response['plan']['conversation_phase']=None
-    context={'conversation_phase':PhaseState().model_dump(mode='json'), 'source':{'id':str(uuid4()),'version':1,'status':'active','text':text}}
-    with pytest.raises(ValueError,match='pause'):
-        validate_collector_result(response,context)
-
-
-def test_persisted_pause_requires_explicit_resume():
-    from apps.api.conversation_phase import resolve_phase
-    state=resolve_phase(None,{'action':'pause'})
+@pytest.mark.parametrize('text',['hello','继续','Actually, the year was 1966.'])
+def test_continuing_or_correcting_never_requires_a_resume_action(text):
+    state=PhaseState(phase='shape',selection='explicit',preferred_phase='shape')
     response=proposal(name=None);response['plan']['conversation_phase']=None
-    context={'conversation_phase':state.model_dump(mode='json'),'source':{'id':str(uuid4()),'version':1,'status':'active','text':'hello'}}
-    with pytest.raises(ValueError,match='pause'): validate_collector_result(response,context)
-    context['source']['text']='resume'
+    context={'conversation_phase':state.model_dump(mode='json'),'source':{'id':str(uuid4()),'version':1,'status':'active','text':text}}
     assert validate_collector_result(response,context)['reply']
 
 
@@ -51,14 +41,16 @@ def test_model_cannot_create_explicit_choice():
     with pytest.raises(ValueError): validate_collector_result(response,{})
 
 @pytest.mark.parametrize('language',['en-AU','zh-CN'])
-def test_paused_greeting_cannot_bypass_controls_or_call_model(monkeypatch,tmp_path,language):
+@pytest.mark.parametrize('phase',['comfort','explore','shape'])
+def test_returning_greeting_carries_saved_mode_without_accepting_a_new_round(monkeypatch,tmp_path,language,phase):
     from apps.api.conversation_phase import resolve_phase
-    storage=Storage(resolve_phase(None,{'action':'pause'}).model_dump(mode='json'))
+    storage=Storage(resolve_phase(None,{'action':phase}).model_dump(mode='json'))
     storage.data={'preferred_language':language}
     storage.memoir_project=lambda _: {'project_id':'project'}
     storage.conversation_phase=lambda _: storage.phase
     response=proposal(name=None)
     runtime,calls=harness(monkeypatch,tmp_path,storage,response,'worker')
     result=asyncio.run(runtime.turn(storage,'The storyteller wants to continue with another memory.',project_id='project',user_response=False))
-    assert calls==[] and '?' not in result['reply'] and '？' not in result['reply']
-    assert result['conversation_phase']['paused'] and storage.rounds==0
+    assert len(calls)==1 and calls[0]['conversation_phase']==storage.phase
+    assert calls[0].get('interview_context') is None
+    assert storage.rounds==0 and storage.phase['phase']==phase

@@ -1,10 +1,10 @@
 // The server owns conversation guidance. This client holds only a scoped display
 // snapshot; choosing guidance never submits narration or creates a recall round.
 const PHASES = ['comfort', 'explore', 'shape'];
-const ACTIONS = [...PHASES, 'automatic', 'pause', 'resume', 'skip'];
+const ACTIONS = [...PHASES, 'automatic', 'skip'];
 const sameScope = (a, b) => a?.ownerId === b?.ownerId && a?.projectId === b?.projectId && a?.generation === b?.generation;
 const validPhase = value => value?.schema_version === 1 && PHASES.includes(value.phase)
-  && ['automatic', 'explicit'].includes(value.selection) && typeof value.paused === 'boolean'
+  && ['automatic', 'explicit'].includes(value.selection)
   && Number.isSafeInteger(value.revision) && value.revision >= 0;
 
 export function createConversationPhase({scope, api, onChange = () => {}}) {
@@ -18,13 +18,13 @@ export function createConversationPhase({scope, api, onChange = () => {}}) {
   }
   const current = item => active === item && sameScope(item.scope, scope());
   const endpoint = item => `/v1/agent/projects/${encodeURIComponent(item.scope.projectId)}/conversation-phase`;
-  function accept(captured, value, {notify = true, savedTurn = false} = {}) {
+  function accept(captured, value, {notify = true} = {}) {
     const item = entry();
     if (!sameScope(captured, item.scope) || !validPhase(value)) return false;
     if (item.value && value.revision < item.value.revision) return false;
     item.value = {...value};
     item.loaded = true;
-    if (notify) { item.notice = null; onChange({savedTurn}); }
+    if (notify) { item.notice = null; onChange(); }
     return true;
   }
   async function read(item) {
@@ -88,7 +88,7 @@ export function conversationPhaseMarkup({value, busy, notice}, translate, disabl
   const locked = busy || !value || notice === 'unavailable';
   const selected = action => action === 'automatic' ? value?.selection === 'automatic'
     : value?.selection === 'explicit' && value?.preferred_phase === action;
-  const button = action => `<button type="button" class="phase-choice" data-phase-action="${action}"${[...PHASES, 'automatic'].includes(action) ? ` aria-pressed="${Boolean(selected(action))}"` : ''}${locked || (disabled && action !== 'pause') ? ' disabled' : ''}>${t(action)}</button>`;
-  const status = notice || (value?.paused ? 'paused' : value ? `${value.phase}Status` : 'loading');
-  return `<section class="conversation-phase" aria-label="${t('label')}"><div class="phase-heading"><span>${t('label')}</span><span class="phase-status" role="status" aria-live="polite">${t(busy && value ? 'saving' : status)}</span></div><div class="phase-choices" role="group" aria-label="${t('choices')}">${['comfort', 'explore', 'shape', 'automatic', 'skip', value?.paused ? 'resume' : 'pause'].map(button).join('')}${notice === 'unavailable' ? `<button type="button" class="phase-choice" data-phase-retry${busy ? ' disabled' : ''}>${t('retry')}</button>` : ''}</div></section>`;
+  const button = action => `<button type="button" class="phase-choice" data-phase-action="${action}"${[...PHASES, 'automatic'].includes(action) ? ` aria-pressed="${Boolean(selected(action))}"` : ''}${locked || disabled ? ' disabled' : ''}>${t(action)}</button>`;
+  const status = notice || (value ? `${value.phase}Status` : 'loading');
+  return `<section class="conversation-phase" aria-label="${t('label')}"><div class="phase-heading"><span>${t('label')}</span><span class="phase-status" role="status" aria-live="polite">${t(busy && value ? 'saving' : status)}</span></div><div class="phase-choices" role="group" aria-label="${t('choices')}">${ACTIONS.map(button).join('')}${notice === 'unavailable' ? `<button type="button" class="phase-choice" data-phase-retry${busy ? ' disabled' : ''}>${t('retry')}</button>` : ''}</div></section>`;
 }

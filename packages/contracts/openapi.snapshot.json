@@ -457,10 +457,6 @@
       "PhaseState": {
         "additionalProperties": false,
         "properties": {
-          "paused": {
-            "default": false,
-            "type": "boolean"
-          },
           "phase": {
             "default": "comfort",
             "enum": [
@@ -488,12 +484,9 @@
           "reason": {
             "default": "new_journey",
             "enum": [
-              "correction",
               "narration",
               "narrator_choice",
               "new_journey",
-              "pause",
-              "resume",
               "saved_narration",
               "skip"
             ],
