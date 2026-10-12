@@ -118,11 +118,28 @@ class ReadJSONResponse(JSONResponse):
         self.init_headers({'Cache-Control': 'no-store', **(headers or {})})
 
     async def _send_response(self, send):
-        # Validate before even publishing headers, retaining the original fence.
-        async with self.publisher.guard(self.snapshot.fence.model_dump(mode='json')):
-            await send({'type': 'http.response.start', 'status': self.status_code,
-                        'headers': self.raw_headers})
-            await send({'type': 'http.response.body', 'body': self.snapshot.body})
+        from .lifetime_memory_policy import PolicyUnavailable
+        started = False
+        try:
+            # Validate before even publishing headers, retaining the original fence.
+            async with self.publisher.guard(self.snapshot.fence.model_dump(mode='json')):
+                # A failed await may still have handed headers to the transport.
+                started = True
+                await send({'type': 'http.response.start', 'status': self.status_code,
+                            'headers': self.raw_headers})
+                await send({'type': 'http.response.body', 'body': self.snapshot.body})
+        except PolicyUnavailable:
+            if started:
+                raise
+            # This fixed response is metadata only: never reuse snapshot bytes,
+            # original headers, identifiers, or exception attributes.
+            pending = JSONResponse(
+                {'detail': 'Accepted conversation policy requires maintenance before private content can be used'},
+                status_code=503, headers={'X-Error-Code': PolicyUnavailable.code,
+                    'Retry-After': '60', 'Cache-Control': 'no-store'})
+            await send({'type': 'http.response.start', 'status': pending.status_code,
+                        'headers': pending.raw_headers})
+            await send({'type': 'http.response.body', 'body': pending.body})
 
     async def __call__(self, scope, receive, send):
         if tuple(map(int, scope.get('asgi', {}).get('spec_version', '2.0').split('.'))) >= (2, 4):

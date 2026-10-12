@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect, sync_playwright
 from browser_optional_fonts import control_optional_fonts
+from browser_story_history_fixture import StoryHistoryFixture, RECALL_OWNER, BUSY_OWNER
 
 pytestmark = pytest.mark.skipif(not os.environ.get('MEMOIR_BROWSER_URL'), reason='Requires a selected local source frontend')
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,11 +147,15 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
     model = {'completed': 19, 'paid': False, 'turns': 0, 'checkouts': [], 'previews': 0}
     project = {'id': 'recall-project', 'revision': 1, 'profile': {'preferred_language': locale}, 'mode': 'self'}
 
+    history = StoryHistoryFixture(RECALL_OWNER, project['id'], 'token')
+
     def status():
         return {'rounds_completed': model['completed'], 'free_rounds': 20,
                 'payment_required': model['completed'] >= 20 and not model['paid'], 'paid': model['paid']}
 
     def api(route):
+        if history.serve(route):
+            return
         path = route.request.url.split('/api/v1/memoir')[-1]
         data = {}
         if path == '/agent/config':
@@ -181,8 +186,10 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
             model['turns'] += 1
             model['completed'] += 1
             reply = 'I remember the garden.' if locale == 'en-AU' else '我记得那个花园。'
+            saved = history.save(route.request.post_data_json, reply)
             events = [{'type': 'text_delta', 'text': reply},
                       {'type': 'conversation_saved', 'data': {'reply': reply, 'conversation_saved': True,
+                                                            'client_turn_id': saved['client_turn_id'], 'server_turn_id': saved['id'],
                                                             'recall_status': status()}},
                       {'type': 'result', 'data': {'reply': reply}}]
             return route.fulfill(content_type='application/x-ndjson', body='\n'.join(map(json.dumps, events)))
@@ -207,7 +214,7 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
         page = context.new_page()
         control_optional_fonts(page)
         page.set_default_timeout(10000)
-        user = {'id': 'recall-user', 'is_anonymous': anonymous, 'user_metadata': {'ui_locale': locale}}
+        user = {'id': RECALL_OWNER, 'is_anonymous': anonymous, 'user_metadata': {'ui_locale': locale}}
         auth_script = f"""window.supabase = {{createClient: () => ({{auth: {{
           getSession: async () => ({{data: {{session: {{access_token: 'token', user: {json.dumps(user)}}}}}}}),
           getUser: async () => ({{data: {{user: {json.dumps(user)}}}}}),
@@ -290,7 +297,16 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
     original = 'I remember my childhood garden.'
     wrapped = "The storyteller said: " + original + "\nThis is the storyteller's first answer to the shared profile-intake opening. Extract only explicit facts"
 
+    history = StoryHistoryFixture(BUSY_OWNER, project['id'], 'token')
+    # This is an original legacy memory, so the canonical projection removes
+    # its old intake wrapper without inventing a narrator-source receipt.
+    history.rows.append({'id': '60c00000-0000-4000-8000-000000000020',
+        'project_id': project['id'], 'kind': 'agent', 'created_at': '2026-09-30T12:00:00+00:00',
+        'content': 'Storyteller: ' + wrapped + '\nMemory Spark: Tell me about that garden.'})
+
     def api(route):
+        if history.serve(route):
+            return
         path = route.request.url.split('/api/v1/memoir')[-1]
         data = {}
         if path == '/agent/config':
@@ -304,7 +320,7 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
                 {'id': 'account-conversation', 'created_at': '2026-09-30', 'messages': [
                     {'role': 'user', 'text': wrapped},
                     {'role': 'assistant', 'text': 'Tell me about that garden.'}]},
-                {'id': 'guest', 'created_at': '2026-10-02', 'messages': [
+                {'id': 'guest', 'project_id': project['id'], 'created_at': '2026-10-02', 'messages': [
                     {'role': 'assistant', 'text': opening}, {'role': 'assistant', 'text': opening}]},
             ]}
         elif path == '/story/state':
@@ -334,7 +350,7 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
           getSession: async () => ({data: {session: {access_token: 'token', user: {id: 'owner', is_anonymous: false}}}}),
           onAuthStateChange: () => ({})
         }})};'''
-        install_supabase_fixture(page, auth_script)
+        install_supabase_fixture(page, auth_script.replace("id: 'owner'", "id: " + json.dumps(BUSY_OWNER)))
         page.route('**/api/v1/memoir/**', api)
         page.goto(os.environ['MEMOIR_BROWSER_URL'] + '/memoir/interview/history-project')
         page.get_by_role('button', name='Show all history', exact=True).click(timeout=30000)

@@ -4,14 +4,13 @@ from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
 import time
-from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
 from playwright.sync_api import expect, sync_playwright
 
 from apps.api import main, supabase_routes
-from apps.api.agent_storage import UserStorage
+from browser_recovery_fixture import account_recovery_storage, set_recovery_principal, RECOVERY_OWNER, forward_project_history
 from apps.api.store import MemoryStore
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires source frontend')
@@ -22,50 +21,24 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 @pytest.mark.parametrize('adapter', ['missing', 'transferred-guest'])
 def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch, entry, history_kind, adapter, rounds=21):
     project_id = 'project_saved'
-    profile = {'name': 'Fixture narrator', 'preferred_language': 'en-AU'}
-    storage = Mock(spec=UserStorage)
-    storage.user_id = 'fixture-owner'
-    storage.user = {'id': 'fixture-owner', 'is_anonymous': False}
-    storage.client = Mock()
-    storage.is_anonymous = False
-    storage.profile.return_value = profile
-    storage.recall_rounds_completed.return_value = rounds
-    storage.story_entitlement.return_value = None
-    storage.all_memories.return_value = [{
-        'id': 'saved-turn', 'kind': 'agent', 'project_id': project_id, 'created_at': '2026-10-07',
-        'content': 'Storyteller: My saved childhood\nMemory Spark: Tell me about the garden.',
-    }]
-    storage.request.side_effect = lambda method, path, **_: Mock(json=lambda:
-        [{'project_id': project_id}] if path == '/rest/v1/user_memoir_project' and history_kind == 'memory' else
-        [{'id': 'legacy-attachment', 'project_id': project_id, 'created_at': '2026-10-07',
-          'workspace': {'guest_user_id': 'fixture-guest'},
-          'messages': [{'role': 'user', 'text': 'My saved childhood'},
-                       {'role': 'assistant', 'text': 'Tell me about the garden.'}]
-                      if history_kind == 'attachment' else []}]
-        if path == '/rest/v1/user_conversation_attachment' and (history_kind == 'attachment' or adapter == 'transferred-guest') else [])
-    if history_kind == 'attachment':
-        storage.all_memories.return_value = []
-    storage.saved_memoir_draft.return_value = {
-        'status': 'ready', 'preview': {'kind': 'sample_storyline', 'title': 'My reviewed sample',
-                                      'text': 'A familiar garden from my childhood.'},
-        'revision': 2, 'covered_round': 10, 'updating': True, 'error': None,
-    }
+    storage = account_recovery_storage(history_kind, adapter, rounds)
+    profile = storage.profile.return_value
     def authenticated(authorization):
         if authorization != 'Bearer fixture-session':
             raise main.HTTPException(401, 'Missing fixture session')
         return storage
     monkeypatch.setattr(main, 'authenticated_storage', authenticated)
-    monkeypatch.setattr(supabase_routes, 'storage', lambda _: storage)
+    monkeypatch.setattr(supabase_routes, 'storage', authenticated)
     monkeypatch.setattr(supabase_routes, '_queue_if_configured', lambda: None)
     store = MemoryStore()
     with TestClient(main.create_app(store, story_storage_factory=lambda _: storage)) as client, sync_playwright() as pw:
         if adapter == 'transferred-guest':
-            storage.user_id = 'fixture-guest'
+            set_recovery_principal(storage, guest=True)
             original = client.post('/v1/projects', headers={'Authorization': 'Bearer fixture-session'}, json={}).json()
             project = store.projects.pop(original['id'])
             project['id'] = project_id
             store.projects[project_id] = project
-            storage.user_id = 'fixture-owner'
+            set_recovery_principal(storage)
         browser = pw.chromium.launch(headless=True)
         context = browser.new_context(reduced_motion='reduce')
         base = os.environ['MEMOIR_BROWSER_URL']
@@ -75,10 +48,12 @@ def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch,
           getSession:async()=>({data:{session:{access_token:'fixture-session',user:{id:'fixture-owner',is_anonymous:false}}}}),
           getUser:async()=>({data:{user:{id:'fixture-owner',is_anonymous:false}}}),onAuthStateChange:()=>({})
         }})};"""
-        install_supabase_fixture(context, auth_script)
+        install_supabase_fixture(context, auth_script.replace('fixture-owner', RECOVERY_OWNER))
         sample_times = []
         requests = []
         def api(route):
+            if forward_project_history(route, client, {project_id}, requests):
+                return
             path = route.request.url.split('/api/v1/memoir')[-1]
             endpoint = path.split('?')[0]
             if endpoint == '/projects' or endpoint.startswith('/projects/') or endpoint in ('/user/conversations', '/story/preview'):

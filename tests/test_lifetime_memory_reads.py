@@ -269,6 +269,10 @@ def setup_read(sql, *, profile=True):
         sql(as_user("insert into public.user_profile(user_id,profile) values(auth.uid(),'{}');"))
     source = rpc(sql, 'accept_user_narrator_source',
         f"{literal(identity['project_id'])}, '00000000-0000-4000-8000-000000000001', 'Read original memory'")
+    if not profile:
+        # Atomic acceptance now creates the owner's policy/profile row. Restore
+        # this test's missing-profile precondition only after that acceptance.
+        sql(as_user('delete from public.user_profile where user_id=auth.uid();'))
     fence = rpc(sql, 'capture_lifetime_read_fence', literal(identity['project_id']))
     command = sql.command
     dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
@@ -573,3 +577,86 @@ def test_rest_schema_cache_miss_never_proves_unmapped_mixed_cohort(monkeypatch,c
     if allowed:assert find_lifetime_read_identity(service,None) is None
     else:
         with pytest.raises(httpx.HTTPStatusError):find_lifetime_read_identity(service,None)
+
+
+@pytest.mark.parametrize('version',['2.3','2.4'])
+def test_pending_policy_before_read_headers_sends_only_fixed_retry_metadata(version):
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    released=[]
+    class Pending:
+        @asynccontextmanager
+        async def guard(self,fence):
+            try:
+                error=PolicyUnavailable()
+                error.trajectory={'source':'private original testimony'}
+                raise error
+                yield
+            finally:released.append(True)
+    async def scenario():
+        messages=[]
+        async def send(message):
+            assert released==[True]
+            messages.append(message)
+        response=ReadJSONResponse(ReadSnapshot({'reply':'private original testimony','source_id':CONVERSATION},FENCE),
+            publisher=Pending(),status_code=201,headers={'X-Private-Snapshot':CONVERSATION})
+        await response({'type':'http','asgi':{'spec_version':version}},receive,send)
+        assert [m['type'] for m in messages]==['http.response.start','http.response.body']
+        assert messages[0]['status']==503
+        headers=dict(messages[0]['headers'])
+        assert headers[b'x-error-code']==b'LIFETIME_POLICY_PENDING'
+        assert headers[b'retry-after']==b'60' and headers[b'cache-control']==b'no-store'
+        assert b'x-private-snapshot' not in headers
+        assert json.loads(messages[1]['body'])=={
+            'detail':'Accepted conversation policy requires maintenance before private content can be used'}
+        assert 'private original testimony' not in repr(messages)
+        assert CONVERSATION not in repr(messages)
+    execute(scenario())
+
+
+@pytest.mark.parametrize('version',['2.3','2.4'])
+@pytest.mark.parametrize('where',['start','body','guard_exit'])
+def test_pending_policy_after_read_start_attempt_never_sends_second_headers(version,where):
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    error=PolicyUnavailable()
+    released=[]
+    class Publisher:
+        @asynccontextmanager
+        async def guard(self,fence):
+            try:
+                yield
+                if where=='guard_exit':raise error
+            finally:released.append(True)
+    async def scenario():
+        messages=[]
+        async def send(message):
+            messages.append(message)
+            if message['type']=='http.response.start' and where=='start':raise error
+            if message['type']=='http.response.body' and where=='body':raise error
+        response=ReadJSONResponse(ReadSnapshot({'reply':'original authorized body'},FENCE),publisher=Publisher())
+        with pytest.raises(PolicyUnavailable) as caught:
+            await response({'type':'http','asgi':{'spec_version':version}},receive,send)
+        assert caught.value is error
+        assert sum(m['type']=='http.response.start' for m in messages)==1
+        assert messages[0]['status']==200
+        assert len(messages)==(1 if where=='start' else 2)
+        assert released==[True]
+    execute(scenario())
+
+
+@pytest.mark.parametrize('version',['2.3','2.4'])
+@pytest.mark.parametrize('kind',['authority','cancel'])
+def test_nonpolicy_read_admission_errors_keep_existing_no_response_behavior(version,kind):
+    error=PublicationUnavailable('Foreign owner or stale fence') if kind=='authority' else asyncio.CancelledError()
+    class Denied:
+        @asynccontextmanager
+        async def guard(self,fence):
+            raise error
+            yield
+    async def scenario():
+        messages=[]
+        async def send(message):messages.append(message)
+        with pytest.raises(type(error)) as caught:
+            await ReadJSONResponse(ReadSnapshot({'reply':'private'},FENCE),publisher=Denied())(
+                {'type':'http','asgi':{'spec_version':version}},receive,send)
+        assert caught.value is error and messages==[]
+    execute(scenario())

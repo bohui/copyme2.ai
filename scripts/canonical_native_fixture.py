@@ -10,6 +10,7 @@ import json
 import os
 import signal
 import shutil
+import socket
 from pathlib import Path
 import sys
 import tempfile
@@ -27,6 +28,40 @@ def save(path, value):
     temporary.replace(path)
 
 
+async def verify_publication_instance(sql, deadline):
+    """Read-only identity match; never trust a declared port mapping alone."""
+    import psycopg
+    from test_agent_commit_postgres import ProcessDeadline
+    from apps.api.lifetime_memory_reads import _settle
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError('Fixture deadline expired before publication identity check')
+    cancellation = threading.Event()
+    commands = ProcessDeadline(time.monotonic() + min(3, remaining), cancellation, environment=sql.env)
+    # Use an independent owned process, never a pooled session which could
+    # outlive cancellation and race the fixture's ordinary SQL cleanup.
+    local_probe = asyncio.create_task(asyncio.to_thread(commands.run, sql.command,
+        input='select system_identifier::text from pg_control_system();', text=True, check=True))
+    try:
+        async with asyncio.timeout(min(3, remaining)):
+            expected = (await asyncio.shield(local_probe)).stdout.strip()
+            if not expected.isdecimal():
+                raise RuntimeError('Owned fixture PostgreSQL identity is unavailable')
+            async with await psycopg.AsyncConnection.connect(sql.publication_dsn, connect_timeout=2,
+                    autocommit=True, passfile='/dev/null',
+                    options='-c default_transaction_read_only=on -c statement_timeout=2000') as connection:
+                actual = await (await connection.execute(
+                    'select system_identifier::text from pg_control_system()')).fetchone()
+            if actual != (expected,):
+                raise RuntimeError('Fixture PostgreSQL publication identity mismatch')
+    finally:
+        cancellation.set()
+        try:
+            await _settle(local_probe)
+        except (Exception, asyncio.CancelledError):
+            pass  # Preserve the original failure after the owned process exits.
+
+
 async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
     started = time.monotonic()
     receipt = {'schema_version': 'memoir-canonical-native-fixture/1',
@@ -35,6 +70,7 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
         'provider_requests_started': 0, 'provider_input_tokens': 0, 'provider_output_tokens': 0,
         'fixture_protocol_calls': 0, 'private_worker_requests_started': 0,
         'limits': plan['execution_limits'],
+        'fixture_publication_tcp': plan.get('fixture_publication_tcp', False),
         'application_revision': plan['application_revision'], 'dataset': plan['dataset'],
         'skill_manifest': plan['skill_manifest'], 'cases': [], 'cleanup': {},
         'live_acceptance': 'not_run', 'model_output_quality': 'unavailable',
@@ -43,6 +79,11 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
     summary_path = run_dir / 'summary.json'
     if time.monotonic() >= deadline:
         receipt['blockers'] = ['fixture_time_limit_reached_before_allocation']
+        save(summary_path, receipt)
+        return receipt
+
+    if not receipt['fixture_publication_tcp']:
+        receipt['blockers'] = ['explicit_fixture_publication_tcp_opt_in_required']
         save(summary_path, receipt)
         return receipt
 
@@ -63,10 +104,14 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
         MEMORY_SPARK_TEST_MODE='1', MEMORY_SPARK_ENTITLEMENT_MODEL='legacy',
         MEMORY_SPARK_TASK_DB=str(workspace / 'tasks.sqlite'),
         MEMORY_SPARK_DATABASE=str(workspace / 'application.sqlite'))
-    # Reuse the existing stock postgres:18.3 / container-exec psql fixture.
-    # It uses UUID names, no TCP, mounts or published ports, and exact cleanup.
+    # The opt-in publication endpoint belongs only to this synthetic UUID
+    # fixture. It keeps the real worker's psycopg/SQL admission guards intact.
+    # The ordinary Apple fixture remains TCP-disabled.
     sys.path.insert(0, str(ROOT / 'tests'))
     try:
+        # The mixed-capable worker now requires the real SQL authority driver.
+        # Missing optional dependencies must fail before any native allocation.
+        import psycopg  # noqa: F401
         from test_shared_memory_events_postgres import (
             database, attachment_database, private_database, event_database)
         from memoir_postgres_workflow import PostgresRest, quoted
@@ -98,8 +143,10 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
     def allocation_changed():
         receipt['resources_allocated'] = True if allocation['created'] else None
         save(summary_path, receipt)
+    receipt['postgres_publication_endpoint'] = {}
     generator = database.__wrapped__(deadline=deadline, cancellation=cancellation,
-        allocation=allocation, on_allocation=allocation_changed)
+        allocation=allocation, on_allocation=allocation_changed, publication_tcp=True,
+        publication_endpoint=receipt['postgres_publication_endpoint'])
     setup_task = None
     transport, readiness, temporal = None, None, None
     postgres_name = 'memoir-issue6-pg-' + uuid4().hex[:12]
@@ -130,6 +177,14 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
             return sql
         setup_task = asyncio.create_task(asyncio.to_thread(setup))
         sql = await asyncio.shield(setup_task)
+        # Never reuse an environment/configured DSN or assert legacy-only for
+        # the mixed-capable schema. Authority is the just-created fixture DB.
+        if not sql.publication_dsn:
+            raise RuntimeError('Native fixture publication authority is unavailable')
+        await verify_publication_instance(sql, deadline)
+        receipt['postgres_publication_endpoint']['instance_verified'] = True
+        save(summary_path, receipt)
+        os.environ['MEMOIR_PUBLICATION_DATABASE_URL'] = sql.publication_dsn
         if time.monotonic() >= deadline:
             raise TimeoutError('Fixture deadline expired during setup')
 
@@ -315,6 +370,16 @@ async def run_fixture(plan, run_dir, *, max_worker_requests, deadline):
                     if not await asyncio.to_thread(absent):
                         raise RuntimeError('Recorded task PostgreSQL container still exists')
                 receipt['cleanup']['postgres_removal_verified'] = True
+                endpoint = receipt['postgres_publication_endpoint']
+                if endpoint:
+                    # Observe closure only. A reused/uncertain endpoint is not
+                    # permission to stop any process other than this UUID.
+                    with socket.socket() as probe:
+                        probe.settimeout(1)
+                        closed = probe.connect_ex((endpoint['host'], endpoint['port'])) != 0
+                    receipt['cleanup']['postgres_endpoint_closed'] = closed
+                    if not closed:
+                        raise RuntimeError('Task PostgreSQL loopback endpoint remains open')
 
             await close_resource('postgres_fixture_closed', reconcile_postgres, seconds=55)
             if (receipt['cleanup'].get('postgres_fixture_closed') is False

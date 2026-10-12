@@ -203,10 +203,23 @@ def test_approved_synthetic_mapping_uses_original_project_without_name_conventio
     # An isolated explicit fixture mapping, never application backfill.
     sql(f"insert into public.user_lifetime_conversation(user_id,project_id,preference_revision) values('{OWNER}','{project}',7);")
     canonical = identity(sql)
+    assert canonical['project_id'] == project
+    original = sql('select row_to_json(s) from public.user_narrator_source s;').stdout
+    pending = rpc(sql, 'read_lifetime_policy_status', f"'{canonical['conversation_id']}'")
+    assert pending['pending'] is True
     with TestClient(main.create_app(MemoryStore())) as client:
         response = client.post('/v1/projects', headers=headers(), json={})
-        assert response.status_code == 201 and response.json()['id'] == project
+        # Mapping identity does not attest that historical privacy was reviewed.
+        # The fixed response must not publish the still-pending private home.
+        assert response.status_code == 503, response.text
+        assert response.headers['x-error-code'] == 'LIFETIME_POLICY_PENDING'
+        assert response.headers['retry-after'] == '60'
+        assert response.headers['cache-control'] == 'no-store'
+        assert response.json() == {'detail': 'Accepted conversation policy requires maintenance before private content can be used'}
+        assert project not in response.text and canonical['conversation_id'] not in response.text
     assert identity(sql) == canonical
+    assert rpc(sql, 'read_lifetime_policy_status', f"'{canonical['conversation_id']}'") == pending
+    assert sql('select row_to_json(s) from public.user_narrator_source s;').stdout == original
     assert rpc(sql, 'read_user_interview_turn', f"'{project}','{turn['client_turn_id']}'")['source']['id'] == turn['source']['id']
     assert sql('select preference_revision from public.user_lifetime_conversation;').stdout.strip() == '7'
 

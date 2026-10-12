@@ -1,5 +1,7 @@
 """Run fencing/atomicity checks on a disposable local PostgreSQL, never Supabase."""
 import os
+import ipaddress
+import json
 import queue
 import re
 from pathlib import Path
@@ -176,14 +178,48 @@ class ContainerSql:
         self.sessions.clear()
 
 
+def publication_guest_address(snapshot, name, port):
+    """Fail closed before starting PostgreSQL on the opt-in guest interface."""
+    if not isinstance(snapshot, list) or len(snapshot) != 1:
+        raise ValueError('Expected exactly the task PostgreSQL container')
+    container = snapshot[0]
+    config = container['configuration']
+    if config['id'] != name:
+        raise ValueError('PostgreSQL container identity mismatch')
+    expected = {'hostAddress': '127.0.0.1', 'hostPort': port,
+        'containerPort': 5432, 'proto': 'tcp', 'count': 1}
+    if config.get('publishedPorts') != [expected]:
+        raise ValueError('PostgreSQL publication must be one exact host-loopback port')
+    status = container['status']
+    # Apple 1.x nests runtime networks under status; older supported releases
+    # use a string status and top-level networks. Unknown shapes fail closed.
+    networks = status.get('networks') if isinstance(status, dict) else container.get('networks')
+    state = status.get('state') if isinstance(status, dict) else status
+    if state != 'running' or not isinstance(networks, list) or len(networks) != 1:
+        raise ValueError('Expected one running PostgreSQL guest interface')
+    interface = ipaddress.IPv4Interface(networks[0]['ipv4Address'])
+    address = interface.ip
+    private = any(address in ipaddress.IPv4Network(network) for network in
+        ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
+    if (not private or address.is_loopback or address.is_link_local or address.is_multicast
+            or address in (interface.network.network_address, interface.network.broadcast_address)):
+        raise ValueError('Expected a private unicast PostgreSQL guest IPv4 address')
+    return str(address)
+
+
 @pytest.fixture(scope='module')
 def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None,
-             legacy_schema=True, postgres_image='postgres:18.3', tcp=False):
+             legacy_schema=True, postgres_image='postgres:18.3', tcp=False, publication_tcp=False,
+             publication_endpoint=None):
+    # An opt-in guest startup gate must never wait without a task deadline.
+    if publication_tcp and deadline is None:
+        deadline = time.monotonic() + 180
     environment = {key: value for key, value in os.environ.items() if not key.startswith("PG")}
     commands = ProcessDeadline(deadline, cancellation, environment=environment)
     if postgres_image not in {'postgres:18.3', 'postgres:17.6'}:
         raise ValueError('Only the supported stock PostgreSQL fixture images are allowed')
     container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container'
+    publication_dsn = None
     if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
     with tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir='/tmp') as directory:
@@ -192,6 +228,22 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
             pg_container_name = os.getenv('MEMOIR_TEST_POSTGRES_CONTAINER_NAME') or 'memoir-issue6-pg-' + uuid4().hex[:12]
             if not re.fullmatch(r'memoir-issue6-pg-[0-9a-f]{12}', pg_container_name):
                 raise ValueError('A task-owned UUID PostgreSQL container name is required')
+            publish = []
+            postgres = ['postgres', '-c', 'listen_addresses=' + ('*' if tcp else '')]
+            if publication_tcp:
+                with socket.socket() as listener:
+                    listener.bind(('127.0.0.1', 0))
+                    port = listener.getsockname()[1]
+                publish = ['--publish', f'127.0.0.1:{port}:5432']
+                # This shell owns no listener. Release it only after inspection
+                # verifies the UUID, exact host binding and single guest IPv4.
+                postgres = ['sh', '-ec',
+                    'while [ ! -s /tmp/memoir-publication-address ]; do sleep 0.1; done; '
+                    'exec docker-entrypoint.sh postgres -c '
+                    '"listen_addresses=$(cat /tmp/memoir-publication-address)"']
+                publication_dsn = f'host=127.0.0.1 port={port} user=postgres dbname=postgres'
+                if publication_endpoint is not None:
+                    publication_endpoint.update(host='127.0.0.1', port=port, container_port=5432)
             try:
                 commands.remaining()
                 if allocation is not None:
@@ -200,11 +252,22 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                         on_allocation()
                 commands.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
                     '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
-                    postgres_image, 'postgres', '-c', 'listen_addresses=' + ('*' if tcp else '')], check=True)
+                    *publish, postgres_image, *postgres], check=True)
                 if allocation is not None:
                     allocation['created'] = True
                     if on_allocation is not None:
                         on_allocation()
+                if publication_tcp:
+                    snapshot = commands.run(['container', 'inspect', pg_container_name], check=True, text=True)
+                    address = publication_guest_address(json.loads(snapshot.stdout), pg_container_name, port)
+                    if publication_endpoint is not None:
+                        publication_endpoint.update(guest_address=address, binding_verified=True)
+                    if on_allocation is not None:
+                        on_allocation()
+                    commands.run(['container', 'exec', pg_container_name, 'sh', '-ec',
+                        'printf "%s" "$1" > /tmp/memoir-publication-address.tmp && '
+                        'mv /tmp/memoir-publication-address.tmp /tmp/memoir-publication-address',
+                        'fixture', address], check=True)
                 until = time.monotonic() + 30
                 while True:
                     # The image briefly starts a bootstrap server, then restarts
@@ -231,9 +294,13 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                     port = listener.getsockname()[1]
                 options = f"-h 127.0.0.1 -p {port} -k ''"
                 target = ['-h', '127.0.0.1', '-p', str(port)]
+                if publication_tcp:
+                    publication_dsn = f'host=127.0.0.1 port={port} user=postgres dbname=postgres'
             else:
                 options = f"-k {directory} -h ''"
                 target = ['-h', directory]
+                if publication_tcp:
+                    publication_dsn = f'host={directory} user=postgres dbname=postgres'
             log = Path(directory) / 'server.log'
             try:
                 commands.run(['initdb', '-D', data, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], check=True)
@@ -257,6 +324,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
             return result
         sql.command = command
         sql.env = environment
+        sql.publication_dsn = publication_dsn
         try:
             sql('''
                 create role anon;

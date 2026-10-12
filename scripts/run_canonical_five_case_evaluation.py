@@ -53,6 +53,8 @@ def main():
     parser.add_argument('--output-root', type=Path, default=ROOT / 'output/canonical-evaluation')
     parser.add_argument('--max-worker-requests', type=int)
     parser.add_argument('--max-seconds', type=float)
+    parser.add_argument('--fixture-publication-tcp', action='store_true',
+        help='Explicitly enable the disposable fixture guest listener and host-loopback SQL authority port')
     args = parser.parse_args()
     if args.execute_fixture and (args.max_worker_requests is None or args.max_worker_requests <= 0
             or args.max_seconds is None or not math.isfinite(args.max_seconds) or args.max_seconds <= 0):
@@ -98,6 +100,7 @@ def main():
         'execution_limits': {'max_worker_requests': args.max_worker_requests,
                              'max_seconds': args.max_seconds, 'max_provider_requests': 0,
                              'max_provider_input_tokens': 0, 'max_provider_output_tokens': 0},
+        'fixture_publication_tcp': args.fixture_publication_tcp,
         'cases': [{'case_id': case['id'], 'language': case['locale'],
             'owner_id': str(uuid4()), 'project_id': 'canonical-' + uuid4().hex,
             'rounds': case['rounds'], 'source_kind': 'narrator_chat',

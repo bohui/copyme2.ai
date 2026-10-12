@@ -282,7 +282,8 @@ monotonic stages are `legacy_only`, `draining`, then `canonical_ready`:
 No database stage has been changed outside isolated synthetic tests. No deployment,
 operator clearance or access change is authorized by these tests. The interlock
 addresses a safe activation boundary; it does not provide direct WebRTC parity or
-resolve the user's still-pending AC10 product-scope decision.
+by itself resolve the AC10 product-scope decision. The later approved release
+boundary is recorded below.
 
 Scoped clearance evidence before the final combined-pin gate:
 - 28 isolated database/pure admission cases cover default denial, forged transition,
@@ -370,3 +371,69 @@ barrier fixture initially locked a deleted lease row. The corrected obligation a
 after-selection race and both pending-table fairness cases. Immutable combined
 review and the refreshed native aggregate remain required before acceptance. No
 production data, deployment, clearance or historical reconciliation was changed.
+
+### Full atomic-policy checkpoint regression result
+
+The independent clean `1c64005` native gate passed 163 cases in 54.17 seconds.
+Remote `cfcacfa89f8bc1ceb939c17811c151fadfdc70bd` was independently verified to
+have the same tree, `4b2c5a9105c799bfea46ec0572abdc54b0059cb9`.
+
+The full native aggregate on that source completed with 5,388 passed, 213 skipped
+and three failed in 1,270.65 seconds. The mapped-home fixture still expected
+private access despite its new historical-policy inventory marker. Two read-lock
+fixtures assumed source acceptance left no profile, although atomic acceptance now
+creates one. Their corrected setup must explicitly remove only the synthetic
+owner's profile after acceptance and before read capture, preserving the original
+read-only and first-profile lock assertions. These failed runs are retained as
+failed evidence; targeted repair and final aggregate results are recorded separately.
+
+The reviewed read/home repair passes 136 native cases with zero skips (20.91s),
+including all three failures above. An exact pending-policy exception now produces
+a fixed 503, `LIFETIME_POLICY_PENDING`, Retry-After and no-store only before any
+response-start attempt. It emits neither the private snapshot nor its headers.
+ASGI 2.3/2.4 tests prove that uncertain/partial starts, body errors and guard-exit
+errors never cause a second response; unrelated errors and cancellation retain
+their original behavior. The source repair still requires the final pinned
+independent rerun and refreshed full native aggregate.
+
+## Final offline native verification
+
+The clean, immutable production-source pin
+`2ad1659fe61202141c530f1d634a4254884409e3` (tree
+`bf1baad6a57e845ece03f31899126009e4e9fe4b`, remote equivalent
+`ed21b73736307decd6305aeec07e869a4c0ae67e`) completed the full native-enabled
+aggregate with **5,403 passed, zero failed, 213 skipped, five warnings, exit 0** in
+1,349.68 seconds. Native PostgreSQL, the provider-free artifact opt-in and the
+official local Temporal CLI were enabled. No source changed during that run.
+This final record is an evidence-only documentation update; it does not represent
+another full test execution on a different hash.
+
+The 213 skips remain explicit: 205 frontend/browser/Auth-HTTP cases, four live
+provider evaluations, three unavailable Mocker cases and one Apple Container case.
+The separately verified eight controlled Mac cases cover the #60 lifetime and
+collection fixtures across their recorded unchanged-frontend heads. They do not
+claim all broader browser scenarios, physical-device coverage, real-data provider
+quality, live latency or cost acceptance. Earlier failed runs above are preserved;
+their fixes are now included in the successful final aggregate.
+
+Release-scope decision and remaining external gates:
+- On 2026-10-12 the user approved keeping direct WebRTC audio disabled for this
+  release for migrated/canonical accounts, as disclosed in the proposal, and
+  tracking safe realtime audio separately. Legacy-only direct SDP remains subject
+  to the existing staged gate; no global legacy route change was approved. This
+  resolves only the
+  disclosed AC10 feature-scope choice; it does not establish transport parity or
+  waive other acceptance checks. Ordinary conversation and transcription remain
+  within the implemented scope.
+- Preserve the default-closed adoption/provider interlock. Blocking new direct
+  calls does not terminate existing or in-flight legacy calls. The scope decision
+  is not an operational clearance attestation and does not authorize production
+  adoption, activation, migration, deployment or historical reconciliation.
+- Production migrations, historical identity/policy reconciliation, deployment,
+  provider evaluation and activation require their separate approvals. No actual
+  migration, reconciliation, call termination or clearance attestation was done.
+- Operational clearance requires authoritative termination evidence for all older
+  calls/in-flight creations after every relevant ingress blocks new direct calls.
+- Required remote checks and final merge/whole-ticket acceptance remain with the
+  parent review. No PR-triggered workflow/status or external review was reported
+  at the latest verified checkpoint. This draft does not close #60.

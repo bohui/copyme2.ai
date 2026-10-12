@@ -39,6 +39,21 @@ def test_canonical_fixture_zero_request_budget_refuses_service_allocation(tmp_pa
     assert 'explicit_positive_fixture_limits_required' in receipt['blockers']
 
 
+def test_canonical_fixture_requires_explicit_publication_network_opt_in_before_allocation(tmp_path):
+    result = subprocess.run([sys.executable, 'scripts/run_canonical_five_case_evaluation.py',
+        '--execute-fixture', '--run-id', 'no-publication-opt-in', '--output-root', str(tmp_path),
+        '--max-worker-requests', '1', '--max-seconds', '30'], cwd=ROOT,
+        env=offline_environment(ROOT), capture_output=True, text=True, timeout=10)
+    assert result.returncode == 3, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt['status'] == 'blocked' and receipt['execution_started'] is False
+    assert receipt['resources_allocated'] is False and receipt['provider_requests_started'] == 0
+    assert receipt['fixture_publication_tcp'] is False
+    assert receipt['blockers'] == ['explicit_fixture_publication_tcp_opt_in_required']
+    plan = json.loads((tmp_path / 'no-publication-opt-in' / 'plan.json').read_text())
+    assert plan['fixture_publication_tcp'] is False
+
+
 def test_canonical_fixture_expired_deadline_records_a_stop_before_native_allocation(tmp_path):
     result = subprocess.run([sys.executable, 'scripts/run_canonical_five_case_evaluation.py',
         '--execute-fixture', '--run-id', 'expired-native-fixture', '--output-root', str(tmp_path),
