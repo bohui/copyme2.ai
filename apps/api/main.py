@@ -552,11 +552,14 @@ def _project_response(project: dict[str, Any], *, authoritative_profile: dict[st
             service.client.close()
     else:
         photo_profile = project['profile']
-    profile = deepcopy(project['profile'])
     if authoritative_profile is not None:
-        # Missing is meaningful: a withdrawn generated name must not reappear
-        # from the disposable local adapter, including on a warm home visit.
-        profile['name'] = authoritative_profile.get('name')
+        # Absence is authoritative too: cleared settings and withdrawn generated
+        # fields cannot return from the disposable adapter on a warm home visit.
+        profile = deepcopy({key: value for key, value in authoritative_profile.items()
+            if not key.startswith('_')})
+        profile.setdefault('name', None)
+    else:
+        profile = deepcopy(project['profile'])
     profile.pop('photo_memories', None)
     if project['id'] in (photo_profile.get('photo_memories') or {}):
         profile['photo_memories'] = {project['id']: photo_memory_state(photo_profile, project['id'])}

@@ -141,6 +141,16 @@ def visible_exchange(memory, source):
     return narrator, reply
 
 
+def _lifetime_conversation_id(storage, project_id):
+    """Existing canonical authority survives adoption/generation flag rollback."""
+    from .lifetime_memory_reads import find_lifetime_read_identity
+    identity = (storage.lifetime_read_identity if hasattr(storage, 'lifetime_read_identity')
+        else find_lifetime_read_identity(storage, project_id))
+    if identity is None:
+        return None
+    return identity['conversation_id'] if isinstance(identity, dict) else str(identity.conversation_id)
+
+
 def turn_receipt(storage, project_id, client_turn_id):
     memory = storage.agent_turn_by_id(project_id, client_turn_id)
     source = storage.narrator_source_by_turn(project_id, client_turn_id)
@@ -149,14 +159,11 @@ def turn_receipt(storage, project_id, client_turn_id):
     read_interview = getattr(storage, 'interview_turn_by_id', None)
     interview = read_interview(project_id, client_turn_id) if callable(read_interview) else None
     narrator, reply = visible_exchange(memory, source)
-    from .lifetime_memory_runtime import lifetime_enabled
-    if lifetime_enabled():
-        from .lifetime_memory_reads import find_lifetime_read_identity
-        identity=storage.lifetime_read_identity if hasattr(storage,'lifetime_read_identity') else find_lifetime_read_identity(storage,project_id)
-        if identity is not None:
-            conversation_id=identity['conversation_id'] if isinstance(identity,dict) else str(identity.conversation_id)
-            governed=storage.lifetime_rpc('read_lifetime_reply',p_conversation_id=conversation_id,p_client_turn_id=client_turn_id)
-            reply=governed.get('reply') if governed else None
+    conversation_id = _lifetime_conversation_id(storage, project_id)
+    if conversation_id is not None:
+        governed = storage.lifetime_rpc('read_lifetime_reply',
+            p_conversation_id=conversation_id, p_client_turn_id=client_turn_id)
+        reply = governed.get('reply') if governed else None
     return TurnReceipt(
         client_turn_id=client_turn_id, project_id=project_id,
         state='conversation_saved' if memory else ('source_accepted' if source or interview else 'not_found'),
@@ -213,18 +220,15 @@ def conversation_history(storage, project_id, limit, cursor):
     sources = storage.narrator_sources_by_turns(project_id,
         [row.get('client_turn_id') or row['id'] for row in page]) if page else []
     by_turn = {row['client_turn_id']: row for row in sources}
+    conversation_id = _lifetime_conversation_id(storage, project_id)
     items = []
     for row in reversed(page):
         source = by_turn.get(row.get('client_turn_id') or row['id'])
         narrator, reply = visible_exchange(row, source)
-        from .lifetime_memory_runtime import lifetime_enabled
-        if lifetime_enabled():
-            from .lifetime_memory_reads import find_lifetime_read_identity
-            identity=storage.lifetime_read_identity if hasattr(storage,'lifetime_read_identity') else find_lifetime_read_identity(storage,project_id)
-            if identity is not None:
-                conversation_id=identity['conversation_id'] if isinstance(identity,dict) else str(identity.conversation_id)
-                governed=storage.lifetime_rpc('read_lifetime_reply',p_conversation_id=conversation_id,p_client_turn_id=row.get('client_turn_id') or row['id'])
-                reply=governed.get('reply') if governed else None
+        if conversation_id is not None:
+            governed = storage.lifetime_rpc('read_lifetime_reply',
+                p_conversation_id=conversation_id, p_client_turn_id=row.get('client_turn_id') or row['id'])
+            reply = governed.get('reply') if governed else None
         from .interview_plan import public_interview_fields
         read_interview = getattr(storage, 'interview_turn_by_id', None)
         interview = read_interview(project_id, row.get('client_turn_id') or row['id']) if callable(read_interview) else None
