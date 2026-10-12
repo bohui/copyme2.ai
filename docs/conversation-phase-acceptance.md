@@ -28,7 +28,7 @@ target state. DDL rerun is tested; no production migration has been executed.
 ## Evidence collected
 
 - 41 pure policy checks: reversible modes, durable selection, strict schema, safe bilingual intent.
-- 30 real PostgreSQL checks: RLS under `authenticated`, anonymous denial, cross-owner isolation,
+- 32 real PostgreSQL checks: RLS under `authenticated`, anonymous denial, cross-owner isolation,
   two simultaneous CAS writers, late proposal rejection, reply atomicity/replay, source correction,
   migration replay, legacy project resume, and guest transfer/retry.
 - Four of those checks use streamed HTTP → actual collector orchestration/validation → real
@@ -68,8 +68,7 @@ uses a configured Supabase URL, existing database, customer data or production c
    live model safety/quality not measured.
 7. Early shape: control produces no artifact/round and preserves existing visibility code;
    narration remains gated at twenty while controls remain available (JS/real API checks). Browser rendering gate pending.
-8. Correction: source correction phase trigger passes; existing approved/locked prose regression
-   must be included in final affected acceptance run.
+8. Correction: source edits and explicit workspace/chat event corrections reopen exploration; delayed chat corrections preserve newer choices. Five existing approved/locked prose regression cases pass.
 9. Retry/failure: saved-plan failure/replay tests and real source/reply/round idempotency pass;
    explicit phase disconnect after durable save with stalled enrichment and cached replay passes.
 10. Concurrent tabs: actual independent SQL sessions accept exactly one CAS and preserve narration.
@@ -77,7 +76,7 @@ uses a configured Supabase URL, existing database, customer data or production c
 12. Background evidence: 104 existing SQL regressions plus historical-news runtime readiness pass;
    no background writer touches phase. Phase-specific stalled-worker and post-save cancellation pass.
 13. Independent concepts: new table/control RPC changes only phase; existing language/round/draft
-   gates remain untouched. Full aggregate still being run.
+   gates remain untouched. Full Python aggregate: 3992 passed, 560 skipped.
 14. Existing gates: existing private-round PostgreSQL regressions pass; phase controls create no
    round. Explicit phase-at-3/5/20 real streamed assertions pass.
 15. Fast path: no new model/classifier or research call. One-collector/stalled-workspace checks pass. A controlled-provider real-runtime run measured first text 176.033ms, validated question 208.786ms and durable save 227.243ms separately; these are synthetic fixture timings, not live model latency.
@@ -86,8 +85,7 @@ uses a configured Supabase URL, existing database, customer data or production c
 
 Browser suite defines 14 EN-desktop/ZH-phone mocked scenarios but could not execute:
 Chromium launch failed with socket EPERM; the supported cloud browser could not reach the
-isolated dev server. No browser pass is claimed. Initial Python aggregate: 3987 passed, 551 skipped, three failures (two extended storage doubles and changed OpenAPI snapshot). Those were corrected and the 104-test affected rerun passed; final aggregate rerun, final independent
-review, final-head CI and the remaining criterion-specific scenarios above are pending.
+isolated dev server. No browser pass is claimed. Final Python aggregate at the pre-correction-wrapper tree: 3992 passed, 560 skipped; skips are not claimed as passes. The additive correction wrapper has a separate real-PostgreSQL acceptance run. Independent review at that tree passed 97 PostgreSQL, 50 Python and 15 JavaScript checks. Final wrapper review and final-head external checks are tracked on draft PR #61. Browser acceptance remains merge-blocking.
 
 No live paid provider evaluation, production migration, deployment, credential setup,
 commercial draft-policy change or historical project consolidation is authorized by this PR.

@@ -232,6 +232,33 @@ drop trigger if exists conversation_phase_source_correction on public.user_narra
 create trigger conversation_phase_source_correction after update of version,status on public.user_narrator_source
  for each row execute function public.correct_conversation_phase();
 
+-- A workspace correction is current explicit user action. A delayed chat
+-- correction may reopen exploration only if its admission preference is current.
+do $$ begin
+ if to_regprocedure('public.correct_user_memory_event_before_phase(text,text,bigint,jsonb,text,text,uuid)') is null then
+   alter function public.correct_user_memory_event(text,text,bigint,jsonb,text,text,uuid) rename to correct_user_memory_event_before_phase;
+ end if;
+end $$;
+create or replace function public.correct_user_memory_event(p_project_id text,p_event_id text,p_expected_revision bigint,
+ p_patch jsonb,p_statement text,p_origin text default 'workspace',p_source_id uuid default null) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare result jsonb; baseline bigint; source_turn uuid;
+begin
+ result:=public.correct_user_memory_event_before_phase(p_project_id,p_event_id,p_expected_revision,p_patch,p_statement,p_origin,p_source_id);
+ select t.phase_revision,s.client_turn_id into baseline,source_turn from public.user_narrator_source s
+   left join public.user_interview_turn t on t.user_id=s.user_id and t.project_id=s.project_id and t.client_turn_id=s.client_turn_id
+   where s.user_id=auth.uid() and s.project_id=p_project_id
+     and s.id=coalesce(p_source_id,(select (value->>'source_id')::uuid from pg_catalog.jsonb_each(result->'user_overrides')
+       where key in (select pg_catalog.jsonb_object_keys(p_patch)) limit 1));
+ update public.user_conversation_phase set phase='explore',revision=revision+1,reason='correction',source_turn_id=source_turn
+ where user_id=auth.uid() and project_id=p_project_id and phase='shape'
+   and (p_origin='workspace' or baseline=revision);
+ return result;
+end $$;
+revoke all on function public.correct_user_memory_event_before_phase(text,text,bigint,jsonb,text,text,uuid),
+ public.correct_user_memory_event(text,text,bigint,jsonb,text,text,uuid) from public,anon,authenticated;
+grant execute on function public.correct_user_memory_event(text,text,bigint,jsonb,text,text,uuid) to authenticated;
+
 do $$ begin
  if to_regprocedure('public.attach_guest_conversation_before_phase(text,boolean)') is null then
   alter function public.attach_guest_conversation(text,boolean) rename to attach_guest_conversation_before_phase;

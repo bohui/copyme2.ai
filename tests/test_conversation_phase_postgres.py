@@ -327,3 +327,38 @@ def test_rich_save_precedes_stalled_background_disconnect_and_replay(sql,tmp_pat
     marks=asyncio.run(scenario())
     print('SYNTHETIC_PHASE_TIMINGS '+json.dumps(marks,sort_keys=True))
     (tmp_path/'phase-timings.json').write_text(json.dumps({'provider':'controlled_no_live_call',**marks}))
+
+
+def test_explicit_event_correction_reopens_shape_without_overriding_later_choice(sql):
+    from test_shared_memory_events_postgres import extract
+    turn=accept(sql,'I started school.')
+    source=turn['source']
+    event=extract(sql,[source],[{'kind':'event','title':'Started school','source_refs':[
+        {'source_id':source['id'],'version':1,'quote':source['text']}]}])['events'][0]
+    control(sql,'shape',0)
+    corrected=rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',1,'{{\"life_stage\":\"childhood\"}}'::jsonb,'I was a child then.'")
+    state=read(sql)
+    assert state['phase']=='explore' and state['preferred_phase']=='shape' and state['reason']=='correction'
+    assert state['source_turn_id'] is not None
+    state=control(sql,'shape',state['revision'])
+    correction=accept(sql,'Actually, I was an adolescent then.',turn='00000000-0000-4000-8000-000000000099')
+    state=control(sql,'comfort',state['revision'])
+    state=control(sql,'shape',state['revision'])
+    current=rpc(sql,'read_user_memory_events',"'project'")['events'][0]
+    rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',{current['revision']},'{{\"life_stage\":\"adolescence\"}}'::jsonb,'Actually, I was an adolescent then.','chat','{correction['source']['id']}'")
+    assert read(sql)==state
+
+
+def test_current_chat_correction_reopens_shape_and_failed_correction_keeps_it(sql):
+    from test_shared_memory_events_postgres import extract
+    source=accept(sql,'I started school.')['source']
+    event=extract(sql,[source],[{'kind':'event','title':'Started school','source_refs':[
+        {'source_id':source['id'],'version':1,'quote':source['text']}]}])['events'][0]
+    state=control(sql,'shape',0)
+    failure=rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',999,'{{\"life_stage\":\"childhood\"}}'::jsonb,'Actually, I was a child then.'",check=False)
+    assert failure.returncode != 0 and read(sql)==state
+    correction=accept(sql,'Actually, I was a child then.',turn='00000000-0000-4000-8000-000000000098')
+    rpc(sql,'correct_user_memory_event',f"'project','{event['id']}',1,'{{\"life_stage\":\"childhood\"}}'::jsonb,'Actually, I was a child then.','chat','{correction['source']['id']}'")
+    state=read(sql)
+    assert state['phase']=='explore' and state['preferred_phase']=='shape' and state['reason']=='correction'
+    assert state['source_turn_id'] is not None
