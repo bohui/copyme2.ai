@@ -30,7 +30,7 @@ class TransactionalPublication:
 
     @asynccontextmanager
     async def guard(self, fence):
-        from psycopg import AsyncConnection
+        from psycopg import AsyncConnection, Error
         from psycopg.types.json import Jsonb
 
         # Validate/copy before any connection. The verified authentication result,
@@ -54,6 +54,11 @@ class TransactionalPublication:
                     activation_pending = True
                     await self._lock_activation(connection)
                     activation_pending = False
+            except Error as error:
+                from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+                if is_policy_pending(error):
+                    raise PolicyUnavailable() from None
+                raise
             except TimeoutError:
                 if activation_pending:
                     from .lifetime_memory_activation import CanonicalActivationUnavailable

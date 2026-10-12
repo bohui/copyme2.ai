@@ -22,6 +22,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
 from .lifetime_memory_activation import ActivationPublication, CanonicalActivationUnavailable
+from .lifetime_memory_policy import PolicyUnavailable
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
@@ -799,6 +800,9 @@ async def turn(payload: WorkerTurnInput, request: Request,
             headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
     except AgentTurnBusyError as error:
         raise HTTPException(status_code=409, detail=str(error)) from None
+    except PolicyUnavailable:
+        raise HTTPException(503, 'Accepted conversation policy requires maintenance before private content can be used',
+            headers={'X-Error-Code': PolicyUnavailable.code, 'Retry-After': '60'}) from None
     except CanonicalActivationUnavailable:
         raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
             headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None

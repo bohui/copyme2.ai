@@ -1,5 +1,6 @@
 import asyncio
 import json
+import pytest
 from test_lifetime_outbox_postgres import sql,event_database,private_database,attachment_database,database,setup,claim,save_reply
 from test_agent_commit_postgres import OLD,OWNER,as_user
 from test_shared_memory_events_postgres import rpc,literal
@@ -94,3 +95,63 @@ def test_busy_owner_locks_release_before_worker_waits_on_another_tenant(sql):
         finally:
             await blocker.close();await worker.close();await observer.close()
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('inventory',[False,True])
+def test_pending_oldest_owner_does_not_starve_required_work_for_ready_owner(sql,inventory):
+    from test_agent_commit_postgres import OTHER,NEW
+    identity,source,_=setup(sql)
+    rpc(sql,'release_user_agent_turn_lease',f"'{OLD}'")
+    other=rpc(sql,'resolve_lifetime_conversation','null',owner=OTHER)
+    rpc(sql,'accept_user_narrator_source',f"{literal(other['project_id'])},'{NEW}','Other synthetic source'",owner=OTHER)
+    if inventory:
+        sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','literal-v1');")
+    else:
+        sql(f"insert into public.user_lifetime_pending_policy values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','{source['id']}',1,'{source['client_turn_id']}','literal-v1');")
+    sql(f"update public.user_lifetime_memory_obligation set created_at=clock_timestamp()-interval '1 day' where user_id='{OWNER}';")
+    result=worker_rpc(sql,1)
+    assert result['processed']==1 and result['failed']==0
+    assert sql(f"select status||':'||attempts from public.user_lifetime_memory_obligation where user_id='{OWNER}';").stdout.strip()=='pending:0'
+    assert sql(f"select status from public.user_lifetime_memory_obligation where user_id='{OTHER}';").stdout.strip()=='succeeded'
+
+
+def test_pending_after_selection_defers_without_aborting_other_required_work(sql):
+    import psycopg
+    from test_agent_commit_postgres import OTHER,NEW
+    identity,source,_=setup(sql)
+    rpc(sql,'release_user_agent_turn_lease',f"'{OLD}'")
+    other=rpc(sql,'resolve_lifetime_conversation','null',owner=OTHER)
+    other_source=rpc(sql,'accept_user_narrator_source',f"{literal(other['project_id'])},'{NEW}','Other synthetic source'",owner=OTHER)
+    sql(f"insert into public.user_agent_turn_lease(user_id,lease_token,expires_at) values('{OWNER}','{OLD}',clock_timestamp()-interval '1 second');")
+    sql(f"update public.user_lifetime_memory_obligation set created_at=clock_timestamp()-interval '1 day' where user_id='{OWNER}';")
+    command=sql.command
+    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    async def scenario():
+        blocker=await psycopg.AsyncConnection.connect(dsn)
+        worker=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
+        observer=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
+        try:
+            await blocker.execute('select 1 from public.user_agent_turn_lease where user_id=%s for update',(OWNER,))
+            await worker.execute('set role service_role')
+            running=asyncio.create_task(worker.execute('select public.drain_lifetime_memory_obligations(2)'))
+            async with asyncio.timeout(1):
+                while True:
+                    blocked=await (await observer.execute('select cardinality(pg_blocking_pids(%s))',(worker.info.backend_pid,))).fetchone()
+                    if blocked[0]:break
+                    assert not running.done()
+            # The cursor selected both ready owners before LIMIT; policy changes
+            # on the second owner while the first waits for its lease lock.
+            await observer.execute('begin')
+            await observer.execute('select 1 from public.user_memoir_project where user_id=%s and project_id=%s for update',(OTHER,other['project_id']))
+            await observer.execute('insert into public.user_lifetime_pending_policy values(%s,%s,%s,%s,1,%s,\'literal-v1\')',
+                (OTHER,other['project_id'],other['conversation_id'],other_source['id'],other_source['client_turn_id']))
+            await observer.execute('commit')
+            await blocker.rollback()
+            cursor=await running
+            return (await cursor.fetchone())[0]
+        finally:
+            await blocker.close();await worker.close();await observer.close()
+    result=asyncio.run(scenario())
+    assert result['processed']==1 and result['failed']==0 and result['deferred']==1
+    assert sql(f"select status||':'||attempts from public.user_lifetime_memory_obligation where user_id='{OTHER}';").stdout.strip()=='pending:0'
+    assert sql('select count(*) from public.user_agent_turn_lease where expires_at>clock_timestamp();').stdout.strip()=='0'

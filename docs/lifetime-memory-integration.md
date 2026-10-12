@@ -301,3 +301,72 @@ Scoped clearance evidence before the final combined-pin gate:
 
 These fixtures attest only their isolated synthetic environment. The final combined
 source still requires pinned independent testing and the native-enabled aggregate.
+
+### Exact clearance checkpoint results and subsequent blocker
+
+The independent clean `3d03633` gate passed 105 cases (one heavy case reserved),
+using native PostgreSQL and the official local Temporal CLI. The full native-enabled
+aggregate on that same immutable source then completed in 1,163.09 seconds with
+5,235 passed, 213 skipped and five failed. The five failures were photo HTTP
+acceptance fixtures failing at admission; an adapter serialized authoritative JSON
+`null` as an empty body. Its faithful repair is separately pinned at `7ea132d`: all six real PostgreSQL
+cases passed, including the five original failures and a new JSON-null regression.
+This does not relabel the original failed aggregate as green.
+
+The 213 skips comprise 205 frontend/browser/Auth-HTTP cases, four live-provider
+evaluations, three unavailable Mocker checks and one Apple Container check. All
+660 previously skipped database/opt-in cases were exercised. The eight controlled
+Mac cases above are separate evidence, not substitutes for all 205 browser cases.
+
+A subsequent source review found a policy-completeness blocker: a request with more
+than eight literal privacy controls, or a process interruption after accepting a
+source but before persisting its controls, could leave accepted restrictions
+unapplied. The pending repair must make new-source policy application atomic,
+validate the full input before acceptance for clear limit errors, and fence private
+publication/admission when historical accepted policy lacks completeness proof.
+Existing incomplete evidence must remain recoverable without pretending a fresh
+request was accepted or silently replaying older settings. Until this repair and
+its independent integrated tests pass, source clearance remains withheld. This is
+a code-level finding, not evidence of production exposure.
+
+
+### Atomic literal-policy repair contract
+
+SQL027 now independently parses supported literal controls and applies every one
+inside authoritative new-source acceptance or explicit source-edit transactions.
+The parser has fixed Unicode whitespace and word-boundary semantics shared with
+Python, exact original spans, and a request limit of eight controls / 500 characters
+per control. Overflow rolls back acceptance; the API runs the same pure check for
+a clear preaccept 413. It never truncates restrictions. Source/span identities are
+stable through the subsequent collector commit, so controls are not duplicated.
+
+New/raw imports, unmatched historical accepted sources, and preexisting mapped
+histories without proof remain behind indexed pending-policy/inventory guards.
+Private body publication, model admission and dependent jobs fail closed. Bounded
+owner-scoped metadata remains available; a fresh request is never mislabeled as
+accepted because an older source needs review. JSON maintenance errors distinguish
+pending-source identifiers from the current source, if the latter was actually
+accepted. Streaming failures retain the fixed safe terminal error; they do not
+promise the JSON metadata contract.
+
+Existing histories require separately reviewed operator reconciliation. Editing or
+withdrawing one historical source cannot clear a conversation-wide incomplete
+inventory. No authenticated caller can assert completeness, and older preferences
+are never blindly replayed over newer explicit settings. Synthetic bulk fixtures
+invoke the real private parser over their exact generated originals; this is not a
+production reconciliation procedure or approval.
+
+Composer and selected-job workers defer pending policy without losing checkpoints
+or consuming generation failures, using metadata-only owner/lease checks. Both
+blockers are filtered before bounded polling so ready tenants retain progress.
+Required memory obligations use the same eligibility and per-candidate rollback
+rule, preserving attempts when an exact pending-policy race occurs after selection.
+Unrelated authority errors are not reclassified as maintenance.
+
+Scoped repair evidence: 142 parser/atomic tests (108 pure, 34 real PostgreSQL),
+31 composer policy/clearance tests, 48 selected-job PostgreSQL cases plus 11 route/
+Temporal cases, and a 79-pass runtime/engine/obligation batch whose sole failed
+barrier fixture initially locked a deleted lease row. The corrected obligation and receipt gate passed 12 cases, including a real
+after-selection race and both pending-table fairness cases. Immutable combined
+review and the refreshed native aggregate remain required before acceptance. No
+production data, deployment, clearance or historical reconciliation was changed.

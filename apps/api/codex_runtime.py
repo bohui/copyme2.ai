@@ -3369,6 +3369,9 @@ class CodexRuntime:
                                     elif event['type'] == 'result':
                                         terminal = event['data']
                                     elif event['type'] == 'error':
+                                        from .lifetime_memory_policy import PolicyUnavailable
+                                        if governed is not None and event.get('code') == PolicyUnavailable.code:
+                                            raise PolicyUnavailable()
                                         from .lifetime_memory_activation import CanonicalActivationUnavailable
                                         if governed is not None and event.get('code') == CanonicalActivationUnavailable.code:
                                             raise CanonicalActivationUnavailable()
@@ -3408,6 +3411,10 @@ class CodexRuntime:
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
+            from .lifetime_memory_policy import PolicyUnavailable
+            if (governed is not None and error.response.status_code == 503
+                    and error.response.headers.get('X-Error-Code') == PolicyUnavailable.code):
+                raise PolicyUnavailable() from None
             from .lifetime_memory_activation import CanonicalActivationUnavailable
             if (governed is not None and error.response.status_code == 503
                     and error.response.headers.get('X-Error-Code') == CanonicalActivationUnavailable.code):

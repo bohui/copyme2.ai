@@ -8,6 +8,7 @@ is kept verbatim: an authentic quote cannot license an invented paraphrase.
 from __future__ import annotations
 
 from copy import deepcopy
+from hashlib import sha256
 import json
 import re
 from typing import Literal
@@ -19,6 +20,12 @@ from .interview_plan import collector_schema, validate_collector_result
 
 
 MAX_CONTINUITY_UPDATES = 8
+
+
+class LiteralContinuityInputError(ValueError):
+    """An explicit policy cannot be completely represented without truncation."""
+
+
 GOVERNED_CONTINUITY_INSTRUCTIONS = """
 Private governed continuity contract:
 Return continuity_updates as an array, empty when there is nothing supported.
@@ -112,16 +119,25 @@ def _current_source(context):
     return source
 
 
+# Freeze whitespace and English word-boundary behavior independently of Python
+# Unicode versions and the PostgreSQL database locale. SQL uses this explicit
+# whitespace class and C collation; English word markers are ASCII in both.
+_SPACE_CLASS = r'[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]'
+_SPACE_CHARS = ''.join(chr(code) for code in (
+    *range(0x9, 0xe), *range(0x1c, 0x21), 0x85, 0xa0, 0x1680,
+    *range(0x2000, 0x200b), 0x2028, 0x2029, 0x202f, 0x205f, 0x3000))
+_SENTENCE_PATTERN = r'[^.!?。！？\r\n\u2028\u2029]+[.!?。！？]?'
+
 # Whole direct sentences only. This is a deliberately small literal fallback,
 # not an intent classifier. Reported/quoted text anywhere makes control scope
 # ambiguous, including speech continued across a newline or sentence boundary.
 _REPORTED = re.compile(
     r'''["“”‘「」『』`：:]|(?<!\w)['’]|['’](?!\w)|\b(?:said|says|told|asked|replied|wrote|written|whispered|shouted|reported|quoted|quote|caption|script|example|hypothetical|suppose|imagine)\b|(?:说|說|告诉|告訴|写道|寫道|写着|寫著|例如|假如|如果)''',
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 _CONDITIONAL = re.compile(
     r'\b(?:if|unless|until|when|because|but|except|maybe|perhaps|whether)\b|(?:除非|如果|假如|也许|也許|可能|但是|不过|不過)',
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 _LITERAL_PATTERNS = (
     ('excluded_topic', r"(?:please\s+)?(?:do not|don't|don’t|never)\s+(?:discuss|mention|ask (?:me )?about|bring up)\s+.+"),
@@ -132,42 +148,71 @@ _LITERAL_PATTERNS = (
     ('commitment', r"I(?:'ll|’ll| will| promise to)\s+.+"),
     ('commitment', r'我(?:下次会|稍后会|之后会|以后会|会|将|打算)[^，,：:；;]+'),
 )
+_LITERAL_PATTERNS = tuple((kind, pattern.replace(' ', r'\s+').replace(r'\s', _SPACE_CLASS))
+                          for kind, pattern in _LITERAL_PATTERNS)
 _PRIVACY_KINDS = {'excluded_topic', 'paused_topic'}
 _DIRECT_KINDS = _PRIVACY_KINDS | {'commitment'}
 
 
-def _literal_directives(source):
-    text = source['text']
+def _literal_phrases(text):
     if _REPORTED.search(text):
         return []
     result = []
-    for match in re.finditer(r'[^.!?。！？\n]+[.!?。！？]?', text):
+    for match in re.finditer(_SENTENCE_PATTERN, text):
         segment = match.group()
-        start = match.start() + len(segment) - len(segment.lstrip())
-        phrase = segment.strip()
+        start = match.start() + len(segment) - len(segment.lstrip(_SPACE_CHARS))
+        phrase = segment.strip(_SPACE_CHARS)
         # Question-shaped wording is not a literal instruction or promise.
         if phrase.endswith(('?', '？')):
             continue
-        phrase = phrase.rstrip('.!。！').rstrip()
-        if not phrase or len(phrase) > 500 or _CONDITIONAL.search(phrase):
+        phrase = phrase.rstrip('.!。！').rstrip(_SPACE_CHARS)
+        if not phrase or _CONDITIONAL.search(phrase):
             continue
         for kind, pattern in _LITERAL_PATTERNS:
-            if re.fullmatch(pattern, phrase, re.IGNORECASE):
-                result.append(_ContinuityUpdate(kind=kind, text=phrase,
-                    assertion='asserted', uncertainty=(
-                        'Literal statement of future intent; completion is unconfirmed.'
-                        if kind == 'commitment' else
-                        'Literal current-source request; scope is limited to the quoted wording.'),
-                    source_id=source['id'], source_version=source['version'],
-                    char_start=start, char_end=start + len(phrase), quote=phrase))
+            if re.fullmatch(pattern, phrase, re.IGNORECASE | re.ASCII):
+                if len(phrase) > 500:
+                    if kind in _PRIVACY_KINDS:
+                        raise LiteralContinuityInputError('Explicit privacy controls must fit 500 characters without truncation')
+                    break
+                result.append({'kind': kind, 'text': phrase, 'char_start': start,
+                    'char_end': start + len(phrase)})
                 break
     return result
+
+
+def _validate_policy_count(phrases):
+    if sum(item['kind'] in _PRIVACY_KINDS for item in phrases) > MAX_CONTINUITY_UPDATES:
+        raise LiteralContinuityInputError('Too many explicit privacy controls for one continuity turn; no controls were truncated')
+
+
+def validate_literal_continuity_input(text, *, source_kind='narrator_chat'):
+    """Pure preaccept validation, using the identical postaccept literal parser.
+
+    This is an early request check, not a trusted completeness claim. Atomic
+    persistence independently establishes current-source policy completeness.
+    For already accepted replays, callers must report maintenance rather than
+    claim the source was not accepted when this validation rejects the text.
+    """
+    if not isinstance(text, str) or source_kind not in {'narrator_chat', 'narrator_transcript'}:
+        raise LiteralContinuityInputError('Original narrator text and kind are required')
+    _validate_policy_count(_literal_phrases(text))
+
+
+def _literal_directives(source):
+    phrases = _literal_phrases(source['text'])
+    _validate_policy_count(phrases)
+    return [_ContinuityUpdate(**item, assertion='asserted', uncertainty=(
+        'Literal statement of future intent; completion is unconfirmed.'
+        if item['kind'] == 'commitment' else
+        'Literal current-source request; scope is limited to the quoted wording.'),
+        source_id=source['id'], source_version=source['version'], quote=item['text'])
+        for item in phrases]
 
 
 def _same_literal(proposal, literal):
     """Allow punctuation in a model quote without widening its control span."""
     return (proposal.kind == literal.kind and proposal.char_start == literal.char_start
-            and proposal.quote.rstrip('.!。！').rstrip() == literal.quote)
+            and proposal.quote.rstrip('.!。！').rstrip(_SPACE_CHARS) == literal.quote)
 
 
 def validate_governed_collector_result(raw, context):
@@ -218,7 +263,7 @@ def _select_updates(literal, proposed):
     # final persistence use identical quote spans, uncertainty and record IDs.
     controls = [item for item in literal if item.kind in _PRIVACY_KINDS]
     if len(controls) > MAX_CONTINUITY_UPDATES:
-        raise ValueError('Too many explicit privacy controls for one continuity turn')
+        raise LiteralContinuityInputError('Too many explicit privacy controls for one continuity turn; no controls were truncated')
     commitments = [item for item in literal if item.kind == 'commitment']
     other = [item for item in proposed if item.kind not in _DIRECT_KINDS]
     return [*controls, *commitments, *other][:MAX_CONTINUITY_UPDATES]
@@ -229,8 +274,9 @@ def _rows(selected):
     selected.sort(key=lambda item: (item.char_start, item.char_end, item.kind))
     rows = []
     for item in selected:
-        record_id = str(uuid5(NAMESPACE_URL,
-            f'memoir:continuity:{item.source_id}:{item.source_version}:{item.kind}:{item.char_start}:{item.char_end}'))
+        seed = f'memoir:continuity:{item.source_id}:{item.source_version}:{item.kind}:{item.char_start}:{item.char_end}'
+        record_id = ('literal-v1:' + sha256(seed.encode('utf-8')).hexdigest()
+                     if item.kind in _PRIVACY_KINDS else str(uuid5(NAMESPACE_URL, seed)))
         rows.append({'record_id': record_id, 'kind': item.kind, 'data': {
             'text': item.text, 'assertion': item.assertion, 'uncertainty': item.uncertainty,
             'source_refs': [{'source_id': item.source_id, 'version': item.source_version,

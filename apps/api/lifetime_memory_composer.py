@@ -126,6 +126,19 @@ async def _compose(page,worker):
 
 
 async def execute_lifetime_lane(job,worker,*,page_quantum=8):
+    """Policy maintenance releases only metadata authority, never stale prose."""
+    from .lifetime_memory_policy import is_policy_pending
+    try:
+        return await _execute_lifetime_lane(job,worker,page_quantum=page_quantum)
+    except Exception as error:
+        if not is_policy_pending(error):
+            raise
+        return await worker.broker.rpc('defer_lifetime_memoir_lane_policy',
+            p_lane_id=job['lane_id'],p_token=job['token'],p_user_id=job['user_id'],
+            p_project_id=job['project_id'],p_conversation_id=job['conversation_id'])
+
+
+async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
     """Bound each lease's work; completed pages survive yielding and crashes."""
     if not 1<=page_quantum<=32: raise ValueError('Invalid lane page quantum')
     from .lifetime_memory_lane_engine import LaneGenerationPaused

@@ -22,6 +22,11 @@ class GenerationPaused(RuntimeError):
     pass
 
 
+class PolicyMaintenancePending(MaintenancePending):
+    """Metadata-only recovery; never imply the current request was accepted."""
+    pass
+
+
 class LifetimePublicationContext:
     def __init__(self, emitter=None):
         self.emitter=emitter;self.fence=None;self.scope=None
@@ -72,7 +77,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     from .conversation_locale import detect_reply_locale,explicit_request
     from .conversation_phase import explicit_action,resolve_phase
     from .interview_plan import CollectorVisibleStream,collector_instructions,public_interview_fields
-    from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,literal_continuity_updates,validate_governed_collector_result)
+    from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,LiteralContinuityInputError,validate_literal_continuity_input,validate_governed_collector_result)
     from .lifetime_memory_engine import GovernedCollectorInput,governed_request_overhead,run_governed_collector
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
     from .recall import storage_recall_status
@@ -80,6 +85,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     if len(text.encode('utf-8'))>16000:
         raise InputLimitExceeded('This message exceeds the governed request budget; the original was not accepted or truncated')
     from .lifetime_memory_activation import CanonicalActivationUnavailable
+    from .lifetime_memory_policy import PolicyUnavailable,is_policy_pending
     import httpx
     try:
         identity_raw=await asyncio.to_thread(storage.lifetime_rpc,'resolve_lifetime_conversation',p_project_id=project_id)
@@ -98,16 +104,44 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     try:
         await scope.enter_async_context(runtime._lock(storage.user_id))
         lease=await scope.enter_async_context(runtime._storage_lease(storage,timeout=5))
-        async def call(name,**args):return await lease.io(storage.lifetime_rpc,name,**args)
+        accepted_source_id=None
+        async def policy_pending(status=None):
+            status=status or await lease.io(storage.lifetime_rpc,'read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
+            error=PolicyMaintenancePending('Accepted conversation policy requires maintenance before private content can be used')
+            error.pending_source_id=status.get('pending_source_id')
+            error.pending_source_version=status.get('pending_source_version')
+            error.pending_client_turn_id=status.get('pending_client_turn_id')
+            if accepted_source_id is not None:
+                error.accepted_source_id=accepted_source_id
+                error.client_turn_id=client_turn_id
+            return error
+        async def call(name,**args):
+            try:
+                return await lease.io(storage.lifetime_rpc,name,**args)
+            except httpx.HTTPStatusError as error:
+                if is_policy_pending(error):
+                    raise await policy_pending() from None
+                raise
         entitlement=await lease.io(storage.story_entitlement)
         access=await lease.io(storage_recall_status,storage,entitlement)
         fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
         publication.set_fence(fence)
         client_turn_id=client_turn_id or str(uuid4())
         replay=None
+        already_accepted=False
         if user_response:
-            await call('validate_lifetime_replay_input',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id,p_text=text,p_kind=source_kind)
+            already_accepted=await call('validate_lifetime_replay_input',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id,p_text=text,p_kind=source_kind)
             replay=await call('read_lifetime_reply',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id)
+        policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
+        if policy_status.get('pending'):
+            raise await policy_pending(policy_status)
+        if user_response and replay is None:
+            try:
+                validate_literal_continuity_input(text,source_kind=source_kind)
+            except LiteralContinuityInputError:
+                if already_accepted:
+                    raise await policy_pending() from None
+                raise InputLimitExceeded('This message exceeds the explicit privacy-control request limit; the original was not accepted or truncated') from None
         if replay is not None:
             response={**replay,'cached':True,'recall_status':access}
         elif access and access['payment_required']:
@@ -126,6 +160,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 language=detect_reply_locale(text) or language,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection)
             source=accepted.get('source')
             if not source:raise ValueError('Governed narrator turn requires a canonical source')
+            accepted_source_id=source['id']
             profile=await lease.io(storage.profile)
             selected_language=explicit_request(text) or profile.get('preferred_language') or detect_reply_locale(text) or language
             if selected_language not in {'en-AU','zh-CN'}:selected_language='en-AU'
@@ -133,9 +168,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 language_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
                 selected_language=await call('set_lifetime_language',p_fence=language_fence,p_language=selected_language,p_explicit=bool(explicit_request(text)))
             fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
-            controls=[item for item in literal_continuity_updates({'source':source}) if item['kind'] in {'excluded_topic','paused_topic'}]
-            if controls:
-                fence=await call('persist_lifetime_continuity_updates',p_fence=fence,p_updates=controls,p_literal_only=True)
+            # Source acceptance atomically persists the complete literal policy.
             publication.set_fence(fence)
             if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                 'accepted_source_id':source['id'],**public_interview_fields(accepted)}})
@@ -189,6 +222,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
                         api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
                         timeout=runtime.timeout,on_delta=delta if on_delta else None,effort=collector.effort,issue14_admission=runtime._issue14_admission)
+            except PolicyUnavailable:
+                raise await policy_pending() from None
             except CanonicalActivationUnavailable as error:
                 pending=MaintenancePending('The source is accepted; conversation generation is awaiting operator clearance')
                 pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
@@ -246,5 +281,13 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
         if isinstance(error,InputLimitExceeded):raise HTTPException(413,str(error)) from None
         import httpx
         if isinstance(error,httpx.HTTPStatusError):raise HTTPException(409 if error.response.status_code in {400,409} else 503,'The accepted conversation state changed; reconcile the saved receipt before retrying') from None
+        if isinstance(error,PolicyMaintenancePending):
+            raise HTTPException(503,{'state':'policy_maintenance_pending','message':str(error),
+                'pending_source_id':getattr(error,'pending_source_id',None),
+                'pending_source_version':getattr(error,'pending_source_version',None),
+                'pending_client_turn_id':getattr(error,'pending_client_turn_id',None),
+                **({'accepted_source_id':error.accepted_source_id,'client_turn_id':error.client_turn_id}
+                   if getattr(error,'accepted_source_id',None) is not None else {})},
+                headers={'X-Error-Code':'LIFETIME_POLICY_PENDING','Retry-After':'60'}) from None
         if isinstance(error,MaintenancePending):raise HTTPException(503,{'state':'source_accepted','message':str(error),'accepted_source_id':getattr(error,'accepted_source_id',None),'client_turn_id':getattr(error,'client_turn_id',None)},headers={'X-Error-Code':'LIFETIME_MAINTENANCE_PENDING'}) from None
         raise

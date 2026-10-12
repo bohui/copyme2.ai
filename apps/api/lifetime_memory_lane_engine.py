@@ -389,6 +389,9 @@ class LanePublication:
                     raise CanonicalActivationUnavailable() from None
                 raise
             except Error as error:
+                from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+                if is_policy_pending(error):
+                    raise PolicyUnavailable() from None
                 raise PublicationUnavailable('Bounded lane page is unavailable or stale') from error
             allowance = min(self.send_timeout, lease_deadline - asyncio.get_running_loop().time() - .1)
             if allowance <= 0:
@@ -459,6 +462,9 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
                     'Content-Length':str(len(body._content))},content=body)
             if response.status_code == 503 and response.headers.get('X-Error-Code') == LaneGenerationPaused.code:
                 raise LaneGenerationPaused('Bounded lifetime generation is paused; retry later')
+            from .lifetime_memory_policy import PolicyUnavailable
+            if response.status_code == 503 and response.headers.get('X-Error-Code') == PolicyUnavailable.code:
+                raise PolicyUnavailable()
             from .lifetime_memory_activation import CanonicalActivationUnavailable
             if response.status_code == 503 and response.headers.get('X-Error-Code') == CanonicalActivationUnavailable.code:
                 raise CanonicalActivationUnavailable()

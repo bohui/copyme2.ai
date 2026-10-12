@@ -324,3 +324,84 @@ def test_additional_reported_speech_boundaries_cannot_grant_privacy_authority(te
     assert validate_governed_collector_result(reply(), ctx)['continuity_updates'] == []
     with pytest.raises(ValueError):
         validate_governed_collector_result(reply([update(ctx, 'excluded_topic', quote)]), ctx)
+
+
+@pytest.mark.parametrize('template', ['Do not mention topic {n}.', '不要讨论话题{n}。'])
+def test_preaccept_policy_validation_accepts_eight_and_rejects_nine_without_truncation(template):
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input, LiteralContinuityInputError
+    eight = ' '.join(template.format(n=n) for n in range(8))
+    assert validate_literal_continuity_input(eight) is None
+    assert len(validate_governed_collector_result(reply(), context(eight))['continuity_updates']) == 8
+    nine = eight + ' ' + template.format(n=8)
+    with pytest.raises(LiteralContinuityInputError, match='Too many'):
+        validate_literal_continuity_input(nine)
+    with pytest.raises(LiteralContinuityInputError, match='Too many'):
+        validate_governed_collector_result(reply(), context(nine))
+
+
+def test_preaccept_policy_limit_counts_bilingual_exclusions_and_pauses_together():
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input, LiteralContinuityInputError
+    parts = ["Don't discuss my school.", "Let's set aside my workplace for now."]
+    parts += [f'先不聊话题{n}。' for n in range(6)]
+    assert validate_literal_continuity_input(' '.join(parts)) is None
+    with pytest.raises(LiteralContinuityInputError):
+        validate_literal_continuity_input(' '.join([*parts, '不要讨论我的家。']))
+
+
+@pytest.mark.parametrize('prefix', ['She said:\n', '他写道：\n', 'For example: '])
+def test_preaccept_reported_noncontrols_are_not_counted_as_current_preferences(prefix):
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input
+    text = prefix + ' '.join(f'Do not mention topic {n}.' for n in range(9))
+    assert validate_literal_continuity_input(text) is None
+    assert validate_governed_collector_result(reply(), context(text))['continuity_updates'] == []
+
+
+def test_preaccept_retries_are_pure_and_match_source_bound_validation():
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input, literal_continuity_updates
+    text = "Don't discuss my school. I'll bring the photos next time."
+    before = context(text)
+    for _ in range(3):
+        assert validate_literal_continuity_input(text, source_kind='narrator_transcript') is None
+        assert literal_continuity_updates(before) == literal_continuity_updates(context(text))
+    assert before == context(text)
+
+
+@pytest.mark.parametrize('text', ['Do not discuss ' + 'x' * 500, '不要讨论' + '字' * 500])
+def test_recognized_overlong_policy_is_rejected_not_silently_skipped(text):
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input, LiteralContinuityInputError
+    with pytest.raises(LiteralContinuityInputError, match='500'):
+        validate_literal_continuity_input(text)
+    with pytest.raises(LiteralContinuityInputError, match='500'):
+        validate_governed_collector_result(reply(), context(text))
+
+
+def test_preaccept_many_commitments_do_not_consume_privacy_control_bound():
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input
+    text = ' '.join(f'I will bring photo {n}.' for n in range(20))
+    assert validate_literal_continuity_input(text) is None
+
+
+@pytest.mark.parametrize('space', ['\u00a0', '\u2003', '\u3000', '\u2028', '\u2029', '\r', '\t'])
+def test_literal_parser_has_explicit_unicode_whitespace_and_character_offsets(space):
+    from apps.api.lifetime_memory_continuity import literal_continuity_updates
+    text = space + 'Do not mention my school.' + space
+    rows = literal_continuity_updates(context(text))
+    assert len(rows) == 1
+    ref = rows[0]['data']['source_refs'][0]
+    assert ref['char_start'] == len(space)
+    assert ref['quote'] == text[ref['char_start']:ref['char_end']]
+
+
+def test_internal_unicode_spacing_is_recognized_without_normalizing_source_words():
+    from apps.api.lifetime_memory_continuity import literal_continuity_updates
+    text = 'Do\u00a0not\u2003mention\u3000my school.'
+    rows = literal_continuity_updates(context(text))
+    assert len(rows) == 1 and rows[0]['data']['text'] == text[:-1]
+
+
+@pytest.mark.parametrize('separator', ['\r', '\r\n', '\u2028', '\u2029'])
+def test_unicode_line_separators_do_not_merge_nine_controls_into_one(separator):
+    from apps.api.lifetime_memory_continuity import validate_literal_continuity_input, LiteralContinuityInputError
+    text = separator.join(f'Do not mention topic {n}' for n in range(9))
+    with pytest.raises(LiteralContinuityInputError, match='Too many'):
+        validate_literal_continuity_input(text)

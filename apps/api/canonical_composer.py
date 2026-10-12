@@ -366,6 +366,9 @@ async def compose_shared_snapshot(job, worker):
     failures = [result for result in prepared if isinstance(result, BaseException)]
     if failures:
         if job.get('governed_page'):
+            from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+            if any(is_policy_pending(error) for error in failures):
+                raise PolicyUnavailable() from None
             from .lifetime_memory_lane_engine import LaneGenerationPaused
             from .lifetime_memory_activation import CanonicalActivationUnavailable
             deferred = next((error for error in failures if isinstance(error, (LaneGenerationPaused, CanonicalActivationUnavailable))), None)

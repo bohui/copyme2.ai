@@ -147,7 +147,15 @@ class MemoryEventWorker:
     async def execute_lane(self, lane_id):
         started = time.monotonic()
         run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '900'))
-        job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
+        try:
+            job = await self.broker.rpc('claim_memoir_lane', p_lane_id=lane_id, p_run_seconds=run_seconds)
+        except Exception as error:
+            from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+            if not is_policy_pending(error):
+                raise
+            # A rejected claim is rolled back atomically: there is no lease or
+            # body authority to release and no generation failure to count.
+            return {'status':'pending','error':PolicyUnavailable.code,'retrieval_complete':False}
         if not job:
             state = await self.broker.rpc('read_memoir_lane_state', p_lane_id=lane_id)
             return {'status': 'retry_required' if state and state['state']=='retry_required'

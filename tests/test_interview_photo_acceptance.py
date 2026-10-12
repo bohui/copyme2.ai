@@ -46,7 +46,11 @@ class SqlStorage(UserStorage):
             else:rendered="convert_from(decode('"+base64.b64encode(str(value).encode()).decode()+"','base64'),'UTF8')" if '\n' in str(value) else literal(value)
             args.append(name+'=>'+rendered)
         value=self.call(path.rsplit('/',1)[-1],','.join(args))
-        return httpx.Response(200,json=value,request=httpx.Request(method,'http://disposable-sql.test'+path))
+        # PostgREST returns the JSON literal null for an unmapped owner.
+        # httpx's json=None means no response body, which is not that contract.
+        return httpx.Response(200,content=json.dumps(value,ensure_ascii=False).encode('utf-8'),
+            headers={'Content-Type':'application/json'},
+            request=httpx.Request(method,'http://disposable-sql.test'+path))
     def agent_turn_by_id(self,project,turn):return self.row('user_memory',f"project_id={literal(project)} and client_turn_id={literal(turn)}")
     def narrator_source_by_turn(self,project,turn):return self.row('user_narrator_source',f"project_id={literal(project)} and client_turn_id={literal(turn)}")
     def completed_round_by_turn(self,project,turn):return self.row('user_completed_round',f"project_id={literal(project)} and turn_id={literal(turn)}")
@@ -162,3 +166,16 @@ def test_selected_undiscussed_photo_is_deferred_without_false_event(client,sql):
     before=len(calls)
     _,replayed=submit(http,'小时候我喜欢在大门旁捉虫子。',client_turn_id=turn)
     assert replayed['reply']==result['reply'] and len(calls)==before
+
+
+def test_sql_storage_preserves_authoritative_unmapped_json_null():
+    statements=[]
+    def sql(statement, *, check=True):
+        assert check is True
+        statements.append(statement)
+        return SimpleNamespace(stdout='null\n')
+    storage=SqlStorage(sql)
+    assert storage.lifetime_rpc('read_lifetime_project_identity',p_project_id=None) is None
+    assert len(statements)==1
+    assert 'public.read_lifetime_project_identity(p_project_id=>null)' in statements[0]
+    assert OWNER in statements[0] and 'set role authenticated' in statements[0].lower()

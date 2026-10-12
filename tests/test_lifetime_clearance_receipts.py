@@ -36,3 +36,32 @@ def test_preaccept_clearance_has_no_accepted_receipt(monkeypatch, detail, expect
         assert not actual.headers or 'X-Error-Code' not in actual.headers
     assert 'private' not in str(actual.detail).lower()
     storage.client.close.assert_called_once()
+
+
+@pytest.mark.parametrize('current_accepted',[False,True])
+def test_pending_prior_policy_reports_metadata_without_inventing_current_acceptance(monkeypatch,current_accepted):
+    from apps.api.lifetime_memory_runtime import PolicyMaintenancePending
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','synthetic-unopened-dsn')
+    storage=SimpleNamespace(user_id='00000000-0000-0000-0000-000000000060',client=Mock())
+    async def turn(*args,**kwargs):
+        pending=PolicyMaintenancePending('Accepted conversation policy requires maintenance before private content can be used')
+        pending.pending_source_id='00000000-0000-0000-0000-000000000061'
+        pending.pending_source_version=2
+        pending.pending_client_turn_id='00000000-0000-0000-0000-000000000062'
+        if current_accepted:
+            pending.accepted_source_id='00000000-0000-0000-0000-000000000063'
+            pending.client_turn_id='00000000-0000-0000-0000-000000000064'
+        raise pending
+    with pytest.raises(HTTPException) as caught:
+        asyncio.run(lifetime_http_turn(SimpleNamespace(turn=turn),storage,'A different fresh turn',accept='application/json',options={}))
+    assert caught.value.status_code==503
+    assert caught.value.headers['X-Error-Code']=='LIFETIME_POLICY_PENDING'
+    assert caught.value.detail['state']=='policy_maintenance_pending'
+    assert caught.value.detail['pending_source_version']==2
+    if current_accepted:
+        assert caught.value.detail['accepted_source_id'].endswith('63')
+        assert caught.value.detail['client_turn_id'].endswith('64')
+    else:
+        assert 'accepted_source_id' not in caught.value.detail
+        assert 'client_turn_id' not in caught.value.detail
+    storage.client.close.assert_called_once()

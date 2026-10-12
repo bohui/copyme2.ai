@@ -351,3 +351,78 @@ def test_clearance_rejection_preserves_accepted_source_and_exact_retry(sql, tmp_
     assert len(calls) == 2
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip() == '1'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'
+
+
+@pytest.mark.parametrize('language,source_kind',[('en-AU','narrator_chat'),('zh-CN','narrator_transcript')])
+def test_privacy_limit_rejects_before_acceptance_and_exact_eight_retry_is_atomic(sql,tmp_path,monkeypatch,language,source_kind):
+    from apps.api.main import create_app
+    command=sql.command
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
+    controls=[f'Do not discuss topic{i}.' if language=='en-AU' else f'不要讨论话题{i}。' for i in range(9)]
+    packets=[]
+    def provider(request):
+        packet=json.loads(json.loads(request.content)['governed']['packet']);packets.append(packet)
+        assert len(packet['pinned']['excluded_topics'])==8
+        for directive in controls[:8]:
+            assert directive.rstrip('.。') in ' '.join(packet['pinned']['excluded_topics'])
+        output=proposal(mode='extract',name=None,question='What would you like to share?')
+        output['acknowledgement']='We can choose another memory.'
+        return httpx.Response(200,json={'thread_id':'privacy-boundary','reply':json.dumps(output),'artifacts':[]})
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
+    monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
+    turn=str(uuid4())
+    payload={'text':' '.join(controls),'client_turn_id':turn,'language':language,'source_kind':source_kind}
+    with TestClient(create_app(MemoryStore())) as client:
+        rejected=client.post('/v1/agent/turn',json=payload)
+        assert rejected.status_code==413,rejected.text
+        assert 'not accepted or truncated' in rejected.text
+        assert not packets
+        for table in ['user_narrator_source','user_interview_turn','user_completed_round']:
+            assert sql(f'select count(*) from public.{table};').stdout.strip()=='0'
+        payload['text']=' '.join(controls[:8])
+        accepted=client.post('/v1/agent/turn',json=payload)
+        assert accepted.status_code==200,accepted.text
+        assert accepted.json()['conversation_saved']
+        assert sql("select count(*) from public.user_lifetime_continuity where kind in ('excluded_topic','paused_topic');").stdout.strip()=='8'
+        replay=client.post('/v1/agent/turn',json=payload)
+        assert replay.status_code==200 and replay.json()['cached'],replay.text
+        following=client.post('/v1/agent/turn',json={**payload,'client_turn_id':str(uuid4()),'text':'I remember a sunny afternoon.'})
+        assert following.status_code==200,following.text
+    assert len(packets)==2
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
+    assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='2'
+
+
+def test_prior_unreviewed_policy_blocks_fresh_http_turn_with_truthful_metadata(sql,tmp_path,monkeypatch):
+    from apps.api.main import create_app
+    identity=rpc(sql,'resolve_lifetime_conversation','null')
+    prior_turn=str(uuid4());prior_source=str(uuid4())
+    # Model a raw imported accepted original. Only authoritative acceptance may
+    # clear the policy marker; importing evidence does not prove interpretation.
+    sql(f"""insert into public.user_narrator_source(user_id,project_id,id,client_turn_id,sequence,text,kind,language)
+      values('{OWNER}',{literal(identity['project_id'])},'{prior_source}','{prior_turn}',1,'Do not discuss my school.','narrator_chat','en-AU');
+      update public.user_memoir_project set source_sequence=1 where user_id='{OWNER}' and project_id={literal(identity['project_id'])};""")
+    command=sql.command
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
+    calls=[]
+    def provider(request):
+        calls.append(request)
+        raise AssertionError('Pending policy must not reach provider admission')
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
+    monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
+    fresh_turn=str(uuid4())
+    with TestClient(create_app(MemoryStore())) as client:
+        response=client.post('/v1/agent/turn',json={'project_id':identity['project_id'],'client_turn_id':fresh_turn,'text':'A different memory.'})
+    assert response.status_code==503,response.text
+    detail=response.json()['detail']
+    assert response.headers['X-Error-Code']=='LIFETIME_POLICY_PENDING'
+    assert detail['state']=='policy_maintenance_pending'
+    assert detail['pending_source_id']==prior_source and detail['pending_client_turn_id']==prior_turn
+    assert 'accepted_source_id' not in detail and fresh_turn not in response.text
+    assert 'school' not in response.text and calls==[]
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
+    assert sql('select count(*) from public.user_interview_turn;').stdout.strip()=='0'
+    assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'

@@ -90,6 +90,9 @@ class ReadPublication:
                     result = await connection.execute('select public.lock_lifetime_read_publication(%s)', (Jsonb(snapshot),))
                     remaining = float((await result.fetchone())[0])
             except Error as error:
+                from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+                if is_policy_pending(error):
+                    raise PolicyUnavailable() from None
                 raise PublicationUnavailable('Read snapshot is unavailable or stale') from error
             allowance = min(self.send_timeout, remaining - .1)
             if allowance <= 0:
