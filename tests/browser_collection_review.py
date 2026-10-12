@@ -1,7 +1,9 @@
 """Browser contract check with synthetic collection responses; no LLM or private memories."""
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
+from copy import deepcopy
 import json
+import re
 import traceback
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -91,15 +93,42 @@ def install_collection_startup(page, locale):
     return state
 
 
+def start_collection_story(page, locale, *, timeout=10000):
+    """Observe completed setup requests, not an already-idle landing document."""
+    consent_path = '/api/v1/memoir/projects/' + COLLECTION_PROJECT + '/consents'
+    required = [('/api/v1/memoir/projects', 'POST', None, 201),
+        (consent_path, 'POST', 'recording', 200),
+        (consent_path, 'POST', 'storyteller_assent', 200),
+        ('/api/v1/memoir/projects/' + COLLECTION_PROJECT + '/journey', 'GET', None, 200)]
+    def matches(request, path, method, purpose):
+        if request.method != method or urlparse(request.url).path != path:
+            return False
+        return purpose is None or request.post_data_json.get('purpose') == purpose
+
+    # Install every event barrier before the click: fast responses cannot be
+    # missed, and delayed consent remains part of the same bounded startup.
+    with ExitStack() as stack:
+        completed = [(stack.enter_context(page.expect_request_finished(
+            lambda request, path=path, method=method, purpose=purpose: matches(request, path, method, purpose),
+            timeout=timeout)), status) for path, method, purpose, status in required]
+        page.get_by_role('button', name='Begin my story' if locale == 'en-AU' else '开始讲我的故事').click(timeout=timeout)
+    for event, status in completed:
+        response = event.value.response()
+        assert response is not None and response.status == status
+    expect(page).to_have_url(re.compile('/memoir/interview/' + re.escape(COLLECTION_PROJECT) + r'(?:[?#].*)?$'), timeout=timeout)
+    expect(page.locator('[data-profile-trigger]')).to_be_visible(timeout=timeout)
+
+
 @contextmanager
 def collection_diagnostics(page, startup, output, label):
     """Persist useful evidence before re-raising the original browser failure."""
     try:
         yield
     except Exception as error:
+        frozen_startup = deepcopy(startup)
         evidence = {'error': str(error), 'error_stack': traceback.format_exc(),
             'page_url': page.url, 'frames': [{'name': frame.name, 'url': frame.url} for frame in page.frames],
-            'startup': startup}
+            'startup': frozen_startup}
         try:
             page.screenshot(path=str(output / (label + '-failure.png')), full_page=True)
         except Exception as screenshot_error:
@@ -145,8 +174,7 @@ def main():
                 'result': {'title': 'School days', 'sections': [{'title': 'Growing up', 'memory_ids': ['school']}]}}))
             with collection_diagnostics(page, startup, output, f'collection-{locale}'):
                 page.goto(args.base_url, wait_until='networkidle')
-                page.get_by_role('button', name='Begin my story' if locale == 'en-AU' else '开始讲我的故事').click()
-                page.wait_for_load_state('networkidle')
+                start_collection_story(page, locale)
                 assert startup['created'] == 1 and set(startup['consents']) == {'recording', 'storyteller_assent'}
                 assert not startup['unexpected'], startup['unexpected']
                 page.locator('[data-profile-trigger]').click()

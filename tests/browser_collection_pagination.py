@@ -4,7 +4,7 @@ import json
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
-from browser_collection_review import install_collection_startup, collection_diagnostics
+from browser_collection_review import install_collection_startup, collection_diagnostics, start_collection_story
 
 FIRST='11111111-1111-4111-8111-111111111101'
 SECOND='11111111-1111-4111-8111-111111111102'
@@ -59,8 +59,7 @@ def main():
             page.route('**/agent/tasks/*/retry',retry)
             with collection_diagnostics(page,startup,output,f'collection-pagination-{locale}'):
                 page.goto(args.base_url,wait_until='networkidle')
-                page.get_by_role('button',name='Begin my story' if locale=='en-AU' else '开始讲我的故事').click()
-                page.wait_for_load_state('networkidle')
+                start_collection_story(page,locale)
                 assert startup['created']==1 and set(startup['consents'])=={'recording','storyteller_assent'}
                 assert not startup['unexpected'],startup['unexpected']
                 page.locator('[data-profile-trigger]').click();page.locator('[data-profile-action="collection"]').click()

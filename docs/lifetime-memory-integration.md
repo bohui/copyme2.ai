@@ -160,7 +160,11 @@ implemented. The remaining gates are specific:
   preserving immutable execution input. Remaining failures were explicit legacy
   authority/transport fixtures and an obsolete pause-wording assertion. The focused
   repaired set passed 322 cases, with 95 strict identity-fixture cases rerun and 58
-  prompt/place cases passing separately. A fresh full aggregate is still required.
+  prompt/place cases passing separately. The fresh immutable 9b8b391 ordinary
+  aggregate then passed: 4,506 passed, 873 skipped, three warnings in 473.04 seconds,
+  explicit exit zero. Production logic is unchanged through 2796a12; its later
+  browser-fixture/doc delta passed an independent 85-case clean-archive gate. This
+  is base-full-plus-reviewed-delta evidence, not an exact 2796a12 full-suite run.
   Skips comprise 660 PostgreSQL/opt-in database cases, 205 frontend/browser/Auth-HTTP,
   four live-provider evaluations, three Mocker checks and one Apple Container check.
 - Exact remote beb2dc68 (tree 22a4f07) Mac browser execution failed all three runners
@@ -170,6 +174,13 @@ implemented. The remaining gates are specific:
   Fixture repairs retain every UI assertion, add precise startup/origin tests and
   record error stacks, frame URLs and unexpected requests. Full repaired Mac cases
   remain required; native checks are separate evidence.
+- Repaired remote fc9de17 (tree 0913ef7) Mac rerun passed all four lifetime-read
+  cases. Each collection runner failed its immediate startup count/consent assertion
+  in the first locale, leaving the second unexecuted. Later diagnostics showed
+  completed startup without API/browser errors, but their mutable snapshot cannot
+  prove the earlier state. A bounded completion wait and immutable pre-screenshot
+  diagnostic snapshot were repaired in 99b28d5 with 13 focused regressions and
+  six route cases passing. Collection behavior remains unverified until rerun.
 - Remote beb2dc68 tree and all 157 changed blob SHAs were independently verified
   against local 0aaf4ab. Later repair commits require new remote parity and review.
   No PR-triggered remote workflows or statuses were reported on that checkpoint.
