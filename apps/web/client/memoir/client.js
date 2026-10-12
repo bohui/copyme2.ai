@@ -28,6 +28,9 @@ const state = {
   project: null,
   projectPrincipalId: null,
   projectRecoveryBlocked: null,
+  projectRecovery: null,
+  storyStart: null,
+  profileMenuScope: null,
   navigationGeneration: 0,
   navigationPath: null,
   session: null,
@@ -332,6 +335,8 @@ function invalidateProjectNavigation() {
   for (const message of state.chat) if (message.streaming) message.streaming = false;
   persistChatHistory();
   state.navigationGeneration = (state.navigationGeneration || 0) + 1;
+  state.projectRecovery?.finish();
+  state.profileMenuScope = null;
   for (const stream of state.conversationStreams || []) stream.abort();
   state.conversationStreams?.clear();
   state.photoRequests?.clear();
@@ -2334,6 +2339,7 @@ function profileMenu() {
 }
 
 function closeProfileMenu(restoreFocus = false) {
+  state.profileMenuScope = null;
   const menu = $("[data-profile-menu]");
   const trigger = menu?.querySelector("[data-profile-trigger]");
   const dropdown = menu?.querySelector(".profile-dropdown");
@@ -2347,7 +2353,8 @@ function closeProfileMenu(restoreFocus = false) {
 function refreshProfileMenu() {
   const menu = $("[data-profile-menu]");
   if (!menu) return;
-  const open = menu.querySelector("[data-profile-trigger]")?.getAttribute("aria-expanded") === "true";
+  const open = state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)
+    && menu.querySelector("[data-profile-trigger]")?.getAttribute("aria-expanded") === "true";
   menu.outerHTML = profileMenu();
   bindProfileMenu();
   if (open) $("[data-profile-trigger]")?.click();
@@ -2364,6 +2371,7 @@ function bindProfileMenu() {
       closeProfileMenu();
       return;
     }
+    state.profileMenuScope = captureProjectScope();
     menu.classList.add("is-open");
     trigger.setAttribute("aria-expanded", "true");
     dropdown.hidden = false;
@@ -2945,19 +2953,46 @@ function renderMemoirLanding() {
 }
 
 async function startStory(mode = "self") {
-  await startMemoirStory(mode);
+  const ownerId = state.supabase?.user?.id;
+  const token = state.supabase?.accessToken;
+  const generation = state.navigationGeneration || 0;
+  const pending = state.storyStart;
+  if (pending && pending.mode === mode && pending.ownerId === ownerId
+      && pending.token === token && pending.generation === generation) return pending.promise;
+  const operation = {mode, ownerId, token, generation};
+  state.storyStart = operation;
+  try {
+    operation.promise = startMemoirStory(mode);
+    return await operation.promise;
+  } finally {
+    if (state.storyStart === operation) state.storyStart = null;
+  }
 }
 
 async function startMemoirStory(mode = "self") {
   let generation = state.navigationGeneration || 0;
   let ownerId = state.supabase?.user?.id;
-  const current = () => generation === (state.navigationGeneration || 0) && ownerId === state.supabase?.user?.id;
+  let token = state.supabase?.accessToken;
+  const current = () => generation === (state.navigationGeneration || 0) && ownerId === state.supabase?.user?.id
+    && !state.explicitSignOutInProgress;
   try {
     stopVoiceMode({ silent: true });
     if (state.authPromise) await state.authPromise;
     if (generation !== (state.navigationGeneration || 0)) return;
     ownerId = state.supabase?.user?.id;
-    if (state.loading) return;
+    token = state.supabase?.accessToken;
+    // Auth readiness is earlier than saved-project authorization/history. A
+    // locale repaint may already have exposed Begin while boot is recovering.
+    const recovery = state.projectRecovery;
+    if (recovery?.generation === generation) {
+      await recovery.promise;
+      if (!current() || token !== state.supabase?.accessToken) return;
+      if (recovery.failed && mode === "self") {
+        toast(translate("AuthReminder.historyError"));
+        return;
+      }
+    }
+    if (!current() || state.loading) return;
     if (mode === "self" && state.projectRecoveryBlocked) {
       toast(translate("AuthReminder.historyError"));
       return;
@@ -3202,6 +3237,8 @@ async function hydrateAccountHistory(history = null) {
 }
 
 function renderStory() {
+  const profileFocus = document.activeElement?.dataset?.profileAction;
+  const profileTriggerFocused = document.activeElement?.hasAttribute?.("data-profile-trigger");
   if (state.project?.id && state.supabase?.accessToken) void state.conversationPhase.ensure();
   const phaseFocus = document.activeElement?.dataset?.phaseAction;
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
@@ -3253,6 +3290,15 @@ function renderStory() {
     </div>`;
   bindViewActions();
   bindProfileMenu();
+  if (state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)) {
+    // Background greeting/readiness/draft paints must not dismiss an in-flight
+    // menu choice. Navigation, owner changes and explicit close discard intent.
+    $("[data-profile-trigger]")?.click();
+    const focus = profileTriggerFocused ? $("[data-profile-trigger]")
+      : ["settings", "collection", "attached-history", "login", "logout"].includes(profileFocus)
+        ? $(`[data-profile-action="${profileFocus}"]`) : null;
+    focus?.focus({preventScroll: true});
+  } else state.profileMenuScope = null;
   const nextMap = $("[data-cesium-place]");
   if (previousMap && nextMap && JSON.stringify(previousMap.dataset) === JSON.stringify(nextMap.dataset)) {
     nextMap.closest(".place-journey-scene").replaceWith(previousScene);
@@ -5403,6 +5449,13 @@ async function addTimeline() {
 
 async function boot() {
   const generation = invalidateProjectNavigation();
+  let releaseRecovery;
+  const recovery = {generation, failed: true, promise: new Promise(resolve => {releaseRecovery = resolve;})};
+  recovery.finish = () => {
+    if (state.projectRecovery === recovery) state.projectRecovery = null;
+    releaseRecovery();
+  };
+  state.projectRecovery = recovery;
   const path = currentPath();
   state.navigationPath = path;
   const current = () => generation === state.navigationGeneration;
@@ -5470,7 +5523,12 @@ async function boot() {
           // Canonical source masking must run before a pending receipt can
           // render any locally cached history during reconnect.
           await state.photoTurns?.recover();
-        } catch { if (current()) toast(translate("AuthReminder.historyError")); }
+        } catch {
+          if (current()) {
+            state.projectRecoveryBlocked = saved;
+            toast(translate("AuthReminder.historyError"));
+          }
+        }
         if (!current()) return;
         await syncProfileUiLocale();
         if (!current()) return;
@@ -5480,6 +5538,8 @@ async function boot() {
         if (!current()) return;
         state.profileIntakePending = !profileHasContext(state.project.profile);
         if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
+        recovery.failed = Boolean(state.projectRecoveryBlocked);
+        recovery.finish(); // Do not couple start admission to subsequent opening-copy streaming.
         render();
         await startCodexConversation({ resume: true });
         return;
@@ -5487,15 +5547,18 @@ async function boot() {
       catch {
         if (!current()) return;
         // Preserve an unavailable saved interview rather than silently making a replacement.
-        state.projectRecoveryBlocked = cachedProject === saved ? saved : null;
+        state.projectRecoveryBlocked = saved;
         state.project = null; state.projectPrincipalId = null; state.chat = [];
       }
     }
+    if (!saved) recovery.failed = false;
+    recovery.finish();
     if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
   } catch (error) {
     if (current()) $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
   } finally {
+    recovery.finish();
     if (current() && state.authPromise === authPromise) state.authPromise = null;
   }
 }
