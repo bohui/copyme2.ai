@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
 from .collector_configuration import CollectorConfigurationError, collector_configuration
+from .conversation_phase import PhaseState
 from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
@@ -80,6 +81,7 @@ class WorkerTurnInput(BaseModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
     text: str = Field(default="", max_length=500000)
     interview_context: dict[str, Any] | None = None
+    conversation_phase: PhaseState | None = None
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
@@ -408,6 +410,7 @@ class CodexWorker:
                 language=language,
                 conversation_rounds_completed=payload.conversation_rounds_completed,
                 interview_context=payload.interview_context,
+                conversation_phase=payload.conversation_phase.model_dump(mode='json') if payload.conversation_phase else None,
                 prompt_version=collector.prompt_version,
             )
         elif payload.agent_role == 'workspace':

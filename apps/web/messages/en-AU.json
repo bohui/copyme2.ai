@@ -124,7 +124,7 @@
       "description": "Your memoir begins with a natural conversation. Share whatever comes to mind; places and pictures appear automatically when they can help bring more memories to life. In the end, your memoir is automatically compiled and bound into a book.",
       "startButton": "Begin my story",
       "familyButton": "Help someone I love",
-      "freeNotice": "Start recalling memories for free. When your free experience ends, choose a memoir package to continue. You can pause, skip, correct, or leave at any time.",
+      "freeNotice": "Start recalling memories for free. When your free experience ends, choose a memoir package to continue. You can skip, correct, or leave at any time.",
       "cardLabel": "MEMORY SPARK · PRIVATE",
       "cardStatus": "listening",
       "quote": "Tell me whatever is on your mind. We’ll follow the thread together.",
@@ -202,7 +202,7 @@
       "workspaceTitle": "Keep following the thread.",
       "conversationTitle": "Let’s remember together.",
       "workspaceDescription": "Your chapter, family tree, and timeline are here when you need them.",
-      "conversationDescription": "Start anywhere. You can speak, type, pause, or change direction at any time.",
+      "conversationDescription": "Start anywhere. You can speak, type, or change direction at any time.",
       "beforeChapter": "Before chapter one",
       "chapter": "Chapter",
       "chapterLabel": "Chapter {number}",
@@ -495,7 +495,7 @@
       "answerPlaceholder": "Write what comes back to you, or record your answer…",
       "yourStoryAnswer": "Your story answer",
       "reviewTranscript": "Review the transcript before saving. Your original recording stays attached.",
-      "typeRecordSkip": "You can type, record, pause, or skip.",
+      "typeRecordSkip": "You can type, record, or skip.",
       "saveAnswer": "Save answer",
       "roundsComplete": "Memories recalled",
       "firstFiveReady": "Your memories are ready.",
@@ -574,6 +574,25 @@
           }
         }
       }
+    },
+    "phase": {
+      "label": "Your pace",
+      "choices": "Conversation guidance",
+      "comfort": "Keep talking",
+      "explore": "Explore a memory",
+      "shape": "Shape my story",
+      "automatic": "Automatic guidance",
+      "skip": "Try another topic",
+      "comfortStatus": "Take your time. There’s no rush.",
+      "exploreStatus": "We can explore what feels meaningful.",
+      "shapeStatus": "Bring the memories you choose into focus.",
+      "loading": "Checking your saved choice…",
+      "saving": "Saving your choice…",
+      "skipped": "We can try another topic with your next message.",
+      "conflict": "Your choice changed elsewhere. The latest choice is shown.",
+      "saveError": "We checked your saved choice. Please try again if needed.",
+      "unavailable": "Your saved choice could not be checked.",
+      "retry": "Check again"
     }
   },
   "Profile": {

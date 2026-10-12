@@ -18,6 +18,7 @@ from .conversation_text import original_conversation_text
 from .recall import storage_recall_status
 
 from .historical_news import PublicHistoricalContext
+from .conversation_phase import PhaseState
 
 
 PROJECT_ID_PATTERN = r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$'
@@ -52,6 +53,7 @@ class TurnReceipt(BaseModel):
     photo_cue: dict | None = None
     response_photos: list[dict] = Field(default_factory=list)
     historical_context: PublicHistoricalContext | None = None
+    conversation_phase: PhaseState | None = None
 
 
 class ProjectSnapshot(BaseModel):
@@ -103,6 +105,7 @@ class ConversationExchange(BaseModel):
     photo_cue: dict | None = None
     response_photos: list[dict] = Field(default_factory=list)
     historical_context: PublicHistoricalContext | None = None
+    conversation_phase: PhaseState | None = None
 
 
 class ConversationHistory(BaseModel):

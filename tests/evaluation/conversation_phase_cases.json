@@ -1,0 +1,714 @@
+{
+  "dataset": "memoir-phase-synthetic",
+  "dataset_version": "memoir-phase-synthetic/1",
+  "synthetic": true,
+  "live_quality_status": "not_run_requires_separate_bounded_approval",
+  "prompt_configuration": {
+    "collector": "compact-v1 plus phase-aware structured interview contract",
+    "extra_model_calls": 0
+  },
+  "case_defaults": {
+    "profile": {},
+    "memories": [],
+    "entitlement": null,
+    "enabled_skills": [
+      "memoir-memory-context"
+    ]
+  },
+  "cases": [
+    {
+      "id": "phase-name-en-AU",
+      "input": {
+        "text": "My name is Joan.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-name",
+      "synthetic": {
+        "reply": "Good to meet you, Joan. What would you enjoy talking about?",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "Good to meet you, Joan. What would you enjoy talking about?",
+        "Joan, what is something you would like to preserve?"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "No identity requirements or forced earliest memory.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-name-zh-CN",
+      "input": {
+        "text": "我叫韩凤江。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-name",
+      "synthetic": {
+        "reply": "韩凤江，很高兴认识您。您想先聊些什么？",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "韩凤江，很高兴认识您。您想先聊些什么？",
+        "韩凤江，您有什么想留下来的事吗？"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "No identity requirements or forced earliest memory.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-rich-en-AU",
+      "input": {
+        "text": "My sister and I planted beans beside our old kitchen. She labelled every row.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-rich",
+      "synthetic": {
+        "reply": "Your sister labelled each row of beans. What do you remember about planting them together?",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "Your sister labelled each row of beans. What do you remember about planting them together?",
+        "You planted beans beside the kitchen together. What happened as they grew?"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Explore supplied memory immediately without resetting onboarding.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-rich-zh-CN",
+      "input": {
+        "text": "小时候我和姐姐在老厨房旁种豆子，她给每一行都写了标签。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-rich",
+      "synthetic": {
+        "reply": "您和姐姐在厨房旁种豆子，她还给每行写了标签。一起种豆子时，您还记得什么？",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "您和姐姐在厨房旁种豆子，她还给每行写了标签。一起种豆子时，您还记得什么？",
+        "姐姐给每行豆子写了标签。后来豆子长得怎么样？"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Explore supplied memory immediately without resetting onboarding.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-short-en-AU",
+      "input": {
+        "text": "I am not sure.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-short",
+      "synthetic": {
+        "reply": "That is all right. We can leave that memory for now.",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "That is all right. We can leave that memory for now.",
+        "No need to force it. Is there another topic you would prefer?"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Brevity does not justify sensitive probing or repeated demands.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      },
+      "memories": [
+        {
+          "id": "synthetic-short-1",
+          "kind": "agent",
+          "content": "Storyteller: I cannot remember.\\nMemory Spark: What do you remember about the garden?"
+        },
+        {
+          "id": "synthetic-short-2",
+          "kind": "agent",
+          "content": "Storyteller: Still not sure.\\nMemory Spark: There is no need to force it."
+        }
+      ]
+    },
+    {
+      "id": "phase-short-zh-CN",
+      "input": {
+        "text": "想不起来。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-short",
+      "synthetic": {
+        "reply": "没关系，我们可以先放下这段回忆。",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "没关系，我们可以先放下这段回忆。",
+        "不用勉强。您想换个话题吗？"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Brevity does not justify sensitive probing or repeated demands.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      },
+      "memories": [
+        {
+          "id": "synthetic-short-1",
+          "kind": "agent",
+          "content": "Storyteller: 想不起来。\\nMemory Spark: 您还记得花园的什么？"
+        },
+        {
+          "id": "synthetic-short-2",
+          "kind": "agent",
+          "content": "Storyteller: 还是想不起来。\\nMemory Spark: 我们不用勉强。"
+        }
+      ]
+    },
+    {
+      "id": "phase-detail-en-AU",
+      "input": {
+        "text": "I told you it was my sister, not my mother.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-detail",
+      "synthetic": {
+        "reply": "Thank you for correcting that: it was your sister.",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "Thank you for correcting that: it was your sister.",
+        "Your sister, understood. I will use that correction as we continue."
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Accept correction without inventing a completed save or changing approved prose.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-detail-zh-CN",
+      "input": {
+        "text": "我说的是姐姐，不是妈妈。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-detail",
+      "synthetic": {
+        "reply": "谢谢您纠正，是姐姐。",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "谢谢您纠正，是姐姐。",
+        "明白了，是您的姐姐。接下来会按您的纠正继续聊。"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Accept correction without inventing a completed save or changing approved prose.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-return-en-AU",
+      "input": {
+        "text": "Can we continue the garden memory?",
+        "language": "en-AU"
+      },
+      "project_id": "phase-return",
+      "synthetic": {
+        "reply": "We can continue with the garden. What would you like to add?",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "We can continue with the garden. What would you like to add?",
+        "You mentioned planting beans with your sister. What else comes to mind?"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Use only supplied permitted history, no repeated greeting or false shared experience.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      },
+      "memories": [
+        {
+          "id": "synthetic-garden",
+          "kind": "agent",
+          "content": "Storyteller: My sister and I planted beans beside the old kitchen.\\nMemory Spark: What do you remember?"
+        }
+      ]
+    },
+    {
+      "id": "phase-return-zh-CN",
+      "input": {
+        "text": "我们接着聊花园吧。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-return",
+      "synthetic": {
+        "reply": "我们接着聊花园。您还想补充些什么？",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "我们接着聊花园。您还想补充些什么？",
+        "您提到和姐姐一起种豆子。还有什么浮现在您脑海里？"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Use only supplied permitted history, no repeated greeting or false shared experience.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      },
+      "memories": [
+        {
+          "id": "synthetic-garden",
+          "kind": "agent",
+          "content": "Storyteller: 我和姐姐在老厨房旁一起种豆子。\\nMemory Spark: What do you remember?"
+        }
+      ]
+    },
+    {
+      "id": "phase-distress-en-AU",
+      "input": {
+        "text": "This memory is upsetting. I would rather finish for today.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-distress",
+      "synthetic": {
+        "reply": "We can leave it here. You do not need to share more.",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "We can leave it here. You do not need to share more.",
+        "Let us leave it here for now. You can choose whether to return to it."
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "No interview question or forced probing; agency and calm acknowledgement.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-distress-zh-CN",
+      "input": {
+        "text": "这段回忆让我难受，今天就聊到这里吧。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-distress",
+      "synthetic": {
+        "reply": "今天就聊到这里，您不用再说下去。",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "今天就聊到这里，您不用再说下去。",
+        "先聊到这里，之后要不要再谈这段回忆由您决定。"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "No interview question or forced probing; agency and calm acknowledgement.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-skip-en-AU",
+      "input": {
+        "text": "Skip this question.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-skip",
+      "synthetic": {
+        "reply": "We can leave that question. What would you rather talk about?",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "We can leave that question. What would you rather talk about?",
+        "Of course. Is there a different memory you would like to choose?"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Do not repeat skipped question or return excluded details.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-skip-zh-CN",
+      "input": {
+        "text": "跳过这个问题。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-skip",
+      "synthetic": {
+        "reply": "我们跳过这个问题。您想换聊什么？",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "我们跳过这个问题。您想换聊什么？",
+        "可以。您想选另一段回忆聊聊吗？"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "Do not repeat skipped question or return excluded details.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-shape-en-AU",
+      "input": {
+        "text": "Shape my story.",
+        "language": "en-AU"
+      },
+      "project_id": "phase-shape",
+      "synthetic": {
+        "reply": "A draft is not available here yet. We can keep talking about what you would like it to include.",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "A draft is not available here yet. We can keep talking about what you would like it to include.",
+        "We can discuss how to organise what you have shared. A draft is not available here yet."
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "No artifact promise, invented draft, consent/allowance/access bypass.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    },
+    {
+      "id": "phase-shape-zh-CN",
+      "input": {
+        "text": "整理我的故事。",
+        "language": "zh-CN"
+      },
+      "project_id": "phase-shape",
+      "synthetic": {
+        "reply": "这里还没有可查看的草稿。我们可以继续聊聊您希望放进故事里的内容。",
+        "steps": []
+      },
+      "acceptable_examples": [
+        "这里还没有可查看的草稿。我们可以继续聊聊您希望放进故事里的内容。",
+        "我们可以聊聊怎样组织已经分享的内容。目前这里还没有可查看的草稿。"
+      ],
+      "expected": {
+        "max_steps": 30,
+        "max_retries": 0,
+        "response_requirements": {
+          "excludes": [
+            "your earliest memory",
+            "您最早记得"
+          ]
+        },
+        "state_assertions": {
+          "access_control.user_scope": true
+        }
+      },
+      "human_quality_rubric": {
+        "case_requirement": "No artifact promise, invented draft, consent/allowance/access bypass.",
+        "dimensions": [
+          "warmth without false familiarity",
+          "one genuinely answerable question or no question when the storyteller wants to finish",
+          "non-repetition",
+          "grounding and uncertainty",
+          "user agency",
+          "natural transition",
+          "appropriate depth"
+        ]
+      }
+    }
+  ]
+}

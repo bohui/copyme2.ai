@@ -1223,3 +1223,17 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
     overscroll-behavior-y: contain;
   }
 }
+
+.conversation-phase { padding: 0 0 10px; }
+.phase-heading { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.phase-status { min-width: 0; overflow-wrap: anywhere; }
+.phase-choices { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; }
+.phase-choice { font: inherit; font-size: 12px; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--paper); cursor: pointer; }
+.phase-choice[aria-pressed="true"] { border-color: currentColor; background: var(--sage); font-weight: 600; }
+.phase-choice:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.phase-choice:disabled { opacity: .55; cursor: default; }
+@media (max-width: 760px) {
+  .conversation-phase { padding-bottom: 8px; }
+  .phase-choices { gap: 4px; }
+  .phase-choice { padding: 6px 8px; }
+}
