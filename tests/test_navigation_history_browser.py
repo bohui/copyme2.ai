@@ -2,6 +2,7 @@
 
 from browser_supabase_fixture import install_supabase_fixture
 import json
+from copy import deepcopy
 import os
 from pathlib import Path
 
@@ -9,9 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 from playwright.sync_api import expect, sync_playwright
 
-from apps.api import main
+from apps.api import main, supabase_routes
 from apps.api.store import MemoryStore
-from browser_recovery_fixture import navigation_storage, NAVIGATION_USERS
+from browser_recovery_fixture import navigation_storage, NAVIGATION_USERS, forward_project_history, save_navigation_turn
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,13 +21,16 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture(params=[(390, 844), (1440, 1000)], ids=['phone', 'desktop'])
 def navigation_browser(monkeypatch, request):
     store = MemoryStore()
+    saved_turns = {}
     def authenticated(authorization):
         if authorization not in {'Bearer fixture-guest', 'Bearer fixture-other'}:
             raise main.HTTPException(401, 'Missing synthetic session')
-        return navigation_storage(authorization.removeprefix('Bearer fixture-'), store.projects)
+        return navigation_storage(authorization.removeprefix('Bearer fixture-'), store.projects, saved_turns)
 
     monkeypatch.setattr(main, 'authenticated_storage', authenticated)
+    monkeypatch.setattr(supabase_routes, 'storage', authenticated)
     with TestClient(main.create_app(store)) as client, sync_playwright() as pw:
+        client.app.state.navigation_fixture_history = saved_turns
         browser = pw.chromium.launch()
         context = browser.new_context(viewport={'width': request.param[0], 'height': request.param[1]}, reduced_motion='reduce')
         base = os.environ['MEMOIR_BROWSER_URL']
@@ -46,6 +50,8 @@ def navigation_browser(monkeypatch, request):
         requests = []
 
         def api(route):
+            if forward_project_history(route, client, store.projects, requests):
+                return
             path = route.request.url.split('/api/v1/memoir')[-1]
             endpoint = path.split('?')[0]
             if endpoint == '/projects' or endpoint.startswith('/projects/'):
@@ -307,6 +313,7 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     page.evaluate("""()=>{const nativeFetch=window.fetch;window.fetch=(url,options)=>{
       if(!String(url).endsWith('/agent/turn')) return nativeFetch(url,options);
       window.fixtureStreamSignal=options.signal;
+      window.fixturePendingTurn=JSON.parse(options.body);
       let deliver;
       const reader={read:()=>new Promise(resolve=>{deliver=resolve}),cancel:async()=>{window.fixtureCanceled=true},releaseLock(){}};
       window.fixtureEvent=event=>deliver({done:false,value:new TextEncoder().encode(JSON.stringify(event)+'\\n')});
@@ -318,6 +325,8 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     page.evaluate("fixtureEvent({type:'text_delta',text:'A accepted partial reply.'})")
     expect(page.get_by_text('A accepted partial reply.', exact=True)).to_be_visible()
     if ending == 'workspace-tail':
+        save_navigation_turn(client.app.state.navigation_fixture_history, interview_a.rsplit('/', 1)[-1],
+                             page.evaluate('fixturePendingTurn'), 'A accepted partial reply.')
         page.evaluate("fixtureEvent({type:'conversation_saved',data:{conversation_saved:true,reply:'A accepted partial reply.'}})")
         expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
     # Add B once, then exercise actual Back/Forward events in this document.
@@ -326,10 +335,16 @@ def test_back_forward_detaches_a_reply_and_keeps_each_projects_history(navigatio
     assert page.evaluate('fixtureStreamSignal.aborted') is True
     assert page.evaluate('fixtureCanceled') is True
     before_b = page.evaluate("([owner,id])=>localStorage.getItem('memory-spark-chat-history:'+owner+':'+id)", [NAVIGATION_USERS['guest'], project_b])
+    # This is a stale transport callback, not a second server commit. Only the
+    # explicit pre-detach saved event above has a durable fixture counterpart.
+    saved_before_late = deepcopy(client.app.state.navigation_fixture_history)
     late = {'type': 'error', 'message': 'A late synthetic error'} if ending == 'error' else {
         'type': 'result', 'data': {'conversation_saved': True, 'reply': 'A late complete reply.',
                                  'composition_stage': 3, 'recall_status': {'payment_required': True}}}
     page.evaluate('event=>fixtureEvent(event)', late)
+    assert client.app.state.navigation_fixture_history == saved_before_late
+    if ending != 'workspace-tail':
+        assert interview_a.rsplit('/', 1)[-1] not in saved_before_late
     expect(page.get_by_text('A late complete reply.', exact=True)).to_have_count(0)
     expect(page.get_by_text('A late synthetic error', exact=True)).to_have_count(0)
     expect(page.locator('#chat-input')).to_be_enabled()

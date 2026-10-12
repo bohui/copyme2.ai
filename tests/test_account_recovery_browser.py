@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from playwright.sync_api import expect, sync_playwright
 
 from apps.api import main, supabase_routes
-from browser_recovery_fixture import account_recovery_storage, set_recovery_principal, RECOVERY_OWNER
+from browser_recovery_fixture import account_recovery_storage, set_recovery_principal, RECOVERY_OWNER, forward_project_history
 from apps.api.store import MemoryStore
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires source frontend')
@@ -28,7 +28,7 @@ def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch,
             raise main.HTTPException(401, 'Missing fixture session')
         return storage
     monkeypatch.setattr(main, 'authenticated_storage', authenticated)
-    monkeypatch.setattr(supabase_routes, 'storage', lambda _: storage)
+    monkeypatch.setattr(supabase_routes, 'storage', authenticated)
     monkeypatch.setattr(supabase_routes, '_queue_if_configured', lambda: None)
     store = MemoryStore()
     with TestClient(main.create_app(store, story_storage_factory=lambda _: storage)) as client, sync_playwright() as pw:
@@ -52,6 +52,8 @@ def test_login_restores_original_project_and_serves_reviewed_sample(monkeypatch,
         sample_times = []
         requests = []
         def api(route):
+            if forward_project_history(route, client, {project_id}, requests):
+                return
             path = route.request.url.split('/api/v1/memoir')[-1]
             endpoint = path.split('?')[0]
             if endpoint == '/projects' or endpoint.startswith('/projects/') or endpoint in ('/user/conversations', '/story/preview'):
