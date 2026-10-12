@@ -79,7 +79,10 @@ def run(base, output):
                     route.fulfill(status=200,content_type='application/json',body=json.dumps(body))
                 context.route('**/api/v1/memoir/**',api)
                 context.route('https://**',lambda route:route.fallback() if 'auth.test/' in route.request.url else route.abort())
-                page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
+                page=context.new_page()
+                page.on('pageerror',lambda error:errors.append({'message':str(error),
+                    'stack':error.stack,'page_url':page.url,
+                    'frame_urls':[frame.url for frame in page.frames]}))
                 page.goto(base+'/memoir/interview/lifetime-fixture',wait_until='networkidle')
                 expect(page.locator('[data-draft-locale]')).to_be_visible(timeout=30000)
                 expect(page.locator('.private-draft-status')).to_contain_text('Protected English original.')

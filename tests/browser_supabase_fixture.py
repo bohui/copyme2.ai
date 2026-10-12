@@ -15,9 +15,14 @@ def install_supabase_fixture(target, session_script):
       (() => {
         const fixture = window.supabase;
         if (!fixture?.createClient) return;
+        // Playwright also injects into blank and sandboxed opaque documents.
+        // Only HTTP(S) documents with a real security origin can own our cookies.
+        // Do not catch cookie exceptions on eligible documents: those are failures.
+        const canSeedDocument = () => ['http:', 'https:'].includes(location.protocol) && window.origin !== 'null';
         const seed = async () => {
+          if (!canSeedDocument()) return;
           const {data} = await fixture.createClient().auth.getSession();
-          if (!data?.session) return;
+          if (!data?.session || !canSeedDocument()) return;
           const session = {...data.session, refresh_token:data.session.refresh_token || 'fixture-refresh',
             expires_at:Math.floor(Date.now()/1000)+3600, expires_in:3600, token_type:'bearer'};
           const encode = value => btoa(unescape(encodeURIComponent(JSON.stringify(value)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');

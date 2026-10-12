@@ -302,7 +302,7 @@ def test_prompt_makes_mira_a_low_pressure_oral_history_journalist():
     assert "ask the next question directly when continuing the same memory" in prompt
     assert "Reserve a short conversational bridge for returning to a different earlier topic." in prompt
     assert "Do not narrate the interview process" in prompt
-    assert "Reserve explicit choices about pausing or changing pace" in prompt
+    assert "Reserve explicit choices about changing pace for moments when the storyteller signals discomfort or asks for control." in prompt
 
 
 def test_prompt_is_loaded_from_the_versioned_system_prompt_file():

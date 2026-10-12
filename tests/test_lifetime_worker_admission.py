@@ -373,3 +373,46 @@ def test_queued_legacy_task_cannot_publish_after_adoption(tmp_path,monkeypatch,a
     assert len(calls)==int(adopt_during_execution)
     saved=queue.get(owner,entry['id'])
     assert saved['result'] is None and saved['status']=='FAILED' and not cohort.active
+
+
+def test_authority_rejection_resets_original_dispatch_deadline_evidence(tmp_path,monkeypatch):
+    import apps.api.codex_worker_service as module
+    from apps.api.lifetime_memory_legacy import LegacyMappingConflict
+    cohort=Cohort();monkeypatch.setattr(module,'_legacy_publication',lambda payload:cohort)
+    worker=CodexWorker(home_root=tmp_path,timeout=.01);payload=legacy()
+    async def blocked(*args,**kwargs):await asyncio.Event().wait()
+    monkeypatch.setattr(worker,'_turn',blocked)
+    async def scenario():
+        with pytest.raises(TimeoutError):await worker.turn(payload)
+        assert worker.execution_deadline_expired(payload)
+        cohort.mapped=True
+        with pytest.raises(LegacyMappingConflict):await worker.turn(payload)
+        assert not worker.execution_deadline_expired(payload)
+    asyncio.run(scenario())
+
+
+def test_original_diagnostic_identity_does_not_replace_detached_execution_payload(tmp_path,monkeypatch):
+    import apps.api.codex_worker_service as module
+    payload=legacy();payload.profile={'name':'Original synthetic name'}
+    class MutatingAdmission:
+        @asynccontextmanager
+        async def guard(self):
+            payload.text='Changed after capture'
+            payload.profile['name']='Changed after capture'
+            payload.user_id=UUID(int=99)
+            yield
+    monkeypatch.setattr(module,'_legacy_publication',lambda value:MutatingAdmission())
+    worker=CodexWorker(home_root=tmp_path,timeout=.01)
+    async def blocked(snapshot,**kwargs):
+        assert snapshot is not payload
+        assert snapshot.user_id==UUID(int=4) and snapshot.text=='Synthetic original'
+        assert snapshot.profile=={'name':'Original synthetic name'}
+        assert worker.execution_progress(payload) is not None
+        assert worker.execution_progress(snapshot) is None
+        await asyncio.Event().wait()
+    monkeypatch.setattr(worker,'_turn',blocked)
+    async def scenario():
+        with pytest.raises(TimeoutError):await worker.turn(payload)
+        assert worker.execution_deadline_expired(payload)
+        assert not worker.execution_deadline_expired(payload.model_copy())
+    asyncio.run(scenario())

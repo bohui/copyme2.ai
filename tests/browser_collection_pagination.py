@@ -4,6 +4,7 @@ import json
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
+from browser_collection_review import install_collection_startup, collection_diagnostics
 
 FIRST='11111111-1111-4111-8111-111111111101'
 SECOND='11111111-1111-4111-8111-111111111102'
@@ -21,9 +22,7 @@ def main():
         for locale in ['en-AU','zh-CN']:
             context=browser.new_context(viewport={'width':1280,'height':900},locale=locale,accept_downloads=True)
             page=context.new_page();page.add_init_script(f"localStorage.setItem('copyme2_ui_locale','{locale}')")
-            page.route('**/agent/config',lambda route:route.fulfill(json={'auth_mode':'test'}))
-            profile={'preferred_language':locale,'conversation_language':{'locale':locale,'source':'explicit','revision':1}}
-            for path in ['**/agent/profile','**/user/profile']:page.route(path,lambda route:route.fulfill(json=profile))
+            startup=install_collection_startup(page,locale)
             state={'revision':0,'loads':0,'task_loads':0,'results':0,'writes':[],'organise':[],'retries':0}
             periods={stage:{'status':'skipped','memory_ids':[],'note':'Skip this stage'} for stage in STAGES}
             periods['childhood']={'status':'recorded','memory_ids':[SECOND],'note':''}
@@ -58,43 +57,49 @@ def main():
                 assert route.request.method=='POST'
                 route.fulfill(json={'id':JOB,'kind':'BuildOutline','status':'QUEUED','error':None})
             page.route('**/agent/tasks/*/retry',retry)
-            page.goto(args.base_url,wait_until='networkidle')
-            page.get_by_role('button',name='Begin my story' if locale=='en-AU' else '开始讲我的故事').click()
-            page.locator('[data-profile-trigger]').click();page.locator('[data-profile-action="collection"]').click()
-            dialog=page.get_by_role('dialog');expect(dialog).to_be_visible()
-            expect(dialog.locator('[data-more-sources]')).to_be_visible()
-            dialog.locator('[data-retry]').evaluate('button => { button.click(); button.click(); }')
-            expect(dialog.locator('[data-retry]')).to_have_count(0)
-            assert state['retries']==1
-            dialog.locator('[data-more-tasks]').click()
-            expect(dialog.locator('[data-more-tasks]')).to_be_hidden()
-            expect(dialog.locator('.collection-task')).to_have_count(2)
-            assert state['task_loads']==1
-            school=dialog.locator('[data-stage=childhood]');expect(school.locator('option[value="'+SECOND+'"]')).to_have_count(0)
-            # Saving page one must preserve the previously selected unseen ID.
-            dialog.locator('[data-save]').click()
-            expect(dialog.locator('[data-save]')).to_be_enabled()
-            assert state['writes'][0]['periods']['childhood']['memory_ids']==[SECOND]
-            dialog.locator('[data-more-sources]').click()
-            expect(dialog.locator('[data-more-sources]')).to_be_hidden()
-            assert state['loads']==2
-            expect(school.locator('[data-memories]')).to_have_values([SECOND])
-            # Loading page two does not auto-select the first, previously unchosen source.
-            school.locator('[data-memories]').select_option([SECOND,FIRST])
-            dialog.locator('[data-confirm]').check();dialog.locator('[type=submit]').click()
-            expect(dialog.locator(f'.collection-task:has([data-task="{JOB}"]) h3')).to_have_text('Selected book title',timeout=15000)
-            assert state['writes'][-1]['periods']['childhood']['memory_ids']==[SECOND,FIRST]
-            assert state['organise'][0]['expected_revision']==2 and state['organise'][0]['language']==locale
-            assert 'Collection.' not in dialog.inner_text()
-            with page.expect_download() as download:dialog.locator('[data-download]').click()
-            with open(download.value.path()) as artifact:export=json.load(artifact)
-            assert [row['content'] for row in export['sources']]==['First original','Second original']
-            assert export['title']=='Selected book title' and export['publication_approved'] is False
-            assert {row['root_section_id'] for row in export['sources']}=={ROOT}
-            assert state['results']>=3
-            page.screenshot(path=str(output/f'collection-pagination-{locale}.png'),full_page=True)
-            dialog.locator('[data-close]').click();expect(dialog).to_have_count(0)
-            print(f'PASS {locale}: partial source pages, unseen selections, selected order, proposed hierarchy, complete paginated download')
+            with collection_diagnostics(page,startup,output,f'collection-pagination-{locale}'):
+                page.goto(args.base_url,wait_until='networkidle')
+                page.get_by_role('button',name='Begin my story' if locale=='en-AU' else '开始讲我的故事').click()
+                page.wait_for_load_state('networkidle')
+                assert startup['created']==1 and set(startup['consents'])=={'recording','storyteller_assent'}
+                assert not startup['unexpected'],startup['unexpected']
+                page.locator('[data-profile-trigger]').click();page.locator('[data-profile-action="collection"]').click()
+                dialog=page.get_by_role('dialog');expect(dialog).to_be_visible()
+                expect(dialog.locator('[data-more-sources]')).to_be_visible()
+                dialog.locator('[data-retry]').evaluate('button => { button.click(); button.click(); }')
+                expect(dialog.locator('[data-retry]')).to_have_count(0)
+                assert state['retries']==1
+                dialog.locator('[data-more-tasks]').click()
+                expect(dialog.locator('[data-more-tasks]')).to_be_hidden()
+                expect(dialog.locator('.collection-task')).to_have_count(2)
+                assert state['task_loads']==1
+                school=dialog.locator('[data-stage=childhood]');expect(school.locator('option[value="'+SECOND+'"]')).to_have_count(0)
+                # Saving page one must preserve the previously selected unseen ID.
+                dialog.locator('[data-save]').click()
+                expect(dialog.locator('[data-save]')).to_be_enabled()
+                assert state['writes'][0]['periods']['childhood']['memory_ids']==[SECOND]
+                dialog.locator('[data-more-sources]').click()
+                expect(dialog.locator('[data-more-sources]')).to_be_hidden()
+                assert state['loads']==2
+                expect(school.locator('[data-memories]')).to_have_values([SECOND])
+                # Loading page two does not auto-select the first, previously unchosen source.
+                school.locator('[data-memories]').select_option([SECOND,FIRST])
+                dialog.locator('[data-confirm]').check();dialog.locator('[type=submit]').click()
+                expect(dialog.locator(f'.collection-task:has([data-task="{JOB}"]) h3')).to_have_text('Selected book title',timeout=15000)
+                assert state['writes'][-1]['periods']['childhood']['memory_ids']==[SECOND,FIRST]
+                assert state['organise'][0]['expected_revision']==2 and state['organise'][0]['language']==locale
+                assert 'Collection.' not in dialog.inner_text()
+                with page.expect_download() as download:dialog.locator('[data-download]').click()
+                with open(download.value.path()) as artifact:export=json.load(artifact)
+                assert [row['content'] for row in export['sources']]==['First original','Second original']
+                assert export['title']=='Selected book title' and export['publication_approved'] is False
+                assert {row['root_section_id'] for row in export['sources']}=={ROOT}
+                assert state['results']>=3
+                page.screenshot(path=str(output/f'collection-pagination-{locale}.png'),full_page=True)
+                dialog.locator('[data-close]').click();expect(dialog).to_have_count(0)
+                assert not startup['unexpected'],startup['unexpected']
+                assert not startup['browser_errors'],startup['browser_errors']
+                print(f'PASS {locale}: partial source pages, unseen selections, selected order, proposed hierarchy, complete paginated download')
             context.close()
         browser.close()
 

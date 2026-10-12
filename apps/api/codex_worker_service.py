@@ -324,6 +324,11 @@ class CodexWorker:
         ]
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
+        # Diagnostics remain bound to the caller's exact dispatch object; the
+        # separately detached execution payload cannot be mutated across awaits.
+        deadline_payload = payload
+        self._progress_context.set(None)
+        self._deadline_context.set((deadline_payload, None, asyncio.current_task()))
         payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
         legacy_publication = _legacy_publication(payload)
         if legacy_publication is not None:
@@ -332,9 +337,6 @@ class CodexWorker:
         else:
             from .lifetime_memory_lane_engine import check_lane_generation
             check_lane_generation()
-        deadline_payload = payload
-        self._progress_context.set(None)
-        self._deadline_context.set((deadline_payload, None, asyncio.current_task()))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
         progress = WorkerProgress()

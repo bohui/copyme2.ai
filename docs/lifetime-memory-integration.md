@@ -154,9 +154,25 @@ implemented. The remaining gates are specific:
   indefinitely. It is not a passing aggregate. Explicit synthetic identity fixtures,
   the exact readonly adapter, bounded test barrier and async-body evaluation transport
   were repaired. Focused sets passed 171, 85 and 66 cases; a clean full rerun is required.
-- Exact-head web/browser checks remain pending on the authorized isolated Mac because
-  cloud Chromium cannot create its singleton socket. Native checks are separate evidence.
-- Remote commit/tree parity, required remote checks and final review must be verified.
+- The subsequent exact 0aaf4ab ordinary aggregate completed with 4,408 passed,
+  96 failed and 873 skipped. One production worker regression detached diagnostic
+  identity from its original dispatch object; 9b8b391 restores that binding while
+  preserving immutable execution input. Remaining failures were explicit legacy
+  authority/transport fixtures and an obsolete pause-wording assertion. The focused
+  repaired set passed 322 cases, with 95 strict identity-fixture cases rerun and 58
+  prompt/place cases passing separately. A fresh full aggregate is still required.
+  Skips comprise 660 PostgreSQL/opt-in database cases, 205 frontend/browser/Auth-HTTP,
+  four live-provider evaluations, three Mocker checks and one Apple Container check.
+- Exact remote beb2dc68 (tree 22a4f07) Mac browser execution failed all three runners
+  in their first case: zero passed, three failed, five later cases unexecuted and no
+  explicit skips. Lifetime reads reached screenshots but retained a cookie-access
+  page error; collection runners lacked the exact project-startup mock and timed out.
+  Fixture repairs retain every UI assertion, add precise startup/origin tests and
+  record error stacks, frame URLs and unexpected requests. Full repaired Mac cases
+  remain required; native checks are separate evidence.
+- Remote beb2dc68 tree and all 157 changed blob SHAs were independently verified
+  against local 0aaf4ab. Later repair commits require new remote parity and review.
+  No PR-triggered remote workflows or statuses were reported on that checkpoint.
 - Personalized direct WebRTC remains unavailable for canonical accounts. The endpoint
   sends audio outside server publication fences; HTTP rejection does not retroactively
   govern a previously established legacy call after adoption. No current web caller was
@@ -218,7 +234,9 @@ production cleanup and promises no immediate erasure of historical backups.
 
 ## Reviewed phase dependency
 
-The stack incorporates PR #61 head fe18dc2d220770d3d2e0ab0a01beec88acbd7c4d,
+PR #61 was human-merged as aba51cc0f50495249ebc7ad903c5f13b59c34fba; PR #62 now
+targets main. Its merge adds only separate issues53–55 evidence beyond the reviewed
+phase head, with no phase source changes. The stack incorporates PR #61 head fe18dc2d220770d3d2e0ab0a01beec88acbd7c4d,
 whose verified tree is abe839e5bbd329d27e67c3ecbcb1eb9f5009628a. Its version-one
 phase envelope no longer includes a pause control. Issue #60 preserves explicit
 selection, preferred phase and revision through pins/recovery. Topic-specific privacy
