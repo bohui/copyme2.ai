@@ -96,7 +96,7 @@ check() {
   "$PY" scripts/run_isolated_check.py --output-dir "$EVIDENCE" \
     --name "$name" --timeout 1800 -- env CHROMIUM_EXECUTABLE="$CHROMIUM" \
     PLAYWRIGHT_CHROMIUM_EXECUTABLE="$CHROMIUM" \
-    MEMOIR_NETWORK_RECEIPT="$EVIDENCE/$name-network.json" "$@"
+    MEMOIR_NETWORK_RECEIPT="$EVIDENCE/$name-network" "$@"
 }
 browser_check() {
   name="$1"; shift

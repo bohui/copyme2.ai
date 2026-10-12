@@ -13,6 +13,7 @@ import time
 def offline_environment(root):
     keep = {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SHELL'}
     keep.update({'MEMOIR_TEST_POSTGRES_BACKEND', 'MEMOIR_BROWSER_URL', 'MEMOIR_TEST_URL',
+                 'MEMOIR_TEST_PUBLICATION_TCP',
                  'MEMORY_SPARK_API_ORIGIN', 'PLAYWRIGHT_BROWSERS_PATH',
                  'MEMORY_SPARK_SHOW_THINKING_STEPS', 'MEMORY_SPARK_TASK_DB',
                  'MEMORY_SPARK_DATABASE', 'MEMOIR_RENDERER_FIXTURES',

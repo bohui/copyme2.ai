@@ -5,6 +5,7 @@ disposable PostgreSQL and one Temporal server and controls only the external
 provider protocol. Do not treat its mock output as live model acceptance.
 """
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,9 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.skipif(shutil.which('container') is None,
     reason='Canonical native launcher requires the supported Apple Container fixture')
+@pytest.mark.skipif(os.getenv('MEMOIR_TEST_PUBLICATION_TCP') != '1',
+    reason='Requires explicit approval and MEMOIR_TEST_PUBLICATION_TCP=1 for the disposable guest SQL endpoint')
 def test_five_native_case_owners_preserve_all_250_originals_and_50_checkpoints(tmp_path):
     result = subprocess.run([sys.executable, 'scripts/run_canonical_five_case_evaluation.py',
-        '--execute-fixture', '--run-id', 'native-five-case-fixture', '--output-root', str(tmp_path),
+        '--execute-fixture', '--fixture-publication-tcp', '--run-id', 'native-five-case-fixture', '--output-root', str(tmp_path),
         '--max-worker-requests', '2000', '--max-seconds', '1500'], cwd=ROOT,
         env=offline_environment(ROOT), capture_output=True, text=True, timeout=1560)
     assert result.returncode == 0, result.stderr
@@ -51,7 +54,10 @@ def test_five_native_case_owners_preserve_all_250_originals_and_50_checkpoints(t
         assert persisted == case
     assert receipt['cleanup'] == {'temporal_closed': True, 'readiness_closed': True,
         'worker_transport_closed': True, 'postgres_fixture_closed': True,
-        'postgres_removal_verified': True, 'workspace_removed': True}
+        'postgres_removal_verified': True, 'postgres_endpoint_closed': True, 'workspace_removed': True}
+    assert receipt['postgres_publication_endpoint']['host'] == '127.0.0.1'
+    assert receipt['postgres_publication_endpoint']['binding_verified'] is True
+    assert receipt['postgres_publication_endpoint']['instance_verified'] is True
     # Inspect only the exact task UUID; no inventory of unrelated containers.
     stopped = subprocess.run(['container', 'inspect', receipt['postgres_container']],
         capture_output=True, text=True, timeout=15)
