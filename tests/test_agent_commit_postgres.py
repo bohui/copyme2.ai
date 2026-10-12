@@ -178,7 +178,7 @@ class ContainerSql:
 
 @pytest.fixture(scope='module')
 def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None,
-             legacy_schema=True, postgres_image='postgres:18.3'):
+             legacy_schema=True, postgres_image='postgres:18.3', tcp=False):
     environment = {key: value for key, value in os.environ.items() if not key.startswith("PG")}
     commands = ProcessDeadline(deadline, cancellation, environment=environment)
     if postgres_image not in {'postgres:18.3', 'postgres:17.6'}:
@@ -200,7 +200,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                         on_allocation()
                 commands.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
                     '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
-                    postgres_image, 'postgres', '-c', 'listen_addresses='], check=True)
+                    postgres_image, 'postgres', '-c', 'listen_addresses=' + ('*' if tcp else '')], check=True)
                 if allocation is not None:
                     allocation['created'] = True
                     if on_allocation is not None:
@@ -224,7 +224,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
         else:
             # native-tcp supports hosts that permit loopback but not Unix sockets.
             # Both modes use a fresh cluster and real, independent SQL sessions.
-            tcp = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'native-tcp'
+            tcp = tcp or os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'native-tcp'
             if tcp:
                 with socket.socket() as listener:
                     listener.bind(('127.0.0.1', 0))

@@ -145,8 +145,9 @@ end $$;
 revoke all on function public.apply_lifetime_literal_policy(uuid,text,uuid,bigint) from public,anon,authenticated,service_role;
 
 -- Existing historical-news/photo/interview wrappers still call this exact seam.
-alter function public.accept_user_narrator_source_before_news(text,uuid,text,text,text) rename to accept_user_narrator_source_before_atomic_policy;
-revoke all on function public.accept_user_narrator_source_before_atomic_policy(text,uuid,text,text,text) from public,anon,authenticated,service_role;
+-- Quote helper names containing "atomic" for older Supabase CLI SQL splitters.
+alter function public.accept_user_narrator_source_before_news(text,uuid,text,text,text) rename to "accept_user_narrator_source_before_atomic_policy";
+revoke all on function public."accept_user_narrator_source_before_atomic_policy"(text,uuid,text,text,text) from public,anon,authenticated,service_role;
 create function public.accept_user_narrator_source_before_news(p_project_id text,p_client_turn_id uuid,p_text text,
  p_kind text default 'narrator_chat',p_language text default 'en-AU') returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -166,8 +167,8 @@ begin
 end $$;
 revoke all on function public.accept_user_narrator_source_before_news(text,uuid,text,text,text) from public,anon,authenticated,service_role;
 
-alter function public.change_user_narrator_source(text,uuid,bigint,text,text) rename to change_user_narrator_source_before_atomic_policy;
-revoke all on function public.change_user_narrator_source_before_atomic_policy(text,uuid,bigint,text,text) from public,anon,authenticated,service_role;
+alter function public.change_user_narrator_source(text,uuid,bigint,text,text) rename to "change_user_narrator_source_before_atomic_policy";
+revoke all on function public."change_user_narrator_source_before_atomic_policy"(text,uuid,bigint,text,text) from public,anon,authenticated,service_role;
 create function public.change_user_narrator_source(p_project_id text,p_source_id uuid,p_expected_version bigint,p_action text,p_text text default null) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare result jsonb; owner uuid:=auth.uid();
@@ -240,8 +241,8 @@ grant execute on function public.read_lifetime_policy_status(uuid) to authentica
 
 -- Capture/receipt metadata remains available for truthful recovery. Actual body
 -- publication, model admission, commits and background lane/job authority do not.
-alter function public.lock_lifetime_publication(jsonb) rename to lock_lifetime_publication_before_atomic_policy;
-revoke all on function public.lock_lifetime_publication_before_atomic_policy(jsonb) from public,anon,authenticated,service_role;
+alter function public.lock_lifetime_publication(jsonb) rename to "lock_lifetime_publication_before_atomic_policy";
+revoke all on function public."lock_lifetime_publication_before_atomic_policy"(jsonb) from public,anon,authenticated,service_role;
 create function public.lock_lifetime_publication(p_fence jsonb) returns double precision
 language plpgsql security definer set search_path='' as $$
 declare remaining double precision;
@@ -253,8 +254,8 @@ end $$;
 revoke all on function public.lock_lifetime_publication(jsonb) from public,anon,service_role;
 grant execute on function public.lock_lifetime_publication(jsonb) to authenticated;
 
-alter function public.lock_lifetime_read_publication(jsonb) rename to lock_lifetime_read_publication_before_atomic_policy;
-revoke all on function public.lock_lifetime_read_publication_before_atomic_policy(jsonb) from public,anon,authenticated,service_role;
+alter function public.lock_lifetime_read_publication(jsonb) rename to "lock_lifetime_read_publication_before_atomic_policy";
+revoke all on function public."lock_lifetime_read_publication_before_atomic_policy"(jsonb) from public,anon,authenticated,service_role;
 create function public.lock_lifetime_read_publication(p_fence jsonb) returns double precision
 language plpgsql security definer set search_path='' as $$
 declare remaining double precision;
@@ -266,8 +267,8 @@ end $$;
 revoke all on function public.lock_lifetime_read_publication(jsonb) from public,anon,service_role;
 grant execute on function public.lock_lifetime_read_publication(jsonb) to authenticated;
 
-alter function public.lock_lifetime_memoir_lane(uuid,uuid) rename to lock_lifetime_memoir_lane_before_atomic_policy;
-revoke all on function public.lock_lifetime_memoir_lane_before_atomic_policy(uuid,uuid) from public,anon,authenticated,service_role;
+alter function public.lock_lifetime_memoir_lane(uuid,uuid) rename to "lock_lifetime_memoir_lane_before_atomic_policy";
+revoke all on function public."lock_lifetime_memoir_lane_before_atomic_policy"(uuid,uuid) from public,anon,authenticated,service_role;
 create function public.lock_lifetime_memoir_lane(p_lane_id uuid,p_token uuid) returns public.user_lifetime_lane_snapshot
 language plpgsql security definer set search_path='' as $$
 declare snapshot public.user_lifetime_lane_snapshot%rowtype;
@@ -278,8 +279,8 @@ begin
 end $$;
 revoke all on function public.lock_lifetime_memoir_lane(uuid,uuid) from public,anon,authenticated,service_role;
 
-alter function public.lock_lifetime_collection_job(uuid,uuid) rename to lock_lifetime_collection_job_before_atomic_policy;
-revoke all on function public.lock_lifetime_collection_job_before_atomic_policy(uuid,uuid) from public,anon,authenticated,service_role;
+alter function public.lock_lifetime_collection_job(uuid,uuid) rename to "lock_lifetime_collection_job_before_atomic_policy";
+revoke all on function public."lock_lifetime_collection_job_before_atomic_policy"(uuid,uuid) from public,anon,authenticated,service_role;
 create function public.lock_lifetime_collection_job(p_job_id uuid,p_token uuid default null) returns public.user_lifetime_collection_job
 language plpgsql security definer set search_path='' as $$
 declare job public.user_lifetime_collection_job%rowtype;
