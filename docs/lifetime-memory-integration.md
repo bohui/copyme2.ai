@@ -282,7 +282,8 @@ monotonic stages are `legacy_only`, `draining`, then `canonical_ready`:
 No database stage has been changed outside isolated synthetic tests. No deployment,
 operator clearance or access change is authorized by these tests. The interlock
 addresses a safe activation boundary; it does not provide direct WebRTC parity or
-resolve the user's still-pending AC10 product-scope decision.
+by itself resolve the AC10 product-scope decision. The later approved release
+boundary is recorded below.
 
 Scoped clearance evidence before the final combined-pin gate:
 - 28 isolated database/pure admission cases cover default denial, forged transition,
@@ -415,9 +416,19 @@ claim all broader browser scenarios, physical-device coverage, real-data provide
 quality, live latency or cost acceptance. Earlier failed runs above are preserved;
 their fixes are now included in the successful final aggregate.
 
-Remaining decisions and external gates:
-- The AC10 product decision on unavailable direct WebRTC versus requiring governed
-  transport parity remains open. Default-closed activation is not parity.
+Release-scope decision and remaining external gates:
+- On 2026-10-12 the user approved keeping direct WebRTC audio disabled for this
+  release for migrated/canonical accounts, as disclosed in the proposal, and
+  tracking safe realtime audio separately. Legacy-only direct SDP remains subject
+  to the existing staged gate; no global legacy route change was approved. This
+  resolves only the
+  disclosed AC10 feature-scope choice; it does not establish transport parity or
+  waive other acceptance checks. Ordinary conversation and transcription remain
+  within the implemented scope.
+- Preserve the default-closed adoption/provider interlock. Blocking new direct
+  calls does not terminate existing or in-flight legacy calls. The scope decision
+  is not an operational clearance attestation and does not authorize production
+  adoption, activation, migration, deployment or historical reconciliation.
 - Production migrations, historical identity/policy reconciliation, deployment,
   provider evaluation and activation require their separate approvals. No actual
   migration, reconciliation, call termination or clearance attestation was done.
