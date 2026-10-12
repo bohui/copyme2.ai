@@ -247,6 +247,7 @@ class JobPublication:
         from psycopg import AsyncConnection, Error
         from psycopg.types.json import Jsonb
         connection=None
+        activation_pending = False
         try:
             try:
                 async with asyncio.timeout(self.lock_timeout):
@@ -254,11 +255,22 @@ class JobPublication:
                     await connection.execute('set local role authenticated')
                     await connection.execute("select set_config('request.jwt.claim.sub',%s,true)",(str(self.owner),))
                     await connection.execute("select set_config('lock_timeout',%s,true)",(f'{int(self.lock_timeout*1000)}ms',))
+                    lease_started = asyncio.get_running_loop().time()
                     result=await connection.execute('select public.lock_lifetime_collection_job_publication(%s)',(Jsonb(snapshot),))
                     remaining=float((await result.fetchone())[0])
+                    lease_deadline = lease_started + remaining
+                    from .lifetime_memory_activation import require_provider_activation
+                    activation_pending = True
+                    await require_provider_activation(connection)
+                    activation_pending = False
+            except TimeoutError:
+                if activation_pending:
+                    from .lifetime_memory_activation import CanonicalActivationUnavailable
+                    raise CanonicalActivationUnavailable() from None
+                raise
             except Error as error:
                 raise PublicationUnavailable('Collection job page is unavailable or stale') from error
-            allowance=min(self.send_timeout,remaining-.1)
+            allowance=min(self.send_timeout, lease_deadline - asyncio.get_running_loop().time() - .1)
             if allowance<=0:raise PublicationUnavailable('Collection job lease expires too soon')
             async with asyncio.timeout(allowance):yield
         finally:
@@ -306,6 +318,9 @@ async def send_bounded_job_request(*,worker_url,worker_secret,bounded_job,worker
                 raise LaneGenerationPaused('Bounded lifetime generation is paused; retry later')
             if response.status_code==502 and response.headers.get('X-Error-Code')==JobOutputInvalid.code:
                 raise JobOutputInvalid('Collection output requires bounded repair')
+            from .lifetime_memory_activation import CanonicalActivationUnavailable
+            if response.status_code == 503 and response.headers.get('X-Error-Code') == CanonicalActivationUnavailable.code:
+                raise CanonicalActivationUnavailable()
             response.raise_for_status();result=response.json()
             if not isinstance(result,dict) or not isinstance(result.get('reply'),str):
                 raise JobOutputInvalid('Invalid bounded organiser worker response')

@@ -19,6 +19,9 @@ def event_database(private_database):
     for path in sorted((Path(__file__).resolve().parents[1] / 'supabase/migrations').glob('*.sql')):
         if path.name >= '202610040001_shared_memory_events.sql':
             private_database(path.read_text())
+    # Disposable fixture only: this cluster has no live or admitted calls.
+    private_database('select public.begin_lifetime_realtime_drain(0);')
+    private_database("select public.attest_lifetime_realtime_clearance(1, 'synthetic-isolated-fixture-no-live-calls');")
     return private_database
 
 
@@ -242,6 +245,46 @@ def test_worker_pause_keeps_deterministic_work_and_defers_organiser_without_prov
     assert broker.commits==1
 
 
+@pytest.mark.parametrize('clearance_closed', [True, False])
+def test_worker_only_clearance_deferral_avoids_generation_failure(monkeypatch, clearance_closed):
+    import asyncio
+    from apps.api import lifetime_memory_job_engine
+    from apps.api.lifetime_memory_activation import CanonicalActivationUnavailable
+    from apps.api.lifetime_memory_collection_jobs import CollectionJobWorker
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from test_lifetime_memory_job_engine import page as bounded_page
+
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    monkeypatch.delenv('MEMOIR_LIFETIME_GENERATION_PAUSED', raising=False)
+    releases = []
+
+    class Broker:
+        async def rpc(self, name, **kwargs):
+            if name == 'claim_lifetime_collection_job':
+                return {'id': kwargs['p_job_id'], 'token': str(uuid4())}
+            if name == 'read_lifetime_collection_job_page':
+                return bounded_page()
+            if name == 'release_lifetime_collection_job':
+                releases.append(kwargs['p_error'])
+                return True
+            pytest.fail(name)
+
+    async def blocked(**kwargs):
+        if clearance_closed:
+            raise CanonicalActivationUnavailable()
+        raise PublicationUnavailable('Unrelated authority failure')
+
+    monkeypatch.setattr(lifetime_memory_job_engine, 'send_bounded_job_request', blocked)
+    worker = CollectionJobWorker(Broker(), worker_url='http://synthetic.invalid', worker_secret='synthetic')
+    if clearance_closed:
+        assert asyncio.run(worker.execute(str(uuid4()))) == {'status': 'deferred', 'processed': 0}
+        assert releases == [None]
+    else:
+        with pytest.raises(PublicationUnavailable, match='Unrelated authority failure'):
+            asyncio.run(worker.execute(str(uuid4())))
+        assert releases == ['BOUNDED_JOB_RETRY']
+
+
 @pytest.mark.parametrize('bad_status',[None,False,{},0,'unknown'])
 def test_sql_confirmation_rejects_null_and_untyped_status(sql,bad_status):
     project=resolve(sql)['project_id']; original=source(sql,project)
@@ -454,6 +497,122 @@ def test_real_worker_dispatches_fenced_leaf_and_merge_without_legacy_history(sql
     assert asyncio.run(worker.execute(job['id']))=={'status':'succeeded','processed':3}
     assert phases==['leaf','leaf','merge']
     assert rpc(sql,'read_lifetime_collection_job',f"'{job['id']}',null,8")['status']=='SUCCEEDED'
+
+
+def test_clearance_deferral_preserves_committed_outline_and_resumes_after_attestation(sql, monkeypatch):
+    import asyncio
+    import httpx
+    from apps.api.lifetime_memory_collection_jobs import CollectionJobWorker
+    from apps.api.lifetime_memory_job_engine import JobPublication
+
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    monkeypatch.delenv('MEMOIR_LIFETIME_GENERATION_PAUSED', raising=False)
+    project = resolve(sql)['project_id']
+    originals = [source(sql, project, f'Original memory {n}') for n in range(2)]
+    confirm(sql, project, originals)
+    paid(sql)
+    job = create(sql, project, [], 'BuildOutline', 1)
+    lease = claim(sql, job)
+    frozen = page(sql, job, lease['token'])
+    commit(sql, frozen, outline_result(frozen))
+    service_rpc(sql, 'release_lifetime_collection_job', f"'{job['id']}','{lease['token']}',null")
+
+    def checkpoint():
+        # Everything except the mutable lease/failure state must survive pause.
+        saved = sql(f"select to_jsonb(j)-array['state','token','lease_until','attempts','error'] "
+                    f"from public.user_lifetime_collection_job j where id='{job['id']}';").stdout
+        for table, order in [('source', 'ordinal'), ('page', 'page_number'), ('node', 'ordinal')]:
+            saved += sql(f"select jsonb_agg(to_jsonb(v) order by {order}) "
+                         f"from public.user_lifetime_collection_job_{table} v where job_id='{job['id']}';").stdout
+        return saved
+
+    accepted = checkpoint()
+    command = sql.command
+    dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+
+    class Broker:
+        async def rpc(self, name, **kwargs):
+            def encode(value):
+                if isinstance(value, (dict, list)):
+                    return literal(value) + '::jsonb'
+                if value is None:
+                    return 'null'
+                if isinstance(value, int):
+                    return str(value)
+                return literal(value)
+            return await asyncio.to_thread(service_rpc, sql, name,
+                ','.join(f'{key}=>{encode(value)}' for key, value in kwargs.items()))
+
+    pages_sent = []
+
+    async def transport(request):
+        fence = json.loads(await request.aread())['bounded_job']['fence']
+        pages_sent.append((fence['phase'], fence['page_number']))
+        return httpx.Response(200, json={'reply': json.dumps(outline_result(fence))})
+
+    worker = CollectionJobWorker(Broker(), worker_url='http://synthetic.invalid', worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(transport), publisher=JobPublication(dsn, authenticated_owner=OWNER))
+    # Synthetic installation state only: existing jobs can predate the closed
+    # interlock migration. No production clearance is changed by this fixture.
+    sql('truncate public.lifetime_realtime_clearance; insert into public.lifetime_realtime_clearance default values;')
+    sql('select public.begin_lifetime_realtime_drain(0);')
+    try:
+        for _ in range(4):  # More deferrals than the ordinary failure limit.
+            assert asyncio.run(worker.execute(job['id'])) == {'status': 'deferred', 'processed': 0}
+            state = json.loads(sql(f"select jsonb_build_object('state',state,'attempts',attempts,'token',token,'error',error) "
+                                   f"from public.user_lifetime_collection_job where id='{job['id']}';").stdout)
+            assert state == {'state': 'QUEUED', 'attempts': 0, 'token': None, 'error': None}
+            assert checkpoint() == accepted
+        assert pages_sent == []
+        # The same interlock must not block bounded deterministic exports.
+        export = create(sql, project, [row['id'] for row in originals])
+        assert asyncio.run(worker.execute(export['id'])) == {'status': 'succeeded', 'processed': 2}
+        assert pages_sent == []
+    finally:
+        sql("select public.attest_lifetime_realtime_clearance(1, 'synthetic-isolated-fixture-no-live-calls');")
+
+    assert asyncio.run(worker.execute(job['id'])) == {'status': 'succeeded', 'processed': 2}
+    assert pages_sent == [('leaf', 1), ('merge', 2)]
+    result = rpc(sql, 'read_lifetime_collection_job', f"'{job['id']}',null,8")
+    assert result['status'] == 'SUCCEEDED'
+    assert {item['id'] for item in result['result']['sources']} == {row['id'] for row in originals}
+
+
+def test_clearance_polling_skips_old_outlines_without_starving_exports(sql):
+    project = resolve(sql)['project_id']
+    original = source(sql, project)
+    confirm(sql, project, [original])
+    paid(sql)
+    outlines = [rpc(sql, 'create_lifetime_collection_job',
+                    f"{literal(project)},'BuildOutline','Outline {n}','[]'::jsonb,1,'en-AU'")
+                for n in range(4)]
+    export = create(sql, project, [original['id']])
+    assert service_rpc(sql, 'pending_lifetime_collection_jobs', '4,true') == [job['id'] for job in outlines]
+    sql('truncate public.lifetime_realtime_clearance;')
+    try:
+        # A missing control row, default-closed and actively draining stages
+        # keep exports visible behind a full poll window of older outlines.
+        for stage in ('missing', 'legacy_only', 'draining'):
+            if stage == 'legacy_only':
+                sql('insert into public.lifetime_realtime_clearance default values;')
+            if stage == 'draining':
+                sql('select public.begin_lifetime_realtime_drain(0);')
+            assert service_rpc(sql, 'pending_lifetime_collection_jobs', '4,true') == [export['id']]
+            assert service_rpc(sql, 'pending_lifetime_collection_jobs', '4,false') == [export['id']]
+        assert service_rpc(sql, 'pending_lifetime_collection_jobs', '0,true', check=False).returncode != 0
+        assert service_rpc(sql, 'pending_lifetime_collection_jobs_before_clearance', '4,true', check=False).returncode != 0
+        assert rpc(sql, 'pending_lifetime_collection_jobs', '4,true', check=False).returncode != 0
+        assert sql('set role anon; select public.pending_lifetime_collection_jobs(4,true);', check=False).returncode != 0
+    finally:
+        stage = sql('select stage from public.lifetime_realtime_clearance;').stdout.strip()
+        if not stage:
+            sql('insert into public.lifetime_realtime_clearance default values;')
+            stage = 'legacy_only'
+        if stage == 'legacy_only':
+            sql('select public.begin_lifetime_realtime_drain(0);')
+        sql("select public.attest_lifetime_realtime_clearance(1, 'synthetic-isolated-fixture-no-live-calls');")
+    assert service_rpc(sql, 'pending_lifetime_collection_jobs', '4,true') == [job['id'] for job in outlines]
+    assert service_rpc(sql, 'pending_lifetime_collection_jobs', '4,false') == [export['id']]
 
 
 @pytest.mark.parametrize('revoke',['source','preference','collection','entitlement'])

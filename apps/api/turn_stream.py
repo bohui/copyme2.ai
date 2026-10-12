@@ -90,6 +90,9 @@ async def turn_events(run, cleanup=None):
             )
             # Never expose provider credentials, private artifacts or raw exceptions.
             event = {'type': 'error', 'message': 'The response could not be completed or saved. Please try again.'}
+            from .lifetime_memory_activation import CanonicalActivationUnavailable
+            if isinstance(error, CanonicalActivationUnavailable):
+                event['code'] = CanonicalActivationUnavailable.code
             partial_trajectory = getattr(error, 'trajectory', None)
             if isinstance(partial_trajectory, dict):
                 # Worker-side trajectories are already recorder-redacted. Keep

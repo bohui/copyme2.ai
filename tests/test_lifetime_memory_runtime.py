@@ -289,3 +289,65 @@ def test_accepted_source_survives_provider_failure_then_exact_retry(sql,tmp_path
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='1'
     assert sql('select count(*) from public.user_lifetime_reply;').stdout.strip()=='1'
+
+
+@pytest.mark.parametrize('worker', [False, True])
+@pytest.mark.parametrize('streaming', [False, True])
+def test_clearance_rejection_preserves_accepted_source_and_exact_retry(sql, tmp_path, monkeypatch, worker, streaming):
+    from apps.api.main import create_app
+    from apps.api.lifetime_memory_activation import CanonicalActivationUnavailable
+    from apps.api import lifetime_memory_engine
+    identity = rpc(sql, 'resolve_lifetime_conversation', 'null')
+    command = sql.command
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
+    calls = []
+    output = proposal(name='Joan', question='Where would you like to begin?')
+    output['plan']['conversation_phase'] = 'comfort'
+    result = {'reply': json.dumps(output), 'thread_id': 'clearance-retry', 'artifacts': []}
+
+    def provider(request):
+        calls.append('worker')
+        if len(calls) == 1:
+            return httpx.Response(503, headers={'X-Error-Code': 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'},
+                                  json={'detail': 'Conversation generation is awaiting operator clearance'})
+        if request.headers.get('accept') == 'application/x-ndjson':
+            return httpx.Response(200, headers={'Content-Type': 'application/x-ndjson'},
+                                  content=json.dumps({'type': 'result', 'data': result}) + '\n')
+        return httpx.Response(200, json=result)
+
+    async def local_provider(**kwargs):
+        calls.append('local')
+        if len(calls) == 1:
+            raise CanonicalActivationUnavailable()
+        return result
+
+    monkeypatch.setattr(lifetime_memory_engine, 'run_governed_collector', local_provider)
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
+    runtime = CodexRuntime(home_root=tmp_path / 'homes', worker_url='http://controlled.invalid' if worker else None,
+                          worker_secret='synthetic', worker_transport=httpx.MockTransport(provider))
+    monkeypatch.setattr(agent_routes, 'runtime', runtime)
+    payload = {'project_id': identity['project_id'], 'client_turn_id': str(uuid4()), 'text': 'My name is Joan'}
+    headers = {'Accept': 'application/x-ndjson' if streaming else 'application/json'}
+    with TestClient(create_app(MemoryStore()), raise_server_exceptions=False) as client:
+        failed = client.post('/v1/agent/turn', headers=headers, json=payload)
+        if streaming:
+            events = [json.loads(line) for line in failed.text.splitlines()]
+            accepted = next(event['data'] for event in events if event['type'] == 'source_accepted')
+            assert any(event['type'] == 'error' for event in events)
+        else:
+            assert failed.status_code == 503, failed.text
+            assert failed.headers['X-Error-Code'] == 'LIFETIME_MAINTENANCE_PENDING'
+            accepted = failed.json()['detail']
+            assert accepted['state'] == 'source_accepted'
+        assert accepted['accepted_source_id'] and accepted['client_turn_id'] == payload['client_turn_id']
+        receipt = client.get('/v1/agent/turns/' + payload['client_turn_id'], params={'project_id': identity['project_id']})
+        assert receipt.status_code == 200 and receipt.json()['state'] == 'source_accepted'
+        retry = client.post('/v1/agent/turn', json=payload)
+        assert retry.status_code == 200 and retry.json()['conversation_saved'], retry.text
+        replay = client.post('/v1/agent/turn', json=payload)
+        assert replay.status_code == 200 and replay.json()['cached'], replay.text
+    assert len(calls) == 2
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip() == '1'
+    assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'

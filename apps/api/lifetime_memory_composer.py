@@ -129,6 +129,7 @@ async def execute_lifetime_lane(job,worker,*,page_quantum=8):
     """Bound each lease's work; completed pages survive yielding and crashes."""
     if not 1<=page_quantum<=32: raise ValueError('Invalid lane page quantum')
     from .lifetime_memory_lane_engine import LaneGenerationPaused
+    from .lifetime_memory_activation import CanonicalActivationUnavailable
     page=job
     for _ in range(page_quantum):
         validate_page(page)
@@ -139,9 +140,9 @@ async def execute_lifetime_lane(job,worker,*,page_quantum=8):
             return await worker.broker.rpc('complete_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])
         try:
             result=await (_extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
-        except LaneGenerationPaused:
+        except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
-                p_reason='LIFETIME_GENERATION_PAUSED')
+                p_reason=deferred.code)
         except ValueError as error:
             if 'budget' not in str(error).lower():
                 raise

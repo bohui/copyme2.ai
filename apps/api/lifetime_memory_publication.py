@@ -25,6 +25,9 @@ class TransactionalPublication:
         self.send_timeout = send_timeout
         self.lock_timeout = lock_timeout
 
+    async def _lock_activation(self, connection):
+        pass  # Saved publication and replay do not require new model activation.
+
     @asynccontextmanager
     async def guard(self, fence):
         from psycopg import AsyncConnection
@@ -37,14 +40,26 @@ class TransactionalPublication:
             raise PublicationUnavailable('Publication owner mismatch')
         connection = None
         try:
-            async with asyncio.timeout(self.lock_timeout):
-                connection = await AsyncConnection.connect(self._dsn, connect_timeout=2)
-                await connection.execute('set local role authenticated')
-                await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(self.owner),))
-                await connection.execute("select set_config('lock_timeout',%s,true)", (f'{int(self.lock_timeout*1000)}ms',))
-                result = await connection.execute('select public.lock_lifetime_publication(%s)', (Jsonb(snapshot),))
-                remaining = float((await result.fetchone())[0])
-            allowance = min(self.send_timeout, remaining - 0.1)
+            activation_pending = False
+            try:
+                async with asyncio.timeout(self.lock_timeout):
+                    connection = await AsyncConnection.connect(self._dsn, connect_timeout=2)
+                    await connection.execute('set local role authenticated')
+                    await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(self.owner),))
+                    await connection.execute("select set_config('lock_timeout',%s,true)", (f'{int(self.lock_timeout*1000)}ms',))
+                    lease_started = asyncio.get_running_loop().time()
+                    result = await connection.execute('select public.lock_lifetime_publication(%s)', (Jsonb(snapshot),))
+                    remaining = float((await result.fetchone())[0])
+                    lease_deadline = lease_started + remaining
+                    activation_pending = True
+                    await self._lock_activation(connection)
+                    activation_pending = False
+            except TimeoutError:
+                if activation_pending:
+                    from .lifetime_memory_activation import CanonicalActivationUnavailable
+                    raise CanonicalActivationUnavailable() from None
+                raise
+            allowance = min(self.send_timeout, lease_deadline - asyncio.get_running_loop().time() - 0.1)
             if allowance <= 0:
                 raise PublicationUnavailable('Publication lease expires too soon')
             # The caller awaits ASGI send (or yields from the response body)
@@ -62,6 +77,13 @@ class TransactionalPublication:
                     except asyncio.CancelledError:
                         continue
                 closing.result()
+
+
+class ProviderPublication(TransactionalPublication):
+    """Only actual model request admission, never saved-output publication."""
+    async def _lock_activation(self, connection):
+        from .lifetime_memory_activation import require_provider_activation
+        await require_provider_activation(connection)
 
 
 async def send_governed(send, message, *, publisher, fence):

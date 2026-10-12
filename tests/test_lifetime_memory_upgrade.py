@@ -24,6 +24,13 @@ def test_upgrade_requires_explicit_inventory_before_fixture_mapping_can_read(upg
     sql,sources,before=upgraded_database
     assert rpc(sql,'resolve_lifetime_conversation','null')['outcome']=='mapping_required'
     assert sql("select jsonb_agg(to_jsonb(s) order by sequence) from public.user_narrator_source s;").stdout==before
+    # Historical inventory does not itself attest that old direct calls ended.
+    blocked = sql(f"insert into public.user_lifetime_conversation(user_id,project_id) values('{OWNER}','approved-fixture-project');", check=False)
+    assert blocked.returncode != 0 and 'LIFETIME_REALTIME_CLEARANCE_REQUIRED' in blocked.stderr
+    assert sql("select count(*) from public.user_lifetime_conversation;").stdout.strip() == '0'
+    # Only this isolated fixture has no real calls. Do not infer production clearance.
+    sql("select public.begin_lifetime_realtime_drain(0);")
+    sql("select public.attest_lifetime_realtime_clearance(1,'synthetic-upgrade-fixture-no-live-calls');")
     # This explicit synthetic mapping represents a separately approved operator
     # action; no application startup or migration chooses the historical project.
     sql(f"insert into public.user_lifetime_conversation(user_id,project_id) values('{OWNER}','approved-fixture-project');")

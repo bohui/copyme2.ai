@@ -282,8 +282,9 @@ def test_job_database_guard_holds_exact_snapshot_and_closes(monkeypatch,remainin
             with pytest.raises(PublicationUnavailable):
                 async with publisher.guard(fence):pytest.fail('expired lease admitted')
         assert closed==[True] and calls[0][0]=='set local role authenticated'
-        assert calls[-1][0]=='select public.lock_lifetime_collection_job_publication(%s)'
-        assert calls[-1][1][0].obj==fence.model_dump(mode='json')
+        assert calls[-1][0]=='select public.lock_lifetime_provider_activation()'
+        assert calls[-2][0]=='select public.lock_lifetime_collection_job_publication(%s)'
+        assert calls[-2][1][0].obj==fence.model_dump(mode='json')
     asyncio.run(scenario())
 
 
@@ -293,6 +294,11 @@ def test_worker_propagates_bounded_output_failure_as_typed_retryable_error(tmp_p
     worker=CodexWorker(home_root=tmp_path,model=BUDGET.model)
     async def failed(*args,**kwargs):raise JobOutputInvalid('No private reply text')
     monkeypatch.setattr(worker,'turn',failed);monkeypatch.setattr(worker_module,'worker',worker)
+    class SyntheticReady:
+        def __init__(self,*args,**kwargs): pass
+        @asynccontextmanager
+        async def guard(self): yield
+    monkeypatch.setattr(worker_module,'ActivationPublication',SyntheticReady)
     monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET','synthetic')
     bounded=transport()
     with TestClient(worker_module.app) as client:

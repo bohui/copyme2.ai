@@ -180,7 +180,11 @@ implemented. The remaining gates are specific:
   completed startup without API/browser errors, but their mutable snapshot cannot
   prove the earlier state. A bounded completion wait and immutable pre-screenshot
   diagnostic snapshot were repaired in 99b28d5 with 13 focused regressions and
-  six route cases passing. Collection behavior remains unverified until rerun.
+  six route cases passing. The subsequent 8744ce08/tree fb14c008 Mac run passed
+  pagination EN/ZH and collection review EN/ZH: four passed, zero failed,
+  unexecuted or skipped. The Mac verified lifetime/Auth/web source unchanged from
+  fc9de17. All eight controlled cases are covered across those two recorded heads;
+  this is not one unified current-head browser run or a live-provider test.
 - Remote beb2dc68 tree and all 157 changed blob SHAs were independently verified
   against local 0aaf4ab. Later repair commits require new remote parity and review.
   No PR-triggered remote workflows or statuses were reported on that checkpoint.
@@ -225,7 +229,9 @@ replace the acceptance gates above or authorize merge/activation.
   without another visit, unchanged uploads, large manifests and growing 10,000-turn homes.
 - W6 / AC9–10: clean pinned archives/worktrees and independent real PostgreSQL review,
   regression gates and documented approvals. Scoped passes are evidence, not a whole-ticket
-  completion claim. Browser, full aggregate, remote checks and the realtime decision remain.
+  completion claim. The base full aggregate and reviewed fixture delta are green;
+  all eight controlled browser cases pass across the recorded equivalent sources.
+  Final clearance-gate source/tests, remote checks and the realtime decision remain.
 
 ## Evaluation and later approvals
 
@@ -253,3 +259,45 @@ phase envelope no longer includes a pause control. Issue #60 preserves explicit
 selection, preferred phase and revision through pins/recovery. Topic-specific privacy
 deferrals and operator generation suspension remain separate controls. The local
 phase owner retains responsibility for phase behavior and outstanding phase findings.
+
+## Direct realtime clearance boundary (source-only rollout interlock)
+
+A default-closed database interlock is implemented with scoped independent source
+review. It does not revoke any call and is not operational clearance. Its
+monotonic stages are `legacy_only`, `draining`, then `canonical_ready`:
+
+1. The migration default permits no new canonical identity adoption or governed
+   model admission. Existing mapped safe reads and saved-receipt replay retain
+   their ordinary privacy fences.
+2. An operator-only transition blocks new direct realtime admission under the same
+   database authority used by canonical adoption and purpose-specific provider
+   request guards. Already admitted or connected calls are still in flight.
+3. Before a separately authorized clearance, an operator must verify termination
+   of every pre-existing call and in-flight creation through authoritative external
+   evidence. A bounded reference records that attestation; the application cannot
+   establish its truth from a missing local registry, process restart or assumed TTL.
+4. Only then may separately approved clearance enable canonical adoption/provider
+   admission. No backward transition may re-enable ungoverned direct calls.
+
+No database stage has been changed outside isolated synthetic tests. No deployment,
+operator clearance or access change is authorized by these tests. The interlock
+addresses a safe activation boundary; it does not provide direct WebRTC parity or
+resolve the user's still-pending AC10 product-scope decision.
+
+Scoped clearance evidence before the final combined-pin gate:
+- 28 isolated database/pure admission cases cover default denial, forged transition,
+  operator CAS, existing identity recovery, actual multipart admission versus drain,
+  ready commit/rollback, queued-exclusive lock ordering and lease-wait accounting.
+- Four actual HTTP cases preserve one accepted source and exact retry in direct and
+  worker modes, both JSON and streaming; three preaccept cases preserve honest
+  nonacceptance and fixed public errors without exposing database diagnostics.
+- Composer clearance handling passes 44 short cases plus 63 provenance/photo cases:
+  repeated deferral preserves sources, checkpoints and required obligations without
+  spending generation-failure attempts, and resumes after synthetic readiness.
+- Selected jobs pass 36 database cases, including the bounded 10,000-history fixture,
+  plus five dispatch cases with the real local Temporal test server. Pending model
+  jobs cannot starve deterministic exports while clearance is closed; typed deferral
+  preserves the accepted manifest and checkpoint.
+
+These fixtures attest only their isolated synthetic environment. The final combined
+source still requires pinned independent testing and the native-enabled aggregate.

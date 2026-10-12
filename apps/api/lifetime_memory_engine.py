@@ -27,7 +27,7 @@ from .lifetime_memory_contracts import (
     PinnedContinuity,
 )
 from .lifetime_memory_execution import open_execution
-from .lifetime_memory_publication import TransactionalPublication
+from .lifetime_memory_publication import ProviderPublication
 
 
 GOVERNED_TURN_PROMPT = (
@@ -269,7 +269,7 @@ async def run_governed_collector(*, command, home_root, base_url, api_key, model
     if publisher is None:
         # Server-only configuration, never accepted in WorkerTurnInput. No
         # fallback to a prior RPC check: it cannot fence actual pipe admission.
-        publisher = TransactionalPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
+        publisher = ProviderPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
             authenticated_owner=packet.identity.owner_id)
     if not callable(getattr(publisher, 'guard', None)):
         raise TypeError('Governed execution requires a publication guard')

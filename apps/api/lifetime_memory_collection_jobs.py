@@ -141,6 +141,7 @@ class CollectionJobWorker:
     async def execute(self, job_id, *, page_limit=PAGE_LIMIT):
         if type(page_limit) is not int or not 1 <= page_limit <= PAGE_LIMIT:
             raise ValueError('A collection run accepts one to eight pages')
+        from .lifetime_memory_activation import CanonicalActivationUnavailable
         from .lifetime_memory_lane_engine import check_lane_generation, LaneGenerationPaused
         claim = await self.broker.rpc('claim_lifetime_collection_job', p_job_id=str(UUID(str(job_id))), p_run_seconds=600)
         if not claim:
@@ -168,7 +169,9 @@ class CollectionJobWorker:
                     return {'status': 'succeeded', 'processed': processed}
             await self.broker.rpc('release_lifetime_collection_job', p_job_id=claim['id'], p_token=claim['token'], p_error=None)
             return {'status': 'pending', 'processed': processed}
-        except LaneGenerationPaused:
+        except (LaneGenerationPaused, CanonicalActivationUnavailable):
+            # Operator clearance and generation pause are scheduling deferrals,
+            # not failed model attempts. Keep the frozen manifest/checkpoint.
             await self.broker.rpc('release_lifetime_collection_job', p_job_id=claim['id'], p_token=claim['token'], p_error=None)
             return {'status': 'deferred', 'processed': processed}
         except Exception:

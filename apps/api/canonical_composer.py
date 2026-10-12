@@ -367,9 +367,10 @@ async def compose_shared_snapshot(job, worker):
     if failures:
         if job.get('governed_page'):
             from .lifetime_memory_lane_engine import LaneGenerationPaused
-            paused = next((error for error in failures if isinstance(error, LaneGenerationPaused)), None)
-            if paused is not None:
-                raise paused
+            from .lifetime_memory_activation import CanonicalActivationUnavailable
+            deferred = next((error for error in failures if isinstance(error, (LaneGenerationPaused, CanonicalActivationUnavailable))), None)
+            if deferred is not None:
+                raise deferred
             budget_failure = next((error for error in failures if isinstance(error, ValueError) and 'budget' in str(error).lower()), None)
             if budget_failure is not None:
                 raise budget_failure

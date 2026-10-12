@@ -79,7 +79,18 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     # Explicit request resource bound, before accepting any narrator bytes.
     if len(text.encode('utf-8'))>16000:
         raise InputLimitExceeded('This message exceeds the governed request budget; the original was not accepted or truncated')
-    identity_raw=await asyncio.to_thread(storage.lifetime_rpc,'resolve_lifetime_conversation',p_project_id=project_id)
+    from .lifetime_memory_activation import CanonicalActivationUnavailable
+    import httpx
+    try:
+        identity_raw=await asyncio.to_thread(storage.lifetime_rpc,'resolve_lifetime_conversation',p_project_id=project_id)
+    except httpx.HTTPStatusError as error:
+        try:
+            detail=error.response.json()
+        except ValueError:
+            detail=None
+        if isinstance(detail,dict) and detail.get('code')=='55000' and detail.get('message')=='LIFETIME_REALTIME_CLEARANCE_REQUIRED':
+            raise CanonicalActivationUnavailable() from None
+        raise
     if identity_raw.get('outcome')!='resolved':raise MappingRequired('Existing memoir projects require explicit identity mapping')
     identity=IdentityEnvelope.model_validate({k:v for k,v in identity_raw.items() if k!='outcome'})
     project_id=identity.project_id
@@ -169,14 +180,19 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             async def delta(chunk):
                 value=visible.feed(chunk)
                 if value and on_delta:await on_delta(value)
-            if runtime.worker_url:
-                result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
-                    family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
-                    interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None)
-            else:
-                result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
-                    api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
-                    timeout=runtime.timeout,on_delta=delta if on_delta else None,effort=collector.effort,issue14_admission=runtime._issue14_admission)
+            try:
+                if runtime.worker_url:
+                    result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
+                        family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
+                        interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None)
+                else:
+                    result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
+                        api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
+                        timeout=runtime.timeout,on_delta=delta if on_delta else None,effort=collector.effort,issue14_admission=runtime._issue14_admission)
+            except CanonicalActivationUnavailable as error:
+                pending=MaintenancePending('The source is accepted; conversation generation is awaiting operator clearance')
+                pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
+                raise pending from error
             if result.get('_artifact_task') is not None:
                 await result['_artifact_task']
             validated=validate_governed_collector_result(result['reply'],context)
@@ -205,6 +221,7 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
     import os
     from fastapi import HTTPException
     from .lifetime_memory_publication import TransactionalPublication,PublicationUnavailable
+    from .lifetime_memory_activation import CanonicalActivationUnavailable
     from .lifetime_memory_transport import governed_turn_events,GovernedStreamingResponse,GovernedJSONResponse
     publication=LifetimePublicationContext()
     async def cleanup():
@@ -221,6 +238,8 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
         return GovernedJSONResponse(result,publisher=publisher,fence=publication.fence,cleanup=cleanup)
     except BaseException as error:
         await cleanup()
+        if isinstance(error,CanonicalActivationUnavailable):
+            raise HTTPException(503,'Conversation generation is awaiting operator clearance',headers={'X-Error-Code':'LIFETIME_REALTIME_CLEARANCE_REQUIRED','Retry-After':'60'}) from None
         if isinstance(error,PublicationUnavailable):raise HTTPException(503,'Governed publication is not configured') from None
         if isinstance(error,GenerationPaused):raise HTTPException(503,str(error),headers={'X-Error-Code':'LIFETIME_GENERATION_PAUSED'}) from None
         if isinstance(error,MappingRequired):raise HTTPException(409,str(error),headers={'X-Error-Code':'LIFETIME_MAPPING_REQUIRED'}) from None

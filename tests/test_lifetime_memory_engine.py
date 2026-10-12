@@ -251,7 +251,7 @@ def test_worker_uses_same_governed_engine_and_no_artifact_export(tmp_path, monke
         # Replace only the server's connector constructor; no secret/config read.
         assert dsn is None and authenticated_owner == IDENTITY.owner_id
         return FakePublisher()
-    monkeypatch.setattr(engine_module, 'TransactionalPublication', publication_factory)
+    monkeypatch.setattr(engine_module, 'ProviderPublication', publication_factory)
     monkeypatch.setattr(worker_module, 'iter_artifacts', lambda home: pytest.fail('governed artifact export'))
     governed, context = fixture()
     worker = CodexWorker(home_root=tmp_path, model=BUDGET.model, api_key='transient-test-secret')

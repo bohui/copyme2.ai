@@ -459,8 +459,9 @@ def test_transactional_lane_guard_exact_snapshot_and_bounded_cleanup(monkeypatch
         assert closed==[True]
         assert calls[0][0]=='set local role authenticated'
         assert calls[1][1]==(str(fence.user_id),)
-        assert calls[-1][0]=='select public.lock_lifetime_memoir_lane_publication(%s)'
-        assert calls[-1][1][0].obj==fence.model_dump(mode='json')
+        assert calls[-1][0]=='select public.lock_lifetime_provider_activation()'
+        assert calls[-2][0]=='select public.lock_lifetime_memoir_lane_publication(%s)'
+        assert calls[-2][1][0].obj==fence.model_dump(mode='json')
     asyncio.run(scenario())
 
 

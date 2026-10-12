@@ -10,6 +10,8 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from .agent_routes_support import authenticated_storage
+from .lifetime_memory_activation import RealtimePublication, CanonicalActivationUnavailable
+from .lifetime_memory_legacy import LegacyRequestBody
 from .codex_runtime import MEMOIR_SYSTEM_PROMPT, conversation_language_instruction
 
 router = APIRouter(prefix='/v1/realtime', tags=['Realtime voice'])
@@ -71,7 +73,7 @@ def session_config(profile, memories, language):
     }
 
 
-async def exchange_offer(sdp, config, user_id):
+async def exchange_offer(sdp, config, user_id, *, publisher):
     api_key = os.getenv('OPENAI_API_KEY', '').strip()
     if not api_key:
         raise HTTPException(503, 'Realtime voice is not configured')
@@ -80,7 +82,8 @@ async def exchange_offer(sdp, config, user_id):
         # Do not retry creation: a timed-out request might already have created
         # a billable call. Do not follow redirects with the server credential.
         async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
-            result = await client.post(
+            request = client.build_request(
+                'POST',
                 base_url + '/realtime/calls',
                 headers={
                     'Authorization': f'Bearer {api_key}',
@@ -91,6 +94,13 @@ async def exchange_offer(sdp, config, user_id):
                     'session': (None, json.dumps(config), 'application/json'),
                 },
             )
+            # Freeze the complete multipart bytes before any transport awaits.
+            # The iterator holds authority through body consumption only.
+            body = LegacyRequestBody(request.read(), publisher=publisher)
+            try:
+                result = await client.post(request.url, headers=request.headers, content=body)
+            finally:
+                await body.aclose()
     except httpx.TimeoutException:
         raise HTTPException(504, 'Realtime connection timed out; start a new connection') from None
     except httpx.RequestError:
@@ -126,6 +136,10 @@ async def create_call(request: Request, authorization: str | None = Header(defau
             raise HTTPException(422, 'Expected an audio SDP offer and en-AU or zh-CN language') from None
         if not os.getenv('OPENAI_API_KEY', '').strip():
             raise HTTPException(503, 'Realtime voice is not configured')
+        publisher = RealtimePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
+                                        authenticated_owner=storage.user_id)
+        async with publisher.guard():
+            pass
         try:
             profile = await asyncio.to_thread(storage.profile)
             memories = await asyncio.to_thread(storage.memories)
@@ -133,8 +147,12 @@ async def create_call(request: Request, authorization: str | None = Header(defau
             raise HTTPException(502, 'Private voice context is unavailable') from None
         answer = await exchange_offer(
             payload.sdp, session_config(profile, memories, payload.language), storage.user_id,
+            publisher=publisher,
         )
         return Response(answer, status_code=201, media_type='application/sdp',
                         headers={'Cache-Control': 'no-store'})
+    except CanonicalActivationUnavailable:
+        raise HTTPException(503, 'Realtime voice is waiting for safety clearance',
+            headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     finally:
         await asyncio.to_thread(storage.client.close)

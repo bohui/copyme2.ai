@@ -21,6 +21,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from .turn_stream import STREAM_HEADERS, turn_events
+from .lifetime_memory_activation import ActivationPublication, CanonicalActivationUnavailable
 from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection, provider_config
@@ -760,6 +761,21 @@ async def turn(payload: WorkerTurnInput, request: Request,
         except LegacyAuthorityUnavailable:
             raise HTTPException(503, 'Legacy identity authority is unavailable',
                 headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
+    else:
+        try:
+            from .lifetime_memory_lane_engine import check_lane_generation
+            check_lane_generation()
+            # Readiness preflight returns a fixed HTTP error before streaming
+            # headers. Every engine separately gates actual pipe admission.
+            async with ActivationPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
+                    authenticated_owner=payload.user_id).guard():
+                pass
+        except LaneGenerationPaused:
+            raise HTTPException(503, 'Bounded lifetime generation is paused; retry later',
+                headers={'X-Error-Code': LaneGenerationPaused.code, 'Retry-After': '60'}) from None
+        except CanonicalActivationUnavailable:
+            raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
+                headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     if 'application/x-ndjson' in request.headers.get('accept', ''):
         response_type = LegacyStreamingResponse if legacy_publication is not None else StreamingResponse
         return response_type(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
@@ -783,6 +799,9 @@ async def turn(payload: WorkerTurnInput, request: Request,
             headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
     except AgentTurnBusyError as error:
         raise HTTPException(status_code=409, detail=str(error)) from None
+    except CanonicalActivationUnavailable:
+        raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
+            headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     except JobOutputInvalid:
         raise HTTPException(status_code=502, detail='Collection output requires bounded repair',
                             headers={'X-Error-Code': JobOutputInvalid.code, 'Retry-After': '60'}) from None

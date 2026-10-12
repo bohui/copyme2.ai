@@ -3294,9 +3294,9 @@ class CodexRuntime:
             publisher=LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=user_id)
             request_content={'content':LegacyRequestBody(encoded,publisher=publisher)}
         else:
-            from .lifetime_memory_publication import GovernedRequestBody,TransactionalPublication
+            from .lifetime_memory_publication import GovernedRequestBody,ProviderPublication
             encoded=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
-            publisher=TransactionalPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=user_id)
+            publisher=ProviderPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=user_id)
             request_content={'content':GovernedRequestBody(encoded,publisher=publisher,fence=governed['fence'])}
             worker_headers={**worker_headers,'Content-Type':'application/json','Content-Length':str(len(encoded))}
         result: Any = None
@@ -3369,6 +3369,9 @@ class CodexRuntime:
                                     elif event['type'] == 'result':
                                         terminal = event['data']
                                     elif event['type'] == 'error':
+                                        from .lifetime_memory_activation import CanonicalActivationUnavailable
+                                        if governed is not None and event.get('code') == CanonicalActivationUnavailable.code:
+                                            raise CanonicalActivationUnavailable()
                                         partial = event.get('trajectory')
                                         raise _WorkerStreamError(
                                             'Codex worker turn failed',
@@ -3405,6 +3408,10 @@ class CodexRuntime:
                     response.raise_for_status()
                     result = response.json()
         except httpx.HTTPStatusError as error:
+            from .lifetime_memory_activation import CanonicalActivationUnavailable
+            if (governed is not None and error.response.status_code == 503
+                    and error.response.headers.get('X-Error-Code') == CanonicalActivationUnavailable.code):
+                raise CanonicalActivationUnavailable() from None
             error_payload = _worker_error_payload(error.response)
             if isinstance(error_payload, Mapping):
                 partial = error_payload.get('trajectory')
