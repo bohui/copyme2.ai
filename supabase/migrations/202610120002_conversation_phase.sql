@@ -96,12 +96,22 @@ end $$;
 
 create or replace function public.conversation_phase_action(p_text text) returns text
 language plpgsql immutable set search_path='' as $$
-declare sentence text; candidate text; candidates text[]; part text; selected text;
+declare paragraph text; line text; sentence text; tail text; candidate text; candidates text[]; part text; selected text;
+ masked text; reported boolean;
 begin
- if coalesce(p_text,'') ~* '["“”「」『』`]|\m(?:said|says|told|asked)\M|(?:说|說|告诉|告訴)[：:]?' then return null; end if;
- foreach sentence in array regexp_split_to_array(coalesce(p_text,''),'[.!?。！？\n]') loop
+ masked:=regexp_replace(coalesce(p_text,''),'"[^"]*[.!?。！？]\s*"|“[^”]*[.!?。！？]\s*”|‘(?:[^’]|’(?=\w)|(?<=\w)’(?=[ \t]+\w))*[.!?。！？]\s*’|「[^」]*[.!?。！？]\s*」|『[^』]*[.!?。！？]\s*』|`[^`]*[.!?。！？]\s*`|(?<!\w)''(?:[^'']|''(?=\w)|(?<=\w)''(?=[ \t]+\w))*[.!?。！？]\s*''','[quoted].','g');
+ masked:=regexp_replace(masked,'"[^"]*(?:"|$)|“[^”]*(?:”|$)|‘(?:[^’]|’(?=\w)|(?<=\w)’(?=[ \t]+\w))*(?:’(?!\w|[ \t]+\w)|$)|「[^」]*(?:」|$)|『[^』]*(?:』|$)|`[^`]*(?:`|$)|(?<!\w)''(?:[^'']|''(?=\w)|(?<=\w)''(?=[ \t]+\w))*(?:''(?!\w|[ \t]+\w)|$)','[quoted]','g');
+ masked:=regexp_replace(masked,'(?<=\d)\s*[:：]\s*(?=\d)',' ','g');
+ foreach paragraph in array regexp_split_to_array(masked,'\n\s*\n') loop
+ reported:=false;
+ foreach line in array regexp_split_to_array(paragraph,'\n') loop
+ if reported then continue; end if;
+ foreach sentence in array regexp_split_to_array(line,'[.!?。！？]') loop
+ tail:=regexp_replace(sentence,'^.*\[quoted\]','');
+ if tail ~* '(?:\m(?:said|says|told|asked)\M|(?:说|說|告诉|告訴))[^:：]*[:：]' then reported:=true; end if;
+ if reported then continue; end if;
  candidates:=array[btrim(sentence)];
- if sentence !~* '["“”‘’「」『』]|(?:he|she|they) said|[他她]说' then
+ if sentence !~* '\m(?:said|says|told|asked)\M|(?:说|說|告诉|告訴)|\[quoted\]' then
    foreach part in array (regexp_split_to_array(sentence,'[,，]'))[2:] loop
      if part ~* '^\s*(?:I want to |I would like to |我想)' then candidates:=array_append(candidates,btrim(part)); end if;
    end loop;
@@ -112,6 +122,10 @@ begin
  if candidate ~* '^((?:please |I want to |can we )?(?:shape my story|organize my story|organise my story|help me (?:shape|organize|organise|review) my story)|(?:请|我想)?(?:整理我的故事|帮我整理故事|回顾我的故事))$' then selected:='shape'; end if;
  if candidate ~* '^((?:please )?(?:use automatic guidance|return to automatic guidance)|(?:请)?(?:恢复自动引导|自动引导))$' then selected:='automatic'; end if;
  if candidate ~* '^((?:please |can we )?(?:skip(?: this question)?|try another topic|change (?:the )?topic)|(?:请)?(?:跳过(?:这个问题)?|换个话题))$' then selected:='skip'; end if;
+ end loop;
+ end loop;
+ tail:=regexp_replace(regexp_replace(line,'^.*[.!?。！？]',''),'^.*\[quoted\]','');
+ if tail ~* '\m(?:said|says|told|asked)\M|(?:说|說|告诉|告訴)' then reported:=true; end if;
  end loop;
  end loop;
  return selected;
@@ -157,7 +171,7 @@ create or replace function public.save_user_interview_plan(p_project_id text,p_c
  p_reply text default null,p_response_photo_ids jsonb default '[]',p_thread_id text default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare current jsonb; result jsonb; update_phase jsonb:=p_plan->'phase_update'; action text; source_text text;
- old public.user_interview_turn%rowtype; desired text;
+ old public.user_interview_turn%rowtype;
 begin
  current:=public.read_user_conversation_phase(p_project_id);
  select * into old from public.user_interview_turn where user_id=auth.uid() and project_id=p_project_id and client_turn_id=p_client_turn_id;
@@ -186,10 +200,10 @@ begin
  if action is not null then
    current:=public.change_user_conversation_phase(p_project_id,action,(current->>'revision')::bigint);
    update public.user_conversation_phase set source_turn_id=p_client_turn_id where user_id=auth.uid() and project_id=p_project_id;
- elsif update_phase->>'phase' is not null and current->>'selection'='automatic' then
-   desired:=update_phase->>'phase';
-   update public.user_conversation_phase set phase=desired,revision=revision+1,reason='narration',source_turn_id=p_client_turn_id
-   where user_id=auth.uid() and project_id=p_project_id and phase<>desired;
+ elsif update_phase->>'phase'='explore' and current->>'selection'='automatic' and current->>'phase'='comfort' then
+   -- Automatic narration moves forward; a correction cannot restart comfort.
+   update public.user_conversation_phase set phase='explore',revision=revision+1,reason='narration',source_turn_id=p_client_turn_id
+   where user_id=auth.uid() and project_id=p_project_id;
  end if;
  return result || jsonb_build_object('conversation_phase',public.read_user_conversation_phase(p_project_id));
 end $$;

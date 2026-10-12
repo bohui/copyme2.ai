@@ -173,7 +173,9 @@ def collector_instructions(context):
         'life stage, extraction work, language, usage and draft access. Three gentle opening exchanges '
         'and the first-five low-pressure guidance are optional pacing, never gates. Follow a rich first '
         'story immediately. Short answers and silence do not imply reluctance or readiness. '
-        'Set plan.conversation_phase to comfort or explore only when helpful, otherwise null. '
+        'Automatic guidance can move from comfort to explore as narration develops; returning '
+        'to comfort requires the storyteller to choose it. Set plan.conversation_phase to explore '
+        'only for that forward transition, otherwise null, including during corrections. '
         'Explicit selection in conversation_phase is authoritative; do not override it. '
         'The current narrator may choose comfort/explore/shape/automatic or skip. '
         'If phase_control_current=false, a newer accepted choice supersedes control words in this '
@@ -216,7 +218,7 @@ def validate_collector_result(value, context):
     if _questions(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
-    from .conversation_phase import PhaseState
+    from .conversation_phase import PhaseState, resolve_phase
     phase = PhaseState.model_validate(context['conversation_phase']) if 'conversation_phase' in context else None
     ids = [item.id for item in plan.candidates]
     questions = [item.question.strip().casefold() for item in plan.candidates]
@@ -322,7 +324,9 @@ def validate_collector_result(value, context):
     saved_plan = plan.model_dump()
     saved_plan.pop('conversation_phase')
     if phase is not None:
-        saved_plan['phase_update'] = {'expected_revision': phase.revision, 'phase': plan.conversation_phase}
+        proposed = resolve_phase(phase, {'phase': plan.conversation_phase})
+        saved_plan['phase_update'] = {'expected_revision': phase.revision,
+            'phase': proposed.phase if proposed.phase != phase.phase else None}
 
     for candidate in saved_plan['candidates']:
         if candidate['context']['historical_clue_id'] is None:

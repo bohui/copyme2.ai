@@ -2,6 +2,7 @@
 import pytest
 from test_interview_photos_postgres import database, attachment_database, private_database, event_database, sql, rpc, literal, accept, as_user, OWNER, OTHER, OLD, TURN
 from test_interview_work_plan_postgres import plan, save
+from test_conversation_phase import CONTROL_ATTRIBUTION_CASES
 
 
 def read(sql,owner=OWNER):
@@ -177,7 +178,7 @@ def test_two_tabs_cas_accepts_only_one_choice(sql):
     assert read(sql)['revision']==1
 
 
-@pytest.mark.parametrize('text,expected',[
+@pytest.mark.parametrize('text,expected', CONTROL_ATTRIBUTION_CASES + [
     ('这段回忆让我难受，我想整理我的故事。','shape'),
     ('This is important, I want to shape my story.','shape'),
     ('他说，整理我的故事。',None),('He said, shape my story.',None),
@@ -360,7 +361,8 @@ def test_current_chat_correction_and_failed_correction_keep_mode(sql):
 
 
 @pytest.mark.parametrize('origin',['workspace','chat'])
-def test_year_correction_changes_only_the_affected_event_without_restarting(sql,origin):
+@pytest.mark.parametrize('selection',['shape','automatic'])
+def test_year_correction_changes_only_the_affected_event_without_restarting(sql,origin,selection):
     from test_shared_memory_events_postgres import extract
     source=accept(sql,'I started school in 1964. We moved in 1986.')['source']
     reference={'source_id':source['id'],'version':1,'quote':source['text']}
@@ -372,12 +374,22 @@ def test_year_correction_changes_only_the_affected_event_without_restarting(sql,
     ])['events']
     target=next(event for event in events if event['title']=='Started school')
     other=next(event for event in events if event['title']=='Moved')
-    guidance=control(sql,'shape',0)
+    opening=plan('extract',None)
+    opening['phase_update']={'expected_revision':0,'phase':'explore'}
+    guidance=save(sql,opening)['conversation_phase']
+    if selection=='shape': guidance=control(sql,'shape',guidance['revision'])
     statement='Actually, the school year was 1966.'
     source_id='null'
     if origin=='chat':
         correction=accept(sql,statement,turn='00000000-0000-4000-8000-000000000097')
         source_id=literal(correction['source']['id'])
+        # Exercise the SQL backstop even if a worker bypasses Python filtering.
+        # The collector saves before background event correction consumes its source.
+        value=plan('extract',None)
+        value['phase_update']={'expected_revision':guidance['revision'],'phase':'comfort'}
+        sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+        saved=rpc(sql,'save_user_interview_plan',f"'project','{correction['client_turn_id']}',{literal(value)}::jsonb,'[]','{OLD}',{literal('The school year is 1966.')},'[]','real-collector-thread'")
+        assert saved['conversation_phase']==guidance
     patch={'temporal':{'expression':'1966','precision':'year','year_start':1966,'year_end':1966}}
     corrected=rpc(sql,'correct_user_memory_event',f"'project',{literal(target['id'])},1,{literal(patch)}::jsonb,{literal(statement)},{literal(origin)},{source_id}")
     current=rpc(sql,'read_user_memory_events',"'project'")['events']

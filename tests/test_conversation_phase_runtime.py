@@ -24,7 +24,7 @@ def test_name_only_stream_is_gentle_and_has_one_collector(monkeypatch,tmp_path,l
     async def delta(value): chunks.append(value)
     result=asyncio.run(runtime.turn(storage,text,project_id='project',client_turn_id=str(uuid4()),on_event=event,on_delta=delta))
     assert len(calls)==1 and question in result['reply'] and ''.join(chunks)==result['reply']
-    assert storage.saved_plan['phase_update']=={'expected_revision':0,'phase':'comfort'}
+    assert storage.saved_plan['phase_update']=={'expected_revision':0,'phase':None}
     assert calls[0]['interview_context']['conversation_phase']['phase']=='comfort'
 
 
@@ -39,6 +39,17 @@ def test_continuing_or_correcting_never_requires_a_resume_action(text):
 def test_model_cannot_create_explicit_choice():
     response=proposal(); response['plan']['conversation_phase']='shape'
     with pytest.raises(ValueError): validate_collector_result(response,{})
+
+
+def test_collector_correction_cannot_propose_a_reset_to_comfort():
+    state=PhaseState(phase='explore',revision=4,reason='narration')
+    response=proposal('extract',name=None)
+    response['plan']['conversation_phase']='comfort'
+    context={'conversation_phase':state.model_dump(mode='json'),
+        'source':{'id':str(uuid4()),'version':1,'status':'active','text':'Actually, school was in 1966.'}}
+    validated=validate_collector_result(response,context)
+    assert validated['plan']['work']['mode']=='extract'
+    assert validated['plan']['phase_update']=={'expected_revision':4,'phase':None}
 
 @pytest.mark.parametrize('language',['en-AU','zh-CN'])
 @pytest.mark.parametrize('phase',['comfort','explore','shape'])

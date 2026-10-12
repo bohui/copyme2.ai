@@ -22,8 +22,11 @@ are rejected and there is no `paused` field. A storyteller may leave and return
 without a resume step. A wish to finish the current exchange still receives an
 acknowledgement without another question; it does not create a durable mode.
 
-Automatic collector proposals are restricted to comfort/explore; shape is an
-explicit choice. The existing event/source correction RPCs retain their revision,
+Automatic guidance can move from comfort to explore as narration develops; an
+automatic proposal cannot return exploration to onboarding. Gentler conversation
+and shaping remain explicit choices. English/Chinese direct requests after reported
+or quoted memories are recognised separately from another speaker's commands.
+The existing event/source correction RPCs retain their revision,
 ownership, provenance, exclusion and approved-prose protections. This migration
 adds no correction trigger or wrapper that changes the conversation phase.
 A year correction preserves the unrelated event, saved mode and phase revision.
@@ -40,12 +43,14 @@ no extra model call. DDL rerun is tested; no production migration was executed.
 
 Verified the changes on `codex/pr61-smooth-flow`, based on PR head a2a42a1:
 
-- 302 Python checks passed across phase policy/API/runtime, opening, plan validation,
+- 332 Python checks passed across phase policy/API/runtime, opening, plan validation,
   project recovery, streaming, historical-news behavior and the worker service.
-- 60 real PostgreSQL checks passed across phase, work-plan and private-round suites.
+- 90 real PostgreSQL checks passed across phase, work-plan and private-round suites.
   These include restricted-role ownership, concurrent CAS, replay, admission
   ordering, guest transfer and workspace/chat year corrections. The correction
-  cases verify an unrelated event and the complete phase envelope stay unchanged.
+  cases cover automatic exploration and explicit shaping, including a collector's
+  attempted reset to comfort. An unrelated event and the complete phase envelope
+  stay unchanged. Identical attribution cases exercise both Python and SQL.
 - One existing protected-draft PostgreSQL regression passed; 110 unrelated cases
   were deselected in that targeted run.
 - All 358 JavaScript checks passed, including 13 phase checks. Removed pause/resume

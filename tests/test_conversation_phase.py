@@ -42,6 +42,13 @@ def test_automatic_mode_is_an_explicit_choice():
     assert state.selection=='automatic' and state.preferred_phase is None and state.phase=='explore'
 
 
+def test_automatic_exploration_cannot_be_reset_by_a_correction_proposal():
+    state=apply(phase='explore')
+    assert state.selection=='automatic' and state.revision==1
+    assert apply(state,phase='comfort')==state
+    assert apply(state,action='comfort').phase=='comfort'
+
+
 @pytest.mark.parametrize('value',[{'phase':'trust'}, {'revision':-1}, {'paused':'false'}, {'schema_version':2}, {'private_reasoning':'secret'}])
 def test_envelope_rejects_unknown_or_untyped_state(value):
     with pytest.raises(ValidationError): PhaseState.model_validate(value)
@@ -74,3 +81,41 @@ def test_reported_trailing_request_is_not_control(text):
 def test_multiline_report_does_not_gain_current_user_authority(text):
     from apps.api.conversation_phase import explicit_action
     assert explicit_action(text) is None
+
+
+CONTROL_ATTRIBUTION_CASES = [
+    ('My mother said we moved in 1964. Please shape my story.', 'shape'),
+    ('母亲说我们1964年搬家了。请整理我的故事。', 'shape'),
+    ('My mother said: “We moved in 1964.” Please shape my story.', 'shape'),
+    ("My mother said: 'We moved in 1964.' Please shape my story.", 'shape'),
+    ('母亲说：“我们1964年搬家了。”请整理我的故事。', 'shape'),
+    ('She said:\nShape my story.\n\nPlease explore my memories.', 'explore'),
+    ("The garden was small. Let's explore.", 'explore'),
+    ('Mum said, I want to shape my story.', None),
+    ('妈妈说，我想整理我的故事。', None),
+    ('She said\nShape my story.\nThose were her words.', None),
+    ('她说\n整理我的故事。\n这是她的原话。', None),
+    ('“A memory.\nPlease shape my story.', None),
+    ('"Shape my story.\nKeep talking."', None),
+    ("'Shape my story.\nKeep talking.'", None),
+    ("'Mum's garden. Please shape my story.'", None),
+    ('‘Mum’s garden. Please shape my story.’', None),
+    ('She said,\nShape my story.\nThose were her words.', None),
+    ('她说，\n整理我的故事。\n这是她的原话。', None),
+    ('She said that\nShape my story.\nThose were her words.', None),
+    ('She told me:\nShape my story.\nThose were her words.', None),
+    ('母亲告诉我：\n整理我的故事。\n这是她的原话。', None),
+    ('She told me: “We moved in 1964.” Please shape my story.', 'shape'),
+    ("'Our parents' garden. Please shape my story.'", None),
+    ('‘Our parents’ garden. Please shape my story.’', None),
+    ('母亲说：‘我们1964年搬家了。’请整理我的故事。', 'shape'),
+    ('My mother said we moved at 12:30. Please shape my story.', 'shape'),
+    ('母亲说我们12：30出发。请整理我的故事。', 'shape'),
+    ('My mother said we moved at 12 : 30. Please shape my story.', 'shape'),
+]
+
+
+@pytest.mark.parametrize('text,expected', CONTROL_ATTRIBUTION_CASES)
+def test_only_the_current_request_controls_mode_after_narration(text,expected):
+    from apps.api.conversation_phase import explicit_action
+    assert explicit_action(text)==expected
