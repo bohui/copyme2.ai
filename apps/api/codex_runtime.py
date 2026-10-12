@@ -1660,6 +1660,19 @@ class CodexRuntime:
         # internal flag explicitly; free-form client text never selects it.
         is_user_round = bool(user_response and saved_text.strip())
         accepted_source = None
+        if not user_response and project_id and isinstance(storage, UserStorage):
+            existing_project = await asyncio.to_thread(storage.memoir_project, project_id)
+            if existing_project:
+                saved_phase = await asyncio.to_thread(storage.conversation_phase, project_id)
+                if saved_phase['paused']:
+                    profile = await asyncio.to_thread(storage.profile)
+                    locale = profile.get('preferred_language') or language
+                    reply = ('我们先暂停。您想继续时，可以选择恢复采访。' if locale == 'zh-CN'
+                             else "We're paused. You can resume whenever you choose.")
+                    if on_delta:
+                        await on_delta(reply)
+                    return {'project_id': project_id, 'reply': reply, 'conversation_saved': False,
+                            'conversation_phase': saved_phase}
         if client_turn_id and project_id and isinstance(storage, UserStorage):
             previous_turn = await asyncio.to_thread(storage.agent_turn_by_id, project_id, client_turn_id)
             if previous_turn:
@@ -1804,6 +1817,16 @@ class CodexRuntime:
                 await lease.check()
             if interview_context is not None:
                 interview_context['interview_language'] = language
+                if 'conversation_phase' in interview_context:
+                    from .conversation_phase import explicit_action, resolve_phase
+                    phase_current = interview_context['conversation_phase']['revision']
+                    phase_baseline = (interview_turn or {}).get('phase_revision', phase_current)
+                    interview_context['phase_control_current'] = phase_baseline == phase_current
+                    action = explicit_action(saved_text) if interview_context['phase_control_current'] else None
+                    interview_context['requested_conversation_action'] = action
+                    interview_context['effective_conversation_phase'] = resolve_phase(
+                        interview_context['conversation_phase'], {'action': action},
+                        has_narration=interview_context.get('has_accepted_narration', False)).model_dump(mode='json')
             progress.language = language
             # Project history is extraction context, never a user-profile write.
             workspace_profile = {**profile, 'memory_places': saved_place_hints} if saved_place_hints else profile

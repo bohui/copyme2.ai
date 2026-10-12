@@ -574,6 +574,29 @@
           }
         }
       }
+    },
+    "phase": {
+      "label": "Your pace",
+      "choices": "Conversation guidance",
+      "comfort": "Keep talking",
+      "explore": "Explore a memory",
+      "shape": "Shape my story",
+      "automatic": "Automatic guidance",
+      "skip": "Try another topic",
+      "pause": "Pause",
+      "resume": "Resume",
+      "comfortStatus": "Take your time. There’s no rush.",
+      "exploreStatus": "We can explore what feels meaningful.",
+      "shapeStatus": "Bring the memories you choose into focus.",
+      "paused": "Paused. Resume whenever you’re ready.",
+      "loading": "Checking your saved choice…",
+      "saving": "Saving your choice…",
+      "skipped": "We can try another topic with your next message.",
+      "conflict": "Your choice changed elsewhere. The latest choice is shown.",
+      "saveError": "We checked your saved choice. Please try again if needed.",
+      "unavailable": "Your saved choice could not be checked.",
+      "retry": "Check again",
+      "pausedComposer": "The conversation is paused. Choose Resume, or tell Mira when you’re ready."
     }
   },
   "Profile": {

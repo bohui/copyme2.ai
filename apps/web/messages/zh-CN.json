@@ -574,6 +574,29 @@
           }
         }
       }
+    },
+    "phase": {
+      "label": "按你的节奏",
+      "choices": "对话方式",
+      "comfort": "继续聊聊",
+      "explore": "聊聊一段回忆",
+      "shape": "整理我的故事",
+      "automatic": "自动引导",
+      "skip": "换个话题",
+      "pause": "暂停",
+      "resume": "继续",
+      "comfortStatus": "慢慢聊，不着急。",
+      "exploreStatus": "可以聊聊你在意的回忆。",
+      "shapeStatus": "一起梳理你想留下的回忆。",
+      "paused": "已暂停。准备好了再继续。",
+      "loading": "正在读取已保存的选择…",
+      "saving": "正在保存你的选择…",
+      "skipped": "下次开口时，我们可以换个话题。",
+      "conflict": "你的选择已在别处更改。这里显示的是最新选择。",
+      "saveError": "已重新读取保存的选择。如有需要，请重试。",
+      "unavailable": "暂时无法读取已保存的选择。",
+      "retry": "重新读取",
+      "pausedComposer": "对话已暂停。准备好了，可以点“继续”，也可以直接告诉 Mira。"
     }
   },
   "Profile": {

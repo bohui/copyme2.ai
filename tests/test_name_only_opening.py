@@ -16,6 +16,7 @@ class Storage(ProjectStorage):
         super().__init__()
         self.data = profile or {}
 
+    def memoir_project(self, project): return None
     def profile(self): return deepcopy(self.data)
     def save_profile(self, profile, *, source_sequences=None):
         self.data = deepcopy(profile)

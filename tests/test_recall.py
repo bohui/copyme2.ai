@@ -135,6 +135,9 @@ def test_ordinary_turns_cannot_use_legacy_opening_text_to_avoid_the_free_gate(mo
             self.held = False
             self.sources = {}
 
+        def memoir_project(self, project_id):
+            return None
+
         def acquire_agent_turn_lease(self, *args):
             if self.held:
                 return False

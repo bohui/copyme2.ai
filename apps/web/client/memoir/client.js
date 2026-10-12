@@ -16,6 +16,7 @@ import { formatDateExpression } from "./dates.mjs";
 import { createConversationScroll, installConversationViewport } from "./conversation-scroll.mjs";
 import { createMapPhotoAlbums } from "./map-photo-albums.mjs";
 import { createInterviewPhotoState } from "./interview-photo-turns.mjs";
+import { createConversationPhase, conversationPhaseMarkup } from "./conversation-phase.mjs";
 import englishMessages from "../../messages/en-AU.json";
 import chineseMessages from "../../messages/zh-CN.json";
 
@@ -118,6 +119,7 @@ const state = {
 
 state.photoTurns = createInterviewPhotoState({state, scope:captureProjectScope, render, api,
   onRecovered: async (turn, receipt) => {
+    state.conversationPhase?.accept(turn, receipt.conversation_phase, {savedTurn:true});
     const saved = {role:"assistant", text:receipt.reply, clientTurnId:turn.id,
       historicalContext:receipt.historical_context ? historicalContext(receipt.historical_context) : null, responsePhotos:receipt.response_photos, streaming:false, error:"", failed:false};
     const existing = state.chat.find(message => message.clientTurnId === turn.id && message.role === "assistant");
@@ -126,6 +128,10 @@ state.photoTurns = createInterviewPhotoState({state, scope:captureProjectScope, 
     state.pendingConversationTurn = null;
     persistChatHistory();
   },
+});
+
+state.conversationPhase = createConversationPhase({scope:captureProjectScope, api,
+  onChange: synchronizeConversationPhase,
 });
 
 const mapPhotoAlbums = createMapPhotoAlbums({
@@ -316,6 +322,30 @@ function captureProjectScope() {
 function isCurrentProjectScope(scope) {
   return scope.generation === (state.navigationGeneration || 0)
     && scope.projectId === state.project?.id && scope.ownerId === state.supabase?.user?.id;
+}
+
+function synchronizeConversationPhase({savedTurn = false} = {}) {
+  const paused = state.conversationPhase.view().value?.paused;
+  const scope = captureProjectScope();
+  const pauseKey = JSON.stringify([scope.ownerId, scope.projectId, scope.generation]);
+  if (paused && state.phasePauseKey !== pauseKey) {
+    state.phasePauseKey = pauseKey;
+    // An external pause interrupts older generation. A pause adopted from a
+    // durable saved turn must still finalize its reply, usage and receipt.
+    if (!savedTurn) {
+      state.conversationInterrupt = (state.conversationInterrupt || 0) + 1;
+      for (const stream of state.conversationStreams || []) stream.abort();
+      state.conversationStreams?.clear();
+      for (const message of state.chat) if (message.streaming) message.streaming = false;
+      state.loading = false;
+      state.codexStarting = false;
+    }
+  } else if (!paused) state.phasePauseKey = null;
+  if (paused) {
+    if (state.voiceMode) stopVoiceMode({silent:true});
+    if (state.dictationStatus !== "off") cancelDictation();
+  }
+  render();
 }
 
 function invalidateProjectNavigation() {
@@ -908,7 +938,9 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
 async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat", photoOptions = {}) {
   const scope = captureProjectScope();
   const controller = globalThis.AbortController ? new AbortController() : null;
-  const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted;
+  const interruption = state.conversationInterrupt || 0;
+  const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted
+    && interruption === (state.conversationInterrupt || 0);
   const detached = () => ({ detached: true });
   let replyFinished = false;
   const simulated = simulatedLoopTrace(toolNames);
@@ -1060,6 +1092,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       } else if (event.type === "source_accepted") {
         state.photoTurns?.accept(requestTurn, {...event.data, state:"source_accepted"});
       } else if (event.type === "conversation_saved") {
+        state.conversationPhase?.accept(scope, event.data?.conversation_phase, {savedTurn:true});
         state.photoTurns?.accept(requestTurn, {...event.data, state:"conversation_saved"});
         if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
           await applyCommittedConversationLocale(event.data?.profile_updates);
@@ -1080,6 +1113,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind, {scope, controller, turn:requestTurn});
     if (!current()) return detached();
     replyFinished = true;
+    state.conversationPhase?.accept(scope, body.conversation_phase, {savedTurn:body.conversation_saved === true});
     // A saved reply is ready even when an earlier workspace write is pending.
     // Legacy responses still need their bundled workspace applied here.
     if (!body.conversation_saved) {
@@ -1220,7 +1254,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
       else if (event.type === "source_accepted") await onEvent(event);
       else if (event.type === "reply_complete") result = { ...(result || {}), ...(event.data || {}) };
       else if (event.type === "conversation_saved") {
-        if (event.data?.photo_cue || event.data?.response_photos) await onEvent(event);
+        if (event.data?.photo_cue || event.data?.response_photos || event.data?.conversation_phase) await onEvent(event);
         result = { ...(result || {}), ...(event.data || {}) };
         if (!ready) {
           ready = true;
@@ -1757,7 +1791,9 @@ function waitForAssistantStream() {
 
 async function streamAssistantMessage(text, metadata = {}) {
   const scope = metadata.scope || captureProjectScope();
-  if (!isCurrentProjectScope(scope)) return null;
+  const interruption = state.conversationInterrupt || 0;
+  const current = () => isCurrentProjectScope(scope) && interruption === (state.conversationInterrupt || 0);
+  if (!current()) return null;
   const { scope: _scope, ...messageMetadata } = metadata;
   if (messageMetadata.streamedMessage) {
     const { streamedMessage, ...details } = messageMetadata;
@@ -1780,12 +1816,12 @@ async function streamAssistantMessage(text, metadata = {}) {
 
   const characters = Array.from(value);
   for (let index = 0; index < characters.length; index += ASSISTANT_STREAM_CHUNK_SIZE) {
-    if (!isCurrentProjectScope(scope)) return null;
+    if (!current()) return null;
     message.text = characters.slice(0, index + ASSISTANT_STREAM_CHUNK_SIZE).join("");
     updateStreamingAssistantMessage(message);
     if (index + ASSISTANT_STREAM_CHUNK_SIZE < characters.length) await waitForAssistantStream();
   }
-  if (!isCurrentProjectScope(scope)) return null;
+  if (!current()) return null;
   message.text = value;
   message.streaming = false;
   render();
@@ -3188,6 +3224,8 @@ async function hydrateAccountHistory(history = null) {
 }
 
 function renderStory() {
+  if (state.project?.id && state.supabase?.accessToken) void state.conversationPhase.ensure();
+  const phaseFocus = document.activeElement?.dataset?.phaseAction;
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
   const albumFocus = document.activeElement?.dataset?.photoAlbum || document.activeElement?.dataset?.photoMarker;
   const previousScene = $(".place-journey-scene");
@@ -3266,6 +3304,11 @@ function renderStory() {
     if (recallPrompt || !followConversation) conversationScroll.pause();
     else conversationScroll.follow();
     conversationScroll.mount(scroll);
+  }
+  if (phaseFocus) {
+    const nextAction = phaseFocus === "pause" && state.conversationPhase.view().value?.paused ? "resume"
+      : phaseFocus === "resume" && !state.conversationPhase.view().value?.paused ? "pause" : phaseFocus;
+    document.querySelector(`[data-phase-action="${nextAction}"]`)?.focus({preventScroll:true});
   }
   if (composerFocused && $("#chat-input")) {
     $("#chat-input").focus({ preventScroll: true });
@@ -4338,19 +4381,23 @@ function recallPackagePrompt() {
 }
 
 function chatComposer() {
-  if (state.recallStatus?.payment_required) return "";
+  const phaseControls = state.project?.id && state.supabase?.accessToken
+    ? conversationPhaseMarkup(state.conversationPhase.view(), key => translate(`Memoir.phase.${key}`), state.loading) : "";
+  if (state.recallStatus?.payment_required) return phaseControls ? `<div class="composer-wrap">${phaseControls}</div>` : "";
+  const paused = Boolean(state.conversationPhase?.view().value?.paused);
+  const pausedNote = paused ? `<p class="phase-paused-note" role="status">${escapeHtml(translate("Memoir.phase.pausedComposer"))}</p>` : "";
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
     const processing = ["starting", "processing"].includes(state.dictationStatus);
-    return `<div class="composer-wrap"><div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button")}` : ""}</div><div class="composer-note">${t("dictationNote")}</div></div>`;
+    return `<div class="composer-wrap">${phaseControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button")}` : ""}</div><div class="composer-note">${t("dictationNote")}</div></div>`;
   }
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
   const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
-  const controls = state.voiceMode
+  const controls = paused ? "" : state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${phaseControls}${pausedNote}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
 }
 
 function responsePhotoMarkup(photos) {
@@ -4367,20 +4414,22 @@ function responsePhotoMarkup(photos) {
 
 async function retryInterviewTurn() {
   const turn = state.photoTurns?.pending();
-  if (!turn || state.loading) return;
+  if (!turn || state.loading || state.conversationPhase?.view().value?.paused) return;
   const scope = captureProjectScope();
+  const interruption = state.conversationInterrupt || 0;
+  const current = () => isCurrentProjectScope(scope) && interruption === (state.conversationInterrupt || 0);
   state.loading = true;
   state.chatHistoryCollapsed = false;
   render();
   try {
     const result = await agentTurn(turn.text, conversationMessage("fallback"), ["memory.save", "memory.search"],
       turn.language, turn.firstReplyLocalization, turn.conversationText, turn.serverAction, turn.sourceKind, {retry:turn});
-    if (result.detached || !isCurrentProjectScope(scope)) return;
+    if (result.detached || !current()) return;
     await streamAssistantMessage(result.reply, {scope, streamedMessage:result.streamedMessage,
       trace:result.trace, traceMode:result.traceMode, historicalContext:result.historicalContext, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId});
     if (state.voiceMode && !result.failed) await speakVoiceReply(result.reply);
   } finally {
-    if (isCurrentProjectScope(scope)) { state.loading = false; render(); }
+    if (current()) { state.loading = false; render(); }
   }
 }
 
@@ -4479,6 +4528,17 @@ function bindViewActions() {
     stopVoiceMode({ silent: true });
     cancelDictation();
   });
+  document.querySelectorAll("[data-phase-action]").forEach(button => button.addEventListener("click", async () => {
+    const action = button.dataset.phaseAction;
+    if (state.loading && action !== "pause") return;
+    const scope = captureProjectScope();
+    await state.conversationPhase.act(action);
+    if (!isCurrentProjectScope(scope)) return;
+    const nextAction = action === "pause" && state.conversationPhase.view().value?.paused ? "resume"
+      : action === "resume" && !state.conversationPhase.view().value?.paused ? "pause" : action;
+    document.querySelector(`[data-phase-action="${nextAction}"]`)?.focus({preventScroll:true});
+  }));
+  $("[data-phase-retry]")?.addEventListener("click", () => void state.conversationPhase.refresh());
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
   $("#chat-input")?.addEventListener("input", (event) => {
     if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
@@ -4563,52 +4623,61 @@ async function ensureMemorySession() {
 }
 
 async function beginMemoryConversation(renderNow = true) {
+  if (state.conversationPhase?.view().value?.paused) return;
   const scope = captureProjectScope();
+  const interruption = state.conversationInterrupt || 0;
+  const current = () => isCurrentProjectScope(scope) && interruption === (state.conversationInterrupt || 0);
   if (state.recallStatus?.payment_required) return;
   await ensureMemorySession();
-  if (!isCurrentProjectScope(scope)) return;
+  if (!current()) return;
   const fallback = conversationMessage("fallback");
   const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "begin");
-  if (result.detached || !isCurrentProjectScope(scope)) return;
+  if (result.detached || !current()) return;
   await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
-  if (!isCurrentProjectScope(scope)) return;
+  if (!current()) return;
   try {
   const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLanguage(), requested_media: ["image"] }) });
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
     if (context.items?.length) {
       await streamAssistantMessage(conversationMessage("publicContext"), { scope, cues: context.items });
     }
   } catch {
     // A context provider can be unavailable; the conversation continues without it.
   }
-  if (renderNow && isCurrentProjectScope(scope)) render();
+  if (renderNow && current()) render();
 }
 
 async function startMemory() {
+  if (state.conversationPhase?.view().value?.paused) return;
   if (state.photoMemoryTask) return;
   const scope = captureProjectScope();
+  const interruption = state.conversationInterrupt || 0;
+  const current = () => isCurrentProjectScope(scope) && interruption === (state.conversationInterrupt || 0);
   if (state.recallStatus?.payment_required) return;
   if (state.loading) return;
   try {
     state.loading = true;
     render();
     await ensureMemorySession();
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
     const fallback = conversationMessage("fallback");
     const result = await agentTurn("The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "continue");
-    if (result.detached || !isCurrentProjectScope(scope)) return;
+    if (result.detached || !current()) return;
     await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
-  } catch (error) { if (isCurrentProjectScope(scope)) toast(error.message); }
-  if (!isCurrentProjectScope(scope)) return;
+  } catch (error) { if (current()) toast(error.message); }
+  if (!current()) return;
   state.loading = false;
   render();
 }
 
 async function sendChatMessage({ voiceTurn = false } = {}) {
+  if (voiceTurn && state.conversationPhase?.view().value?.paused) return;
   const scope = captureProjectScope();
+  const interruption = state.conversationInterrupt || 0;
+  const current = () => isCurrentProjectScope(scope) && interruption === (state.conversationInterrupt || 0);
   if (voiceTurn && state.photoMemoryTask) {
     await state.photoMemoryTask.done;
-    if (!isCurrentProjectScope(scope) || !state.voiceMode) return;
+    if (!current() || !state.voiceMode) return;
   }
   if (state.recallStatus?.payment_required) return;
   if (state.loading || state.photoMemoryTask || state.dictationStatus !== "off") return;
@@ -4638,14 +4707,14 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   if (attachments.length) {
     try { await uploadAttachments(attachments); }
     catch (error) {
-      if (!isCurrentProjectScope(scope)) return;
+      if (!current()) return;
       state.loading = false;
       state.attachmentProgress = error.message;
       if (state.voiceMode) { state.voiceModeStatus = "listening"; queueVoiceModeTurn(); }
       render();
       return;
     }
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
   }
   const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
@@ -4663,9 +4732,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   render();
   try {
     if (detectedFirstReplyLanguage) await applyFirstReplyLocalization(detectedFirstReplyLanguage);
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
     const session = text ? await ensureMemorySession() : null;
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
     let cues = [];
     let fallback = conversationMessage("fallback");
     let instruction = profileIntake
@@ -4677,18 +4746,18 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         const answerOptions = { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) };
         try {
           const answer = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
-          if (!isCurrentProjectScope(scope)) return;
+          if (!current()) return;
           state.session = answer;
         } catch (error) {
-          if (!isCurrentProjectScope(scope)) return;
+          if (!current()) return;
           if (error.code !== "POLICY_EPOCH_CONFLICT") throw error;
           // Consent/project setup is allowed to complete in parallel with the
           // first paint. Resync this still-open session once, then retry the
           // same answer; the Codex conversation remains the primary path.
           await api(`/v1/memory-sessions/${session.id}/resume`, { method: "POST" });
-          if (!isCurrentProjectScope(scope)) return;
+          if (!current()) return;
           const answer = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
-          if (!isCurrentProjectScope(scope)) return;
+          if (!current()) return;
           state.session = answer;
         }
         cues = state.session.context_cues || [];
@@ -4696,7 +4765,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         const memoryInstruction = "Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory. Keep the conversation open unless they ask to pause, stop, or shape a chapter.";
         instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
       } catch {
-        if (!isCurrentProjectScope(scope)) return;
+        if (!current()) return;
         // The open Codex conversation is the primary path; session state is optional.
         state.session = null;
       }
@@ -4713,7 +4782,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       sourceKind,
       {attachments},
     );
-    if (result.detached || !isCurrentProjectScope(scope)) return;
+    if (result.detached || !current()) return;
     if (result.blocked) {
       // Another tab may have used the final free reply. Keep the unsent draft.
       state.chat.pop();
@@ -4724,17 +4793,17 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     }
     const cuesAlreadyShown = state.chat.some((message) => message.cues?.length);
     await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode, historicalContext:result.historicalContext, responsePhotos:result.responsePhotos, clientTurnId:result.clientTurnId, cues: cues.length && !cuesAlreadyShown ? cues : undefined });
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
     if (state.voiceMode && !result.failed) await speakVoiceReply(result.reply || fallback);
   } catch (error) {
-    if (!isCurrentProjectScope(scope)) return;
+    if (!current()) return;
     toast(error.message);
   }
-  if (!isCurrentProjectScope(scope)) return;
+  if (!current()) return;
   state.loading = false;
   render();
   void refreshFamilyContext();
-  if (state.voiceMode) window.setTimeout(() => { if (isCurrentProjectScope(scope)) startVoiceModeTurn(); }, 260);
+  if (state.voiceMode) window.setTimeout(() => { if (current()) startVoiceModeTurn(); }, 260);
 }
 
 async function finishChapter() {
@@ -5326,6 +5395,12 @@ window.addEventListener("popstate", () => {
   } else render();
 });
 window.addEventListener("pagehide", () => persistChatHistory());
+function refreshConversationPhase() {
+  if (document.visibilityState === "visible" && state.project?.id && state.supabase?.accessToken
+      && currentPath().startsWith(`${MEMOIR_ROUTES.interview}/`)) void state.conversationPhase.refresh();
+}
+window.addEventListener("focus", refreshConversationPhase);
+document.addEventListener("visibilitychange", refreshConversationPhase);
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
   render();
