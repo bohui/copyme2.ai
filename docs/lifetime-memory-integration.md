@@ -394,3 +394,35 @@ ASGI 2.3/2.4 tests prove that uncertain/partial starts, body errors and guard-ex
 errors never cause a second response; unrelated errors and cancellation retain
 their original behavior. The source repair still requires the final pinned
 independent rerun and refreshed full native aggregate.
+
+## Final offline native verification
+
+The clean, immutable production-source pin
+`2ad1659fe61202141c530f1d634a4254884409e3` (tree
+`bf1baad6a57e845ece03f31899126009e4e9fe4b`, remote equivalent
+`ed21b73736307decd6305aeec07e869a4c0ae67e`) completed the full native-enabled
+aggregate with **5,403 passed, zero failed, 213 skipped, five warnings, exit 0** in
+1,349.68 seconds. Native PostgreSQL, the provider-free artifact opt-in and the
+official local Temporal CLI were enabled. No source changed during that run.
+This final record is an evidence-only documentation update; it does not represent
+another full test execution on a different hash.
+
+The 213 skips remain explicit: 205 frontend/browser/Auth-HTTP cases, four live
+provider evaluations, three unavailable Mocker cases and one Apple Container case.
+The separately verified eight controlled Mac cases cover the #60 lifetime and
+collection fixtures across their recorded unchanged-frontend heads. They do not
+claim all broader browser scenarios, physical-device coverage, real-data provider
+quality, live latency or cost acceptance. Earlier failed runs above are preserved;
+their fixes are now included in the successful final aggregate.
+
+Remaining decisions and external gates:
+- The AC10 product decision on unavailable direct WebRTC versus requiring governed
+  transport parity remains open. Default-closed activation is not parity.
+- Production migrations, historical identity/policy reconciliation, deployment,
+  provider evaluation and activation require their separate approvals. No actual
+  migration, reconciliation, call termination or clearance attestation was done.
+- Operational clearance requires authoritative termination evidence for all older
+  calls/in-flight creations after every relevant ingress blocks new direct calls.
+- Required remote checks and final merge/whole-ticket acceptance remain with the
+  parent review. No PR-triggered workflow/status or external review was reported
+  at the latest verified checkpoint. This draft does not close #60.
