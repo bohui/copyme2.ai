@@ -1,0 +1,101 @@
+{
+  "schema_version": "memoir-story-game-play/1",
+  "package_id": "51bfb431-9e44-4b94-8c36-6b91267d5bf2",
+  "renderer": "fixed-side-scroll-v1",
+  "audience": "private",
+  "title_text_id": "728d14b2-2007-4b58-abfe-ed0e570e36a4",
+  "texts": [
+    {
+      "id": "728d14b2-2007-4b58-abfe-ed0e570e36a4",
+      "text": "A small story"
+    },
+    {
+      "id": "d78c0320-c718-48be-a560-5da30e0c31a1",
+      "text": "Traveller"
+    },
+    {
+      "id": "693d7073-6a78-4c80-a855-bb1ee62c41c9",
+      "text": "The garden"
+    },
+    {
+      "id": "603b2f18-6519-4f96-bb83-59eddbb921a4",
+      "text": "Cedar"
+    },
+    {
+      "id": "7c4b7d1d-a9e8-457d-a213-b9b6da10cddc",
+      "text": "I learned to wait while the seedlings grew."
+    },
+    {
+      "id": "f1c0395c-06d1-4ad8-b26b-6f0b820ab3e5",
+      "text": "The workroom"
+    },
+    {
+      "id": "74960eea-5cd2-4178-81fe-72f88e740bad",
+      "text": "Rowan"
+    },
+    {
+      "id": "84f9e790-7bb0-4322-8e82-b4d7e5d59928",
+      "text": "I repaired a stool with Rowan."
+    }
+  ],
+  "protagonist": {
+    "id": "8fb62b5c-04be-41a5-ae4d-c90354cd9353",
+    "alias_text_id": "d78c0320-c718-48be-a560-5da30e0c31a1",
+    "asset_key": "generic-author"
+  },
+  "start_scene_id": "c624c1af-eb73-45a8-a4d7-81f89b969020",
+  "scenes": [
+    {
+      "id": "c624c1af-eb73-45a8-a4d7-81f89b969020",
+      "title_text_id": "693d7073-6a78-4c80-a855-bb1ee62c41c9",
+      "asset_key": "generic-garden",
+      "width": 1600,
+      "spawn_x": 80,
+      "left": null,
+      "right": {
+        "scene_id": "cb254a20-8e58-4dc8-9b25-6a936feee536",
+        "spawn_x": 80
+      }
+    },
+    {
+      "id": "cb254a20-8e58-4dc8-9b25-6a936feee536",
+      "title_text_id": "f1c0395c-06d1-4ad8-b26b-6f0b820ab3e5",
+      "asset_key": "generic-workroom",
+      "width": 1600,
+      "spawn_x": 80,
+      "left": {
+        "scene_id": "c624c1af-eb73-45a8-a4d7-81f89b969020",
+        "spawn_x": 1520
+      },
+      "right": null
+    }
+  ],
+  "npcs": [
+    {
+      "id": "34bd41f8-288c-458b-ae32-8dbe11a46030",
+      "scene_id": "c624c1af-eb73-45a8-a4d7-81f89b969020",
+      "x": 600,
+      "alias_text_id": "603b2f18-6519-4f96-bb83-59eddbb921a4",
+      "asset_key": "generic-adult",
+      "dialogue_text_ids": [
+        "7c4b7d1d-a9e8-457d-a213-b9b6da10cddc"
+      ]
+    },
+    {
+      "id": "baab677f-35b6-48ac-930d-ec288165756f",
+      "scene_id": "cb254a20-8e58-4dc8-9b25-6a936feee536",
+      "x": 900,
+      "alias_text_id": "74960eea-5cd2-4178-81fe-72f88e740bad",
+      "asset_key": "generic-adult",
+      "dialogue_text_ids": [
+        "84f9e790-7bb0-4322-8e82-b4d7e5d59928"
+      ]
+    }
+  ],
+  "controls": {
+    "keyboard": true,
+    "touch": true,
+    "text_equivalent": true,
+    "reduced_motion": true
+  }
+}
