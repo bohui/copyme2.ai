@@ -21,8 +21,10 @@ from .conversation_recovery import PROJECT_ID_PATTERN, TurnReceipt, turn_receipt
 from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
 from .place_journey import normalize_persisted_place_journey
+from .formal_memoir_routes import router as formal_memoir_router
 
 router = APIRouter(prefix='/v1/agent', tags=['Codex agent'])
+router.include_router(formal_memoir_router)
 runtime = CodexRuntime()
 
 

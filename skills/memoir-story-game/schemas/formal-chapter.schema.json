@@ -1,0 +1,83 @@
+{
+  "$defs": {
+    "FormalQuoteBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 1,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "source_id",
+        "version",
+        "char_start",
+        "char_end"
+      ],
+      "title": "FormalQuoteBlock",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "chapter_id": {
+      "format": "uuid",
+      "title": "Chapter Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "blocks": {
+      "items": {
+        "$ref": "#/$defs/FormalQuoteBlock"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Blocks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "chapter_id",
+    "title",
+    "blocks"
+  ],
+  "title": "FormalChapter",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoir-story-game:formal-chapter:1",
+  "$comment": "Server-only extractive formal chapter. Never a browser play package or an authority receipt."
+}

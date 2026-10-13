@@ -1,0 +1,341 @@
+{
+  "schema_version": "memoir-story-game-request/1",
+  "project_id": "synthetic-project",
+  "actor_id": "synthetic-author",
+  "phase": {
+    "phase": "shape",
+    "revision": 3
+  },
+  "policy_epoch": 1,
+  "correction_epoch": 0,
+  "revocation_epoch": 0,
+  "source_manifest_digest": "869e00fe71434594add461e81407d5a8e61a6fc966b41f9ddf6853ee86bdcc36",
+  "manuscript": {
+    "id": "synthetic-manuscript",
+    "revision": 1,
+    "digest": "dc6bc19cbb66d464eb82d8ad972d3373b2684f66ecee1ceefc5aea0e649300d8",
+    "kind": "formal_memoir",
+    "chapters": [
+      {
+        "id": "ch-a",
+        "revision": 1,
+        "digest": "eb030163b59edb5b2d93ab87fd50b2413b40294385f1deab9de34a25ea805bdf",
+        "text": "A small story\nTraveller\nThe garden\nCedar\nI learned to wait while the seedlings grew."
+      },
+      {
+        "id": "ch-b",
+        "revision": 1,
+        "digest": "a0a3073dbe18d5ee9b2c4bbf9622acfd37007f10be539355dab7c7c941877c83",
+        "text": "The workroom\nRowan\nI repaired a stool with Rowan."
+      }
+    ]
+  },
+  "completion": {
+    "receipt_id": "synthetic-completion",
+    "composition_run_id": "synthetic-composition-run",
+    "manuscript_id": "synthetic-manuscript",
+    "manuscript_revision": 1,
+    "manuscript_digest": "dc6bc19cbb66d464eb82d8ad972d3373b2684f66ecee1ceefc5aea0e649300d8",
+    "source_manifest_digest": "869e00fe71434594add461e81407d5a8e61a6fc966b41f9ddf6853ee86bdcc36",
+    "chapter_coverage": [
+      {
+        "id": "ch-a",
+        "revision": 1,
+        "digest": "eb030163b59edb5b2d93ab87fd50b2413b40294385f1deab9de34a25ea805bdf"
+      },
+      {
+        "id": "ch-b",
+        "revision": 1,
+        "digest": "a0a3073dbe18d5ee9b2c4bbf9622acfd37007f10be539355dab7c7c941877c83"
+      }
+    ],
+    "validation_digest": "0c035fc92e352ed46d295c3e73110849b6b1ea5c192d1224c12e35c6e7e8f00a",
+    "validation_passed": true,
+    "pending_count": 0,
+    "blocking_count": 0
+  },
+  "consent": {
+    "receipt_id": "synthetic-consent",
+    "revision": 1,
+    "purpose": "game_adaptation",
+    "audience": "private",
+    "status": "active",
+    "manuscript_id": "synthetic-manuscript",
+    "manuscript_revision": 1,
+    "manuscript_digest": "dc6bc19cbb66d464eb82d8ad972d3373b2684f66ecee1ceefc5aea0e649300d8",
+    "policy_epoch": 1
+  },
+  "evidence": [
+    {
+      "id": "source-ch-a",
+      "version": 1,
+      "chapter_id": "ch-a",
+      "text": "A small story\nTraveller\nThe garden\nCedar\nI learned to wait while the seedlings grew.",
+      "role": "narrator",
+      "adaptation_allowed": true,
+      "status": "active"
+    },
+    {
+      "id": "source-ch-b",
+      "version": 1,
+      "chapter_id": "ch-b",
+      "text": "The workroom\nRowan\nI repaired a stool with Rowan.",
+      "role": "narrator",
+      "adaptation_allowed": true,
+      "status": "active"
+    }
+  ],
+  "people": [
+    {
+      "id": "person-cedar",
+      "alias_line_id": "cedar",
+      "age_category": "adult",
+      "adaptation_allowed": true,
+      "specific_permission": null
+    },
+    {
+      "id": "person-rowan",
+      "alias_line_id": "rowan",
+      "age_category": "adult",
+      "adaptation_allowed": true,
+      "specific_permission": null
+    }
+  ],
+  "approved_lines": [
+    {
+      "id": "title",
+      "text": "A small story",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-a",
+          "version": 1,
+          "start": 0,
+          "end": 13
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-a",
+        "revision": 1,
+        "start": 0,
+        "end": 13
+      },
+      "person_ids": [],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-title",
+      "npc_person_id": null
+    },
+    {
+      "id": "author",
+      "text": "Traveller",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-a",
+          "version": 1,
+          "start": 14,
+          "end": 23
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-a",
+        "revision": 1,
+        "start": 14,
+        "end": 23
+      },
+      "person_ids": [],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-author",
+      "npc_person_id": null
+    },
+    {
+      "id": "garden",
+      "text": "The garden",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-a",
+          "version": 1,
+          "start": 24,
+          "end": 34
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-a",
+        "revision": 1,
+        "start": 24,
+        "end": 34
+      },
+      "person_ids": [],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-garden",
+      "npc_person_id": null
+    },
+    {
+      "id": "cedar",
+      "text": "Cedar",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-a",
+          "version": 1,
+          "start": 35,
+          "end": 40
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-a",
+        "revision": 1,
+        "start": 35,
+        "end": 40
+      },
+      "person_ids": [
+        "person-cedar"
+      ],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-cedar",
+      "npc_person_id": null
+    },
+    {
+      "id": "patience",
+      "text": "I learned to wait while the seedlings grew.",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-a",
+          "version": 1,
+          "start": 41,
+          "end": 84
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-a",
+        "revision": 1,
+        "start": 41,
+        "end": 84
+      },
+      "person_ids": [
+        "person-cedar"
+      ],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-patience",
+      "npc_person_id": "person-cedar"
+    },
+    {
+      "id": "workroom",
+      "text": "The workroom",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-b",
+          "version": 1,
+          "start": 0,
+          "end": 12
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-b",
+        "revision": 1,
+        "start": 0,
+        "end": 12
+      },
+      "person_ids": [],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-workroom",
+      "npc_person_id": null
+    },
+    {
+      "id": "rowan",
+      "text": "Rowan",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-b",
+          "version": 1,
+          "start": 13,
+          "end": 18
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-b",
+        "revision": 1,
+        "start": 13,
+        "end": 18
+      },
+      "person_ids": [
+        "person-rowan"
+      ],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-rowan",
+      "npc_person_id": null
+    },
+    {
+      "id": "repair",
+      "text": "I repaired a stool with Rowan.",
+      "mode": "quote",
+      "evidence": [
+        {
+          "evidence_id": "source-ch-b",
+          "version": 1,
+          "start": 19,
+          "end": 49
+        }
+      ],
+      "manuscript": {
+        "chapter_id": "ch-b",
+        "revision": 1,
+        "start": 19,
+        "end": 49
+      },
+      "person_ids": [
+        "person-rowan"
+      ],
+      "sensitive": false,
+      "specific_permission": null,
+      "review_receipt_id": "synthetic-editorial-repair",
+      "npc_person_id": "person-rowan"
+    }
+  ],
+  "assets": [
+    {
+      "key": "generic-author",
+      "path": "assets/memoir-story-game/generic-author.png",
+      "digest": "71d05bd4724e1569cd7bb6cd3a21d1ce8003a9e94958a3bde36a3f414e864b9d",
+      "license": "project-original",
+      "generic": true
+    },
+    {
+      "key": "generic-adult",
+      "path": "assets/memoir-story-game/generic-adult.png",
+      "digest": "8f305865b725efd4ec19a0aa6a46d4a75e4bc8c26b3d4ad6f5dfe41915982f4a",
+      "license": "project-original",
+      "generic": true
+    },
+    {
+      "key": "generic-garden",
+      "path": "assets/memoir-story-game/generic-garden.png",
+      "digest": "26c0f04e933b661abd5e7a271f9b0f101a472181a8635684654a90503c513f23",
+      "license": "project-original",
+      "generic": true
+    },
+    {
+      "key": "generic-workroom",
+      "path": "assets/memoir-story-game/generic-workroom.png",
+      "digest": "5230f5a69f473d3e553b48716ac44649a06a3922d9342d5150b6603a27742132",
+      "license": "project-original",
+      "generic": true
+    }
+  ],
+  "job": {
+    "id": "synthetic-game-job",
+    "fence": 1,
+    "expected_artifact_revision": 0
+  }
+}
