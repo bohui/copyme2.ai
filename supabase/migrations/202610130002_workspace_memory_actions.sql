@@ -48,8 +48,24 @@ create table public.user_workspace_section_rework (
 create unique index workspace_section_one_pending on public.user_workspace_section_rework(user_id,project_id,locale,partition_key) where status='pending';
 create index workspace_rework_photo_dependency
  on public.user_workspace_section_rework(user_id,project_id,(right(partition_key,37)));
+create index workspace_rework_pending_event
+ on public.user_workspace_section_rework(user_id,project_id,event_id) where status='pending';
 alter table public.user_workspace_section_rework enable row level security;
 revoke all on public.user_workspace_section_rework from public,anon,authenticated;
+
+-- Match the composer's current evidence/photo partition membership. The first
+-- qualifying photo replaces a source-only key; later photos add sibling keys.
+create function public.workspace_rework_partition_current(p_owner uuid,p_project_id text,p_event_id text,p_partition_key text) returns boolean
+language sql stable security definer set search_path=public,auth as $$
+ select exists(select 1 from public.user_memory_event_source r
+   left join public.user_interview_photo_link photo on photo.user_id=r.user_id and photo.project_id=r.project_id
+     and photo.event_id=r.event_id and photo.source_id=r.source_id and photo.source_version=r.source_version
+     and photo.status='confirmed' and photo.provenance='narrator_metadata' and strpos(r.evidence->>'quote',photo.quote)>0
+     and public.interview_photo_available(r.user_id,r.project_id,photo.photo_id)
+   where r.user_id=p_owner and r.project_id=p_project_id and r.event_id=p_event_id
+     and p_partition_key=r.event_id||':'||r.source_id::text||':'||r.source_version::text||':'||r.evidence_hash||':'||coalesce(photo.id::text,''))
+$$;
+revoke all on function public.workspace_rework_partition_current(uuid,text,text,text) from public,anon,authenticated;
 
 create function public.request_workspace_section_rework(p_project_id text,p_request_id uuid,p_snapshot_id uuid,
  p_root_digest text,p_partition_id text,p_instruction text) returns jsonb
@@ -98,7 +114,9 @@ begin
    not exists(select 1 from public.user_memory_event where user_id=owner and project_id=p_project_id and id=section.event_id
      and revision=section.event_revision and status='active') or
    not exists(select 1 from public.user_narrator_source where user_id=owner and project_id=p_project_id and id=section.source_id
-     and version=section.source_version and status='active') then raise exception 'section changed' using errcode='40001';end if;
+     and version=section.source_version and status='active') or
+   not public.workspace_rework_partition_current(owner,p_project_id,section.event_id,p_partition_id)
+   then raise exception 'section changed' using errcode='40001';end if;
  if exists(select 1 from public.user_workspace_section_rework where user_id=owner and project_id=p_project_id
    and locale=root.locale and partition_key=p_partition_id and status='pending') then raise exception 'revision already queued' using errcode='40001';end if;
  if octet_length((section.bundle->'preview')::text)>12288 then raise exception 'section exceeds revision context budget' using errcode='22023';end if;
@@ -206,6 +224,10 @@ begin
  -- the complete root is published, so stale/yielded snapshots can be retried.
  update public.user_workspace_section_rework set status='composed'
    where composed_snapshot_id=(result->>'snapshot_id')::uuid and status='pending';
+ -- Never reschedule a request whose canonical partition no longer exists.
+ delete from public.user_workspace_section_rework request using public.user_memoir_lane lane
+   where lane.id=p_lane_id and lane.user_id=request.user_id and lane.project_id=request.project_id and lane.skill='composer'
+     and request.status='pending' and not public.workspace_rework_partition_current(request.user_id,request.project_id,request.event_id,request.partition_key);
  select request.locale into next_locale from public.user_workspace_section_rework request join public.user_memoir_lane lane
    on lane.user_id=request.user_id and lane.project_id=request.project_id and lane.skill='composer'
    where lane.id=p_lane_id and request.status='pending' order by request.created_at,request.request_id limit 1;
@@ -229,18 +251,26 @@ begin
      delete from public.user_workspace_section_rework where user_id=old.user_id and project_id=old.project_id and event_id=old.id;
    end if;
  elsif tg_table_name='user_interview_photo_link' then
-   if tg_op='DELETE' or old is distinct from new then
+   if tg_op='UPDATE' and old is not distinct from new then return new;end if;
+   if tg_op<>'INSERT' then
      -- The composer partition ends in its exact photo-link UUID. Retire its
      -- request in the same transaction as the prose, before completion can
      -- requeue an editorial task whose partition no longer exists.
      delete from public.user_workspace_section_rework where user_id=old.user_id and project_id=old.project_id
        and event_id=old.event_id and right(partition_key,37)=':'||old.id::text;
    end if;
+   if tg_op<>'DELETE' and new.event_id is not null then
+     -- Confirmation of the first qualifying photo removes its source-only
+     -- partition. Keep other evidence spans and existing sibling photo tasks.
+     delete from public.user_workspace_section_rework request where user_id=new.user_id and project_id=new.project_id
+       and event_id=new.event_id and status='pending'
+       and not public.workspace_rework_partition_current(request.user_id,request.project_id,request.event_id,request.partition_key);
+   end if;
  end if;
  return coalesce(new,old);
 end $$;
 create trigger workspace_rework_source_invalidation after update on public.user_narrator_source for each row execute function public.invalidate_workspace_rework();
 create trigger workspace_rework_event_invalidation after update or delete on public.user_memory_event for each row execute function public.invalidate_workspace_rework();
-create trigger workspace_rework_photo_invalidation after update or delete on public.user_interview_photo_link for each row execute function public.invalidate_workspace_rework();
+create trigger workspace_rework_photo_invalidation after insert or update or delete on public.user_interview_photo_link for each row execute function public.invalidate_workspace_rework();
 revoke all on function public.invalidate_workspace_rework() from public,anon,authenticated;
 commit;

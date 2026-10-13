@@ -251,6 +251,141 @@ def test_pg_pending_rewrite_retry_recovers_its_edition_without_interrupting_live
     assert sql('select event_sequence from public.user_memoir_project;').stdout == sequence
 
 
+def attach_first_photo(sql, identity, source, event_id, *, provenance='narrator_metadata'):
+    from test_agent_commit_postgres import OLD, as_user
+    project = identity['project_id']
+    metadata = dict(content_type='image/png',byte_size=8,width=2,height=2)
+    photo = rpc(sql, 'begin_user_interview_photo', f"{literal(project)},{literal(metadata)}")
+    sql(f"insert into storage.objects(bucket_id,name) values('memoir-private-photos',{literal(photo['object_path'])});")
+    rpc(sql, 'finish_user_interview_photo', f"{literal(project)},'{photo['id']}'")
+    turn = '00000000-0000-4000-8000-000000000001'
+    rpc(sql, 'accept_user_interview_turn', f"{literal(project)},'{turn}',{literal(source['text'])},'narrator_chat','en-AU',{literal([photo['id']])}")
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    plan = dict(candidates=[],chosen_id=None,active_event_id=event_id)
+    association = dict(photo_id='upload:'+photo['id'],event_id=event_id,source_id=source['id'],source_version=1,
+        quote=source['text'],description='The storyteller selected this childhood photo.',provenance=provenance)
+    result = rpc(sql, 'save_user_interview_plan', f"{literal(project)},'{turn}',{literal(plan)},{literal([association])},'{OLD}'")
+    link = result['photo_associations'][0]
+    assert link['event_id'] == event_id and link['status'] == 'confirmed'
+    return link
+
+
+@pytest.mark.parametrize('stage',['queued','yielded','legacy_pending'])
+def test_pg_attaching_first_photo_after_queuing_rewrite_does_not_requeue_empty_drafts(sql,stage):
+    identity, source, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    head = finish(sql, lane, first)
+    request_id = str(uuid4())
+    args = rework_args(head, request_id)
+    rpc(sql, 'request_workspace_section_rework', args)
+    if stage == 'yielded':
+        interrupted = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{interrupted['token']}',{interrupted['page_number']},{literal(section_result(interrupted,'Source-only rewrite.'))}")
+        assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'pending'
+        service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{interrupted['token']}'")
+    original = sql(f"select row_to_json(s) from public.user_lifetime_memoir_section s where snapshot_id='{head['snapshot_id']}';").stdout
+    if stage == 'legacy_pending':
+        # Simulate a request stranded by the previous migration so the
+        # completion guard is exercised independently of the new trigger.
+        sql('alter table public.user_interview_photo_link disable trigger workspace_rework_photo_invalidation;')
+    try:
+        link = attach_first_photo(sql, identity, source, first['partition']['id'])
+    finally:
+        if stage == 'legacy_pending':
+            sql('alter table public.user_interview_photo_link enable trigger workspace_rework_photo_invalidation;')
+    assert sql(f"select row_to_json(s) from public.user_lifetime_memoir_section s where snapshot_id='{head['snapshot_id']}';").stdout == original
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{request_id}';").stdout.strip() == ('1' if stage == 'legacy_pending' else '0')
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert page['partition_key'].endswith(':'+link['id'])
+    assert page['partition_key'] != head['first_record']['id']
+    while not page['complete']:
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f', 'first photo attachment queued another empty draft'
+    assert service(sql, 'claim_memoir_lane', f"'{lane}',900") is None
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{request_id}';").stdout.strip() == '0'
+    assert rpc(sql, 'request_workspace_section_rework', args, check=False).returncode != 0
+    current = rpc(sql, 'read_lifetime_private_draft_head', literal(project))
+    obsolete = {**current,'first_record':head['first_record']}
+    assert rpc(sql, 'request_workspace_section_rework', rework_args(obsolete,str(uuid4())), check=False).returncode != 0
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f'
+
+
+def test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos(sql):
+    from test_lifetime_review_repairs import add_photo_link
+    identity, source, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    event_id = first['partition']['id']
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    other = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{uuid4()}','Our home had a garden.'")
+    refs = [dict(source_id=s['id'],version=1,quote=s['text'],char_start=0,char_end=len(s['text'])) for s in (source,other)]
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':s['id'],'version':1} for s in (source,other)])},{literal([dict(existing_id=event_id,expected_revision=1,kind='event',title='Childhood',source_refs=refs)])}")
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    partitions = {}
+    while not page['complete']:
+        assert page['partition']['id'] == event_id
+        partitions[page['source']['id']] = page['partition_key']
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert len(partitions) == 2
+    head = rpc(sql, 'read_lifetime_private_draft_head', literal(project))
+    for partition in partitions.values():
+        rpc(sql, 'request_workspace_section_rework', rework_args({**head,'first_record':{'id':partition}},str(uuid4())))
+    preserved = sql(f"select row_to_json(r) from public.user_workspace_section_rework r where source_id='{other['id']}';").stdout
+    attach_first_photo(sql, identity, source, event_id)
+    assert sql(f"select count(*) from public.user_workspace_section_rework where source_id='{source['id']}';").stdout.strip() == '0'
+    assert sql(f"select row_to_json(r) from public.user_workspace_section_rework r where source_id='{other['id']}';").stdout == preserved
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    photo_partition = None
+    while not page['complete']:
+        if page['source']['id'] == source['id']:
+            photo_partition = page['partition_key']
+        else:
+            assert page['editorial_request'] is not None
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert photo_partition and photo_partition != partitions[source['id']]
+    head = rpc(sql, 'read_lifetime_private_draft_head', literal(project))
+    rpc(sql, 'request_workspace_section_rework', rework_args({**head,'first_record':{'id':photo_partition}},str(uuid4())))
+    preserved = sql("select row_to_json(r) from public.user_workspace_section_rework r order by partition_key;").stdout
+    # Adding a second photo creates a sibling instead of replacing this key.
+    add_photo_link(sql, identity, source, first)
+    assert sql("select row_to_json(r) from public.user_workspace_section_rework r order by partition_key;").stdout == preserved
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    edited = []
+    while not page['complete']:
+        if page['editorial_request'] is not None:
+            edited.append(page['partition_key'])
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert edited == [photo_partition]
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f'
+
+
+def test_pg_photo_outside_composer_partition_preserves_source_only_rewrite(sql):
+    identity, source, lane, first = seeded_composer(sql)
+    head = finish(sql, lane, first)
+    args = rework_args(head,str(uuid4()))
+    rpc(sql, 'request_workspace_section_rework', args)
+    before = sql('select row_to_json(r) from public.user_workspace_section_rework r;').stdout
+    attach_first_photo(sql, identity, source, first['partition']['id'],provenance='narrator')
+    assert sql('select row_to_json(r) from public.user_workspace_section_rework r;').stdout == before
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert page['partition_key'] == head['first_record']['id'] and page['editorial_request'] is not None
+    finish(sql, lane, page)
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'composed'
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f'
+
+
 @pytest.mark.parametrize('yielded',[False,True])
 def test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts(sql,yielded):
     from test_lifetime_review_repairs import add_photo_link

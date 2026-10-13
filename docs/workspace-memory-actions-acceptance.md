@@ -36,9 +36,10 @@ acceptance and is repeated before building model context. A saved reply replays
 before optional focus validation, so a later event correction cannot prevent
 recovery of a previously accepted turn.
 
-Section rework admission checks the exact current root, partition, event/source
-revision and locale. An active composer lease or an existing selected-section
-proposal prevents admission. Each request has an immutable UUID and payload;
+Section rework admission checks the exact current root, current canonical
+partition membership, event/source revision and locale. An active composer lease
+or an existing selected-section proposal prevents admission. Each request has an
+immutable UUID and payload;
 repeating it after a lost acknowledgement creates no duplicate request or new
 narration. A pending replay can requeue an idle lane for its edition while
 preserving a live lease or unfinished snapshot. Requests
@@ -46,7 +47,9 @@ retain only bounded original preview and instruction context, with no direct
 authenticated table access. Source changes/withdrawal, event changes/deletion
 and changes/removal of a photo link purge dependent requests. Photo invalidation
 matches the exact link in the partition key and preserves other photo and
-source-only requests.
+source-only requests. Attaching the first qualifying photo retires pending
+requests for the source-only partition it replaces; adding sibling photos
+preserves requests for partitions that still exist.
 
 The migration protects the existing section and advances scheduling metadata,
 without changing event facts or factual revision. Only the selected partition
@@ -134,3 +137,30 @@ their exact bytes and still receive editorial pages and reach completion.
 The final run passed all 133 checks across workspace actions, lifetime review
 repairs, interview photos, composer policy and composer capacity, including the
 10,000-event case. No production migration or deployment was performed.
+
+## First-photo attachment review fix
+
+The inverse transition reproduced through authenticated `save_user_interview_plan`:
+a queued source-only rewrite survived its first qualifying photo attachment even
+though the composer now visited a different partition key. Both an unstarted
+request and a request with a saved/yielded page remained pending and immediately
+requeued the lane after completion. The removal fix did not cover this transition.
+
+A shared current-partition predicate uses the composer's exact evidence and photo
+join rules. Admission rejects obsolete identifiers. Photo-link insertion or
+confirmation retires pending requests whose partitions have disappeared, scoped
+to the affected event and without changing saved original prose. Existing photo
+partitions, other evidence inputs and photos outside the composer input remain
+eligible. Completion also discards obsolete pending requests before scheduling
+another edition, recovering tasks stranded by the earlier code.
+
+Five new disposable PostgreSQL regressions pass. They drive authenticated photo
+acceptance and save-plan RPCs, cover attachment before work and after a yielded
+page, and independently exercise recovery of a previously stranded request. They
+also verify preserved original prose, rejected stale requests, unaffected evidence
+in the same event, sibling-photo additions and a photo with provenance outside
+the composer input. Surviving requests still receive editorial pages and complete.
+
+The final attachment-fix run passed all 138 checks across workspace actions,
+lifetime review repairs, interview photos, composer policy and composer capacity,
+including the 10,000-event case. No production migration or deployment was performed.
