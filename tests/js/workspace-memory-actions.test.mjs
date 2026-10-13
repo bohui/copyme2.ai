@@ -4,6 +4,28 @@ import fs from 'node:fs';
 
 const phase = (overrides = {}) => ({phase:'comfort', selection:'automatic', ...overrides});
 
+test('saved receipt recovery consumes its workspace focus and preserves a later selection', async () => {
+  const vm=await import('node:vm');
+  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const scope={ownerId:'owner',projectId:'project',generation:1};
+  const value={kind:'add_memory',life_stage:'childhood'};
+  const state={chat:[],workspaceMemoryFocus:{...scope,value}};
+  const context=vm.createContext({state,isCurrentProjectScope:()=>true,
+    nextAssistantMessageId:()=> 'reply',persistChatHistory(){}});
+  for (const name of ['currentWorkspaceMemoryFocus','workspaceTurnFocus','markWorkspaceFocusStarted']) {
+    vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
+  }
+  const recover=vm.runInContext(`(${source.match(/onRecovered: (async \(turn, receipt\) => \{[^]*?\n  \}),/)[1]})`,context);
+  const turn={id:'accepted-turn',workspaceFocus:value};
+  await recover(turn,{reply:'Tell me about that time.'});
+  assert.equal(context.workspaceTurnFocus(),null);
+  assert.equal(state.chat[0].clientTurnId,turn.id);
+  state.workspaceMemoryFocus={...scope,value:{kind:'add_memory',life_stage:'later_life'}};
+  await recover(turn,{reply:'Tell me about that time.'});
+  assert.equal(context.workspaceTurnFocus().life_stage,'later_life');
+  assert.equal(state.chat.length,1);
+});
+
 test('a workspace task finalizes its reply, round status, cards and receipt without interrupting the flow', async () => {
   const vm=await import('node:vm');
   const {createInterviewPhotoState}=await import('../../apps/web/client/memoir/interview-photo-turns.mjs');

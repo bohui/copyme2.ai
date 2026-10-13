@@ -214,6 +214,7 @@ for (const [exitCode, startBackend] of [[0, 1], [3, 0]]) {
 const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
+if (args[0] === 'scripts/setup_memoir_test_accounts.py') process.exit(0);
 const fixture = process.env.MEMOIR_REPORT_TEST_FIXTURE;
 const directory = args[args.indexOf('--run-dir') + 1];
 fs.writeFileSync(path.join(fixture, 'args.json'), JSON.stringify(args));

@@ -123,7 +123,7 @@ const state = {
 
 state.photoTurns = createInterviewPhotoState({state, scope:captureProjectScope, render, api,
   onRecovered: async (turn, receipt) => {
-
+    markWorkspaceFocusStarted(turn);
     const saved = {role:"assistant", text:receipt.reply, clientTurnId:turn.id,
       historicalContext:receipt.historical_context ? historicalContext(receipt.historical_context) : null, responsePhotos:receipt.response_photos, streaming:false, error:"", failed:false};
     const existing = state.chat.find(message => message.clientTurnId === turn.id && message.role === "assistant");
@@ -3620,7 +3620,7 @@ async function loadMoreEventDetails(eventId) {
 }
 
 function privateDraftPreview({ inChapters = false } = {}) {
-  if (!state.showThinkingSteps && (!inChapters || !freeRecallFinished())) return "";
+  if (!state.showThinkingSteps && !(inChapters && freeRecallFinished())) return "";
   const saved=state.privateDraft;
   if (!saved || !saved.preview && !saved.error && !saved.approval_required && !saved.original_withheld &&
       (!saved.updating || !saved.progress?.composition?.target_milestone)) return "";

@@ -2,6 +2,7 @@
 
 Follow-up to PR #61. Scope approved on 2026-10-13: remove the persistent
 comfort/explore/shape selector from chat and expose concrete tasks in the workspace.
+Final branch rebased on main `9736a2c`.
 
 ## Product behaviour
 
@@ -52,14 +53,16 @@ privacy checks, stale-output rejection and acceptance flow stay authoritative.
 
 ## Verification
 
-- 383 JavaScript checks passed. Targeted workspace/pagination checks also passed
-  after the final UI adjustment.
-- 136 targeted Python checks passed across phase, read/API and workspace contracts.
+- 386 JavaScript checks passed. The existing mocked Make runner accommodates
+  main's new account-setup prerequisite without executing account operations.
+- 139 targeted Python checks passed across phase, interview, read/API and workspace
+  contracts; 12 opt-in live model checks were skipped.
 - 65 existing composer-capacity and policy tests passed against disposable Linux
   PostgreSQL, including real publication guards, protected prose, checkpoint
   restart, evidence withdrawal and late-output rejection.
 - All 12 new workspace checks plus two existing real-composer-chain regressions
-  passed in the final PostgreSQL run (14 checks). The workspace suite exercises owner/revision checks, exact
+  passed in the final PostgreSQL run (14 checks). The workspace suite exercises
+  owner/revision checks, exact
   request replay, selected-partition work, source withdrawal, stale roots,
   literal focused narration and saved-reply recovery. Its real composer test
   checks preparation/draft/review, authoritative editorial context and a proposed
