@@ -9,6 +9,27 @@ def read(sql,owner=OWNER):
     return rpc(sql,'read_user_conversation_phase',"'project'",owner=owner)
 
 
+def test_anonymous_project_initialization_precedes_narration_and_preserves_ownership(sql):
+    sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
+    rpc(sql, 'ensure_user_memoir_project', "'project'")
+    rpc(sql, 'ensure_user_memoir_project', "'project'")
+    assert read(sql)['phase'] == 'comfort'
+    assert sql('select count(*) from public.user_memoir_project;').stdout.strip() == '1'
+    for table in ('user_narrator_source', 'user_interview_turn', 'user_completed_round'):
+        assert sql(f'select count(*) from public.{table};').stdout.strip() == '0'
+    read_other = rpc(sql, 'read_user_conversation_phase', "'project'", owner=OTHER, check=False)
+    assert read_other.returncode != 0
+    assert sql("set role anon; select public.ensure_user_memoir_project('project');", check=False).returncode != 0
+    assert rpc(sql, 'ensure_user_memoir_project', "'../invalid'", check=False).returncode != 0
+    assert sql(as_user("insert into public.user_memoir_project(user_id,project_id) values(auth.uid(),'bypass');"), check=False).returncode != 0
+
+
+def test_project_initialization_cannot_downgrade_a_canonical_owner(sql):
+    identity = rpc(sql, 'resolve_lifetime_conversation', 'null')
+    assert rpc(sql, 'ensure_user_memoir_project', "'extra-legacy-project'", check=False).returncode != 0
+    assert sql(f"select project_id from public.user_memoir_project where user_id='{OWNER}';").stdout.strip() == identity['project_id']
+
+
 def control(sql, action, revision):
     return rpc(sql,'change_user_conversation_phase',f"'project',{literal(action)},{revision}")
 

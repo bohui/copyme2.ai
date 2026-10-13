@@ -52,6 +52,12 @@ def test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness():
     assert "codex-harness" not in recipe
 
 
+def test_skill_bearing_images_include_publication_database_driver():
+    root = Path(__file__).resolve().parents[1]
+    assert "'.[photo-browser,lifetime-memory]'" in (root / 'Containerfile').read_text()
+    assert "'.[lifetime-memory]'" in (root / 'codex-worker/Containerfile').read_text()
+
+
 def test_temporal_worker_can_dispatch_supabase_memoir_lanes():
     compose = (Path(__file__).resolve().parents[1] / 'compose.yml').read_text()
     worker = compose.split('\n  worker:\n', 1)[1].split('\n  temporal:\n', 1)[0]

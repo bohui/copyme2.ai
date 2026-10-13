@@ -8,8 +8,9 @@ through actual pipe/HTTP body admission. Generation never holds this lock.
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass
+from math import ceil
 import os
 from uuid import UUID
 
@@ -34,7 +35,7 @@ class LegacyPublication:
     send_timeout: float
     lock_timeout: float
 
-    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=2.0):
+    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
         if not 0 < send_timeout <= 5 or not 0 < lock_timeout <= 5:
             raise ValueError('Legacy publication timeouts must be positive and at most five seconds')
         object.__setattr__(self, '_dsn', dsn)
@@ -48,38 +49,67 @@ class LegacyPublication:
 
     @asynccontextmanager
     async def guard(self):
-        if not self._dsn:
+        async with self.session() as session:
+            async with session.guard():
+                yield
+
+    @asynccontextmanager
+    async def session(self):
+        """Reuse a response connection, never its transaction or admission result."""
+        session = _LegacySession(self)
+        try:
+            yield session
+        finally:
+            if session.connection is not None:
+                await _settle(asyncio.create_task(session.connection.close()))
+
+
+class _LegacySession:
+    def __init__(self, publisher):
+        self.publisher = publisher
+        self.connection = None
+
+    @asynccontextmanager
+    async def guard(self):
+        publisher = self.publisher
+        if not publisher._dsn:
             from .lifetime_memory_runtime import lifetime_enabled
             legacy_only = os.getenv('MEMOIR_LEGACY_ONLY_DEPLOYMENT', '').lower() in {'1','true','yes'}
             if not legacy_only or lifetime_enabled():
                 raise LegacyAuthorityUnavailable('Legacy execution requires authoritative cohort verification')
             # Only a separately asserted pre-migration-only deployment may use
             # this branch. It must never be configured for a canonical cohort.
-            async with asyncio.timeout(self.send_timeout):
+            async with asyncio.timeout(publisher.send_timeout):
                 yield
             return
         from psycopg import AsyncConnection, Error
-        connection = None
         try:
             try:
-                async with asyncio.timeout(self.lock_timeout):
-                    connection = await AsyncConnection.connect(self._dsn, connect_timeout=2)
+                async with asyncio.timeout(publisher.lock_timeout):
+                    if self.connection is None:
+                        self.connection = await AsyncConnection.connect(publisher._dsn, connect_timeout=max(2, ceil(publisher.lock_timeout)))
+                    connection = self.connection
                     await connection.execute('set local role authenticated')
-                    await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(self._owner),))
-                    await connection.execute("select set_config('lock_timeout',%s,true)", (f'{int(self.lock_timeout*1000)}ms',))
+                    await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(publisher._owner),))
+                    await connection.execute("select set_config('lock_timeout',%s,true)", (f'{int(publisher.lock_timeout*1000)}ms',))
                     result = await connection.execute('select public.lock_lifetime_legacy_worker_admission()')
                     admitted = (await result.fetchone())[0]
-            except Error as error:
+            except (Error, TimeoutError) as error:
                 raise LegacyAuthorityUnavailable('Legacy identity authority is unavailable') from error
             if admitted is False:
                 raise LegacyMappingConflict('This owner requires governed execution')
             if admitted is not True:
                 raise LegacyAuthorityUnavailable('Invalid legacy identity authority response')
-            async with asyncio.timeout(self.send_timeout):
+            async with asyncio.timeout(publisher.send_timeout):
                 yield
         finally:
-            if connection is not None:
-                await _settle(asyncio.create_task(connection.close()))
+            if self.connection is not None:
+                # End this body's transaction before requesting another chunk.
+                # The session keeps only the socket; adoption is checked again.
+                async def release():
+                    async with asyncio.timeout(publisher.lock_timeout):
+                        await self.connection.rollback()
+                await _settle(asyncio.create_task(release()))
 
 
 class _LegacyResponse:
@@ -90,13 +120,16 @@ class _LegacyResponse:
         super().__init__(content, **kwargs)
 
     async def __call__(self, scope, receive, send):
-        async def guarded_send(message):
-            if message['type'] == 'http.response.body':
-                async with self.publisher.guard():
+        session = getattr(self.publisher, 'session', None)
+        connection_scope = session() if callable(session) else nullcontext(self.publisher)
+        async with connection_scope as publisher:
+            async def guarded_send(message):
+                if message['type'] == 'http.response.body':
+                    async with publisher.guard():
+                        await send(message)
+                else:
                     await send(message)
-            else:
-                await send(message)
-        await super().__call__(scope, receive, guarded_send)
+            await super().__call__(scope, receive, guarded_send)
 
 
 class LegacyJSONResponse(_LegacyResponse, JSONResponse):

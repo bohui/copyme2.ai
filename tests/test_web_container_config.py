@@ -19,6 +19,9 @@ def test_container_up_refreshes_web_image_with_internal_api_origin() -> None:
 
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     container_up = makefile.split("\ncontainer-up:", 1)[1].split("\ncontainer-health:", 1)[0]
-    assert "$(MOCKER) compose build -f $(COMPOSE_FILE) web" in container_up
+    assert "$(MOCKER) compose build -f $(COMPOSE_FILE)\n" in container_up
+    assert "needs_build" not in container_up
+    assert "CONTAINER_BUILD" not in container_up
+    assert "_container-up: runtime-start _validate-skills" in container_up
     assert "codex-harness" not in compose
     assert "codex-worker" in compose

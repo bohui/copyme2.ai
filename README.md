@@ -161,10 +161,13 @@ make container-logs SERVICE=api
 make container-down
 ```
 
-`make container-up` uses the existing local service images by default and
-refreshes the non-bind-mounted Next.js web image from source. Run
-`make container-build` or `make container-up CONTAINER_BUILD=1` after changing
-a `Containerfile`, `pyproject.toml`, or image-baked skills. The local images use
+`make up` (also `make container-up`) validates every repository skill and rebuilds
+all repository images using cached build layers, then recreates all six services.
+Runtime dependencies and image-baked skills are refreshed before services start.
+Startup uses `SUPABASE_DB_URL` for the publication guard when
+`MEMOIR_PUBLICATION_DATABASE_URL` is unset; an explicit publication connection wins.
+Run `make migrate` first when new Supabase migrations are present. Use
+`make container-build` to rebuild without restarting services. The local images use
 `localhost/` tags so Mocker does not try to
 pull them from Docker Hub during a no-build startup.
 
@@ -239,10 +242,10 @@ saves the place after the conversation commit. Ambiguous or ungrounded places
 produce no preview, and project/turn ordering guards reject late results.
 
 There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-worker`,
-`worker`, and `temporal`. `container-up` recreates all six containers;
-normally it rebuilds only `web` (all buildable images when missing or when
-`CONTAINER_BUILD=1`). API and worker Python sources are bind-mounted;
-`codex-worker` Python and skills are image-baked and require a rebuild.
+`worker`, and `temporal`. `container-up` always rebuilds every buildable image
+and recreates all six containers. The API, background worker, and photo worker
+share the backend image; Temporal uses its upstream image. API and worker Python
+sources are bind-mounted; Codex worker Python and skills are image-baked.
 
 The collector and organiser are two **roles within `codex-worker`**, not separate
 containers. Collection remains the default. In the profile menu, choose
@@ -384,7 +387,8 @@ Apply the checked-in schema before using the connected agent:
 make migrate
 ```
 
-With the local Compose stack running, refresh every repository skill with:
+`make up` installs the repository skills during startup. To refresh only the
+skill-bearing services in an already running Compose stack, use:
 
 ```bash
 make install_skill

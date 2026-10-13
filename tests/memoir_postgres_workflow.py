@@ -188,10 +188,9 @@ class PostgresRest:
         if request.url.path.startswith('/storage/'):
             return self._artifact_request(request)
         body = json.loads(request.content) if request.content else {}
-        if request.method == 'GET' and request.url.path == '/rest/v1/rpc/read_user_interview_turn':
-            if set(request.url.params) != {'p_project_id', 'p_client_turn_id'}:
+        if request.url.path == '/rest/v1/rpc/read_user_interview_turn':
+            if request.method != 'POST' or set(body) != {'p_project_id', 'p_client_turn_id'}:
                 raise ValueError('Exact read-interview RPC arguments required')
-            body = dict(request.url.params)
             if str(UUID(body['p_client_turn_id'])) != body['p_client_turn_id']:
                 raise ValueError('Canonical client turn required')
         path = request.url.path.removeprefix('/rest/v1/')

@@ -1465,6 +1465,16 @@ def create_app(
             }
             if _request_principal.get()['authorization']:
                 project['supabase_owner_id'] = actor
+                if payload.mode == 'self' and selected_project_id is None:
+                    # Phase controls load before the first accepted narration.
+                    service = authenticated_storage(authorization)
+                    try:
+                        service.ensure_memoir_project(project_id)
+                    except httpx.HTTPError:
+                        raise HTTPException(503, 'Project could not be saved; please try again',
+                            headers={'X-Error-Code': 'PROJECT_INITIALIZATION_UNAVAILABLE'}) from None
+                    finally:
+                        service.client.close()
             if restored_profile is not None:
                 project['profile'].update(restored_profile)
             memory.projects[project_id] = project

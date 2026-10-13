@@ -31,20 +31,15 @@ EVAL_SETTLE_SECONDS ?= 600
 EVAL_POLL_SECONDS ?= 2
 EVAL_PROJECT_ID ?=
 MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
-CONTAINER_BUILD ?= 0
 ENV_FILE ?= .env
 TUNNEL_ARGS ?=
 TUNNEL_CONFIG := $(CURDIR)/infra/cloudflare/config.yml
 TUNNEL_LABEL := com.cloudflare.cloudflared.copyme2
-CONTAINER_IMAGES := \
-	localhost/memory-spark:dev \
-	localhost/memory-spark-codex-worker:dev \
-	localhost/copyme2-web:dev
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
 .PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
-.PHONY: _db-truncate _install_skill _memoir-live-fifty-backend _container-up _container-down
+.PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} \
@@ -85,7 +80,16 @@ _db-truncate: check
 install_skill: ## Validate every repository skill, rebuild the skill-bearing app images, and restart their services.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _install_skill
 
-_install_skill: check
+_install_skill: check _validate-skills
+	@$(MOCKER) compose build -f $(COMPOSE_FILE) api codex-worker
+	@set -e; \
+	set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
+	export MEMOIR_PUBLICATION_DATABASE_URL="$${MEMOIR_PUBLICATION_DATABASE_URL:-$${SUPABASE_DB_URL:-}}"; \
+	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --force-recreate --detach --wait --wait-timeout 120 codex-worker api
+	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
+	@echo "Installed skills in api and codex-worker: $(SKILLS)"
+
+_validate-skills:
 	@set -eu; \
 	test -n "$(strip $(SKILLS))" || { echo "No skills found under skills/."; exit 2; }; \
 	test -f "$(SKILL_PACKAGER)" || { echo "Missing skill packager: $(SKILL_PACKAGER)"; echo "Override SKILL_PACKAGER=/path/to/package_skill.py if needed."; exit 1; }; \
@@ -96,10 +100,7 @@ _install_skill: check
 		python3 "$(SKILL_PACKAGER)" "skills/$$skill" "$$tmp_dir"; \
 		archive="$$tmp_dir/$$skill.zip"; \
 		test -f "$$archive" || { echo "Skill packager did not create $$archive"; exit 1; }; \
-	done; \
-	$(MOCKER) compose build -f $(COMPOSE_FILE) api codex-worker; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --force-recreate --detach --wait --wait-timeout 120 codex-worker api; \
-	echo "Installed skills in api and codex-worker: $(SKILLS)"
+	done
 
 STRIPE_MODE ?= test
 MEMORY_SPARK_PUBLIC_URL ?=
@@ -334,41 +335,20 @@ container-build: runtime-start ## Build the local images without changing runnin
 
 up: container-up ## Start the local stack (alias for container-up).
 
-container-up: ## Start the local stack from cached images; use CONTAINER_BUILD=1 to rebuild.
+container-up: ## Validate/install repository skills, rebuild all repo images, and recreate the local stack.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-up
 
-_container-up: runtime-start
+_container-up: runtime-start _validate-skills
 	@mkdir -p var/memory-spark
-	@set -e; \
-	needs_build=0; \
-	for image in $(CONTAINER_IMAGES); do \
-		if ! $(MOCKER) image inspect "$$image" >/dev/null 2>&1; then \
-			legacy_image=""; \
-			case "$$image" in \
-				localhost/memory-spark:dev) legacy_image=memory-spark:dev ;; \
-				localhost/memory-spark-codex-worker:dev) legacy_image=memory-spark-codex-worker:dev ;; \
-				localhost/copyme2-web:dev) legacy_image=copyme2-web:dev ;; \
-				esac; \
-			if test -n "$$legacy_image" && $(MOCKER) image inspect "$$legacy_image" >/dev/null 2>&1; then \
-				$(MOCKER) tag "$$legacy_image" "$$image"; \
-				echo "Tagged existing local image $$legacy_image as $$image"; \
-			else \
-				needs_build=1; \
-			fi; \
-		fi; \
-	done; \
-	if test "$(CONTAINER_BUILD)" = "1" || test "$$needs_build" = "1"; then \
-		MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE); \
-	else \
-		echo "Using cached service images; refreshing the web image from source."; \
-		$(MOCKER) compose build -f $(COMPOSE_FILE) web; \
-	fi
+	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE)
 	@set -e; \
 	set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
+	export MEMOIR_PUBLICATION_DATABASE_URL="$${MEMOIR_PUBLICATION_DATABASE_URL:-$${SUPABASE_DB_URL:-}}"; \
 	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
 	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-temporal-1 memory-spark-photo-worker-1 >/dev/null 2>&1 || true; \
 	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach temporal api worker web codex-worker photo-worker; \
 	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 temporal api worker web codex-worker photo-worker
+	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
 	@$(MAKE) --no-print-directory container-health
 
 container-health: check ## Verify API, web, Temporal, Codex and photo workers.

@@ -7,23 +7,32 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY Mira_Memoir_Journalist_System_Prompt_v1.0.md ./
-COPY apps ./apps
-COPY skills ./skills
-COPY docs ./docs
-COPY infra ./infra
-COPY scripts ./scripts
-
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes ca-certificates python3 python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/memory-spark-venv \
-    && /opt/memory-spark-venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/memory-spark-venv/bin/pip install --no-cache-dir '.[photo-browser]' \
-    && /opt/memory-spark-venv/bin/python -m playwright install --with-deps chromium
+    && /opt/memory-spark-venv/bin/pip install --no-cache-dir --upgrade pip
 
 ENV PATH=/opt/memory-spark-venv/bin:$PATH
+
+# Resolve dependencies from the manifest before frequently changing source files.
+COPY pyproject.toml ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -c 'import tomllib; m=tomllib.load(open("pyproject.toml", "rb")); p=m["project"]; print("\n".join(m["build-system"]["requires"] + p["dependencies"] + [d for e in ("photo-browser", "lifetime-memory") for d in p["optional-dependencies"][e]]))' > /tmp/memory-spark-requirements.txt \
+    && pip install -r /tmp/memory-spark-requirements.txt \
+    && rm /tmp/memory-spark-requirements.txt \
+    && python -m playwright install --with-deps chromium
+
+COPY apps/__init__.py ./apps/__init__.py
+COPY apps/api ./apps/api
+RUN pip install --no-cache-dir --no-deps --no-build-isolation '.[photo-browser,lifetime-memory]'
+
+COPY README.md Mira_Memoir_Journalist_System_Prompt_v1.0.md ./
+COPY apps/web/public ./apps/web/public
+COPY skills ./skills
+COPY docs ./docs
+COPY infra ./infra
+COPY scripts ./scripts
 
 EXPOSE 8000
 

@@ -103,6 +103,30 @@ def test_native_worker_never_uses_missing_authority_as_legacy_only(authority_dat
     assert list((tmp_path / 'homes').iterdir()) == []
 
 
+def test_reused_stream_connection_releases_lock_and_rechecks_adoption(authority_database):
+    import psycopg
+    from apps.api.lifetime_memory_legacy import LegacyPublication, LegacyMappingConflict
+    owner = new_owner(authority_database)
+    async def scenario():
+        publisher = LegacyPublication(authority_database.publication_dsn, authenticated_owner=owner)
+        async with publisher.session() as session:
+            async with session.guard():
+                connection = session.connection
+                assert connection.info.transaction_status == psycopg.pq.TransactionStatus.INTRANS
+            assert connection.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+            async with await psycopg.AsyncConnection.connect(authority_database.publication_dsn, autocommit=True) as adopter:
+                await adopter.execute('set role authenticated')
+                await adopter.execute("select set_config('request.jwt.claim.sub',%s,false)", (owner,))
+                async with asyncio.timeout(2):
+                    await adopter.execute('select public.resolve_lifetime_conversation(null)')
+            with pytest.raises(LegacyMappingConflict):
+                async with session.guard(): pytest.fail('The next queued chunk must be blocked')
+            assert session.connection is connection
+            assert connection.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+        assert connection.closed
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize('cancel', [False, True])
 def test_native_pipe_drain_holds_adoption_lock_and_releases_on_completion_or_cancellation(
         authority_database, tmp_path, monkeypatch, cancel):

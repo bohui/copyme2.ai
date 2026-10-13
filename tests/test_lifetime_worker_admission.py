@@ -45,6 +45,7 @@ def fake_database(monkeypatch, *, mapped=False, missing=False):
                 raise psycopg.errors.UndefinedFunction('synthetic missing migration')
             async def fetchone():return (not mapped,)
             return SimpleNamespace(fetchone=fetchone)
+        async def rollback(self):pass
         async def close(self):closed.append(True)
     monkeypatch.setattr(psycopg,'AsyncConnection',Database)
     return calls,closed
@@ -210,6 +211,74 @@ def test_legacy_database_send_timeout_closes_authority_lock(monkeypatch):
         with pytest.raises(TimeoutError):
             async with publisher.guard():await asyncio.Event().wait()
         assert closed==[True]
+    asyncio.run(scenario())
+
+
+def test_legacy_publication_allows_database_connect_beyond_two_seconds(monkeypatch):
+    import psycopg
+    from apps.api.lifetime_memory_legacy import LegacyPublication
+    calls, closed = fake_database(monkeypatch)
+    connect = psycopg.AsyncConnection.connect
+    async def slow_connect(*args, **kwargs):
+        await asyncio.sleep(2.05)
+        return await connect(*args, **kwargs)
+    monkeypatch.setattr(psycopg.AsyncConnection, 'connect', slow_connect)
+    async def scenario():
+        publisher = LegacyPublication('synthetic-only', authenticated_owner=UUID(int=4))
+        async with publisher.guard():
+            assert calls[-1][0] == 'select public.lock_lifetime_legacy_worker_admission()'
+        assert closed == [True]
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('adopt_after_first', [False, True])
+def test_stream_reuses_connection_but_rechecks_adoption_for_every_body(monkeypatch, adopt_after_first):
+    import psycopg
+    from apps.api.lifetime_memory_legacy import LegacyPublication, LegacyStreamingResponse, LegacyMappingConflict
+    database = SimpleNamespace(active=False, mapped=False, connects=0, checks=0, rollbacks=0, closes=0)
+    class Connection:
+        @staticmethod
+        async def connect(*args, **kwargs):
+            database.connects += 1
+            assert database.connects == 1, 'A reply must not open a connection for every chunk'
+            return Connection()
+        async def execute(self, statement, args=None):
+            if 'lock_lifetime_legacy_worker_admission' in statement:
+                database.checks += 1
+                database.active = True
+            async def fetchone(): return (not database.mapped,)
+            return SimpleNamespace(fetchone=fetchone)
+        async def rollback(self):
+            database.rollbacks += 1
+            database.active = False
+        async def close(self):
+            database.closes += 1
+            database.active = False
+    monkeypatch.setattr(psycopg, 'AsyncConnection', Connection)
+    async def scenario():
+        sent = []
+        async def chunks():
+            for i in range(40):
+                assert not database.active, 'Generation must not hold the adoption lock'
+                if i == 1 and adopt_after_first:
+                    database.mapped = True
+                yield str(i).encode()
+        async def send(message):
+            if message['type'] == 'http.response.body':
+                assert database.active
+                sent.append(message['body'])
+        async def receive(): return {'type': 'http.request'}
+        response = LegacyStreamingResponse(chunks(), publisher=LegacyPublication(
+            'synthetic-only', authenticated_owner=UUID(int=4)))
+        call = response({'type': 'http', 'asgi': {'spec_version': '2.4'}}, receive, send)
+        if adopt_after_first:
+            with pytest.raises(LegacyMappingConflict): await call
+            assert sent == [b'0'] and database.checks == 2
+        else:
+            await call
+            assert len(sent) == 41 and database.checks == 41
+        assert database.rollbacks == database.checks
+        assert database.connects == database.closes == 1 and not database.active
     asyncio.run(scenario())
 
 

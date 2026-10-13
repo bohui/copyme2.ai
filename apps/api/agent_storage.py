@@ -310,6 +310,10 @@ class UserStorage:
             params['project_id'] = f'gt.{after_project_id}'
         return self.request('GET', '/rest/v1/user_memoir_project', params=params).json()
 
+    def ensure_memoir_project(self, project_id):
+        self.request('POST', '/rest/v1/rpc/ensure_user_memoir_project', json={
+            'p_project_id': project_id})
+
     def memoir_project(self, project_id):
         rows = self.request('GET', '/rest/v1/user_memoir_project', params={
             'select': 'project_id,source_sequence,event_sequence,policy_epoch',
@@ -452,7 +456,8 @@ class UserStorage:
             'p_project_id':project_id}).json()
 
     def interview_turn_by_id(self, project_id, client_turn_id):
-        return self.request('GET', '/rest/v1/rpc/read_user_interview_turn', params={
+        # The phase wrapper may initialize state and lock the owned project.
+        return self.request('POST', '/rest/v1/rpc/read_user_interview_turn', json={
             'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id))}).json()
 
     def save_interview_plan(self, project_id, client_turn_id, plan, associations, lease_token, *, reply=None, response_photo_ids=None, thread_id=None):

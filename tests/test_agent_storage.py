@@ -7,6 +7,20 @@ import pytest
 from apps.api.agent_storage import UserStorage
 
 
+def test_interview_receipt_can_initialize_its_phase_in_a_writable_rpc():
+    def server(request):
+        if request.url.path == '/auth/v1/user':
+            return httpx.Response(200, json={'id': '11111111-1111-4111-8111-111111111111'})
+        if request.method == 'GET':
+            return httpx.Response(405, json={'code': '25006', 'message': 'read-only transaction'})
+        assert json.loads(request.content) == {
+            'p_project_id': 'project', 'p_client_turn_id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}
+        return httpx.Response(200, content='null')
+    with httpx.Client(transport=httpx.MockTransport(server)) as client:
+        storage = UserStorage('https://synthetic.invalid', 'public-key', 'user-jwt', client=client)
+        assert storage.interview_turn_by_id('project', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') is None
+
+
 def test_first_narrator_reply_paginates_oldest_first_with_owner_filter():
     storage = UserStorage.__new__(UserStorage)
     storage.user_id = '11111111-1111-4111-8111-111111111111'
