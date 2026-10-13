@@ -68,7 +68,8 @@ that requested order while retaining the same account assignment.
 
 When `EVAL_START_BACKEND=1`, the existing scoped local allowance/startup is applied
 sequentially for each case's verified owner, covering that owner's existing usage
-plus 50 rounds. It does not grant payments or Family entitlement. With
+plus the verified remaining original rounds. The first scoped allowance is
+retained on startup resume instead of being expanded again. It does not grant payments or Family entitlement. With
 `EVAL_START_BACKEND=0`, each selected account must already have adequate allowance.
 The agent does not run this startup or any live Auth/model operations during
 code verification; offline tests use controlled transports and stub startup.
@@ -137,9 +138,34 @@ are not reposted. An uncertain submission can only be recovered through
 acceptance cannot be proven, resume stops for inspection. Changed/foreign
 history, a different canonical binding, old shared-owner receipts, or changed
 source fingerprint cannot be resumed. Subset resume preserves the other cases'
-evidence. Backend request reservations and the original elapsed-time origin are
-retained; resume does not reset their budgets. Completion still requires all
-original cases in that saved run. No real-model acceptance is established by the
+evidence. All original limit values (global/case elapsed time, backend requests, settle and
+poll bounds), backend request reservations, and the original global and per-case
+elapsed-time origins are retained. Changed limits, rolled-back request counters
+and expired submission phases stop before new attempts; resume does not reset
+submission admission budgets. Make/CLI resume inherits saved limits unless an explicit override is
+provided, which must match the original values. Each case verifies its accepted
+ledger and recovers uncertain accepted turns before checking the remaining
+allowance; a case interrupted after 5 of its 50 allowed rounds requires 45
+remaining rounds. Completed cases require no additional unused allowance.
+
+Failed revalidation invalidates the selected case's current completion status
+while preserving its historical rounds and checkpoints. Final campaign completion
+requires successful current revalidation of every original case in the same
+attempt. Once every original case has 50 completed, settled turns, a subset
+resume automatically revalidates the other completed cases through read-only
+requests. Each read-only phase has a separate fixed 120-second limit and consumes
+the remaining original request allowance. Completed-case submission deadlines
+and origins stay unchanged: this phase cannot submit another turn, restore a
+project with POST, start services, grant a new allowance, confirm an account or
+create additional private UI login files. It can verify completed evidence after
+submission deadlines expire. Unfinished cases still require their original
+submission time and request allowance.
+
+Current acceptance always retrieves and validates the live canonical draft head
+and pages at round 50, then checks source state and the head again for a stable
+snapshot. Cached historical checkpoints cannot establish current acceptance.
+Pending, updating, proposed, stale or approval-required live state invalidates
+completion while historical evidence remains available. No real-model acceptance is established by the
 offline regression suite.
 
 One case defaults to 7,200 seconds; all five default to 36,000 seconds with 7,200

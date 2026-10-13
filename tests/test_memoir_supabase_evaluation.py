@@ -633,3 +633,309 @@ def test_subset_resume_preserves_other_case_evidence_and_campaign_completion(set
     assert stored['case_ids']==list(module.CASE_IDS) and len(stored['cases'])==5
     assert stored['last_resume_selection']==[module.CASE_IDS[1]]
     assert not any(call.url.path.endswith('resolve_lifetime_conversation') for call in remote.calls)
+
+
+@pytest.mark.parametrize('key,value', [
+    ('max_backend_requests',1000),('max_backend_requests',90),
+    ('max_elapsed_seconds',1000),('max_elapsed_seconds',100),
+    ('max_case_elapsed_seconds',600),('max_case_elapsed_seconds',50),
+    ('settle_seconds',2),('settle_seconds',.5),('poll_seconds',.01),('poll_seconds',.0005),
+])
+def test_resume_rejects_changed_original_limits_before_auth_and_preserves_partial_failure(setup,tmp_path,key,value):
+    plan,remote=setup();plan['max_backend_requests']=100;remote.draft_failed=True;directory=tmp_path/'immutable'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==5
+    before={name:(directory/name).read_bytes() for name in ('plan.json','receipt.json','request-counter.json')}
+    calls=len(remote.calls)
+    with pytest.raises(module.EvaluationError,match='immutable budget'):
+        asyncio.run(module.execute({**plan,key:value},directory,SETTINGS,resume=directory))
+    assert len(remote.calls)==calls and len(remote.submitted)==5
+    assert all((directory/name).read_bytes()==data for name,data in before.items())
+
+
+def test_expired_case_resume_stops_before_auth_without_resetting_case_origin(setup,tmp_path):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'expired-case'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-70;origin=now-61
+    receipt['case_started_at_unix'][module.CASE_IDS[0]]=origin
+    module.save(directory/'receipt.json',receipt)
+    calls=len(remote.calls);counter=module.private_json(directory/'request-counter.json')['reserved']
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and result['stop_reason']=='Original case elapsed-time ceiling reached'
+    assert len(remote.calls)==calls and len(remote.submitted)==5
+    assert result['case_started_at_unix'][module.CASE_IDS[0]]==origin
+    assert result['request_accounting']['backend_http_requests_reserved']==counter
+
+
+def test_resumed_partial_case_reuses_remaining_time_and_reserves_all_prior_attempts(setup,tmp_path,monkeypatch):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'remaining-time'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-20;origin=now-15;receipt['case_started_at_unix'][module.CASE_IDS[0]]=origin
+    module.save(directory/'receipt.json',receipt)
+    before=module.private_json(directory/'request-counter.json')['reserved'];observed=[];set_deadline=module.set_case_deadline
+    def measured(requests,plan,value):
+        set_deadline(requests,plan,value)
+        if value is not None:observed.append((value,requests.case_deadline-module.time.monotonic()))
+    monkeypatch.setattr(module,'set_case_deadline',measured);remote.draft_failed=False
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed',result
+    assert observed and all(value==origin and 0<remaining<=45 for value,remaining in observed)
+    assert result['case_started_at_unix'][module.CASE_IDS[0]]==origin
+    assert result['request_accounting']['backend_http_requests_reserved']==len(remote.calls)>before
+    assert len(remote.submitted)==50
+
+
+def test_expired_campaign_resume_has_no_new_requests(setup,tmp_path):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'expired-campaign'
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-121;receipt['case_started_at_unix'][module.CASE_IDS[0]]=now-61
+    module.save(directory/'receipt.json',receipt);calls=len(remote.calls)
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['stop_reason']=='Original campaign elapsed-time ceiling reached' and len(remote.calls)==calls
+
+
+def test_resume_rejects_rolled_back_request_counter_without_mutating_receipt(setup,tmp_path):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'rolled-counter'
+    asyncio.run(module.execute(plan,directory,SETTINGS));before=(directory/'receipt.json').read_bytes();calls=len(remote.calls)
+    count=module.private_json(directory/'request-counter.json');count['reserved']-=1;module.save(directory/'request-counter.json',count)
+    with pytest.raises(module.EvaluationError,match='request counter'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert len(remote.calls)==calls and (directory/'receipt.json').read_bytes()==before
+
+
+def test_resume_at_original_request_ceiling_has_no_new_attempts(setup,tmp_path):
+    plan,remote=setup();plan['max_backend_requests']=100;remote.draft_failed=True;directory=tmp_path/'exhausted-counter'
+    asyncio.run(module.execute(plan,directory,SETTINGS));calls=len(remote.calls)
+    module.save(directory/'request-counter.json',{'run_id':plan['run_id'],'reserved':100})
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and len(remote.calls)==calls and len(remote.submitted)==5
+    assert result['request_accounting']['backend_http_requests_reserved']==100
+
+
+@pytest.mark.parametrize('lost_response',[False,True])
+def test_resume_checks_only_remaining_allowance_after_verified_ledger_and_idempotent_recovery(setup,tmp_path,lost_response):
+    plan,remote=setup();directory=tmp_path/'remaining-allowance';handler=remote.handler;lost=[False]
+    remote.draft_failed=not lost_response
+    def scoped_allowance(request):
+        response=handler(request)
+        if request.url.path.endswith('/story/state'):
+            payload=response.json();payload['recall_status'].update(free_rounds=50,rounds_completed=len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources))
+            return httpx.Response(200,json=payload)
+        if lost_response and request.url.path.endswith('/agent/turn') and len(remote.submitted)==7 and not lost[0]:
+            lost[0]=True;return httpx.Response(502,json={'fixture':'lost response'})
+        return response
+    remote.handler=scoped_allowance
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'
+    assert len(remote.submitted)==(7 if lost_response else 5)
+    remote.draft_failed=False
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed',result
+    assert len(remote.submitted)==50
+    if lost_response:assert sum(call.url.path.endswith('read_lifetime_reply') for call in remote.calls)==1
+    # A fully accepted case requires no unused allowance to verify completion again.
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed' and len(remote.submitted)==50
+
+
+def test_insufficient_remaining_allowance_and_foreign_ledger_stop_before_new_turn(setup,tmp_path):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'insufficient';handler=remote.handler;free=[50]
+    def scoped(request):
+        response=handler(request)
+        if request.url.path.endswith('/story/state'):
+            value=response.json();value['recall_status'].update(free_rounds=free[0],rounds_completed=len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources))
+            return httpx.Response(200,json=value)
+        return response
+    remote.handler=scoped;asyncio.run(module.execute(plan,directory,SETTINGS));remote.draft_failed=False;free[0]=49
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and 'allowance is too small' in result['stop_reason'] and len(remote.submitted)==5
+    remote.storages[PROJECTS[module.CASE_IDS[0]]].sources[0]['text']='Foreign changed history'
+    before=sum(call.url.path.endswith('/story/state') for call in remote.calls)
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and result['evaluation']['failure_stage']=='canonical_ledger'
+    assert len(remote.submitted)==5 and sum(call.url.path.endswith('/story/state') for call in remote.calls)==before
+
+
+@pytest.mark.parametrize('changed',['source_ledger','canonical_count'])
+def test_failed_completed_case_revalidation_cannot_be_hidden_by_later_subset_resume(setup,tmp_path,changed):
+    plan,remote=setup(None);directory=tmp_path/'revalidate-all'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='completed'
+    assert len(remote.submitted)==250
+    selected=lambda case:{**plan,'case_ids':[case],'cases':{case:plan['cases'][case]}}
+    target=module.CASE_IDS[0];handler=remote.handler;bad=[True]
+    def changed_readback(request):
+        response=handler(request)
+        if changed=='canonical_count' and bad[0] and request.url.path.endswith('read_user_memory_events') and json.loads(request.content)['p_project_id']==PROJECTS[target]:
+            value=response.json();value['completed_rounds']=51
+            return httpx.Response(200,json=value)
+        return response
+    remote.handler=changed_readback
+    if changed=='source_ledger':remote.storages[PROJECTS[target]].sources[0]['version']=2
+    failed=asyncio.run(module.execute(selected(target),directory,SETTINGS,resume=directory))
+    case=next(item for item in failed['evaluation']['cases'] if item['case_id']==target)
+    assert failed['status']=='incomplete' and failed['selected_case_status']=='incomplete'
+    assert case['status']=='incomplete' and case['evidence_validated'] is False
+    assert all(round['status']=='completed' for round in case['rounds'])
+    result=asyncio.run(module.execute(selected(module.CASE_IDS[1]),directory,SETTINGS,resume=directory))
+    assert result['selected_case_status']=='completed' and result['status']=='incomplete'
+    bad[0]=False;remote.storages[PROJECTS[target]].sources[0]['version']=1
+    result=asyncio.run(module.execute(selected(target),directory,SETTINGS,resume=directory))
+    assert all(item['status']=='completed' for item in result['evaluation']['cases'])
+    assert result['status']=='completed' # All other finished cases were freshly revalidated read-only.
+    assert all(item['validation_attempt_id']==result['attempt_id'] for item in result['evaluation']['cases'])
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed',result
+    assert all(item['validation_attempt_id']==result['attempt_id'] and item['evidence_validated'] for item in result['evaluation']['cases'])
+    assert len(remote.submitted)==250
+
+
+def test_cli_subset_resume_inherits_original_limits_and_rejects_explicit_budget_change(setup,tmp_path,capsys):
+    plan,remote=setup(None);plan.update(max_elapsed_seconds=36000,max_case_elapsed_seconds=7200,max_backend_requests=100000)
+    remote.draft_failed=True;directory=tmp_path/'cli-original'
+    assert asyncio.run(module.execute(plan,directory,SETTINGS))['status']=='incomplete'
+    args=['--resume-dir',str(directory),'--case-id',module.CASE_IDS[0],'--source-revision',plan['source_revision'],
+        '--api-base',plan['api_base'],'--web-base',plan['web_base']]
+    assert module.main(args)==0
+    rendered=json.loads(capsys.readouterr().out)
+    assert module.budget_contract(rendered)==module.budget_contract(plan)
+    assert rendered['max_elapsed_seconds']==36000 and rendered['max_backend_requests']==100000
+    calls=len(remote.calls)
+    assert module.main(args+['--max-backend-requests','1000'])==3
+    assert 'immutable budget' in json.loads(capsys.readouterr().out)['reason'] and len(remote.calls)==calls
+
+
+def test_resumed_backend_startup_reuses_original_case_allowance(setup,tmp_path,monkeypatch):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'scoped-limit';handler=remote.handler;limits=[]
+    def scoped(request):
+        response=handler(request)
+        if request.url.path.endswith('/user_recall_usage'):
+            return httpx.Response(200,json=[{'rounds_completed':25+len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources)}])
+        return response
+    remote.handler=scoped
+    def startup(*args,**kwargs):
+        limits.append(kwargs['env']['MEMORY_SPARK_EVAL_RECALL_LIMIT']);return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(module.subprocess,'run',startup)
+    first=asyncio.run(module.execute(plan,directory,SETTINGS,start_backend=True));assert first['status']=='incomplete'
+    remote.draft_failed=False
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,start_backend=True,resume=directory))
+    assert result['status']=='completed',result
+    assert limits==['75','75'] and len(remote.submitted)==50
+
+
+@pytest.mark.parametrize('selection',[None,module.CASE_IDS[1]])
+def test_legacy_login_email_environment_never_overrides_campaign_mapping(setup,monkeypatch,capsys,selection):
+    setup(selection);monkeypatch.setenv('MEMOIR_EVAL_USER_EMAIL','test@test.com')
+    args=['--source-revision','a'*40]+(['--case-id',selection] if selection else [])
+    assert module.main(args)==0
+    rendered=json.loads(capsys.readouterr().out)
+    assert rendered['user_email'] is None
+    assert all(binding['user_email']==module.CASE_EMAILS[case] for case,binding in rendered['cases'].items())
+
+
+@pytest.mark.parametrize('changed',[
+    {'snapshot_state':'proposed','approval_required':True,'updating':True},
+    {'snapshot_state':'completed','approval_required':False,'updating':True},
+    {'status':'pending'},
+])
+def test_completed_resume_rejects_current_pending_or_proposed_draft_without_new_turn(setup,tmp_path,changed):
+    plan,remote=setup();directory=tmp_path/'current-draft'
+    assert asyncio.run(module.execute(plan,directory,SETTINGS))['status']=='completed'
+    old=module.private_json(directory/'receipt.json')['evaluation']['cases'][0]['checkpoints'];handler=remote.handler
+    def changed_head(request):
+        response=handler(request)
+        if request.url.path.endswith('read_lifetime_private_draft_head'):
+            value=response.json();value.update(changed);return httpx.Response(200,json=value)
+        return response
+    remote.handler=changed_head;before=len(remote.submitted)
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    case=result['evaluation']['cases'][0]
+    assert result['status']=='incomplete' and case['status']=='incomplete' and case['evidence_validated'] is False
+    assert 'current_checkpoint' not in case and case['checkpoints']==old
+    assert len(remote.submitted)==before==50
+
+
+def test_completed_resume_retrieves_and_checks_actual_live_draft_pages_again(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'current-pages'
+    assert asyncio.run(module.execute(plan,directory,SETTINGS))['status']=='completed'
+    before=sum(call.url.path.endswith('read_lifetime_private_draft_page') for call in remote.calls)
+    handler=remote.handler
+    def bad_page(request):
+        response=handler(request)
+        if request.url.path.endswith('read_lifetime_private_draft_page'):
+            value=response.json();value['records'][0]['source_refs'][0]['source_id']='foreign-current-source'
+            return httpx.Response(200,json=value)
+        return response
+    remote.handler=bad_page
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and result['evaluation']['cases'][0]['evidence_validated'] is False
+    assert sum(call.url.path.endswith('read_lifetime_private_draft_page') for call in remote.calls)>before
+    assert len(remote.submitted)==50
+
+
+def test_subset_finishes_with_read_only_validation_of_expired_completed_case_without_new_submission_time(setup,tmp_path,monkeypatch):
+    ids=list(module.CASE_IDS[:2]);plan,remote=setup(ids);directory=tmp_path/'late-finish'
+    handler=remote.handler;stop=[True];target=ids[1]
+    def interrupted_second_case(request):
+        response=handler(request)
+        if stop[0] and request.url.path.endswith('read_lifetime_private_draft_head') and json.loads(request.content)['p_project_id']==PROJECTS[target] and len(remote.storages[PROJECTS[target]].sources)==5:
+            value=response.json();value.update(snapshot_state='proposed',approval_required=True);return httpx.Response(200,json=value)
+        return response
+    remote.handler=interrupted_second_case
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete' and len(remote.submitted)==55
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-70;receipt['case_started_at_unix'][ids[0]]=now-61;receipt['case_started_at_unix'][ids[1]]=now-1
+    original_origins=dict(receipt['case_started_at_unix']);module.save(directory/'receipt.json',receipt)
+    stop[0]=False;before=len(remote.calls)
+    selected={**plan,'case_ids':[target],'cases':{target:plan['cases'][target]}}
+    def no_startup(*args,**kwargs):pytest.fail('Read-only completion verification must not start a service.')
+    monkeypatch.setattr(module.subprocess,'run',no_startup)
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory))
+    assert result['status']==result['selected_case_status']=='completed',result
+    assert result['case_started_at_unix']==original_origins and module.budget_contract(plan)==result['budget_contract']
+    assert len(remote.submitted)==100 and all(item['validation_attempt_id']==result['attempt_id'] for item in result['evaluation']['cases'])
+    completed_project=PROJECTS[ids[0]]
+    calls=remote.calls[before:]
+    assert not any(call.url.path.endswith('/agent/turn') and json.loads(call.content)['project_id']==completed_project for call in calls)
+    assert not any(call.url.path.endswith('/projects') and call.method=='POST' and json.loads(call.content)['restore_project_id']==completed_project for call in calls)
+    assert result['read_only_revalidation'][-1]['max_elapsed_seconds']==module.READ_ONLY_REVALIDATION_SECONDS
+    assert result['request_accounting']['backend_http_requests_reserved']==len(remote.calls)
+
+
+def test_all_completed_cases_can_be_revalidated_after_submission_deadlines_expire_with_original_counter(setup,tmp_path,monkeypatch):
+    plan,remote=setup(list(module.CASE_IDS[:2]));directory=tmp_path/'late-all'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='completed'
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-500
+    for case in plan['case_ids']:receipt['case_started_at_unix'][case]=now-450
+    origins=dict(receipt['case_started_at_unix']);module.save(directory/'receipt.json',receipt)
+    before=len(remote.calls);counter=module.private_json(directory/'request-counter.json')['reserved']
+    monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('No startup allowed for completed-case read-only validation.'))
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,start_backend=True))
+    assert result['status']=='completed',result
+    assert len(remote.submitted)==100 and result['case_started_at_unix']==origins
+    assert result['request_accounting']['backend_http_requests_reserved']==len(remote.calls)>counter
+    assert not any(call.url.path.endswith('/agent/turn') or call.url.path.endswith('/projects') and call.method=='POST' for call in remote.calls[before:])
+    assert not any(call.method=='PUT' for call in remote.calls[before:])
+
+
+def test_late_completed_case_still_respects_original_request_ceiling(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'late-counter'
+    assert asyncio.run(module.execute(plan,directory,SETTINGS))['status']=='completed'
+    receipt=module.private_json(directory/'receipt.json');receipt['started_at_unix']=module.time.time()-500
+    receipt['case_started_at_unix'][module.CASE_IDS[0]]=module.time.time()-450
+    module.save(directory/'receipt.json',receipt);before=len(remote.calls)
+    module.save(directory/'request-counter.json',{'run_id':plan['run_id'],'reserved':plan['max_backend_requests']})
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and len(remote.calls)==before and len(remote.submitted)==50
+    assert result['request_accounting']['backend_http_requests_reserved']==plan['max_backend_requests']
+
+
+def test_read_only_mode_cannot_submit_or_restore_even_if_called_directly():
+    class NoContact:
+        read_only=True
+        async def json(self,*args,**kwargs):pytest.fail('Read-only mutation contacted a service.')
+    for path in ['/v1/agent/turn','/v1/projects']:
+        with pytest.raises(module.EvaluationError,match='cannot mutate or submit'):
+            asyncio.run(module.backend(NoContact(),None,{'api_base':'http://fixture.invalid'},'POST',path,json={}))
