@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {historicalContextMarkup, historicalContext} from '../../apps/web/client/memoir/historical-news.mjs';
 const clue={id:'news-0123456789abcdef01234567',title:'Community fair',summary:'A fair opened.',event_start:1970,event_end:1970,
  source_url:'https://archive.example/fair',source_title:'Original archive title',publisher:'Library'};
-test('citation, event date and controls render in both languages without changing source names',()=>{
+test('citation, event date and per-clue skip render in both languages without changing source names',()=>{
  for(const locale of ['en-AU','zh-CN']){
   const html=historicalContextMarkup(clue,locale);
   assert.match(html,/1970/);assert.match(html,/Original archive title/);
-  assert.match(html,/rel="noopener noreferrer"/);assert.match(html,/data-news-reject/);assert.match(html,/data-news-disable/);
+  assert.match(html,/rel="noopener noreferrer"/);assert.match(html,/data-news-reject/);
+  assert.doesNotMatch(html,/data-news-enable|data-news-disable/);
  }
 });
 test('private fields never persist, unsafe links fail closed and text is escaped',()=>{

@@ -3270,7 +3270,7 @@ function renderStory() {
     ? `<button type="button" class="button button-secondary button-small chat-history-toggle" data-action="toggle-chat-history" aria-expanded="${!state.chatHistoryCollapsed}" aria-controls="chat-history">${historyToggleLabel}</button>`
     : "";
   const headerActions = !isFreshAnonymousSession()
-    ? `<div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}<button type="button" class="button button-secondary button-small" data-news-enable>${currentUiLocale() === "zh-CN" ? "允许历史线索" : "Allow historical clues"}</button></div>`
+    ? `<div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}</div>`
     : "";
   activeWorkspaceTab();
   $("#app").innerHTML = `

@@ -21,24 +21,22 @@ export function historicalContextMarkup(value, locale = 'en-AU') {
     <p>${escape(clue.summary)}</p>
     <a href="${escape(clue.source_url)}" target="_blank" rel="noopener noreferrer">${escape(clue.source_title)}</a>
     <span> · ${escape(clue.publisher)}</span>
-    <div><button type="button" class="button button-secondary button-small" data-news-reject="${escape(clue.id)}">${zh ? '跳过这条线索' : 'Skip this clue'}</button>
-    <button type="button" class="button button-secondary button-small" data-news-disable>${zh ? '关闭历史线索' : 'Turn off historical clues'}</button></div>
+    <div><button type="button" class="button button-secondary button-small" data-news-reject="${escape(clue.id)}">${zh ? '跳过这条线索' : 'Skip this clue'}</button></div>
   </aside>`;
 }
 
 export function bindHistoricalControls(root, {scope, current, api, notify, locale}) {
-  root.querySelectorAll('[data-news-reject], [data-news-disable], [data-news-enable]').forEach(button => {
+  root.querySelectorAll('[data-news-reject]').forEach(button => {
     button.addEventListener('click', async () => {
       const owner = scope();
       if (!owner.projectId) return;
       button.disabled = true;
       try {
         await api(`/v1/agent/projects/${encodeURIComponent(owner.projectId)}/historical-news`, {
-          method:'PUT', body:JSON.stringify({enabled:button.dataset.newsReject ? null : !button.hasAttribute('data-news-disable'),
-            reject_id:button.dataset.newsReject || null}),
+          method:'PUT', body:JSON.stringify({reject_id:button.dataset.newsReject}),
         });
         if (!current(owner)) return;
-        notify(locale() === 'zh-CN' ? '历史线索设置已保存' : 'Historical clue preference saved');
+        notify(locale() === 'zh-CN' ? '已跳过这条线索' : 'Clue skipped');
       } catch (error) { if (current(owner)) notify(error.message); }
       finally { if (current(owner)) button.disabled = false; }
     });

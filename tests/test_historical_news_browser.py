@@ -31,13 +31,12 @@ def test_citation_controls_and_saved_replay_in_browser():
             }''',clue)
             assert page.get_by_role('link',name='Town archive').get_attribute('href')=='https://archive.example/fair'
             assert '1970' in page.locator('aside').inner_text()
-            page.get_by_role('button',name='关闭历史线索').click()
-            page.wait_for_function('requests.length===1')
+            assert page.get_by_role('button',name='关闭历史线索').count()==0
+            assert page.get_by_role('button',name='允许历史线索').count()==0
             page.get_by_role('button',name='跳过这条线索').click()
-            page.wait_for_function('requests.length===2')
+            page.wait_for_function('requests.length===1')
             requests=page.evaluate('requests')
-            assert requests[0]['body']['enabled'] is False
-            assert requests[1]['body']['enabled'] is None # skip cannot reenable
+            assert requests[0]['body']=={'reject_id':clue['id']} # skip cannot change feature availability
             page.evaluate("document.querySelector('#app').innerHTML=news.historicalContextMarkup(JSON.parse(saved),'en-AU')")
             assert page.get_by_role('link',name='Town archive').count()==1
             assert page.get_by_role('button',name='Skip this clue').count()==1

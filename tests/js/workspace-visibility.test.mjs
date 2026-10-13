@@ -90,10 +90,14 @@ test('the fifth-round private draft keeps the place/photo view until composition
 });
 
 test('a ready map opens the place/photo workspace and its life-stage strip', () => {
-  const html = renderedWorkspace({placeJourney: {place: 'Chengde', latitude: 40.95, longitude: 117.96}});
+  const html = renderedWorkspace({placeJourney: {place: 'Chengde', latitude: 40.95, longitude: 117.96}}, {
+    isFreshAnonymousSession: () => false,
+  });
   assert.match(html, /story-shell context-visible/);
   assert.match(html, /workspace-media-overview/);
   assert.match(html, /life-stage-navigator/);
+  assert.match(html, /data-action="toggle-chat-history"/);
+  assert.doesNotMatch(html, /data-news-enable|data-news-disable/);
 });
 
 test('unlocked composition opens its tabs without a map or draft', () => {
