@@ -348,8 +348,8 @@ def test_two_maximum_cjk_children_and_complete_privacy_fit_actual_prompt_schema(
     assert json.loads(bounded.packet)['job_context']['preferences']['excluded_topics']==privacy['excluded_topics']
 
 
-def test_disabled_rollout_blocks_governed_job_before_home(tmp_path,monkeypatch):
+def test_generation_pause_blocks_governed_job_before_home(tmp_path,monkeypatch):
     from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
-    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+    monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
     with pytest.raises(LaneGenerationPaused):run(tmp_path)
     assert not Connection.instances and not list(tmp_path.iterdir())

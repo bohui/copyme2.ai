@@ -9,14 +9,11 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
-from fastapi.responses import StreamingResponse
-from .turn_stream import STREAM_HEADERS, turn_events
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
 from .lifetime_memory_publication import PublicationUnavailable
 from .agent_routes_support import authenticated_storage
 from .codex_runtime import CodexRuntime
-from .collector_configuration import CollectorConfigurationError
 from .conversation_recovery import PROJECT_ID_PATTERN, TurnReceipt, turn_receipt
 from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
@@ -312,102 +309,16 @@ def read_turn_receipt(client_turn_id: UUID,
         storage.client.close()
 
 
-async def _legacy_publication(storage):
-    """Classify before old execution and fence its eventual actual body sends."""
-    import os
-    from .lifetime_memory_legacy import LegacyPublication,LegacyMappingConflict,LegacyAuthorityUnavailable
-    try:
-        publisher=LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=storage.user_id)
-        async with publisher.guard():
-            pass
-        return publisher
-    except (LegacyMappingConflict,LegacyAuthorityUnavailable) as error:
-        await asyncio.to_thread(storage.client.close)
-        raise HTTPException(409 if isinstance(error,LegacyMappingConflict) else 503,
-            'Conversation authority changed; reload the saved journey',headers={'X-Error-Code':error.code}) from None
-
-
 @router.post('/greeting')
 async def greeting(payload: GreetingInput, authorization: str | None = Header(default=None),
                    accept: str = Header(default='application/json')):
-    """Run one of the server-owned assistant-only onboarding actions.
-
-    This route deliberately has no free-form ``text`` field. The runtime's
-    ``user_response=False`` seam is reachable here only after the action has
-    been reduced to one of the two product-owned prompts above; ordinary
-    ``/turn`` requests always remain billable user responses.
-    """
     if payload.project_id is not None and valid_family_project_id(payload.project_id) is None:
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
-    prompt = GREETING_PROMPTS[payload.action]
-    from .lifetime_memory_runtime import lifetime_admission,lifetime_http_turn
-    if await lifetime_admission(storage,payload.project_id):
-        return await lifetime_http_turn(runtime,storage,prompt,accept=accept,options={
-            'project_id':payload.project_id,'language':payload.language,'user_response':False,
-            'client_turn_id':str(payload.client_turn_id) if payload.client_turn_id else None})
-    publisher=await _legacy_publication(storage)
-    from .lifetime_memory_legacy import LegacyJSONResponse,LegacyStreamingResponse
-    if 'application/x-ndjson' in accept:
-        async def run_stream(emit):
-            options = {
-                'project_id': payload.project_id,
-                'language': payload.language,
-                'on_delta': emit,
-                'on_event': emit.event,
-                'user_response': False,
-            }
-            if payload.first_reply_localization:
-                options['first_reply_localization'] = True
-            if payload.client_turn_id:
-                options['client_turn_id'] = str(payload.client_turn_id)
-            return await runtime.turn(storage, prompt, **options)
-
-        return LegacyStreamingResponse(
-            turn_events(run_stream,
-                        cleanup=lambda: asyncio.to_thread(storage.client.close)),
-            media_type='application/x-ndjson', headers=STREAM_HEADERS,publisher=publisher,
-        )
-    try:
-        options = {
-            'project_id': payload.project_id,
-            'language': payload.language,
-            'user_response': False,
-        }
-        if payload.first_reply_localization:
-            options['first_reply_localization'] = True
-        if payload.client_turn_id:
-            options['client_turn_id'] = str(payload.client_turn_id)
-        return LegacyJSONResponse(await runtime.turn(storage, prompt, **options),publisher=publisher)
-    except (httpx.HTTPStatusError, httpx.RequestError) as error:
-        raise HTTPException(502, f'Supabase persistence failed: {error}') from None
-    except AgentTurnBusyError as error:
-        raise HTTPException(409, str(error), headers={'X-Error-Code': 'AGENT_TURN_IN_PROGRESS'}) from None
-    except CollectorConfigurationError:
-        raise HTTPException(503, 'Conversational generation is temporarily unavailable',
-                            headers={'X-Error-Code': 'COLLECTOR_CONFIGURATION_INVALID'}) from None
-    except RuntimeError as error:
-        raise HTTPException(502, f'Codex agent failed: {error}') from None
-    finally:
-        await asyncio.to_thread(storage.client.close)
-
-
-def _project_place_hints(store, project_id, user_id):
-    """Read only the authenticated project's bounded geographic history."""
-    if not project_id:
-        return []
-    from .main import _project
-    with store.lock:
-        # Legacy callers may have only the separate user-memoir project row.
-        if project_id not in store.projects:
-            return []
-        project = _project(store, project_id, user_id)
-        history = project.get('profile', {}).get('memory_places') or []
-        if not isinstance(history, list):
-            return []
-        from .place_journey import validate_place_journey
-        return [place for raw in history[-50:]
-                if (place := validate_place_journey(raw)) is not None]
+    from .lifetime_memory_runtime import lifetime_http_turn
+    return await lifetime_http_turn(runtime, storage, GREETING_PROMPTS[payload.action], accept=accept, options={
+        'project_id': payload.project_id, 'language': payload.language, 'user_response': False,
+        'client_turn_id': str(payload.client_turn_id) if payload.client_turn_id else None})
 
 
 @router.post('/turn')
@@ -417,83 +328,13 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     focus = payload.workspace_focus.model_dump(mode='json', exclude_none=True) if payload.workspace_focus else None
-    from .lifetime_memory_runtime import lifetime_admission,lifetime_http_turn
-    if await lifetime_admission(storage,payload.project_id):
-        return await lifetime_http_turn(runtime,storage,payload.text,accept=accept,options={
-            'project_id':payload.project_id,'language':payload.language,
-            'client_turn_id':str(payload.client_turn_id) if payload.client_turn_id else None,
-            'conversation_text':payload.conversation_text,'source_kind':payload.source_kind,
-            'uploaded_photo_ids':[str(id) for id in payload.uploaded_photo_ids],
-            'photo_selection':payload.photo_selection, 'workspace_focus':focus})
-    publisher=await _legacy_publication(storage)
-    from .lifetime_memory_legacy import LegacyJSONResponse,LegacyStreamingResponse
-    try:
-        place_hints = await asyncio.to_thread(_project_place_hints,
-            request.app.state.store, payload.project_id, storage.user_id) if payload.project_id else []
-    except BaseException:
-        await asyncio.to_thread(storage.client.close)
-        raise
-    if 'application/x-ndjson' in accept:
-        async def run_stream(emit):
-            options = {
-                'project_id': payload.project_id,
-                'language': payload.language,
-                'on_delta': emit,
-                'on_event': emit.event,
-            }
-            if focus is not None:
-                options['workspace_focus'] = focus
-            if payload.uploaded_photo_ids:
-                options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
-            if payload.photo_selection is not None:
-                options['photo_selection'] = payload.photo_selection
-            if place_hints:
-                options['saved_place_hints'] = place_hints
-            if payload.source_kind != 'narrator_chat':
-                options['source_kind'] = payload.source_kind
-            if payload.first_reply_localization:
-                options['first_reply_localization'] = True
-            if payload.conversation_text is not None:
-                options['conversation_text'] = payload.conversation_text
-            if payload.client_turn_id:
-                options['client_turn_id'] = str(payload.client_turn_id)
-            return await runtime.turn(storage, payload.text, **options)
-
-        return LegacyStreamingResponse(
-            turn_events(run_stream,
-                        cleanup=lambda: asyncio.to_thread(storage.client.close)),
-            media_type='application/x-ndjson', headers=STREAM_HEADERS,publisher=publisher,
-        )
-    try:
-        options = {'project_id': payload.project_id, 'language': payload.language}
-        if focus is not None:
-            options['workspace_focus'] = focus
-        if payload.uploaded_photo_ids:
-            options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
-        if payload.photo_selection is not None:
-            options['photo_selection'] = payload.photo_selection
-        if place_hints:
-            options['saved_place_hints'] = place_hints
-        if payload.source_kind != 'narrator_chat':
-            options['source_kind'] = payload.source_kind
-        if payload.first_reply_localization:
-            options['first_reply_localization'] = True
-        if payload.conversation_text is not None:
-            options['conversation_text'] = payload.conversation_text
-        if payload.client_turn_id:
-            options['client_turn_id'] = str(payload.client_turn_id)
-        return LegacyJSONResponse(await runtime.turn(storage, payload.text, **options),publisher=publisher)
-    except (httpx.HTTPStatusError, httpx.RequestError) as error:
-        raise HTTPException(502, f'Supabase persistence failed: {error}') from None
-    except AgentTurnBusyError as error:
-        raise HTTPException(409, str(error), headers={'X-Error-Code': 'AGENT_TURN_IN_PROGRESS'}) from None
-    except CollectorConfigurationError:
-        raise HTTPException(503, 'Conversational generation is temporarily unavailable',
-                            headers={'X-Error-Code': 'COLLECTOR_CONFIGURATION_INVALID'}) from None
-    except RuntimeError as error:
-        raise HTTPException(502, f'Codex agent failed: {error}') from None
-    finally:
-        await asyncio.to_thread(storage.client.close)
+    from .lifetime_memory_runtime import lifetime_http_turn
+    return await lifetime_http_turn(runtime, storage, payload.text, accept=accept, options={
+        'project_id': payload.project_id, 'language': payload.language,
+        'client_turn_id': str(payload.client_turn_id) if payload.client_turn_id else None,
+        'conversation_text': payload.conversation_text, 'source_kind': payload.source_kind,
+        'uploaded_photo_ids': [str(id) for id in payload.uploaded_photo_ids],
+        'photo_selection': payload.photo_selection, 'workspace_focus': focus})
 
 
 @router.get('/family-context')

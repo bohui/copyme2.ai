@@ -100,7 +100,7 @@ Voice conversations choose Mira's character from the interview language, indepen
 
 Set `MEMORY_SPARK_TTS_VOICE_ZH_CN` or `MEMORY_SPARK_TTS_VOICE_EN_AU` to choose different built-in voices, and optionally set the matching `MEMORY_SPARK_TTS_INSTRUCTIONS_*` to customize delivery. Blank instructions use the localized defaults. Additional locales can use the same `MEMORY_SPARK_TTS_VOICE_<LOCALE>` and `MEMORY_SPARK_TTS_INSTRUCTIONS_<LOCALE>` convention (for example `FR_FR`); add those variables to the API service environment in `compose.yml` when running containers. Audio caches include the resolved voice, delivery and speed, so changing a character does not reuse old audio. Built-in voices are [optimized for English](https://developers.openai.com/api/docs/guides/text-to-speech), so Mandarin delivery still needs listening review.
 
-The authenticated Realtime/WebRTC backend is available at `POST /api/v1/memoir/realtime/calls`. It exchanges a browser SDP offer for an SDP answer using the server-only OpenAI key, loads the signed-in user's existing private context, and configures Mira's spoken interview with interruption support. `MEMORY_SPARK_REALTIME_MODEL` defaults to `gpt-realtime-2.1`; `MEMORY_SPARK_REALTIME_VOICE` defaults to `marin`. This is a backend integration point: the current recording UI has **not** been switched to WebRTC, and this endpoint does not persist new voice turns. See [the frontend handoff and API contract](docs/Realtime_WebRTC.md).
+Voice input uses microphone recording, `POST /api/v1/memoir/story/transcriptions`, and the same canonical saved conversation engine as typed input. Spoken replies use the speech endpoint. The separate direct WebRTC backend has been retired; see [the voice flow](docs/Realtime_WebRTC.md).
 
 ## Story packages and Stripe
 
@@ -161,9 +161,13 @@ make container-logs SERVICE=api
 make container-down
 ```
 
-`make up` (also `make container-up`) validates every repository skill and rebuilds
-all repository images using cached build layers, then recreates all six services.
-Runtime dependencies and image-baked skills are refreshed before services start.
+`make up` (also `make container-up`) validates every repository skill and builds
+only images whose source, dependencies, build arguments, or local image IDs changed.
+It builds the shared backend image once and recreates its consumers when needed;
+unchanged containers, including Temporal, keep running. Changed Compose settings
+and environment values are reconciled on every run. The first run establishes a
+local cache in `var/container-startup.json` after all health checks pass.
+Use `make up CONTAINER_REBUILD=1` to rebuild all app images with cached build layers.
 Startup uses `SUPABASE_DB_URL` for the publication guard when
 `MEMOIR_PUBLICATION_DATABASE_URL` is unset; an explicit publication connection wins.
 Run `make migrate` first when new Supabase migrations are present. Use
@@ -242,8 +246,8 @@ saves the place after the conversation commit. Ambiguous or ungrounded places
 produce no preview, and project/turn ordering guards reject late results.
 
 There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-worker`,
-`worker`, and `temporal`. `container-up` always rebuilds every buildable image
-and recreates all six containers. The API, background worker, and photo worker
+`worker`, and `temporal`. `container-up` refreshes changed images and services
+and verifies the full stack. The API, background worker, and photo worker
 share the backend image; Temporal uses its upstream image. API and worker Python
 sources are bind-mounted; Codex worker Python and skills are image-baked.
 
@@ -400,13 +404,7 @@ their cached skill loaders reload, and removes the temporary ZIPs. Use
 `SKILLS="memoir-place-journey"` only when debugging one skill. Generated
 archives remain temporary, so `dist/` stays ignored.
 
-When upgrading from API-hosted Codex, drain and stop **all old API/Codex writers**
-before starting the new worker. Compose mounts the old `var/memory-spark/codex-users`
-directory read-only; the worker atomically imports each user's complete offline
-home (including SQLite/WAL and rollouts) on first use. Existing worker homes are
-never overwritten, and the original files remain intact. Keep the legacy mount
-until every existing user has migrated. Run `make migrate` before starting the
-updated API; the consolidated schema intentionally has no unfenced-save fallback.
+Run `make migrate` before starting the API and worker. Conversations use the canonical engine only, with fresh bounded model execution and transactional publication fences. Old Codex homes are not imported or resumed.
 
 Artifact snapshots now use `agent/<root>/turns/<lease UUID>/<relative path>`.
 Only the lease-checked database commit publishes their paths. Failed attempts

@@ -1,7 +1,6 @@
 """Private Codex worker for isolated, per-user app-server execution."""
 from __future__ import annotations
 
-import base64
 import asyncio
 from contextvars import ContextVar
 import fcntl
@@ -12,11 +11,9 @@ import logging
 import os
 import threading
 import time
-import httpx
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
-from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -25,40 +22,25 @@ from .lifetime_memory_activation import ActivationPublication, CanonicalActivati
 from .lifetime_memory_policy import PolicyUnavailable
 from pydantic import BaseModel, Field, model_validator
 
-from .codex_agent import CodexConnection, provider_config
+from .codex_agent import CodexConnection
 from .collector_configuration import CollectorConfigurationError, collector_configuration
 from .conversation_phase import PhaseState
 from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
-    AdmissionDenied, check_issue14_dispatch, issue14_connection_options,
-    validate_optional_issue14_admission,
+    AdmissionDenied, check_issue14_dispatch, validate_optional_issue14_admission,
 )
-from .codex_artifacts import iter_artifacts
 from .codex_runtime import (
-    LANGUAGE_INTAKE_SCHEMA,
     WORKSPACE_TIMEOUT,
-    build_conversation_system_prompt,
-    build_language_intake_prompt,
-    build_system_prompt,
-    build_workspace_extraction_prompt,
-    normalize_conversation_language,
 )
-from .codex_worker_files import migrate_home, write_config
 from .diagnostics import configure_diagnostic_logger, elapsed_ms, failure_class, log_diagnostic, new_request_id
-from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, execution_correlation
+from .trajectory_evaluation import execution_correlation
 from .agent_lock import AgentTurnBusyError
-from .agent_tasks import organiser_prompt
-from .memoir_tasks import MemorySource, PublishTaskInput
-from .memoir_preview import composer_timeout, composer_instructions, composer_output_schema
-from .memory_events import extraction_instructions, extraction_schema
-from .interview_plan import collector_schema, run_collector_turn
+from .memoir_tasks import MemorySource
+from .memoir_preview import composer_timeout
 from .lifetime_memory_lane_engine import BoundedLaneInput, LaneGenerationPaused, run_bounded_lane
 from .lifetime_memory_job_engine import BoundedJobInput, JobOutputInvalid, run_bounded_job
-from .lifetime_memory_legacy import (
-    LegacyPublication, LegacyJSONResponse, LegacyStreamingResponse, LegacyRequestBody,
-    LegacyMappingConflict, LegacyAuthorityUnavailable,
-)
+
 from .lifetime_memory_engine import (
     GovernedCollectorInput, run_governed_collector, validate_governed_context,
 )
@@ -66,12 +48,6 @@ from .lifetime_memory_engine import (
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
 configure_diagnostic_logger(diagnostic_logger)
-
-
-def _legacy_publication(payload):
-    if any(value is not None for value in (payload.governed, payload.bounded_lane, payload.bounded_job)):
-        return None
-    return LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=payload.user_id)
 
 
 class ComposerProviderUnavailable(RuntimeError):
@@ -173,17 +149,13 @@ class WorkerTurnInput(BaseModel):
                 raise ValueError('Governed collector language mismatch')
             return self
 
-        if not self.text and not (self.agent_role == 'collector' and self.interview_context and self.interview_context.get('photo_context')):
-            raise ValueError('A collector turn needs narration or an accepted photo cue')
-        if self.agent_role not in {'composer', 'author_timeline'} and len(self.text) > 100000:
-            raise ValueError('Conversation input exceeds the supported limit')
-        return self
+        raise ValueError('A canonical execution contract is required')
 
 
 class CodexWorker:
     """Run Codex outside the API container and under a user-specific UID."""
 
-    def __init__(self, *, home_root=None, legacy_root=None, command=None, base_url=None, model=None,
+    def __init__(self, *, home_root=None, command=None, base_url=None, model=None,
                  timeout=None, api_key=None, reasoning_effort=None, issue14_admission=None):
         self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.home_root = Path(home_root or os.getenv(
@@ -193,8 +165,6 @@ class CodexWorker:
         # normalize a mounted root to 0755; either way, sibling contents stay
         # protected because each user home below is 0700 and UID-owned.
         self.home_root.mkdir(parents=True, exist_ok=True, mode=0o711)
-        legacy_root = legacy_root or os.getenv('MEMORY_SPARK_LEGACY_CODEX_HOME')
-        self.legacy_root = Path(legacy_root) if legacy_root else None
         self.command = command or [os.getenv("MEMORY_SPARK_CODEX_BIN", "codex"), "app-server"]
         self.privdrop = os.getenv("MEMORY_SPARK_CODEX_PRIVDROP_BIN", "/usr/bin/setpriv")
         self.base_url = base_url or os.getenv(
@@ -243,21 +213,6 @@ class CodexWorker:
                     and evidence[2] is asyncio.current_task()
                     and evidence[1] is not None and evidence[1].expired())
 
-    @staticmethod
-    def _refresh_collector_thread(payload: WorkerTurnInput) -> bool:
-        """Start a fresh persisted thread before a long history dominates latency.
-
-        The application still supplies the bounded saved-memory context, so this
-        is a context compaction boundary rather than a loss of the memoir. A
-        worker process must not spend the whole collector budget replaying every
-        prior protocol turn at the final review checkpoint.
-        """
-        return (
-            payload.agent_role == 'collector'
-            and payload.thread_id is not None
-            and payload.conversation_rounds_completed is not None
-            and payload.conversation_rounds_completed >= 40
-        )
 
     def _uid_for(self, user_id: str) -> int:
         """Allocate a stable, non-system UID for the user's Codex process."""
@@ -291,23 +246,6 @@ class CodexWorker:
             os.replace(temporary, self._identity_file)
             return candidate
 
-    def _home(self, user_id: str, uid: int, agent_role: str = 'collector') -> Path:
-        # Workspace extraction must not contend with the persisted collector
-        # thread. It gets a separate home while remaining under the same
-        # per-user root and UID boundary.
-        home_key = user_id if agent_role == 'collector' else f'{user_id}-{agent_role}'
-        home = self.home_root / home_key
-        if agent_role == 'collector' and not home.exists() and not home.is_symlink() and self.legacy_root is not None:
-            migrate_home(self.legacy_root / user_id, home, uid)
-        home.mkdir(parents=True, exist_ok=True, mode=0o700)
-        write_config(
-            home,
-            self.home_root,
-            uid,
-            provider_config(self.base_url, self.model),
-            apply_owner=os.getenv("MEMORY_SPARK_DISABLE_PRIVDROP") != "1",
-        )
-        return home
 
     def _run_command(self, uid: int):
         # macOS development/CI hosts do not provide Linux's setpriv. The
@@ -332,13 +270,8 @@ class CodexWorker:
         self._progress_context.set(None)
         self._deadline_context.set((deadline_payload, None, asyncio.current_task()))
         payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
-        legacy_publication = _legacy_publication(payload)
-        if legacy_publication is not None:
-            async with legacy_publication.guard():
-                pass
-        else:
-            from .lifetime_memory_lane_engine import check_lane_generation
-            check_lane_generation()
+        from .lifetime_memory_lane_engine import check_lane_generation
+        check_lane_generation()
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
         progress = WorkerProgress()
@@ -421,18 +354,6 @@ class CodexWorker:
             return None
         return evidence[1].snapshot()
 
-    async def _ensure_composer_provider(self):
-        check_issue14_dispatch(self._issue14_admission, role='composer')
-        # Codex internally retries connection failures. Reject an unreachable
-        # endpoint before starting that loop, without sending source data.
-        endpoint = urlsplit(self.base_url)
-        try:
-            _, writer = await asyncio.wait_for(asyncio.open_connection(
-                endpoint.hostname, endpoint.port or (443 if endpoint.scheme == 'https' else 80)), 5)
-            writer.close()
-            await writer.wait_closed()
-        except (OSError, TimeoutError):
-            raise ComposerProviderUnavailable('The model provider is unavailable') from None
 
     @staticmethod
     def _execution_role(payload):
@@ -447,10 +368,6 @@ class CodexWorker:
         return payload.agent_role
 
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
-        legacy_publication = _legacy_publication(payload)
-        if legacy_publication is not None:
-            async with legacy_publication.guard():
-                pass
         if payload.governed is not None or payload.bounded_lane is not None or payload.bounded_job is not None:
             payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
@@ -493,237 +410,11 @@ class CodexWorker:
                 progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
             )
-        home = self._home(user_id, uid, self._execution_role(payload))
-        correlation = execution_correlation(payload.evaluation, model)
-        request_id = new_request_id(payload.diagnostic_request_id)
-        started = time.perf_counter()
-        log_diagnostic(
-            diagnostic_logger,
-            'appserver_turn_start',
-            request_id,
-            component='memoir.codex_worker.appserver_client',
-            agent_role=payload.agent_role,
-            model=model,
-        )
-        if collector:
-            log_diagnostic(diagnostic_logger, 'collector_configuration', request_id,
-                agent_role='collector', model=model, prompt_version=collector.prompt_version,
-                requested_effort=collector.effort or self.reasoning_effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max'),
-                effective_effort='unavailable')
-        trajectory = None
-        if correlation:
-            trajectory = TrajectoryRecorder(
-                correlation,
-                skill_manifest=build_skill_manifest(Path(__file__).resolve().parents[2] / 'skills'),
-            )
-            trajectory.set_context(agent_role=payload.agent_role, language=payload.language, model=model)
-            trajectory.record('application', 'worker.turn.received', input={
-                'thread_id': payload.thread_id,
-                'project_id': payload.project_id,
-                'text': payload.text,
-            })
-        language = normalize_conversation_language(payload.language)
-        context = "\n".join(str(memory)[:2000] for memory in payload.memories) or "(none)"
-        if payload.agent_role == 'collector':
-            instructions = build_conversation_system_prompt(
-                context,
-                payload.profile,
-                project_id=payload.project_id,
-                place_journey=payload.place_journey,
-                family_context=payload.family_context,
-                language=language,
-                conversation_rounds_completed=payload.conversation_rounds_completed,
-                interview_context=payload.interview_context,
-                conversation_phase=payload.conversation_phase.model_dump(mode='json') if payload.conversation_phase else None,
-                prompt_version=collector.prompt_version,
-            )
-        elif payload.agent_role == 'workspace':
-            instructions = build_workspace_extraction_prompt(
-                context,
-                payload.profile,
-                place_journey=payload.place_journey,
-                family_enabled=payload.family_enabled,
-                family_context=payload.family_context,
-                task_sources=payload.task_sources,
-                language=language,
-                focus=payload.extraction_focus,
-                canonical_events=payload.canonical_events,
-                source_text=payload.text,
-            )
-        else:
-            instructions = build_system_prompt(
-                context,
-                payload.profile,
-                place_journey=payload.place_journey,
-                family_enabled=payload.family_enabled,
-                family_context=payload.family_context,
-                language=language,
-            )
-        if payload.agent_role == 'organiser':
-            instructions = organiser_prompt(payload.task_sources, language)
-        elif payload.agent_role == 'memory_context':
-            instructions = build_language_intake_prompt()
-        elif payload.agent_role == 'composer':
-            instructions = composer_instructions(payload.composer_phase)
-        elif payload.agent_role == 'author_timeline':
-            instructions = extraction_instructions()
-        # thread/start and thread/resume already install baseInstructions.
-        # Repeating them as user input doubles prompt processing each turn.
-        prompt = f"Storyteller message:\n{payload.text}"
-        environment = {"MEMORY_SPARK_LLM_API_KEY": self.api_key}
-        try:
-            async with CodexConnection(
-                self._run_command(uid),
-                home,
-                provider_env=environment,
-                timeout=self._execution_timeout(payload.agent_role, payload.composer_phase),
-                trajectory=trajectory,
-                request_admission=legacy_publication.guard,
-                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
-                **issue14_connection_options(self._issue14_admission),
-            ) as connection:
-                if payload.thread_id and payload.agent_role == 'collector' and not self._refresh_collector_thread(payload):
-                    result = await connection.request("thread/resume", {
-                        "threadId": payload.thread_id,
-                        "cwd": str(home),
-                        "modelProvider": "llm_provider",
-                        "model": model,
-                        "approvalPolicy": "never",
-                        "sandbox": "read-only",
-                        "baseInstructions": instructions,
-                    })
-                else:
-                    result = await connection.request("thread/start", {
-                        "cwd": str(home),
-                        "ephemeral": payload.agent_role in {'memory_context', 'workspace', 'composer', 'author_timeline'},
-                        "modelProvider": "llm_provider",
-                        "model": model,
-                        "approvalPolicy": "never",
-                        "sandbox": "read-only",
-                        "baseInstructions": instructions,
-                    })
-                thread_id = result["thread"]["id"]
-                reply = await run_collector_turn(
-                    connection,
-                    thread_id,
-                    prompt,
-                    interview_context=payload.interview_context if payload.agent_role == 'collector' else None,
-                    **({'output_schema': LANGUAGE_INTAKE_SCHEMA} if payload.agent_role == 'memory_context' else
-                       {'output_schema': composer_output_schema(payload.composer_phase)} if payload.agent_role == 'composer' else
-                       {'output_schema': extraction_schema()} if payload.agent_role == 'author_timeline' else
-                       {'output_schema': collector_schema(payload.interview_context)}
-                       if payload.agent_role == 'collector' and payload.interview_context is not None else {}),
-                    **({'on_delta': on_delta} if on_delta and payload.agent_role in {'collector', 'workspace'} else {}),
-                    **({'on_event': on_event} if on_event else {}),
-                    **({'effort': collector.effort} if collector and collector.effort else
-                       {'effort': self.reasoning_effort} if self.reasoning_effort is not None else
-                       {'effort': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')}
-                       if payload.agent_role == 'composer' else
-                       {'effort': os.getenv('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'low')}
-                       if payload.agent_role == 'author_timeline' else {}),
-                    responsesapi_client_metadata={**correlation, 'request_id': request_id},
-                )
-            if trajectory:
-                trajectory.record('application', 'worker.turn.completed', output={'thread_id': thread_id, 'reply': reply})
-                trajectory.finish(reply, status='completed', stop_reason='turn.completed')
-
-            if on_event:
-                await on_event({
-                    'type': 'provider_complete',
-                    'data': {
-                        'thread_id': thread_id,
-                        'reply': reply,
-                        'trajectory': trajectory.payload() if trajectory else None,
-                    },
-                })
-            log_diagnostic(
-                diagnostic_logger,
-                'appserver_turn_terminal',
-                request_id,
-                component='memoir.codex_worker.appserver_client',
-                agent_role=payload.agent_role,
-                model=model,
-                status='completed',
-                terminal_event='turn.completed',
-                elapsed_ms=elapsed_ms(started),
-            )
-        except BaseException as error:
-            log_diagnostic(
-                diagnostic_logger,
-                'appserver_turn_failed',
-                request_id,
-                component='memoir.codex_worker.appserver_client',
-                agent_role=payload.agent_role,
-                model=model,
-                status='failed',
-                failure_class=failure_class(error),
-                elapsed_ms=elapsed_ms(started),
-            )
-            if trajectory:
-                # Keep the failure receipt useful without copying provider
-                # exception text into the trajectory or stream.
-                trajectory.finish(
-                    None,
-                    status='failed',
-                    stop_reason='turn.failed',
-                    error={'error_type': type(error).__name__},
-                )
-                if isinstance(error, Exception):
-                    raise WorkerTurnError('Codex worker turn failed', trajectory.payload()) from error
-            raise
-
-        async with legacy_publication.guard():
-            pass
-        artifacts = [
-            {"path": path, "content": base64.b64encode(content).decode("ascii")}
-            for path, content in (iter_artifacts(home) if payload.agent_role == 'collector' else [])
-        ]
-        result = {"thread_id": thread_id, "reply": reply, "artifacts": artifacts}
-        if trajectory:
-            result["trajectory"] = trajectory.payload()
-        return result
+        raise ValueError('A canonical execution contract is required')
 
 
 app = FastAPI(title="Memory Spark Codex Worker")
 worker = CodexWorker()
-
-
-@app.post('/internal/tasks', status_code=202)
-async def publish_task(payload: PublishTaskInput, x_codex_worker_secret: str | None = Header(default=None)):
-    # Called only after the API authorises the sources and commits the turn.
-    # No task volume is mounted here: tenant runtimes cannot reach its contents.
-    _require_worker_secret(x_codex_worker_secret)
-    try:
-        check_issue14_dispatch(getattr(worker, '_issue14_admission', None), role='organiser')
-    except AdmissionDenied:
-        raise HTTPException(status_code=403, detail='Issue 14 evaluation admission denied',
-            headers={'X-Error-Code': 'ISSUE14_ADMISSION_DENIED'}) from None
-    payload = PublishTaskInput.model_validate(payload.model_dump(mode='json'))
-    publisher = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=payload.user_id)
-    encoded = json.dumps(payload.model_dump(mode='json'),ensure_ascii=False,separators=(',',':')).encode('utf-8')
-    body = LegacyRequestBody(encoded,publisher=publisher)
-    try:
-        async with publisher.guard():
-            pass
-        target = os.getenv('MEMORY_SPARK_TASK_STORE_URL', '').rstrip('/')
-        if not target:
-            raise HTTPException(503, 'Task persistence is not configured')
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(target + '/internal/tasks',
-                headers={'X-Codex-Worker-Secret': x_codex_worker_secret,
-                    'Content-Type':'application/json','Content-Length':str(len(encoded))}, content=body)
-            response.raise_for_status()
-            return LegacyJSONResponse(response.json(),publisher=publisher,status_code=202)
-    except LegacyMappingConflict:
-        raise HTTPException(409, 'This owner requires governed execution',
-            headers={'X-Error-Code':LegacyMappingConflict.code}) from None
-    except (LegacyAuthorityUnavailable, TimeoutError):
-        raise HTTPException(503, 'Legacy task authority is unavailable',
-            headers={'X-Error-Code':LegacyAuthorityUnavailable.code}) from None
-    except httpx.HTTPError:
-        raise HTTPException(503, 'Task persistence unavailable; retry the same task') from None
-    finally:
-        await body.aclose()
 
 
 def _require_worker_secret(provided: str | None):
@@ -751,41 +442,21 @@ async def turn(payload: WorkerTurnInput, request: Request,
     request_id = new_request_id(x_memoir_request_id or payload.diagnostic_request_id)
     if payload.diagnostic_request_id != request_id:
         payload = payload.model_copy(update={'diagnostic_request_id': request_id})
-    legacy_publication = _legacy_publication(payload)
-    if legacy_publication is not None:
-        try:
-            async with legacy_publication.guard():
-                pass
-        except LegacyMappingConflict:
-            raise HTTPException(409, 'This owner requires governed execution',
-                headers={'X-Error-Code': LegacyMappingConflict.code}) from None
-        except LegacyAuthorityUnavailable:
-            raise HTTPException(503, 'Legacy identity authority is unavailable',
-                headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
-    else:
-        try:
-            from .lifetime_memory_lane_engine import check_lane_generation
-            check_lane_generation()
-            # Readiness preflight returns a fixed HTTP error before streaming
-            # headers. Every engine separately gates actual pipe admission.
-            async with ActivationPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
-                    authenticated_owner=payload.user_id).guard():
-                pass
-        except LaneGenerationPaused:
-            raise HTTPException(503, 'Bounded lifetime generation is paused; retry later',
-                headers={'X-Error-Code': LaneGenerationPaused.code, 'Retry-After': '60'}) from None
-        except CanonicalActivationUnavailable:
-            raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
-                headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
+    try:
+        from .lifetime_memory_lane_engine import check_lane_generation
+        check_lane_generation()
+        async with ActivationPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
+                authenticated_owner=payload.user_id).guard():
+            pass
+    except LaneGenerationPaused:
+        raise HTTPException(503, 'Conversation generation is paused; retry later',
+            headers={'X-Error-Code': LaneGenerationPaused.code, 'Retry-After': '60'}) from None
+    except CanonicalActivationUnavailable:
+        raise HTTPException(503, 'Conversation provider authority is unavailable',
+            headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     if 'application/x-ndjson' in request.headers.get('accept', ''):
-        response_type = LegacyStreamingResponse if legacy_publication is not None else StreamingResponse
-        # Raw collector deltas can arrive faster than remote SQL authority checks.
-        # Pack only frames already queued, checking authority for every actual
-        # bounded send instead of accumulating one roundtrip per model fragment.
-        batch_bytes = 65536 if payload.agent_role == 'collector' and legacy_publication is not None else 0
-        return response_type(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
-                                                                    on_event=emit.event), batch_bytes=batch_bytes),
-            **({'publisher':legacy_publication} if legacy_publication is not None else {}),
+        return StreamingResponse(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
+                                                                        on_event=emit.event)),
             media_type='application/x-ndjson', headers=STREAM_HEADERS)
     task = asyncio.create_task(worker.turn(payload))
     try:
@@ -795,20 +466,14 @@ async def turn(payload: WorkerTurnInput, request: Request,
                 break
             await asyncio.wait({task}, timeout=0.1)
         result = await task
-        return LegacyJSONResponse(result,publisher=legacy_publication) if legacy_publication is not None else result
-    except LegacyMappingConflict:
-        raise HTTPException(409, 'This owner requires governed execution',
-            headers={'X-Error-Code': LegacyMappingConflict.code}) from None
-    except LegacyAuthorityUnavailable:
-        raise HTTPException(503, 'Legacy identity authority is unavailable',
-            headers={'X-Error-Code': LegacyAuthorityUnavailable.code}) from None
+        return result
     except AgentTurnBusyError as error:
         raise HTTPException(status_code=409, detail=str(error)) from None
     except PolicyUnavailable:
         raise HTTPException(503, 'Accepted conversation policy requires maintenance before private content can be used',
             headers={'X-Error-Code': PolicyUnavailable.code, 'Retry-After': '60'}) from None
     except CanonicalActivationUnavailable:
-        raise HTTPException(503, 'Canonical generation is waiting for realtime safety clearance',
+        raise HTTPException(503, 'Conversation provider authority is unavailable',
             headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     except JobOutputInvalid:
         raise HTTPException(status_code=502, detail='Collection output requires bounded repair',
@@ -825,11 +490,9 @@ async def turn(payload: WorkerTurnInput, request: Request,
     except TimeoutError:
         raise HTTPException(status_code=504, detail='Codex worker turn timed out') from None
     except WorkerTurnError as error:
-        response_type = LegacyJSONResponse if legacy_publication is not None else JSONResponse
-        return response_type(
+        return JSONResponse(
             status_code=502,
             content={'detail': 'Codex worker failed', 'trajectory': error.trajectory},
-            **({'publisher':legacy_publication} if legacy_publication is not None else {}),
         )
     except RuntimeError as error:
         raise HTTPException(status_code=502, detail='Codex worker failed') from None

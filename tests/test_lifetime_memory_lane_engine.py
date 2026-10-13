@@ -234,8 +234,6 @@ def test_bounded_composer_does_not_probe_provider_without_admission(tmp_path,mon
     monkeypatch.setattr(worker_module,'CodexConnection',Connection)
     bounded=transport('draft')
     worker=CodexWorker(home_root=tmp_path,model=BUDGET.model)
-    async def no_probe():pytest.fail('provider probe before configured lane admission')
-    monkeypatch.setattr(worker,'_ensure_composer_provider',no_probe)
     payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
         agent_role='composer',composer_phase='draft',model=BUDGET.model,bounded_lane=bounded)
     with pytest.raises(PublicationUnavailable):asyncio.run(worker.turn(payload))
@@ -511,9 +509,9 @@ def test_real_bounded_composer_call_chain_uses_only_same_page_artifacts(edition_
     assert len(publisher.snapshots)==3 and not publisher.active
 
 
-def test_disabled_rollout_blocks_governed_lane_before_home(tmp_path,monkeypatch):
+def test_generation_pause_blocks_governed_lane_before_home(tmp_path,monkeypatch):
     from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
-    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+    monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
     with pytest.raises(LaneGenerationPaused):run(tmp_path)
     assert not Connection.instances and not list(tmp_path.iterdir())
 

@@ -1,32 +1,18 @@
-"""Temporal execution of deterministic memoir tasks from the durable outbox."""
+"""Canonical memoir lanes and selected collection work through Temporal."""
 import asyncio
 import logging
-import os
-import sqlite3
 
 from temporalio import activity
-from temporalio.client import Client, WorkflowExecutionStatus
+from temporalio.client import Client
 from temporalio.common import WorkflowIDReusePolicy, WorkflowIDConflictPolicy
-from temporalio.exceptions import ApplicationError, WorkflowAlreadyStartedError
+from temporalio.exceptions import ApplicationError
 from temporalio.worker import Worker
 
-from apps.api.memoir_tasks import execute_task
-from apps.api.lifetime_memory_legacy import LegacyPublication, LegacyMappingConflict
 from apps.api.task_queue import configured_queue
-from apps.api.temporal_workflows import MemoirTaskWorkflow, PrivateMemoirDraftWorkflow, MemoirSkillLane
-from apps.api.private_draft_jobs import PrivateDraftJobs
+from apps.api.temporal_workflows import MemoirSkillLane
 from apps.api.lifetime_memory_collection_workflow import MemoirCollectionJob
 
 log = logging.getLogger(__name__)
-
-
-async def safe_pending_task_ids(queue):
-    """Keep the Temporal worker alive across transient local SQLite I/O errors."""
-    try:
-        return await asyncio.to_thread(queue.pending_ids)
-    except (OSError, sqlite3.Error):
-        log.warning('Task queue polling deferred')
-        return []
 
 
 @activity.defn(name='memoir.execute_lane')
@@ -91,56 +77,8 @@ async def dispatch_collection_jobs_once(client, broker, task_queue):
     return handles
 
 
-@activity.defn(name='memoir.private_draft')
-async def execute_private_draft(job_id: str) -> dict:
-    from apps.api.private_drafts import execute
-    result = await execute(job_id)
-    if result['status'] in {'deferred','retry'}:
-        raise ApplicationError('Private draft is waiting for its project lease',type='DraftBusy')
-    if result['status']=='failed':
-        raise ApplicationError('Private draft needs an explicit retry',type='DraftFailed',non_retryable=True)
-    return result
-
-
-@activity.defn(name='memoir.execute_task')
-async def execute_memoir_task(task_id: str) -> dict:
-    # Only the opaque ID enters Temporal history; private input and artifact
-    # content stay in the application task store.
-    queue = configured_queue(busy_timeout=.25)
-    claimed = await asyncio.to_thread(queue.claim, task_id=task_id, lease_seconds=30)
-    if claimed is None:
-        status = await asyncio.to_thread(queue.status, task_id)
-        if status == 'SUCCEEDED':
-            return {'task_id': task_id, 'status': 'SUCCEEDED'}
-        if status in {'QUEUED', 'RUNNING'}:
-            raise ApplicationError('Task lease busy', type='TaskBusy')
-        raise ApplicationError('Task missing or failed', type='TaskFailed', non_retryable=True)
-    # Authority is bound to the immutable persisted owner, never a workflow
-    # argument. Only the opaque task ID/status may enter Temporal history.
-    publisher = LegacyPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
-        authenticated_owner=claimed['user_id'])
-    try:
-        async with publisher.guard():
-            pass
-        result = await asyncio.to_thread(execute_task, claimed['task'])
-        async with publisher.guard():
-            # The short synchronous SQLite transaction must finish before the
-            # adoption lock can release. Cancellation cannot strand a writer.
-            saved = queue.finish(task_id, claimed['lease_token'], result=result)
-    except LegacyMappingConflict:
-        queue.fail_dispatch(task_id)
-        raise ApplicationError('Task requires canonical workflow',
-            type='TaskRequiresGovernedWorkflow', non_retryable=True) from None
-    except Exception:
-        queue.finish(task_id, claimed['lease_token'], error='TASK_EXECUTION_FAILED')
-        raise ApplicationError('Deterministic task failed', type='TaskExecutionFailed') from None
-    if not saved:
-        raise ApplicationError('Task lease expired', type='TaskLeaseExpired')
-    return {'task_id': task_id, 'status': 'SUCCEEDED'}
-
-
 async def run_task_worker(address, namespace, task_queue, interval):
-    queue = configured_queue()
+    configured_queue()
     # Mocker populates service aliases after processes start. Retrying also
     # lets this worker recover when Temporal starts later during deployment.
     while True:
@@ -150,13 +88,12 @@ async def run_task_worker(address, namespace, task_queue, interval):
         except (RuntimeError, OSError):
             log.warning('Waiting for Temporal connection')
             await asyncio.sleep(interval)
-    drafts=PrivateDraftJobs(queue.path)
     from apps.api.memory_event_worker import MemoirLaneBroker
-    broker = MemoirLaneBroker() if os.getenv('SUPABASE_URL') and os.getenv('SUPABASE_SECRET_KEY') else None
-    async with Worker(client, task_queue=task_queue, workflows=[MemoirTaskWorkflow,PrivateMemoirDraftWorkflow,MemoirSkillLane,MemoirCollectionJob],
-                      activities=[execute_memoir_task,execute_private_draft,execute_memoir_lane,execute_collection_job], max_concurrent_activities=4):
-        while True:
-            if broker is not None:
+    broker = MemoirLaneBroker()
+    try:
+        async with Worker(client, task_queue=task_queue, workflows=[MemoirSkillLane, MemoirCollectionJob],
+                          activities=[execute_memoir_lane, execute_collection_job], max_concurrent_activities=4):
+            while True:
                 try:
                     await dispatch_memoir_lanes_once(client, broker, task_queue)
                 except Exception:
@@ -170,36 +107,9 @@ async def run_task_worker(address, namespace, task_queue, interval):
                     await drain_lifetime_obligations_once(broker, limit=4)
                 except Exception:
                     log.warning('Required memory maintenance deferred')
-            for draft_id in await asyncio.to_thread(drafts.pending_ids) if broker is None else []:
-                try:
-                    await client.start_workflow(PrivateMemoirDraftWorkflow.run,draft_id,id=f'memoir-private-draft:{draft_id}',
-                        task_queue=task_queue,id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY)
-                except WorkflowAlreadyStartedError:
-                    pass
-                except Exception:
-                    log.warning('Private draft dispatch deferred')
-            for task_id in await safe_pending_task_ids(queue):
-                try:
-                    await client.start_workflow(
-                        MemoirTaskWorkflow.run, task_id, id=f'memoir-task:{task_id}',
-                        task_queue=task_queue,
-                        id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
-                    )
-                except WorkflowAlreadyStartedError:
-                    try:
-                        execution = await client.get_workflow_handle(f'memoir-task:{task_id}').describe()
-                        if execution.status in {
-                            WorkflowExecutionStatus.FAILED, WorkflowExecutionStatus.CANCELED,
-                            WorkflowExecutionStatus.TERMINATED, WorkflowExecutionStatus.TIMED_OUT,
-                        }:
-                            await asyncio.to_thread(queue.fail_dispatch, task_id)
-                    except Exception:
-                        log.warning('Temporal status check deferred for task %s', task_id)
-                except Exception:
-                    # Keep the outbox row for a later start; never acknowledge
-                    # uncertain delivery or log the memory snapshot.
-                    log.warning('Temporal dispatch deferred for task %s', task_id)
-            await asyncio.sleep(interval)
+                await asyncio.sleep(interval)
+    finally:
+        await broker.client.aclose()
 
 
 async def readiness(address, namespace, task_queue):

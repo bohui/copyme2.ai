@@ -1,7 +1,7 @@
-"""Opt-in canonical lifetime collector orchestration shared by API execution modes.
+"""Canonical lifetime conversation orchestration shared by API execution modes.
 
-This path never loads user-wide memory caches. Activation requires separate rollout
-approval and a transactional publication connection; importing does not activate it.
+Narration, including transcribed microphone input, uses bounded model requests
+and transactional publication fences. There is no legacy conversation fallback.
 """
 from contextlib import AsyncExitStack
 import asyncio
@@ -46,29 +46,13 @@ class LifetimePublicationContext:
 
 
 def lifetime_enabled():
-    import os
-    return os.getenv('MEMOIR_LIFETIME_MEMORY','').lower() in {'1','true','yes'}
+    """The canonical engine is the sole conversation implementation."""
+    return True
 
 
 def lifetime_generation_paused():
     import os
-    return not lifetime_enabled() or os.getenv('MEMOIR_LIFETIME_GENERATION_PAUSED','').lower() in {'1','true','yes'}
-
-
-async def lifetime_admission(storage, project_id=None):
-    """Read-only cohort selection; mapped owners cannot request a legacy downgrade."""
-    from fastapi import HTTPException
-    try:
-        if not lifetime_enabled():
-            from .lifetime_memory_reads import find_lifetime_read_identity
-            return await asyncio.to_thread(find_lifetime_read_identity,storage,None) is not None
-        lane = await asyncio.to_thread(storage.lifetime_rpc, 'read_lifetime_admission', p_project_id=project_id)
-        if lane not in {'legacy', 'governed'}:
-            raise ValueError('Unknown lifetime admission lane')
-        return lane == 'governed'
-    except Exception as exc:
-        await asyncio.to_thread(storage.client.close)
-        raise HTTPException(503, 'Conversation admission is temporarily unavailable') from exc
+    return os.getenv('MEMOIR_LIFETIME_GENERATION_PAUSED', '').lower() in {'1', 'true', 'yes'}
 
 
 async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,language='en-AU',
@@ -89,16 +73,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     from .lifetime_memory_activation import CanonicalActivationUnavailable
     from .lifetime_memory_policy import PolicyUnavailable,is_policy_pending
     import httpx
-    try:
-        identity_raw=await asyncio.to_thread(storage.lifetime_rpc,'resolve_lifetime_conversation',p_project_id=project_id)
-    except httpx.HTTPStatusError as error:
-        try:
-            detail=error.response.json()
-        except ValueError:
-            detail=None
-        if isinstance(detail,dict) and detail.get('code')=='55000' and detail.get('message')=='LIFETIME_REALTIME_CLEARANCE_REQUIRED':
-            raise CanonicalActivationUnavailable() from None
-        raise
+    identity_raw=await asyncio.to_thread(storage.lifetime_rpc,'resolve_lifetime_conversation',p_project_id=project_id)
     if identity_raw.get('outcome')!='resolved':raise MappingRequired('Existing memoir projects require explicit identity mapping')
     identity=IdentityEnvelope.model_validate({k:v for k,v in identity_raw.items() if k!='outcome'})
     project_id=identity.project_id
@@ -246,7 +221,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             except PolicyUnavailable:
                 raise await policy_pending() from None
             except CanonicalActivationUnavailable as error:
-                pending=MaintenancePending('The source is accepted; conversation generation is awaiting operator clearance')
+                pending=MaintenancePending('The source is accepted; conversation provider authority is unavailable')
                 pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
                 raise pending from error
             if result.get('_artifact_task') is not None:
@@ -298,7 +273,7 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
     except BaseException as error:
         await cleanup()
         if isinstance(error,CanonicalActivationUnavailable):
-            raise HTTPException(503,'Conversation generation is awaiting operator clearance',headers={'X-Error-Code':'LIFETIME_REALTIME_CLEARANCE_REQUIRED','Retry-After':'60'}) from None
+            raise HTTPException(503,'Conversation provider authority is unavailable',headers={'X-Error-Code':CanonicalActivationUnavailable.code,'Retry-After':'60'}) from None
         if isinstance(error,PublicationUnavailable):raise HTTPException(503,'Governed publication is not configured') from None
         if isinstance(error,GenerationPaused):raise HTTPException(503,str(error),headers={'X-Error-Code':'LIFETIME_GENERATION_PAUSED'}) from None
         if isinstance(error,MappingRequired):raise HTTPException(409,str(error),headers={'X-Error-Code':'LIFETIME_MAPPING_REQUIRED'}) from None

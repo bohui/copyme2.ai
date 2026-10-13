@@ -16,11 +16,9 @@ services:
     ports:
       - "${MEMORY_SPARK_API_PORT:-8010}:8000"
     environment:
-      # Source-only opt-in bindings; configure uniformly before activation.
-      MEMOIR_LIFETIME_MEMORY: ${MEMOIR_LIFETIME_MEMORY:-0}
+      # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
       MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
-      MEMOIR_LEGACY_ONLY_DEPLOYMENT: ${MEMOIR_LEGACY_ONLY_DEPLOYMENT:-0}
       FLICKR_API_KEY: ${FLICKR_API_KEY:-}
       GOOGLE_MAPS_GEOCODING_API_KEY: ${GOOGLE_MAPS_GEOCODING_API_KEY:-}
       GOOGLE_MAPS_GEOCODING_URL: ${GOOGLE_MAPS_GEOCODING_URL:-https://maps.googleapis.com/maps/api/geocode/json}
@@ -73,8 +71,6 @@ services:
       MEMORY_SPARK_TTS_VOICE_ZH_CN: ${MEMORY_SPARK_TTS_VOICE_ZH_CN:-coral}
       MEMORY_SPARK_TTS_INSTRUCTIONS_EN_AU: ${MEMORY_SPARK_TTS_INSTRUCTIONS_EN_AU:-}
       MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN: ${MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN:-}
-      MEMORY_SPARK_REALTIME_MODEL: ${MEMORY_SPARK_REALTIME_MODEL:-gpt-realtime-2.1}
-      MEMORY_SPARK_REALTIME_VOICE: ${MEMORY_SPARK_REALTIME_VOICE:-marin}
       MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}
@@ -156,14 +152,11 @@ services:
     expose:
       - "8766"
     environment:
-      # Source-only opt-in bindings; configure uniformly before activation.
-      MEMOIR_LIFETIME_MEMORY: ${MEMOIR_LIFETIME_MEMORY:-0}
+      # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
       MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
-      MEMOIR_LEGACY_ONLY_DEPLOYMENT: ${MEMOIR_LEGACY_ONLY_DEPLOYMENT:-0}
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
-      MEMORY_SPARK_LEGACY_CODEX_HOME: /var/lib/memory-spark/legacy-codex-users
       MEMORY_SPARK_TASK_STORE_URL: http://api:8000
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}
@@ -185,8 +178,6 @@ services:
       - ./skills/memoir-author-timeline:/app/skills/memoir-author-timeline:ro
       - ./skills/memoir-family-tree:/app/skills/memoir-family-tree:ro
       - ./skills/memoir-composer:/app/skills/memoir-composer:ro
-      # Read only for one-time import; stop the old API before upgrading.
-      - ./var/memory-spark/codex-users:/var/lib/memory-spark/legacy-codex-users:ro
     read_only: true
     tmpfs:
       - /tmp
@@ -218,11 +209,9 @@ services:
       context: .
       dockerfile: Containerfile
     environment:
-      # Source-only opt-in bindings; configure uniformly before activation.
-      MEMOIR_LIFETIME_MEMORY: ${MEMOIR_LIFETIME_MEMORY:-0}
+      # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
       MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
-      MEMOIR_LEGACY_ONLY_DEPLOYMENT: ${MEMOIR_LEGACY_ONLY_DEPLOYMENT:-0}
       # Shared memoir lane dispatch and fenced commits use the same trusted
       # Supabase boundary as the API; without it this worker skips those lanes.
       SUPABASE_URL: ${SUPABASE_URL:-}
@@ -241,6 +230,8 @@ services:
       MEMORY_SPARK_TEMPORAL_TASK_QUEUE: memoir-tasks
       PYTHONUNBUFFERED: "1"
     volumes:
+      - ./apps/api:/app/apps/api:ro
+      - ./scripts:/app/scripts:ro
       - ./apps/api:/app/apps/api:ro
       - ./scripts:/app/scripts:ro
       - ./skills/memoir-composer:/app/skills/memoir-composer:ro

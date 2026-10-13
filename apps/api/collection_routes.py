@@ -1,8 +1,5 @@
 """Authenticated collection readiness, organising agent, and task results."""
 import asyncio
-import hashlib
-import json
-import os
 from typing import Literal
 
 import httpx
@@ -12,12 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .agent_lock import AgentTurnLease, AgentTurnBusyError
 from .agent_routes_support import authenticated_storage
-from .agent_tasks import BookStructure, TaskRequest, resolve_task
-from .codex_runtime import CodexRuntime
-from .memoir_tasks import MemoirTask, MemorySource
+from .agent_tasks import TaskRequest
 from .profile_intake import LIFE_STAGES
-from .task_queue import configured_queue
-from .lifetime_memory_read_api import read_mapped, canonical_collection, unsupported_collection_job, mapped_identity
+from .lifetime_memory_read_api import read_mapped, canonical_collection, mapped_identity
 from .lifetime_memory_collection_jobs import update_selection, submit_selected_job, selected_job_result
 
 router = APIRouter(prefix='/v1/agent', tags=['Memory collection'])
@@ -67,25 +61,10 @@ def _project(value):
     return value
 
 
-def _queue():
-    if not os.getenv('MEMORY_SPARK_TASK_DB'):
-        raise HTTPException(503, 'Background tasks are not configured')
-    return configured_queue()
-
-
-def _sources(storage, project_id=None):
-    if project_id:
-        unsupported_collection_job(storage, project_id)
-    reader = getattr(storage, 'all_memories', storage.memories)
-    try:
-        return CodexRuntime._task_sources(reader())
-    except ValueError:
-        raise HTTPException(422, 'Collection exceeds the supported memory limit') from None
-
-
-def _source_fingerprint(sources):
-    snapshot = [source.model_dump() for source in sorted(sources, key=lambda source: source.id)]
-    return hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+def _require_canonical(storage, project_id):
+    if mapped_identity(storage, project_id) is None:
+        raise HTTPException(409, 'Open the saved canonical conversation first',
+                            headers={'X-Error-Code': 'LIFETIME_IDENTITY_REQUIRED'})
 
 
 @router.get('/collection/{project_id}')
@@ -94,12 +73,9 @@ def collection(project_id: str, cursor: UUID | None = None, task_cursor: UUID | 
     _project(project_id)
     storage = authenticated_storage(authorization)
     try:
-        def legacy():
-            return {**_queue().collection(storage.user_id, project_id),
-                    'sources': [source.model_dump() for source in _sources(storage, project_id)],
-                    'tasks': _queue().list(storage.user_id, project_id)}
+        _require_canonical(storage, project_id)
         return read_mapped(storage, project_id,
-            lambda fence: canonical_collection(storage, project_id, cursor=cursor, task_cursor=task_cursor, limit=limit), legacy)
+            lambda fence: canonical_collection(storage, project_id, cursor=cursor, task_cursor=task_cursor, limit=limit))
     finally:
         storage.client.close()
 
@@ -111,18 +87,8 @@ async def update_collection(project_id: str, payload: CollectionUpdate,
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         async with AgentTurnLease(storage) as lease:
-            if await lease.io(mapped_identity, storage, project_id) is not None:
-                return await lease.io(update_selection, storage, project_id, payload)
-            sources = await lease.io(_sources, storage, project_id)
-            source_ids = {source.id for source in sources}
-            requested = {key for period in payload.periods.values() for key in period.memory_ids}
-            if not requested.issubset(source_ids):
-                raise HTTPException(422, 'Collection references an unavailable memory')
-            await lease.check()
-            return await lease.io(_queue().update_collection, storage.user_id, project_id,
-                periods={key: period.model_dump() for key, period in payload.periods.items()},
-                ready=payload.confirm_ready, expected_revision=payload.expected_revision,
-                source_fingerprint=_source_fingerprint(sources) if payload.confirm_ready else None)
+            await lease.io(_require_canonical, storage, project_id)
+            return await lease.io(update_selection, storage, project_id, payload)
     except (AgentTurnBusyError, ValueError) as error:
         raise HTTPException(409, str(error)) from None
     finally:
@@ -135,11 +101,8 @@ async def publish_collection_task(project_id: str, payload: TaskRequest,
     _project(project_id)
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
-        if await asyncio.to_thread(mapped_identity, storage, project_id) is not None:
-            return await asyncio.to_thread(submit_selected_job, storage, project_id, payload)
-        _queue()
-        task = resolve_task(payload, await asyncio.to_thread(_sources, storage, project_id))
-        return await CodexRuntime().publish_task(storage.user_id, project_id, task)
+        await asyncio.to_thread(_require_canonical, storage, project_id)
+        return await asyncio.to_thread(submit_selected_job, storage, project_id, payload)
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
     except httpx.HTTPError:
@@ -156,10 +119,7 @@ def task_result(task_id: str, cursor: UUID | None = None, limit: int = Query(def
         governed = selected_job_result(storage, task_id, cursor=cursor, limit=limit)
         if governed is not None:
             return governed
-        task = _queue().get(storage.user_id, task_id)
-        if task is None:
-            raise HTTPException(404, 'Task not found')
-        return task
+        raise HTTPException(404, 'Task not found')
     finally:
         storage.client.close()
 
@@ -184,53 +144,12 @@ async def organise(project_id: str, payload: OrganiseInput,
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
         async with AgentTurnLease(storage) as lease:
-            if await lease.io(mapped_identity, storage, project_id) is not None:
-                # Preserve the paid gate in the route and recheck it atomically
-                # in SQL on admission, every model dispatch and result send.
-                entitlement = await lease.io(storage.story_entitlement)
-                if getattr(storage, 'is_anonymous', False) or not entitlement or entitlement.get('status') != 'paid':
-                    raise HTTPException(402, 'A paid memoir entitlement is required for book organisation',
-                                        headers={'X-Error-Code': 'PAYMENT_REQUIRED'})
-                return await lease.io(submit_selected_job, storage, project_id, payload, organise=True)
-            queue = _queue()
-            document = await asyncio.to_thread(queue.collection, storage.user_id, project_id)
-            if not document['ready'] or document['revision'] != payload.expected_revision:
-                raise HTTPException(409, 'Confirm the current timeline before organising the book')
+            await lease.io(_require_canonical, storage, project_id)
             entitlement = await lease.io(storage.story_entitlement)
             if getattr(storage, 'is_anonymous', False) or not entitlement or entitlement.get('status') != 'paid':
                 raise HTTPException(402, 'A paid memoir entitlement is required for book organisation',
                                     headers={'X-Error-Code': 'PAYMENT_REQUIRED'})
-            sources = await lease.io(_sources, storage, project_id)
-            if document.get('source_fingerprint') != _source_fingerprint(sources):
-                raise HTTPException(409, 'Saved memories changed; review and confirm the collection again')
-            chosen = {key for period in document['periods'].values() for key in period['memory_ids']}
-            sources = [source for source in sources if source.id in chosen]
-            if not sources or {source.id for source in sources} != chosen:
-                raise HTTPException(409, 'Collection sources changed; review the timeline again')
-            if sum(len(source.content) for source in sources) > 120000:
-                raise HTTPException(422, 'This collection exceeds the current organising context limit')
-            runtime = CodexRuntime()
-            if not runtime.worker_url or not runtime.worker_secret:
-                raise HTTPException(503, 'Organising agent unavailable')
-            async with httpx.AsyncClient(timeout=runtime.timeout + 15) as client:
-                response = await client.post(f'{runtime.worker_url}/internal/codex/turn',
-                    headers={'X-Codex-Worker-Secret': runtime.worker_secret},
-                    json={'user_id': storage.user_id, 'project_id': project_id,
-                          'text': 'Propose the book structure for this confirmed collection.',
-                          'agent_role': 'organiser', 'language': payload.language,
-                          'task_sources': [source.model_dump() for source in sources]})
-                response.raise_for_status()
-                structure = BookStructure.model_validate_json(response.json()['reply'])
-            await lease.check()
-            current = await asyncio.to_thread(queue.collection, storage.user_id, project_id)
-            if current != document:
-                raise HTTPException(409, 'Collection changed during organisation; review it again')
-            referenced = {key for section in structure.sections for key in section.memory_ids}
-            if referenced != chosen:
-                raise HTTPException(502, 'Organising agent omitted or invented a source reference')
-            task = MemoirTask(kind='BuildOutline', title=structure.title,
-                              sources=sources, sections=structure.sections)
-            return await runtime.publish_task(storage.user_id, project_id, task)
+            return await lease.io(submit_selected_job, storage, project_id, payload, organise=True)
     except AgentTurnBusyError:
         raise HTTPException(409, 'Another agent operation is in progress; retry shortly') from None
     except (ValueError, KeyError):

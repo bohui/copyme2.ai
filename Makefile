@@ -1,6 +1,7 @@
 MOCKER ?= mocker
 APPLE_CONTAINER_BIN ?= /opt/homebrew/bin/container
 COMPOSE_FILE ?= compose.yml
+CONTAINER_REBUILD ?= 0
 API_PORT ?= 8010
 WEB_PORT ?= 3010
 API_BASE ?= http://127.0.0.1:$(API_PORT)
@@ -223,6 +224,7 @@ memoir-live-fifty-backend: ## Start the API and workers for a remote run; called
 
 _memoir-live-fifty-backend: runtime-start
 	@test -n "$${MEMORY_SPARK_EVAL_RECALL_OWNER_ID:-}" || { echo "Use make memoir-live-fifty-test to configure its account allowance." >&2; exit 2; }
+	@mkdir -p var/memory-spark
 	@MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)" $(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build api codex-worker photo-worker worker temporal
 	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
 	@MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)" $(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build --no-recreate --wait --wait-timeout 120 api codex-worker photo-worker worker temporal
@@ -336,27 +338,23 @@ container-config: check ## Validate the Compose model through Mocker.
 	@echo "Compose configuration: valid"
 
 container-build: runtime-start ## Build the local images without changing running services.
-	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE)
+	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE) api codex-worker web
 
 .PHONY: up down
 
 up: container-up ## Start the local stack (alias for container-up).
 
-container-up: ## Validate/install repository skills, rebuild all repo images, and recreate the local stack.
+container-up: ## Build changed images and start the local stack; CONTAINER_REBUILD=1 rebuilds all app images.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-up
 
 _container-up: runtime-start _validate-skills
 	@mkdir -p var/memory-spark
-	@MEMORY_SPARK_CODEX_VERSION=$${MEMORY_SPARK_CODEX_VERSION:-0.156.1} $(MOCKER) compose build -f $(COMPOSE_FILE)
 	@set -e; \
 	set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
 	export MEMOIR_PUBLICATION_DATABASE_URL="$${MEMOIR_PUBLICATION_DATABASE_URL:-$${SUPABASE_DB_URL:-}}"; \
-	$(MOCKER) compose down -f $(COMPOSE_FILE) --remove-orphans >/dev/null 2>&1 || true; \
-	$(MOCKER) rm -f memory-spark-api-1 memory-spark-worker-1 memory-spark-web-1 memory-spark-codex-worker-1 memory-spark-temporal-1 memory-spark-photo-worker-1 >/dev/null 2>&1 || true; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-deps --detach temporal api worker web codex-worker photo-worker; \
-	$(MOCKER) compose up -f $(COMPOSE_FILE) --no-build --no-recreate --no-deps --detach --wait --wait-timeout 120 temporal api worker web codex-worker photo-worker
-	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
-	@$(MAKE) --no-print-directory container-health
+	python3 scripts/start_container_stack.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" \
+		--compose-file "$(COMPOSE_FILE)" $(if $(filter 1,$(CONTAINER_REBUILD)),--force-build,) \
+		-- $(MAKE) --no-print-directory container-health
 
 container-health: check ## Verify API, web, Temporal, Codex and photo workers.
 	@python3 scripts/verify_container_stack.py --api-base $(API_BASE) --web-base $(WEB_BASE) --expected-storage supabase-user-memory+filesystem-objects

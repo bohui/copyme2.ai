@@ -14,7 +14,6 @@ import os
 from uuid import UUID
 
 import anyio
-import httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import Field
 from starlette.responses import JSONResponse
@@ -170,26 +169,7 @@ def find_lifetime_read_identity(service, project_id):
     rpc = getattr(service, 'lifetime_rpc', None)
     if not callable(rpc) or getattr(service, 'is_anonymous', False) is True:
         return None
-    try:
-        value = rpc('read_lifetime_project_identity', p_project_id=project_id)
-    except httpx.HTTPStatusError as error:
-        # Only explicit pre-canonical deployments may classify a missing RPC as legacy.
-        # A REST schema cache miss is not proof of absent mapping when a DSN exists.
-        # An outage, malformed result,
-        # missing row or other SQL error never blesses a mapped legacy fallback.
-        from .lifetime_memory_runtime import lifetime_enabled
-        try:
-            detail = error.response.json()
-        except ValueError:
-            detail = {}
-        if (not lifetime_enabled()
-                and not os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')
-                and os.getenv('MEMOIR_LEGACY_ONLY_DEPLOYMENT','').lower() in {'1','true','yes'}
-                and error.response.status_code == 404
-                and detail.get('code') == 'PGRST202'
-                and 'read_lifetime_project_identity' in str(detail.get('message', ''))):
-            return None
-        raise
+    value = rpc('read_lifetime_project_identity', p_project_id=project_id)
     if value is None:
         return None
     owner = UUID(str(service.user_id))

@@ -535,21 +535,21 @@ def test_production_collector_transport_cannot_shrink_protocol_framing():
     with pytest.raises(ValueError,match='reviewed'):GovernedCollectorInput.model_validate(raw)
 
 
-def test_disabled_rollout_blocks_governed_collector_before_home(tmp_path,monkeypatch):
+def test_generation_pause_blocks_governed_collector_before_home(tmp_path,monkeypatch):
     from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
-    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+    monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
     with pytest.raises(LaneGenerationPaused):run(tmp_path)
     assert not FakeConnection.instances and not list(tmp_path.iterdir())
 
 
-def test_collector_rollout_rechecked_inside_actual_pipe_admission(tmp_path,monkeypatch):
+def test_collector_pause_rechecked_inside_actual_pipe_admission(tmp_path,monkeypatch):
     from contextlib import asynccontextmanager
     from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
     class PausingPublisher(FakePublisher):
         @asynccontextmanager
         async def guard(self,fence):
             async with super().guard(fence):
-                monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
+                monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
                 yield
     class AdmittedConnection(FakeConnection):
         async def request(self,method,params):

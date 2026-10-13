@@ -1,8 +1,5 @@
-"""Purpose-specific admission interlock; no code here advances rollout state.
+"""Authenticated provider admission for the canonical conversation engine.
 
-The database-owner-only clearance is an external operator attestation, not proof
-inferred from time, a process registry, or a model feature flag. A missing DSN or
-migration fails closed. Existing saved publication uses its ordinary fences.
 """
 import asyncio
 from contextlib import asynccontextmanager
@@ -14,10 +11,10 @@ from .lifetime_memory_reads import _settle
 
 
 class CanonicalActivationUnavailable(PublicationUnavailable):
-    code = 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'
+    code = 'LIFETIME_PROVIDER_AUTHORITY_UNAVAILABLE'
 
     def __init__(self):
-        super().__init__('Canonical generation is waiting for realtime safety clearance')
+        super().__init__('Conversation provider authority is unavailable')
 
 
 async def require_provider_activation(connection):
@@ -65,8 +62,3 @@ class ActivationPublication:
             async with asyncio.timeout(self.send_timeout):yield
         finally:
             if connection is not None:await _settle(asyncio.create_task(connection.close()))
-
-
-class RealtimePublication(ActivationPublication):
-    async def _lock(self, connection):
-        await connection.execute('select public.lock_lifetime_realtime_admission()')

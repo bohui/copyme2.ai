@@ -208,8 +208,8 @@ class Requests:
                 if (isinstance(database_error, dict) and database_error.get('code') == '55000'
                         and database_error.get('message') == 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'):
                     error_code = 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'
-                    reason = ('Canonical evaluation requires operator realtime clearance; '
-                              'follow docs/lifetime-memory-integration.md before retrying')
+                    reason = ('Development database requires the canonical-only conversation migration; '
+                              'run make migrate before retrying')
         except httpx.RequestError as error:
             failure_type = type(error).__name__
             reason = 'HTTP request failed (' + failure_type + ')'
@@ -499,8 +499,6 @@ async def start_case_backend(requests, account, plan, settings, backend_lock_fd,
     publication_url = settings.get('MEMOIR_PUBLICATION_DATABASE_URL') or settings.get('SUPABASE_DB_URL')
     if not isinstance(publication_url, str) or not publication_url.strip():
         raise EvaluationError('Canonical evaluation requires a publication database connection in MEMOIR_PUBLICATION_DATABASE_URL or SUPABASE_DB_URL')
-    if str(settings.get('MEMOIR_LIFETIME_MEMORY') or '1').lower() not in {'1', 'true', 'yes'}:
-        raise EvaluationError('Local canonical generation is disabled; review MEMOIR_LIFETIME_MEMORY before running the evaluation')
     if str(settings.get('MEMOIR_LIFETIME_GENERATION_PAUSED') or '0').lower() in {'1', 'true', 'yes'}:
         raise EvaluationError('Local canonical generation is paused; review MEMOIR_LIFETIME_GENERATION_PAUSED before running the evaluation')
     usage = await account.read('/rest/v1/user_recall_usage',
@@ -515,7 +513,7 @@ async def start_case_backend(requests, account, plan, settings, backend_lock_fd,
         raise EvaluationError('Original case allowance is exhausted or invalid; no replacement allowance')
     environment = {**settings, 'MEMORY_SPARK_EVAL_RECALL_OWNER_ID': account.verified_owner,
         'MEMORY_SPARK_EVAL_RECALL_LIMIT':str(limit), 'SUPABASE_SECRET_KEY':account.secret_key,
-        'MEMOIR_LIFETIME_MEMORY':'1', 'MEMOIR_PUBLICATION_DATABASE_URL':publication_url,
+        'MEMOIR_PUBLICATION_DATABASE_URL':publication_url,
         LOCK_FD_ENV:str(backend_lock_fd), 'MEMORY_SPARK_API_PORT':str(urlsplit(plan['api_base']).port or 80)}
     if urlsplit(plan['api_base']).hostname not in {'localhost','127.0.0.1'}:
         raise EvaluationError('Automatic backend startup requires a local API origin')

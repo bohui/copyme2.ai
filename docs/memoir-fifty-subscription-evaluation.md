@@ -41,20 +41,9 @@ Temporal connectivity before submitting a conversation. `make up` is not require
 Set `EVAL_START_BACKEND=0` to reuse an already configured backend at
 `API_BASE`; that account must already have enough conversation allowance.
 
-Migrated schema alone does not enable canonical conversations. The database's
-`lifetime_realtime_clearance` must be `canonical_ready` after the separately
-authorized operator procedure in
-[Direct realtime clearance boundary](lifetime-memory-integration.md#direct-realtime-clearance-boundary-source-only-rollout-interlock).
-If that gate is closed, the runner stops before submitting turns and reports
-`LIFETIME_REALTIME_CLEARANCE_REQUIRED`. Test execution never changes the gate or
-attests that existing calls have terminated.
+Apply `202610140001_canonical_only_conversation.sql` with `make migrate` before running against the development project. The canonical engine is the sole conversation path; the old direct WebRTC route and rollout attestation gate are retired. The migration records no claim that provider sessions were verified terminated. Microphone transcription feeds the canonical engine.
 
-Automatic startup configures the local canonical runtime and uses
-`MEMOIR_PUBLICATION_DATABASE_URL`, falling back to the existing `SUPABASE_DB_URL`,
-for transactional publication. A missing connection or an explicit disabled or
-paused runtime stops before services start; these operator controls are never
-overridden. With `EVAL_START_BACKEND=0`, configure these bindings on the existing
-API and workers yourself.
+Automatic startup uses `MEMOIR_PUBLICATION_DATABASE_URL`, falling back to the existing `SUPABASE_DB_URL`, for transactional publication. A missing connection or `MEMOIR_LIFETIME_GENERATION_PAUSED=true` stops before services start. With `EVAL_START_BACKEND=0`, configure the publication binding on the existing API and workers yourself.
 
 The case mapping is fixed, including subsets and reordered CLI selections:
 

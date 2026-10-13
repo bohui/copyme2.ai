@@ -1062,8 +1062,6 @@ def create_app(
     app.include_router(collection_router)
     from .internal_tasks import router as internal_task_router
     app.include_router(internal_task_router)
-    from .realtime_routes import router as realtime_router
-    app.include_router(realtime_router)
     from .story_routes import build_router as build_story_router
     from .story_routes import build_test_storage_factory
     from .story_payments import StripeCheckoutClient, build_story_entitlement_store
@@ -1383,31 +1381,28 @@ def create_app(
             finally:
                 service.client.close()
         elif payload.mode == 'self' and authorization:
-            from .lifetime_memory_runtime import lifetime_enabled
             # The product home must resolve identity before allocating its
             # disposable local adapter. A browser's proposed project or
             # conversation ID is never authority for a canonical mapping.
             service = authenticated_storage(authorization)
             try:
-                from .lifetime_memory_reads import find_lifetime_read_identity
-                if not service.is_anonymous and (lifetime_enabled() or find_lifetime_read_identity(service,None) is not None):
-                    if payload.storyteller_account_id not in {None, actor}:
-                        raise HTTPException(422, 'Lifetime interviews belong to the signed-in storyteller')
-                    from .lifetime_memory_contracts import IdentityEnvelope
-                    resolved = service.lifetime_rpc('resolve_lifetime_conversation')
-                    if not isinstance(resolved, dict):
-                        raise ValueError('Lifetime identity response is invalid')
-                    if resolved.get('outcome') == 'mapping_required':
-                        raise HTTPException(409, resolved,
-                            headers={'X-Error-Code': 'LIFETIME_MAPPING_REQUIRED'})
-                    if resolved.get('outcome') != 'resolved':
-                        raise ValueError('Lifetime identity was not resolved')
-                    canonical_identity = IdentityEnvelope.model_validate(
-                        {key: value for key, value in resolved.items() if key != 'outcome'})
-                    if str(canonical_identity.owner_id) != actor:
-                        raise ValueError('Lifetime identity owner differs from the signed-in storyteller')
-                    selected_project_id = canonical_identity.project_id
-                    restored_profile = service.profile()
+                if payload.storyteller_account_id not in {None, actor}:
+                    raise HTTPException(422, 'Lifetime interviews belong to the signed-in storyteller')
+                from .lifetime_memory_contracts import IdentityEnvelope
+                resolved = service.lifetime_rpc('resolve_lifetime_conversation')
+                if not isinstance(resolved, dict):
+                    raise ValueError('Lifetime identity response is invalid')
+                if resolved.get('outcome') == 'mapping_required':
+                    raise HTTPException(409, resolved,
+                        headers={'X-Error-Code': 'LIFETIME_MAPPING_REQUIRED'})
+                if resolved.get('outcome') != 'resolved':
+                    raise ValueError('Lifetime identity was not resolved')
+                canonical_identity = IdentityEnvelope.model_validate(
+                    {key: value for key, value in resolved.items() if key != 'outcome'})
+                if str(canonical_identity.owner_id) != actor:
+                    raise ValueError('Lifetime identity owner differs from the signed-in storyteller')
+                selected_project_id = canonical_identity.project_id
+                restored_profile = service.profile()
             except (httpx.HTTPError, ValueError):
                 raise HTTPException(503, 'Lifetime conversation could not be loaded',
                     headers={'X-Error-Code': 'LIFETIME_IDENTITY_UNAVAILABLE'}) from None

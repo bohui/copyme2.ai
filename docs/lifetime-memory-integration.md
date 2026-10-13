@@ -1,8 +1,10 @@
 # Issue 60 integration and acceptance ledger
 
-Status: implementation in progress. PR #62 is a partial, disabled-by-default checkpoint,
-stacked on PR #61. It does not close issue #60 or authorize activation. The audit baseline
-is cc068523208842e2accde8d623a060a04143e78c. Current scoped reviews are not whole-ticket approval.
+Current development decision (2026-10-14): the user authorized retirement of the legacy conversation engine and activation of the canonical engine in Supabase project `vpzhimeqmuzyzfozcjnq`. This project is in development and requires no conversation backward compatibility. Microphone recording/transcription and spoken replies remain supported through the saved canonical conversation.
+
+Migration `202610140001_canonical_only_conversation.sql` removes the obsolete direct realtime rollout table and attestation functions. Direct realtime and raw legacy worker admissions remain denied. This is an explicit engine retirement decision, not an assertion that all external provider calls were verified terminated. The old implementation did not retain provider call IDs.
+
+The sections below retain the historical implementation/review evidence. Their opt-in, legacy fallback and separate rollout clearance instructions are superseded by this development decision. `MEMOIR_LIFETIME_GENERATION_PAUSED` remains the generation pause control; publication, privacy, owner and lease checks remain required.
 
 ## Execution and rollback
 

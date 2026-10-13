@@ -189,7 +189,9 @@ class Remote:
 
 
 @pytest.fixture
-def setup(monkeypatch):
+def setup(monkeypatch, tmp_path):
+    from scripts import backend_operation_lock
+    monkeypatch.setattr(backend_operation_lock, "LOCK_PATH", tmp_path / "offline-backend.lock")
     monkeypatch.setattr(module, 'local_checkout_snapshot', lambda revision: {'head': revision})
     monkeypatch.setattr(module, 'verify_execution_source', lambda *args: None)
     client = httpx.AsyncClient
@@ -390,7 +392,7 @@ def test_realtime_clearance_denial_reports_the_operator_prerequisite(setup, tmp_
     result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
     assert result['status'] == 'incomplete' and result['backend_turn_submissions'] == 0
     assert result['evaluation']['failure_stage'] == 'authentication'
-    assert 'operator realtime clearance' in result['stop_reason']
+    assert 'canonical-only conversation migration' in result['stop_reason']
     assert result['evaluation']['failure_summary']['http_failure']['error_code'] == 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'
     assert 'private database details' not in json.dumps(result)
     assert not remote.submitted
@@ -504,13 +506,11 @@ def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(s
     assert options['env']['MEMORY_SPARK_EVAL_RECALL_LIMIT'] == '75'
     assert options['env']['SUPABASE_SECRET_KEY'] == 'admin-secret'
     assert options['env']['MEMORY_SPARK_API_PORT'] == '8010'
-    assert options['env']['MEMOIR_LIFETIME_MEMORY'] == '1'
     assert options['env']['MEMOIR_PUBLICATION_DATABASE_URL'] == (publication_url or SETTINGS['SUPABASE_DB_URL'])
 
 
 @pytest.mark.parametrize('overrides,reason', [
     ({'SUPABASE_DB_URL': None}, 'publication database connection'),
-    ({'MEMOIR_LIFETIME_MEMORY': '0'}, 'canonical generation is disabled'),
     ({'MEMOIR_LIFETIME_GENERATION_PAUSED': 'true'}, 'canonical generation is paused'),
 ])
 def test_backend_startup_honors_explicit_rollout_controls(setup, tmp_path, monkeypatch, overrides, reason):
