@@ -9,7 +9,7 @@ budget adapters and all previous source proofs retain their own meaning.
 ## Make commands and saved reports
 
 The default Make commands run each original 50-round conversation through the
-normal backend, authenticated as a permanent Supabase UI account. Projects and
+normal backend, authenticated as five distinct permanent Supabase UI accounts, selected by stable case ID. Projects and
 checkpoint drafts remain in the remote Supabase configured in `.env`.
 
 ```sh
@@ -21,7 +21,7 @@ make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
 make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
 ```
 
-Each selected case gets a fresh project and all 50 original inputs in order, with
+Each case reuses its server-issued canonical conversation/project and submits its 50 original inputs in order, with
 saved drafts at rounds 5, 10, ..., 50. Omit `EVAL_CASE_ID` to run all five cases
 sequentially (250 rounds). Planning reads the current Git source fingerprint but
 does not read `.env`, contact services, or allocate resources. No reviewed-main
@@ -41,24 +41,40 @@ Temporal connectivity before submitting a conversation. `make up` is not require
 Set `EVAL_START_BACKEND=0` to reuse an already configured backend at
 `API_BASE`; that account must already have enough conversation allowance.
 
-The default owner is `test@test.com`; override with `EVAL_USER_EMAIL` or exported
-`MEMOIR_EVAL_USER_EMAIL`. The command creates that test account if missing and
-confirms its email directly through Supabase Admin. Existing account passwords
-are preserved. Admin-generated links and token verification establish a real
-user session; application requests/readbacks use that user's JWT under RLS.
-Admin credentials are used only for Auth administration. These links are
-[generated without sending email](https://supabase.com/docs/reference/javascript/auth-admin-generatelink).
+The case mapping is fixed, including subsets and reordered CLI selections:
 
-The local evaluation API receives an absolute recall allowance for this account
-only, covering its existing usage plus the requested 50 or 250 rounds. This does
-not insert payment records or grant Family entitlement. Family features retain
-the account's actual entitlement and their availability is recorded in the
-report. Restart the normal API configuration to remove the evaluation allowance.
+| Case ID | Account |
+| --- | --- |
+| harbour-copper-notebook | test@test.com |
+| chengdu-tea-ledger | test2@test.com |
+| perth-workshop-compass | test3@test.com |
+| kunming-garden-lanterns | test4@test.com |
+| sydney-platform-letters | test5@test.com |
+
+`memoir-test-accounts-setup` still runs before each test invocation. Missing
+accounts must be created through that human-password prerequisite; execution
+never silently creates a replacement account. The existing explicit Admin
+confirmation flag can confirm selected accounts without changing passwords.
+All selected owners must be distinct. Each token is checked against Auth `/user`,
+including refreshes, and each signed-in case reads its canonical identity through
+`read_lifetime_project_identity`. Only an absent initial identity can use the
+supported `resolve_lifetime_conversation` RPC. Mapping/authority failures stop
+without a legacy-project or shared-account fallback. Resume never resolves a
+replacement identity. No direct SQL writes, history deletion or migration is used.
+
+`EVAL_USER_EMAIL` does not override the campaign mapping. CLI `--user-email` may
+only match a single selected case. Repeating CLI `--case-id` selects subsets in
+that requested order while retaining the same account assignment.
+
+When `EVAL_START_BACKEND=1`, the existing scoped local allowance/startup is applied
+sequentially for each case's verified owner, covering that owner's existing usage
+plus 50 rounds. It does not grant payments or Family entitlement. With
+`EVAL_START_BACKEND=0`, each selected account must already have adequate allowance.
+The agent does not run this startup or any live Auth/model operations during
+code verification; offline tests use controlled transports and stub startup.
 
 Each round submits the original text once with a fresh client turn UUID to
-`/api/v1/memoir/agent/turn`, rejects cached/empty/failed delivery, then waits for canonical
-source extraction. At each five-round checkpoint it also waits for the saved
-manuscript before continuing. The final authenticated project recovery route is
+`/api/v1/memoir/agent/turn`, rejects cached/empty/failed delivery, then waits for owner-scoped source extraction. At each five-round checkpoint it reads the actual canonical `read_lifetime_private_draft_head` and paginated `read_lifetime_private_draft_page` RPCs, checking owner/conversation/project, frozen snapshot digest, coverage, source references and complete retrieval. Pending, proposed, stale or unsupported checkpoint responses never count as ready. The final authenticated project recovery route is
 checked for UI reopening. Failed submissions are never automatically repeated;
 partial projects and evidence remain available for inspection. Stopping the
 client does not prove cancellation of already accepted background/provider work.
@@ -68,8 +84,7 @@ strings. If the checkout also changes, the receipt and report preserve the
 original stop reason and record `source_changed_during_run` separately; the run
 remains incomplete.
 
-The runner prints project IDs and `/memoir/interview/<project-id>` URLs and restores
-the UI project adapter after the first delivered round. Start the
+The runner records the owning email and canonical project URL for each case and verifies the authenticated UI adapter before any turn. Start the
 frontend separately against the same backend, then sign in with the owning
 account:
 
@@ -85,15 +100,14 @@ this coordination, so avoid stopping or recreating these services during a run.
 To create a private, expiring, one-time sign-in link without email:
 
 ```sh
-make memoir-live-fifty-login
+make memoir-live-fifty-login EVAL_CASE_ID=chengdu-tea-ledger
 # Optionally land directly on a retained project:
 make memoir-live-fifty-login EVAL_PROJECT_ID=<project-id>
 ```
 
 Open the printed `ui-login.html` file and follow its sign-in link. The default
 frontend origin is `WEB_BASE=http://127.0.0.1:3010`; ensure Supabase allows this
-redirect URL. Keep login files private. A successful live run also saves one
-beside its report. Generate another if expired or already used.
+redirect URL. Keep login files private. Execution saves separate private expiring login files under `private-logins/<case-id>/<nonce>/ui-login.html`; no case shares another owner's link or token. Tokens stay in memory and are cleared when execution exits. Generate another if expired or already used.
 
 Evidence is saved outside the checkout under `~/memoir-test-results/<run-id>`
 (default; override with `EVAL_RUN_DIR` or `EVAL_OUTPUT_ROOT`). `report.md` contains
@@ -105,6 +119,28 @@ and limits. The report is rendered even after an incomplete run.
 ```sh
 make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/saved-run
 ```
+
+## Retry and resume without replay or new projects
+
+A fresh invocation stops if that canonical project already contains history.
+It never creates a new project to make the test appear fresh. To continue an
+interrupted current-schema run:
+
+```sh
+make memoir-live-fifty-test EVAL_RESUME_DIR=/absolute/path/to/saved-run
+```
+
+Resume verifies private 0700/0600 evidence, fixed case accounts, saved owner and
+canonical identity, original input/source IDs and checkpoints. Delivered turns
+are not reposted. An uncertain submission can only be recovered through
+`read_lifetime_reply` using its original conversation and client-turn UUID; if
+acceptance cannot be proven, resume stops for inspection. Changed/foreign
+history, a different canonical binding, old shared-owner receipts, or changed
+source fingerprint cannot be resumed. Subset resume preserves the other cases'
+evidence. Backend request reservations and the original elapsed-time origin are
+retained; resume does not reset their budgets. Completion still requires all
+original cases in that saved run. No real-model acceptance is established by the
+offline regression suite.
 
 One case defaults to 7,200 seconds; all five default to 36,000 seconds with 7,200
 per case. `EVAL_MAX_BACKEND_REQUESTS` is 20,000 for one case or 100,000 for all five

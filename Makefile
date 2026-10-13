@@ -19,6 +19,7 @@ EVAL_CASE_ID ?=
 EVAL_SOURCE_MODE ?= local
 EVAL_RUN_ID ?=
 EVAL_RUN_DIR ?=
+EVAL_RESUME_DIR ?=
 EVAL_OUTPUT_ROOT ?= $(HOME)/memoir-test-results
 EVAL_MAX_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,3000)
 EVAL_MAX_ELAPSED_SECONDS ?= $(if $(strip $(EVAL_CASE_ID)),7200,36000)
@@ -160,7 +161,7 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 ##     make memoir-live-fifty-test EVAL_CASE_ID=kunming-garden-lanterns
 ##     make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
 ##   Omit EVAL_CASE_ID to run all five cases (250 rounds total).
-##   Defaults: current checkout, remote Supabase from .env, EVAL_USER_EMAIL=test@test.com.
+##   Defaults: current checkout, remote Supabase from .env; stable case IDs select test@test.com through test5@test.com.
 ##   Apply pending remote database changes after pulling: make migrate.
 ##   Starts backend services only; retains projects and prints UI URLs. No local PostgreSQL.
 ##   Refreshes service addresses and checks worker connections; make up is not required.
@@ -181,16 +182,17 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 	@set -eu; \
 	test "$(EVAL_SOURCE_MODE)" = "local" || { echo "Remote evaluation tests the current checkout. Use the disposable target for reviewed-source mode." >&2; exit 2; }; \
 	run_id="$(EVAL_RUN_ID)"; \
-	if test -z "$$run_id"; then run_id="$$(python3 -c 'from uuid import uuid4; print(uuid4())')"; fi; \
-	run_dir="$(EVAL_RUN_DIR)"; \
+	if test -z "$(EVAL_RESUME_DIR)" && test -z "$$run_id"; then run_id="$$(python3 -c 'from uuid import uuid4; print(uuid4())')"; fi; \
+	run_dir="$(if $(strip $(EVAL_RESUME_DIR)),$(abspath $(EVAL_RESUME_DIR)),$(EVAL_RUN_DIR))"; \
 	if test -z "$$run_dir"; then run_dir="$(EVAL_OUTPUT_ROOT)/$$run_id"; fi; \
 	set -- python3 scripts/run_memoir_supabase_evaluation.py \
-		--run-id "$$run_id" --run-dir "$$run_dir" --env-file "$(abspath $(ENV_FILE))" \
+		--run-dir "$$run_dir" --env-file "$(abspath $(ENV_FILE))" \
 		--api-base "$(API_BASE)" --web-base "$(WEB_BASE)" \
 		--max-elapsed-seconds "$(EVAL_MAX_ELAPSED_SECONDS)" --max-case-elapsed-seconds "$(EVAL_MAX_CASE_ELAPSED_SECONDS)" \
 		--max-backend-requests "$(EVAL_MAX_BACKEND_REQUESTS)" --settle-seconds "$(EVAL_SETTLE_SECONDS)" --poll-seconds "$(EVAL_POLL_SECONDS)"; \
 	if test -n "$(EVAL_SOURCE_REVISION)"; then set -- "$$@" --source-revision "$(EVAL_SOURCE_REVISION)"; fi; \
-	if test -n "$(EVAL_USER_EMAIL)"; then set -- "$$@" --user-email "$(EVAL_USER_EMAIL)"; fi; \
+	if test -n "$$run_id"; then set -- "$$@" --run-id "$$run_id"; fi; \
+	if test -n "$(EVAL_RESUME_DIR)"; then set -- "$$@" --resume-dir "$(abspath $(EVAL_RESUME_DIR))"; fi; \
 	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
 	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
 	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
@@ -206,7 +208,8 @@ memoir-live-fifty-login: ## Create/confirm EVAL_USER_EMAIL and save a private UI
 	@set -eu; \
 	set -- python3 scripts/run_memoir_supabase_evaluation.py --prepare-user \
 		--env-file "$(abspath $(ENV_FILE))" --web-base "$(WEB_BASE)"; \
-	if test -n "$(EVAL_USER_EMAIL)"; then set -- "$$@" --user-email "$(EVAL_USER_EMAIL)"; fi; \
+	if test -z "$(EVAL_CASE_ID)" && test -n "$(EVAL_USER_EMAIL)"; then set -- "$$@" --user-email "$(EVAL_USER_EMAIL)"; fi; \
+	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
 	if test -n "$(EVAL_RUN_DIR)"; then set -- "$$@" --run-dir "$(EVAL_RUN_DIR)"; fi; \
 	if test -n "$(EVAL_PROJECT_ID)"; then set -- "$$@" --project-id "$(EVAL_PROJECT_ID)"; fi; \
 	exec "$$@"

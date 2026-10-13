@@ -5,7 +5,7 @@ import json
 import subprocess
 import sys
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4, uuid5
 from urllib.parse import urlencode
 
 import httpx
@@ -15,6 +15,9 @@ from scripts import run_memoir_supabase_evaluation as module
 from test_issue14_subscription_runner import Storage
 
 OWNER = '11111111-1111-4111-8111-111111111111'
+OWNERS = {case: OWNER if i == 0 else str(UUID(int=200+i)) for i,case in enumerate(module.CASE_IDS)}
+PROJECTS = {case:'lifetime-'+str(uuid5(UUID(OWNER),case)) for case in module.CASE_IDS}
+CONVERSATIONS = {case:str(uuid5(UUID(OWNER),case+'/conversation')) for case in module.CASE_IDS}
 SETTINGS = {'SUPABASE_URL': 'https://supabase.example',
             'SUPABASE_PUBLISHABLE_KEY': 'public-key', 'SUPABASE_SECRET_KEY': 'admin-secret'}
 
@@ -39,7 +42,7 @@ def test_preflight_reaches_real_backend_routes_without_model_calls(monkeypatch):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app)) as client:
             account = module.SupabaseAccount(module.Requests(client, 5, 10), **{
                 'url': SETTINGS['SUPABASE_URL'], 'public_key': 'public-key', 'secret_key': 'admin-secret'},
-                user={'id': storage.user_id}, access_token='user-token', expires_at=float('inf'))
+                user={'id': storage.user_id}, verified_owner=storage.user_id, access_token='user-token', expires_at=float('inf'))
             result = await module.preflight(account, plan)
             assert result['backend_auth_mode'] == 'supabase'
             assert result['recall_status']['free_rounds'] == 250
@@ -47,59 +50,86 @@ def test_preflight_reaches_real_backend_routes_without_model_calls(monkeypatch):
 
 
 class Remote:
-    def __init__(self, plan):
-        self.plan = plan
-        self.user = {'id': OWNER, 'email': 'test@test.com',
-                     'email_confirmed_at': 'confirmed', 'is_anonymous': False}
-        self.calls, self.submitted, self.recovered = [], [], []
-        self.restored = set()
-        self.fail_round = None
-        self.draft_failed = False
-        self.transient_draft_error_reads = 0
-        self.extraction_retry_required = False
-        self.pending_reads = 0
-        self.storages = {v['project_id']: Storage(SimpleNamespace(read_hook=None, draft_hook=None, events=[]),
-            {**v, 'owner_id': OWNER}) for v in plan['cases'].values()}
-
-    def handler(self, request):
-        self.calls.append(request)
-        path = request.url.path
-        payload = json.loads(request.content) if request.content else None
-        if path == '/health':
-            return httpx.Response(200, json={'status': 'ok'})
+    def __init__(self,plan):
+        self.plan=plan
+        self.users={case:{'id':OWNERS[case],'email':module.CASE_EMAILS[case],'email_confirmed_at':'confirmed','is_anonymous':False} for case in module.CASE_IDS}
+        self.calls,self.submitted,self.recovered=[],[],[]
+        self.restored=set();self.fail_round=None;self.draft_failed=False
+        self.transient_draft_error_reads=0;self.extraction_retry_required=False;self.pending_reads=0
+        self.fail_auth_case=None;self.foreign_identity_case=None;self.shape_unavailable=False
+        self.storages={PROJECTS[case]:Storage(SimpleNamespace(read_hook=None,draft_hook=None,events=[]),
+            {**binding,'project_id':PROJECTS[case],'owner_id':OWNERS[case]}) for case,binding in plan['cases'].items()}
+        self.token_cases={'user-token-'+case:case for case in module.CASE_IDS}
+        self.submission_owners=[]
+    @property
+    def user(self):return self.users[module.CASE_IDS[0]]
+    @user.setter
+    def user(self,value):self.users[module.CASE_IDS[0]]=value
+    def handler(self,request):
+        self.calls.append(request);path=request.url.path;payload=json.loads(request.content) if request.content else None
+        if path=='/health':return httpx.Response(200,json={'status':'ok'})
         if path.startswith('/auth/v1/admin/'):
-            assert request.headers['apikey'] == 'admin-secret'
-            if path == '/auth/v1/admin/users':
-                if request.method == 'POST':
-                    assert payload == {'email': 'test@test.com', 'email_confirm': True}
-                    self.user = {'id': OWNER, **payload, 'email_confirmed_at': 'confirmed'}
-                    result = self.user
-                else:
-                    result = {'users': [self.user] if self.user else []}
-            elif path == '/auth/v1/admin/users/' + OWNER:
-                if request.method == 'PUT':
-                    assert payload == {'email_confirm': True}
-                    self.user['email_confirmed_at'] = 'confirmed'
-                result = self.user
-            elif path == '/auth/v1/admin/generate_link':
-                assert payload['email'] == 'test@test.com' and payload['type'] == 'magiclink'
-                result = {**self.user, 'hashed_token': 'private-hash',
-                    'action_link': SETTINGS['SUPABASE_URL'] + '/auth/v1/verify?' +
-                        urlencode({'token': 'private-link', 'redirect_to': payload['redirect_to']})}
+            assert request.headers['apikey']=='admin-secret'
+            if path=='/auth/v1/admin/users':
+                if request.method=='POST':
+                    case=next(case for case,email in module.CASE_EMAILS.items() if email==payload['email'])
+                    self.users[case]={'id':OWNERS[case],**payload,'email_confirmed_at':'confirmed','is_anonymous':False};result=self.users[case]
+                else:result={'users':[user for user in self.users.values() if user] if request.url.params.get('page','1')=='1' else []}
+            elif path=='/auth/v1/admin/generate_link':
+                case=next(case for case,email in module.CASE_EMAILS.items() if email==payload['email'])
+                if case==self.fail_auth_case:return httpx.Response(401,json={'private':'not logged'})
+                result={**self.users[case],'hashed_token':'private-hash-'+case,
+                    'action_link':SETTINGS['SUPABASE_URL']+'/auth/v1/verify?'+urlencode({'token':'private-link-'+case,'redirect_to':payload['redirect_to']})}
             else:
-                raise AssertionError(path)
-        elif path in {'/auth/v1/verify', '/auth/v1/token'}:
-            assert request.headers['apikey'] == 'public-key'
-            result = {'user': self.user, 'access_token': 'user-token',
-                      'refresh_token': 'private-refresh', 'expires_in': 3600}
+                user=next(user for user in self.users.values() if user and path.endswith(user['id']))
+                if request.method=='PUT':user['email_confirmed_at']='confirmed'
+                result=user
+        elif path in {'/auth/v1/verify','/auth/v1/token'}:
+            case=(payload['token_hash'].removeprefix('private-hash-') if path.endswith('/verify') else payload['refresh_token'].removeprefix('private-refresh-'))
+            result={'user':self.users[case],'access_token':'user-token-'+case,'refresh_token':'private-refresh-'+case,'expires_in':3600}
         else:
-            assert request.headers['Authorization'] == 'Bearer user-token'
-            assert request.headers['apikey'] == 'public-key'
+            token=request.headers.get('Authorization','').removeprefix('Bearer ');case_id=self.token_cases[token];owner=OWNERS[case_id]
+            assert request.headers['apikey']=='public-key'
+            if path=='/auth/v1/user':return httpx.Response(200,json=deepcopy(self.users[case_id]))
+            if path=='/rest/v1/rpc/read_lifetime_project_identity':
+                result={'schema_version':1,'owner_id':owner,'conversation_id':CONVERSATIONS[case_id],'project_id':PROJECTS[case_id],'product':'memoir'}
+                if case_id==self.foreign_identity_case:result['owner_id']=OWNERS[module.CASE_IDS[0]]
+                return httpx.Response(200,json=result) if result is not None else httpx.Response(200,text='null',headers={'Content-Type':'application/json'})
+            if path=='/rest/v1/rpc/resolve_lifetime_conversation':raise AssertionError('Existing canonical identity must be reused.')
+            if path in {'/rest/v1/rpc/read_lifetime_private_draft_head','/rest/v1/rpc/read_lifetime_private_draft_page'}:
+                project=PROJECTS[case_id];storage=self.storages[project];ordinal=len(storage.sources)
+                common={'schema_version':1,'owner_id':owner,'conversation_id':CONVERSATIONS[case_id],
+                    'project_id':project,'locale':storage.plan['language'],'source_revision':ordinal,'event_revision':ordinal,
+                    'policy_epoch':1,'snapshot_state':'completed','root_digest':'a'*64,
+                    'snapshot_id':str(uuid5(UUID(owner),'snapshot/'+str(ordinal))),'approval_required':False}
+                if path.endswith('_head'):
+                    result={**common,'status':'ready' if ordinal else 'pending','coverage_round':ordinal,
+                        'current_source_revision':ordinal,'current_event_revision':ordinal,'retrieval_complete':bool(ordinal),
+                        'updating':False,'revision':max(1,ordinal//5),'error':None}
+                    if self.transient_draft_error_reads:
+                        self.transient_draft_error_reads-=1;result.update(status='pending',error='LIFETIME_COMPOSITION_PENDING')
+                    if self.draft_failed:result.update(snapshot_state='proposed',approval_required=True)
+                else:
+                    result={**common,'snapshot_complete':True,'complete':True,'next_cursor':None,
+                        'records':[{'id':'partition-'+str(ordinal),'event_id':'controlled-event','event_revision':1,
+                            'preview':{'locale':storage.plan['language'],'text':storage.sources[0]['text']},
+                            'source_refs':[{'source_id':storage.sources[0]['id'],'version':1,'char_start':0,'char_end':10}],
+                            'approval_required':False,'original_withheld':False}]}
+                return httpx.Response(200,json=result)
+            if path=='/rest/v1/rpc/read_lifetime_reply':
+                storage=self.storages[PROJECTS[case_id]]
+                record=next((row for row in self.submitted if row['client_turn_id']==payload['p_client_turn_id']),None)
+                source=next((row for row in storage.sources if record and row['text']==record['text']),None)
+                result={'conversation_saved':True,'accepted_source_id':source['id'],'project_id':PROJECTS[case_id],
+                    'client_turn_id':payload['p_client_turn_id'],'reply':'Recovered controlled reply','context_rebuild_required':False} if source else None
+                return httpx.Response(200,json=result) if result is not None else httpx.Response(200,text='null',headers={'Content-Type':'application/json'})
+            if payload and ('project_id' in payload or 'p_project_id' in payload):
+                assert payload.get('project_id',payload.get('p_project_id'))==PROJECTS[case_id],'Cross-account project request.'
             if path == '/api/v1/memoir/agent/config':
                 result = {'auth_mode': 'supabase', 'supabase_url': SETTINGS['SUPABASE_URL'],
                           'private_draft_cadence': 5}
             elif path == '/api/v1/memoir/story/state':
-                result = {'user_id': OWNER, 'is_anonymous': False, 'family_features_enabled': False,
+                result = {'user_id': owner, 'is_anonymous': False, 'family_features_enabled': False,
                           'recall_status': {'paid': False, 'rounds_completed': 0, 'free_rounds': 250}}
             elif path == '/api/v1/memoir/agent/turn':
                 self.submitted.append(payload)
@@ -142,24 +172,19 @@ class Remote:
                     }
                 if self.draft_failed:
                     result['status'] = 'failed'
-            elif path == '/api/v1/memoir/projects' and request.method == 'POST':
-                project = payload['restore_project_id']
-                assert payload == {'mode': 'self', 'restore_project_id': project,
-                                   'language': self.storages[project].plan['language']}
-                assert self.storages[project].sources, 'Restore requires owned saved history'
-                self.restored.add(project)
-                result = {'id': project, 'requires_supabase_auth': True}
+
+            elif path=='/api/v1/memoir/projects' and request.method=='POST':
+                project=payload['restore_project_id'];assert project==PROJECTS[case_id]
+                self.restored.add(project);result={'id':project,'owner_id':owner,'requires_supabase_auth':True}
             elif path.startswith('/api/v1/memoir/projects/'):
-                project = path.rsplit('/', 1)[1]
-                if project not in self.restored:
-                    return httpx.Response(404, json={'detail': 'Local project adapter not restored'})
-                self.recovered.append(project)
-                result = {'id': project, 'requires_supabase_auth': True}
-            elif path == '/rest/v1/user_recall_usage':
-                result = [{'rounds_completed': 25}]
-            else:
-                raise AssertionError(path)
-        return httpx.Response(200, json=deepcopy(result))
+                project=path.rsplit('/',1)[1];assert project==PROJECTS[case_id]
+                self.recovered.append(project);result={'id':project,'owner_id':owner,'requires_supabase_auth':True}
+            elif path=='/rest/v1/user_recall_usage':
+                assert request.url.params['user_id']=='eq.'+owner;result=[{'rounds_completed':25}]
+            else:raise AssertionError(path)
+            if path.endswith('/agent/turn'):self.submission_owners.append((case_id,owner,payload['project_id']))
+            if self.shape_unavailable and path.endswith('read_user_memory_events'):result={'project_id':PROJECTS[case_id]}
+        return httpx.Response(200,json=deepcopy(result))
 
 
 @pytest.fixture
@@ -172,7 +197,7 @@ def setup(monkeypatch):
         plan = module.build_plan(run_id=str(uuid4()), source_revision='a' * 40,
             case_id=case_id, api_base='http://127.0.0.1:8010', web_base='http://localhost:3010',
             max_seconds=120, max_case_seconds=60, max_backend_requests=2000,
-            settle_seconds=1, poll_seconds=.001, user_email='test@test.com')
+            settle_seconds=1, poll_seconds=.001, user_email=None)
         remote = Remote(plan)
         monkeypatch.setattr(module.httpx, 'AsyncClient',
             lambda **kwargs: client(transport=httpx.MockTransport(remote.handler), **kwargs))
@@ -193,14 +218,14 @@ def test_original_rounds_retained_for_real_owner_without_admin_application_write
         original = module.FiftyReadback(case_id=case_id, run_id=plan['run_id'],
             project_id=binding['project_id'], source_revision=plan['source_revision']).driver_inputs()['rounds']
         assert [p['text'] for p in sent] == [p['conversation_text'] for p in sent] == original
-        assert binding['owner_id'] == OWNER
+        assert binding['owner_id'] == OWNERS[case_id] and binding['user_email'] == module.CASE_EMAILS[case_id]
     assert remote.recovered == [p['project_id'] for p in plan['cases'].values()]
     for binding in plan['cases'].values():
         calls = [r for r in remote.calls if (json.loads(r.content) if r.content else {}).get('project_id') == binding['project_id']
                  or (json.loads(r.content) if r.content else {}).get('restore_project_id') == binding['project_id']]
         turn_calls = [i for i, r in enumerate(calls) if r.url.path.endswith('/agent/turn')]
         restore_calls = [i for i, r in enumerate(calls) if r.url.path == '/api/v1/memoir/projects']
-        assert len(restore_calls) == 1 and turn_calls[0] < restore_calls[0] < turn_calls[1]
+        assert len(restore_calls) == 1 and restore_calls[0] < turn_calls[0]
     assert all(c['ui_recovery_verified'] and len(c['rounds']) == 50
                and [v['milestone'] for v in c['checkpoints']] == list(module.CHECKPOINTS)
                for c in result['evaluation']['cases'])
@@ -209,8 +234,9 @@ def test_original_rounds_retained_for_real_owner_without_admin_application_write
     assert result['request_accounting']['backend_http_requests_reserved'] == len(remote.calls)
     evidence = (directory / 'receipt.json').read_text() + (directory / 'plan.json').read_text()
     assert all(secret not in evidence for secret in ['admin-secret', 'user-token', 'private-hash', 'private-refresh', 'private-link'])
-    assert 'private-link' in (directory / 'ui-login.html').read_text()
-    assert (directory / 'ui-login.html').stat().st_mode & 0o777 == 0o600
+    for case in result['evaluation']['cases']:
+        link=directory/case['ui_login_file']
+        assert 'private-link-'+case['case_id'] in link.read_text() and link.stat().st_mode & 0o777==0o600
     assert not any(r.method in {'PUT', 'DELETE'} for r in remote.calls)
 
 
@@ -233,7 +259,7 @@ def test_failed_checkpoint_stops_before_next_input_and_pending_readbacks_are_pol
     result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
     assert result['status'] == 'incomplete' and len(remote.submitted) == 5
     assert remote.pending_reads == 0
-    assert 'checkpoint failed' in result['stop_reason']
+    assert 'checkpoint requires human' in result['stop_reason']
 
 
 def test_retryable_checkpoint_error_is_polled_until_the_worker_saves(setup, tmp_path):
@@ -411,7 +437,7 @@ def test_account_session_refresh_keeps_the_real_owner(setup):
             await account.ensure_user('test@test.com')
             await account.sign_in()
             account.expires_at = 0
-            assert (await account.headers())['Authorization'] == 'Bearer user-token'
+            assert (await account.headers())['Authorization'] == 'Bearer user-token-'+module.CASE_IDS[0]
             account.user['id'] = str(uuid4())
             with pytest.raises(module.EvaluationError, match='session did not match'):
                 await account.set_session({'user': {'id': OWNER}, 'access_token': 'x', 'refresh_token': 'y'})
@@ -444,3 +470,166 @@ def test_prepare_user_refuses_checkout_or_existing_directory(setup, tmp_path):
         with pytest.raises(module.EvaluationError, match='fresh output directory outside'):
             asyncio.run(module.prepare_user(SETTINGS, 'test@test.com', directory, 'http://localhost:3010'))
     assert not remote.calls
+
+
+@pytest.mark.parametrize('selection',[[module.CASE_IDS[4],module.CASE_IDS[1]],[module.CASE_IDS[2]],None])
+def test_stable_case_accounts_survive_subset_and_reordering(setup,tmp_path,selection):
+    plan,remote=setup(selection)
+    result=asyncio.run(module.execute(plan,tmp_path/'owners',SETTINGS))
+    assert result['status']=='completed',result
+    selected=list(module.CASE_IDS) if selection is None else selection
+    assert list(plan['cases'])==selected
+    assert len({binding['owner_id'] for binding in plan['cases'].values()})==len(selected)
+    for case in selected:
+        assert plan['cases'][case]['user_email']==module.CASE_EMAILS[case]
+        assert plan['cases'][case]['owner_id']==OWNERS[case] and plan['cases'][case]['project_id']==PROJECTS[case]
+    assert [(case,owner,project) for case,owner,project in remote.submission_owners]==[
+        (case,OWNERS[case],PROJECTS[case]) for case in selected for _ in range(50)]
+    assert not any(call.url.path.endswith('resolve_lifetime_conversation') for call in remote.calls)
+
+
+def test_duplicate_verified_owner_ids_stop_before_sign_in_or_models(setup,tmp_path,monkeypatch):
+    plan,remote=setup(None)
+    async def duplicate(self,email,**kwargs):
+        self.user={'id':OWNER,'email':email,'email_confirmed_at':'confirmed'};self.verified_owner=OWNER
+        return OWNER
+    monkeypatch.setattr(module.SupabaseAccount,'ensure_user',duplicate)
+    result=asyncio.run(module.execute(plan,tmp_path/'duplicate',SETTINGS))
+    assert result['status']=='incomplete' and 'same Auth owner' in result['stop_reason'] and not remote.submitted
+    assert not any(call.url.path.endswith('generate_link') for call in remote.calls)
+
+
+def test_one_case_authentication_failure_never_falls_back_to_first_account(setup,tmp_path):
+    plan,remote=setup(None);remote.fail_auth_case=module.CASE_IDS[2]
+    result=asyncio.run(module.execute(plan,tmp_path/'auth-failure',SETTINGS))
+    assert result['status']=='incomplete' and result['evaluation']['failure_stage']=='authentication'
+    assert not remote.submitted
+    assert 'private' not in json.dumps(result)
+
+
+def test_foreign_canonical_identity_and_missing_readback_fail_before_turn(setup,tmp_path):
+    plan,remote=setup(None);remote.foreign_identity_case=module.CASE_IDS[1]
+    result=asyncio.run(module.execute(plan,tmp_path/'foreign-identity',SETTINGS))
+    assert result['status']=='incomplete' and not remote.submitted
+    plan,remote=setup();remote.shape_unavailable=True
+    result=asyncio.run(module.execute(plan,tmp_path/'missing-readback',SETTINGS))
+    assert result['status']=='incomplete' and 'readback interface' in result['stop_reason'] and not remote.submitted
+
+
+def test_resume_uses_same_owner_project_and_does_not_replay_delivered_turns(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'resume';remote.draft_failed=True
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==5
+    first_ids=[call['client_turn_id'] for call in remote.submitted];remote.draft_failed=False
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed',result
+    assert len(remote.submitted)==50 and [call['client_turn_id'] for call in remote.submitted[:5]]==first_ids
+    assert {owner for _,owner,_ in remote.submission_owners}=={OWNER}
+    assert {project for _,_,project in remote.submission_owners}=={PROJECTS[module.CASE_IDS[0]]}
+    count=len(remote.submitted)
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed' and len(remote.submitted)==count
+
+
+def test_uncertain_submission_is_recovered_by_same_client_id_without_reposting(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'uncertain';handler=remote.handler;failed=[False]
+    def lost_response(request):
+        result=handler(request)
+        if request.url.path.endswith('/agent/turn') and len(remote.submitted)==7 and not failed[0]:
+            failed[0]=True;return httpx.Response(502,json={'private':'never logged'})
+        return result
+    remote.handler=lost_response
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==7
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='completed',result
+    assert len(remote.submitted)==50
+    recoveries=[call for call in remote.calls if call.url.path.endswith('read_lifetime_reply')]
+    assert len(recoveries)==1 and json.loads(recoveries[0].content)['p_client_turn_id']==remote.submitted[6]['client_turn_id']
+
+
+def test_unrecoverable_resume_preserves_project_without_another_post(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'unrecoverable';remote.fail_round=7
+    first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'
+    remote.fail_round=None
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert result['status']=='incomplete' and 'cannot be safely recovered' in result['stop_reason']
+    assert len(remote.submitted)==7 and not any(call.url.path.endswith('resolve_lifetime_conversation') for call in remote.calls)
+
+
+def test_fresh_rerun_keeps_existing_canonical_data_and_stops_instead_of_allocating_project(setup,tmp_path):
+    plan,remote=setup();assert asyncio.run(module.execute(plan,tmp_path/'first',SETTINGS))['status']=='completed'
+    result=asyncio.run(module.execute(plan,tmp_path/'again',SETTINGS))
+    assert result['status']=='incomplete' and 'history already exists' in result['stop_reason']
+    assert len(remote.submitted)==50 and not any(call.url.path.endswith('resolve_lifetime_conversation') for call in remote.calls)
+
+
+def test_account_repr_hides_all_credentials_and_tokens():
+    account=module.SupabaseAccount(None,'https://fixture.invalid','private-public-key','private-admin-key',
+        user={'id':OWNER},access_token='private-access',refresh_token='private-refresh')
+    assert all(value not in repr(account) for value in ['private-public-key','private-admin-key','private-access','private-refresh'])
+
+
+def test_existing_migration_contracts_define_actual_canonical_rpc_fields():
+    from pathlib import Path
+    root=Path(module.ROOT)
+    identity=(root/'supabase/migrations/202610120013_lifetime_read_publication.sql').read_text()
+    reply=(root/'supabase/migrations/202610120010_lifetime_commit.sql').read_text()
+    draft=(root/'supabase/migrations/202610120016_lifetime_composer_lanes.sql').read_text()
+    events=(root/'supabase/migrations/202610040001_shared_memory_events.sql').read_text()
+    assert 'read_lifetime_project_identity(p_project_id text)' in identity and "'owner_id',user_id" in identity
+    assert 'read_lifetime_reply(p_conversation_id uuid,p_client_turn_id uuid)' in reply
+    for key in ('conversation_saved','accepted_source_id','client_turn_id','context_rebuild_required'):assert "'"+key+"'" in reply
+    assert 'read_lifetime_private_draft_head(p_project_id text,p_locale text)' in draft
+    assert 'read_lifetime_private_draft_page(p_project_id text,p_snapshot_id uuid,p_after text default null,p_limit integer default 8)' in draft
+    for key in ('coverage_round','snapshot_id','root_digest','owner_id','conversation_id','records','complete','source_refs'):assert "'"+key+"'" in draft
+    for key in ('completed_rounds','sources','extracted_through','pending_inputs'):assert "'"+key+"'" in events
+
+
+@pytest.mark.parametrize('changed', [
+    {'source_revision':None,'current_source_revision':None},
+    {'event_revision':None}, {'current_event_revision':None}, {'policy_epoch':None},
+    {'source_revision':True,'current_source_revision':True}, {'policy_epoch':-1},
+    {'current_event_revision':6},
+])
+def test_checkpoint_requires_real_frozen_revision_fields(changed):
+    binding={'owner_id':OWNER,'conversation_id':CONVERSATIONS[module.CASE_IDS[0]],
+        'project_id':PROJECTS[module.CASE_IDS[0]],'language':'en-AU'}
+    head={**binding,'locale':'en-AU','status':'ready','snapshot_state':'completed',
+        'approval_required':False,'retrieval_complete':True,'updating':False,'error':None,
+        'coverage_round':5,'revision':1,'source_revision':5,'current_source_revision':5,
+        'event_revision':5,'current_event_revision':5,'policy_epoch':1,'root_digest':'a'*64,'snapshot_id':str(uuid4())}
+    page={**head,'snapshot_complete':True,'complete':True,'records':[
+        {'id':'partition','approval_required':False,'original_withheld':False,
+         'preview':{'locale':'en-AU','text':'Controlled checkpoint'},'source_refs':[{'source_id':'accepted','version':1}]}]}
+    module.validate_checkpoint(head,[page],binding,5,['accepted'])
+    head.update(changed)
+    with pytest.raises(module.EvaluationError,match='incomplete, stale'):
+        module.validate_checkpoint(head,[page],binding,5,['accepted'])
+
+
+def test_subset_resume_preserves_other_case_evidence_and_campaign_completion(setup,tmp_path):
+    plan,remote=setup(None);directory=tmp_path/'subset-resume'
+    handler=remote.handler;fail=[True]
+    def controlled_stop(request):
+        result=handler(request)
+        if fail[0] and request.url.path.endswith('read_lifetime_private_draft_head'):
+            payload=json.loads(request.content)
+            if payload['p_project_id']==PROJECTS[module.CASE_IDS[1]] and len(remote.storages[PROJECTS[module.CASE_IDS[1]]].sources)==5:
+                value=result.json();value.update(snapshot_state='proposed',approval_required=True)
+                return httpx.Response(200,json=value)
+        return result
+    remote.handler=controlled_stop
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==55
+    retained=json.loads((directory/'receipt.json').read_text())['evaluation']['cases'][0]
+    fail[0]=False
+    selected={**plan,'case_ids':[module.CASE_IDS[1]],'cases':{module.CASE_IDS[1]:plan['cases'][module.CASE_IDS[1]]}}
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory))
+    assert result['selected_case_status']=='completed' and result['status']=='incomplete'
+    assert len(remote.submitted)==100
+    assert result['evaluation']['cases'][0]==retained
+    stored=json.loads((directory/'plan.json').read_text())
+    assert stored['case_ids']==list(module.CASE_IDS) and len(stored['cases'])==5
+    assert stored['last_resume_selection']==[module.CASE_IDS[1]]
+    assert not any(call.url.path.endswith('resolve_lifetime_conversation') for call in remote.calls)

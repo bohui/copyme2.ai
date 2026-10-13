@@ -138,6 +138,32 @@ test('Make plan invokes the actual launcher with five original 50-round cases wi
 const caseIds = ['harbour-copper-notebook', 'chengdu-tea-ledger', 'perth-workshop-compass',
   'kunming-garden-lanterns', 'sydney-platform-letters'];
 
+test('per-case reports bind account identity and private login path, including failed authentication', () => {
+  const { plan, receipt } = fixture();
+  plan.schema_version = 'memoir-subscription-evaluation-plan/2';
+  plan.storage_backend = 'remote_supabase';
+  receipt.schema_version = 'memoir-supabase-evaluation-receipt/2';
+  plan.case_ids = [caseIds[0], caseIds[1]];
+  plan.cases = Object.fromEntries(plan.case_ids.map((id, index) => [id, {
+    project_id: `lifetime-${index}`, owner_id: `owner-${index}`, conversation_id: `conversation-${index}`,
+    user_email: index ? 'test2@test.com' : 'test@test.com', language: index ? 'zh-CN' : 'en-AU',
+    ui_url: `http://localhost:3010/memoir/interview/lifetime-${index}`,
+  }]));
+  const id = caseIds[0];
+  receipt.evaluation.cases = [{ case_id: id, ...plan.cases[id], status: 'completed', rounds: [], checkpoints: [],
+    ui_login_file: `private-logins/${id}/11111111-1111-4111-8111-111111111111/ui-login.html` }];
+  const report = renderReport(plan, receipt);
+  assert.match(report, /test@test.com/); assert.match(report, /test2@test.com/);
+  assert.match(report, /private-logins\/harbour-copper-notebook/);
+  receipt.evaluation.cases[0].owner_id = 'foreign-owner';
+  assert.throws(() => renderReport(plan, receipt), /account identity/);
+  receipt.evaluation.cases[0].owner_id = 'owner-0';
+  receipt.evaluation.cases[0].ui_login_file = `private-logins/${caseIds[1]}/11111111-1111-4111-8111-111111111111/ui-login.html`;
+  assert.throws(() => renderReport(plan, receipt), /crosses a case/);
+  receipt.evaluation.cases = []; plan.cases[caseIds[0]].ui_url = null;
+  assert.match(renderReport(plan, receipt), /Canonical account\/project binding is unavailable/);
+});
+
 function remoteFixture() {
   const { plan, receipt } = fixture();
   plan.storage_backend = 'remote_supabase';
@@ -183,7 +209,9 @@ for (const selectedCase of ['', ...caseIds]) {
       assert.equal(result.status, 0, result.stderr || result.stdout);
       const plan = JSON.parse(result.stdout);
       assert.equal(plan.storage_backend, 'remote_supabase');
-      assert.equal(plan.user_email, 'test@test.com');
+      assert.equal(plan.user_email, null);
+      for (const id of plan.case_ids) assert.equal(plan.cases[id].user_email, ['test@test.com','test2@test.com','test3@test.com','test4@test.com','test5@test.com'][caseIds.indexOf(id)]);
+      assert.ok(plan.case_ids.every(id => plan.cases[id].project_id === null));
       assert.equal(plan.source_revision, spawnSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding: 'utf8'}).stdout.trim());
       assert.deepEqual(plan.case_ids, selectedCase ? [selectedCase] : caseIds);
       assert.equal(plan.rounds_per_case, 50);
@@ -215,6 +243,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 const fixture = process.env.MEMOIR_REPORT_TEST_FIXTURE;
+if (args[0] === 'scripts/setup_memoir_test_accounts.py') { fs.writeFileSync(path.join(fixture, 'setup-ran'), 'fixture only'); process.exit(0); }
 const directory = args[args.indexOf('--run-dir') + 1];
 fs.writeFileSync(path.join(fixture, 'args.json'), JSON.stringify(args));
 fs.mkdirSync(directory);
@@ -232,7 +261,8 @@ process.exit(Number(process.env.MEMOIR_REPORT_TEST_EXIT));
       assert.ok(args.includes('--execute') && args.includes('--create-confirmed-test-user'));
       assert.equal(args.includes('--start-backend'), !!startBackend);
       assert.equal(args[args.indexOf('--case-id') + 1], 'harbour-copper-notebook');
-      assert.equal(args[args.indexOf('--user-email') + 1], 'test@test.com');
+      assert.ok(!args.includes('--user-email'));
+      assert.ok(statSync(join(directory, 'setup-ran')).isFile());
       assert.match(readFileSync(join(directory, 'run', 'report.md'), 'utf8'), /remote Supabase; projects retained/);
     } finally {
       rmSync(directory, {recursive: true, force: true});
@@ -329,6 +359,7 @@ if (args[0] === '-c') {
   process.exit(result.status ?? 99);
 }
 const fixture = process.env.MEMOIR_REPORT_TEST_FIXTURE;
+if (args[0] === 'scripts/setup_memoir_test_accounts.py') { fs.writeFileSync(path.join(fixture, 'setup-ran'), 'fixture only'); process.exit(0); }
 const directory = args[args.indexOf('--run-dir') + 1];
 fs.writeFileSync(path.join(fixture, 'args.json'), JSON.stringify(args));
 fs.mkdirSync(directory, {recursive: true});
