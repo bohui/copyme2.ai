@@ -64,6 +64,16 @@ class PrivateDraftDecision(BaseModel):
     accept: bool
 
 
+class PrivateDraftRework(BaseModel):
+    model_config = {'extra': 'forbid'}
+    project_id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
+    request_id: UUID
+    snapshot_id: UUID
+    root_digest: str = Field(pattern=r'^[a-f0-9]{64}$')
+    partition_id: str = Field(min_length=1, max_length=512)
+    instruction: str = Field(min_length=1, max_length=1000)
+
+
 class StoryRoundInput(BaseModel):
     round: int = Field(ge=1)
     answer: str = Field(default="", max_length=100000)
@@ -341,6 +351,17 @@ def build_router(
         finally:
             await asyncio.to_thread(_close, storage)
 
+    @router.get('/private-draft/section')
+    async def private_draft_section(project_id: str, snapshot_id: UUID,
+            partition_id: str = Query(min_length=1, max_length=512), authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: storage.lifetime_rpc('read_workspace_draft_section', p_project_id=project_id,
+                    p_snapshot_id=str(snapshot_id), p_partition_id=partition_id), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
     @router.post('/private-draft/proposal')
     async def private_draft_decision(payload: PrivateDraftDecision,
                                      authorization: str | None = Header(default=None)):
@@ -357,6 +378,23 @@ def build_router(
         except httpx.HTTPStatusError:
             raise HTTPException(409, 'This proposal changed. Reload it before deciding.',
                 headers={'X-Error-Code': 'LIFETIME_PROPOSAL_STALE'}) from None
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.post('/private-draft/rework', status_code=202)
+    async def rework_private_draft(payload: PrivateDraftRework, authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            if await asyncio.to_thread(mapped_identity, storage, payload.project_id) is None:
+                canonical_only()
+            result = await asyncio.to_thread(storage.lifetime_rpc, 'request_workspace_section_rework',
+                p_project_id=payload.project_id, p_request_id=str(payload.request_id),
+                p_snapshot_id=str(payload.snapshot_id), p_root_digest=payload.root_digest,
+                p_partition_id=payload.partition_id, p_instruction=payload.instruction.strip())
+            return result
+        except httpx.HTTPStatusError:
+            raise HTTPException(409, 'This section changed or is already being revised. Reload it before trying again.',
+                headers={'X-Error-Code': 'WORKSPACE_SECTION_REWORK_STALE'}) from None
         finally:
             await asyncio.to_thread(_close, storage)
 

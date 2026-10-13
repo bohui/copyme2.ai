@@ -5,6 +5,7 @@ import asyncio
 import base64
 import binascii
 import httpx
+from fastapi import HTTPException
 import json
 import logging
 import os
@@ -1647,6 +1648,7 @@ class CodexRuntime:
                    source_kind: str = 'narrator_chat',
                    uploaded_photo_ids: list[str] | None = None,
                    photo_selection: dict | None = None,
+                   workspace_focus: dict | None = None,
                    user_response: bool = True,
                    saved_place_hints: list | None = None,
                    trajectory: TrajectoryRecorder | None = None,
@@ -1656,6 +1658,7 @@ class CodexRuntime:
             return await run_lifetime_turn(self,storage,conversation_text if conversation_text is not None else original_conversation_text(text),
                 publication=lifetime_context,project_id=project_id,language=language,client_turn_id=client_turn_id,
                 source_kind=source_kind,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
+                workspace_focus=workspace_focus,
                 user_response=user_response,on_delta=on_delta,on_event=on_event)
         check_issue14_dispatch(self._issue14_admission, role='collector', correlation=evaluation)
         saved_text = conversation_text if conversation_text is not None else original_conversation_text(text)
@@ -1754,6 +1757,9 @@ class CodexRuntime:
                     return {'project_id': project_id, 'recall_status': recall_access, 'reply': None}
             if user_response and project_id and isinstance(storage, UserStorage):
                 from .conversation_locale import detect_reply_locale
+                if workspace_focus:
+                    from .workspace_memory_actions import read_workspace_focus
+                    await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
                 client_turn_id = client_turn_id or turn_id
                 interview_turn = await lease.io(storage.accept_interview_turn,
                     project_id, client_turn_id, saved_text, kind=source_kind,
@@ -1838,6 +1844,14 @@ class CodexRuntime:
                 await lease.io(storage.save_profile, profile)
                 await lease.check()
             if interview_context is not None:
+                if workspace_focus:
+                    from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
+                    try:
+                        focus = await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
+                    except HTTPException as error:
+                        if error.status_code != 409: raise
+                        focus = None
+                    apply_workspace_focus(interview_context, focus)
                 interview_context['interview_language'] = language
                 if 'conversation_phase' in interview_context:
                     from .conversation_phase import explicit_action, resolve_phase

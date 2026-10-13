@@ -21,6 +21,7 @@ from .conversation_recovery import PROJECT_ID_PATTERN, TurnReceipt, turn_receipt
 from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
 from .place_journey import normalize_persisted_place_journey
+from .workspace_memory_actions import WorkspaceMemoryFocus
 from .formal_memoir_routes import router as formal_memoir_router
 
 router = APIRouter(prefix='/v1/agent', tags=['Codex agent'])
@@ -35,6 +36,7 @@ class TurnInput(BaseModel):
     source_kind: Literal['narrator_chat', 'narrator_transcript'] = 'narrator_chat'
     uploaded_photo_ids: list[UUID] = Field(default_factory=list, max_length=5)
     photo_selection: dict | None = None
+    workspace_focus: WorkspaceMemoryFocus | None = None
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
     # The UI locale is not the interview language.  Omit this when the
     # storyteller has not explicitly chosen a conversation language so the
@@ -414,6 +416,7 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
     if payload.project_id is not None and valid_family_project_id(payload.project_id) is None:
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
+    focus = payload.workspace_focus.model_dump(mode='json', exclude_none=True) if payload.workspace_focus else None
     from .lifetime_memory_runtime import lifetime_admission,lifetime_http_turn
     if await lifetime_admission(storage,payload.project_id):
         return await lifetime_http_turn(runtime,storage,payload.text,accept=accept,options={
@@ -421,7 +424,7 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
             'client_turn_id':str(payload.client_turn_id) if payload.client_turn_id else None,
             'conversation_text':payload.conversation_text,'source_kind':payload.source_kind,
             'uploaded_photo_ids':[str(id) for id in payload.uploaded_photo_ids],
-            'photo_selection':payload.photo_selection})
+            'photo_selection':payload.photo_selection, 'workspace_focus':focus})
     publisher=await _legacy_publication(storage)
     from .lifetime_memory_legacy import LegacyJSONResponse,LegacyStreamingResponse
     try:
@@ -438,6 +441,8 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
                 'on_delta': emit,
                 'on_event': emit.event,
             }
+            if focus is not None:
+                options['workspace_focus'] = focus
             if payload.uploaded_photo_ids:
                 options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
             if payload.photo_selection is not None:
@@ -461,6 +466,8 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
         )
     try:
         options = {'project_id': payload.project_id, 'language': payload.language}
+        if focus is not None:
+            options['workspace_focus'] = focus
         if payload.uploaded_photo_ids:
             options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
         if payload.photo_selection is not None:

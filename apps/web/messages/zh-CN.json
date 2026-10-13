@@ -88,7 +88,9 @@
     "memoryConnected": "本次对话已关联您账户中的回忆。",
     "logoutFailed": "暂时无法退出登录，请稍后再试。",
     "identityLinkFailed": "无法连接该登录方式，请稍后再试。",
-    "logoutStorageWarning": "已退出登录，但无法完全清除旧的浏览器登录数据。请先清除此网站的浏览器数据，再次登录。"
+    "logoutStorageWarning": "已退出登录，但无法完全清除旧的浏览器登录数据。请先清除此网站的浏览器数据，再次登录。",
+    "WORKSPACE_MEMORY_FOCUS_STALE": "这段回忆已更新或暂时不可用，请重新选择。",
+    "WORKSPACE_SECTION_REWORK_STALE": "这一段故事已更新或正在修改，请重新加载。"
   },
   "Platform": {
     "brand": "CopyMe2",
@@ -517,7 +519,23 @@
       "photoQuestionCue": "接下来的问题可以围绕这张照片展开。",
       "clearPhotoCue": "不再用这张照片唤起回忆",
       "photoSaveBusy": "请等当前回复结束后，再次选择这张照片。",
-      "photoSaveError": "未能保存这张照片，请重试。"
+      "photoSaveError": "未能保存这张照片，请重试。",
+      "addMemory": "添加一段回忆",
+      "addMemoryToStage": "为{stage}添加回忆",
+      "exploreThisMemory": "继续聊这段回忆",
+      "addingMemory": "正在添加回忆：{title}",
+      "exploringMemory": "正在聊：{title}",
+      "finishMemoryFocus": "结束这个话题",
+      "reworkThisSection": "修改这一段故事",
+      "reworkInstruction": "您想怎样修改这一段故事？",
+      "reworkPlaceholder": "例如，写得简短一些，或调整叙述顺序。",
+      "requestSectionRework": "生成修改版本",
+      "reworkSending": "正在请求修改…",
+      "retrySectionRework": "重试这次请求",
+      "cancelSectionRework": "取消",
+      "reworkQueued": "正在整理修改版本。您仍可阅读当前版本。",
+      "reworkReady": "修改版本已准备好，请您审阅。",
+      "reworkError": "暂时无法确认修改请求。请重试这次请求，或重新加载草稿。"
     },
     "storyFlow": {
       "roundProgress": "回忆中 · {current}",

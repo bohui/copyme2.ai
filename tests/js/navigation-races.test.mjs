@@ -76,7 +76,7 @@ for (const ending of ['final', 'error', 'workspace-tail']) test(`late A delta an
     saveProfileUpdates: () => assert.fail('stale workspace must not save'), refreshPrivateDraft: () => assert.fail('stale draft must not refresh'),
   });
   load(context, 'chatHistoryStorageKey', 'readBrowserValues', 'readBrowserValue', 'mergeChatHistoryCopies',
-    'saveBrowserValue', 'persistChatHistory', 'agentTurn');
+    'saveBrowserValue', 'persistChatHistory', 'currentWorkspaceMemoryFocus', 'workspaceTurnFocus', 'markWorkspaceFocusStarted', 'agentTurn');
   const pending = context.agentTurn('A accepted memory');
   if (ending === 'workspace-tail') {
     await delta('A accepted partial');

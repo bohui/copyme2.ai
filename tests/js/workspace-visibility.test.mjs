@@ -101,7 +101,8 @@ test('unlocked composition opens its tabs without a map or draft', () => {
   const html = renderedWorkspace({compositionStage: 3, placeJourney: null});
   assert.match(html, /story-shell workspace-visible/);
   for (const tab of ['family', 'timeline', 'memoir']) assert.match(html, new RegExp(`data-workspace-tab="${tab}"`));
-  assert.doesNotMatch(html, /workspace-media-overview|life-stage-navigator/);
+  assert.doesNotMatch(html, /workspace-media-overview/);
+  assert.match(html, /life-stage-navigator/);
 });
 
 test('finishing free recall opens Chapters even without a map, payment or composition', () => {

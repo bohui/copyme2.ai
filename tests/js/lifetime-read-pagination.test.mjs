@@ -15,6 +15,7 @@ function setup(extra = {}) {
   const context = vm.createContext({state, encodeURIComponent, URLSearchParams,
     captureProjectScope:()=>({id:'project'}),isCurrentProjectScope:scope=>scope.id===state.project.id,
     render(){},escapeHtml:String,formatText:String,translateWith:key=>key,freeRecallFinished:()=>true,
+    currentSectionRework:()=>null, sectionReworkNotice:()=>'', sectionReworkMarkup:()=>'',
     storyApi:async()=>({snapshot_id:'root',complete:true,next_cursor:null,records:[{id:'two',preview:{title:'Two',text:'Second'}}]})});
   return context;
 }

@@ -1,5 +1,10 @@
 # Conversation phases: implementation and acceptance record
 
+The chat selector described here is superseded by the
+[workspace memory actions follow-up](workspace-memory-actions-acceptance.md).
+The backend phase contract and verbal preferences remain compatible. The checks
+below are the historical acceptance record for PR #61.
+
 Issue: #59. PR: #61. Base: cc068523208842e2accde8d623a060a04143e78c.
 Revised scope confirmed by the user on 2026-10-12: one continuous conversation,
 without pause/resume controls or durable pause state. Later rectifications update

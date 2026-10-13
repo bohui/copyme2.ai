@@ -51,6 +51,8 @@ MOBILE_OPERATIONS = {
     '/v1/story/readiness': ('get',),
     '/v1/story/private-draft': ('get',),
     '/v1/story/private-draft/page': ('get',),
+    '/v1/story/private-draft/section': ('get',),
+    '/v1/story/private-draft/rework': ('post',),
     '/v1/story/sources': ('get',),
     '/v1/story/private-draft/retry': ('post',),
     '/v1/story/events': ('get',),

@@ -9,7 +9,8 @@ from apps.api.store import MemoryStore
 
 
 @pytest.mark.parametrize('accept', ['application/json', 'application/x-ndjson'])
-def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, accept):
+@pytest.mark.parametrize('focus', [None, {'kind':'add_memory','life_stage':'childhood'}])
+def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, accept, focus):
     from unittest.mock import Mock
     storage = Mock(user_id='11111111-1111-4111-8111-111111111111',lifetime_rpc=None)
     captured = {}
@@ -22,11 +23,15 @@ def test_agent_turn_forwards_original_text_separately_from_prompt(monkeypatch, a
     monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda authorization: storage)
     monkeypatch.setattr(agent_routes, 'runtime', Runtime())
     response = TestClient(create_app(MemoryStore())).post('/v1/agent/turn',
-        json={'text': 'The agent prompt', 'conversation_text': 'My original words'},
+        json={'text': 'The agent prompt', 'conversation_text': 'My original words', 'workspace_focus':focus},
         headers={'Authorization': 'Bearer test-token', 'Accept': accept})
     assert response.status_code == 200
     assert captured['text'] == 'The agent prompt'
     assert captured['conversation_text'] == 'My original words'
+    if focus is None:
+        assert 'workspace_focus' not in captured
+    else:
+        assert captured['workspace_focus'] == focus
 
 
 def test_greeting_route_uses_only_server_owned_prompt_and_marks_assistant_only(monkeypatch):
