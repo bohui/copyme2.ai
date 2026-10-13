@@ -1121,10 +1121,12 @@ def create_app(
                             memory.save()
                         settled = True
                     headers = [(key, value) for key, value in message.get('headers', [])
-                               if key.lower() != b'x-request-id' and not (canonical_memoir_request and key.lower() == b'x-api-namespace')]
+                               if key.lower() != b'x-request-id' and not (canonical_memoir_request and key.lower() in {b'x-api-namespace', b'connection'})]
                     headers.append((b'x-request-id', request_id.encode()))
                     if canonical_memoir_request:
                         headers.append((b'x-api-namespace', b'memoir'))
+                        # Next's rewrite proxy can reuse sockets after Uvicorn's idle close.
+                        headers.append((b'connection', b'close'))
                     message = {**message, 'headers': headers}
                 # No queue/buffer: governed response locks cover the outer ASGI
                 # send completion, including socket backpressure/disconnect.

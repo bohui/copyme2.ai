@@ -29,6 +29,23 @@ def test_recognised_photo_result_renders_one_question_without_private_planning()
     assert result['associations'][0]['source_version']==1
 
 
+@pytest.mark.parametrize('text,acknowledgement,question', [
+    ('我想聊一下小时候的故事', '没问题。', '小时候，您最常做的一件事是什么？'),
+    ('I would like to talk about my childhood.', 'Of course.', 'What did you most often do as a child?'),
+])
+def test_simple_assent_streams_and_renders_without_requiring_a_restatement(text, acknowledgement, question):
+    from test_name_only_opening import proposal as opening_proposal
+    p = opening_proposal(name=None, question=question)
+    p['acknowledgement'] = acknowledgement
+    context = {'source': {'id': 'topic-source', 'version': 1, 'status': 'active', 'text': text}}
+    raw = json.dumps(p, ensure_ascii=False)
+    stream = CollectorVisibleStream()
+    visible = ''.join(stream.feed(raw[offset:offset + 7]) for offset in range(0, len(raw), 7))
+    visible += stream.feed('', final=True)
+    assert visible == acknowledgement
+    assert validate_collector_result(p, context)['reply'] == f'{acknowledgement}\n\n{question}'
+
+
 @pytest.mark.parametrize('mutation', ['foreign_photo','foreign_event','wrong_source_version','fabricated_quote','pixels_not_seen','extra_question','missing_chosen','duplicate_question','too_many','unfounded_year'])
 def test_untrusted_collector_cannot_forge_scope_evidence_or_visible_questions(mutation):
     p=proposal()

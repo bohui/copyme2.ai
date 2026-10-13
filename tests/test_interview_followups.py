@@ -1,4 +1,4 @@
-"""Opt-in model regressions for questions whose answers are already supplied.
+"""Opt-in model regressions for grounded, non-redundant follow-up questions.
 
 Run with MEMORY_SPARK_RUN_LIVE_INTERVIEW_TESTS=1 and the application's
 MEMORY_SPARK_LLM_* settings. Each case uses an isolated, ephemeral Codex thread.
@@ -11,6 +11,8 @@ import pytest
 
 from apps.api.codex_agent import CodexConnection, provider_config
 from apps.api.codex_runtime import CodexRuntime, build_conversation_system_prompt
+from apps.api.conversation_phase import PhaseState
+from apps.api.interview_plan import collector_schema, validate_collector_result
 
 
 ZH_MEMORY = (
@@ -84,3 +86,90 @@ def test_live_followup_builds_on_the_known_catch(tmp_path, language, memory, ear
     # Examine questions only: acknowledgements may correctly mention the catch.
     questions = re.findall(r'[^。.!?？！\n]*[?？]', reply)
     assert all(not REDUNDANT_CATCH_QUESTION.search(question) for question in questions), reply
+
+
+def _live_collector_result(tmp_path, prompt_version, language, message, *, opening_turn=True, memories='(none)'):
+    runtime = CodexRuntime()
+    (tmp_path / 'config.toml').write_text(provider_config(runtime.base_url, runtime.model))
+    context = {
+        'source': {'id': 'followup-source', 'version': 1, 'status': 'active', 'text': message},
+        'opening_turn': opening_turn,
+        'interview_language': language,
+        'conversation_phase': PhaseState().model_dump(mode='json'),
+    }
+
+    async def run():
+        async with CodexConnection(
+            runtime.command, tmp_path,
+            provider_env={'MEMORY_SPARK_LLM_API_KEY': runtime.api_key},
+            timeout=runtime.timeout,
+        ) as connection:
+            result = await connection.request('thread/start', {
+                'cwd': str(tmp_path), 'ephemeral': True,
+                'modelProvider': 'llm_provider', 'model': runtime.model,
+                'approvalPolicy': 'never', 'sandbox': 'read-only',
+                'baseInstructions': build_conversation_system_prompt(
+                    memories, language=language, interview_context=context,
+                    conversation_rounds_completed=0 if opening_turn else 1, prompt_version=prompt_version,
+                ),
+            })
+            return await connection.turn(result['thread']['id'], f'Storyteller message:\n{message}',
+                output_schema=collector_schema(context))
+
+    result = validate_collector_result(asyncio.run(run()), context)
+    print(f'{prompt_version}, {language}: {result["reply"]}')
+    return result
+
+
+@pytest.mark.skipif(
+    os.getenv('MEMORY_SPARK_RUN_LIVE_INTERVIEW_TESTS') != '1',
+    reason='Opt-in live model evaluation; requires the configured application provider',
+)
+@pytest.mark.parametrize('prompt_version', ['legacy', 'compact-v1'])
+@pytest.mark.parametrize('language,message,place', [
+    ('zh-CN', '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院', '承德'),
+    ('en-AU', 'My name is Huibo. I live in Sydney now, but I was born in April 1983 at a hospital in Chengde, Hebei.', 'Chengde'),
+], ids=['zh-CN', 'en-AU'])
+def test_live_first_reply_follows_the_volunteered_birthplace(tmp_path, prompt_version, language, message, place):
+    result = _live_collector_result(tmp_path, prompt_version, language, message)
+    plan = result['plan']
+    question = next(candidate['question'] for candidate in plan['candidates']
+        if candidate['id'] == plan['chosen_id'])
+    # A question can follow the birthplace by clarifying where they grew up.
+    assert place.casefold() in question.casefold() or re.fullmatch(
+        r'Where did you grow up\?|您(?:小时候)?(?:是)?在哪[里儿]长大(?:的)?？',
+        question, re.IGNORECASE,
+    ), result['reply']
+    assert question.count('?') + question.count('？') == 1
+    assert plan['work'] == {'mode': 'extract', 'name': None}
+    assert not re.search(
+        r'(?:您|你)(?:小时候|童年|成长时)(?:一直|就)?(?:住在|生活在)承德'
+        r'|\byour childhood (?:home|neighbou?rhood) in Chengde\b'
+        r'|\b(?:you grew up|growing up|your upbringing) in Chengde\b', question, re.IGNORECASE,
+    ), result['reply']
+
+
+@pytest.mark.skipif(
+    os.getenv('MEMORY_SPARK_RUN_LIVE_INTERVIEW_TESTS') != '1',
+    reason='Opt-in live model evaluation; requires the configured application provider',
+)
+@pytest.mark.parametrize('prompt_version', ['legacy', 'compact-v1'])
+@pytest.mark.parametrize('language,message,previous_question', [
+    ('zh-CN', '我想聊一下小时候的故事', '您今天最想先聊哪一段记忆？'),
+    ('en-AU', 'I would like to talk about my childhood.', 'Which memory would you like to talk about today?'),
+], ids=['zh-CN', 'en-AU'])
+def test_live_topic_choice_gets_a_followup_without_an_echo(tmp_path, prompt_version, language, message, previous_question):
+    result = _live_collector_result(tmp_path, prompt_version, language, message,
+        opening_turn=False, memories=f'Memory Spark: {previous_question}')
+    # Catch the reported declarative restatement, not every use of a topic word.
+    assert not re.search(
+        r'(?:您|你)(?:说|提到|想|希望|愿意|打算)[^。.!?？！\n]{0,40}(?:小时候|童年)'
+        r'|\byou(?:[’\']d|\s+(?:would|want|wanted|mentioned|said|wish))[^.!?\n]{0,80}(?:childhood|growing up)',
+        result['acknowledgement'], re.IGNORECASE,
+    ), result['reply']
+    plan = result['plan']
+    question = next(candidate['question'] for candidate in plan['candidates']
+        if candidate['id'] == plan['chosen_id'])
+    assert re.search(r'小时候|童年|那时|当时|childhood|as a child|growing up|back then',
+        question, re.IGNORECASE), result['reply']
+    assert question.count('?') + question.count('？') == 1

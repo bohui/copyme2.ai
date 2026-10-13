@@ -299,7 +299,7 @@ def test_prompt_makes_mira_a_low_pressure_oral_history_journalist():
     assert "A photograph the storyteller chooses to discuss is a valid photo-first starting point" in prompt
     assert "Do not ask for name, birth date, hometown, occupation and a first story together." in prompt
     assert "Do not ask a question merely to fill a missing field" in prompt
-    assert "ask the next question directly when continuing the same memory" in prompt
+    assert "ask the next question directly when continuing the same memory" in prompt.lower()
     assert "Reserve a short conversational bridge for returning to a different earlier topic." in prompt
     assert "Do not narrate the interview process" in prompt
     assert "Reserve explicit choices about changing pace for moments when the storyteller signals discomfort or asks for control." in prompt
