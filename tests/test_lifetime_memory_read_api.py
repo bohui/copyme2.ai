@@ -48,6 +48,7 @@ def mapped(monkeypatch, tmp_path):
 @pytest.mark.parametrize('path,operation', [
     ('/v1/story/private-draft?project_id=read-project', 'read_lifetime_private_draft_head'),
     ('/v1/story/private-draft/page?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'read_lifetime_private_draft_page'),
+    ('/v1/story/private-draft/section?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&partition_id=selected', 'read_workspace_draft_section'),
     ('/v1/story/events?project_id=read-project', 'read_lifetime_collection_page'),
     ('/v1/story/sources?project_id=read-project', 'read_lifetime_collection_page'),
     ('/v1/story/readiness?project_id=read-project', 'read_lifetime_stage_readiness'),

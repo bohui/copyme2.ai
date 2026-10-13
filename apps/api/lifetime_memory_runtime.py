@@ -7,6 +7,7 @@ from contextlib import AsyncExitStack
 import asyncio
 import json
 from uuid import uuid4
+from fastapi import HTTPException
 
 from .lifetime_memory_contracts import ContextBudget, IdentityEnvelope
 from .lifetime_memory_context import ContextSource, TailCoverage, InputLimitExceeded, serialize_packet
@@ -72,7 +73,7 @@ async def lifetime_admission(storage, project_id=None):
 
 async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,language='en-AU',
         client_turn_id=None,source_kind='narrator_chat',uploaded_photo_ids=None,photo_selection=None,
-        user_response=True,on_delta=None,on_event=None,**unused):
+        user_response=True,on_delta=None,on_event=None,workspace_focus=None,**unused):
     from .collector_configuration import collector_configuration
     from .conversation_locale import detect_reply_locale,explicit_request
     from .conversation_phase import explicit_action,resolve_phase
@@ -156,6 +157,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         elif lifetime_generation_paused():
             raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
         else:
+            if workspace_focus and not already_accepted:
+                from .workspace_memory_actions import read_workspace_focus
+                await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
             accepted=await lease.io(storage.accept_interview_turn,project_id,client_turn_id,text,kind=source_kind,
                 language=detect_reply_locale(text) or language,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection)
             source=accepted.get('source')
@@ -173,6 +177,16 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                 'accepted_source_id':source['id'],**public_interview_fields(accepted)}})
             context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
+            if workspace_focus:
+                from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
+                try:
+                    focus = await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
+                except HTTPException as error:
+                    if error.status_code != 409: raise
+                    # The original is accepted. A changed optional workspace task
+                    # must not prevent this source or a lost reply from completing.
+                    focus = None
+                apply_workspace_focus(context, focus)
             from .historical_news import ready_projection
             import os
             context['historical_news']=ready_projection(context['historical_news'],enabled=os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() in {'1','true','yes'})

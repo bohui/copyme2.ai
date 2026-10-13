@@ -19,6 +19,7 @@ function setup(overrides = {}) {
     familyWorkspace:() => '<div>family view</div>', timelineWorkspace:() => '<div>timeline view</div>',
     workspaceIsVisible:() => true, workspaceMediaOverview:() => '<section class="workspace-media-overview">places and pictures</section>',
     lifeStageNavigator:() => '<section>life stages</section>', render:() => {},
+    currentSectionRework:() => null, sectionReworkNotice:() => '', sectionReworkMarkup:() => '',
     document:{querySelector:() => null},
   });
   for (const name of ['freeRecallFinished','privateDraftPreview','composingWorkspaceActive','workspaceTabs','activeWorkspaceTab','workspaceDetail',
@@ -47,7 +48,8 @@ test('composition adds Family tabs only with entitlement and suppresses media on
         context.state.workspaceTab = tab;
         const markup = context.workspaceDetail();
         assert.equal((markup.match(/data-workspace-tab=/g) || []).length, fixture.tabs.length);
-        assert.doesNotMatch(markup, /workspace-media-overview|places and pictures|life stages/);
+        assert.doesNotMatch(markup, /workspace-media-overview|places and pictures/);
+        assert.match(markup, /life stages/);
       }
     }
   }

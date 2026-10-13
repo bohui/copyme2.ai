@@ -88,7 +88,9 @@
     "memoryConnected": "Private memory is connected for this session.",
     "logoutFailed": "Unable to log out right now. Please try again.",
     "identityLinkFailed": "Unable to connect that sign-in provider. Please try again.",
-    "logoutStorageWarning": "Signed out, but old browser sign-in data could not be fully cleared. Clear this site’s browser data before signing in again."
+    "logoutStorageWarning": "Signed out, but old browser sign-in data could not be fully cleared. Clear this site’s browser data before signing in again.",
+    "WORKSPACE_MEMORY_FOCUS_STALE": "This memory changed or is unavailable. Choose it again.",
+    "WORKSPACE_SECTION_REWORK_STALE": "This section changed or is being revised. Reload it before trying again."
   },
   "Platform": {
     "brand": "CopyMe2",
@@ -517,7 +519,23 @@
       "photoQuestionCue": "Your next question can draw on this photo.",
       "clearPhotoCue": "Stop using this photo as a memory cue",
       "photoSaveBusy": "Please wait for the current reply to finish, then choose the photo again.",
-      "photoSaveError": "Could not save this photo. Please try again."
+      "photoSaveError": "Could not save this photo. Please try again.",
+      "addMemory": "Add a memory",
+      "addMemoryToStage": "Add a memory to {stage}",
+      "exploreThisMemory": "Explore this memory",
+      "addingMemory": "Adding a memory: {title}",
+      "exploringMemory": "Exploring: {title}",
+      "finishMemoryFocus": "Finish this topic",
+      "reworkThisSection": "Rework this section",
+      "reworkInstruction": "How would you like this section changed?",
+      "reworkPlaceholder": "For example, make it shorter or change the order.",
+      "requestSectionRework": "Create a revised version",
+      "reworkSending": "Requesting revision…",
+      "retrySectionRework": "Retry this request",
+      "cancelSectionRework": "Cancel",
+      "reworkQueued": "Your revised section is being prepared. The current version stays available.",
+      "reworkReady": "A revised version is ready for you to review.",
+      "reworkError": "The revision could not be confirmed. Retry this request or reload the draft."
     },
     "storyFlow": {
       "roundProgress": "Memory recall · {current}",

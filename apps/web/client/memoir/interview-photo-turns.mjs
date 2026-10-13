@@ -27,11 +27,12 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   function pending() { return current(active) ? active : null; }
   function prepare(options) {
     const retry = options.retry || pending();
-    if (current(retry) && (options.retry || retry.conversationText === options.conversationText && retry.text === options.text)) return retry;
+    if (current(retry) && (options.retry || retry.conversationText === options.conversationText && retry.text === options.text && JSON.stringify(retry.workspaceFocus || null) === JSON.stringify(options.workspaceFocus || null))) return retry;
     const saved = state.project?.profile?.photo_memories?.[scope().projectId] || {};
     const attachments = options.attachments || [];
     const turn = {...scope(), id:uuid(), text:options.text, conversationText:options.conversationText,
       sourceKind:options.sourceKind || 'narrator_chat', language:options.language,
+      workspaceFocus:options.workspaceFocus ? {...options.workspaceFocus} : null,
       firstReplyLocalization:options.firstReplyLocalization || false, serverAction:options.serverAction || null,
       photoSelection:saved.selected ? {key:saved.selected, revision:saved.selection_revision || null} : null,
       uploadedPhotoIds:attachments.map(item => item.privatePhoto?.id).filter(Boolean),
