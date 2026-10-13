@@ -128,7 +128,7 @@ test('does not render a place card when no map target is available', async () =>
  }), '');
 });
 
-test('activates the workspace for a triggered place even without a map target', async () => {
+test('hides an unresolved selected place even when another saved place has a map', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
@@ -136,14 +136,13 @@ test('activates the workspace for a triggered place even without a map target', 
  const mapped = {place: 'Hobart', hierarchy: ['Earth', 'Australia', 'Hobart'], granularity: 'city', latitude: -42.88, longitude: 147.33};
  const context = vm.createContext({
   state: {project: {id: 'project'}, placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
-  workspaceVisibility: {projectId: null, stable: false},
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
   profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false, freeRecallFinished: () => false,
  });
  for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
- assert.equal(context.workspaceHasContent(), true);
+ assert.equal(context.workspaceHasContent(), false);
  assert.equal(context.placeWorkspaceSelection(), null);
  assert.equal(context.placeWorkspaceSelection({allowUnmapped: true}).place, unknown.place);
  context.state.placeJourney = mapped;

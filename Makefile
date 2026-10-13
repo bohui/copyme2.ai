@@ -175,7 +175,7 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 
 memoir-live-fifty-plan: ## Inspect 50-round cases without LLM calls; select one with EVAL_CASE_ID.
 
-memoir-live-fifty-test: ## Run 50 live rounds per case against remote Supabase; retain projects for the UI.
+memoir-live-fifty-test: memoir-test-accounts-setup ## Run 50 live rounds per case against remote Supabase; retain projects for the UI.
 
 memoir-live-fifty-plan memoir-live-fifty-test:
 	@set -eu; \
@@ -411,3 +411,13 @@ tunnel-health: ## Verify the public landing page, Memoir route, and API proxy.
 	@curl --fail --silent --show-error --max-time 30 --output /dev/null https://copyme2.ai/
 	@curl --fail --silent --show-error --max-time 30 --output /dev/null https://copyme2.ai/memoir/start
 	@curl --fail --silent --show-error --max-time 30 https://copyme2.ai/api/v1/memoir/config | python3 -c 'import json,sys; assert json.load(sys.stdin)["product"] == "Memory Spark"; print("CopyMe2 public web and API proxy: healthy")'
+
+# Always prepare the five selected Auth accounts before the existing live target.
+MEMOIR_TEST_ACCOUNTS_PYTHON ?= python3
+.PHONY: memoir-test-accounts-plan memoir-test-accounts-setup
+
+memoir-test-accounts-plan: ## Read-only selected test-account inventory; no Auth writes.
+	@"$(MEMOIR_TEST_ACCOUNTS_PYTHON)" scripts/setup_memoir_test_accounts.py --env-file "$(abspath $(ENV_FILE))"
+
+memoir-test-accounts-setup: ## Reuse existing accounts; human input/approval creates only missing users.
+	@"$(MEMOIR_TEST_ACCOUNTS_PYTHON)" scripts/setup_memoir_test_accounts.py --env-file "$(abspath $(ENV_FILE))" --apply

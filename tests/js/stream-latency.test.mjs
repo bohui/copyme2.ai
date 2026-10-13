@@ -58,13 +58,14 @@ test('map preview renders during text streaming without a profile write or photo
   assert.ok(renders >= 2);
 });
 
-for (const previous of [null, {place: 'Chengde'}]) {
+for (const previous of [null, {place: 'Chengde', latitude: 40.95, longitude: 117.96}]) {
 test(`a failed conversational save restores ${previous ? 'the confirmed workspace' : 'the unopened workspace'}`, async () => {
   const visibility = [];
   const context = vm.createContext({
     state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: [],
       placeJourney: previous, selectedPlace: previous?.place || null},
-    workspaceVisibility: {projectId: null, stable: false},
+    placeWorkspaceSelection: () => context.state.placeJourney,
+    placeMapTarget: place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude) ? place : null,
     composingWorkspaceActive: () => false,
     appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
     conversationLanguage: () => 'en-AU', simulatedLoopTrace: () => [],
@@ -85,7 +86,7 @@ test(`a failed conversational save restores ${previous ? 'the confirmed workspac
   await context.agentTurn('Sydney');
   assert.equal(context.state.placeJourney, previous);
   assert.equal(context.state.selectedPlace, previous?.place || null);
-  assert.equal(visibility[0], true, 'a streamed preview remains visible while the turn is pending');
+  assert.equal(visibility[0], false, 'an unresolved streamed preview must stay hidden');
   assert.equal(visibility.at(-1), Boolean(previous), 'failed previews must restore prior workspace availability');
 });
 }
@@ -298,10 +299,5 @@ test('photo workspace exposes discovery even before any eligible result', () => 
   assert.match(context.workspaceMediaOverview(), /role="status"/);
   context.placeMapTarget = () => null;
   context.placeJourneyMarkup = () => '';
-  const unresolved = context.workspaceMediaOverview();
-  assert.match(unresolved, /workspace-media-map/);
-  assert.match(unresolved, /workspace-media-gallery/);
-  assert.match(unresolved, /Chengde/);
-  assert.match(unresolved, /pinUnresolved/);
-  assert.match(unresolved, /picturesSearching/);
+  assert.equal(context.workspaceMediaOverview(), '', 'an unresolved location must not show empty map/photo panels');
 });

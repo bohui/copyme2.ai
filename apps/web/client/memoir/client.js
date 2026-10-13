@@ -218,7 +218,6 @@ let timelineMountId = 0;
 let assistantMessageSequence = 0;
 let workspaceUpdateQueue = Promise.resolve();
 const appliedWorkspaceSequences = new Map();
-const workspaceVisibility = { projectId: null, stable: false };
 const conversationScroll = createConversationScroll();
 
 const ASSISTANT_STREAM_CHUNK_SIZE = 3;
@@ -3340,22 +3339,13 @@ function renderStory() {
 }
 
 function workspaceContentAvailable() {
-  // A place trigger opens its workspace independently of map/photo readiness.
+  // Place/photo context needs a resolved map target for the selected place.
   // Completed free recall also opens Chapters; early draft status does not.
-  return Boolean(composingWorkspaceActive() || freeRecallFinished() || state.placeJourney);
+  return Boolean(composingWorkspaceActive() || freeRecallFinished() || placeMapTarget(placeWorkspaceSelection()));
 }
 
 function workspaceHasContent() {
-  // Confirmed activation survives later lookups and empty selections. A
-  // streamed preview is visible provisionally so a failed turn can roll back.
-  const projectId = state.project?.id || null;
-  if (workspaceVisibility.projectId !== projectId) {
-    workspaceVisibility.projectId = projectId;
-    workspaceVisibility.stable = false;
-  }
-  const available = workspaceContentAvailable();
-  if (available && (!state.placeJourney?.preview || composingWorkspaceActive())) workspaceVisibility.stable = true;
-  return workspaceVisibility.stable || available;
+  return workspaceContentAvailable();
 }
 
 function workspaceDetail() {
@@ -3660,7 +3650,8 @@ function workspacePictureItems(place, group = null) {
 
 function workspaceMediaOverview(toggle = "") {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  const current = placeWorkspaceSelection({allowUnmapped: true});
+  const current = placeWorkspaceSelection();
+  if (!current || !placeMapTarget(current)) return "";
   const places = mergePlaces(profile().memory_places || []);
   const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
   const groups = workspacePlaceGroups(matching);
@@ -3668,8 +3659,7 @@ function workspaceMediaOverview(toggle = "") {
   const photoGroup = current && (state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
     .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current))));
   const choices = current ? placeHistoryChoices(groupChoices(groups), current) : "";
-  const map = (current && placeJourneyMarkup(current, "workspace", activeGroup))
-    || `<div class="workspace-empty" role="status"><span>◎</span>${current ? `<h2>${escapeHtml(current.place)}</h2>` : ""}<p>${t(current ? "pinUnresolved" : "placesEmpty")}</p></div>`;
+  const map = placeJourneyMarkup(current, "workspace", activeGroup);
   const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
   const requestKey = current ? photoRequestKey(current) : null;
   const request = state.photoRequests?.get(requestKey);
