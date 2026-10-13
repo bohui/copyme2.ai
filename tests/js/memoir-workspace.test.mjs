@@ -21,6 +21,7 @@ function setup(overrides = {}) {
     lifeStageNavigator:() => '<section>life stages</section>', render:() => {},
     currentSectionRework:() => null, sectionReworkNotice:() => '', sectionReworkMarkup:() => '',
     document:{querySelector:() => null},
+    profile:() => state.project.profile || {}, currentUiLocale:() => 'zh-CN',
   });
   for (const name of ['freeRecallFinished','privateDraftPreview','composingWorkspaceActive','workspaceTabs','activeWorkspaceTab','workspaceDetail',
     'chapterSourceIds','chapterBlockMarkup','memoirChapters','memoirChapterKey','selectMemoirChapter','memoirWorkspace']) vm.runInContext(extract(name), context);

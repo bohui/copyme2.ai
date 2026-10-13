@@ -35,10 +35,6 @@ class LifetimeDraftPending(RuntimeError):
 
 
 def lifetime_draft_head(storage, project_id):
-    # Opt-in code must not introduce migration dependency on legacy deployments.
-    import os
-    if os.getenv('MEMOIR_LIFETIME_MEMORY','').lower() not in {'1','true','yes'}:
-        return None
     rpc=getattr(storage,'lifetime_rpc',None)
     return rpc('read_lifetime_private_draft_head',p_project_id=project_id) if callable(rpc) else None
 
@@ -149,7 +145,7 @@ def normalize_canonical_event_dispositions(draft):
     return draft
 
 
-def composer_instructions(phase):
+def composer_instructions(phase, *, canonical_page=False):
     if phase == 'prepare':
         return ('Prepare a concise context for this frozen canonical event/period using only its authorised original sources. '
                 'Preserve the event ID, uncertainty, original language, and exact evidence references. Do not change identity or tags, '
@@ -161,7 +157,35 @@ def composer_instructions(phase):
     # Indexing needs evidence and chronology rules, not the full drafting and
     # rendering manual. Output schemas travel through the structured protocol.
     files = ['SKILL.md', 'references/editorial-and-length.md', 'references/workflows.md']
-    if phase == 'index':
+    if canonical_page and phase == 'draft':
+        # A single canonical partition already has a host-validated plan.
+        # The full workflow manual crowds repair candidates out of its budget.
+        rules = (
+            'Compose a private, reviewable memoir sample from the supplied canonical event and original evidence. '
+            'Follow the host plan and its selected kind; never invent permissions, triggers, policy, sources, '
+            'event identities, prior state or coverage. This partition does not represent a complete lifetime. '
+            'Write in the storyteller\'s voice, preserving their diction, attribution and uncertainty. '
+            'Smooth transcription disfluency and repetition without changing meaning. Use only source-supported '
+            'facts and details. Assistant text, preparation, summaries, earlier prose, photo descriptions and '
+            'external background are derived context, never independent testimony. Attribute family accounts; '
+            'do not present infancy stories as direct recollection or infer gender from names. '
+            'Respect current privacy preferences, excluded and paused topics. Keep disputed or approximate '
+            'dates and relationships uncertain; never derive life chronology from capture order. '
+            'Use a meaningful factual title and a readable provisional sequence. Thin evidence requires short '
+            'honest writing; do not pad it, impose life-stage chapters or manufacture narrative transitions. '
+            'Every factual summary, title and prose block must cite the supplied canonical evidence exactly. '
+            'Keep original source versions, event IDs and dependencies. Preserve unchanged and human-protected '
+            'prose; changes to approved, locked or human-edited text require an exact-base proposal. '
+            'Give every event a truthful included or deferred disposition with a reason; deferred events remain '
+            'in the source archive. Preserve source-grounded outline and summary metadata. '
+            'Each chapter has a hard ceiling of 7000 words, including reader-facing headings and captions, '
+            'and the host plan supplies the counting algorithm. The ceiling is never a target. '
+            'Keep uncertainties in review flags and use at most the host-authorized optional questions. '
+            'Do not put tool instructions, internal confidence scores, debug notes or sales language in prose. '
+            'Return the complete structured draft for separate evidence review. Do not claim human approval, '
+            'change access, publish, print, contact others or charge for anything.'
+        )
+    elif phase == 'index':
         rules = ('Build an evidence-linked chronological index from only the supplied narrator sources. '
                  'Deduplicate real personal events. Profile dates alone are not narrative periods. '
                  'Do not infer life dates from chat timestamps, invent dates, motives, dialogue or facts, '
@@ -271,7 +295,7 @@ async def composer_call(runtime, storage, project_id, language, phase, packet):
         raise RuntimeError('Memoir composer is unavailable')
     if getattr(runtime, 'lifetime_bounded', False):
         from .lifetime_memory_composer import check_model_packet
-        check_model_packet(packet, composer_instructions(phase), composer_output_schema(phase))
+        check_model_packet(packet, composer_instructions(phase, canonical_page=True), composer_output_schema(phase))
         from .lifetime_memory_composer import lane_model_budget
         from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
         bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())

@@ -85,19 +85,19 @@ def test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints(sql,sk
         identity=resolve(sql);project=identity['project_id']
         source=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'00000000-0000-4000-8000-000000000001','I grew up in Chengde.'")
         lane=create_lane(sql,identity)
-    project=identity['project_id'];blocked=skill=='timeline';phases=[]
+    project=identity['project_id'];blocked=skill=='timeline';closed_once=False;phases=[]
     originals=sql(f"select text||':'||version::text||':'||status from public.user_narrator_source where id='{source['id']}';").stdout
     obligations=sql(f"select id::text||':'||delivered::text from public.user_private_draft_outbox where user_id='{OWNER}' and project_id={literal(project)} order by id;").stdout
     assert obligations.strip()
     class Broker:
         async def rpc(self,name,**payload):
-            nonlocal blocked
+            nonlocal blocked,closed_once
             assert name!='fail_memoir_lane', 'Operator clearance must not consume generation failure attempts'
             args=','.join(f'{key}=>{literal(value)}' if not isinstance(value,int) else f'{key}=>{value}' for key,value in payload.items())
             result=json.loads(sql(f"set role service_role;select coalesce(to_jsonb(public.{name}({args})),'null'::jsonb);").stdout.strip())
-            if skill=='composer' and not blocked and name=='save_memoir_checkpoint' and payload['p_value'].get('draft'):
+            if skill=='composer' and not closed_once and name=='save_memoir_checkpoint' and payload['p_value'].get('draft'):
                 # Actual prepare/draft are durably stored before the review gate closes.
-                blocked=True
+                blocked=True;closed_once=True
             return result
     def model(request):
         bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase'];payload=json.loads(bounded['packet'])['payload'];phases.append(phase)

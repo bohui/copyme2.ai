@@ -831,3 +831,41 @@ def test_real_composer_resume_reuses_completed_phases_after_lease_token_renewal(
     resumed={**copy.deepcopy(current),'token':'00000000-0000-4000-8000-000000000016','page_digest':'3'*64}
     result=asyncio.run(_compose(resumed,worker))
     assert result['status']=='ready' and phases==['prepare','draft','review','review']
+
+
+def test_rejected_extraction_logs_only_fixed_reason_codes(caplog):
+    from apps.api.lifetime_memory_composer import _extract
+    current = page(text='private original')
+    class Broker:
+        async def rpc(self, name, **payload):
+            assert name == 'read_lifetime_lane_policy_source'
+            return copy.deepcopy(current['source'])
+    reply = json.dumps({'events':[{'kind':'event','title':'private title',
+        'source_refs':[{'source_id':'source','version':1,'quote':'private invented quote'}]}]})
+    worker = SimpleNamespace(broker=Broker(), worker_url='https://synthetic.invalid', worker_secret='private secret',
+        worker_transport=httpx.MockTransport(lambda request: httpx.Response(200,json={'reply':reply})),lane_publisher=Publisher())
+    with pytest.raises(ValueError):
+        asyncio.run(_extract(current, worker))
+    assert caplog.text.count('reason=PAGE_QUOTE') == 3
+    for private in ('private original','private title','private invented quote','private secret'):
+        assert private not in caplog.text
+
+
+def test_unique_verbatim_evidence_positions_are_derived_from_original():
+    current = page(text='Before. Exact original words. After.')
+    proposal = {'events':[{'kind':'event','title':'Original account',
+        'source_refs':[{'source_id':'source','version':1,'quote':'Exact original words.',
+                        'char_start':0,'char_end':21}]}]}
+    saved = extraction_events(proposal,current,copy.deepcopy(current['source']))
+    assert saved[0]['source_refs'][0]['char_start'] == 8
+    assert saved[0]['source_refs'][0]['char_end'] == 29
+    assert proposal['events'][0]['source_refs'][0]['char_start'] == 0
+
+
+@pytest.mark.parametrize('text,quote', [('home home','home'),('original account','invented account')])
+def test_evidence_position_repair_never_guesses_ambiguous_or_invented_quotes(text,quote):
+    current = page(text=text)
+    proposal = {'events':[{'kind':'event','title':'Original account',
+        'source_refs':[{'source_id':'source','version':1,'quote':quote,'char_start':1,'char_end':2}]}]}
+    with pytest.raises(ValueError):
+        extraction_events(proposal,current,copy.deepcopy(current['source']))

@@ -188,7 +188,7 @@ class CollectionJobWorker:
             await self.broker.rpc('release_lifetime_collection_job', p_job_id=claim['id'], p_token=claim['token'], p_error=None)
             return {'status': 'pending', 'processed': processed}
         except (LaneGenerationPaused, CanonicalActivationUnavailable):
-            # Operator clearance and generation pause are scheduling deferrals,
+            # Provider authority and generation pause are scheduling deferrals,
             # not failed model attempts. Keep the frozen manifest/checkpoint.
             try:
                 await self.broker.rpc('release_lifetime_collection_job', p_job_id=claim['id'], p_token=claim['token'], p_error=None)

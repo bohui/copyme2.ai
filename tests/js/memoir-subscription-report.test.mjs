@@ -33,6 +33,14 @@ function fixture() {
   return { plan, receipt };
 }
 
+test('report identifies an explicit time extension and retained limits', () => {
+  const { plan, receipt } = fixture();
+  receipt.elapsed_time_extensions = [{ seconds: 14400, backend_turn_submissions: 7 }];
+  const report = renderReport(plan, receipt);
+  assert.match(report, /Explicit elapsed-time extension: 14400 seconds from the original clock origin, recorded after 7 original submissions/);
+  assert.match(report, /Original request, settle and poll limits retained/);
+});
+
 test('partial report counts only completed rounds and retains all five planned cases and actual draft text', () => {
   const { plan, receipt } = fixture();
   const report = renderReport(plan, receipt);
@@ -430,10 +438,10 @@ const run=args[args.indexOf('--run-dir')+1];fs.writeFileSync(path.join(fixture,'
 for(const name of ['plan.json','receipt.json'])fs.copyFileSync(path.join(fixture,name),path.join(run,name));
 `,{mode:0o700});
       const env={...process.env,PATH:`${bin}:${process.env.PATH}`,MEMOIR_REPORT_TEST_FIXTURE:directory};
-      for(const key of ['EVAL_MAX_ELAPSED_SECONDS','EVAL_MAX_CASE_ELAPSED_SECONDS','EVAL_MAX_BACKEND_REQUESTS','EVAL_SETTLE_SECONDS','EVAL_POLL_SECONDS'])delete env[key];
+      for(const key of ['EVAL_MAX_ELAPSED_SECONDS','EVAL_MAX_CASE_ELAPSED_SECONDS','EVAL_MAX_BACKEND_REQUESTS','EVAL_SETTLE_SECONDS','EVAL_POLL_SECONDS','EVAL_TIME_EXTENSION_SECONDS'])delete env[key];
       const command=['--no-print-directory','memoir-live-fifty-test',`EVAL_RESUME_DIR=${run}`,
         'EVAL_CASE_ID=chengdu-tea-ledger','EVAL_RUN_ID=','EVAL_SOURCE_REVISION=',`ENV_FILE=${join(directory,'fixture.env')}`,'EVAL_START_BACKEND=0'];
-      if(explicitLimit)command.push('EVAL_MAX_BACKEND_REQUESTS=100');
+      if(explicitLimit)command.push('EVAL_MAX_BACKEND_REQUESTS=100','EVAL_TIME_EXTENSION_SECONDS=14400');
       const result=spawnSync('make',command,{cwd:root,encoding:'utf8',env});
       assert.equal(result.status,0,result.stderr||result.stdout);
       const args=JSON.parse(readFileSync(join(directory,'args.json'),'utf8'));
@@ -441,6 +449,8 @@ for(const name of ['plan.json','receipt.json'])fs.copyFileSync(path.join(fixture
       assert.ok(!args.includes('--run-id')&&!args.includes('--user-email'));
       for(const flag of ['--max-elapsed-seconds','--max-case-elapsed-seconds','--settle-seconds','--poll-seconds'])assert.ok(!args.includes(flag));
       assert.equal(args.includes('--max-backend-requests'),explicitLimit);
+      assert.equal(args.includes('--extend-time-limit-seconds'),explicitLimit);
+      if(explicitLimit)assert.equal(args[args.indexOf('--extend-time-limit-seconds')+1],'14400');
       if(explicitLimit)assert.equal(args[args.indexOf('--max-backend-requests')+1],'100');
       assert.ok(statSync(join(directory,'setup-ran')).isFile());
     } finally {rmSync(directory,{recursive:true,force:true});}

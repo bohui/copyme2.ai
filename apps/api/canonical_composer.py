@@ -50,6 +50,9 @@ def canonical_evidence_errors(request, draft):
         start, end = ref.get('char_start', offset), ref.get('char_end', offset + len(text))
         if start < offset or end > offset + len(text):
             return False
+        if request.get('context', {}).get('lifetime_page') and (
+                ref.get('char_start') != offset or ref.get('char_end') != offset + len(text)):
+            return False
         ranges = sorted((evidence['char_start'], evidence['char_end'])
             for event_id in event_ids for evidence in events.get(event_id, [])
             if (evidence['source_id'], str(evidence['version'])) == key)
@@ -68,7 +71,9 @@ def canonical_evidence_errors(request, draft):
             for field in ('source_refs', 'title_source_refs'):
                 if any(not supported(ref, scoped) for ref in value.get(field, [])):
                     errors.append({'code': 'NONCANONICAL_EVIDENCE_SPAN', 'at': path + '.' + field,
-                        'message': 'Cite spans covered by the current canonical event evidence, not another occurrence or the whole source.'})
+                        'message': ('Copy the current bounded page evidence references exactly, including char_start and char_end.'
+                            if request.get('context', {}).get('lifetime_page') else
+                            'Cite spans covered by the current canonical event evidence, not another occurrence or the whole source.')})
             for key, child in value.items():
                 if key not in {'source_refs', 'title_source_refs'}:
                     inspect(child, scoped, path + '.' + key)
@@ -191,6 +196,10 @@ def composer_request(job):
                     continue
                 start += job.get('source_windows', {}).get(source['id'], {}).get('char_start', 0)
                 end = start + len(quote)
+            if job.get('governed_page'):
+                window=job['source_windows'][source['id']]
+                if start!=window['char_start'] or end!=window['char_end']:
+                    continue
             values.append({'source_id': source['id'], 'version': source['version'],
                            'char_start': start, 'char_end': end})
         return values
@@ -294,7 +303,8 @@ def composer_request(job):
 
 async def compose_shared_snapshot(job, worker):
     request = composer_request(job)
-    config = fingerprint({'locale': job['locale'], 'skill': 'shared-composer-4',
+    config = fingerprint({'locale': job['locale'],
+        'skill': 'canonical-page-composer-1' if job.get('governed_page') else 'shared-composer-4',
         'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
         'policy': request['policy']})
     if job.get('previous') and job['previous'].get('content_config') != config:

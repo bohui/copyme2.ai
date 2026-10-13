@@ -317,7 +317,7 @@ does not offer this cache-preservation guarantee; use it only for an intentional
 full schema reset. Use
 `ENV_FILE=path/to/.env` to load a different file.
 
-High-level Codex activity and early private-draft previews are hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1`; the browser then shows the opt-in "Thinking steps" summary and private-draft checkpoints while private model reasoning remains hidden. With the flag off, the saved draft appears only in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
+High-level Codex activity and early private-draft previews are hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` and open the app at `localhost`, `127.0.0.1` or `[::1]`. This enables the "Thinking steps" summary and private-draft checkpoints, including draft language and retry controls beneath the message input when the workspace is hidden or collapsed. Other browser hosts keep this debug UI hidden even when the flag is enabled. With debugging off, the saved draft appears only in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
 ### Langfuse trajectory evaluation
 

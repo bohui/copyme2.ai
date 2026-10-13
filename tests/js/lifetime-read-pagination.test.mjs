@@ -15,6 +15,7 @@ function setup(extra = {}) {
   const context = vm.createContext({state, encodeURIComponent, URLSearchParams,
     captureProjectScope:()=>({id:'project'}),isCurrentProjectScope:scope=>scope.id===state.project.id,
     render(){},escapeHtml:String,formatText:String,translateWith:key=>key,freeRecallFinished:()=>true,
+    profile:()=>state.project.profile || {}, currentUiLocale:()=> 'en-AU',
     currentSectionRework:()=>null, sectionReworkNotice:()=>'', sectionReworkMarkup:()=>'',
     storyApi:async()=>({snapshot_id:'root',complete:true,next_cursor:null,records:[{id:'two',preview:{title:'Two',text:'Second'}}]})});
   return context;
@@ -30,6 +31,14 @@ test('later frozen draft pages are reachable and first page is explicitly partia
   assert.equal(context.state.privateDraft.next_cursor, null);
   assert.match(context.privateDraftPreview(), /Second/);
   assert.doesNotMatch(context.privateDraftPreview(), /load-more-private-draft/);
+});
+
+test('draft language uses the requested Mandarin edition when a failed response omits its locale', () => {
+  const context = setup({project:{id:'project',profile:{preferred_language:'zh-CN'}},
+    privateDraft:{error:'MEMOIR_UNAVAILABLE'}});
+  load(context,'privateDraftPreview');
+  assert.match(context.privateDraftPreview(), /value="zh-CN" selected/);
+  assert.doesNotMatch(context.privateDraftPreview(), /value="en-AU" selected/);
 });
 test('draft page response cannot overwrite newer root or newer project', async () => {
   for (const change of ['root','project']) {

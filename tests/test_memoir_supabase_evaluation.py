@@ -57,7 +57,7 @@ class Remote:
         self.users={case:{'id':OWNERS[case],'email':module.CASE_EMAILS[case],'email_confirmed_at':'confirmed','is_anonymous':False} for case in module.CASE_IDS}
         self.calls,self.submitted,self.recovered=[],[],[]
         self.restored=set();self.fail_round=None;self.draft_failed=False
-        self.transient_draft_error_reads=0;self.extraction_retry_required=False;self.pending_reads=0
+        self.transient_draft_error_reads=0;self.extraction_retry_required=False;self.composition_retry_required=False;self.pending_reads=0
         self.fail_auth_case=None;self.foreign_identity_case=None;self.shape_unavailable=False
         self.storages={PROJECTS[case]:Storage(SimpleNamespace(read_hook=None,draft_hook=None,events=[]),
             {**binding,'project_id':PROJECTS[case],'owner_id':OWNERS[case]}) for case,binding in plan['cases'].items()}
@@ -111,6 +111,8 @@ class Remote:
                     if self.transient_draft_error_reads:
                         self.transient_draft_error_reads-=1;result.update(status='pending',error='LIFETIME_COMPOSITION_PENDING')
                     if self.draft_failed:result.update(snapshot_state='proposed',approval_required=True)
+                    if self.composition_retry_required and ordinal >= 5:
+                        result.update(status='pending',error='MEMOIR_UNAVAILABLE')
                 else:
                     result={**common,'snapshot_complete':True,'complete':True,'next_cursor':None,
                         'records':[{'id':'partition-'+str(ordinal),'event_id':'controlled-event','event_revision':1,
@@ -180,6 +182,8 @@ class Remote:
                     }
                 if self.draft_failed:
                     result['status'] = 'failed'
+                if self.composition_retry_required:
+                    result['progress']['composition'] = {'state':'retry_required','error':None,'pending':False}
 
             elif path=='/api/v1/memoir/projects' and request.method=='POST':
                 project=payload['restore_project_id'];assert project==PROJECTS[case_id]
@@ -822,6 +826,65 @@ def test_expired_case_resume_stops_before_auth_without_resetting_case_origin(set
     assert result['request_accounting']['backend_http_requests_reserved']==counter
 
 
+def test_explicit_time_extension_preserves_original_origins_requests_and_turns(setup,tmp_path):
+    plan,remote=setup();plan.update(max_elapsed_seconds=7200,max_case_elapsed_seconds=7200)
+    remote.draft_failed=True;directory=tmp_path/'time-extension'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==5
+    original_rounds=deepcopy(first['evaluation']['cases'][0]['rounds'])
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-7300
+    receipt['case_started_at_unix'][module.CASE_IDS[0]]=now-7250
+    module.save(directory/'receipt.json',receipt)
+    origins=deepcopy(receipt['case_started_at_unix'])
+    reserved=module.private_json(directory/'request-counter.json')['reserved']
+    remote.draft_failed=False
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,extend_time_limit_seconds=14400))
+    assert result['status']=='completed',result
+    saved=module.private_json(directory/'plan.json')
+    assert module.budget_contract(saved)==module.budget_contract(plan)==result['budget_contract']
+    assert result['started_at_unix']==receipt['started_at_unix'] and result['case_started_at_unix']==origins
+    resumed_rounds=result['evaluation']['cases'][0]['rounds'][:5]
+    assert resumed_rounds[:4]==original_rounds[:4]
+    for before,after in zip(original_rounds,resumed_rounds):
+        assert all(after[key]==before[key] for key in ('round','client_turn_id','accepted_source_id','reply'))
+    assert resumed_rounds[-1]['previous_failure_summary']==original_rounds[-1]['failure_summary']
+    assert len(remote.submitted)==50 and result['backend_turn_submissions']==50
+    assert result['request_accounting']['backend_http_requests_reserved']==len(remote.calls)>reserved
+    assert saved['elapsed_time_extensions']==result['elapsed_time_extensions']
+    event=result['elapsed_time_extensions'][0]
+    assert event['seconds']==14400 and event['backend_turn_submissions']==5
+    again=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert again['status']=='completed' and again['elapsed_time_extensions']==result['elapsed_time_extensions']
+    assert len(remote.submitted)==50 and again['case_started_at_unix']==origins
+
+
+@pytest.mark.parametrize('invalid', [14401, True, 0, 14400.0])
+def test_invalid_time_extension_stops_before_auth_or_evidence_changes(setup,tmp_path,invalid):
+    plan,remote=setup();plan.update(max_elapsed_seconds=7200,max_case_elapsed_seconds=7200)
+    remote.draft_failed=True;directory=tmp_path/'bad-extension'
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    before={name:(directory/name).read_bytes() for name in ('plan.json','receipt.json','request-counter.json')}
+    calls=len(remote.calls)
+    with pytest.raises(module.EvaluationError,match='14400 seconds'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,extend_time_limit_seconds=invalid))
+    assert len(remote.calls)==calls
+    assert all((directory/name).read_bytes()==data for name,data in before.items())
+
+
+def test_time_extension_requires_resume_and_original_single_case(setup,tmp_path):
+    plan,remote=setup(None);directory=tmp_path/'multi-case-extension'
+    with pytest.raises(module.EvaluationError,match='saved resume'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,extend_time_limit_seconds=14400))
+    assert not directory.exists() and not remote.calls
+    remote.draft_failed=True
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    calls=len(remote.calls)
+    with pytest.raises(module.EvaluationError,match='single-case'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,extend_time_limit_seconds=14400))
+    assert len(remote.calls)==calls
+
+
 def test_resumed_partial_case_reuses_remaining_time_and_reserves_all_prior_attempts(setup,tmp_path,monkeypatch):
     plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'remaining-time'
     first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'
@@ -1093,3 +1156,12 @@ def test_read_only_mode_cannot_submit_or_restore_even_if_called_directly():
     for path in ['/v1/agent/turn','/v1/projects']:
         with pytest.raises(module.EvaluationError,match='cannot mutate or submit'):
             asyncio.run(module.backend(NoContact(),None,{'api_base':'http://fixture.invalid'},'POST',path,json={}))
+
+
+def test_terminal_composition_error_stops_at_the_checkpoint_without_settle_wait(setup,tmp_path):
+    plan,remote=setup()
+    remote.composition_retry_required=True
+    result=asyncio.run(module.execute(plan,tmp_path/'run',SETTINGS))
+    assert result['status']=='incomplete' and len(remote.submitted)==5
+    assert result['stop_reason']=='Background composition failed; explicit review is required'
+    assert result['evaluation']['cases'][0]['checkpoints']==[]

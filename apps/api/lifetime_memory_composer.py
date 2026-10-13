@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import logging
 from .lifetime_memory_contracts import ContextBudget
 from .memory_events import ExtractionResult, extraction_instructions, extraction_schema, validate_extraction
 
@@ -60,7 +61,12 @@ def validate_page(page):
 def extraction_events(raw,page,original=None):
     """Validate in the transmitted window, then restore exact original offsets."""
     source=page['source']
-    ExtractionResult.model_validate(raw)
+    proposal=ExtractionResult.model_validate(raw)
+    # This bounded page provides event identity metadata, but no authorized
+    # family/person registry. Names and relationships in testimony remain prose;
+    # the model cannot turn them into database identity references.
+    if any(event.person_ids for event in proposal.events):
+        raise ValueError('Person identities are unavailable in this bounded source page')
     updates=(copy.deepcopy(raw).get('events',[]) if original is not None else
         validate_extraction(copy.deepcopy(raw),[source],page.get('events',[])))
     def absolute(value):
@@ -71,13 +77,18 @@ def extraction_events(raw,page,original=None):
                 start=value.get('char_start');end=value.get('char_end')
                 if (start is None)!=(end is None):
                     raise ValueError('Evidence requires both exact offsets or neither')
-                if start is None:
-                    start=source['text'].find(value['quote'])
-                    if source['text'].find(value['quote'],start+1)>=0:
+                occurrence=source['text'].find(value['quote'])
+                if occurrence<0:
+                    raise ValueError('Evidence quote outside claimed source page')
+                positioned=(type(start) is int and type(end) is int and 0<=start<end<=len(source['text'])
+                    and source['text'][start:end]==value['quote'])
+                if not positioned:
+                    if source['text'].find(value['quote'],occurrence+1)>=0:
                         raise ValueError('An ambiguous occurrence requires exact offsets')
-                end=end if end is not None else start+len(value['quote'])
-                if type(start) is not int or type(end) is not int or start<0 or end>len(source['text']) or source['text'][start:end]!=value['quote']:
-                    raise ValueError('Evidence span exceeds claimed source page')
+                    # One verbatim occurrence has a database-owned exact span.
+                    # Model character arithmetic cannot alter those words.
+                    start=occurrence
+                    end=occurrence+len(value['quote'])
                 value.update(char_start=start+source['char_start'],char_end=end+source['char_start'])
             for child in value.values(): absolute(child)
         elif isinstance(value,list):
@@ -94,12 +105,13 @@ def extraction_events(raw,page,original=None):
 
 
 async def _extract(page,worker):
+    from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
     original=await worker.broker.rpc('read_lifetime_lane_policy_source',p_lane_id=page['lane_id'],p_token=page['token'])
     packet={'schema_version':1,'sources':[page['source']],
         'events':page['events'],'interview_context':{},'preferences':page['preferences'],
         'coverage':{'scope':'source_window','snapshot_id':page['snapshot_id'],
             'source_high_water':page['source_high_water'],'complete':False},
-        'window_contract':'Offsets in proposals are relative to this exact original window. The host restores absolute offsets. Candidate event metadata is derived identity context, never testimony. Unlisted history is not absent. Preserve uncertain identity rather than guessing.'}
+        'window_contract':EXTRACTION_WINDOW_CONTRACT}
     check_model_packet(packet,extraction_instructions(),extraction_schema())
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
@@ -109,7 +121,35 @@ async def _extract(page,worker):
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
         try:
             return {'events':extraction_events(json.loads(response['reply']),page,original)}
-        except (ValueError,TypeError,KeyError):
+        except (ValueError,TypeError,KeyError) as error:
+            # Only fixed validator messages cross the logging boundary.
+            reasons = {
+                'Unsupported life stage': 'LIFE_STAGE',
+                'Canonical event revision conflict': 'EVENT_REVISION',
+                'Ambiguous identity must remain unresolved': 'AMBIGUOUS_IDENTITY',
+                'A new event has no expected revision': 'NEW_EVENT_REVISION',
+                'Unresolved candidates must be canonical scoped identities': 'CANDIDATE_SCOPE',
+                'Chronology requires a canonical scoped target': 'CHRONOLOGY_SCOPE',
+                'Explicit correction must cite the current original statement': 'CORRECTION_SCOPE',
+                'Evidence must match an authorised original source version': 'EVIDENCE_SOURCE',
+                'Evidence span must match the original words': 'EVIDENCE_SPAN',
+                'Stage placement requires evidence': 'STAGE_EVIDENCE',
+                'Person identities are unavailable in this bounded source page': 'PERSON_SCOPE',
+                'A supported year requires a date evidence basis': 'DATE_BASIS',
+                'Date ranges must retain their original direction': 'DATE_RANGE',
+                'Numeric date requires supported original evidence': 'DATE_NUMERIC',
+                'The original date expression must be retained in its evidence': 'DATE_EXPRESSION',
+                'Evidence outside the claimed source page': 'PAGE_SOURCE',
+                'Evidence requires both exact offsets or neither': 'PAGE_OFFSETS',
+                'An ambiguous occurrence requires exact offsets': 'PAGE_AMBIGUOUS',
+                'Evidence span exceeds claimed source page': 'PAGE_SPAN',
+                'Evidence quote outside claimed source page': 'PAGE_QUOTE',
+                'Whole-source policy authority changed': 'POLICY_SOURCE',
+            }
+            logging.getLogger(__name__).warning(
+                'canonical_extraction rejected lane_id=%s page_number=%d attempt=%d reason=%s',
+                page['lane_id'], page['page_number'], attempt + 1,
+                reasons.get(str(error), 'OUTPUT_SCHEMA'))
             if attempt==2:raise
 
 

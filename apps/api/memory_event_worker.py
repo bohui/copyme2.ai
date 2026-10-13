@@ -11,6 +11,7 @@ import sqlite3
 import time
 
 import httpx
+from pydantic import ValidationError
 
 from .memory_events import validate_extraction
 from .recall import private_draft_cadence
@@ -29,6 +30,48 @@ _SAFE_MEMORY_ERROR_KINDS = (
     'evidence quote must match original testimony', 'evidence span must match original testimony',
     'memoir run expired before commit',
 )
+
+# Match only fixed validator messages. Exception bodies may include private
+# testimony; unknown messages must never be copied into diagnostics.
+_SAFE_VALIDATION_KINDS = {
+    'Unsupported life stage': 'unsupported_life_stage',
+    'Canonical event revision conflict': 'event_revision_conflict',
+    'Ambiguous identity must remain unresolved': 'ambiguous_identity',
+    'A new event has no expected revision': 'invalid_new_event_revision',
+    'Unresolved candidates must be canonical scoped identities': 'candidate_scope',
+    'Chronology requires a canonical scoped target': 'chronology_scope',
+    'Explicit correction must cite the current original statement': 'correction_evidence',
+    'Evidence must match an authorised original source version': 'evidence_mismatch',
+    'Evidence span must match the original words': 'evidence_span',
+    'Stage placement requires evidence': 'stage_evidence',
+    'A supported year requires a date evidence basis': 'date_evidence',
+    'Date ranges must retain their original direction': 'date_range',
+    'Numeric date requires supported original evidence': 'numeric_date_evidence',
+    'The original date expression must be retained in its evidence': 'date_expression',
+    'Evidence outside the claimed source page': 'source_page_scope',
+    'Evidence requires both exact offsets or neither': 'incomplete_evidence_span',
+    'An ambiguous occurrence requires exact offsets': 'ambiguous_evidence_span',
+    'Evidence span exceeds claimed source page': 'source_page_span',
+    'Evidence quote outside claimed source page': 'source_page_quote',
+    'Whole-source policy authority changed': 'source_authority_changed',
+    'Unsupported canonical lane page': 'unsupported_lane_page',
+    'Invalid canonical lane fence': 'invalid_lane_fence',
+    'Invalid canonical lane scope': 'invalid_lane_scope',
+    'Typed current lane preferences required': 'invalid_lane_preferences',
+    'Invalid bounded original source window': 'invalid_source_window',
+    'Unbounded canonical event candidates': 'unbounded_event_candidates',
+    'Invalid bounded canonical lane page': 'invalid_lane_page',
+}
+
+
+def _safe_validation_failure(failure):
+    if isinstance(failure, ValidationError):
+        return 'invalid_schema'
+    if isinstance(failure, json.JSONDecodeError):
+        return 'invalid_json'
+    if isinstance(failure, ValueError):
+        return _SAFE_VALIDATION_KINDS.get(str(failure))
+    return None
 
 
 def _safe_rpc_failure(failure):
@@ -222,10 +265,10 @@ class MemoryEventWorker:
             # text or credentials. Keep dispatch/provider failures diagnosable.
             rpc_code, rpc_kind = _safe_rpc_failure(failure)
             logging.getLogger(__name__).warning(
-                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d rpc_code=%s rpc_kind=%s',
+                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d rpc_code=%s rpc_kind=%s validation_kind=%s',
                 lane_id, job['skill'], type(failure).__name__,
                 failure.response.status_code if isinstance(failure, httpx.HTTPStatusError) else None,
-                int((time.monotonic() - started) * 1000), rpc_code, rpc_kind)
+                int((time.monotonic() - started) * 1000), rpc_code, rpc_kind, _safe_validation_failure(failure))
             return await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
                 p_error='MEMOIR_UNAVAILABLE', p_retryable=True)
         finally:

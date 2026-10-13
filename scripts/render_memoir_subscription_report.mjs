@@ -52,9 +52,11 @@ export function renderReport(plan, receipt) {
     `Stop reason: ${cell(receipt.stop_reason ?? evaluation.stop_reason ?? accounting.stop_reason)}  `,
     ...(receipt.source_validation_error ? [`Source validation error: ${cell(receipt.source_validation_error)}  `] : []),
     ...(receipt.source_changes?.length ? [
-      `Local source fixes recorded between attempts: ${receipt.source_changes.length}. Original turn identities and budgets retained.  `,
+      `Local source fixes recorded between attempts: ${receipt.source_changes.length}. Original turn identities and budget contract retained.  `,
       ...receipt.source_changes.map(change => `Source fix after ${cell(change.backend_turn_submissions)} original submissions: ${cell(change.previous?.snapshot_sha256)} → ${cell(change.current?.snapshot_sha256)}.  `),
     ] : []),
+    ...(receipt.elapsed_time_extensions?.length ? receipt.elapsed_time_extensions.map(extension =>
+      `Explicit elapsed-time extension: ${cell(extension.seconds)} seconds from the original clock origin, recorded after ${cell(extension.backend_turn_submissions)} original submissions. Original request, settle and poll limits retained.  `) : []),
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
     ...(remote ? [
       'Storage: remote Supabase; projects retained.  ',

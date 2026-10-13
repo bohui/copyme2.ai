@@ -1,7 +1,9 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock
 
 import httpx
+import pytest
 
 from apps.api.memory_event_worker import MemoryEventWorker
 
@@ -19,6 +21,42 @@ def test_provider_failure_logs_safe_timing_and_status_without_private_response(c
     assert 'failure_type=HTTPStatusError http_status=503 elapsed_ms=' in caplog.text
     assert 'private-story-response' not in caplog.text
     assert 'private-worker-secret' not in caplog.text
+
+
+def test_rejected_evidence_logs_a_safe_validation_reason_without_original_text(caplog):
+    broker = AsyncMock()
+    broker.rpc.side_effect = [
+        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
+         'locale': 'zh-CN', 'sources': [], 'context_sources': [
+             {'id': 'source', 'version': 1, 'text': 'private original testimony'}], 'events': []},
+        {'status': 'retry'},
+    ]
+    proposal = {'events': [{'kind': 'event', 'title': 'private event title',
+        'source_refs': [{'source_id': 'source', 'version': 1, 'quote': 'invented private quote'}]}]}
+    worker = MemoryEventWorker(broker, worker_url='http://worker.test', worker_secret='private-worker-secret',
+        worker_transport=httpx.MockTransport(lambda _: httpx.Response(200, json={'reply': json.dumps(proposal)})))
+    assert asyncio.run(worker.execute_lane('opaque-lane')) == {'status': 'retry'}
+    assert 'validation_kind=evidence_mismatch' in caplog.text
+    for private in ['private original testimony', 'private event title', 'invented private quote', 'private-worker-secret']:
+        assert private not in caplog.text
+
+
+@pytest.mark.parametrize('reply,kind', [
+    ('private invalid response', 'invalid_json'),
+    ('{"events":[{"title":"private invalid response"}]}', 'invalid_schema'),
+])
+def test_invalid_response_logs_category_without_private_validation_input(caplog, reply, kind):
+    broker = AsyncMock()
+    broker.rpc.side_effect = [
+        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
+         'locale': 'zh-CN', 'sources': [], 'context_sources': [], 'events': []},
+        {'status': 'retry'},
+    ]
+    worker = MemoryEventWorker(broker, worker_url='http://worker.test', worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(lambda _: httpx.Response(200, json={'reply': reply})))
+    assert asyncio.run(worker.execute_lane('opaque-lane')) == {'status': 'retry'}
+    assert f'validation_kind={kind}' in caplog.text
+    assert 'private invalid response' not in caplog.text
 
 
 def test_transient_timeline_worker_error_is_retried_before_lane_failure():

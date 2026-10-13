@@ -148,7 +148,21 @@ resumed. A changed source fingerprint requires an explicit local fix resume:
 make memoir-live-fifty-test EVAL_RESUME_DIR=/absolute/path/to/saved-run EVAL_ACCEPT_SOURCE_CHANGE=1
 ```
 
-This records both checkout fingerprints and the number of prior submissions in
+If a source was accepted but no reply was saved, an explicit response recovery
+can continue that same turn:
+
+```sh
+make memoir-live-fifty-test EVAL_RESUME_DIR=/absolute/path/to/saved-run EVAL_RECOVER_ACCEPTED_TURN=1
+```
+
+Recovery first verifies the exact original input through the owner-scoped replay
+RPC and checks the saved source ledger. It then reuses the original client UUID
+and requires the same accepted source ID. Recovery requests are counted
+separately, consume the original HTTP/time allowance, and are limited to three
+per turn. Unaccepted or changed inputs cannot be retried by this option. Combine
+it with `EVAL_ACCEPT_SOURCE_CHANGE=1` when applying a local fix.
+
+The source-change option records both checkout fingerprints and the number of prior submissions in
 the receipt and report. Original turn IDs, accepted sources, commit, accounts,
 project bindings and budgets remain fixed. The checkout must still remain
 unchanged during each attempt. Subset resume preserves the other cases'
@@ -161,6 +175,21 @@ provided, which must match the original values. Each case verifies its accepted
 ledger and recovers uncertain accepted turns before checking the remaining
 allowance; a case interrupted after 5 of its 50 allowed rounds requires 45
 remaining rounds. Completed cases require no additional unused allowance.
+
+An operator may explicitly extend an original two-hour single-case run to four
+hours after reviewing an interruption:
+
+```sh
+make memoir-live-fifty-test EVAL_RESUME_DIR=/absolute/path/to/saved-run EVAL_TIME_EXTENSION_SECONDS=14400
+```
+
+This option records one extension in both the saved plan and receipt, which the
+report displays. It keeps the original plan's budget contract and clock origins;
+the effective global and case deadlines become four hours from those origins.
+Request reservations, the request ceiling, settle/poll bounds, account, project,
+conversation and original turn ledger remain fixed. Subsequent resumes retain the
+recorded extension. Other limit changes and extensions of multi-case runs are
+rejected. It cannot start a new run or restart its clock.
 
 Failed revalidation invalidates the selected case's current completion status
 while preserving its historical rounds and checkpoints. Final campaign completion

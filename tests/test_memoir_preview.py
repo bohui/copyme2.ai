@@ -14,6 +14,20 @@ from test_recall import RecallStorage
 from test_story_flow import _auth_headers
 
 
+@pytest.mark.parametrize('old_flag',[None,'false','true'])
+def test_canonical_draft_head_does_not_depend_on_a_retired_rollout_flag(monkeypatch,old_flag):
+    if old_flag is None:monkeypatch.delenv('MEMOIR_LIFETIME_MEMORY',raising=False)
+    else:monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY',old_flag)
+    calls=[]
+    head={'snapshot_state':'pending','project_id':'canonical-project'}
+    class Storage:
+        def lifetime_rpc(self,name,**payload):
+            calls.append((name,payload))
+            return head
+    assert memoir_preview.lifetime_draft_head(Storage(),'canonical-project')==head
+    assert calls==[('read_lifetime_private_draft_head',{'p_project_id':'canonical-project'})]
+
+
 @pytest.fixture(autouse=True)
 def private_queue(monkeypatch, tmp_path):
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'preview.sqlite'))

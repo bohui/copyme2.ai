@@ -55,6 +55,44 @@ test('saved or failed drafts do not open an otherwise unavailable workspace', ()
   }
 });
 
+test('thinking steps and early drafts require an enabled flag and a local browser', async () => {
+  for (const hostname of ['localhost', '127.0.0.1', '[::1]', 'memoir.example', 'localhost.example', '192.168.1.10']) {
+    for (const flag of [undefined, false, true, 'true']) {
+      const state = {showThinkingSteps:true};
+      const context = vm.createContext({state, window:{location:{hostname}}, memoirApiPath:String,
+        fetch:async () => ({json:async () => ({auth_mode:'test', show_thinking_steps:flag})})});
+      vm.runInContext(extract('loadSupabaseConfig'), context);
+      await context.loadSupabaseConfig();
+      assert.equal(state.showThinkingSteps,
+        flag === true && ['localhost', '127.0.0.1', '[::1]'].includes(hostname), `${hostname}: ${flag}`);
+    }
+  }
+});
+
+test('draft controls beneath the message input appear only with local debugging enabled', () => {
+  for (const showThinkingSteps of [false, true]) {
+    for (const overrides of [{placeJourney:null}, {workspaceCollapsed:true}]) {
+      const html = renderedWorkspace({...overrides, showThinkingSteps,
+        privateDraft:{error:'MEMOIR_UNAVAILABLE'}}, {
+        chatComposer:() => '<form id="chat-form"><textarea id="chat-input"></textarea></form>',
+        privateDraftPreview:() => '<section class="private-draft-status">Draft language and retry</section>',
+      });
+      const conversation = html.match(/<main\b[^]*?<\/main>/)[0];
+      assert.match(conversation, /id="chat-input"/);
+      if (showThinkingSteps) assert.match(conversation, /<\/form>\s*<section class="private-draft-status"/);
+      else assert.doesNotMatch(conversation, /private-draft-status|Draft language and retry/);
+    }
+  }
+});
+
+test('local draft debugging stays in the workspace when it is expanded', () => {
+  const html = renderedWorkspace({showThinkingSteps:true, privateDraft:{error:'MEMOIR_UNAVAILABLE'}}, {
+    privateDraftPreview:() => '<section class="private-draft-status">Draft language and retry</section>',
+  });
+  assert.doesNotMatch(html.match(/<main\b[^]*?<\/main>/)[0], /private-draft-status/);
+  assert.equal((html.match(/private-draft-status/g) || []).length, 1);
+});
+
 test('early family and timeline records do not open a workspace without a map', () => {
   const html = renderedWorkspace({placeJourney: null, people: [{id: 'author', name: 'Author'}],
     timeline: [{id: 'birth', title: 'Born in Chengde'}]});

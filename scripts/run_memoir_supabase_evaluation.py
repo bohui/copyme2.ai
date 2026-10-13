@@ -39,6 +39,7 @@ from scripts.backend_operation_lock import BackendInUseError, LOCK_FD_ENV, backe
 CASE_EMAILS = dict(zip(CASE_IDS, ('test@test.com', 'test2@test.com', 'test3@test.com', 'test4@test.com', 'test5@test.com')))
 BUDGET_FIELDS = ('max_elapsed_seconds','max_case_elapsed_seconds','max_backend_requests','settle_seconds','poll_seconds')
 READ_ONLY_REVALIDATION_SECONDS = 120
+SINGLE_CASE_TIME_EXTENSION_SECONDS = 14400
 
 
 def selected_cases(value):
@@ -477,6 +478,10 @@ async def saved_canonical_checkpoint(account,binding,ordinal,accepted):
     if head.get('snapshot_state')=='proposed' or head.get('error')=='LIFETIME_LEGACY_MANUSCRIPT_MIGRATION_REQUIRED':
         raise EvaluationError('Canonical checkpoint requires human policy/migration review')
     if head['status']!='ready' or head.get('coverage_round')!=ordinal or head.get('updating'):
+        state=await account.rpc('read_user_memoir_draft',p_project_id=binding['project_id'],
+            p_locale=binding['language'],p_cadence=5)
+        if _checkpoint_error_is_terminal(state):
+            raise EvaluationError('Background composition failed; explicit review is required')
         return None
     pages,cursor,seen=[],None,set()
     for _ in range(128):
@@ -795,16 +800,45 @@ def validate_resume_budget(plan,previous,receipt):
         raise EvaluationError('Saved case progress has no original elapsed-time origin')
 
 
-async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None,accept_source_change=False,recover_accepted_turn=False):
+def resumed_time_limit(plan,previous,receipt,requested=None):
+    """Validate an explicit time extension without rewriting original limits."""
+    history=receipt.get('elapsed_time_extensions',[])
+    if history!=previous.get('elapsed_time_extensions',[]) or not isinstance(history,list) or len(history)>1:
+        raise EvaluationError('Saved elapsed-time extension history is invalid')
+    if requested is not None and (type(requested) is not int or requested!=SINGLE_CASE_TIME_EXTENSION_SECONDS):
+        raise EvaluationError('The explicit single-case time extension must be 14400 seconds')
+    if history or requested is not None:
+        if (len(previous['case_ids'])!=1 or plan['case_ids']!=previous['case_ids']
+                or previous['max_elapsed_seconds']!=7200 or previous['max_case_elapsed_seconds']!=7200):
+            raise EvaluationError('Time extension requires an original two-hour single-case run')
+    if history:
+        event=history[0]
+        if (not isinstance(event,dict) or event.get('seconds')!=SINGLE_CASE_TIME_EXTENSION_SECONDS
+                or event.get('case_ids')!=previous['case_ids']
+                or type(event.get('recorded_at_unix')) not in (int,float)
+                or not math.isfinite(event['recorded_at_unix'])
+                or not receipt['started_at_unix']<=event['recorded_at_unix']<=time.time()
+                or type(event.get('backend_turn_submissions')) is not int
+                or not 0<=event['backend_turn_submissions']<=receipt['backend_turn_submissions']
+                or event.get('original_budget_contract')!=budget_contract(previous)):
+            raise EvaluationError('Saved elapsed-time extension history is invalid')
+    return SINGLE_CASE_TIME_EXTENSION_SECONDS if history or requested is not None else None
+
+
+async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None,accept_source_change=False,recover_accepted_turn=False,extend_time_limit_seconds=None):
     with backend_operation_lock() as descriptor:
         return await _execute(plan,directory,settings,start_backend=start_backend,
             create_confirm=create_confirm,backend_lock_fd=descriptor,resume=resume,
-            accept_source_change=accept_source_change,recover_accepted_turn=recover_accepted_turn)
+            accept_source_change=accept_source_change,recover_accepted_turn=recover_accepted_turn,
+            extend_time_limit_seconds=extend_time_limit_seconds)
 
 
-async def _execute(plan,directory,settings,*,start_backend,create_confirm,backend_lock_fd,resume=None,accept_source_change=False,recover_accepted_turn=False):
+async def _execute(plan,directory,settings,*,start_backend,create_confirm,backend_lock_fd,resume=None,accept_source_change=False,recover_accepted_turn=False,extend_time_limit_seconds=None):
     previous = None
     source_change = None
+    time_limit = None
+    if extend_time_limit_seconds is not None and resume is None:
+        raise EvaluationError('A time extension requires a saved resume receipt')
     if type(accept_source_change) is not bool or accept_source_change and resume is None:
         raise EvaluationError('An explicit source change requires a saved resume receipt')
     if type(recover_accepted_turn) is not bool or recover_accepted_turn and resume is None:
@@ -832,6 +866,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         if any(case not in previous['cases'] for case in plan['case_ids']):
             raise EvaluationError('Resume cannot add or reassign an original case')
         validate_resume_budget(plan,previous,receipt)
+        time_limit=resumed_time_limit(plan,previous,receipt,extend_time_limit_seconds)
         validate_request_counter(plan,receipt,private_json(directory/'request-counter.json'))
         if receipt.get('stop_reason'):
             receipt.setdefault('previous_failures',[]).append({'reason':receipt.pop('stop_reason'),'summary':receipt['evaluation'].get('failure_summary')})
@@ -859,7 +894,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         started=receipt.get('started_at_unix')
         if type(started) not in (int,float) or not math.isfinite(started) or started>time.time():
             raise EvaluationError('Resume elapsed-time origin is invalid')
-        requests.submission_deadline=time.monotonic()+max(0,plan['max_elapsed_seconds']-(time.time()-started))
+        requests.submission_deadline=time.monotonic()+max(0,(time_limit or plan['max_elapsed_seconds'])-(time.time()-started))
         requests.deadline=requests.case_deadline=requests.submission_deadline
         def reserved(count):
             receipt['request_accounting']={'backend_http_requests_reserved':count,'actual_upstream_provider_requests':None,'model_request_ceiling_verified':False}
@@ -868,6 +903,17 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         reserved(requests.reserved)
         try:
             verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
+            if time_limit:
+                if not receipt.get('elapsed_time_extensions'):
+                    receipt['elapsed_time_extensions']=[{'seconds':time_limit,'case_ids':previous['case_ids'],
+                        'original_budget_contract':budget_contract(previous),'recorded_at_unix':time.time(),
+                        'backend_turn_submissions':receipt['backend_turn_submissions'],'attempt_id':receipt['attempt_id']}]
+                previous={**previous,'elapsed_time_extensions':receipt['elapsed_time_extensions']}
+                save(directory/'plan.json',previous)
+                save(directory/'receipt.json',receipt)
+                # Only the effective in-memory deadlines change. Original plan
+                # limits, elapsed-time origins and request reservations remain.
+                plan={**plan,'max_elapsed_seconds':time_limit,'max_case_elapsed_seconds':time_limit}
             if source_change:
                 # Preserve original request provenance and immutable limits.
                 # The accepted source ledger is still revalidated below; a fix
@@ -1017,6 +1063,8 @@ def main(argv=None):
         help='Record a local code fix when resuming; keep the original commit, accounts, ledger and budgets')
     parser.add_argument('--recover-accepted-turn',action='store_true',
         help='Retry a missing response only after proving original source acceptance; reuse the original client UUID')
+    parser.add_argument('--extend-time-limit-seconds',type=int,choices=[SINGLE_CASE_TIME_EXTENSION_SECONDS],
+        help='Explicitly extend a saved two-hour single-case run to four hours; retain its original clock and request ceiling')
     parser.add_argument('--project-id')
     parser.add_argument('--api-base', default='http://127.0.0.1:8010')
     parser.add_argument('--web-base', default='http://127.0.0.1:3010')
@@ -1034,6 +1082,8 @@ def main(argv=None):
             raise EvaluationError('--accept-source-change requires --resume-dir')
         if args.recover_accepted_turn and not args.resume_dir:
             raise EvaluationError('--recover-accepted-turn requires --resume-dir')
+        if args.extend_time_limit_seconds is not None and not args.resume_dir:
+            raise EvaluationError('--extend-time-limit-seconds requires --resume-dir')
         run_id = args.run_id or str(uuid4())
         directory = args.run_dir or Path.home() / 'memoir-test-results' / run_id
         settings = configuration(args.env_file) if args.execute or args.prepare_user else {}
@@ -1070,13 +1120,15 @@ def main(argv=None):
             original_case_ids=original.get('case_ids'))
         if args.resume_dir:
             validate_resume_budget(plan,retained,saved_receipt)
+            resumed_time_limit(plan,retained,saved_receipt,args.extend_time_limit_seconds)
         if not args.execute:
             print(json.dumps(plan, sort_keys=True))
             return 0
         print('Evidence directory: ' + str(directory), file=sys.stderr, flush=True)
         result = asyncio.run(execute(plan, directory, settings,
             start_backend=args.start_backend, create_confirm=args.create_confirmed_test_user,resume=args.resume_dir,
-            accept_source_change=args.accept_source_change,recover_accepted_turn=args.recover_accepted_turn))
+            accept_source_change=args.accept_source_change,recover_accepted_turn=args.recover_accepted_turn,
+            extend_time_limit_seconds=args.extend_time_limit_seconds))
         print(json.dumps({'run_id': run_id, 'status': result['status'], 'receipt_path': str(directory / 'receipt.json'),
                          'stop_reason': result.get('stop_reason'), 'projects': plan['cases']}))
         return 0 if result['status'] == 'completed' else 3

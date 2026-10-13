@@ -34,6 +34,13 @@ from .lifetime_memory_publication import PublicationUnavailable
 # already supported pooled aliases; effort routing does not change token bounds.
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'synthetic-byte-bpe'})
+EXTRACTION_WINDOW_CONTRACT = (
+    'Offsets in proposals are relative to this exact original window. The host restores absolute offsets. '
+    'Candidate event metadata is derived identity context, never testimony. Unlisted history is not absent. '
+    'Preserve uncertain identity rather than guessing. No authorized person registry is provided: '
+    'set person_ids to null or []. Names and relationships in the original testimony never establish person IDs. '
+    'A life_stage other than unplaced requires exact stage_evidence from this source.'
+)
 
 
 class LaneGenerationPaused(PublicationUnavailable):
@@ -128,7 +135,7 @@ def lane_contract(phase, locale):
         instructions, schema = extraction_instructions(), extraction_schema()
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
-        instructions, schema = composer_instructions(phase), composer_output_schema(phase)
+        instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
     instructions += (
         '\nThe input payload is one bounded canonical partition, never the whole lifetime. '
         'Use the payload member for this phase and the lane_context member for authoritative '
@@ -238,7 +245,7 @@ def lane_extraction_packet(fence):
         'interview_context':{},'preferences':fence.preferences.model_dump(mode='json'),
         'coverage':{'scope':'source_window','snapshot_id':str(fence.snapshot_id),
             'source_high_water':fence.source_high_water,'complete':False},
-        'window_contract':'Offsets in proposals are relative to this exact original window. The host restores absolute offsets. Candidate event metadata is derived identity context, never testimony. Unlisted history is not absent. Preserve uncertain identity rather than guessing.'}
+        'window_contract':EXTRACTION_WINDOW_CONTRACT}
 
 
 def canonical_lane_request(fence):
@@ -284,10 +291,14 @@ def _validate_phase_packet(fence,phase,payload):
         if not isinstance(context,dict):raise ValueError('Invalid canonical lane context')
         prepared=context.get('prepared_partitions',[])
         if not isinstance(prepared,list) or len(prepared)>8:raise ValueError('Invalid prepared lane artifact list')
+        from .memory_events import EvidenceRef
+        expected_refs = [EvidenceRef.model_validate(ref).model_dump(exclude_none=True)
+            for ref in fence.partition.get('source_refs',[])]
         for item in prepared:
             if (not isinstance(item,dict) or set(item)!={'event_id','context','source_refs'}
                     or item['event_id']!=fence.partition['id'] or not isinstance(item['context'],str)
-                    or len(item['context'])>10000 or item['source_refs']!=fence.partition.get('source_refs',[])):
+                    or len(item['context'])>10000 or not isinstance(item['source_refs'],list)
+                    or [EvidenceRef.model_validate(ref).model_dump(exclude_none=True) for ref in item['source_refs']]!=expected_refs):
                 raise ValueError('Prepared artifact has unsupported page evidence')
         expected['context']['prepared_partitions']=deepcopy(prepared)
         if actual!=expected:
@@ -385,7 +396,6 @@ class LanePublication:
         from psycopg import AsyncConnection, Error
         from psycopg.types.json import Jsonb
         connection = None
-        activation_pending = False
         try:
             try:
                 async with asyncio.timeout(self.lock_timeout):
@@ -398,18 +408,17 @@ class LanePublication:
                     remaining = float((await result.fetchone())[0])
                     lease_deadline = lease_started + remaining
                     from .lifetime_memory_activation import require_provider_activation
-                    activation_pending = True
                     await require_provider_activation(connection)
-                    activation_pending = False
             except TimeoutError:
-                if activation_pending:
-                    from .lifetime_memory_activation import CanonicalActivationUnavailable
-                    raise CanonicalActivationUnavailable() from None
-                raise
+                from .lifetime_memory_activation import CanonicalActivationUnavailable
+                raise CanonicalActivationUnavailable() from None
             except Error as error:
                 from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
                 if is_policy_pending(error):
                     raise PolicyUnavailable() from None
+                if error.sqlstate == '55P03':
+                    from .lifetime_memory_activation import CanonicalActivationUnavailable
+                    raise CanonicalActivationUnavailable() from None
                 raise PublicationUnavailable('Bounded lane page is unavailable or stale') from error
             allowance = min(self.send_timeout, lease_deadline - asyncio.get_running_loop().time() - .1)
             if allowance <= 0:

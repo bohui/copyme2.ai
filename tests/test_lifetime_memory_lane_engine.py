@@ -473,7 +473,8 @@ def test_transactional_lane_guard_exact_snapshot_and_bounded_cleanup(monkeypatch
 
 
 @pytest.mark.parametrize('edition_locale',['en-AU','zh-CN'])
-def test_real_bounded_composer_call_chain_uses_only_same_page_artifacts(edition_locale,monkeypatch):
+@pytest.mark.parametrize('strict_prepare', [False, True])
+def test_real_bounded_composer_call_chain_uses_only_same_page_artifacts(edition_locale,strict_prepare,monkeypatch):
     from types import SimpleNamespace
     from apps.api.lifetime_memory_composer import _compose
     from test_canonical_composer_provenance import controlled_draft
@@ -503,7 +504,10 @@ def test_real_bounded_composer_call_chain_uses_only_same_page_artifacts(edition_
         assert bounded.fence.locale==edition_locale and bounded.fence.preferences.language=='en-AU'
         if phase=='prepare':
             result={'event_id':current['partition']['id'],'context':'Grounded bounded summary',
-                'source_refs':current['partition']['source_refs']}
+                'source_refs':deepcopy(current['partition']['source_refs'])}
+            if strict_prepare:
+                for ref in result['source_refs']:
+                    ref['attribution'] = None
         elif phase=='draft':result=controlled_draft(payload,current['source']['text'],'A narrow window')
         else:
             assert phase=='review'
@@ -528,3 +532,95 @@ def test_generation_pause_blocks_governed_lane_before_home(tmp_path,monkeypatch)
 def test_lane_fence_requires_authoritative_token_independent_input_digest():
     current=page();current.pop('input_digest',None)
     with pytest.raises(ValueError):fence_for(current)
+
+@pytest.mark.parametrize('boundary', ['connect', 'lock', 'lock_error'])
+def test_pre_send_lane_authority_timeout_is_a_scheduling_deferral(monkeypatch, boundary):
+    import psycopg
+    from apps.api.lifetime_memory_lane_engine import LanePublication
+    from apps.api.lifetime_memory_activation import CanonicalActivationUnavailable
+    closed = []
+
+    class Database:
+        @staticmethod
+        async def connect(*args, **kwargs):
+            if boundary == 'connect':
+                await asyncio.Event().wait()
+            return Database()
+
+        async def execute(self, statement, args=None):
+            if 'lock_lifetime_memoir_lane_publication' in statement:
+                if boundary == 'lock_error':
+                    raise psycopg.errors.LockNotAvailable('private server diagnostic')
+                await asyncio.Event().wait()
+            return None
+
+        async def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(psycopg, 'AsyncConnection', Database)
+
+    async def scenario():
+        fence = transport().fence
+        publisher = LanePublication('synthetic-only', authenticated_owner=fence.user_id, lock_timeout=.01)
+        with pytest.raises(CanonicalActivationUnavailable):
+            async with publisher.guard(fence):
+                pytest.fail('A stalled authority cannot admit provider bytes')
+        assert closed == ([] if boundary == 'connect' else [True])
+
+    asyncio.run(scenario())
+
+
+def test_bounded_composer_rejects_narrowed_evidence_before_database_commit():
+    from apps.api.canonical_composer import canonical_evidence_errors
+    current=page('composer');request=canonical_lane_request(fence_for(current))
+    ref={'source_id':current['source']['id'],'version':'1','char_start':0,'char_end':5}
+    draft={'chapters':[{'event_ids':[current['partition']['id']], 'source_refs':[ref]}],
+        'carry_forward_chapter_ids':[]}
+    errors=canonical_evidence_errors(request,draft)
+    assert any(error['code']=='NONCANONICAL_EVIDENCE_SPAN' for error in errors)
+    ref['char_end']=len(current['source']['text'])
+    assert canonical_evidence_errors(request,draft)==[]
+    ref.pop('char_start')
+    assert canonical_evidence_errors(request,draft)
+
+
+def test_canonical_page_request_exposes_only_its_exact_evidence_span():
+    current=page('composer')
+    narrow=deepcopy(current['partition']['source_refs'][0]);narrow['char_end']=5
+    narrow['quote']=current['source']['text'][:5]
+    current['partition']['source_refs'].append(narrow)
+    request=canonical_lane_request(fence_for(current))
+    expected={'source_id':current['source']['id'],'version':'1','char_start':0,
+        'char_end':len(current['source']['text'])}
+    assert request['events'][0]['source_refs']==[expected]
+    assert request['periods'][0]['source_refs']==[expected]
+
+
+def test_default_lane_budget_admits_bounded_repair_with_prepared_context(monkeypatch):
+    from apps.api.lifetime_memory_composer import lane_model_budget
+    from apps.api.memoir_preview import skill_operation
+    from apps.api.canonical_composer import canonical_evidence_errors
+    from test_canonical_composer_provenance import controlled_draft
+    monkeypatch.delenv('MEMOIR_LANE_INPUT_BUDGET',raising=False)
+    current=page('composer');request=canonical_lane_request(fence_for(current))
+    request['context']['prepared_partitions']=[{'event_id':current['partition']['id'],
+        'context':'derived '*1250,'source_refs':deepcopy(current['partition']['source_refs'])}]
+    plan=asyncio.run(skill_operation('plan',request))
+    candidate=controlled_draft({'request':request,'plan':plan},current['source']['text'],'A narrow window')
+    candidate['chapters'][0]['blocks'][0]['text']=current['source']['text']*400
+    validation=asyncio.run(skill_operation('validate',request,candidate))
+    if validation.get('ok'):
+        errors=canonical_evidence_errors(request,candidate)
+        if errors:validation['ok']=False;validation.setdefault('errors',[]).extend(errors)
+    packet={'request':request,'plan':plan,'candidate':candidate,'validation':validation,'review':None}
+    bounded=build_bounded_lane_input(current,phase='draft',packet=packet,budget=lane_model_budget())
+    assert lane_request_tokens(bounded)<=bounded.budget.input_budget
+    from apps.api.memoir_preview import composer_instructions
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    current_instructions,_=lane_contract('draft',current['locale'])
+    overhead=len(current_instructions.encode())-len(composer_instructions('draft',canonical_page=True).encode())
+    old_size=(lane_request_tokens(bounded)-len(current_instructions.encode())
+        +len(composer_instructions('draft').encode())+overhead)
+    assert old_size>bounded.budget.input_budget
+    assert bounded.budget.input_budget+bounded.budget.output_headroom+bounded.budget.framing_headroom<=bounded.budget.context_window
+    asyncio.run(validate_lane_payload(bounded))

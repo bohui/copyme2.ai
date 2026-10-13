@@ -759,7 +759,8 @@ async function ensureAuth() {
 async function loadSupabaseConfig() {
   const response = await fetch(memoirApiPath("/v1/agent/config"));
   const config = await response.json();
-  state.showThinkingSteps = Boolean(config.show_thinking_steps);
+  state.showThinkingSteps = config.show_thinking_steps === true &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
   if (config.auth_mode === "test") {
     state.supabase = config;
     return;
@@ -3278,7 +3279,7 @@ function renderStory() {
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
           <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
-          ${!workspaceVisible ? privateDraftPreview() : ""}
+          ${!workspaceVisible && state.showThinkingSteps ? privateDraftPreview() : ""}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
       </div>
@@ -3640,7 +3641,7 @@ function privateDraftPreview({ inChapters = false } = {}) {
   const withheldNotice = saved.original_withheld || (saved.pages || []).some(section => section.original_withheld) ? `<p role="status">${t('draftOriginalWithheld')}</p>` : "";
   const partial = saved.snapshot_id && saved.page_complete === false;
   const pagination = partial ? `<p role="status">${t('draftPagesPartial')}</p><button type="button" class="button button-secondary button-small" data-action="load-more-private-draft" ${saved.loading_page ? "disabled" : ""}>${t(saved.loading_page ? 'loadingSavedPage' : 'loadMoreDraft')}</button>` : "";
-  const locale = saved.locale || state.privateDraftLocale || "en-AU";
+  const locale = saved.locale || state.privateDraftLocale || profile().preferred_language || currentUiLocale();
   const edition = saved.snapshot_id || saved.error ? `<label>${t('draftEditionLanguage')} <select data-draft-locale ${saved.deciding || saved.loading_page ? "disabled" : ""}><option value="en-AU" ${locale === "en-AU" ? "selected" : ""}>English</option><option value="zh-CN" ${locale === "zh-CN" ? "selected" : ""}>简体中文</option></select></label>` : "";
   const decisionError = saved.decision_error ? `<p role="status">${t('draftProposalChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : "";
   return `<section class="private-draft-status">${edition}<p>${status}</p>${sections ? `<details class="saved-draft-sections" ${currentSectionRework() ? "open" : ""}><summary>${t('readSavedDraft')}</summary>${sections}</details>` : ""}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
