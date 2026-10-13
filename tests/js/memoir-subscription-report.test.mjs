@@ -406,3 +406,36 @@ process.exit(Number(process.env.MEMOIR_REPORT_TEST_EXIT));
     }
   });
 }
+
+for (const explicitLimit of [false,true]) {
+  test(`Make resume inherits saved limits and passes only explicit overrides (${explicitLimit})`, () => {
+    const directory=mkdtempSync(join(tmpdir(),'memoir-resume-make-'));
+    try {
+      const {plan,receipt}=remoteFixture();const bin=join(directory,'bin');mkdirSync(bin);
+      const run=join(directory,'retained');mkdirSync(run,{mode:0o700});
+      writeFileSync(join(directory,'plan.json'),JSON.stringify(plan));writeFileSync(join(directory,'receipt.json'),JSON.stringify(receipt));
+      writeFileSync(join(directory,'fixture.env'),'');
+      writeFileSync(join(bin,'python3'),`#!/usr/bin/env node
+const fs=require('node:fs');const path=require('node:path');const args=process.argv.slice(2);
+const fixture=process.env.MEMOIR_REPORT_TEST_FIXTURE;
+if(args[0]==='scripts/setup_memoir_test_accounts.py'){fs.writeFileSync(path.join(fixture,'setup-ran'),'fixture only');process.exit(0);}
+const run=args[args.indexOf('--run-dir')+1];fs.writeFileSync(path.join(fixture,'args.json'),JSON.stringify(args));
+for(const name of ['plan.json','receipt.json'])fs.copyFileSync(path.join(fixture,name),path.join(run,name));
+`,{mode:0o700});
+      const env={...process.env,PATH:`${bin}:${process.env.PATH}`,MEMOIR_REPORT_TEST_FIXTURE:directory};
+      for(const key of ['EVAL_MAX_ELAPSED_SECONDS','EVAL_MAX_CASE_ELAPSED_SECONDS','EVAL_MAX_BACKEND_REQUESTS','EVAL_SETTLE_SECONDS','EVAL_POLL_SECONDS'])delete env[key];
+      const command=['--no-print-directory','memoir-live-fifty-test',`EVAL_RESUME_DIR=${run}`,
+        'EVAL_CASE_ID=chengdu-tea-ledger','EVAL_RUN_ID=','EVAL_SOURCE_REVISION=',`ENV_FILE=${join(directory,'fixture.env')}`,'EVAL_START_BACKEND=0'];
+      if(explicitLimit)command.push('EVAL_MAX_BACKEND_REQUESTS=100');
+      const result=spawnSync('make',command,{cwd:root,encoding:'utf8',env});
+      assert.equal(result.status,0,result.stderr||result.stdout);
+      const args=JSON.parse(readFileSync(join(directory,'args.json'),'utf8'));
+      assert.equal(args[args.indexOf('--run-dir')+1],run);assert.equal(args[args.indexOf('--resume-dir')+1],run);
+      assert.ok(!args.includes('--run-id')&&!args.includes('--user-email'));
+      for(const flag of ['--max-elapsed-seconds','--max-case-elapsed-seconds','--settle-seconds','--poll-seconds'])assert.ok(!args.includes(flag));
+      assert.equal(args.includes('--max-backend-requests'),explicitLimit);
+      if(explicitLimit)assert.equal(args[args.indexOf('--max-backend-requests')+1],'100');
+      assert.ok(statSync(join(directory,'setup-ran')).isFile());
+    } finally {rmSync(directory,{recursive:true,force:true});}
+  });
+}

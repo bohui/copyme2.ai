@@ -187,9 +187,12 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 	if test -z "$$run_dir"; then run_dir="$(EVAL_OUTPUT_ROOT)/$$run_id"; fi; \
 	set -- python3 scripts/run_memoir_supabase_evaluation.py \
 		--run-dir "$$run_dir" --env-file "$(abspath $(ENV_FILE))" \
-		--api-base "$(API_BASE)" --web-base "$(WEB_BASE)" \
-		--max-elapsed-seconds "$(EVAL_MAX_ELAPSED_SECONDS)" --max-case-elapsed-seconds "$(EVAL_MAX_CASE_ELAPSED_SECONDS)" \
-		--max-backend-requests "$(EVAL_MAX_BACKEND_REQUESTS)" --settle-seconds "$(EVAL_SETTLE_SECONDS)" --poll-seconds "$(EVAL_POLL_SECONDS)"; \
+		--api-base "$(API_BASE)" --web-base "$(WEB_BASE)"; \
+	if test -z "$(EVAL_RESUME_DIR)" || test "$(origin EVAL_MAX_ELAPSED_SECONDS)" != "file"; then set -- "$$@" --max-elapsed-seconds "$(EVAL_MAX_ELAPSED_SECONDS)"; fi; \
+	if test -z "$(EVAL_RESUME_DIR)" || test "$(origin EVAL_MAX_CASE_ELAPSED_SECONDS)" != "file"; then set -- "$$@" --max-case-elapsed-seconds "$(EVAL_MAX_CASE_ELAPSED_SECONDS)"; fi; \
+	if test -z "$(EVAL_RESUME_DIR)" || test "$(origin EVAL_MAX_BACKEND_REQUESTS)" != "file"; then set -- "$$@" --max-backend-requests "$(EVAL_MAX_BACKEND_REQUESTS)"; fi; \
+	if test -z "$(EVAL_RESUME_DIR)" || test "$(origin EVAL_SETTLE_SECONDS)" != "file"; then set -- "$$@" --settle-seconds "$(EVAL_SETTLE_SECONDS)"; fi; \
+	if test -z "$(EVAL_RESUME_DIR)" || test "$(origin EVAL_POLL_SECONDS)" != "file"; then set -- "$$@" --poll-seconds "$(EVAL_POLL_SECONDS)"; fi; \
 	if test -n "$(EVAL_SOURCE_REVISION)"; then set -- "$$@" --source-revision "$(EVAL_SOURCE_REVISION)"; fi; \
 	if test -n "$$run_id"; then set -- "$$@" --run-id "$$run_id"; fi; \
 	if test -n "$(EVAL_RESUME_DIR)"; then set -- "$$@" --resume-dir "$(abspath $(EVAL_RESUME_DIR))"; fi; \

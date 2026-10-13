@@ -100,7 +100,9 @@ export function renderReport(plan, receipt) {
       else {
         if (typeof url !== 'string' || !/^https?:\/\/[^\s<>]+$/.test(url)) throw new Error('A valid UI URL is required.');
         lines.push(`[Open project in Memoir](<${url}>)`, '', `Owning account: ${cell(plan.cases[id].user_email ?? plan.user_email)}.`,
-          `Authenticated UI recovery verified: ${cell(item.ui_recovery_verified)}.`, '');
+          `Authenticated UI recovery verified: ${cell(item.ui_recovery_verified)}.`,
+          ...(perCase ? [`Current canonical evidence validated: ${cell(item.evidence_validated)}.`,
+            `Current draft snapshot: ${cell(item.current_checkpoint?.draft?.snapshot_id)}; state: ${cell(item.current_checkpoint?.draft?.snapshot_state)}; approval required: ${cell(item.current_checkpoint?.draft?.approval_required)}.`] : []), '');
       }
       if (perCase && item.ui_login_file) {
         const prefix = `private-logins/${id}/`;

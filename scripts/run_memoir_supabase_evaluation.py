@@ -37,6 +37,8 @@ from scripts.backend_operation_lock import BackendInUseError, LOCK_FD_ENV, backe
 
 
 CASE_EMAILS = dict(zip(CASE_IDS, ('test@test.com', 'test2@test.com', 'test3@test.com', 'test4@test.com', 'test5@test.com')))
+BUDGET_FIELDS = ('max_elapsed_seconds','max_case_elapsed_seconds','max_backend_requests','settle_seconds','poll_seconds')
+READ_ONLY_REVALIDATION_SECONDS = 120
 
 
 def selected_cases(value):
@@ -130,11 +132,14 @@ def configuration(env_file):
 
 def build_plan(*, run_id, source_revision, case_id, api_base, web_base,
                max_seconds, max_case_seconds, max_backend_requests, user_email,
-               settle_seconds=600, poll_seconds=2):
+               settle_seconds=600, poll_seconds=2, original_case_ids=None):
     selection = selected_cases(case_id)
+    budget_selection = selected_cases(original_case_ids) if original_case_ids is not None else selection
+    if any(case not in budget_selection for case in selection):
+        raise EvaluationError('Selected case is outside the original saved campaign')
     if str(UUID(run_id)) != run_id:
         raise EvaluationError('A canonical run UUID is required')
-    for value, maximum in ((max_seconds, 7200 if len(selection) == 1 else 36000),
+    for value, maximum in ((max_seconds, 7200 if len(budget_selection) == 1 else 36000),
                            (max_case_seconds, 7200), (settle_seconds, 1800), (poll_seconds, 30)):
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= maximum:
             raise EvaluationError('Finite positive bounded evaluation times are required')
@@ -166,6 +171,9 @@ class Requests:
         self.client, self.maximum = client, maximum
         self.deadline = time.monotonic() + seconds
         self.case_deadline = self.deadline
+        self.submission_deadline = self.deadline
+        self.revalidation_deadline = None
+        self.read_only = False
         self.reserved = 0
         self.on_reserve = None
 
@@ -185,6 +193,8 @@ class Requests:
         try:
             response = await self.client.request(method, url, timeout=timeout, **kwargs)
             response.raise_for_status()
+            if self.remaining()<=0:
+                raise EvaluationError('Backend request completed after its admission deadline')
             return response.json()
         except httpx.HTTPStatusError as error:
             reason = 'HTTP request failed with status ' + str(error.response.status_code)
@@ -192,6 +202,8 @@ class Requests:
         except httpx.RequestError as error:
             failure_type = type(error).__name__
             reason = 'HTTP request failed (' + failure_type + ')'
+        except EvaluationError:
+            raise
         except ValueError:
             failure_type = 'invalid_json'
             reason = 'HTTP response was not valid JSON'
@@ -329,11 +341,13 @@ class SupabaseAccount:
 
 
 async def backend(requests, account, plan, method, path, **kwargs):
+    if requests.read_only and method!='GET':
+        raise EvaluationError('Read-only completed-case verification cannot mutate or submit another turn')
     return await requests.json(method, plan['api_base'] + memoir_url(path),
         headers=await account.headers(), **kwargs)
 
 
-async def preflight(account, plan):
+async def preflight(account, plan, *, needed_rounds=50):
     requests = account.requests
     config = await backend(requests, account, plan, 'GET', '/v1/agent/config')
     if (config.get('auth_mode') != 'supabase' or base_url(config.get('supabase_url', '')) != account.url
@@ -343,8 +357,9 @@ async def preflight(account, plan):
     if state.get('user_id') != account.user['id'] or state.get('is_anonymous'):
         raise EvaluationError('Backend authenticated owner did not match')
     recall = state.get('recall_status') or {}
-    needed = 50
-    if not recall.get('paid') and recall.get('free_rounds', 0) - recall.get('rounds_completed', 0) < needed:
+    if type(needed_rounds) is not int or not 0 <= needed_rounds <= 50:
+        raise EvaluationError('Verified remaining original rounds are required')
+    if needed_rounds and not recall.get('paid') and recall.get('free_rounds', 0) - recall.get('rounds_completed', 0) < needed_rounds:
         raise EvaluationError('Account allowance is too small; enable EVAL_START_BACKEND=1 for the scoped local test allowance')
     return {'family_features_enabled': state.get('family_features_enabled', False),
             'recall_status': recall, 'backend_auth_mode': config['auth_mode']}
@@ -371,18 +386,23 @@ async def canonical_binding(account, plan, case_id, previous=None):
     return binding
 
 
-async def bind_accounts(requests, plan, settings, accounts, *, create_confirm, previous=None):
+async def bind_accounts(requests, plan, settings, accounts, *, create_confirm, previous=None, origins=None, read_only_cases=()):
     validate_case_bindings(plan)
-    owners = set()
+    owners = {account.verified_owner for case,account in accounts.items() if case not in plan['case_ids']}
     for case_id in plan['case_ids']:
+        if case_id in read_only_cases:set_case_deadline(requests,plan,None,read_only=True)
+        else:set_case_deadline(requests,plan,(origins or {}).get(case_id))
         account = SupabaseAccount(requests, base_url(settings.get('SUPABASE_URL','')),
             settings['SUPABASE_PUBLISHABLE_KEY'], settings.get('SUPABASE_SECRET_KEY') or settings['SUPABASE_SERVICE_ROLE_KEY'])
         accounts[case_id] = account
-        owner = await account.ensure_user(CASE_EMAILS[case_id], create_confirm=create_confirm, allow_create=False)
+        owner = await account.ensure_user(CASE_EMAILS[case_id], create_confirm=create_confirm and case_id not in read_only_cases, allow_create=False)
         if owner in owners:
             raise EvaluationError('Distinct cases resolved to the same Auth owner; no conversation may start')
         owners.add(owner)
-    for case_id, account in accounts.items():
+    for case_id in plan['case_ids']:
+        account=accounts[case_id]
+        if case_id in read_only_cases:set_case_deadline(requests,plan,None,read_only=True)
+        else:set_case_deadline(requests,plan,(origins or {}).get(case_id))
         await account.sign_in()
         plan['cases'][case_id] = await canonical_binding(account, plan, case_id,
             (previous or {}).get('cases', {}).get(case_id) if previous else None)
@@ -461,10 +481,17 @@ async def saved_canonical_checkpoint(account,binding,ordinal,accepted):
     return {'milestone':ordinal,'draft':head,'pages':pages,'readback_protocol':'lifetime_private_draft_pages'}
 
 
-async def start_case_backend(requests, account, plan, settings, backend_lock_fd):
+async def start_case_backend(requests, account, plan, settings, backend_lock_fd, *, ledger, directory, receipt):
     usage = await account.read('/rest/v1/user_recall_usage',
         params={'select':'rounds_completed','user_id':'eq.' + account.verified_owner,'limit':'1'})
-    limit = (int(usage[0]['rounds_completed']) if usage else 0) + 50
+    used = int(usage[0]['rounds_completed']) if usage else 0
+    remaining=50-len(ledger['rounds'])
+    if 'original_recall_round_limit' not in ledger:
+        ledger['original_recall_round_limit']=used+remaining
+        save(directory/'receipt.json',receipt)
+    limit=ledger['original_recall_round_limit']
+    if type(limit) is not int or limit<used:
+        raise EvaluationError('Original case allowance is exhausted or invalid; no replacement allowance')
     environment = {**settings, 'MEMORY_SPARK_EVAL_RECALL_OWNER_ID': account.verified_owner,
         'MEMORY_SPARK_EVAL_RECALL_LIMIT':str(limit), 'SUPABASE_SECRET_KEY':account.secret_key,
         LOCK_FD_ENV:str(backend_lock_fd), 'MEMORY_SPARK_API_PORT':str(urlsplit(plan['api_base']).port or 80)}
@@ -492,55 +519,63 @@ async def wait_for_backend(requests, plan):
     raise EvaluationError('Local backend did not become healthy before its deadline')
 
 
+async def verified_case_ledger(account, plan, directory, receipt, case_id):
+    binding=plan['cases'][case_id]
+    account.assert_owner(binding)
+    project=binding['project_id']
+    case = next((item for item in receipt['evaluation']['cases'] if item['case_id'] == case_id), None)
+    if case is None:
+        case = {'case_id':case_id, 'user_email':binding['user_email'], 'project_id':project,
+            'conversation_id':binding['conversation_id'], 'owner_id':binding['owner_id'],
+            'ui_url':binding['ui_url'], 'status':'running','rounds':[],'checkpoints':[]}
+        receipt['evaluation']['cases'].append(case)
+    if any(case.get(key) != binding[key] for key in ('user_email','owner_id','conversation_id','project_id')):
+        raise EvaluationError('Saved case evidence belongs to a different owner or canonical project')
+    save(directory / 'receipt.json',receipt)
+    initial = await account.rpc('read_user_memory_events',p_project_id=project)
+    readback_shape(initial,binding)
+    inputs = FiftyReadback(case_id=case_id, run_id=plan['run_id'],project_id=project,
+        source_revision=plan['source_revision']).driver_inputs()
+    if not case['rounds'] and (initial['sources'] or initial['completed_rounds'] or initial.get('events')):
+        raise EvaluationError('Canonical history already exists; use its saved resume receipt, never allocate a replacement project')
+    client_ids = set()
+    for index,record in enumerate(case['rounds'],1):
+        if record.get('round') != index or str(UUID(record['client_turn_id'])) != record['client_turn_id'] or record['client_turn_id'] in client_ids:
+            raise EvaluationError('Saved original round/client identity is invalid')
+        client_ids.add(record['client_turn_id'])
+        if not record.get('accepted_source_id'):
+            recovered = await account.rpc('read_lifetime_reply',p_conversation_id=binding['conversation_id'],p_client_turn_id=record['client_turn_id'])
+            if (not isinstance(recovered,dict) or recovered.get('project_id') != project
+                    or recovered.get('client_turn_id') != record['client_turn_id'] or not recovered.get('conversation_saved')
+                    or recovered.get('context_rebuild_required') or not recovered.get('accepted_source_id')
+                    or not isinstance(recovered.get('reply'),str) or not recovered['reply'].strip()):
+                raise EvaluationError('Prior submission cannot be safely recovered; no original input will be resubmitted')
+            record.update(status='delivered',accepted_source_id=recovered['accepted_source_id'],reply=recovered['reply'])
+    if case['rounds']:
+        accepted_ids = [record['accepted_source_id'] for record in case['rounds']]
+        if len(initial['sources']) != len(accepted_ids):
+            raise EvaluationError('Saved receipt/source history differs; preserve it without replay')
+        for index,source in enumerate(initial['sources']):
+            if (source.get('id') != accepted_ids[index] or source.get('project_id') != project
+                    or source.get('text') != inputs['rounds'][index] or source.get('language') != binding['language']
+                    or source.get('kind') != 'narrator_chat' or source.get('status') != 'active' or source.get('version') != 1):
+                raise EvaluationError('Saved source evidence is foreign, changed or outside the original case')
+        for checkpoint in case['checkpoints']:
+            if checkpoint.get('milestone') not in CHECKPOINTS:
+                raise EvaluationError('Saved checkpoint ordinal is invalid')
+            if checkpoint.get('readback_protocol')!='lifetime_private_draft_pages':
+                raise EvaluationError('Resume requires original canonical checkpoint evidence')
+            validate_checkpoint(checkpoint['draft'],checkpoint['pages'],binding,checkpoint['milestone'],accepted_ids[:checkpoint['milestone']])
+    save(directory/'receipt.json',receipt)
+    return case,inputs,initial
+
+
 async def run_cases(accounts, plan, directory, receipt):
     for case_id, binding in plan['cases'].items():
-        account = accounts[case_id]
-        account.assert_owner(binding)
-        requests = account.requests
-        project = binding['project_id']
-        case = next((item for item in receipt['evaluation']['cases'] if item['case_id'] == case_id), None)
-        if case is None:
-            case = {'case_id':case_id, 'user_email':binding['user_email'], 'project_id':project,
-                'conversation_id':binding['conversation_id'], 'owner_id':binding['owner_id'],
-                'ui_url':binding['ui_url'], 'status':'running','rounds':[],'checkpoints':[]}
-            receipt['evaluation']['cases'].append(case)
-        if any(case.get(key) != binding[key] for key in ('user_email','owner_id','conversation_id','project_id')):
-            raise EvaluationError('Saved case evidence belongs to a different owner or canonical project')
-        save(directory / 'receipt.json',receipt)
-        initial = await account.rpc('read_user_memory_events',p_project_id=project)
-        readback_shape(initial,binding)
-        inputs = FiftyReadback(case_id=case_id, run_id=plan['run_id'],project_id=project,
-            source_revision=plan['source_revision']).driver_inputs()
-        if not case['rounds'] and (initial['sources'] or initial['completed_rounds'] or initial.get('events')):
-            raise EvaluationError('Canonical history already exists; use its saved resume receipt, never allocate a replacement project')
-        client_ids = set()
-        for index,record in enumerate(case['rounds'],1):
-            if record.get('round') != index or str(UUID(record['client_turn_id'])) != record['client_turn_id'] or record['client_turn_id'] in client_ids:
-                raise EvaluationError('Saved original round/client identity is invalid')
-            client_ids.add(record['client_turn_id'])
-            if not record.get('accepted_source_id'):
-                recovered = await account.rpc('read_lifetime_reply',p_conversation_id=binding['conversation_id'],p_client_turn_id=record['client_turn_id'])
-                if (not isinstance(recovered,dict) or recovered.get('project_id') != project
-                        or recovered.get('client_turn_id') != record['client_turn_id'] or not recovered.get('conversation_saved')
-                        or recovered.get('context_rebuild_required') or not recovered.get('accepted_source_id')
-                        or not isinstance(recovered.get('reply'),str) or not recovered['reply'].strip()):
-                    raise EvaluationError('Prior submission cannot be safely recovered; no original input will be resubmitted')
-                record.update(status='delivered',accepted_source_id=recovered['accepted_source_id'],reply=recovered['reply'])
-        if case['rounds']:
-            accepted_ids = [record['accepted_source_id'] for record in case['rounds']]
-            if len(initial['sources']) != len(accepted_ids):
-                raise EvaluationError('Saved receipt/source history differs; preserve it without replay')
-            for index,source in enumerate(initial['sources']):
-                if (source.get('id') != accepted_ids[index] or source.get('project_id') != project
-                        or source.get('text') != inputs['rounds'][index] or source.get('language') != binding['language']
-                        or source.get('kind') != 'narrator_chat' or source.get('status') != 'active' or source.get('version') != 1):
-                    raise EvaluationError('Saved source evidence is foreign, changed or outside the original case')
-            for checkpoint in case['checkpoints']:
-                if checkpoint.get('milestone') not in CHECKPOINTS:
-                    raise EvaluationError('Saved checkpoint ordinal is invalid')
-                if checkpoint.get('readback_protocol')!='lifetime_private_draft_pages':
-                    raise EvaluationError('Resume requires original canonical checkpoint evidence')
-                validate_checkpoint(checkpoint['draft'],checkpoint['pages'],binding,checkpoint['milestone'],accepted_ids[:checkpoint['milestone']])
+        account=accounts[case_id]
+        requests=account.requests
+        project=binding['project_id']
+        case,inputs,initial=await verified_case_ledger(account,plan,directory,receipt,case_id)
         accepted = []
         for ordinal, text in enumerate(inputs['rounds'], 1):
             account.assert_owner(binding)
@@ -596,12 +631,24 @@ async def run_cases(accounts, plan, directory, receipt):
         _canonical_state(final_view,inputs,accepted)
         if sorted(item['milestone'] for item in case['checkpoints']) != list(CHECKPOINTS):
             raise EvaluationError('Saved case checkpoints are incomplete; no completed status may be reused')
+        current=await saved_canonical_checkpoint(account,binding,50,accepted)
+        if current is None:
+            raise EvaluationError('Current canonical private draft is pending or updating; saved checkpoints cannot establish current acceptance')
+        final_view=await account.rpc('read_user_memory_events',p_project_id=project)
+        _canonical_state(final_view,inputs,accepted)
+        head=await account.rpc('read_lifetime_private_draft_head',p_project_id=project,p_locale=binding['language'])
+        validate_checkpoint(head,current['pages'],binding,50,accepted)
+        if any(head.get(key)!=current['draft'].get(key) for key in
+                ('snapshot_id','root_digest','revision','source_revision','event_revision','policy_epoch','coverage_round')):
+            raise EvaluationError('Current canonical draft changed during final retrieval; no stale completion may be reused')
+        case['current_checkpoint']={**current,'validated_at_unix':time.time()}
         # Exercise the same authenticated recovery route the UI uses.
         shell = await backend(requests, account, plan, 'GET', '/v1/projects/' + project)
         if (shell.get('id') != project or shell.get('owner_id') != binding['owner_id']
                 or not shell.get('requires_supabase_auth')):
             raise EvaluationError('Normal UI project recovery did not match the retained project')
-        case.update(status='completed', ui_recovery_verified=True)
+        case.update(status='completed', ui_recovery_verified=True, evidence_validated=True, validation_attempt_id=receipt['attempt_id'])
+        case.pop('validation_failure',None)
         save(directory / 'receipt.json', receipt)
 
 
@@ -640,6 +687,61 @@ def load_resume(directory):
     return plan,receipt
 
 
+def budget_contract(plan):
+    return {key:plan[key] for key in BUDGET_FIELDS}
+
+
+def validate_request_counter(plan,receipt,count):
+    previous=receipt.get('request_accounting',{}).get('backend_http_requests_reserved',0)
+    if (type(previous) is not int or not 0 <= previous <= plan['max_backend_requests']
+            or count.get('run_id')!=plan['run_id'] or type(count.get('reserved')) is not int
+            or not previous <= count['reserved'] <= plan['max_backend_requests']):
+        raise EvaluationError('Resume backend request counter is invalid')
+
+
+def completed_submission_ledger(case):
+    rounds=case.get('rounds') if isinstance(case,dict) else None
+    if not isinstance(rounds,list) or len(rounds)!=50:return False
+    return all(record.get('round')==ordinal and record.get('status')=='completed'
+        and record.get('background_settled') is True and isinstance(record.get('accepted_source_id'),str)
+        and record['accepted_source_id'] for ordinal,record in enumerate(rounds,1))
+
+
+def begin_read_only_revalidation(requests,receipt,case_ids):
+    requests.revalidation_deadline=time.monotonic()+READ_ONLY_REVALIDATION_SECONDS
+    receipt.setdefault('read_only_revalidation',[]).append({'attempt_id':receipt['attempt_id'],
+        'case_ids':list(case_ids),'started_at_unix':time.time(),'max_elapsed_seconds':READ_ONLY_REVALIDATION_SECONDS,
+        'reserved_at_start':requests.reserved,'submission_deadlines_reset':False})
+
+
+def set_case_deadline(requests,plan,origin,*,read_only=False):
+    requests.read_only=read_only
+    if read_only:
+        if requests.revalidation_deadline is None:
+            raise EvaluationError('A bounded read-only revalidation phase is required')
+        requests.deadline=requests.case_deadline=requests.revalidation_deadline
+    else:
+        requests.deadline=requests.submission_deadline
+        requests.case_deadline=requests.deadline if origin is None else min(requests.deadline,
+            time.monotonic()+max(0,plan['max_case_elapsed_seconds']-(time.time()-origin)))
+
+
+def validate_resume_budget(plan,previous,receipt):
+    original=receipt.get('budget_contract')
+    if not isinstance(original,dict) or original!=budget_contract(previous) or budget_contract(plan)!=original:
+        raise EvaluationError('Resume must retain all original immutable budget values')
+    started=receipt.get('started_at_unix')
+    origins=receipt.get('case_started_at_unix')
+    now=time.time()
+    if type(started) not in (int,float) or not math.isfinite(started) or started>now:
+        raise EvaluationError('Resume elapsed-time origin is invalid')
+    if not isinstance(origins,dict) or any(case not in previous['cases'] or type(origin) not in (int,float)
+            or not math.isfinite(origin) or not started<=origin<=now for case,origin in origins.items()):
+        raise EvaluationError('Resume case elapsed-time origins are invalid')
+    if any(item.get('rounds') and item['case_id'] not in origins for item in receipt['evaluation']['cases']):
+        raise EvaluationError('Saved case progress has no original elapsed-time origin')
+
+
 async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None):
     with backend_operation_lock() as descriptor:
         return await _execute(plan,directory,settings,start_backend=start_backend,
@@ -652,6 +754,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         directory = output_directory(directory)
         receipt = {'schema_version':'memoir-supabase-evaluation-receipt/2','run_id':plan['run_id'],
             'source_revision':plan['source_revision'],'local_checkout_source':plan['local_checkout_source'],'started_at_unix':time.time(),
+            'budget_contract':budget_contract(plan),'case_started_at_unix':{},
             'status':'incomplete','storage_backend':'remote_supabase','data_retained':True,
             'browser_started':False,'local_postgres_started':False,'execution_started':False,
             'backend_turn_submissions':0,'semantic_acceptance':'human_review_required',
@@ -663,26 +766,36 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
             raise EvaluationError('Resume must retain its run/source/service identities')
         if any(case not in previous['cases'] for case in plan['case_ids']):
             raise EvaluationError('Resume cannot add or reassign an original case')
+        validate_resume_budget(plan,previous,receipt)
+        validate_request_counter(plan,receipt,private_json(directory/'request-counter.json'))
         if receipt.get('stop_reason'):
             receipt.setdefault('previous_failures',[]).append({'reason':receipt.pop('stop_reason'),'summary':receipt['evaluation'].get('failure_summary')})
         receipt['evaluation'].pop('failure_summary',None)
         receipt['evaluation'].pop('failure_stage',None)
         receipt['status'] = receipt['evaluation']['status'] = 'running'
+    receipt['attempt_id']=str(uuid4())
+    receipt['selected_case_status']='incomplete'
+    for case in receipt['evaluation']['cases']:
+        if case['case_id'] in plan['case_ids']:
+            case.update(status='incomplete',evidence_validated=False)
+            if case.get('current_checkpoint'):case['previous_current_checkpoint']=case.pop('current_checkpoint')
     if previous is None:
         save(directory/'plan.json',plan)
     save(directory/'receipt.json',receipt)
+    recorded={case['case_id']:case for case in receipt['evaluation']['cases']}
+    read_only_cases={case for case in plan['case_ids'] if completed_submission_ledger(recorded.get(case))}
     stage,accounts,current_case = 'authentication',{},None
     async with httpx.AsyncClient(follow_redirects=False,trust_env=False) as client:
         requests = Requests(client,plan['max_backend_requests'],plan['max_elapsed_seconds'])
         counter_path=directory/'request-counter.json'
         count=private_json(counter_path) if previous is not None else {'run_id':plan['run_id'],'reserved':0}
-        if count.get('run_id') != plan['run_id'] or type(count.get('reserved')) is not int or not 0 <= count['reserved'] <= plan['max_backend_requests']:
-            raise EvaluationError('Resume backend request counter is invalid')
+        validate_request_counter(plan,receipt,count)
         requests.reserved=count['reserved']
         started=receipt.get('started_at_unix')
         if type(started) not in (int,float) or not math.isfinite(started) or started>time.time():
             raise EvaluationError('Resume elapsed-time origin is invalid')
-        requests.deadline=requests.case_deadline=time.monotonic()+max(0,plan['max_elapsed_seconds']-(time.time()-started))
+        requests.submission_deadline=time.monotonic()+max(0,plan['max_elapsed_seconds']-(time.time()-started))
+        requests.deadline=requests.case_deadline=requests.submission_deadline
         def reserved(count):
             receipt['request_accounting']={'backend_http_requests_reserved':count,'actual_upstream_provider_requests':None,'model_request_ceiling_verified':False}
             save(counter_path,{'run_id':plan['run_id'],'reserved':count})
@@ -690,22 +803,39 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         reserved(requests.reserved)
         try:
             verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
-            await bind_accounts(requests,plan,settings,accounts,create_confirm=create_confirm,previous=previous)
+            if requests.remaining()<=0 and any(case not in read_only_cases for case in plan['case_ids']):
+                raise EvaluationError('Original campaign elapsed-time ceiling reached')
+            for case_id in plan['case_ids']:
+                origin=receipt['case_started_at_unix'].get(case_id)
+                if case_id not in read_only_cases and origin is not None and time.time()-origin>=plan['max_case_elapsed_seconds']:
+                    current_case=case_id
+                    raise EvaluationError('Original case elapsed-time ceiling reached')
+            if read_only_cases:begin_read_only_revalidation(requests,receipt,read_only_cases)
+            await bind_accounts(requests,plan,settings,accounts,create_confirm=create_confirm,previous=previous,origins=receipt['case_started_at_unix'],read_only_cases=read_only_cases)
             stored_plan = plan if previous is None else {**previous,'cases':{**previous['cases'],**plan['cases']},'last_resume_selection':plan['case_ids']}
             save(directory/'plan.json',stored_plan)
             receipt.setdefault('preflight',{})
             for case_id in plan['case_ids']:
                 current_case=case_id
                 account,binding = accounts[case_id],plan['cases'][case_id]
-                requests.case_deadline = min(requests.deadline,time.monotonic()+plan['max_case_elapsed_seconds'])
+                receipt['case_started_at_unix'].setdefault(case_id,time.time())
+                save(directory/'receipt.json',receipt)
+                if case_id in read_only_cases:set_case_deadline(requests,plan,None,read_only=True)
+                else:set_case_deadline(requests,plan,receipt['case_started_at_unix'][case_id])
                 single = {**plan,'case_ids':[case_id],'cases':{case_id:binding}}
+                stage = 'canonical_ledger'
+                ledger,_,_=await verified_case_ledger(account,single,directory,receipt,case_id)
+                needed_rounds=50-len(ledger['rounds'])
                 stage = 'backend_startup'
-                if start_backend:
-                    await start_case_backend(requests,account,single,settings,backend_lock_fd)
+                if start_backend and case_id not in read_only_cases:
+                    await start_case_backend(requests,account,single,settings,backend_lock_fd,ledger=ledger,directory=directory,receipt=receipt)
                 stage = 'backend_preflight'
-                receipt['preflight'][case_id] = await preflight(account,single)
-                shell = await backend(requests,account,single,'POST','/v1/projects',
-                    json={'mode':'self','restore_project_id':binding['project_id'],'language':binding['language']})
+                receipt['preflight'][case_id] = await preflight(account,single,needed_rounds=needed_rounds)
+                if case_id in read_only_cases:
+                    shell=await backend(requests,account,single,'GET','/v1/projects/'+binding['project_id'])
+                else:
+                    shell = await backend(requests,account,single,'POST','/v1/projects',
+                        json={'mode':'self','restore_project_id':binding['project_id'],'language':binding['language']})
                 if (shell.get('id') != binding['project_id'] or shell.get('owner_id') != binding['owner_id']
                         or not shell.get('requires_supabase_auth')):
                     raise EvaluationError('Authenticated canonical project adapter binding differs')
@@ -717,7 +847,30 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                 await run_cases(accounts,single,directory,receipt)
             receipt['selected_case_status'] = 'completed'
             all_cases = (previous or plan)['case_ids']
-            completed = {case['case_id'] for case in receipt['evaluation']['cases'] if case['status'] == 'completed'}
+            recorded={case['case_id']:case for case in receipt['evaluation']['cases']}
+            validated={case for case,item in recorded.items() if item.get('evidence_validated') is True
+                and item.get('validation_attempt_id')==receipt['attempt_id']}
+            missing=[case for case in all_cases if case not in validated]
+            if missing and all(completed_submission_ledger(recorded.get(case)) for case in all_cases):
+                # Only already completed ledgers enter this phase; it cannot submit or restore data.
+                begin_read_only_revalidation(requests,receipt,missing)
+                for case_id in missing:
+                    current_case=case_id
+                    case=recorded[case_id]
+                    case.update(status='incomplete',evidence_validated=False)
+                    if case.get('current_checkpoint'):
+                        case['previous_current_checkpoint']=case.pop('current_checkpoint')
+                    save(directory/'receipt.json',receipt)
+                    single={**previous,'case_ids':[case_id],'cases':{case_id:previous['cases'][case_id]}}
+                    stage='read_only_final_binding'
+                    await bind_accounts(requests,single,settings,accounts,create_confirm=False,previous=previous,
+                        origins=receipt['case_started_at_unix'],read_only_cases={case_id})
+                    read_only_cases.add(case_id)
+                    set_case_deadline(requests,plan,None,read_only=True)
+                    stage='read_only_final_evidence'
+                    await run_cases(accounts,single,directory,receipt)
+            completed = {case['case_id'] for case in receipt['evaluation']['cases'] if case['status'] == 'completed'
+                and case.get('evidence_validated') is True and case.get('validation_attempt_id')==receipt['attempt_id']}
             receipt['status'] = receipt['evaluation']['status'] = 'completed' if set(all_cases) <= completed else 'incomplete'
         except (Exception,asyncio.CancelledError) as error:
             receipt['status'] = receipt['evaluation']['status'] = 'incomplete'
@@ -727,15 +880,16 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
             if isinstance(error,EvaluationError) and error.diagnostic:summary['http_failure']=error.diagnostic
             receipt['evaluation']['failure_summary']=summary
             case=next((item for item in receipt['evaluation']['cases'] if item['case_id']==current_case),None)
-            if case and case['status'] != 'completed':
-                case['status']='incomplete'
+            if case:
+                case.update(status='incomplete',evidence_validated=False,validation_failure=summary)
                 if case['rounds'] and case['rounds'][-1]['status'] != 'completed':
                     case['rounds'][-1].update(status='incomplete',failure_summary=summary)
         finally:
-            requests.case_deadline=requests.deadline
             for case in receipt['evaluation']['cases']:
                 account=accounts.get(case['case_id'])
-                if not account or not account.access_token or not case['rounds']:continue
+                if case['case_id'] in read_only_cases or not account or not account.access_token or not case['rounds']:continue
+                set_case_deadline(requests,plan,receipt['case_started_at_unix'].get(case['case_id']))
+                if requests.remaining()<=0 or requests.reserved>=requests.maximum:continue
                 try:
                     account.assert_owner(plan['cases'][case['case_id']])
                     login_dir=directory/'private-logins'/case['case_id']/str(uuid4())
@@ -743,7 +897,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                         folder.mkdir(mode=0o700,exist_ok=True)
                     path=await account.login_file(login_dir,case['ui_url'])
                     case['ui_login_file']=str(path.relative_to(directory))
-                except Exception:case['ui_login_file']=None
+                except Exception:case.setdefault('ui_login_file',None)
             for account in accounts.values():account.close()
             receipt['request_accounting']={'backend_http_requests_reserved':requests.reserved,
                 'actual_upstream_provider_requests':None,'model_request_ceiling_verified':False}
@@ -778,7 +932,7 @@ def main(argv=None):
     parser.add_argument('--start-backend', action='store_true')
     parser.add_argument('--create-confirmed-test-user', action='store_true')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
-    parser.add_argument('--user-email', default=os.getenv('MEMOIR_EVAL_USER_EMAIL'))
+    parser.add_argument('--user-email')
     parser.add_argument('--case-id', choices=CASE_IDS, action='append')
     parser.add_argument('--resume-dir', type=Path)
     parser.add_argument('--project-id')
@@ -788,10 +942,10 @@ def main(argv=None):
     parser.add_argument('--run-dir', type=Path)
     parser.add_argument('--source-revision')
     parser.add_argument('--max-elapsed-seconds', type=float)
-    parser.add_argument('--max-case-elapsed-seconds', type=float, default=7200)
+    parser.add_argument('--max-case-elapsed-seconds', type=float)
     parser.add_argument('--max-backend-requests', type=int)
-    parser.add_argument('--settle-seconds', type=float, default=600)
-    parser.add_argument('--poll-seconds', type=float, default=2)
+    parser.add_argument('--settle-seconds', type=float)
+    parser.add_argument('--poll-seconds', type=float)
     args = parser.parse_args(argv)
     try:
         run_id = args.run_id or str(uuid4())
@@ -799,6 +953,7 @@ def main(argv=None):
         settings = configuration(args.env_file) if args.execute or args.prepare_user else {}
         email = args.user_email
         if args.prepare_user:
+            email=email or os.getenv('MEMOIR_EVAL_USER_EMAIL')
             chosen = selected_cases(args.case_id) if args.case_id else [next((case for case,value in CASE_EMAILS.items() if value==email),CASE_IDS[0])]
             if len(chosen) != 1 or email is not None and email.casefold() != CASE_EMAILS[chosen[0]]:
                 raise EvaluationError('UI login must select the mapped account for one case')
@@ -811,17 +966,24 @@ def main(argv=None):
             print(json.dumps(result))
             return 0
         if args.resume_dir:
-            retained,_ = load_resume(args.resume_dir)
+            retained,saved_receipt = load_resume(args.resume_dir)
             if args.run_id and args.run_id != retained['run_id']:
                 raise EvaluationError('Resume run UUID differs from saved evidence')
             run_id,directory = retained['run_id'],args.resume_dir
         revision = args.source_revision or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
-        plan = build_plan(run_id=run_id, source_revision=revision, case_id=args.case_id if args.case_id else retained['case_ids'] if args.resume_dir else None,
+        selection=args.case_id or (retained['case_ids'] if args.resume_dir else None)
+        original=retained if args.resume_dir else {}
+        def limit(value,key,default):
+            return value if value is not None else original.get(key,default)
+        plan = build_plan(run_id=run_id, source_revision=revision, case_id=selection,
             api_base=args.api_base, web_base=args.web_base, user_email=email,
-            max_seconds=args.max_elapsed_seconds if args.max_elapsed_seconds is not None else (7200 if len(selected_cases(args.case_id if args.case_id else retained['case_ids'] if args.resume_dir else None))==1 else 36000),
-            max_case_seconds=args.max_case_elapsed_seconds,
-            max_backend_requests=args.max_backend_requests if args.max_backend_requests is not None else (20000 if len(selected_cases(args.case_id if args.case_id else retained['case_ids'] if args.resume_dir else None))==1 else 100000),
-            settle_seconds=args.settle_seconds, poll_seconds=args.poll_seconds)
+            max_seconds=limit(args.max_elapsed_seconds,'max_elapsed_seconds',7200 if len(selected_cases(selection))==1 else 36000),
+            max_case_seconds=limit(args.max_case_elapsed_seconds,'max_case_elapsed_seconds',7200),
+            max_backend_requests=limit(args.max_backend_requests,'max_backend_requests',20000 if len(selected_cases(selection))==1 else 100000),
+            settle_seconds=limit(args.settle_seconds,'settle_seconds',600),poll_seconds=limit(args.poll_seconds,'poll_seconds',2),
+            original_case_ids=original.get('case_ids'))
+        if args.resume_dir:
+            validate_resume_budget(plan,retained,saved_receipt)
         if not args.execute:
             print(json.dumps(plan, sort_keys=True))
             return 0
