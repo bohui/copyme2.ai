@@ -1,6 +1,7 @@
-"""Fictional account-only fixtures; network is forbidden throughout this module."""
+"""Account-only fixtures; network is forbidden throughout this module."""
 import io
 import json
+import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from uuid import UUID
@@ -20,10 +21,11 @@ class FakeAuth:
     def __init__(self, users=()):
         self.users = {user['id']: dict(user) for user in users}
         self.calls, self.writes = [], []
+        self.passwords = {}
         self.pages = None
         self.fail_email = None
         self.commit_before_failure = False
-        self.unexpected_confirmation = False
+        self.refuse_confirmation = False
 
     def request(self, method, path, payload=None):
         self.calls.append((method, path, dict(payload) if payload else None))
@@ -37,14 +39,16 @@ class FakeAuth:
         self.writes.append((method, path, dict(payload)))
         if method == 'POST':
             email = payload['email']; user = record(m.ACCOUNTS.index(email), email)
-            if self.unexpected_confirmation:
-                user['email_confirmed_at'] = 'unexpected-confirmation'
-            if email != self.fail_email or self.commit_before_failure:
-                self.users[user['id']] = user
-            if email == self.fail_email:
-                raise m.SetupError('Sanitized mocked transport failure.')
-            return dict(user)
-        return dict(self.users[path.rsplit('/', 1)[-1]])
+        else:
+            user = dict(self.users[path.rsplit('/', 1)[-1]])
+            email = user['email']
+        user['email_confirmed_at'] = None if self.refuse_confirmation else 'confirmed'
+        if email != self.fail_email or self.commit_before_failure:
+            self.users[user['id']] = user
+            self.passwords[user['id']] = payload['password']
+        if email == self.fail_email:
+            raise m.SetupError('Sanitized mocked transport failure.')
+        return dict(user)
 
 
 @pytest.fixture(autouse=True)
@@ -54,38 +58,50 @@ def prevent_network(monkeypatch):
     monkeypatch.setattr('urllib.request.OpenerDirector.open', forbidden)
 
 
-def apply(api, password=None, **kwargs):
+def apply(api):
     operations = m.plan(m.list_accounts(api))
-    return m.apply(api, operations, interactive=True,
-        confirm=lambda prompt: m.CONFIRMATION,
-        read_password=password or (lambda email: MOCK_PASSWORD), **kwargs)
+    return m.apply(api, operations)
 
 
 def test_exact_scope_and_post_truncate_restore():
     api = FakeAuth()
     result = apply(api)
     assert [row['email'] for row in result] == list(m.ACCOUNTS)
-    assert all(row['status'] == 'created_unconfirmed' and not row['email_confirmed'] for row in result)
+    assert all(row['status'] == 'created_confirmed' and row['email_confirmed'] for row in result)
     assert len(api.writes) == 5
-    assert all(body == {'email': email, 'password': MOCK_PASSWORD, 'email_confirm': False}
+    assert all(body == {'email': email, 'password': 'test1234', 'email_confirm': True}
                for (method, path, body), email in zip(api.writes, m.ACCOUNTS))
     assert all(path.startswith('/admin/users') for method, path, payload in api.calls)
 
 
-def test_prepared_rerun_keeps_passwords_and_existing_state():
+def test_rerun_preserves_identities_metadata_and_fixed_credentials():
     users = [record(i, confirmed=True) for i in range(5)]
-    api = FakeAuth(users); before = dict(api.users)
-    result = apply(api, password=lambda email: pytest.fail('No password should be requested.'))
-    assert len(result) == 5 and not api.writes and api.users == before
-    assert all(row['status'] == 'unchanged' for row in result)
+    for user in users:
+        user['app_metadata'] = {'retained': True}
+        user['user_metadata'] = {'name': 'Existing test owner'}
+    api = FakeAuth(users)
+    before = {identifier: {key: value for key, value in user.items() if key != 'email_confirmed_at'}
+              for identifier, user in api.users.items()}
+    api.passwords = {user['id']: 'old-test-password' for user in users}
+    result = apply(api)
+    assert len(result) == 5
+    assert {identifier: {key: value for key, value in user.items() if key != 'email_confirmed_at'}
+            for identifier, user in api.users.items()} == before
+    assert all(row['status'] == 'configured_existing' for row in result)
+    assert set(api.passwords.values()) == {'test1234'}
+    after = dict(api.users), dict(api.passwords)
+    apply(api)
+    assert (api.users, api.passwords) == after
+    assert len(api.users) == 5 and all(method == 'PUT' for method, _, _ in api.writes)
 
 
 def test_partial_missing_accounts_only_are_created():
     api = FakeAuth([record(0), record(3)])
     result = apply(api)
-    assert len(api.writes) == 3
-    assert [body['email'] for method, path, body in api.writes] == [m.ACCOUNTS[i] for i in (1, 2, 4)]
-    assert result[0]['status'] == result[3]['status'] == 'unchanged'
+    creations = [body['email'] for method, path, body in api.writes if method == 'POST']
+    assert creations == [m.ACCOUNTS[i] for i in (1, 2, 4)]
+    assert result[0]['status'] == result[3]['status'] == 'configured_existing'
+    assert all(user['email_confirmed_at'] for user in api.users.values())
 
 
 def test_complete_pagination_does_not_stop_at_a_short_page():
@@ -122,45 +138,32 @@ def test_malformed_and_unsafe_selected_identities_are_rejected():
         m.list_accounts(api)
 
 
-def test_wrong_confirmation_precedes_password_and_mutation():
-    api = FakeAuth()
-    with pytest.raises(m.SetupError, match='confirmation'):
-        m.apply(api, m.plan({}), interactive=True, confirm=lambda prompt: 'no',
-                read_password=lambda email: pytest.fail('Should not prompt.'))
-    assert not api.writes
-
-
-def test_empty_password_never_reaches_auth():
-    api = FakeAuth()
-    with pytest.raises(m.PartialFailure) as error:
-        apply(api, password=lambda email: '')
-    assert not api.writes
-    assert error.value.current['status'] == 'no_write_password_input_failed'
-
-
-def test_hidden_prompt_repeats_and_rejects_mismatch(monkeypatch):
-    values = iter([MOCK_PASSWORD, 'different-mock-password'])
-    monkeypatch.setattr(m.getpass, 'getpass', lambda prompt: next(values))
-    with pytest.raises(m.SetupError, match='do not match'):
-        m.hidden_password(m.ACCOUNTS[0])
-
-
-def test_echo_fallback_refused(monkeypatch):
-    def unsafe(prompt):
-        import warnings
-        warnings.warn('Would echo input.', m.getpass.GetPassWarning)
-    monkeypatch.setattr(m.getpass, 'getpass', unsafe)
-    with pytest.raises(m.SetupError, match='Hidden password'):
-        m.hidden_password(m.ACCOUNTS[0])
-
-
-def test_concurrent_creation_is_kept_without_password_reset():
+def test_concurrent_creation_reuses_the_account_with_fixed_credentials():
     api = FakeAuth(); operations = m.plan({})
     api.users[record()['id']] = record()
-    result = m.apply(api, operations, interactive=True, confirm=lambda p: m.CONFIRMATION,
-                     read_password=lambda email: MOCK_PASSWORD)
-    assert result[0]['status'] == 'already_exists_password_unchanged'
-    assert len(api.writes) == 4 and all(body['email'] != m.ACCOUNTS[0] for _, _, body in api.writes)
+    result = m.apply(api, operations)
+    assert result[0]['status'] == 'configured_existing'
+    assert sum(method == 'POST' for method, _, _ in api.writes) == 4
+    assert api.passwords[record()['id']] == 'test1234'
+
+
+def test_changed_existing_identity_stops_before_writes():
+    api = FakeAuth([record()]); operations = m.plan(m.list_accounts(api))
+    replacement = record(10, m.ACCOUNTS[0])
+    api.users = {replacement['id']: replacement}
+    with pytest.raises(m.PartialFailure) as error:
+        m.apply(api, operations)
+    assert error.value.current['status'] == 'identity_changed_no_write'
+    assert not api.writes
+
+
+@pytest.mark.parametrize('operations', [m.plan({})[:-1], m.plan({}) + [m.plan({})[0]],
+    [{'email': 'unrelated@example.invalid', 'action': 'create_confirmed'}]])
+def test_incomplete_or_foreign_scope_stops_before_network(operations):
+    api = FakeAuth()
+    with pytest.raises(m.SetupError):
+        m.apply(api, operations)
+    assert not api.calls
 
 
 def test_partial_failure_stops_later_accounts_and_never_retries():
@@ -180,8 +183,8 @@ def test_uncertain_success_reconciles_existence_without_repeating_write():
     assert 'password' not in error.value.current
 
 
-def test_unexpected_admin_confirmation_stops_without_more_writes():
-    api = FakeAuth(); api.unexpected_confirmation = True
+def test_unconfirmed_readback_stops_without_more_writes():
+    api = FakeAuth(); api.refuse_confirmation = True
     with pytest.raises(m.PartialFailure):
         apply(api)
     assert len(api.writes) == 1
@@ -231,7 +234,7 @@ class ErrorOpener:
     HTTPError(m.ORIGIN, 302, 'private redirect', {'Location': 'https://evil.invalid'}, None)
 ])
 def test_transport_errors_are_sanitized_and_payload_cleared(error):
-    api = m.Auth(MOCK_KEY, ErrorOpener(error)); payload = {'email': m.ACCOUNTS[0], 'password': MOCK_PASSWORD, 'email_confirm': False}
+    api = m.Auth(MOCK_KEY, ErrorOpener(error)); payload = {'email': m.ACCOUNTS[0], 'password': m.TEST_PASSWORD, 'email_confirm': True}
     with pytest.raises(m.SetupError) as failure:
         api.request('POST', '/admin/users', payload)
     assert MOCK_PASSWORD not in str(failure.value) and MOCK_KEY not in str(failure.value)
@@ -244,10 +247,12 @@ def test_auth_sessions_email_and_foreign_routes_are_not_supported(path):
         m.Auth(MOCK_KEY).request('POST', path, {})
 
 
-def test_creation_never_omits_password_or_enables_confirmation():
-    for payload in [{'email': m.ACCOUNTS[0], 'email_confirm': False},
-                    {'email': m.ACCOUNTS[0], 'password': MOCK_PASSWORD, 'email_confirm': True}]:
-        with pytest.raises(m.SetupError, match='human password'):
+def test_creation_requires_fixed_password_and_confirmation():
+    for payload in [{'email': m.ACCOUNTS[0], 'email_confirm': True},
+                    {'email': m.ACCOUNTS[0], 'password': MOCK_PASSWORD, 'email_confirm': True},
+                    {'email': m.ACCOUNTS[0], 'password': m.TEST_PASSWORD, 'email_confirm': False},
+                    {'email': 'unrelated@example.invalid', 'password': m.TEST_PASSWORD, 'email_confirm': True}]:
+        with pytest.raises(m.SetupError, match='confirmed test credentials'):
             m.Auth(MOCK_KEY).request('POST', '/admin/users', payload)
 
 
@@ -256,12 +261,23 @@ def cli_mocks(monkeypatch, api):
     monkeypatch.setattr(m, 'Auth', lambda key: api)
 
 
+def test_cli_missing_accounts_are_prepared_without_interactive_input(monkeypatch, capsys):
+    api = FakeAuth(); cli_mocks(monkeypatch, api)
+    monkeypatch.setattr(sys.stdin, 'isatty', lambda: False)
+    monkeypatch.setattr('builtins.input', lambda _: pytest.fail('Setup prompted for input.'))
+    assert m.main(['--apply']) == 0
+    assert len(api.users) == 5
+    assert all(body['password'] == 'test1234' and body['email_confirm'] is True
+               for _, _, body in api.writes)
+    assert 'account_setup_complete' in capsys.readouterr().out
+
+
 def test_cli_defaults_to_readonly_plan(monkeypatch, capsys):
     api = FakeAuth(); cli_mocks(monkeypatch, api)
     monkeypatch.setattr(m, 'apply', lambda *a, **k: pytest.fail('Dry-run attempted apply.'))
     assert m.main([]) == 0
     output = capsys.readouterr().out
-    assert 'dry_run' in output and 'create_unconfirmed' in output
+    assert 'dry_run' in output and 'create_confirmed' in output
     assert MOCK_KEY not in output and not api.writes
 
 
@@ -274,7 +290,7 @@ def test_cli_argument_errors_never_echo_accidental_secret(capsys):
 def test_cli_partial_failure_output_contains_no_password_or_key(monkeypatch, capsys):
     api = FakeAuth(); cli_mocks(monkeypatch, api)
     def failed(*a):
-        raise m.PartialFailure([{'email': m.ACCOUNTS[0], 'status': 'created_unconfirmed'}],
+        raise m.PartialFailure([{'email': m.ACCOUNTS[0], 'status': 'created_confirmed'}],
                               {'email': m.ACCOUNTS[1], 'status': 'not_verified'})
     monkeypatch.setattr(m, 'apply', failed)
     assert m.main(['--apply']) == 1
@@ -295,38 +311,58 @@ def test_inventory_failure_after_success_reports_partial_results():
     assert error.value.current['status'] == 'inventory_recheck_failed_no_write'
 
 
-def test_human_cancel_after_success_reports_partial_without_more_writes():
-    api = FakeAuth()
-    def entered(email):
-        if email == m.ACCOUNTS[1]:raise EOFError()
-        return MOCK_PASSWORD
+def test_interruption_after_success_reports_partial_without_more_writes():
+    api = FakeAuth(); original = api.request
+    def interrupted(method, path, payload=None):
+        if method == 'POST' and payload['email'] == m.ACCOUNTS[1]:
+            raise KeyboardInterrupt()
+        return original(method, path, payload)
+    api.request = interrupted
     with pytest.raises(m.PartialFailure) as error:
-        apply(api, password=entered)
+        apply(api)
     assert len(api.writes) == 1 and len(error.value.results) == 1
-    assert error.value.current['status'] == 'input_cancelled_no_write'
+    assert error.value.current['status'] == 'interrupted_write_status_unknown'
 
 
-def test_existing_accounts_work_without_interactive_input_or_approval():
-    api=FakeAuth([record(i) for i in range(5)])
-    results=m.apply(api,m.plan(m.list_accounts(api)),interactive=False,
-        confirm=lambda _:pytest.fail('Ready accounts asked for approval.'),
-        read_password=lambda _:pytest.fail('Ready accounts asked for passwords.'))
-    assert all(row['status']=='unchanged' for row in results) and not api.writes
+@pytest.mark.parametrize('payload', [{'password': m.TEST_PASSWORD}, {'email_confirm': True},
+    {'password': MOCK_PASSWORD, 'email_confirm': True},
+    {'password': m.TEST_PASSWORD, 'email_confirm': True, 'app_metadata': {}},
+    {'password': m.TEST_PASSWORD, 'email_confirm': False}])
+def test_updates_only_accept_the_fixed_test_credentials(payload):
+    with pytest.raises(m.SetupError, match='confirmed test credentials'):
+        m.Auth(MOCK_KEY).request('PUT', '/admin/users/' + str(UUID(int=1)), payload)
 
 
-def test_missing_accounts_without_tty_stop_before_credentials_and_writes():
-    api=FakeAuth()
-    with pytest.raises(m.SetupError,match='interactive'):
-        m.apply(api,m.plan({}),interactive=False,read_password=lambda _:pytest.fail('Password requested.'))
-    assert not api.calls and not api.writes
+class RecordingOpener:
+    def __init__(self, user):
+        self.user, self.calls = user, []
+
+    def open(self, request, timeout):
+        self.calls.append(request)
+        return io.BytesIO(json.dumps(self.user).encode())
 
 
-@pytest.mark.parametrize('method,path,payload',[
-    ('PUT','/admin/users/'+str(UUID(int=1)),{'password':MOCK_PASSWORD}),
-    ('PUT','/admin/users/'+str(UUID(int=1)),{'email_confirm':True}),
-    ('DELETE','/admin/users/'+str(UUID(int=1)),None)])
-def test_account_only_transport_cannot_update_or_delete(method,path,payload):
-    with pytest.raises(m.SetupError,match='endpoint'):m.Auth(MOCK_KEY).request(method,path,payload)
+def test_update_checks_allowlisted_identity_before_submitting_credentials():
+    opener = RecordingOpener(record(confirmed=True))
+    payload = {'password': m.TEST_PASSWORD, 'email_confirm': True}
+    m.Auth(MOCK_KEY, opener).request('PUT', '/admin/users/' + record()['id'], payload)
+    assert [request.method for request in opener.calls] == ['GET', 'PUT']
+    assert json.loads(opener.calls[1].data) == {'password': 'test1234', 'email_confirm': True}
+    assert payload == {}
+
+
+@pytest.mark.parametrize('user', [record(email='unrelated@example.invalid'), record(1)])
+def test_update_refuses_unrelated_or_mismatched_identity(user):
+    opener = RecordingOpener(user)
+    with pytest.raises(m.SetupError):
+        m.Auth(MOCK_KEY, opener).request('PUT', '/admin/users/' + record()['id'],
+            {'password': m.TEST_PASSWORD, 'email_confirm': True})
+    assert [request.method for request in opener.calls] == ['GET']
+
+
+def test_deletion_remains_unsupported():
+    with pytest.raises(m.SetupError, match='endpoint'):
+        m.Auth(MOCK_KEY).request('DELETE', '/admin/users/' + record()['id'])
 
 
 def test_narrow_cli_rejects_removed_actions_without_loading_credentials(monkeypatch,capsys):
@@ -336,11 +372,11 @@ def test_narrow_cli_rejects_removed_actions_without_loading_credentials(monkeypa
     assert MOCK_PASSWORD not in capsys.readouterr().err
 
 
-def test_cli_existing_accounts_finish_with_only_reads_and_no_tty(monkeypatch,capsys):
+def test_cli_existing_accounts_finish_without_prompts(monkeypatch,capsys):
     api=FakeAuth([record(i) for i in range(5)]);cli_mocks(monkeypatch,api)
-    monkeypatch.setattr(m.sys.stdin,'isatty',lambda:False)
-    monkeypatch.setattr(m.getpass,'getpass',lambda _:pytest.fail('Existing user prompted.'))
-    assert m.main(['--apply'])==0 and not api.writes
+    monkeypatch.setattr(sys.stdin,'isatty',lambda:False)
+    monkeypatch.setattr('builtins.input',lambda _:pytest.fail('Existing user prompted.'))
+    assert m.main(['--apply'])==0 and len(api.writes)==5
     assert 'account_setup_complete' in capsys.readouterr().out
 
 
@@ -349,10 +385,10 @@ def test_final_inventory_failure_stops_after_success_without_repeating_writes(mo
     original=m.list_accounts
     def inventory(current):
         count[0]+=1
-        if count[0]>1:raise m.SetupError('Offline final inventory failure.')
+        if count[0]>6:raise m.SetupError('Offline final inventory failure.')
         return original(current)
     monkeypatch.setattr(m,'list_accounts',inventory)
-    assert m.main(['--apply'])==1 and not api.writes
+    assert m.main(['--apply'])==1 and len(api.writes)==5
     assert 'final_inventory_unavailable_no_retry' in capsys.readouterr().out
 
 

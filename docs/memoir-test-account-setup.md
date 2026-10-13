@@ -11,23 +11,24 @@ make memoir-live-fifty-test EVAL_CASE_ID=harbour-copper-notebook
 
 The setup covers exactly `test@test.com`, `test2@test.com`, `test3@test.com`,
 `test4@test.com`, and `test5@test.com` in project `vpzhimeqmuzyzfozcjnq`.
-Existing accounts are reused. The setup never resets a password, deletes data,
-changes existing confirmation flags, signs in, sends email, or creates login links.
-If all five exist, it performs reads only and needs no interactive input.
+All five use password `test1234` and have confirmed email addresses, so they can
+sign in immediately. Setup runs unattended: no approval phrase or password input.
+It creates missing accounts and updates existing accounts in place with the same
+test password and email confirmation. Each run enforces these credentials;
+existing IDs, metadata and application data are preserved. It never signs in,
+sends email, deletes accounts or creates login links.
 
-If an account is missing, the human must use an interactive terminal, type
-`APPLY vpzhimeqmuzyzfozcjnq FIVE TEST ACCOUNTS`, and enter each missing user's
-password twice through hidden input. New users are created unconfirmed.
-Refused approval, unavailable hidden input, cancellation, or an uncertain write
-stops setup and prevents the test recipe from starting. Earlier successful
-creations remain; the next invocation rechecks the inventory and reuses them.
-No password can be passed through arguments, environment variables or files.
+Reruns reuse the same five identities, including accounts created during a
+partially completed setup. A failed or uncertain write stops setup and prevents
+the test recipe from starting; it is reconciled by reading the inventory and is
+not retried within that invocation. No password override is accepted through
+arguments, environment variables or files.
 
 Standalone commands:
 
 ```sh
 make memoir-test-accounts-plan   # Read-only inventory and proposed actions.
-make memoir-test-accounts-setup  # Human-approved creation of missing users only.
+make memoir-test-accounts-setup  # Ensure the five confirmed test accounts, without prompts.
 ```
 
 Use the existing private `ENV_FILE` (default `.env`), owned by the current user
@@ -40,9 +41,17 @@ If needed, select an existing Python environment containing `python-dotenv`:
 make memoir-live-fifty-test MEMOIR_TEST_ACCOUNTS_PYTHON=/absolute/path/to/python
 ```
 
-The live runner uses a fixed case-to-account mapping: harbour → `test@test.com`,
-chengdu → `test2@test.com`, perth → `test3@test.com`, kunming → `test4@test.com`,
-sydney → `test5@test.com`. It verifies distinct owners and each case's session
+The live runner uses a fixed case-to-account mapping:
+
+| Case ID | Account | Password |
+| --- | --- | --- |
+| harbour-copper-notebook | test@test.com | test1234 |
+| chengdu-tea-ledger | test2@test.com | test1234 |
+| perth-workshop-compass | test3@test.com | test1234 |
+| kunming-garden-lanterns | test4@test.com | test1234 |
+| sydney-platform-letters | test5@test.com | test1234 |
+
+It verifies distinct owners and each case's session
 and canonical project. See `docs/memoir-fifty-subscription-evaluation.md` for
 canonical reuse, resume, per-case login files and manual execution. The setup
 prerequisite remains account-only and is not evidence that runtime/schema or

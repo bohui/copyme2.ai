@@ -190,6 +190,7 @@ class Requests:
         timeout = min(kwargs.pop('timeout', 30), remaining)
         started = time.monotonic()
         response = None
+        error_code = None
         try:
             response = await self.client.request(method, url, timeout=timeout, **kwargs)
             response.raise_for_status()
@@ -199,6 +200,16 @@ class Requests:
         except httpx.HTTPStatusError as error:
             reason = 'HTTP request failed with status ' + str(error.response.status_code)
             failure_type = 'HTTPStatusError'
+            if urlsplit(url).path == '/rest/v1/rpc/resolve_lifetime_conversation':
+                try:
+                    database_error = error.response.json()
+                except ValueError:
+                    database_error = None
+                if (isinstance(database_error, dict) and database_error.get('code') == '55000'
+                        and database_error.get('message') == 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'):
+                    error_code = 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'
+                    reason = ('Canonical evaluation requires operator realtime clearance; '
+                              'follow docs/lifetime-memory-integration.md before retrying')
         except httpx.RequestError as error:
             failure_type = type(error).__name__
             reason = 'HTTP request failed (' + failure_type + ')'
@@ -207,13 +218,16 @@ class Requests:
         except ValueError:
             failure_type = 'invalid_json'
             reason = 'HTTP response was not valid JSON'
-        # Record only transport metadata; exception text, bodies and URL query
-        # strings can contain private testimony or authentication credentials.
-        raise EvaluationError(reason, diagnostic={
+        # Only this exact public gate code may supplement transport metadata.
+        # Other bodies, exception text and query strings remain private.
+        diagnostic = {
             'failure_type': failure_type, 'method': method, 'path': urlsplit(url).path,
             'http_status': response.status_code if response is not None else None,
             'elapsed_ms': max(0, round((time.monotonic() - started) * 1000)),
-        }) from None
+        }
+        if error_code is not None:
+            diagnostic['error_code'] = error_code
+        raise EvaluationError(reason, diagnostic=diagnostic) from None
 
 
 @dataclass
@@ -482,6 +496,13 @@ async def saved_canonical_checkpoint(account,binding,ordinal,accepted):
 
 
 async def start_case_backend(requests, account, plan, settings, backend_lock_fd, *, ledger, directory, receipt):
+    publication_url = settings.get('MEMOIR_PUBLICATION_DATABASE_URL') or settings.get('SUPABASE_DB_URL')
+    if not isinstance(publication_url, str) or not publication_url.strip():
+        raise EvaluationError('Canonical evaluation requires a publication database connection in MEMOIR_PUBLICATION_DATABASE_URL or SUPABASE_DB_URL')
+    if str(settings.get('MEMOIR_LIFETIME_MEMORY') or '1').lower() not in {'1', 'true', 'yes'}:
+        raise EvaluationError('Local canonical generation is disabled; review MEMOIR_LIFETIME_MEMORY before running the evaluation')
+    if str(settings.get('MEMOIR_LIFETIME_GENERATION_PAUSED') or '0').lower() in {'1', 'true', 'yes'}:
+        raise EvaluationError('Local canonical generation is paused; review MEMOIR_LIFETIME_GENERATION_PAUSED before running the evaluation')
     usage = await account.read('/rest/v1/user_recall_usage',
         params={'select':'rounds_completed','user_id':'eq.' + account.verified_owner,'limit':'1'})
     used = int(usage[0]['rounds_completed']) if usage else 0
@@ -494,6 +515,7 @@ async def start_case_backend(requests, account, plan, settings, backend_lock_fd,
         raise EvaluationError('Original case allowance is exhausted or invalid; no replacement allowance')
     environment = {**settings, 'MEMORY_SPARK_EVAL_RECALL_OWNER_ID': account.verified_owner,
         'MEMORY_SPARK_EVAL_RECALL_LIMIT':str(limit), 'SUPABASE_SECRET_KEY':account.secret_key,
+        'MEMOIR_LIFETIME_MEMORY':'1', 'MEMOIR_PUBLICATION_DATABASE_URL':publication_url,
         LOCK_FD_ENV:str(backend_lock_fd), 'MEMORY_SPARK_API_PORT':str(urlsplit(plan['api_base']).port or 80)}
     if urlsplit(plan['api_base']).hostname not in {'localhost','127.0.0.1'}:
         raise EvaluationError('Automatic backend startup requires a local API origin')

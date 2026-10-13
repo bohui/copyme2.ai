@@ -154,6 +154,13 @@ test('per-case reports bind account identity and private login path, including f
     ui_login_file: `private-logins/${id}/11111111-1111-4111-8111-111111111111/ui-login.html` }];
   const report = renderReport(plan, receipt);
   assert.match(report, /test@test.com/); assert.match(report, /test2@test.com/);
+  assert.match(report, /Family features available: unknown/);
+  receipt.preflight = {
+    [caseIds[0]]: { family_features_enabled: false },
+    [caseIds[1]]: { family_features_enabled: true },
+  };
+  assert.match(renderReport(plan, receipt), /Family features available: harbour-copper-notebook: false; chengdu-tea-ledger: true/);
+  assert.doesNotMatch(renderReport(plan, receipt), /\[object Object\]/);
   assert.match(report, /private-logins\/harbour-copper-notebook/);
   receipt.evaluation.cases[0].owner_id = 'foreign-owner';
   assert.throws(() => renderReport(plan, receipt), /account identity/);

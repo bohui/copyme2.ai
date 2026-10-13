@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""Human-run Auth bootstrap; default is complete, read-only account planning."""
+"""Provision the five fixed evaluation accounts; default is read-only planning."""
 import argparse
-import getpass
 import io
 import json
 import os
 from pathlib import Path
 import re
 import stat
-import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 from uuid import UUID
-import warnings
 
 PROJECT_REF = 'vpzhimeqmuzyzfozcjnq'
 ORIGIN = 'https://' + PROJECT_REF + '.supabase.co'
 ACCOUNTS = ('test@test.com', 'test2@test.com', 'test3@test.com', 'test4@test.com', 'test5@test.com')
+# These dedicated evaluation accounts always use the user-requested test password.
+TEST_PASSWORD = 'test1234'
 PAGE_SIZE = 100
 MAX_PAGES = 1000
-CONFIRMATION = 'APPLY ' + PROJECT_REF + ' FIVE TEST ACCOUNTS'
 
 
 class SetupError(Exception):
@@ -71,11 +69,19 @@ class Auth:
         allowed = (method == 'GET' and (re.fullmatch(r'/admin/users\?page=\d+&per_page=100', path)
                    or re.fullmatch(r'/admin/users/[a-f0-9-]{36}', path)))
         allowed = allowed or method == 'POST' and path == '/admin/users'
+        allowed = allowed or method == 'PUT' and re.fullmatch(r'/admin/users/[a-f0-9-]{36}', path)
         if not allowed:
             raise SetupError('Auth endpoint is outside the account-only allowlist.')
         if method == 'POST' and (set(payload or {}) != {'email', 'password', 'email_confirm'}
-                or payload['email'] not in ACCOUNTS or payload['email_confirm'] is not False or not payload['password']):
-            raise SetupError('Creation must use an allowlisted address, a human password and email_confirm=false.')
+                or payload['email'] not in ACCOUNTS or payload['email_confirm'] is not True or payload['password'] != TEST_PASSWORD):
+            raise SetupError('Creation must use an allowlisted address and the confirmed test credentials.')
+        if method == 'PUT':
+            if set(payload or {}) != {'password', 'email_confirm'} or payload['password'] != TEST_PASSWORD or payload['email_confirm'] is not True:
+                raise SetupError('Updates may only set the confirmed test credentials.')
+            # Never use a supplied UUID to change an unrelated user's credentials.
+            current = user_record(self.request('GET', path))
+            if current['id'] != path.rsplit('/', 1)[-1]:
+                raise SetupError('Account identity changed before its credential update.')
         data = json.dumps(payload).encode() if payload is not None else None
         request = Request(ORIGIN + '/auth/v1' + path, data=data, method=method,
             headers={'apikey': self._key, 'Authorization': 'Bearer ' + self._key,
@@ -138,75 +144,51 @@ def list_accounts(api):
 
 
 def plan(accounts):
-    return [{'email': email, 'action': 'create_unconfirmed' if email not in accounts else 'keep',
+    return [{'email': email, 'action': 'create_confirmed' if email not in accounts else 'configure_test_credentials',
              **accounts.get(email, {})} for email in ACCOUNTS]
 
 
-def hidden_password(email):
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter('error', getpass.GetPassWarning)
-            first = getpass.getpass('New password for ' + email + ' (hidden): ')
-            second = getpass.getpass('Repeat password (hidden): ')
-        if not first or first.isspace() or '\x00' in first or first != second:
-            raise SetupError('Passwords are empty/invalid or do not match; nothing was submitted for this account.')
-        return first
-    except getpass.GetPassWarning:
-        raise SetupError('Hidden password input is unavailable; use an interactive terminal.') from None
-
-
-def apply(api, operations, *, read_password=hidden_password, confirm=input, interactive=None):
-    if any(item.get('action') not in {'keep', 'create_unconfirmed'} or item.get('email') not in ACCOUNTS for item in operations):
-        raise SetupError('Only keeping or creating the five test accounts is supported.')
-    interactive = sys.stdin.isatty() and sys.stderr.isatty() if interactive is None else interactive
-    if not any(item['action'] != 'keep' for item in operations):
-        return [{**item, 'status': 'unchanged'} for item in operations]
-    if not interactive:
-        raise SetupError('Apply requires the human in an interactive terminal; piped credential input is refused.')
-    if confirm('Type ' + CONFIRMATION + ' to authorize these Auth changes: ') != CONFIRMATION:
-        raise SetupError('Apply confirmation did not match; no credentials were requested or submitted.')
+def apply(api, operations):
+    if (len(operations) != len(ACCOUNTS) or {item.get('email') for item in operations} != set(ACCOUNTS)
+            or any(item.get('action') not in {'configure_test_credentials', 'create_confirmed'} for item in operations)):
+        raise SetupError('Only configuring the five test accounts is supported.')
     results = []
     for operation in operations:
-        email, action = operation['email'], operation['action']
-        if action == 'keep':
-            results.append({**operation, 'status': 'unchanged'})
-            continue
+        email = operation['email']
         try:
             current = list_accounts(api).get(email)
         except SetupError:
             raise PartialFailure(results, {'email': email, 'status': 'inventory_recheck_failed_no_write'}) from None
-        if action == 'create_unconfirmed' and current is not None:
-            results.append({**current, 'status': 'already_exists_password_unchanged'})
-            continue
+        if operation.get('id') and (current is None or current['id'] != operation['id']):
+            raise PartialFailure(results, {'email': email, 'status': 'identity_changed_no_write'})
         write_started = False
         try:
-            password = read_password(email)
-            if not isinstance(password, str) or not password or password.isspace() or '\x00' in password:
-                raise SetupError('A nonempty human-entered password is required.')
-            try:
-                write_started = True
-                value = api.request('POST', '/admin/users', {'email': email, 'password': password, 'email_confirm': False})
-            finally:
-                del password
+            write_started = True
+            if current is None:
+                value = api.request('POST', '/admin/users', {'email': email, 'password': TEST_PASSWORD, 'email_confirm': True})
+            else:
+                value = api.request('PUT', '/admin/users/' + current['id'], {'password': TEST_PASSWORD, 'email_confirm': True})
             observed = user_record(value, email)
+            if current is not None and observed['id'] != current['id']:
+                raise SetupError('Existing account identity changed; stop before further writes.')
             verified = user_record(api.request('GET', '/admin/users/' + observed['id']), email)
             if verified['id'] != observed['id']:
                 raise SetupError('Account readback did not match; stop before further writes.')
-            if action == 'create_unconfirmed' and verified['email_confirmed']:
-                raise SetupError('New account unexpectedly confirmed; stop and inspect without more writes.')
-            results.append({**verified, 'status': 'created_unconfirmed'})
+            if not verified['email_confirmed']:
+                raise SetupError('Test account is unconfirmed; stop before further writes.')
+            results.append({**verified, 'status': 'created_confirmed' if current is None else 'configured_existing'})
         except (KeyboardInterrupt, EOFError):
             raise PartialFailure(results, {'email': email, 'status': 'interrupted_write_status_unknown' if write_started
-                                          else 'input_cancelled_no_write'}) from None
+                                          else 'interrupted_no_write'}) from None
         except SetupError:
             # A timeout may hide a successful write. Reconcile existence only,
-            # never repeat a password write or claim the password was verified.
+            # never repeat the write or claim the password was verified.
             observed = None
             try:
                 observed = list_accounts(api).get(email)
             except SetupError:
                 pass
-            raise PartialFailure(results, {'email': email, 'status': 'write_or_readback_not_verified' if write_started else 'no_write_password_input_failed',
+            raise PartialFailure(results, {'email': email, 'status': 'write_or_readback_not_verified' if write_started else 'no_write',
                 'account_found_on_recheck': observed is not None, 'id': observed['id'] if observed else None}) from None
     return results
 
@@ -220,7 +202,7 @@ class Parser(argparse.ArgumentParser):
 def main(argv=None):
     parser = Parser(description=__doc__)
     parser.add_argument('--env-file', type=Path, default=Path(__file__).resolve().parents[1] / '.env')
-    parser.add_argument('--apply', action='store_true', help='Reuse existing users; human-approved hidden-password creation only for missing users.')
+    parser.add_argument('--apply', action='store_true', help='Create missing users and set all five test passwords and email confirmations without prompts.')
     args = parser.parse_args(argv)
     try:
         _, key = configuration(args.env_file)
@@ -228,7 +210,7 @@ def main(argv=None):
         accounts = list_accounts(api)
         operations = plan(accounts)
         print(json.dumps({'mode':'apply_requested' if args.apply else 'dry_run', 'project_ref':PROJECT_REF,
-            'operations':operations, 'scope':'Existing passwords, confirmation flags and application data are preserved. Missing users are created unconfirmed; no email or login flow.'}))
+            'operations':operations, 'scope':'Create missing users and set all five test passwords and email confirmations. Existing account IDs and application data are preserved; no email or login flow.'}))
         if not args.apply:
             return 0
         results = apply(api, operations)
@@ -237,9 +219,13 @@ def main(argv=None):
             accounts = list_accounts(api)
         except SetupError:
             raise PartialFailure(results, {'status':'final_inventory_unavailable_no_retry'}) from None
-        if len(accounts) != 5:
+        if len(accounts) != 5 or any(not accounts[row['email']]['email_confirmed']
+                or accounts[row['email']]['id'] != row['id'] for row in results):
             raise PartialFailure(results, {'status':'final_account_inventory_incomplete_no_retry'})
-        print(json.dumps({'status':'account_setup_complete','account_count':5,'password_resets':0,'application_data_changes':0}))
+        print(json.dumps({'status':'account_setup_complete','account_count':5,
+            'accounts_created':sum(row['status'] == 'created_confirmed' for row in results),
+            'accounts_configured':sum(row['status'] == 'configured_existing' for row in results),
+            'application_data_changes':0}))
         return 0
     except PartialFailure as error:
         print(json.dumps({'status':'partial_failure','completed':error.results,'current':error.current,
@@ -249,7 +235,7 @@ def main(argv=None):
         print(json.dumps({'status':'stopped','reason':str(error)}))
         return 1
     except (KeyboardInterrupt, EOFError):
-        print(json.dumps({'status':'interrupted','reason':'Human input cancelled; inspect account status read-only before retrying.'}))
+        print(json.dumps({'status':'interrupted','reason':'Setup interrupted; inspect account status read-only before retrying.'}))
         return 1
     except Exception:
         print(json.dumps({'status':'stopped','reason':'Unexpected local failure; no private error details are logged. Recheck read-only before retrying.'}))

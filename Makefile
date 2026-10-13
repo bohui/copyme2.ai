@@ -162,6 +162,7 @@ langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/
 ##     make memoir-live-fifty-test EVAL_CASE_ID=sydney-platform-letters
 ##   Omit EVAL_CASE_ID to run all five cases (250 rounds total).
 ##   Defaults: current checkout, remote Supabase from .env; stable case IDs select test@test.com through test5@test.com.
+##   Creates/reuses all five confirmed test accounts with password test1234, without prompts.
 ##   Apply pending remote database changes after pulling: make migrate.
 ##   Starts backend services only; retains projects and prints UI URLs. No local PostgreSQL.
 ##   Refreshes service addresses and checks worker connections; make up is not required.
@@ -425,5 +426,5 @@ MEMOIR_TEST_ACCOUNTS_PYTHON ?= python3
 memoir-test-accounts-plan: ## Read-only selected test-account inventory; no Auth writes.
 	@"$(MEMOIR_TEST_ACCOUNTS_PYTHON)" scripts/setup_memoir_test_accounts.py --env-file "$(abspath $(ENV_FILE))"
 
-memoir-test-accounts-setup: ## Reuse existing accounts; human input/approval creates only missing users.
+memoir-test-accounts-setup: ## Ensure five confirmed test accounts with password test1234; no prompts.
 	@"$(MEMOIR_TEST_ACCOUNTS_PYTHON)" scripts/setup_memoir_test_accounts.py --env-file "$(abspath $(ENV_FILE))" --apply

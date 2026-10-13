@@ -57,7 +57,7 @@ export function renderReport(plan, receipt) {
       ...(perCase ? ['UI accounts: fixed case-to-account mapping shown below.  '] : [`UI account: ${cell(plan.user_email)}  `]),
       `Backend/Auth/readback HTTP requests reserved: ${cell(accounting.backend_http_requests_reserved)}  `,
       `Original turn submission attempts: ${cell(receipt.backend_turn_submissions)}  `,
-      `Family features available: ${cell(perCase ? Object.fromEntries(Object.entries(receipt.preflight ?? {}).map(([id,value]) => [id,value.family_features_enabled])) : receipt.preflight?.family_features_enabled)}  `,
+      `Family features available: ${perCase ? (Object.entries(receipt.preflight ?? {}).map(([id,value]) => `${cell(id)}: ${cell(value.family_features_enabled)}`).join('; ') || 'unknown') : cell(receipt.preflight?.family_features_enabled)}  `,
     ] : [
       `Client HTTP requests reserved: ${cell(accounting.client_requests_reserved)}  `,
       `Unresolved requests: ${cell(accounting.unresolved_requests)}  `,

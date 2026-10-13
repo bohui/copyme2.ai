@@ -468,8 +468,11 @@ results after failure. Add `EVAL_CASE_ID=harbour-copper-notebook` (or another
 original case ID) to run one complete 50-round conversation independently.
 See [setup and report commands](docs/memoir-fifty-subscription-evaluation.md#make-commands-and-saved-reports)
 for backend configuration and UI sign-in. The runner starts backend services only,
-uses the current checkout, and retains projects for `test@test.com` (override with
-`EVAL_USER_EMAIL`). It prints each project ID and UI URL. Use
+uses the current checkout, and retains each case's projects under its fixed account
+(`test@test.com` through `test5@test.com`). Before each run, setup creates missing
+accounts and sets all five passwords to `test1234`, confirming their emails
+without prompts and preserving existing IDs and application data. It prints each
+project ID and UI URL. Use
 `make memoir-live-fifty-login` to save a private sign-in link without sending email.
 The original local PostgreSQL launcher remains available through
 `memoir-live-fifty-disposable-plan` and `memoir-live-fifty-disposable-test`.

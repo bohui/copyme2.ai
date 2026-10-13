@@ -19,7 +19,8 @@ OWNERS = {case: OWNER if i == 0 else str(UUID(int=200+i)) for i,case in enumerat
 PROJECTS = {case:'lifetime-'+str(uuid5(UUID(OWNER),case)) for case in module.CASE_IDS}
 CONVERSATIONS = {case:str(uuid5(UUID(OWNER),case+'/conversation')) for case in module.CASE_IDS}
 SETTINGS = {'SUPABASE_URL': 'https://supabase.example',
-            'SUPABASE_PUBLISHABLE_KEY': 'public-key', 'SUPABASE_SECRET_KEY': 'admin-secret'}
+            'SUPABASE_PUBLISHABLE_KEY': 'public-key', 'SUPABASE_SECRET_KEY': 'admin-secret',
+            'SUPABASE_DB_URL': 'postgresql://offline-fixture-only'}
 
 
 def test_preflight_reaches_real_backend_routes_without_model_calls(monkeypatch):
@@ -373,6 +374,44 @@ def test_invalid_json_response_is_distinct_from_a_transport_failure():
     asyncio.run(run())
 
 
+def test_realtime_clearance_denial_reports_the_operator_prerequisite(setup, tmp_path):
+    plan, remote = setup()
+    handler = remote.handler
+
+    def denied(request):
+        if request.url.path.endswith('/read_lifetime_project_identity'):
+            return httpx.Response(200, json=None, text='null')
+        if request.url.path.endswith('/resolve_lifetime_conversation'):
+            return httpx.Response(500, json={'code': '55000',
+                'message': 'LIFETIME_REALTIME_CLEARANCE_REQUIRED', 'details': 'private database details'})
+        return handler(request)
+
+    remote.handler = denied
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'incomplete' and result['backend_turn_submissions'] == 0
+    assert result['evaluation']['failure_stage'] == 'authentication'
+    assert 'operator realtime clearance' in result['stop_reason']
+    assert result['evaluation']['failure_summary']['http_failure']['error_code'] == 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'
+    assert 'private database details' not in json.dumps(result)
+    assert not remote.submitted
+
+
+@pytest.mark.parametrize('body', [{'code': '55000', 'message': 'private error'},
+    {'code': '55000', 'message': 'LIFETIME_REALTIME_CLEARANCE_REQUIRED: private detail'},
+    {'code': 'private-code', 'message': 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'}, ['private detail']])
+def test_unrecognized_database_errors_remain_sanitized(body):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda request: httpx.Response(500, json=body))) as client:
+            requests = module.Requests(client, 1, 5)
+            with pytest.raises(module.EvaluationError) as failure:
+                await requests.json('POST', 'https://backend.example/rest/v1/rpc/resolve_lifetime_conversation')
+            assert str(failure.value) == 'HTTP request failed with status 500'
+            assert 'error_code' not in failure.value.diagnostic
+            assert 'private' not in str(failure.value) + json.dumps(failure.value.diagnostic)
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize('target', ['container-up', 'container-down', 'install_skill',
     'db-truncate', 'memoir-live-fifty-backend'])
 def test_live_execution_blocks_a_concurrent_backend_stop(setup, tmp_path, target):
@@ -445,7 +484,8 @@ def test_account_session_refresh_keeps_the_real_owner(setup):
     assert any(r.url.path == '/auth/v1/token' for r in remote.calls)
 
 
-def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(setup, tmp_path, monkeypatch):
+@pytest.mark.parametrize('publication_url', [None, 'postgresql://explicit-offline-publication'])
+def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(setup, tmp_path, monkeypatch, publication_url):
     plan, remote = setup()
     started = []
     def start(command, **kwargs):
@@ -453,6 +493,8 @@ def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(s
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(module.subprocess, 'run', start)
     settings = {**SETTINGS, 'SUPABASE_SECRET_KEY': None, 'SUPABASE_SERVICE_ROLE_KEY': 'admin-secret'}
+    if publication_url is not None:
+        settings['MEMOIR_PUBLICATION_DATABASE_URL'] = publication_url
     result = asyncio.run(module.execute(plan, tmp_path / 'run', settings, start_backend=True))
     assert result['status'] == 'completed', result
     assert len(started) == 1
@@ -462,6 +504,22 @@ def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(s
     assert options['env']['MEMORY_SPARK_EVAL_RECALL_LIMIT'] == '75'
     assert options['env']['SUPABASE_SECRET_KEY'] == 'admin-secret'
     assert options['env']['MEMORY_SPARK_API_PORT'] == '8010'
+    assert options['env']['MEMOIR_LIFETIME_MEMORY'] == '1'
+    assert options['env']['MEMOIR_PUBLICATION_DATABASE_URL'] == (publication_url or SETTINGS['SUPABASE_DB_URL'])
+
+
+@pytest.mark.parametrize('overrides,reason', [
+    ({'SUPABASE_DB_URL': None}, 'publication database connection'),
+    ({'MEMOIR_LIFETIME_MEMORY': '0'}, 'canonical generation is disabled'),
+    ({'MEMOIR_LIFETIME_GENERATION_PAUSED': 'true'}, 'canonical generation is paused'),
+])
+def test_backend_startup_honors_explicit_rollout_controls(setup, tmp_path, monkeypatch, overrides, reason):
+    plan, remote = setup()
+    monkeypatch.setattr(module.subprocess, 'run', lambda *args, **kwargs: pytest.fail('Invalid configuration started services.'))
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', {**SETTINGS, **overrides}, start_backend=True))
+    assert result['status'] == 'incomplete' and reason in result['stop_reason']
+    assert result['evaluation']['failure_stage'] == 'backend_startup'
+    assert not remote.submitted
 
 
 def test_prepare_user_refuses_checkout_or_existing_directory(setup, tmp_path):

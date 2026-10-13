@@ -41,6 +41,21 @@ Temporal connectivity before submitting a conversation. `make up` is not require
 Set `EVAL_START_BACKEND=0` to reuse an already configured backend at
 `API_BASE`; that account must already have enough conversation allowance.
 
+Migrated schema alone does not enable canonical conversations. The database's
+`lifetime_realtime_clearance` must be `canonical_ready` after the separately
+authorized operator procedure in
+[Direct realtime clearance boundary](lifetime-memory-integration.md#direct-realtime-clearance-boundary-source-only-rollout-interlock).
+If that gate is closed, the runner stops before submitting turns and reports
+`LIFETIME_REALTIME_CLEARANCE_REQUIRED`. Test execution never changes the gate or
+attests that existing calls have terminated.
+
+Automatic startup configures the local canonical runtime and uses
+`MEMOIR_PUBLICATION_DATABASE_URL`, falling back to the existing `SUPABASE_DB_URL`,
+for transactional publication. A missing connection or an explicit disabled or
+paused runtime stops before services start; these operator controls are never
+overridden. With `EVAL_START_BACKEND=0`, configure these bindings on the existing
+API and workers yourself.
+
 The case mapping is fixed, including subsets and reordered CLI selections:
 
 | Case ID | Account |
@@ -51,10 +66,11 @@ The case mapping is fixed, including subsets and reordered CLI selections:
 | kunming-garden-lanterns | test4@test.com |
 | sydney-platform-letters | test5@test.com |
 
-`memoir-test-accounts-setup` still runs before each test invocation. Missing
-accounts must be created through that human-password prerequisite; execution
-never silently creates a replacement account. The existing explicit Admin
-confirmation flag can confirm selected accounts without changing passwords.
+`memoir-test-accounts-setup` runs before each test invocation without prompts.
+It creates missing accounts and configures all five with password `test1234` and
+confirmed email addresses, preserving existing IDs and application data.
+Reruns reuse those identities and enforce the same test credentials. Execution
+requires these prepared accounts and never silently creates a replacement.
 All selected owners must be distinct. Each token is checked against Auth `/user`,
 including refreshes, and each signed-in case reads its canonical identity through
 `read_lifetime_project_identity`. Only an absent initial identity can use the
