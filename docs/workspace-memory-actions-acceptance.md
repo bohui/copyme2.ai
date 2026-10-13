@@ -43,8 +43,10 @@ repeating it after a lost acknowledgement creates no duplicate request or new
 narration. A pending replay can requeue an idle lane for its edition while
 preserving a live lease or unfinished snapshot. Requests
 retain only bounded original preview and instruction context, with no direct
-authenticated table access. Source changes/withdrawal and event changes/deletion
-purge dependent requests.
+authenticated table access. Source changes/withdrawal, event changes/deletion
+and changes/removal of a photo link purge dependent requests. Photo invalidation
+matches the exact link in the partition key and preserves other photo and
+source-only requests.
 
 The migration protects the existing section and advances scheduling metadata,
 without changing event facts or factual revision. Only the selected partition
@@ -107,3 +109,28 @@ composer-capacity and policy Python checks passed against disposable PostgreSQL,
 including the 10,000-event capacity case. All 12 browser cases in English desktop
 and Chinese phone viewports and the production build pass. No production
 migration or deployment was performed for these fixes.
+
+## Photo unlink review fix
+
+Unlinking a photo through `unlink_user_interview_photo` after queuing a rewrite
+reproduced the reported loop: the photo partition disappeared, but its pending
+editorial request survived and completion immediately queued another empty draft.
+The existing prose invalidation handled the changed photo link; workspace request
+invalidation previously covered only source and event changes.
+
+The workspace invalidation trigger now retires requests for the exact changed or
+deleted photo link, in the same transaction and before completion can reschedule
+them. An indexed dependency lookup scopes this to the owner, project and photo
+partition. It also covers photo deletion and corrected metadata. Unchanged link
+updates preserve requests.
+
+Six new disposable PostgreSQL regressions pass. They exercise the actual unlink
+RPC both before composition and after a saved/yielded page, prove the lane becomes
+idle without another empty snapshot, and reject replay of the retired request.
+The remaining cases cover photo deletion, link editing/deletion, unchanged updates,
+unauthorized unlink and unlink replay. Sibling-photo and source-only requests keep
+their exact bytes and still receive editorial pages and reach completion.
+
+The final run passed all 133 checks across workspace actions, lifetime review
+repairs, interview photos, composer policy and composer capacity, including the
+10,000-event case. No production migration or deployment was performed.

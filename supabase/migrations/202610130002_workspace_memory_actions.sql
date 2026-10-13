@@ -46,6 +46,8 @@ create table public.user_workspace_section_rework (
  foreign key(user_id,project_id,source_id) references public.user_narrator_source(user_id,project_id,id) on delete cascade
 );
 create unique index workspace_section_one_pending on public.user_workspace_section_rework(user_id,project_id,locale,partition_key) where status='pending';
+create index workspace_rework_photo_dependency
+ on public.user_workspace_section_rework(user_id,project_id,(right(partition_key,37)));
 alter table public.user_workspace_section_rework enable row level security;
 revoke all on public.user_workspace_section_rework from public,anon,authenticated;
 
@@ -226,10 +228,19 @@ begin
    if tg_op='DELETE' or old.revision is distinct from new.revision or old.status is distinct from new.status then
      delete from public.user_workspace_section_rework where user_id=old.user_id and project_id=old.project_id and event_id=old.id;
    end if;
+ elsif tg_table_name='user_interview_photo_link' then
+   if tg_op='DELETE' or old is distinct from new then
+     -- The composer partition ends in its exact photo-link UUID. Retire its
+     -- request in the same transaction as the prose, before completion can
+     -- requeue an editorial task whose partition no longer exists.
+     delete from public.user_workspace_section_rework where user_id=old.user_id and project_id=old.project_id
+       and event_id=old.event_id and right(partition_key,37)=':'||old.id::text;
+   end if;
  end if;
  return coalesce(new,old);
 end $$;
 create trigger workspace_rework_source_invalidation after update on public.user_narrator_source for each row execute function public.invalidate_workspace_rework();
 create trigger workspace_rework_event_invalidation after update or delete on public.user_memory_event for each row execute function public.invalidate_workspace_rework();
+create trigger workspace_rework_photo_invalidation after update or delete on public.user_interview_photo_link for each row execute function public.invalidate_workspace_rework();
 revoke all on function public.invalidate_workspace_rework() from public,anon,authenticated;
 commit;

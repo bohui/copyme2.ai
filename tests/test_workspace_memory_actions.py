@@ -251,6 +251,107 @@ def test_pg_pending_rewrite_retry_recovers_its_edition_without_interrupting_live
     assert sql('select event_sequence from public.user_memoir_project;').stdout == sequence
 
 
+@pytest.mark.parametrize('yielded',[False,True])
+def test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts(sql,yielded):
+    from test_lifetime_review_repairs import add_photo_link
+    identity, source, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    link = add_photo_link(sql, identity, source, first)
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    while not page['complete']:
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    head = rpc(sql, 'read_lifetime_private_draft_head', literal(project))
+    partition = sql(f"select partition_key from public.user_lifetime_memoir_section where right(partition_key,37)=':{link}';").stdout.strip()
+    assert partition
+    request_id = str(uuid4())
+    args = rework_args({**head,'first_record':{'id':partition}},request_id)
+    rpc(sql, 'request_workspace_section_rework', args)
+    if yielded:
+        interrupted = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+        assert interrupted['partition_key'] == partition
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{interrupted['token']}',{interrupted['page_number']},{literal(section_result(interrupted,'Photo-dependent rewrite.'))}")
+        assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'pending'
+        service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{interrupted['token']}'")
+    rpc(sql, 'unlink_user_interview_photo', f"{literal(project)},'{link}'")
+    # Drain the legitimate policy-refresh run. The retired partition cannot
+    # receive an editorial page and must not schedule another empty snapshot.
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    while not page['complete']:
+        assert page['partition_key'] != partition
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f', 'unlinked photo rewrite queued another empty draft'
+    assert service(sql, 'claim_memoir_lane', f"'{lane}',900") is None
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{request_id}';").stdout.strip() == '0'
+    assert rpc(sql, 'request_workspace_section_rework', args, check=False).returncode != 0
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f'
+
+
+@pytest.mark.parametrize('action',['unlink','delete_photo','edit_link','delete_link'])
+def test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks(sql,action):
+    from test_lifetime_review_repairs import add_photo_link
+    identity, source, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    link = add_photo_link(sql, identity, source, first)
+    sibling = add_photo_link(sql, identity, source, first)
+    other = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{uuid4()}','Later I moved to Sydney.'")
+    ref = dict(source_id=other['id'],version=1,quote=other['text'],char_start=0,char_end=len(other['text']))
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':other['id'],'version':1}])},{literal([dict(kind='event',title='Sydney',source_refs=[ref])])}")
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    partitions = []
+    while not page['complete']:
+        partitions.append(page['partition_key'])
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert len(partitions) == 3
+    head = rpc(sql, 'read_lifetime_private_draft_head', literal(project))
+    for partition in partitions:
+        rpc(sql, 'request_workspace_section_rework', rework_args({**head,'first_record':{'id':partition}},str(uuid4())))
+    # A no-op link update must not discard any queued instruction.
+    before = sql('select row_to_json(r) from public.user_workspace_section_rework r order by partition_key;').stdout
+    sql(f"update public.user_interview_photo_link set description=description where id='{link}';")
+    assert sql('select row_to_json(r) from public.user_workspace_section_rework r order by partition_key;').stdout == before
+    unaffected = sql(f"select row_to_json(r) from public.user_workspace_section_rework r where right(partition_key,37)<>':{link}' order by partition_key;").stdout
+    if action == 'unlink':
+        assert rpc(sql, 'unlink_user_interview_photo', f"{literal(project)},'{link}'", owner=OTHER, check=False).returncode != 0
+        assert sql('select row_to_json(r) from public.user_workspace_section_rework r order by partition_key;').stdout == before
+        rpc(sql, 'unlink_user_interview_photo', f"{literal(project)},'{link}'")
+        rpc(sql, 'unlink_user_interview_photo', f"{literal(project)},'{link}'")
+    elif action == 'delete_photo':
+        photo = sql(f"select substr(photo_id,8) from public.user_interview_photo_link where id='{link}';").stdout.strip()
+        rpc(sql, 'delete_user_interview_photo', f"{literal(project)},'{photo}'")
+    elif action == 'edit_link':
+        sql(f"update public.user_interview_photo_link set description='Corrected photo description' where id='{link}';")
+    else:
+        sql(f"delete from public.user_interview_photo_link where id='{link}';")
+    assert sql(f"select count(*) from public.user_workspace_section_rework where right(partition_key,37)=':{link}';").stdout.strip() == '0'
+    assert sql(f"select row_to_json(r) from public.user_workspace_section_rework r where right(partition_key,37)<>':{link}' order by partition_key;").stdout == unaffected
+    assert sql(f"select count(*) from public.user_workspace_section_rework where right(partition_key,37)=':{sibling}';").stdout.strip() == '1'
+    # Surviving instructions still reach real composer pages and completion.
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    composed = set()
+    while not page['complete']:
+        if page['editorial_request'] is not None:
+            composed.add(page['partition_key'])
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert composed == {partition for partition in partitions if not partition.endswith(':'+link)}
+    assert sql("select count(*) from public.user_workspace_section_rework where status='composed';").stdout.strip() == '2'
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f'
+
+
 def test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_after_event_changes(sql, tmp_path, monkeypatch):
     import json
     import httpx
