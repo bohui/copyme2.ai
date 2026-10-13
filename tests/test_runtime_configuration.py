@@ -39,8 +39,13 @@ def test_supabase_has_a_baseline_and_uniquely_versioned_incremental_migrations()
     assert migrations[0].name == "202610010001_initial_schema.sql"
     versions = [migration.name.split('_', 1)[0] for migration in migrations]
     assert all(version.isdigit() and len(version) == 12 for version in versions)
-    assert len(versions) == len(set(versions))
+    # Supabase records only the numeric prefix, not the descriptive filename.
+    assert len(versions) == len(set(versions)), f'Duplicate Supabase versions: {versions}'
     assert "202610020003_place_photo_searches.sql" in {migration.name for migration in migrations}
+    formal = next(path for path in migrations if path.name.endswith('_formal_memoir_authority.sql'))
+    workspace = next(path for path in migrations if path.name.endswith('_workspace_memory_actions.sql'))
+    assert formal.name == '202610130002_formal_memoir_authority.sql'
+    assert workspace.name.split('_', 1)[0] > formal.name.split('_', 1)[0]
 
 
 def test_skill_install_rebuilds_the_api_and_codex_worker_without_a_harness():

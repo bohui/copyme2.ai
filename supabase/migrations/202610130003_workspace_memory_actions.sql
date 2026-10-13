@@ -72,7 +72,7 @@ create function public.request_workspace_section_rework(p_project_id text,p_requ
 language plpgsql security definer set search_path=public,auth as $$
 declare owner uuid:=auth.uid(); project public.user_memoir_project%rowtype;
  root public.user_lifetime_lane_snapshot%rowtype; section public.user_lifetime_memoir_section%rowtype;
- prior public.user_workspace_section_rework%rowtype; lane public.user_memoir_lane%rowtype; next_event bigint;
+ prior public.user_workspace_section_rework%rowtype; lane public.user_memoir_lane%rowtype;
 begin
  select * into project from public.user_memoir_project where user_id=owner and project_id=p_project_id for update;
  if not found then raise exception 'workspace unavailable' using errcode='42501';end if;
@@ -126,9 +126,12 @@ begin
  -- Protect the current text so the normal commit path creates a review proposal.
  update public.user_lifetime_memoir_section set human_locked=true where user_id=owner and project_id=p_project_id
    and locale=root.locale and partition_key=p_partition_id and snapshot_id=section.snapshot_id;
- -- Advance scheduling metadata only. Neither event facts nor their revision change.
- update public.user_memoir_project set event_sequence=event_sequence+1 where user_id=owner and project_id=p_project_id returning event_sequence into next_event;
- update public.user_memory_event set change_sequence=next_event where user_id=owner and project_id=p_project_id and id=section.event_id;
+ -- An editorial request is independent of canonical evidence authority. Retire
+ -- an unfinished root for this edition so a newly selected older partition
+ -- cannot fall behind its cursor; another edition remains resumable. Admission
+ -- above forbids changing a live lease, and retry clears expired tokens.
+ update public.user_lifetime_lane_snapshot set state='stale'
+   where lane_id=lane.id and locale=root.locale and state='pending';
  -- Keep an unfinished edition resumable; the completion wrapper drains the
  -- other editions after this root has become available for review.
  if not exists(select 1 from public.user_lifetime_lane_snapshot where lane_id=lane.id and state='pending') then
@@ -159,12 +162,143 @@ end $$;
 revoke all on function public.read_workspace_draft_section(text,uuid,text) from public,anon;
 grant execute on function public.read_workspace_draft_section(text,uuid,text) to authenticated;
 
+-- Retain the canonical keyset, source/privacy checks and reuse calculation.
+-- Pending requests add exact older partitions without revising canonical events
+-- or widening the delta to unrelated evidence and sibling photographs.
+create or replace function public.read_lifetime_memoir_lane_page_body(p_lane_id uuid,p_token uuid) returns jsonb
+language plpgsql security definer set search_path=public,auth as $$
+declare snap public.user_lifetime_lane_snapshot%rowtype; lane public.user_memoir_lane%rowtype;
+ source public.user_narrator_source%rowtype; event public.user_memory_event%rowtype; link record;
+ payload jsonb; source_data jsonb; event_data jsonb; candidates jsonb:='[]'; preferences jsonb; ref jsonb;
+ core integer; lo integer; hi integer; key text; reusable boolean:=false; previous_owner text;
+begin
+ snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+ select * into lane from public.user_memoir_lane where id=p_lane_id;
+ previous_owner:=current_setting('request.jwt.claim.sub',true);
+ perform set_config('request.jwt.claim.sub',snap.user_id::text,true);
+ preferences:=public.read_lifetime_pinned(snap.conversation_id);
+ -- Make optional transport defaults explicit without changing authoritative data.
+ preferences:=jsonb_set(preferences,'{known_continuity}',coalesce((select jsonb_agg(
+   jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
+     jsonb_build_object('schema_version',1,'uncertainty',null)||(record->'data')||jsonb_build_object('source_refs',
+       (select jsonb_agg(jsonb_build_object('schema_version',1)||continuity_ref) from jsonb_array_elements(record->'data'->'source_refs') continuity_ref))))
+   from jsonb_array_elements(preferences->'known_continuity') record),'[]'));
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ payload:=jsonb_build_object('schema_version',1,'protocol','lifetime_composer_pages','lane_id',lane.id,'token',p_token,
+   'snapshot_id',snap.id,'user_id',snap.user_id,'project_id',snap.project_id,'conversation_id',snap.conversation_id,
+   'skill',lane.skill,'locale',snap.locale,'policy_epoch',snap.policy_epoch,'preference_revision',snap.preference_revision,
+   'source_high_water',snap.source_high_water,'event_high_water',snap.event_high_water,'page_number',snap.page_number,
+   'root_digest',snap.root_digest,'coverage_round',snap.round_high_water,'base_revision',snap.base_revision,
+   'preferences',preferences,'previous',null,'reuse',false,'complete',false);
+ if lane.skill='timeline' then
+   select * into source from public.user_narrator_source where user_id=snap.user_id and project_id=snap.project_id
+     and status='active' and processing_status<>'succeeded' and sequence<=snap.source_high_water
+     and (sequence>snap.last_source or (sequence=snap.last_source and snap.next_offset<length(text)))
+     order by sequence limit 1;
+   if not found then return payload||jsonb_build_object('complete',true,'source',null,'events','[]'::jsonb,'partition',null);end if;
+   core:=greatest(case when source.sequence=snap.last_source then snap.next_offset else 0 end,
+     coalesce((select next_offset from public.user_lifetime_source_extraction where user_id=snap.user_id and project_id=snap.project_id
+       and source_id=source.id and source_version=source.version),0));
+   if core>=length(source.text) then core:=0;end if;
+   lo:=greatest(core-256,0);hi:=least(core+2048,length(source.text));
+   -- Indexed, bounded candidate pools. Preserve the current interview identity
+   -- even when it is older than the recent tail; no full-event history sort.
+   with active as (
+     select e.id,0 priority from public.user_interview_plan p join public.user_memory_event e
+       on e.user_id=p.user_id and e.project_id=p.project_id and e.id=p.plan->>'active_event_id'
+     where p.user_id=snap.user_id and p.project_id=snap.project_id and e.status='active' and e.change_sequence<=snap.event_high_water
+   ), same_source as (
+     select e.id,1 priority from public.user_memory_event_source r join public.user_memory_event e
+       on e.user_id=r.user_id and e.project_id=r.project_id and e.id=r.event_id
+     where r.user_id=snap.user_id and r.project_id=snap.project_id and r.source_id=source.id
+       and e.status<>'withdrawn' and e.change_sequence<=snap.event_high_water order by r.event_id limit 8
+   ), recent as (
+     select id,2 priority from public.user_memory_event where user_id=snap.user_id and project_id=snap.project_id
+       and status<>'withdrawn' and change_sequence<=snap.event_high_water order by change_sequence desc,id desc limit 8
+   ), selected as (
+     select id,min(priority) priority from (select * from active union all select * from same_source union all select * from recent) pool group by id
+   )
+   select coalesce(jsonb_agg(item order by priority,change_sequence desc,id),'[]') into candidates from (
+     select e.id,e.change_sequence,c.priority,jsonb_build_object('id',e.id,'revision',e.revision,'kind',e.kind,
+       'title',left(e.data->>'title',300),'life_stage',e.life_stage,'status',e.status,'source_refs','[]'::jsonb,
+       'identity_context_only',true,'active_interview_context',c.priority=0) item
+     from selected c join public.user_memory_event e on e.user_id=snap.user_id and e.project_id=snap.project_id and e.id=c.id
+     order by c.priority,e.change_sequence desc,e.id limit 8) bounded;
+   source_data:=jsonb_build_object('id',source.id,'project_id',source.project_id,'version',source.version,'sequence',source.sequence,
+     'text',substring(source.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,'original_length',length(source.text),
+     'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller');
+   return payload||jsonb_build_object('source',source_data,'events',candidates,'partition',null,'core_start',core,'core_end',hi);
+ end if;
+ -- Keyset over event revisions and exact evidence rows, including unsupported
+ -- or withdrawn events as explicit coverage dispositions. No aggregate manifest.
+ select e.*,r.source_id,r.source_version,r.evidence_hash,r.evidence, p.id as photo_link_id,p.photo_id,p.quote as photo_quote,p.description as photo_description into link
+   from public.user_memory_event e left join public.user_memory_event_source r
+     on r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
+   left join public.user_interview_photo_link p on p.user_id=e.user_id and p.project_id=e.project_id and p.event_id=e.id
+     and p.source_id=r.source_id and p.source_version=r.source_version and p.status='confirmed' and p.provenance='narrator_metadata'
+     and strpos(r.evidence->>'quote',p.quote)>0 and public.interview_photo_available(e.user_id,e.project_id,p.photo_id)
+   where e.user_id=snap.user_id and e.project_id=snap.project_id
+     and (e.change_sequence>snap.base_event or exists(select 1 from public.user_workspace_section_rework request
+       where request.user_id=snap.user_id and request.project_id=snap.project_id and request.locale=snap.locale
+         and request.status='pending' and request.event_id=e.id and request.event_revision=e.revision
+         and request.partition_key=e.id||':'||r.source_id::text||':'||r.source_version::text||':'||r.evidence_hash||':'||coalesce(p.id::text,'')))
+     and e.change_sequence<=snap.event_high_water
+     and (e.change_sequence,e.id,coalesce(r.source_id::text||':'||r.source_version::text||':'||r.evidence_hash||':'||coalesce(p.id::text,''),''))>
+       (snap.last_event,snap.last_event_id,snap.last_ref)
+   order by e.change_sequence,e.id,coalesce(r.source_id::text||':'||r.source_version::text||':'||r.evidence_hash||':'||coalesce(p.id::text,''),'') limit 1;
+ if not found then return payload||jsonb_build_object('complete',true,'source',null,'events','[]'::jsonb,'partition',null);end if;
+ key:=coalesce(link.source_id::text||':'||link.source_version::text||':'||link.evidence_hash||':'||coalesce(link.photo_link_id::text,''),'');
+ event_data:=jsonb_build_object('id',link.id,'revision',link.revision,'kind',link.kind,'life_stage',link.life_stage,
+   'status',link.status,'change_sequence',link.change_sequence,'title',left(link.data->>'title',300),
+   'uncertainty',left(link.data->>'uncertainty',2000),
+   'temporal',jsonb_build_object('expression',left(link.data->'temporal'->>'expression',500),'precision','unknown'),
+   'source_refs','[]'::jsonb);
+ if link.status='active' and link.source_id is not null then
+   select * into source from public.user_narrator_source where user_id=snap.user_id and project_id=snap.project_id
+     and id=link.source_id and version=link.source_version and status='active';
+   if found then
+     ref:=link.evidence;lo:=coalesce((ref->>'char_start')::integer,strpos(source.text,ref->>'quote')-1);
+     hi:=coalesce((ref->>'char_end')::integer,lo+length(ref->>'quote'));
+     if lo<0 or hi<=lo or hi>length(source.text) or hi-lo>2000 or
+       substring(source.text from lo+1 for hi-lo) is distinct from ref->>'quote' or
+       (not ref ? 'char_start' and strpos(substring(source.text from lo+2),ref->>'quote')>0) then
+       raise exception 'canonical evidence requires an exact unambiguous span' using errcode='22023';
+     end if;
+     ref:=ref||jsonb_build_object('char_start',lo,'char_end',hi);
+     source_data:=jsonb_build_object('id',source.id,'project_id',source.project_id,'version',source.version,'sequence',source.sequence,
+       'text',substring(source.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,'original_length',length(source.text),
+       'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller');
+     event_data:=event_data||jsonb_build_object('source_refs',jsonb_build_array(ref),
+       'photo_associations',case when link.photo_link_id is null then '[]'::jsonb else jsonb_build_array(jsonb_build_object(
+         'id',link.photo_link_id,'photo_id',link.photo_id,'event_id',link.id,'source_id',source.id,'source_version',source.version,
+         'quote',link.photo_quote,'description',link.photo_description,'status','confirmed','provenance','narrator_metadata')) end);
+     select exists(select 1 from public.user_lifetime_memoir_section s join public.user_lifetime_lane_snapshot ss on ss.id=s.snapshot_id
+       where s.user_id=snap.user_id and s.project_id=snap.project_id and s.locale=snap.locale
+       and s.partition_key=link.id||':'||key and s.event_revision=link.revision and s.source_version=source.version
+       and ss.state='completed' and ss.preference_revision=snap.preference_revision and ss.policy_epoch=snap.policy_epoch)
+       into reusable;
+   end if;
+ end if;
+ return payload||jsonb_build_object('source',source_data,'partition',event_data,'events','[]'::jsonb,
+   'partition_key',link.id||':'||key,'ref_key',key,'reuse',reusable);
+end $$;
+
 alter function public.read_lifetime_memoir_lane_page(uuid,uuid) rename to read_lifetime_memoir_lane_page_before_rework;
 revoke all on function public.read_lifetime_memoir_lane_page_before_rework(uuid,uuid) from public,anon,authenticated,service_role;
 create function public.read_lifetime_memoir_lane_page(p_lane_id uuid,p_token uuid) returns jsonb
 language plpgsql security definer set search_path=public,auth as $$
 declare page jsonb; request public.user_workspace_section_rework%rowtype;
+ snap public.user_lifetime_lane_snapshot%rowtype;
 begin
+ snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+ -- Editorial partitions can predate the predecessor's canonical watermark.
+ -- Start the cursor before those explicit tasks, retaining base_event so only
+ -- canonical deltas and the selected editorial partitions are visited.
+ if snap.page_number=0 and exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='composer')
+   and exists(select 1 from public.user_workspace_section_rework
+   where user_id=snap.user_id and project_id=snap.project_id and locale=snap.locale and status='pending') then
+   update public.user_lifetime_lane_snapshot set last_event=0,last_event_id='',last_ref='' where id=snap.id;
+ end if;
  page:=public.read_lifetime_memoir_lane_page_before_rework(p_lane_id,p_token);
  select * into request from public.user_workspace_section_rework where user_id=(page->>'user_id')::uuid
    and project_id=page->>'project_id' and locale=page->>'locale' and partition_key=page->>'partition_key'

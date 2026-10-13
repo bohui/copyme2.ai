@@ -21,16 +21,20 @@ function draftText(draft) {
 }
 
 export function renderReport(plan, receipt) {
-  if (plan.schema_version !== 'memoir-subscription-evaluation-plan/1'
+  if (!['memoir-subscription-evaluation-plan/1','memoir-subscription-evaluation-plan/2'].includes(plan.schema_version)
       || plan.evaluation_profile !== 'subscription_fifty'
-      || !['memoir-subscription-native-receipt/1', 'memoir-supabase-evaluation-receipt/1'].includes(receipt.schema_version)
+      || !['memoir-subscription-native-receipt/1', 'memoir-supabase-evaluation-receipt/1','memoir-supabase-evaluation-receipt/2'].includes(receipt.schema_version)
       || receipt.run_id !== plan.run_id || receipt.source_revision !== plan.source_revision) {
     throw new Error('A matching fifty-round plan and evaluation receipt are required.');
   }
-  const remote = receipt.schema_version === 'memoir-supabase-evaluation-receipt/1';
+  const remote = ['memoir-supabase-evaluation-receipt/1','memoir-supabase-evaluation-receipt/2'].includes(receipt.schema_version);
+  const perCase = receipt.schema_version === 'memoir-supabase-evaluation-receipt/2';
+  if (perCase && plan.schema_version !== 'memoir-subscription-evaluation-plan/2') throw new Error('Per-case receipt requires its per-case plan.');
   if (remote && plan.storage_backend !== 'remote_supabase') throw new Error('Remote receipt requires a Supabase plan.');
   const evaluation = receipt.evaluation ?? receipt.evaluation_progress ?? {};
-  const savedCases = new Map((evaluation.cases ?? []).map(item => [item.case_id, item]));
+  const rows = evaluation.cases ?? [];
+  if (new Set(rows.map(item => item.case_id)).size !== rows.length) throw new Error('Duplicate case evidence.');
+  const savedCases = new Map(rows.map(item => [item.case_id, item]));
   const accounting = receipt.request_accounting ?? evaluation.request_accounting ?? {};
   const lines = [
     '# Memoir live evaluation report', '',
@@ -50,10 +54,10 @@ export function renderReport(plan, receipt) {
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
     ...(remote ? [
       'Storage: remote Supabase; projects retained.  ',
-      `UI account: ${cell(plan.user_email)}  `,
+      ...(perCase ? ['UI accounts: fixed case-to-account mapping shown below.  '] : [`UI account: ${cell(plan.user_email)}  `]),
       `Backend/Auth/readback HTTP requests reserved: ${cell(accounting.backend_http_requests_reserved)}  `,
       `Original turn submission attempts: ${cell(receipt.backend_turn_submissions)}  `,
-      `Family features available: ${cell(receipt.preflight?.family_features_enabled)}  `,
+      `Family features available: ${cell(perCase ? Object.fromEntries(Object.entries(receipt.preflight ?? {}).map(([id,value]) => [id,value.family_features_enabled])) : receipt.preflight?.family_features_enabled)}  `,
     ] : [
       `Client HTTP requests reserved: ${cell(accounting.client_requests_reserved)}  `,
       `Unresolved requests: ${cell(accounting.unresolved_requests)}  `,
@@ -63,7 +67,7 @@ export function renderReport(plan, receipt) {
     'Completion records execution and saved readbacks. Model quality still requires human review. '
       + 'Provider request, token and spend totals are not verified by this launcher.', '',
     ...(remote ? [
-      'Sign in as the UI account above and open the case URL below. Run the frontend separately against this backend. '
+      'Sign in as the owning account for that case and open its URL below. Run the frontend separately against this backend. '
         + '`make db-truncate RESET_CONFIRM=1` removes these projects and Auth accounts.', '',
       ...(receipt.ui_login_file === 'ui-login.html' ? ['Private, expiring, one-time [UI sign-in link](ui-login.html). '
         + 'Generate a new link with `make memoir-live-fifty-login` when needed.', ''] : []),
@@ -73,8 +77,7 @@ export function renderReport(plan, receipt) {
       'Saved evidence: [plan.json](plan.json), [receipt.json](receipt.json), [request journal](journal/).', '',
     ]),
     '## Cases', '',
-    '| Case | Locale | Status | Completed rounds | Ready checkpoints | Project ID |',
-    '| --- | --- | --- | --- | --- | --- |',
+    ...(perCase ? ['| Case | Account | Owner | Locale | Status | Completed rounds | Ready checkpoints | Project ID |','| --- | --- | --- | --- | --- | --- | --- | --- |'] : ['| Case | Locale | Status | Completed rounds | Ready checkpoints | Project ID |','| --- | --- | --- | --- | --- | --- |']),
   ];
   for (const id of plan.case_ids) {
     const item = savedCases.get(id) ?? { status: 'not_recorded' };
@@ -82,9 +85,10 @@ export function renderReport(plan, receipt) {
     if (item.project_id !== undefined && item.project_id !== binding.project_id) {
       throw new Error('Saved case project does not match the plan.');
     }
+    if (perCase && item.owner_id !== undefined && ['owner_id','conversation_id','user_email'].some(key => item[key] !== binding[key])) throw new Error('Saved case account identity does not match its plan.');
     const completed = (item.rounds ?? []).filter(round => round.status === 'completed').length;
     const ready = (item.checkpoints ?? []).filter(checkpoint => checkpoint.draft?.status === 'ready').length;
-    lines.push(`| ${cell(id)} | ${cell(binding.language)} | ${cell(item.status)} | ${completed}/${plan.rounds_per_case} | ${ready}/${plan.checkpoints.length} | ${cell(binding.project_id)} |`);
+    lines.push(`| ${cell(id)} | ${perCase ? `${cell(binding.user_email)} | ${cell(binding.owner_id)} | ` : ''}${cell(binding.language)} | ${cell(item.status)} | ${completed}/${plan.rounds_per_case} | ${ready}/${plan.checkpoints.length} | ${cell(binding.project_id)} |`);
   }
   for (const id of plan.case_ids) {
     const item = savedCases.get(id) ?? {};
@@ -92,9 +96,19 @@ export function renderReport(plan, receipt) {
     lines.push('', `## ${cell(id)}`, '');
     if (remote) {
       const url = plan.cases[id].ui_url;
-      if (typeof url !== 'string' || !/^https?:\/\/[^\s<>]+$/.test(url)) throw new Error('A valid UI URL is required.');
-      lines.push(`[Open project in Memoir](<${url}>)`, '',
-        `Authenticated UI recovery verified: ${cell(item.ui_recovery_verified)}.`, '');
+      if (url == null && perCase) lines.push('Canonical account/project binding is unavailable.', '');
+      else {
+        if (typeof url !== 'string' || !/^https?:\/\/[^\s<>]+$/.test(url)) throw new Error('A valid UI URL is required.');
+        lines.push(`[Open project in Memoir](<${url}>)`, '', `Owning account: ${cell(plan.cases[id].user_email ?? plan.user_email)}.`,
+          `Authenticated UI recovery verified: ${cell(item.ui_recovery_verified)}.`,
+          ...(perCase ? [`Current canonical evidence validated: ${cell(item.evidence_validated)}.`,
+            `Current draft snapshot: ${cell(item.current_checkpoint?.draft?.snapshot_id)}; state: ${cell(item.current_checkpoint?.draft?.snapshot_state)}; approval required: ${cell(item.current_checkpoint?.draft?.approval_required)}.`] : []), '');
+      }
+      if (perCase && item.ui_login_file) {
+        const prefix = `private-logins/${id}/`;
+        if (!item.ui_login_file.startsWith(prefix) || !/^private-logins\/[A-Za-z0-9-]+\/[a-f0-9-]{36}\/ui-login\.html$/.test(item.ui_login_file)) throw new Error('Private login file crosses a case boundary.');
+        lines.push(`Private expiring [sign-in link for this account](${item.ui_login_file}).`, '');
+      }
     }
     lines.push('### Round results', '',
       '| Round | Status | Background settled | Accepted source |', '| --- | --- | --- | --- | --- |');
@@ -118,8 +132,8 @@ export function renderReport(plan, receipt) {
     for (const checkpoint of checkpoints) {
       const draft = checkpoint.draft ?? {};
       lines.push(`#### Round ${cell(checkpoint.milestone)}`, '',
-        `Status: ${cell(draft.status)}; revision: ${cell(draft.revision)}; covered round: ${cell(draft.covered_round)}.`, '',
-        fenced(draftText(draft)), '');
+        `Status: ${cell(draft.status)}; revision: ${cell(draft.revision)}; covered round: ${cell(draft.coverage_round ?? draft.covered_round)}.`, '',
+        fenced(checkpoint.readback_protocol === 'lifetime_private_draft_pages' ? (checkpoint.pages ?? []).flatMap(page => page.records ?? []).map(record => record.preview?.text ?? '').filter(Boolean).join('\n\n') : draftText(draft)), '');
     }
   }
   if (receipt.browser_readback) {

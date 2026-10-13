@@ -84,3 +84,21 @@ def test_exact_consolidated_chain_preserves_originals_and_backfills_canonical_ev
         assert sql('select text from public.user_narrator_source;').stdout.strip() == original
         assert sql('select count(*) from public.user_memory;').stdout.strip() == '1'
         assert sql(as_user('select count(*) from public.user_narrator_source;', OTHER)).stdout.splitlines()[-1] == '0'
+
+
+@pytest.mark.parametrize('main_applied', [False, True], ids=['fresh-history', 'main-upgrade-history'])
+def test_main_migration_history_accepts_the_unapplied_workspace_upgrade(consolidated_database, main_applied):
+    sql = consolidated_database
+    # Match Supabase's primary key: a descriptive suffix does not make another
+    # migration with the same numeric prefix distinct. No CLI or remote DB.
+    sql('create schema supabase_migrations; create table supabase_migrations.schema_migrations '
+        '(version text primary key, statements text[], name text);')
+    paths = sorted(ROOT.glob('*.sql'))
+    workspace = next(path for path in paths if path.name.endswith('_workspace_memory_actions.sql'))
+    merged = [path for path in paths if path != workspace]
+    for path in ([*merged, workspace] if main_applied else paths):
+        version, name = path.stem.split('_', 1)
+        sql(path.read_text())
+        sql(f"insert into supabase_migrations.schema_migrations(version,name) values('{version}','{name}');")
+    assert sql('select version from supabase_migrations.schema_migrations order by version;').stdout.splitlines() == [
+        path.name.split('_', 1)[0] for path in paths]

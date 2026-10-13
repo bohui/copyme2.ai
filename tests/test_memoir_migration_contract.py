@@ -14,6 +14,25 @@ def test_api_app_imports_and_starts_from_the_committed_dependency_set():
         assert client.get('/health').status_code == 200
 
 
+def test_integrated_app_registers_workspace_and_formal_authority_routes():
+    app = create_app(MemoryStore())
+    schema = app.openapi()
+    operations = {(path, method) for path, item in schema['paths'].items()
+                  for method in item if method in {'get', 'post', 'put', 'patch', 'delete'}}
+    assert {
+        ('/v1/agent/turn', 'post'),
+        ('/v1/story/private-draft/rework', 'post'),
+        ('/v1/agent/projects/{project_id}/formal-memoir', 'post'),
+        ('/v1/agent/projects/{project_id}/formal-memoir', 'get'),
+        ('/v1/agent/projects/{project_id}/story-game/consent', 'put'),
+        ('/v1/agent/projects/{project_id}/story-game/eligibility', 'get'),
+    } <= operations
+    focus = schema['components']['schemas']['TurnInput']['properties']['workspace_focus']
+    assert 'WorkspaceMemoryFocus' in str(focus)
+    ids = [schema['paths'][path][method]['operationId'] for path, method in operations]
+    assert len(ids) == len(set(ids))
+
+
 def test_private_round_migration_supplies_the_storage_contract_used_by_agent_storage():
     sql = (ROOT / 'supabase/migrations/202610020002_private_draft_rounds.sql').read_text()
 

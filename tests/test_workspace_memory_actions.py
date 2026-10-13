@@ -161,6 +161,46 @@ def test_pg_section_rework_is_idempotent_and_preserves_original_until_review(sql
     assert sql('select text from public.user_narrator_source;').stdout.strip() == source['text']
 
 
+def test_pg_private_rework_preserves_completed_formal_authority_and_consent(sql):
+    from test_formal_memoir_postgres import completed, consent
+    identity, source, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    head = finish(sql, lane, first)
+    current = rpc(sql, 'read_user_conversation_phase', literal(project))
+    phase = rpc(sql, 'change_user_conversation_phase', f"{literal(project)},'shape',{current['revision']}")
+    edition = completed(sql, project, phase)
+    initial = rpc(sql, 'read_story_game_eligibility', literal(project))
+    grant = consent(sql, project, edition, initial['consent_revision'])
+    eligible = rpc(sql, 'read_story_game_eligibility', literal(project))
+    assert eligible['authority_eligible'] is True
+    chapters = sql('select row_to_json(c) from public.user_formal_memoir_chapter c order by ordinal;').stdout
+    events = sql('select row_to_json(e) from public.user_memory_event e order by id;').stdout
+    sequence = sql('select event_sequence from public.user_memoir_project;').stdout
+    args = rework_args(head, str(uuid4()))
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'pending'
+    assert rpc(sql, 'read_formal_memoir_status', literal(project))['edition'] == edition
+    assert sql('select row_to_json(c) from public.user_formal_memoir_chapter c order by ordinal;').stdout == chapters
+    assert rpc(sql, 'read_story_game_eligibility', literal(project)) == eligible
+    assert sql('select event_sequence from public.user_memoir_project;').stdout == sequence
+    assert sql('select row_to_json(e) from public.user_memory_event e order by id;').stdout == events
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert page['editorial_request']['request_id'] == rpc(sql, 'request_workspace_section_rework', args)['request_id']
+    compose_rework(sql, page, 'Chengde was my childhood home.')
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'composed'
+    assert rpc(sql, 'read_formal_memoir_status', literal(project))['edition'] == edition
+    assert sql('select row_to_json(c) from public.user_formal_memoir_chapter c order by ordinal;').stdout == chapters
+    assert rpc(sql, 'read_story_game_eligibility', literal(project)) == eligible
+    # A true canonical revision still invalidates the same completed authority.
+    corrected = rpc(sql, 'correct_user_memory_event',
+        f"{literal(project)},{literal(first['partition']['id'])},{first['partition']['revision']},"
+        f"{literal({'life_stage':'childhood'})},'This was during my childhood.'")
+    assert corrected['revision'] == first['partition']['revision'] + 1
+    assert rpc(sql, 'read_formal_memoir_status', literal(project))['edition'] is None
+    assert sql('select count(*) from public.user_formal_memoir_chapter;').stdout.strip() == '0'
+    assert rpc(sql, 'read_story_game_eligibility', literal(project))['authority_eligible'] is False
+    assert consent(sql, project, edition, grant['revision'], check=False).returncode != 0
+
+
 def test_pg_rework_changes_only_selected_partition_and_purges_withdrawn_inputs(sql):
     identity, source, lane, first = seeded_composer(sql)
     first_head = finish(sql, lane, first)
@@ -180,6 +220,62 @@ def test_pg_rework_changes_only_selected_partition_and_purges_withdrawn_inputs(s
     assert sql(f"select bundle::text from public.user_lifetime_memoir_section where event_id='{second['partition']['id']}';").stdout == untouched
     rpc(sql, 'change_user_narrator_source', f"{literal(project)},'{source['id']}',1,'withdraw',null")
     assert sql('select count(*) from public.user_workspace_section_rework;').stdout.strip() == '0'
+
+
+def test_pg_new_rework_behind_a_yielded_cursor_restarts_only_its_edition(sql):
+    identity, source, lane, first = seeded_composer(sql)
+    first_head = finish(sql, lane, first)
+    project = identity['project_id']
+    later = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{uuid4()}','Later I moved to Sydney.'")
+    ref = dict(source_id=later['id'],version=1,quote=later['text'],char_start=0,char_end=len(later['text']))
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':later['id'],'version':1}])},"
+        f"{literal([dict(kind='event',title='Sydney',source_refs=[ref])])}")
+    sql(f"update public.user_memoir_lane set pending=true where id='{lane}';")
+    second = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    head = finish(sql, lane, second)
+    sequence = sql('select event_sequence from public.user_memoir_project;').stdout
+    newer = {**head,'first_record':{'id':second['partition_key']}}
+    rpc(sql, 'request_workspace_section_rework', rework_args(newer,str(uuid4())))
+    old_page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    service(sql, 'commit_lifetime_memoir_lane_page',
+        f"'{lane}','{old_page['token']}',{old_page['page_number']},{literal(section_result(old_page,'My later home was Sydney.'))}")
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{old_page['token']}'")
+    older = {**head,'first_record':first_head['first_record']}
+    rpc(sql, 'request_workspace_section_rework', rework_args(older,str(uuid4())))
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert page['snapshot_id'] != old_page['snapshot_id']
+    assert page['partition']['id'] == first['partition']['id']
+    assert sql(f"set role service_role;select public.commit_lifetime_memoir_lane_page("
+        f"'{lane}','{old_page['token']}',{old_page['page_number']},{literal(section_result(old_page))});", check=False).returncode != 0
+    service(sql, 'commit_lifetime_memoir_lane_page',
+        f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page,'Chengde was my childhood home.'))}")
+    page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+    assert page['partition']['id'] == second['partition']['id']
+    finish(sql, lane, page, 'My later home was Sydney.')
+    assert sql("select count(*) from public.user_workspace_section_rework where status='pending';").stdout.strip() == '0'
+    assert service(sql, 'claim_memoir_lane', f"'{lane}',900") is None
+    assert sql('select event_sequence from public.user_memoir_project;').stdout == sequence
+
+
+def test_pg_new_rework_preserves_an_unfinished_other_edition(sql):
+    identity, source, lane, first = seeded_composer(sql)
+    english = finish(sql, lane, first)
+    project = identity['project_id']
+    rpc(sql, 'set_lifetime_draft_edition', f"{literal(project)},'zh-CN'")
+    chinese = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    service(sql, 'commit_lifetime_memoir_lane_page',
+        f"'{lane}','{chinese['token']}',{chinese['page_number']},{literal(section_result(chinese,'我在承德长大。'))}")
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{chinese['token']}'")
+    args = rework_args(english,str(uuid4()))
+    rpc(sql, 'request_workspace_section_rework', args)
+    resumed = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert resumed['snapshot_id'] == chinese['snapshot_id'] and resumed['locale'] == 'zh-CN' and resumed['complete']
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{resumed['token']}'")
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert page['locale'] == 'en-AU' and page['editorial_request'] is not None
+    finish(sql, lane, page, 'Chengde was my childhood home.')
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'composed'
+    assert service(sql, 'claim_memoir_lane', f"'{lane}',900") is None
 
 
 def test_pg_rework_checks_current_root_uses_selected_edition_and_purges_deleted_events(sql):

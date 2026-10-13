@@ -67,6 +67,12 @@ from .profile_intake import (
 )
 from .agent_tasks import TaskRequest, extract_task_requests, resolve_task
 from .memoir_tasks import MemorySource
+from .memoir_story_game import (
+    STORY_GAME_SKILL_PATH,
+    build_story_game_prompt,
+    load_story_game_skill,
+    story_game_admission,
+)
 from .trajectory_evaluation import (
     TrajectoryRecorder,
     build_skill_manifest,
@@ -158,6 +164,9 @@ def _load_place_journey_skill() -> str:
 
 
 PLACE_JOURNEY_SKILL = _load_place_journey_skill()
+# Registered for the Memoir harness; excluded from conversational prompts while
+# game review, execution and private delivery bindings remain unavailable.
+STORY_GAME_SKILL = load_story_game_skill()
 SYSTEM_PROMPT = MEMOIR_SYSTEM_PROMPT
 BREADTH_REVIEW_INTERVAL = 20
 

@@ -40,12 +40,13 @@ If needed, select an existing Python environment containing `python-dotenv`:
 make memoir-live-fifty-test MEMOIR_TEST_ACCOUNTS_PYTHON=/absolute/path/to/python
 ```
 
-The existing test recipe, case selection, backend startup and reporting stay in
-place. That recipe currently uses one `EVAL_USER_EMAIL` across selected cases
-and can confirm/sign in its selected user through its existing Auth flow. This
-account-setup patch does not change case-to-account assignment or that flow.
-The setup prerequisite is not evidence that the live runner or Supabase schema
-is ready. Live tests are run manually by the user.
+The live runner uses a fixed case-to-account mapping: harbour → `test@test.com`,
+chengdu → `test2@test.com`, perth → `test3@test.com`, kunming → `test4@test.com`,
+sydney → `test5@test.com`. It verifies distinct owners and each case's session
+and canonical project. See `docs/memoir-fifty-subscription-evaluation.md` for
+canonical reuse, resume, per-case login files and manual execution. The setup
+prerequisite remains account-only and is not evidence that runtime/schema or
+live model execution is ready.
 
 Offline validation:
 

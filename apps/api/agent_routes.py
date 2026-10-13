@@ -22,8 +22,10 @@ from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
 from .place_journey import normalize_persisted_place_journey
 from .workspace_memory_actions import WorkspaceMemoryFocus
+from .formal_memoir_routes import router as formal_memoir_router
 
 router = APIRouter(prefix='/v1/agent', tags=['Codex agent'])
+router.include_router(formal_memoir_router)
 runtime = CodexRuntime()
 
 
@@ -438,8 +440,9 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
                 'language': payload.language,
                 'on_delta': emit,
                 'on_event': emit.event,
-                'workspace_focus': focus,
             }
+            if focus is not None:
+                options['workspace_focus'] = focus
             if payload.uploaded_photo_ids:
                 options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
             if payload.photo_selection is not None:
@@ -462,7 +465,9 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
             media_type='application/x-ndjson', headers=STREAM_HEADERS,publisher=publisher,
         )
     try:
-        options = {'project_id': payload.project_id, 'language': payload.language, 'workspace_focus': focus}
+        options = {'project_id': payload.project_id, 'language': payload.language}
+        if focus is not None:
+            options['workspace_focus'] = focus
         if payload.uploaded_photo_ids:
             options['uploaded_photo_ids'] = [str(id) for id in payload.uploaded_photo_ids]
         if payload.photo_selection is not None:

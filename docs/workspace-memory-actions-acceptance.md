@@ -2,7 +2,8 @@
 
 Follow-up to PR #61. Scope approved on 2026-10-13: remove the persistent
 comfort/explore/shape selector from chat and expose concrete tasks in the workspace.
-Final branch rebased on main `9736a2c`.
+Originally rebased on main `9736a2c`; the integration repair incorporates main
+`76e9da2cba3bf3cd4663ce40ad215d9db7a9c6b3` without rewriting PR history.
 
 ## Product behaviour
 
@@ -51,8 +52,8 @@ source-only requests. Attaching the first qualifying photo retires pending
 requests for the source-only partition it replaces; adding sibling photos
 preserves requests for partitions that still exist.
 
-The migration protects the existing section and advances scheduling metadata,
-without changing event facts or factual revision. Only the selected partition
+The migration protects the existing section and schedules private editorial work
+without changing canonical event facts, revisions or sequence counters. Only the selected partition
 receives the editorial request and bypasses reuse. Its versioned request travels
 through the canonical bounded input and database publication fence. Model wording
 remains grounded in the existing source window. The existing proposal digest/CAS,
@@ -164,3 +165,57 @@ the composer input. Surviving requests still receive editorial pages and complet
 The final attachment-fix run passed all 138 checks across workspace actions,
 lifetime review repairs, interview photos, composer policy and composer capacity,
 including the 10,000-event case. No production migration or deployment was performed.
+
+## Integration repair after PR64 and PR65
+
+The unapplied workspace migration is now
+`supabase/migrations/202610130003_workspace_memory_actions.sql`, after main's
+unchanged `202610130002_formal_memoir_authority.sql`. Migration validation compares
+numeric filename prefixes, matching Supabase's version identity. New PostgreSQL
+tests apply and record the entire chain in a version-keyed migration history,
+both from fresh storage and after main's migrations. Before the repair, the
+upgrade failed with a duplicate `202610130002` history key.
+
+Rework no longer increments `user_memoir_project.event_sequence` or edits the
+event's `change_sequence`. The composer's existing keyset includes exact pending
+editorial partitions alongside canonical deltas. Its initial private cursor can
+visit older requested partitions while retaining the predecessor's canonical
+watermark. A newly accepted request retires an unfinished snapshot for that
+edition; an unfinished other edition stays resumable. Exact retries preserve live
+leases, and old tokens cannot commit against the replacement snapshot. Current
+source, policy, privacy, event revision and editorial publication fences remain
+in force. Main's formal authority invalidation trigger is unchanged.
+
+The authenticated authority regression first reproduced loss of a completed
+formal edition on an editorial request. It now checks unchanged canonical rows
+and counters, byte-for-byte formal chapters, the same completion receipt and
+eligible adaptation consent through admission and private proposal completion.
+A real authenticated event correction then invalidates that authority and purges
+its chapters. Two additional cursor regressions cover an older request added
+after a saved/yielded page and English work queued behind unfinished Chinese work.
+
+Both workspace focus and formal authority routes remain registered. Legacy
+turns omit absent focus, preserving their prior call contract; JSON and streaming
+tests exercise both absent and selected focus. The automatic report-test merge
+had retained an early account-setup mock exit that hid main's assertion; the
+final report-test file matches main and performs only synthetic account setup.
+
+Validation so far: 127 workspace/formal/composer-capacity/policy Python/PostgreSQL
+checks, including 10,000 dispositions; 19 migration-history/configuration/cursor
+checks; 36 combined route and schema checks; 453 JavaScript checks. The production
+build, 43-operation mobile OpenAPI snapshot and both 635-message localization
+catalogues pass. These completed scoped runs had no skips. A further 194 focused
+checks passed on the committed candidate. The unchanged process-cleanup assertion
+`test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits` fails both
+on the candidate and on main in this cloud environment.
+
+At the user's workflow change, the final integration aggregate and full repository
+aggregate were already running. They are not publication gates, and no additional
+tests will be launched before independent review of the published head. Their logs
+are `/tmp/pr63-integration-all.log` and `/tmp/pr63-python-all.log` in the cloud
+workspace. The full attempt began before the repair was committed; its early
+route failures passed after the optional-focus fix, and its native fixture
+failures passed when rerun from the committed source tree. Completed checks do not
+establish live-provider or browser acceptance for this repair. No production
+migration, service restart, deployment, live Auth/model/provider call or PR merge
+is part of this repair.
