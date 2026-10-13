@@ -1,7 +1,7 @@
 """Private collector output and evidence-bound interview planning.
 
-Model proposals are untrusted. Only the rendered acknowledgement and one
-validated chosen question cross the public conversation boundary. Photo pixels
+Model proposals are untrusted. Chat and speech receive the rendered acknowledgement
+and one validated chosen question; tester traces can show validated question outputs. Photo pixels
 are not supplied by this contract, so descriptions retain narrator/metadata
 provenance and never claim visual inspection.
 """

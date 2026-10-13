@@ -197,6 +197,7 @@
         "queued": "已排队"
       },
       "title": "思考步骤",
+      "selectedQuestion": "已选",
       "stepCount": "{count} 个步骤",
       "note": "这里显示主要操作和工具结果，不显示模型内部的推理过程。",
       "analysisLabel": "分析",

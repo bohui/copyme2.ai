@@ -1709,8 +1709,11 @@ class CodexRuntime:
                         _, restored_name = await self._save_reply_only_name(
                             storage, lease, saved_work['name'], saved_sequence)
                 entitlement = await asyncio.to_thread(storage.story_entitlement)
+                if (saved_interview or {}).get('plan'):
+                    await progress.record_question_pool(saved_interview['plan'])
                 return {'project_id':project_id,'reply':previous_reply,'conversation_saved':True,'cached':True,
                         **public_interview_fields(saved_interview),
+                        'trace': list(progress.steps), 'trace_mode': 'live',
                         **({'profile_updates': restored_name} if restored_name else {}),
                         'recall_status':await asyncio.to_thread(storage_recall_status,storage,entitlement)}
         correlation = normalise_correlation(evaluation)
@@ -2050,6 +2053,7 @@ class CodexRuntime:
                         response_photo_ids=[p['photo_id'] for p in collector_result['response_photos']],
                         thread_id=thread_id)
                 reply = collector_result['reply']
+                await progress.record_question_pool(collector_result['plan'])
                 if on_delta:
                     prefix = collector_result.get('acknowledgement', '') if collector_visible.emitted else ''
                     await on_delta(reply[len(prefix):] if prefix and reply.startswith(prefix) else reply)

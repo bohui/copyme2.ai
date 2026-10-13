@@ -82,6 +82,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     from .lifetime_memory_engine import GovernedCollectorInput,governed_request_overhead,run_governed_collector
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
     from .recall import storage_recall_status
+    from .turn_progress import TurnProgress
     # Explicit request resource bound, before accepting any narrator bytes.
     if len(text.encode('utf-8'))>16000:
         raise InputLimitExceeded('This message exceeds the governed request budget; the original was not accepted or truncated')
@@ -145,6 +146,12 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 raise InputLimitExceeded('This message exceeds the explicit privacy-control request limit; the original was not accepted or truncated') from None
         if replay is not None:
             response={**replay,'cached':True,'recall_status':access}
+            if replay.get('reply'):
+                interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
+                if (interview or {}).get('plan'):
+                    progress=TurnProgress(on_event,client_turn_id,project_id,language)
+                    await progress.record_question_pool(interview['plan'])
+                    response.update(trace=list(progress.steps),trace_mode='live')
         elif access and access['payment_required']:
             response={'project_id':project_id,'recall_status':access,'reply':None,'conversation_saved':False}
         elif not user_response:
@@ -250,12 +257,15 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 p_associations=validated['associations'],p_reply=validated['reply'],p_response_photo_ids=[p['photo_id'] for p in validated['response_photos']],
                 p_thread_id=result['thread_id'],p_prompt_version='lifetime-v1',p_model=collector.model,p_continuity_updates=validated['continuity_updates'])
             fence=committed['fence'];publication.set_fence(fence)
+            progress=TurnProgress(on_event,client_turn_id,project_id,selected_language)
+            await progress.record_question_pool(validated['plan'])
             if on_delta:
                 prefix=validated.get('acknowledgement','') if visible.emitted else ''
                 await on_delta(validated['reply'][len(prefix):] if prefix and validated['reply'].startswith(prefix) else validated['reply'])
             access=await lease.io(storage_recall_status,storage,entitlement)
             response={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id'],
-                'conversation_saved':True,'reply':validated['reply'],'recall_status':access,**public_interview_fields(committed['interview'])}
+                'conversation_saved':True,'reply':validated['reply'],'recall_status':access,**public_interview_fields(committed['interview']),
+                'trace':list(progress.steps),'trace_mode':'live'}
             if on_event:await on_event({'type':'conversation_saved','data':response})
             response['required_memory_work']=await lease.io(LifetimeMemoryOutbox(storage.lifetime_rpc).drain,fence,limit=4)
         # Keep both cross-replica renewal and the local lock alive through actual

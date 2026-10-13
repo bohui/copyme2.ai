@@ -43,7 +43,12 @@ class VisibleText:
         return visible
 
 
-async def turn_events(run, cleanup=None):
+async def turn_events(run, cleanup=None, *, batch_bytes=0):
+    """Optionally pack already queued NDJSON frames into bounded sends.
+
+    No timer or producer wait is added. Individual frames and their order stay
+    intact; an oversized single frame retains the existing transport behavior.
+    """
     queue = asyncio.Queue(maxsize=64)
     request_id = new_request_id()
     stage = 'acceptance'
@@ -105,21 +110,39 @@ async def turn_events(run, cleanup=None):
 
     task = asyncio.create_task(produce())
     conversation_saved = False
+    pending = None
     try:
         yield json.dumps({'type': 'started'}) + '\n'
         while True:
             try:
-                event = await asyncio.wait_for(queue.get(), timeout=10)
+                event = pending if pending is not None else await asyncio.wait_for(queue.get(), timeout=10)
+                pending = None
             except asyncio.TimeoutError:
                 if task.done():
                     yield json.dumps({'type': 'error', 'message': 'The response was interrupted before it could be saved.'}) + '\n'
                     break
                 yield json.dumps({'type': 'heartbeat'}) + '\n'
                 continue
-            if event.get('type') == 'conversation_saved':
-                conversation_saved = True
-            yield json.dumps(event, ensure_ascii=False) + '\n'
-            if event['type'] in {'result', 'error'}:
+            frames = [json.dumps(event, ensure_ascii=False) + '\n']
+            size = len(frames[0].encode('utf-8')) if batch_bytes else 0
+            terminal = event['type'] in {'result', 'error'}
+            conversation_saved |= event['type'] == 'conversation_saved'
+            while batch_bytes and size < batch_bytes and not terminal:
+                try:
+                    next_event = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                frame = json.dumps(next_event, ensure_ascii=False) + '\n'
+                frame_size = len(frame.encode('utf-8'))
+                if size + frame_size > batch_bytes:
+                    pending = next_event
+                    break
+                frames.append(frame)
+                size += frame_size
+                terminal = next_event['type'] in {'result', 'error'}
+                conversation_saved |= next_event['type'] == 'conversation_saved'
+            yield ''.join(frames)
+            if terminal:
                 break
     finally:
         # Starlette cancels its AnyIO scope on disconnect; settlement must

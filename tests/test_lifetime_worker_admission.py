@@ -142,6 +142,91 @@ class Cohort:
             finally:self.active=False
 
 
+@pytest.mark.parametrize('adopt_after_ack', [False, True])
+def test_worker_stream_does_not_charge_an_authority_roundtrip_per_queued_character(monkeypatch, adopt_after_ack):
+    """The real worker endpoint must deliver an acknowledgement before completion."""
+    from apps.api.interview_plan import CollectorVisibleStream
+    from apps.api.lifetime_memory_legacy import LegacyMappingConflict
+    import apps.api.codex_worker_service as module
+
+    async def scenario():
+        complete = asyncio.Event()
+        visible = asyncio.Event()
+        checks = []
+        packets = []
+        decoder = CollectorVisibleStream()
+        acknowledgement = '{"acknowledgement":"That memory has stayed with you.",'
+
+        class Publisher(Cohort):
+            @asynccontextmanager
+            async def guard(self):
+                async with super().guard():
+                    checks.append(True)
+                    # A network roundtrip lets incoming model deltas queue up.
+                    await asyncio.sleep(0)
+                    yield
+
+        publisher = Publisher()
+
+        class Worker:
+            finished = False
+
+            async def turn(self, payload, *, on_delta, on_event):
+                for char in acknowledgement:
+                    await on_delta(char)
+                await complete.wait()
+                self.finished = True
+                return {'reply': 'Synthetic complete proposal', 'artifacts': []}
+
+        worker = Worker()
+        monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET', 'synthetic')
+        monkeypatch.setattr(module, 'worker', worker)
+        monkeypatch.setattr(module, '_legacy_publication', lambda _: publisher)
+        body = json.dumps(legacy().model_dump(mode='json')).encode()
+
+        async def receive():
+            return {'type': 'http.request', 'body': body, 'more_body': False}
+
+        async def send(message):
+            if message['type'] != 'http.response.body':
+                return
+            assert publisher.active, 'Every delivered packet still requires authority'
+            packets.append(message.get('body', b''))
+            for line in message.get('body', b'').splitlines():
+                event = json.loads(line)
+                if event['type'] == 'text_delta' and decoder.feed(event['text']):
+                    visible.set()
+
+        scope = {'type': 'http', 'asgi': {'version': '3.0', 'spec_version': '2.4'},
+            'http_version': '1.1', 'method': 'POST', 'scheme': 'http',
+            'path': '/internal/codex/turn', 'raw_path': b'/internal/codex/turn',
+            'query_string': b'', 'headers': [(b'content-type', b'application/json'),
+                (b'accept', b'application/x-ndjson'), (b'x-codex-worker-secret', b'synthetic')],
+            'client': ('127.0.0.1', 1234), 'server': ('test', 80)}
+        task = asyncio.create_task(module.app(scope, receive, send))
+        try:
+            await asyncio.wait_for(visible.wait(), 1)
+            assert not worker.finished, 'Do not wait for the complete model proposal'
+            assert len(checks) <= 4, 'Queued characters must share bounded delivery packets'
+            publisher.mapped = adopt_after_ack
+            complete.set()
+            if adopt_after_ack:
+                with pytest.raises(LegacyMappingConflict):
+                    await task
+            else:
+                await task
+            events = [json.loads(line) for packet in packets for line in packet.splitlines()]
+            assert ''.join(e['text'] for e in events if e['type'] == 'text_delta') == acknowledgement
+            assert events[0]['type'] == 'started'
+            assert (events[-1]['type'] == 'result') is not adopt_after_ack
+        finally:
+            complete.set()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
 def test_queued_legacy_json_is_rejected_after_adoption():
     from apps.api.lifetime_memory_legacy import LegacyJSONResponse,LegacyMappingConflict
     async def scenario():

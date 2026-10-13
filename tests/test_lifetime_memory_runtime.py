@@ -48,12 +48,18 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
         else:result=first.json()
         assert result['conversation_saved'] and result['accepted_source_id']
         assert result['reply'].endswith('What would you like to share?')
+        pool=result['trace'][0]['question_pool']
+        assert pool['chosen_id']==output['plan']['chosen_id']
+        assert pool['candidates'][0]['question']=='What would you like to share?'
+        if streaming:
+            assert next(e['data'] for e in events if e['type']=='progress')['question_pool']==pool
         payload['project_id']=result['project_id']
         monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
         retry=client.post('/v1/agent/turn',headers=headers,json=payload)
         if streaming:replayed=next(json.loads(line)['data'] for line in retry.text.splitlines() if json.loads(line)['type']=='result')
         else:replayed=retry.json()
         assert replayed['cached'] and replayed['reply']==result['reply']
+        assert replayed['trace'][0]['question_pool']==pool
         conflict=client.post('/v1/agent/turn',headers=headers,json={**payload,'text':'Different narrator input'})
         if streaming:assert any(json.loads(line)['type']=='error' for line in conflict.text.splitlines())
         else:assert conflict.status_code>=400

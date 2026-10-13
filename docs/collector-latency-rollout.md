@@ -2,6 +2,15 @@
 
 ## Status and scope
 
+The [13 October stream-delivery follow-up](verification/issue53-stream-packets-20261013.md)
+fixes per-fragment database authority overhead with bounded private-worker
+packets, retaining a fresh authority check for each actual send. Controlled
+real-SQL delivery improved from 3.231/4.364s to 0.379/0.354s. A current six-turn
+low/legacy API/Supabase smoke also passed exact-source readback and idempotent
+replay, with first text at 5.651–10.231s. This is limited, unpaired evidence;
+normal max/legacy still took about 19s in the isolated patched check. Running
+services and collector defaults remain unchanged, and release acceptance is open.
+
 The [12 October merged-main verification](verification/issues53-55-live-20261012.md)
 adds a current-head 42-generation comparison, a real normal-route proxy/Supabase
 smoke, and explicit issue 55 discovery/citation cases. The matched pilot improved

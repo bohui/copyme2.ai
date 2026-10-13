@@ -779,8 +779,12 @@ async def turn(payload: WorkerTurnInput, request: Request,
                 headers={'X-Error-Code': CanonicalActivationUnavailable.code, 'Retry-After': '60'}) from None
     if 'application/x-ndjson' in request.headers.get('accept', ''):
         response_type = LegacyStreamingResponse if legacy_publication is not None else StreamingResponse
+        # Raw collector deltas can arrive faster than remote SQL authority checks.
+        # Pack only frames already queued, checking authority for every actual
+        # bounded send instead of accumulating one roundtrip per model fragment.
+        batch_bytes = 65536 if payload.agent_role == 'collector' and legacy_publication is not None else 0
         return response_type(turn_events(lambda emit: worker.turn(payload, on_delta=emit,
-                                                                    on_event=emit.event)),
+                                                                    on_event=emit.event), batch_bytes=batch_bytes),
             **({'publisher':legacy_publication} if legacy_publication is not None else {}),
             media_type='application/x-ndjson', headers=STREAM_HEADERS)
     task = asyncio.create_task(worker.turn(payload))

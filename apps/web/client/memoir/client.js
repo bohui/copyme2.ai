@@ -4706,7 +4706,15 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false) {
     && (step.id !== "workspace" || ["completed", "failed"].includes(step.status)));
   if (!visibleSteps.length) return "";
   const title = escapeHtml(translate("Memoir.trace.title"));
-  const steps = visibleSteps.map((step) => `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}"><span class="agent-loop-detail">${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span></li>`).join("");
+  const steps = visibleSteps.map((step) => {
+    const pool = step.question_pool;
+    const questions = Array.isArray(pool?.candidates) && pool.candidates.length
+      ? `<ol class="agent-question-pool">${pool.candidates.map(candidate => {
+        const selected = candidate.id === pool.chosen_id;
+        return `<li class="agent-question-candidate" data-candidate-id="${escapeHtml(candidate.id)}" data-selected="${selected}">${selected ? `<span class="agent-question-selected">${escapeHtml(translate("Memoir.trace.selectedQuestion"))}</span>` : ""}${candidate.bridge ? `<span class="agent-question-bridge">${escapeHtml(candidate.bridge)}</span> ` : ""}<span>${escapeHtml(candidate.question)}</span></li>`;
+      }).join("")}</ol>` : "";
+    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}"><span class="agent-loop-detail">${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span>${questions}</li>`;
+  }).join("");
   return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}</ol></details>`;
 }
 

@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 from apps.api import agent_routes,supabase_routes
 from apps.api.codex_runtime import CodexRuntime
@@ -77,15 +78,26 @@ def test_direct_legacy_commit_is_rejected_after_canonical_adoption(sql):
     assert sql('select count(*) from public.user_memory;').stdout.strip()=='0'
 
 
-def test_legacy_outer_send_serializes_adoption_and_drops_queued_old_body(sql):
+@pytest.mark.parametrize('batched', [False, True])
+def test_legacy_outer_send_serializes_adoption_and_drops_queued_old_body(sql, batched):
     import asyncio
     import psycopg
     from apps.api.lifetime_memory_legacy import LegacyPublication,LegacyStreamingResponse,LegacyMappingConflict
     command=sql.command
-    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     async def scenario():
         entered=asyncio.Event();release=asyncio.Event();adopted=asyncio.Event();sent=[]
         async def chunks():
+            if batched:
+                from apps.api.turn_stream import turn_events
+                async def run(emit):
+                    await emit('first legacy output')
+                    await adopted.wait()
+                    await emit('stale private queued output')
+                    return {}
+                async for packet in turn_events(run, batch_bytes=65536):
+                    yield packet.encode()
+                return
             yield b'first legacy output'
             await adopted.wait()
             yield b'stale private queued output'
@@ -93,7 +105,7 @@ def test_legacy_outer_send_serializes_adoption_and_drops_queued_old_body(sql):
         @app.get('/legacy-adoption-boundary')
         async def route():return LegacyStreamingResponse(chunks(),publisher=LegacyPublication(dsn,authenticated_owner=OWNER))
         async def send(message):
-            if message['type']=='http.response.body' and message.get('body')==b'first legacy output':
+            if message['type']=='http.response.body' and b'first legacy output' in message.get('body',b''):
                 entered.set();await release.wait()
             sent.append(message)
         async def receive():await asyncio.Event().wait()
@@ -126,9 +138,6 @@ def test_legacy_outer_send_serializes_adoption_and_drops_queued_old_body(sql):
 
 
 # The same isolated SQL authority must fence both production dispatch modes.
-import pytest
-
-
 @pytest.mark.parametrize('mode',['in_process','worker'])
 def test_legacy_runtime_actual_admission_rejects_intervening_adoption(sql,monkeypatch,tmp_path,mode):
     import asyncio

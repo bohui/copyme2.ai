@@ -46,6 +46,39 @@ def test_text_arrives_before_persistence_and_result():
     asyncio.run(run())
 
 
+@pytest.mark.parametrize('fails', [False, True])
+def test_batched_packets_preserve_unicode_event_order_and_byte_bound(fails):
+    async def run():
+        ready = asyncio.Event()
+        expected = [{'type': 'text_delta', 'text': '回忆' * i} for i in range(1, 8)]
+        expected.insert(3, {'type': 'progress', 'data': {'id': 'reply', 'status': 'running'}})
+        # Larger individual frames keep their existing transport behavior.
+        expected.append({'type': 'text_delta', 'text': '长' * 100})
+        expected.append({'type': 'text_delta', 'text': 'After the large frame'})
+
+        async def turn(emit):
+            for event in expected:
+                await emit.event(event)
+            ready.set()
+            if fails:
+                raise RuntimeError('private credential')
+            return {'reply': 'Saved synthetic reply'}
+
+        stream = turn_events(turn, batch_bytes=150)
+        packets = [await anext(stream)]
+        await ready.wait()
+        packets += [packet async for packet in stream]
+        events = [json.loads(line) for packet in packets for line in packet.splitlines()]
+        assert events[1:-1] == expected
+        assert events[-1]['type'] == ('error' if fails else 'result')
+        assert 'private credential' not in ''.join(packets)
+        assert any(len(packet.splitlines()) > 1 for packet in packets)
+        assert all(len(packet.encode('utf-8')) <= 150 or len(packet.splitlines()) == 1
+                   for packet in packets)
+
+    asyncio.run(run())
+
+
 def test_saved_reply_event_can_precede_workspace_result():
     async def run():
         workspace_done = asyncio.Event()

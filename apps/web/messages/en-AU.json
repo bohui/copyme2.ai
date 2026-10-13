@@ -197,6 +197,7 @@
         "queued": "Queued"
       },
       "title": "Thinking steps",
+      "selectedQuestion": "Selected",
       "stepCount": "{count} steps",
       "note": "High-level actions and tool results are shown here. Private model reasoning stays hidden.",
       "analysisLabel": "Analyze",

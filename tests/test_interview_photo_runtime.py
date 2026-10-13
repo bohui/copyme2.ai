@@ -74,6 +74,12 @@ def test_accepted_cue_stream_and_saved_private_plan(monkeypatch):
     assert calls[0]['interview_context']['source']['text']==CONTEXT['source']['text']
     saved=next(e['data'] for e in events if e['type']=='conversation_saved')
     assert saved['response_photos']==result['response_photos']
+    pool=next(e['data'] for e in events if e['type']=='progress' and e['data']['id']=='question-pool')
+    assert pool['status']=='completed'
+    assert pool['question_pool']=={'chosen_id':'parents','candidates':[
+        {key:c[key] for key in ('id','question','bridge')} for c in proposal()['plan']['candidates']]}
+    assert pool in result['trace'] and pool in saved['trace']
+    assert 'context' not in pool['question_pool']['candidates'][0]
 
 
 def test_retry_after_generated_plan_preserves_same_question_without_model_reexecution(monkeypatch):
@@ -83,6 +89,28 @@ def test_retry_after_generated_plan_preserves_same_question_without_model_reexec
     result=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=turn))
     assert len(calls)==1 and storage.rounds==1
     assert result['reply']==storage.turn['reply']
+    assert next(s for s in result['trace'] if s['id']=='question-pool')['question_pool']['chosen_id']=='parents'
+
+
+def test_completed_retry_returns_saved_question_pool_without_model_call(monkeypatch):
+    storage=Storage();runtime,calls=harness(monkeypatch,storage);turn=str(uuid4())
+    monkeypatch.setattr(storage,'narrator_source_by_turn',lambda *args:deepcopy(CONTEXT['source']))
+    first=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=turn))
+    replay=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=turn))
+    assert replay['cached'] and len(calls)==1
+    assert replay['trace'][0]['question_pool']==next(s for s in first['trace'] if s['id']=='question-pool')['question_pool']
+
+
+def test_stopped_turn_has_an_explicit_empty_question_pool(monkeypatch):
+    storage=Storage();runtime,_=harness(monkeypatch,storage)
+    stopped=proposal();stopped.update(stopped=True,acknowledgement='我们先休息。',associations=[],response_photo_ids=[])
+    stopped['plan'].update(candidates=[],chosen_id=None,active_event_id=None)
+    async def worker(**kwargs):return {'thread_id':'thread-1','reply':json.dumps(stopped),'_workspace_capable':True}
+    monkeypatch.setattr(runtime,'_worker_turn',worker)
+    result=asyncio.run(runtime.turn(storage,CONTEXT['source']['text'],project_id='project',client_turn_id=str(uuid4())))
+    pool=next(s for s in result['trace'] if s['id']=='question-pool')
+    assert pool['question_pool']=={'candidates':[],'chosen_id':None}
+    assert pool['detail']=='本轮未生成追问'
 
 
 def test_photo_only_does_not_create_narrator_round(monkeypatch):
@@ -190,6 +218,7 @@ def test_collector_repairs_unsupported_context_before_saving_once(
         assert storage.rounds == 0 and storage.saved_plan is None
         assert deltas == [invalid['acknowledgement']]
         assert not any(e['type'] == 'conversation_saved' for e in events)
+        assert not any(e['type']=='progress' and e['data']['id']=='question-pool' for e in events)
         return
     result = turn()
 

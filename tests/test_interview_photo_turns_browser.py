@@ -27,13 +27,14 @@ CHAT_STORAGE_INIT = """(() => {
 @pytest.fixture(params=[(1440, 1000), (390, 844)], ids=['desktop', 'phone'])
 def photo_page(request):
     base = os.environ['MEMOIR_BROWSER_URL']
+    ui_locale = request.node.callspec.params.get('locale','en-AU')
     reference = dict(key='/static/reference-fixture.png', image_url='/static/reference-fixture.png', title='Public gate reference', source_url='https://archive.example/gate')
-    profile = dict(name='Fixture', preferred_language='en-AU', photo_memories={'photos': dict(favorites=[reference], selected=reference['key'], selection_revision='selection-1')})
+    profile = dict(name='Fixture', preferred_language=ui_locale, photo_memories={'photos': dict(favorites=[reference], selected=reference['key'], selection_revision='selection-1')})
     calls, errors = [], []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(executable_path=os.getenv('CHROMIUM_EXECUTABLE', '/usr/bin/chromium'), args=['--no-sandbox'])
         context = browser.new_context(viewport={'width':request.param[0], 'height':request.param[1]}, reduced_motion='reduce')
-        context.add_cookies([dict(name='copyme2_ui_locale', value='en-AU', url=base),dict(name='copyme2_ui_locale_source', value='fixed', url=base)])
+        context.add_cookies([dict(name='copyme2_ui_locale', value=ui_locale, url=base),dict(name='copyme2_ui_locale_source', value='fixed', url=base)])
         context.route('https://**', lambda r:r.abort())
         script = """const session=()=>({access_token:'fixture-'+(localStorage.getItem('fixture-owner')||'owner'),user:{id:localStorage.getItem('fixture-owner')||'owner',is_anonymous:true}});
           window.fixturePrincipal=id=>{localStorage.setItem('fixture-owner',id);window.fixtureAuth?.('SIGNED_IN',session())};
@@ -44,7 +45,7 @@ def photo_page(request):
             path=route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             calls.append((path,route.request.headers,route.request.post_data_buffer))
             data={}
-            if path=='/agent/config': data=dict(auth_mode='supabase',supabase_url='https://auth.test',supabase_publishable_key='public')
+            if path=='/agent/config': data=dict(auth_mode='supabase',supabase_url='https://auth.test',supabase_publishable_key='public',show_thinking_steps=profile.get('show_thinking_steps',False))
             elif path in ['/agent/profile','/user/profile']:
                 data=profile if route.request.headers.get('authorization')=='Bearer fixture-owner' else dict(preferred_language='en-AU')
             elif path=='/projects/photos':
@@ -94,6 +95,45 @@ def send(page,text='I caught insects with my parents.'):
 
 def receipt():
     return dict(state='source_accepted',photo_cue=dict(consumed=True,key='/static/reference-fixture.png',revision='selection-1'))
+
+
+@pytest.mark.parametrize('locale',['en-AU','zh-CN'])
+def test_question_pool_in_thinking_steps_keeps_reply_and_speech_to_one_question(photo_page,locale):
+    page,profile,_,viewport=photo_page
+    profile.update(show_thinking_steps=True,preferred_language=locale)
+    page.reload(wait_until='networkidle')
+    expect(page.locator('#chat-input')).to_be_enabled()
+    send(page)
+    question='那时您通常和谁一起去？' if locale=='zh-CN' else 'Who usually went with you?'
+    alternative='在那里有什么特别鲜明的回忆？' if locale=='zh-CN' else 'What do you remember most vividly there?'
+    reply=('我们可以接着聊。' if locale=='zh-CN' else 'We can keep going.')+'\n\n'+question
+    step=dict(id='question-pool',kind='progress',status='completed',detail='已生成问题池 · 2 个候选问题' if locale=='zh-CN' else 'Generated question pool · 2 candidates',
+        question_pool=dict(chosen_id='chosen',candidates=[dict(id='chosen',question=question,bridge=''),dict(id='later',question=alternative,bridge='')]))
+    page.evaluate('(data)=>turnEvent("progress",data)',step)
+    page.evaluate('(data)=>finishTurn(data)',dict(reply=reply,trace=[step],trace_mode='live',**receipt()))
+    trace=page.locator('.assistant-message .agent-loop').last
+    expect(trace).not_to_have_attribute('open','')
+    expect(page.locator('.assistant-message .message-text').last).to_have_text(reply,use_inner_text=True)
+    trace.locator('summary').click()
+    expect(trace.locator('.agent-question-candidate')).to_have_count(2)
+    expect(trace.locator('[data-selected=true]')).to_contain_text(question)
+    expect(trace.locator('.agent-question-selected')).to_have_text('已选' if locale=='zh-CN' else 'Selected')
+    expect(trace).to_contain_text(alternative)
+    page.locator('.assistant-message [data-action=speak]').last.click()
+    page.wait_for_function('spoken.length===1')
+    assert page.evaluate('spoken[0]')==reply
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    out=Path('/tmp/memoir-question-pools');out.mkdir(exist_ok=True)
+    trace.screenshot(path=str(out/f'{locale}-{viewport}.png'))
+    page.reload(wait_until='networkidle')
+    toggle=page.locator('[data-action=toggle-chat-history]')
+    if toggle.count() and toggle.get_attribute('aria-expanded')=='false':toggle.click()
+    trace=page.locator('.assistant-message .agent-loop').last
+    trace.locator('summary').click()
+    expect(trace).to_contain_text(alternative)
+    profile['show_thinking_steps']=False
+    page.reload(wait_until='networkidle')
+    expect(page.locator('.agent-question-pool')).to_have_count(0)
 
 
 def test_acceptance_clears_cue_shows_response_card_and_keeps_only_one_question(photo_page):

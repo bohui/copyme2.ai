@@ -244,6 +244,11 @@ h3 { line-height: 1.1; }
 .agent-loop-step { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: baseline; padding: 7px 8px; border-radius: 8px; background: #f7f4ed; font-size: 10px; }
 .agent-loop-kind { color: var(--green-dark); font-weight: 700; }
 .agent-loop-detail { color: var(--muted); line-height: 1.35; }
+.agent-question-pool { display: grid; gap: 8px; margin: 0; padding-left: 22px; color: var(--muted); line-height: 1.5; }
+.agent-question-candidate { padding-left: 2px; overflow-wrap: anywhere; }
+.agent-question-candidate[data-selected="true"] { color: var(--green-dark); }
+.agent-question-selected { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 4px; background: #edf3ef; font-weight: 700; }
+.agent-question-bridge { color: var(--muted); }
 .agent-loop-tool_call { background: #edf3ef; }
 .agent-loop-tool_call .agent-loop-kind { color: var(--green); }
 .agent-loop-tool_result { background: #f4f0e8; }
