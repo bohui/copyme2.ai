@@ -39,7 +39,9 @@ recovery of a previously accepted turn.
 Section rework admission checks the exact current root, partition, event/source
 revision and locale. An active composer lease or an existing selected-section
 proposal prevents admission. Each request has an immutable UUID and payload;
-repeating it after a lost acknowledgement does not reschedule the work. Requests
+repeating it after a lost acknowledgement creates no duplicate request or new
+narration. A pending replay can requeue an idle lane for its edition while
+preserving a live lease or unfinished snapshot. Requests
 retain only bounded original preview and instruction context, with no direct
 authenticated table access. Source changes/withdrawal and event changes/deletion
 purge dependent requests.
@@ -51,7 +53,7 @@ through the canonical bounded input and database publication fence. Model wordin
 remains grounded in the existing source window. The existing proposal digest/CAS,
 privacy checks, stale-output rejection and acceptance flow stay authoritative.
 
-## Verification
+## Initial verification at 072c2569
 
 - 386 JavaScript checks passed. The existing mocked Make runner accommodates
   main's new account-setup prerequisite without executing account operations.
@@ -79,3 +81,29 @@ No full Python aggregate, live-provider naturalness evaluation, production
 migration or deployment was performed. Browser evidence validates the shipped
 interaction against controlled APIs; database/composer tests validate storage
 and publication separately.
+
+## Edition handling review fixes
+
+Both reported P2 findings reproduced in regressions. Switching the visible draft
+edition previously retained an English rewrite form and submitted its frozen
+English snapshot while Chinese was selected. Forms now record their edition,
+clear on an edition switch and ignore responses from a replaced form.
+
+The shared composer lane previously completed only its latest selected edition,
+leaving an earlier edition's request pending. Root completion now queues the
+oldest remaining pending request's edition. A saved page records its output
+snapshot while its request stays pending until that complete root is available
+for review. Interrupted/stale roots therefore leave the editorial task retriable;
+a replay resumes an unfinished edition without switching its language.
+
+The original failing language-switch and two-edition queue scenarios now pass.
+Additional checks cover a response arriving after an edition switch, exact
+pending-request recovery, live-lease preservation and retry after a yielded page.
+The two-edition queue test runs the real bounded composer/publication path with
+synthetic model responses and keeps both originals available for review.
+
+The final JavaScript suite passes all 388 checks. All 80 workspace,
+composer-capacity and policy Python checks passed against disposable PostgreSQL,
+including the 10,000-event capacity case. All 12 browser cases in English desktop
+and Chinese phone viewports and the production build pass. No production
+migration or deployment was performed for these fixes.

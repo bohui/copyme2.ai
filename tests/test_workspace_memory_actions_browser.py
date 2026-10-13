@@ -4,6 +4,7 @@ import os
 from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
@@ -42,6 +43,7 @@ def workspace_page(request):
         }""")
         def api(route):
             path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+            query = parse_qs(urlsplit(route.request.url).query)
             body = route.request.post_data_json if route.request.post_data else None
             calls.append((path,route.request.method,deepcopy(body)))
             data = {}
@@ -60,12 +62,15 @@ def workspace_page(request):
             elif path=='/story/events':
                 data=dict(events=[deepcopy(event)],complete=True,next_cursor=None)
             elif path=='/story/private-draft':
-                data=deepcopy(draft)
+                data=deepcopy(control.get('editions',{}).get(query.get('language',[locale])[0],draft))
             elif path=='/story/private-draft/section':
-                data=deepcopy(record)
+                data=deepcopy(next((edition['first_record'] for edition in control.get('editions',{}).values()
+                    if edition['snapshot_id']==query.get('snapshot_id',[None])[0]),record))
             elif path=='/story/private-draft/rework':
-                record.update(proposed_preview={'title':'The garden revised','text':'The revised garden story.'},proposal_digest='b'*64)
-                draft.update(snapshot_id=str(uuid4()),root_digest='c'*64,first_record=deepcopy(record),proposed_preview=record['proposed_preview'])
+                target=next((edition for edition in control.get('editions',{}).values() if edition['snapshot_id']==body['snapshot_id']),draft)
+                target_record=target['first_record'] if target is not draft else record
+                target_record.update(proposed_preview={'title':'The garden revised','text':'The revised garden story.'},proposal_digest='b'*64)
+                target.update(snapshot_id=str(uuid4()),root_digest='c'*64,first_record=deepcopy(target_record),proposed_preview=target_record['proposed_preview'])
                 if control['fail_once']:
                     control['fail_once']=False
                     route.fulfill(status=503,json={'detail':'Lost acknowledgement'});return
@@ -175,3 +180,30 @@ def test_lost_acknowledgement_retries_the_exact_revision_request(workspace_page)
     expect(page.get_by_text(copy['reworkReady'],exact=True)).to_be_visible()
     attempts=[body for path,_,body in calls if path=='/story/private-draft/rework']
     assert len(attempts)==2 and attempts[0]==attempts[1]
+
+
+def test_language_switch_discards_old_rewrite_and_submits_against_selected_edition(workspace_page):
+    page,calls,copy,record,draft,control = workspace_page
+    other_locale='zh-CN' if draft['locale']=='en-AU' else 'en-AU'
+    other=deepcopy(draft)
+    other.update(locale=other_locale,snapshot_id=str(uuid4()),root_digest='d'*64)
+    other_snapshot=other['snapshot_id']
+    other['first_record']['preview']={'title':'Other edition','text':'Saved prose in the other edition.'}
+    other['preview']=other['first_record']['preview']
+    control['editions']={draft['locale']:draft,other_locale:other}
+    page.locator('.saved-draft-sections summary').click()
+    page.locator('[data-rework-section=garden-partition]').click()
+    page.locator('#section-rework-instruction').fill('Old edition instruction.')
+    page.locator('[data-draft-locale]').select_option(other_locale)
+    expect(page.locator('#section-rework-form')).to_have_count(0)
+    expect(page.locator('.private-draft-section')).to_contain_text('Saved prose in the other edition.')
+    assert not any(path=='/story/private-draft/rework' for path,_,_ in calls)
+    page.locator('.saved-draft-sections summary').click()
+    page.locator('[data-rework-section=garden-partition]').click()
+    expect(page.locator('#section-rework-instruction')).to_have_value('')
+    page.locator('#section-rework-instruction').fill('Selected edition instruction.')
+    page.locator('#section-rework-form button[type=submit]').click()
+    expect(page.get_by_text(copy['reworkReady'],exact=True)).to_be_visible()
+    attempt=next(body for path,_,body in calls if path=='/story/private-draft/rework')
+    assert attempt['snapshot_id']==other_snapshot and attempt['root_digest']=='d'*64
+    assert attempt['instruction']=='Selected edition instruction.'

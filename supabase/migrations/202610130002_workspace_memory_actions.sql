@@ -34,6 +34,7 @@ grant execute on function public.read_workspace_memory_focus(text,jsonb) to auth
 create table public.user_workspace_section_rework (
  user_id uuid not null,project_id text not null,request_id uuid not null,
  snapshot_id uuid not null references public.user_lifetime_lane_snapshot(id) on delete cascade,
+ composed_snapshot_id uuid references public.user_lifetime_lane_snapshot(id) on delete set null,
  root_digest text not null,partition_key text not null,locale text not null,
  event_id text not null,event_revision bigint not null,source_id uuid not null,source_version bigint not null,
  instruction text not null check(length(instruction) between 1 and 1000),
@@ -64,6 +65,18 @@ begin
    if prior.snapshot_id is distinct from p_snapshot_id or prior.root_digest is distinct from p_root_digest
      or prior.partition_key is distinct from p_partition_id or prior.instruction is distinct from btrim(p_instruction) then
      raise exception 'revision request replay conflict' using errcode='40001';end if;
+   -- A lost acknowledgement may be retried after another edition ran. Recover
+   -- the pending task without changing its identity or interrupting a lease.
+   if prior.status='pending' then
+     select l.* into lane from public.user_memoir_lane l join public.user_lifetime_lane_snapshot s on s.lane_id=l.id
+       where s.id=prior.snapshot_id and l.user_id=owner and l.project_id=p_project_id and l.skill='composer' for update of l;
+     if found and not(lane.token is not null and lane.lease_until>clock_timestamp() and lane.run_deadline>clock_timestamp()) then
+       if not exists(select 1 from public.user_lifetime_lane_snapshot where lane_id=lane.id and state='pending') then
+         update public.user_memoir_lane set locale=prior.locale where id=lane.id;
+       end if;
+       perform public.retry_user_memoir_lane(p_project_id,'composer');
+     end if;
+   end if;
    return jsonb_build_object('request_id',prior.request_id,'status',prior.status);
  end if;
  select * into root from public.user_lifetime_lane_snapshot r where r.id=p_snapshot_id and r.user_id=owner and r.project_id=p_project_id
@@ -96,7 +109,11 @@ begin
  -- Advance scheduling metadata only. Neither event facts nor their revision change.
  update public.user_memoir_project set event_sequence=event_sequence+1 where user_id=owner and project_id=p_project_id returning event_sequence into next_event;
  update public.user_memory_event set change_sequence=next_event where user_id=owner and project_id=p_project_id and id=section.event_id;
- update public.user_memoir_lane set locale=root.locale where id=lane.id;
+ -- Keep an unfinished edition resumable; the completion wrapper drains the
+ -- other editions after this root has become available for review.
+ if not exists(select 1 from public.user_lifetime_lane_snapshot where lane_id=lane.id and state='pending') then
+   update public.user_memoir_lane set locale=root.locale where id=lane.id;
+ end if;
  perform public.retry_user_memoir_lane(p_project_id,'composer');
  return jsonb_build_object('request_id',p_request_id,'status','pending');
 end $$;
@@ -166,13 +183,37 @@ begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  result:=public.commit_lifetime_memoir_lane_page_before_rework(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
  if p_page_number=(page->>'page_number')::bigint and page->'editorial_request'<>'null'::jsonb then
-   update public.user_workspace_section_rework set status='composed' where user_id=(page->>'user_id')::uuid
+   update public.user_workspace_section_rework set composed_snapshot_id=(page->>'snapshot_id')::uuid where user_id=(page->>'user_id')::uuid
      and project_id=page->>'project_id' and request_id=(page->'editorial_request'->>'request_id')::uuid;
  end if;
  return result;
 end $$;
 revoke all on function public.commit_lifetime_memoir_lane_page(uuid,uuid,bigint,jsonb,text) from public,anon,authenticated;
 grant execute on function public.commit_lifetime_memoir_lane_page(uuid,uuid,bigint,jsonb,text) to service_role;
+
+-- A project has one composer lane, shared by its language editions. Completing
+-- one edition must leave the lane queued for any remaining editorial requests.
+alter function public.complete_lifetime_memoir_lane(uuid,uuid) rename to complete_lifetime_memoir_lane_before_rework;
+revoke all on function public.complete_lifetime_memoir_lane_before_rework(uuid,uuid) from public,anon,authenticated,service_role;
+create function public.complete_lifetime_memoir_lane(p_lane_id uuid,p_token uuid) returns jsonb
+language plpgsql security definer set search_path=public,auth as $$
+declare result jsonb; next_locale text;
+begin
+ result:=public.complete_lifetime_memoir_lane_before_rework(p_lane_id,p_token);
+ -- A saved page is not yet a readable proposal. Keep its request pending until
+ -- the complete root is published, so stale/yielded snapshots can be retried.
+ update public.user_workspace_section_rework set status='composed'
+   where composed_snapshot_id=(result->>'snapshot_id')::uuid and status='pending';
+ select request.locale into next_locale from public.user_workspace_section_rework request join public.user_memoir_lane lane
+   on lane.user_id=request.user_id and lane.project_id=request.project_id and lane.skill='composer'
+   where lane.id=p_lane_id and request.status='pending' order by request.created_at,request.request_id limit 1;
+ if found then
+   update public.user_memoir_lane set locale=next_locale,pending=true,attempts=0,error=null,available_at=clock_timestamp() where id=p_lane_id;
+ end if;
+ return result;
+end $$;
+revoke all on function public.complete_lifetime_memoir_lane(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.complete_lifetime_memoir_lane(uuid,uuid) to service_role;
 
 create function public.invalidate_workspace_rework() returns trigger
 language plpgsql security definer set search_path=public,auth as $$

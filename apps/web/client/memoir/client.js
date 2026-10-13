@@ -3405,14 +3405,16 @@ function workspaceMemoryFocusMarkup() {
 }
 
 function currentSectionRework() {
-  return state.sectionRework && isCurrentProjectScope(state.sectionRework) ? state.sectionRework : null;
+  const rework = state.sectionRework;
+  return rework && isCurrentProjectScope(rework)
+    && rework.locale === (state.privateDraftLocale || state.privateDraft?.locale) ? rework : null;
 }
 
 function openSectionRework(partitionId) {
   const saved = state.privateDraft;
   const record = [saved?.first_record, ...(saved?.pages || []), saved?.selected_record].find(item => item?.id === partitionId);
   if (!record?.preview || record.proposed_preview || saved.legacy || saved.updating || saved.deciding || currentSectionRework()?.busy) return;
-  state.sectionRework = {...captureProjectScope(), partitionId, snapshotId:saved.snapshot_id,
+  state.sectionRework = {...captureProjectScope(), locale:saved.locale, partitionId, snapshotId:saved.snapshot_id,
     rootDigest:saved.root_digest, requestId:crypto.randomUUID(), instruction:"", busy:false};
   render();
   $("#section-rework-instruction")?.focus();
@@ -3447,13 +3449,13 @@ async function submitSectionRework(event) {
   render();
   try {
     await storyApi('/v1/story/private-draft/rework', {method:"POST", body:JSON.stringify(rework.payload)});
-    if (!isCurrentProjectScope(rework)) return;
+    if (currentSectionRework() !== rework) return;
     rework.queued = true;
   } catch (_) {
-    if (isCurrentProjectScope(rework)) rework.error = true;
+    if (currentSectionRework() === rework) rework.error = true;
   } finally {
     rework.busy = false;
-    if (isCurrentProjectScope(rework)) { render(); await refreshPrivateDraft(); }
+    if (currentSectionRework() === rework) { render(); await refreshPrivateDraft(); }
   }
 }
 
@@ -3493,6 +3495,7 @@ async function retryPrivateDraft() {
 
 async function selectPrivateDraftLocale(language) {
   if (!["en-AU", "zh-CN"].includes(language)) return;
+  state.sectionRework = null;
   state.privateDraftLocale = language;
   state.privateDraft = null;
   await refreshPrivateDraft();

@@ -64,7 +64,7 @@ def compose_rework(sql, page, text):
     def model(request):
         bounded=BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane'])
         assert bounded.fence.editorial_request.instruction=='Make this section shorter.'
-        assert bounded.fence.editorial_request.original_preview.text==page['source']['text']
+        assert bounded.fence.editorial_request.original_preview.model_dump(mode='json')==page['editorial_request']['original_preview']
         payload=json.loads(bounded.packet)['payload'];phases.append(bounded.phase)
         if bounded.phase=='prepare':
             result=dict(event_id=page['partition']['id'],context='Source-grounded preparation',source_refs=page['partition']['source_refs'])
@@ -78,7 +78,7 @@ def compose_rework(sql, page, text):
     result=asyncio.run(execute_lifetime_lane(page,worker))
     assert result['status']=='proposed', result
     assert phases==['prepare','draft','review']
-    return rpc(sql,'read_lifetime_private_draft_head',literal(page['project_id']))
+    return rpc(sql,'read_lifetime_private_draft_head',f"{literal(page['project_id'])},{literal(page['locale'])}")
 
 
 @pytest.mark.parametrize('value', [
@@ -193,6 +193,62 @@ def test_pg_rework_checks_current_root_uses_selected_edition_and_purges_deleted_
     assert sql(f"select locale from public.user_memoir_lane where id='{lane}';").stdout.strip() == head['locale']
     sql(f"delete from public.user_memory_event where user_id='{OWNER}' and project_id={literal(identity['project_id'])} and id={literal(first['partition']['id'])};")
     assert sql('select count(*) from public.user_workspace_section_rework;').stdout.strip() == '0'
+
+
+@pytest.mark.parametrize('interrupted',[False,True])
+def test_pg_rewrites_for_both_editions_finish_without_stranding_the_first_request(sql,interrupted):
+    identity, source, lane, first = seeded_composer(sql)
+    english = finish(sql, lane, first)
+    project = identity['project_id']
+    rpc(sql, 'set_lifetime_draft_edition', f"{literal(project)},'zh-CN'")
+    chinese_page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    finish(sql, lane, chinese_page, '我在承德长大。')
+    chinese = rpc(sql, 'read_lifetime_private_draft_head', f"{literal(project)},'zh-CN'")
+    requests = [(english,str(uuid4())),(chinese,str(uuid4()))]
+    for head, request_id in requests:
+        assert rpc(sql, 'request_workspace_section_rework', rework_args(head,request_id))['status'] == 'pending'
+    if interrupted:
+        page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+        revised = f"Revised {page['locale']} section."
+        service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page,revised))}")
+        assert sql("select count(*) from public.user_workspace_section_rework where status='pending';").stdout.strip() == '2'
+        service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+        rpc(sql, 'request_workspace_section_rework', rework_args(*requests[0]))
+        assert sql(f"select locale from public.user_memoir_lane where id='{lane}';").stdout.strip() == page['locale']
+        resumed = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+        assert resumed['snapshot_id'] == page['snapshot_id'] and resumed['complete']
+        service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{resumed['token']}'")
+    for _ in range(3):
+        page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+        if not page: break
+        compose_rework(sql, page, f"Revised {page['locale']} section.")
+    for head, request_id in requests:
+        replay = rpc(sql, 'request_workspace_section_rework', rework_args(head,request_id))
+        assert replay['status'] == 'composed', f"{head['locale']} remained pending: {replay}"
+        current = rpc(sql, 'read_lifetime_private_draft_head', f"{literal(project)},{literal(head['locale'])}")
+        assert current['proposed_preview']['text'] == f"Revised {head['locale']} section."
+        assert current['preview']['text'] == head['preview']['text']
+
+
+def test_pg_pending_rewrite_retry_recovers_its_edition_without_interrupting_live_lease(sql):
+    identity, source, lane, first = seeded_composer(sql)
+    head = finish(sql, lane, first)
+    args = rework_args(head,str(uuid4()))
+    rpc(sql, 'request_workspace_section_rework', args)
+    sequence = sql('select event_sequence from public.user_memoir_project;').stdout
+    # Reproduce an idle lane left on the wrong edition by an earlier run.
+    sql(f"update public.user_memoir_lane set locale='zh-CN',pending=false,attempts=3,error='MEMOIR_UNAVAILABLE' where id='{lane}';")
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'pending'
+    assert sql(f"select locale||':'||pending||':'||attempts from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'en-AU:true:0'
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    active = sql(f"select token||':'||locale||':'||lease_until||':'||run_deadline||':'||attempts from public.user_memoir_lane where id='{lane}';").stdout
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'pending'
+    assert sql(f"select token||':'||locale||':'||lease_until||':'||run_deadline||':'||attempts from public.user_memoir_lane where id='{lane}';").stdout == active
+    finish(sql, lane, page, 'Revised English prose.')
+    assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'composed'
+    assert sql(f"select pending from public.user_memoir_lane where id='{lane}';").stdout.strip() == 'f'
+    assert sql('select event_sequence from public.user_memoir_project;').stdout == sequence
 
 
 def test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_after_event_changes(sql, tmp_path, monkeypatch):
