@@ -21,6 +21,8 @@ EVAL_SOURCE_MODE ?= local
 EVAL_RUN_ID ?=
 EVAL_RUN_DIR ?=
 EVAL_RESUME_DIR ?=
+EVAL_ACCEPT_SOURCE_CHANGE ?= 0
+EVAL_RECOVER_ACCEPTED_TURN ?= 0
 EVAL_OUTPUT_ROOT ?= $(HOME)/memoir-test-results
 EVAL_MAX_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,3000)
 EVAL_MAX_ELAPSED_SECONDS ?= $(if $(strip $(EVAL_CASE_ID)),7200,36000)
@@ -198,6 +200,8 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 	if test -n "$(EVAL_SOURCE_REVISION)"; then set -- "$$@" --source-revision "$(EVAL_SOURCE_REVISION)"; fi; \
 	if test -n "$$run_id"; then set -- "$$@" --run-id "$$run_id"; fi; \
 	if test -n "$(EVAL_RESUME_DIR)"; then set -- "$$@" --resume-dir "$(abspath $(EVAL_RESUME_DIR))"; fi; \
+	case "$(EVAL_ACCEPT_SOURCE_CHANGE)" in 1) set -- "$$@" --accept-source-change ;; 0) ;; *) echo "EVAL_ACCEPT_SOURCE_CHANGE must be 0 or 1." >&2; exit 2 ;; esac; \
+	case "$(EVAL_RECOVER_ACCEPTED_TURN)" in 1) set -- "$$@" --recover-accepted-turn ;; 0) ;; *) echo "EVAL_RECOVER_ACCEPTED_TURN must be 0 or 1." >&2; exit 2 ;; esac; \
 	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
 	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
 	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
@@ -225,7 +229,7 @@ memoir-live-fifty-backend: ## Start the API and workers for a remote run; called
 _memoir-live-fifty-backend: runtime-start
 	@test -n "$${MEMORY_SPARK_EVAL_RECALL_OWNER_ID:-}" || { echo "Use make memoir-live-fifty-test to configure its account allowance." >&2; exit 2; }
 	@mkdir -p var/memory-spark
-	@MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)" $(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build api codex-worker photo-worker worker temporal
+	@MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)" $(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build --force-recreate api codex-worker photo-worker worker temporal
 	@python3 scripts/refresh_mocker_compose_hosts.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" --compose-file "$(COMPOSE_FILE)"
 	@MEMORY_SPARK_CODEX_WORKER_TIMEOUT="$(MEMORY_SPARK_CODEX_WORKER_TIMEOUT)" $(MOCKER) compose up -f $(COMPOSE_FILE) --detach --no-build --no-recreate --wait --wait-timeout 120 api codex-worker photo-worker worker temporal
 	@$(MOCKER) compose exec -f $(COMPOSE_FILE) -T api python -c 'import os,urllib.request; [urllib.request.urlopen(os.environ[key]+"/health", timeout=10).read() for key in ("MEMORY_SPARK_CODEX_WORKER_URL", "MEMORY_SPARK_PHOTO_WORKER_URL")]; print("API worker connections: ready")'

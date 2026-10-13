@@ -8,6 +8,7 @@ homes and transcripts are disposable; they are never a source of personal truth.
 from __future__ import annotations
 
 from copy import deepcopy
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -38,6 +39,14 @@ GOVERNED_TURN_PROMPT = (
 # the existing reviewed byte-BPE collector; the second is an offline fixture.
 SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'synthetic-byte-bpe'})
 SUPPORTED_PROMPT_VERSIONS = frozenset({'lifetime-v1'})
+
+
+class CollectorResponseUnavailable(RuntimeError):
+    code = 'LIFETIME_RESPONSE_PENDING'
+
+
+class CollectorOutputInvalid(CollectorResponseUnavailable):
+    code = 'LIFETIME_COLLECTOR_OUTPUT_INVALID'
 
 
 class _AssistantExchange(Contract):
@@ -247,7 +256,21 @@ def validate_governed_context(governed: GovernedCollectorInput, interview_contex
     return packet
 
 
-async def run_governed_collector(*, command, home_root, base_url, api_key, model,
+async def run_governed_collector(**options):
+    """Retry rejected output in fresh bounded homes within the original timeout."""
+    options={**options,'interview_context':deepcopy(options['interview_context']),
+        'governed':GovernedCollectorInput.model_validate(options['governed'].model_dump(mode='json'))}
+    # Once visible streaming has begun, another answer cannot be appended to it.
+    attempts=1 if options.get('on_delta') else 3
+    async with asyncio.timeout(options.get('timeout',120)):
+        for attempt in range(attempts):
+            try:
+                return await _run_governed_collector_once(**options)
+            except CollectorOutputInvalid:
+                if attempt==attempts-1:raise
+
+
+async def _run_governed_collector_once(*, command, home_root, base_url, api_key, model,
         governed: GovernedCollectorInput, interview_context, thread_id=None,
         timeout=120, on_delta=None, on_event=None, effort=None,
         responsesapi_client_metadata=None, connection_factory=None,
@@ -308,7 +331,7 @@ async def run_governed_collector(*, command, home_root, base_url, api_key, model
         except (ValueError, TypeError, KeyError):
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
-            raise RuntimeError('The interview response could not be validated; please retry the accepted turn') from None
+            raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn') from None
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
     if on_event:

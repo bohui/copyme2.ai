@@ -1,33 +1,11 @@
-"""Synthetic-only global realtime drain / canonical admission boundary."""
+"""Canonical provider authority, cancellation and safe error transports."""
 import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from uuid import UUID
 
 import pytest
 
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
-from test_agent_commit_postgres import OWNER, OTHER, as_user
-from test_shared_memory_events_postgres import rpc, literal
-
-
-def test_new_adoption_requires_explicit_realtime_clearance(gate):
-    sql=gate
-    # This test deliberately uses the migration-default stage, unlike the
-    # explicitly cleared ordinary canonical test fixtures.
-    if sql("select to_regclass('public.lifetime_realtime_clearance');").stdout.strip():
-        sql('truncate public.lifetime_realtime_clearance; insert into public.lifetime_realtime_clearance default values;')
-    blocked=rpc(sql,'resolve_lifetime_conversation','null',check=False)
-    assert blocked.returncode!=0 and 'LIFETIME_REALTIME_CLEARANCE_REQUIRED' in blocked.stderr
-    assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip()=='0'
-
-
-def test_direct_realtime_requires_transactional_authority_even_legacy_only(monkeypatch):
-    from apps.api.lifetime_memory_activation import RealtimePublication
-    from apps.api.lifetime_memory_publication import PublicationUnavailable
-    monkeypatch.setenv('MEMOIR_LEGACY_ONLY_DEPLOYMENT','true')
-    with pytest.raises(PublicationUnavailable):RealtimePublication(None,authenticated_owner=UUID(int=4))
-
+from test_agent_commit_postgres import OWNER
 
 def publisher_case(kind, **options):
     if kind == 'collector':
@@ -47,7 +25,7 @@ def publisher_case(kind, **options):
 
 @pytest.mark.parametrize('kind', ['collector', 'lane', 'job'])
 @pytest.mark.parametrize('closed', [False, True])
-def test_every_provider_admission_requires_clearance_after_authority(monkeypatch, kind, closed):
+def test_every_provider_admission_rechecks_authority_after_publication(monkeypatch, kind, closed):
     import psycopg
     from apps.api.lifetime_memory_activation import CanonicalActivationUnavailable
     calls = []; released = []
@@ -57,7 +35,7 @@ def test_every_provider_admission_requires_clearance_after_authority(monkeypatch
         async def execute(self, statement, args=None):
             calls.append(statement)
             if 'provider_activation' in statement and closed:
-                raise psycopg.errors.ObjectNotInPrerequisiteState('private attestation must not escape')
+                raise psycopg.errors.ObjectNotInPrerequisiteState('private authority diagnostics must not escape')
             async def fetchone(): return (10,)
             return SimpleNamespace(fetchone=fetchone)
         async def close(self): released.append(True)
@@ -97,7 +75,7 @@ def test_activation_wait_cannot_spend_previously_measured_lease(monkeypatch, kin
     assert released == [True]
 
 
-def test_saved_publication_does_not_require_new_generation_clearance(monkeypatch):
+def test_saved_publication_does_not_require_new_generation_authority(monkeypatch):
     import psycopg
     from apps.api.lifetime_memory_publication import TransactionalPublication
     from test_lifetime_memory_engine import FENCE
@@ -115,7 +93,7 @@ def test_saved_publication_does_not_require_new_generation_clearance(monkeypatch
     asyncio.run(run())
 
 
-def test_clearance_acquisition_timeout_is_fixed_but_send_cancellation_is_preserved(monkeypatch):
+def test_authority_acquisition_timeout_is_fixed_but_send_cancellation_is_preserved(monkeypatch):
     import psycopg
     from apps.api.lifetime_memory_activation import ActivationPublication, CanonicalActivationUnavailable
     closed=[]
@@ -146,7 +124,7 @@ def test_clearance_acquisition_timeout_is_fixed_but_send_cancellation_is_preserv
 
 @pytest.mark.parametrize('stream', [False, True])
 @pytest.mark.parametrize('kind', ['collector', 'lane', 'job'])
-def test_worker_missing_clearance_authority_rejects_before_stream_starts(monkeypatch, stream, kind):
+def test_worker_missing_provider_authority_rejects_before_stream_starts(monkeypatch, stream, kind):
     from fastapi.testclient import TestClient
     from apps.api import codex_worker_service as worker
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
@@ -173,184 +151,8 @@ def test_worker_missing_clearance_authority_rejects_before_stream_starts(monkeyp
     with TestClient(worker.app) as client:
         result=client.post('/internal/codex/turn',json=payload,headers=headers)
     assert result.status_code==503,result.text
-    assert result.headers['X-Error-Code']=='LIFETIME_REALTIME_CLEARANCE_REQUIRED'
+    assert result.headers['X-Error-Code']=='LIFETIME_PROVIDER_AUTHORITY_UNAVAILABLE'
     assert 'started' not in result.text
-
-
-def reset_stage(sql):
-    sql('truncate public.lifetime_realtime_clearance; insert into public.lifetime_realtime_clearance default values;')
-
-
-def ready(sql):
-    sql("select public.begin_lifetime_realtime_drain(0); select public.attest_lifetime_realtime_clearance(1,'synthetic-isolated-fixture-no-live-calls');")
-
-
-@pytest.fixture
-def gate(sql):
-    reset_stage(sql)
-    try: yield sql
-    finally:
-        reset_stage(sql); ready(sql)
-
-
-def dsn_for(sql):
-    command=sql.command
-    return f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
-
-
-async def wait_blocked(observer, pid):
-    async with asyncio.timeout(2):
-        while True:
-            row=await (await observer.execute('select cardinality(pg_blocking_pids(%s))',(pid,))).fetchone()
-            if row[0]: return
-
-
-@pytest.mark.parametrize('role',['anon','authenticated','service_role'])
-def test_only_database_owner_can_attest_clearance(gate,role):
-    for statement in ["select public.begin_lifetime_realtime_drain(0)",
-            "select public.attest_lifetime_realtime_clearance(1,'forged-clearance')",
-            "update public.lifetime_realtime_clearance set stage='canonical_ready',revision=2,termination_attestation_reference='forged'",
-            "select * from public.lifetime_realtime_clearance"]:
-        blocked=gate(f'set role {role}; {statement};',check=False)
-        assert blocked.returncode!=0 and 'permission denied' in blocked.stderr
-    assert gate('select stage from public.lifetime_realtime_clearance;').stdout.strip()=='legacy_only'
-
-
-def test_operator_transitions_require_cas_attestation_and_never_reopen(gate):
-    assert gate("select public.attest_lifetime_realtime_clearance(0,'premature');",check=False).returncode!=0
-    assert gate('select public.begin_lifetime_realtime_drain(1);',check=False).returncode!=0
-    gate('select public.begin_lifetime_realtime_drain(0);')
-    for value in ('null',"''","'private human prose is forbidden'","repeat('x',257)"):
-        assert gate(f'select public.attest_lifetime_realtime_clearance(1,{value});',check=False).returncode!=0
-    gate("select public.attest_lifetime_realtime_clearance(1,'synthetic-verified-all-connected-and-inflight-calls');")
-    assert gate("update public.lifetime_realtime_clearance set stage='legacy_only',revision=3,termination_attestation_reference=null;",check=False).returncode!=0
-    assert gate('select public.begin_lifetime_realtime_drain(2);',check=False).returncode!=0
-    assert gate('select stage from public.lifetime_realtime_clearance;').stdout.strip()=='canonical_ready'
-
-
-def test_identity_insert_gate_and_existing_identity_recovery_are_distinct(gate):
-    gate(f"insert into public.user_memoir_project(user_id,project_id) values('{OWNER}','fixture-project');")
-    blocked=gate(f"insert into public.user_lifetime_conversation(user_id,project_id) values('{OWNER}','fixture-project');",check=False)
-    assert blocked.returncode!=0 and 'LIFETIME_REALTIME_CLEARANCE_REQUIRED' in blocked.stderr
-    ready(gate)
-    gate(f"insert into public.user_lifetime_conversation(user_id,project_id) values('{OWNER}','fixture-project');")
-    identity=rpc(gate,'resolve_lifetime_conversation','null')
-    reset_stage(gate);gate('select public.begin_lifetime_realtime_drain(0);')
-    assert rpc(gate,'resolve_lifetime_conversation','null')==identity
-    assert rpc(gate,'read_lifetime_project_identity',"'fixture-project'")['conversation_id']==identity['conversation_id']
-    gate('truncate public.lifetime_realtime_clearance;')
-    assert rpc(gate,'resolve_lifetime_conversation','null')==identity
-    denied=rpc(gate,'resolve_lifetime_conversation','null',owner=OTHER,check=False)
-    assert denied.returncode!=0 and 'LIFETIME_REALTIME_CLEARANCE_REQUIRED' in denied.stderr
-
-
-def test_actual_realtime_body_admission_serializes_drain_but_not_provider_response(gate,monkeypatch):
-    import psycopg
-    import httpx
-    from apps.api import realtime_routes
-    from apps.api.lifetime_memory_activation import RealtimePublication,CanonicalActivationUnavailable
-    monkeypatch.setenv('OPENAI_API_KEY','synthetic-unpaid-key')
-    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','false')
-    dsn=dsn_for(gate)
-    async def scenario():
-        entered=asyncio.Event();release=asyncio.Event();generation=asyncio.Event();finish=asyncio.Event();sent=[]
-        class Transport(httpx.AsyncBaseTransport):
-            async def handle_async_request(self,request):
-                async for chunk in request.stream:
-                    entered.set();await release.wait();sent.append(chunk)
-                generation.set();await finish.wait()
-                return httpx.Response(201,text='v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n')
-        original=httpx.AsyncClient
-        monkeypatch.setattr(realtime_routes.httpx,'AsyncClient',lambda **options:original(transport=Transport(),**options))
-        publisher=RealtimePublication(dsn,authenticated_owner=OWNER)
-        calling=asyncio.create_task(realtime_routes.exchange_offer('v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n',{},OWNER,publisher=publisher))
-        operator=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
-        observer=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
-        try:
-            async with asyncio.timeout(2): await entered.wait()
-            draining=asyncio.create_task(operator.execute('select public.begin_lifetime_realtime_drain(0)'))
-            await wait_blocked(observer,operator.info.backend_pid)
-            assert not draining.done()
-            release.set();await draining
-            async with asyncio.timeout(2): await generation.wait()
-            assert not calling.done() and len(sent)==1
-            with pytest.raises(CanonicalActivationUnavailable):
-                async with publisher.guard():pytest.fail('Draining admitted another direct call')
-            finish.set();assert (await calling).startswith('v=0')
-        finally:
-            release.set();finish.set();await asyncio.gather(calling,return_exceptions=True)
-            await operator.close();await observer.close()
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize('commit',[False,True])
-def test_provider_waits_for_operator_ready_commit_and_rollback_is_closed(gate,commit):
-    import psycopg
-    from apps.api.lifetime_memory_activation import ActivationPublication,CanonicalActivationUnavailable
-    gate('select public.begin_lifetime_realtime_drain(0);')
-    async def scenario():
-        operator=await psycopg.AsyncConnection.connect(dsn_for(gate))
-        await operator.execute("select public.attest_lifetime_realtime_clearance(1,'synthetic-clearance')")
-        entered=asyncio.Event()
-        async def admit():
-            async with ActivationPublication(dsn_for(gate),authenticated_owner=OWNER).guard():entered.set()
-        task=asyncio.create_task(admit())
-        observer=await psycopg.AsyncConnection.connect(dsn_for(gate),autocommit=True)
-        try:
-            async with asyncio.timeout(2):
-                while True:
-                    row=await (await observer.execute('select count(*) from pg_stat_activity where %s=any(pg_blocking_pids(pid))',(operator.info.backend_pid,))).fetchone()
-                    if row[0]:break
-            assert not entered.is_set()
-            if commit:await operator.commit();await task;assert entered.is_set()
-            else:
-                await operator.rollback()
-                with pytest.raises(CanonicalActivationUnavailable):await task
-                assert not entered.is_set()
-        finally:
-            task.cancel();await asyncio.gather(task,return_exceptions=True)
-            await operator.close();await observer.close()
-    asyncio.run(scenario())
-
-
-def test_queued_exclusive_transition_has_no_owner_rollout_lock_cycle(gate):
-    import psycopg
-    from apps.api.lifetime_memory_activation import RealtimePublication,CanonicalActivationUnavailable
-    async def scenario():
-        dsn=dsn_for(gate)
-        reader=await psycopg.AsyncConnection.connect(dsn)
-        owner=await psycopg.AsyncConnection.connect(dsn)
-        operator=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
-        observer=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
-        tasks=[]
-        try:
-            await reader.execute('select stage from public.lifetime_realtime_clearance for share')
-            await owner.execute('select 1 from auth.users where id=%s for update',(OWNER,))
-            async def direct():
-                with pytest.raises(CanonicalActivationUnavailable):
-                    async with RealtimePublication(dsn,authenticated_owner=OWNER).guard():pytest.fail('Drain admitted direct call')
-            calling=asyncio.create_task(direct());tasks.append(calling)
-            async with asyncio.timeout(2):
-                while True:
-                    row=await (await observer.execute('select count(*) from pg_stat_activity where %s=any(pg_blocking_pids(pid))',(owner.info.backend_pid,))).fetchone()
-                    if row[0]:break
-            draining=asyncio.create_task(operator.execute('select public.begin_lifetime_realtime_drain(0)'));tasks.append(draining)
-            await wait_blocked(observer,operator.info.backend_pid)
-            # Drain is queued behind a rollout reader while direct admission is
-            # queued behind the adopting owner. Releasing that reader must let
-            # drain finish WITHOUT requiring the owner transaction to release.
-            # A rollout-first direct reader would keep drain blocked here.
-            await reader.rollback()
-            async with asyncio.timeout(1):
-                await draining
-                with pytest.raises(psycopg.errors.ObjectNotInPrerequisiteState):
-                    await owner.execute('select public.require_lifetime_canonical_clearance()')
-                await owner.rollback();await calling
-        finally:
-            for task in tasks:task.cancel()
-            await asyncio.gather(*tasks,return_exceptions=True)
-            for connection in (reader,owner,operator,observer):await connection.close()
-    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize('kind',['collector','lane','job'])
@@ -370,12 +172,12 @@ def test_actual_provider_activation_timeout_is_typed_and_releases_guard(monkeypa
     publisher,fence=publisher_case(kind,lock_timeout=.01)
     async def run():
         with pytest.raises(CanonicalActivationUnavailable):
-            async with publisher.guard(fence):pytest.fail('Clearance timeout admitted request')
+            async with publisher.guard(fence):pytest.fail('Authority timeout admitted request')
     asyncio.run(run());assert closed==[True]
 
 
 @pytest.mark.parametrize('stream',[False,True])
-def test_late_worker_clearance_failure_keeps_fixed_safe_code(monkeypatch,stream):
+def test_late_worker_authority_failure_keeps_fixed_safe_code(monkeypatch,stream):
     import json
     from fastapi.testclient import TestClient
     from apps.api import codex_worker_service as worker

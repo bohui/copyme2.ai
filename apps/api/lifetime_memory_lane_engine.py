@@ -30,7 +30,10 @@ from .lifetime_memory_contracts import Contract, ContextBudget, PinnedContinuity
 from .lifetime_memory_execution import open_execution
 from .lifetime_memory_publication import PublicationUnavailable
 
-SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low', 'synthetic-byte-bpe'})
+# The configured memoir alias routes to the same byte-token model as the
+# already supported pooled aliases; effort routing does not change token bounds.
+SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
+    'memoir-luna-low', 'synthetic-byte-bpe'})
 
 
 class LaneGenerationPaused(PublicationUnavailable):

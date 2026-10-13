@@ -103,10 +103,14 @@ async def _extract(page,worker):
     check_model_packet(packet,extraction_instructions(),extraction_schema())
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
-    response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
-        bounded_lane=bounded,worker_transport=worker.worker_transport,
-        publisher=getattr(worker,'lane_publisher',None),timeout=240)
-    return {'events':extraction_events(json.loads(response['reply']),page,original)}
+    for attempt in range(3):
+        response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
+            bounded_lane=bounded,worker_transport=worker.worker_transport,
+            publisher=getattr(worker,'lane_publisher',None),timeout=240)
+        try:
+            return {'events':extraction_events(json.loads(response['reply']),page,original)}
+        except (ValueError,TypeError,KeyError):
+            if attempt==2:raise
 
 
 

@@ -58,3 +58,23 @@ def test_disabled_rollout_flag_cannot_select_old_engine(monkeypatch):
     assert not lifetime_generation_paused()
     monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED', '1')
     assert lifetime_generation_paused()
+
+
+def test_saved_source_response_failure_returns_retryable_metadata_and_closes_storage(monkeypatch):
+    import asyncio
+    from fastapi import HTTPException
+    from apps.api.lifetime_memory_runtime import AcceptedResponsePending,lifetime_http_turn
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','synthetic-only')
+    closed=[]
+    storage=SimpleNamespace(user_id=UUID(int=4),client=SimpleNamespace(close=lambda:closed.append(True)))
+    async def failed(*args,**kwargs):
+        error=AcceptedResponsePending('Your message is saved. Please retry the response.')
+        error.accepted_source_id=str(UUID(int=5));error.client_turn_id=str(UUID(int=6))
+        raise error
+    with pytest.raises(HTTPException) as result:
+        asyncio.run(lifetime_http_turn(SimpleNamespace(turn=failed),storage,'Original words',accept='',options={}))
+    assert result.value.status_code==503
+    assert result.value.headers['X-Error-Code']=='LIFETIME_RESPONSE_PENDING'
+    assert result.value.detail['accepted_source_id']==str(UUID(int=5))
+    assert result.value.detail['client_turn_id']==str(UUID(int=6))
+    assert closed==[True]

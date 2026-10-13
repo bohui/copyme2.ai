@@ -20,8 +20,6 @@ def event_database(private_database):
         if path.name >= '202610040001_shared_memory_events.sql':
             private_database(path.read_text())
     # Disposable fixture only: this cluster has no live or admitted calls.
-    private_database('select public.begin_lifetime_realtime_drain(0);')
-    private_database("select public.attest_lifetime_realtime_clearance(1, 'synthetic-isolated-fixture-no-live-calls');")
     return private_database
 
 

@@ -2,7 +2,7 @@
 import asyncio
 import copy
 import json
-from types import SimpleNamespace
+from contextlib import asynccontextmanager
 
 import httpx
 import pytest
@@ -71,22 +71,13 @@ def test_remote_clearance_preserves_bounded_work_and_completed_phases(blocked_ph
 
 
 from test_lifetime_composer_capacity import (
-    sql, event_database, private_database, attachment_database, database,
+    sql, event_database, private_database, attachment_database, database,  # noqa: F401 - pytest fixtures
     resolve, rpc, literal, service, create_lane, seeded_composer, OWNER,
 )
 
 
-def reset_synthetic_clearance(sql, *, ready):
-    # Only this disposable fixture: no providers or connected calls exist.
-    sql('truncate public.lifetime_realtime_clearance; insert into public.lifetime_realtime_clearance default values;')
-    sql('select public.begin_lifetime_realtime_drain(0);')
-    if ready:sql("select public.attest_lifetime_realtime_clearance(1,'synthetic-composer-deferral-no-live-calls');")
-
-
 @pytest.mark.parametrize('skill',['timeline','composer'])
-def test_pg_clearance_wait_never_exhausts_lane_or_discards_source_checkpoint_obligation(sql,skill):
-    from apps.api.lifetime_memory_lane_engine import LanePublication
-    reset_synthetic_clearance(sql,ready=True)
+def test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints(sql,skill):
     if skill=='composer':
         identity,source,lane,claim=seeded_composer(sql)
         service(sql,'yield_lifetime_memoir_lane',f"'{lane}','{claim['token']}'")
@@ -94,12 +85,10 @@ def test_pg_clearance_wait_never_exhausts_lane_or_discards_source_checkpoint_obl
         identity=resolve(sql);project=identity['project_id']
         source=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'00000000-0000-4000-8000-000000000001','I grew up in Chengde.'")
         lane=create_lane(sql,identity)
-        reset_synthetic_clearance(sql,ready=False)
     project=identity['project_id'];blocked=skill=='timeline';phases=[]
     originals=sql(f"select text||':'||version::text||':'||status from public.user_narrator_source where id='{source['id']}';").stdout
     obligations=sql(f"select id::text||':'||delivered::text from public.user_private_draft_outbox where user_id='{OWNER}' and project_id={literal(project)} order by id;").stdout
     assert obligations.strip()
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     class Broker:
         async def rpc(self,name,**payload):
             nonlocal blocked
@@ -108,7 +97,7 @@ def test_pg_clearance_wait_never_exhausts_lane_or_discards_source_checkpoint_obl
             result=json.loads(sql(f"set role service_role;select coalesce(to_jsonb(public.{name}({args})),'null'::jsonb);").stdout.strip())
             if skill=='composer' and not blocked and name=='save_memoir_checkpoint' and payload['p_value'].get('draft'):
                 # Actual prepare/draft are durably stored before the review gate closes.
-                blocked=True;reset_synthetic_clearance(sql,ready=False)
+                blocked=True
             return result
     def model(request):
         bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase'];payload=json.loads(bounded['packet'])['payload'];phases.append(phase)
@@ -118,7 +107,12 @@ def test_pg_clearance_wait_never_exhausts_lane_or_discards_source_checkpoint_obl
         else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
-    worker.lane_publisher=LanePublication(dsn,authenticated_owner=OWNER)
+    class Authority:
+        @asynccontextmanager
+        async def guard(self,fence):
+            if blocked:raise CanonicalActivationUnavailable()
+            yield
+    worker.lane_publisher=Authority()
     try:
         saved_checkpoints=None
         for _ in range(4):
@@ -134,11 +128,11 @@ def test_pg_clearance_wait_never_exhausts_lane_or_discards_source_checkpoint_obl
             assert sql(f"select id::text||':'||delivered::text from public.user_private_draft_outbox where user_id='{OWNER}' and project_id={literal(project)} order by id;").stdout==obligations
         assert phases==([] if skill=='timeline' else ['prepare','draft'])
         if skill=='composer':assert saved_checkpoints.strip()
-        reset_synthetic_clearance(sql,ready=True)
+        blocked=False
         sql(f"update public.user_memoir_lane set available_at=clock_timestamp()-interval '1 second' where id='{lane}';")
         result=asyncio.run(worker.execute_lane(lane))
         assert result['status']=='saved' and result['retrieval_complete']
         assert phases==(['extract'] if skill=='timeline' else ['prepare','draft','review'])
         assert sql(f"select processing_status from public.user_narrator_source where id='{source['id']}';").stdout.strip()=='succeeded'
     finally:
-        reset_synthetic_clearance(sql,ready=True)
+        blocked=False

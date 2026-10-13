@@ -180,10 +180,16 @@ test('generated question pool stays inside thinking steps and marks the chosen q
  const pool={chosen_id:'chosen',candidates:[
   {id:'chosen',question:'Where did you play?',bridge:''},
   {id:'later',question:'Who was with you? <script>alert(1)</script>',bridge:'You also mentioned the garden.'}]};
- const trace=[{id:'question-pool',status:'completed',detail:'Generated question pool · 2 candidates',question_pool:pool}];
+ const trace=[{id:'collector-call',status:'completed',detail:'LLM call · Reply and question pool generated'},
+  {id:'tool-1',status:'completed',detail:'read_file · Completed'},
+  {id:'save',status:'completed',detail:'Conversation memory saved'},
+  {id:'question-pool',status:'completed',detail:'Generated question pool · 2 candidates',question_pool:pool}];
  const html=context.renderMessage({id:'m',role:'assistant',text:'Where did you play?',trace,traceMode:'live'});
  const thinking=html.slice(html.indexOf('<details'),html.indexOf('</details>'));
  assert.match(thinking,/class="agent-question-pool"/);
+ assert.match(thinking,/LLM call · Reply and question pool generated/);
+ assert.match(thinking,/read_file · Completed/);
+ assert.match(thinking,/Conversation memory saved/);
  assert.match(thinking,/data-candidate-id="chosen" data-selected="true"><span class="agent-question-selected">Selected/);
  assert.match(thinking,/You also mentioned the garden/);
  assert.match(thinking,/Who was with you\? &lt;script&gt;/);

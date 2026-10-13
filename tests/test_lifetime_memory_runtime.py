@@ -31,6 +31,8 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
         if request.headers.get('accept')!='application/x-ndjson':
             return httpx.Response(200,json={'reply':raw,'thread_id':'synthetic-governed','artifacts':[]})
         return httpx.Response(200,headers={'Content-Type':'application/x-ndjson'},content='\n'.join(json.dumps(x) for x in [
+            {'type':'codex_activity','data':{'id':'tool-1','kind':'commandExecution','label':'Read saved context','status':'running'}},
+            {'type':'codex_activity','data':{'id':'tool-1','kind':'commandExecution','label':'Read saved context','status':'completed'}},
             {'type':'text_delta','text':raw},{'type':'result','data':{'reply':raw,'thread_id':'synthetic-governed','artifacts':[]}}])+'\n')
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
@@ -48,11 +50,15 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
         else:result=first.json()
         assert result['conversation_saved'] and result['accepted_source_id']
         assert result['reply'].endswith('What would you like to share?')
-        pool=result['trace'][0]['question_pool']
+        activity=next((step for step in result['trace'] if step['id']=='tool-1'),None)
+        assert activity is not None, 'Tool calls disappeared from thinking steps; only the question pool remains'
+        assert activity['status']=='completed'
+        pool=next(step['question_pool'] for step in result['trace'] if step['id']=='question-pool')
         assert pool['chosen_id']==output['plan']['chosen_id']
         assert pool['candidates'][0]['question']=='What would you like to share?'
         if streaming:
-            assert next(e['data'] for e in events if e['type']=='progress')['question_pool']==pool
+            assert next(e['data'] for e in events if e['type']=='progress' and e['data']['id']=='question-pool')['question_pool']==pool
+            assert any(e['type']=='progress' and e['data']['id']=='tool-1' for e in events)
         payload['project_id']=result['project_id']
         monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
         retry=client.post('/v1/agent/turn',headers=headers,json=payload)

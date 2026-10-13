@@ -1,62 +1,50 @@
+"""Canonical Temporal activities carry opaque IDs and close their clients."""
 import asyncio
-import sqlite3
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 pytest.importorskip('temporalio')
 from temporalio.exceptions import ApplicationError
 
-from apps.api.memoir_tasks import MemoirTask
-from apps.api.task_queue import configured_queue
 from scripts import task_runtime
 
 
-def test_task_queue_io_errors_do_not_stop_temporal_worker_polling():
-    class BrokenQueue:
-        def pending_ids(self):
-            raise sqlite3.OperationalError('disk I/O error')
-
-    assert asyncio.run(task_runtime.safe_pending_task_ids(BrokenQueue())) == []
-
-
-def test_activity_replay_uses_saved_result(monkeypatch, tmp_path):
-    monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'tasks.sqlite'))
-    queue = configured_queue()
-    entry = queue.submit('00000000-0000-0000-0000-000000000004', 'project', MemoirTask(kind='BuildSourceExport',
-        sources=[{'id': 'one', 'content': 'Private memory'}]))
-    execute = Mock(wraps=task_runtime.execute_task)
-    monkeypatch.setattr(task_runtime, 'execute_task', execute)
-    first = asyncio.run(task_runtime.execute_memoir_task(entry['id']))
-    second = asyncio.run(task_runtime.execute_memoir_task(entry['id']))
-    assert first == second == {'task_id': entry['id'], 'status': 'SUCCEEDED'}
-    execute.assert_called_once()
-    assert 'Private memory' not in str(first)
-    assert queue.get('00000000-0000-0000-0000-000000000004', entry['id'])['result']['sources'][0]['content'] == 'Private memory'
+@pytest.mark.parametrize('fails',[False,True])
+def test_lane_activity_closes_broker_after_success_or_failure(monkeypatch,fails):
+    from apps.api import memory_event_worker
+    broker=SimpleNamespace(client=SimpleNamespace(aclose=AsyncMock()),
+        rpc=AsyncMock(return_value={'pending':False}))
+    execute=AsyncMock(return_value={'status':'saved'},
+        side_effect=RuntimeError('private diagnostic') if fails else None)
+    monkeypatch.setattr(memory_event_worker,'MemoirLaneBroker',lambda:broker)
+    monkeypatch.setattr(memory_event_worker,'MemoryEventWorker',
+        lambda received:SimpleNamespace(execute_lane=execute))
+    if fails:
+        with pytest.raises(RuntimeError):asyncio.run(task_runtime.execute_memoir_lane('opaque-lane'))
+    else:
+        assert asyncio.run(task_runtime.execute_memoir_lane('opaque-lane'))=={'status':'saved','pending':False}
+        broker.rpc.assert_awaited_once_with('read_memoir_lane_state',p_lane_id='opaque-lane')
+    execute.assert_awaited_once_with('opaque-lane')
+    broker.client.aclose.assert_awaited_once()
 
 
-def test_busy_activity_is_retryable_without_duplicate_execution(monkeypatch, tmp_path):
-    monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'tasks.sqlite'))
-    queue = configured_queue()
-    entry = queue.submit('00000000-0000-0000-0000-000000000004', 'project', MemoirTask(kind='BuildSourceExport',
-        sources=[{'id': 'one', 'content': 'Private memory'}]))
-    queue.claim(task_id=entry['id'])
-    with pytest.raises(ApplicationError) as error:
-        asyncio.run(task_runtime.execute_memoir_task(entry['id']))
-    assert error.value.type == 'TaskBusy'
-    assert not error.value.non_retryable
-    assert queue.get('00000000-0000-0000-0000-000000000004', entry['id'])['attempts'] == 1
-
-
-@pytest.mark.parametrize('status,error_type,terminal',[
-    ('failed','DraftFailed',True),('retry','DraftBusy',False),('deferred','DraftBusy',False),
-])
-def test_private_activity_failure_remains_restartable_and_busy_is_retryable(monkeypatch,status,error_type,terminal):
-    from unittest.mock import AsyncMock
-    from apps.api import private_drafts
-    execute=AsyncMock(return_value={'status':status})
-    monkeypatch.setattr(private_drafts,'execute',execute)
-    with pytest.raises(ApplicationError) as error:
-        asyncio.run(task_runtime.execute_private_draft('opaque-job'))
-    assert error.value.type==error_type and error.value.non_retryable is terminal
-    execute.assert_awaited_once_with('opaque-job')
+@pytest.mark.parametrize('fails',[False,True])
+def test_collection_activity_is_bounded_and_sanitizes_failure(monkeypatch,fails):
+    from apps.api import memory_event_worker,lifetime_memory_collection_jobs
+    broker=SimpleNamespace(client=SimpleNamespace(aclose=AsyncMock()))
+    execute=AsyncMock(return_value={'status':'yielded','processed':1},
+        side_effect=RuntimeError('private original testimony') if fails else None)
+    monkeypatch.setattr(memory_event_worker,'MemoirLaneBroker',lambda:broker)
+    monkeypatch.setattr(lifetime_memory_collection_jobs,'CollectionJobWorker',
+        lambda received:SimpleNamespace(execute=execute))
+    if fails:
+        with pytest.raises(ApplicationError) as error:
+            asyncio.run(task_runtime.execute_collection_job('opaque-job'))
+        assert error.value.type=='CollectionJobRetry'
+        assert 'private' not in str(error.value) and not error.value.non_retryable
+    else:
+        assert asyncio.run(task_runtime.execute_collection_job('opaque-job'))=={'status':'yielded','processed':1}
+    execute.assert_awaited_once_with('opaque-job',page_limit=1)
+    broker.client.aclose.assert_awaited_once()

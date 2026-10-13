@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from scripts import run_memoir_supabase_evaluation as module
+from scripts.backend_operation_lock import LOCK_PATH as MACHINE_BACKEND_LOCK
 from test_issue14_subscription_runner import Storage
 
 OWNER = '11111111-1111-4111-8111-111111111111'
@@ -124,6 +125,12 @@ class Remote:
                 result={'conversation_saved':True,'accepted_source_id':source['id'],'project_id':PROJECTS[case_id],
                     'client_turn_id':payload['p_client_turn_id'],'reply':'Recovered controlled reply','context_rebuild_required':False} if source else None
                 return httpx.Response(200,json=result) if result is not None else httpx.Response(200,text='null',headers={'Content-Type':'application/json'})
+            if path=='/rest/v1/rpc/validate_lifetime_replay_input':
+                storage=self.storages[PROJECTS[case_id]]
+                record=next((row for row in self.submitted if row['client_turn_id']==payload['p_client_turn_id']),None)
+                accepted=bool(record and record['text']==payload['p_text'] and payload['p_kind']=='narrator_chat'
+                    and any(source['text']==record['text'] for source in storage.sources))
+                return httpx.Response(200,json=accepted)
             if payload and ('project_id' in payload or 'p_project_id' in payload):
                 assert payload.get('project_id',payload.get('p_project_id'))==PROJECTS[case_id],'Cross-account project request.'
             if path == '/api/v1/memoir/agent/config':
@@ -416,7 +423,11 @@ def test_unrecognized_database_errors_remain_sanitized(body):
 
 @pytest.mark.parametrize('target', ['container-up', 'container-down', 'install_skill',
     'db-truncate', 'memoir-live-fifty-backend'])
-def test_live_execution_blocks_a_concurrent_backend_stop(setup, tmp_path, target):
+def test_live_execution_blocks_a_concurrent_backend_stop(setup, tmp_path, target, monkeypatch):
+    # This subprocess integration must share the real machine lock. Other
+    # controlled HTTP tests use a private lock and never touch the live stack.
+    from scripts import backend_operation_lock
+    monkeypatch.setattr(backend_operation_lock, 'LOCK_PATH', MACHINE_BACKEND_LOCK)
     plan, remote = setup()
     stopped = tmp_path / 'backend-stopped'
     command = tmp_path / 'container-command'
@@ -604,6 +615,91 @@ def test_uncertain_submission_is_recovered_by_same_client_id_without_reposting(s
     assert len(remote.submitted)==50
     recoveries=[call for call in remote.calls if call.url.path.endswith('read_lifetime_reply')]
     assert len(recoveries)==1 and json.loads(recoveries[0].content)['p_client_turn_id']==remote.submitted[6]['client_turn_id']
+
+
+def test_source_fix_resume_requires_opt_in_and_records_original_evidence(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'source-fix'
+    remote.extraction_retry_required=True
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==1
+    original=deepcopy(first['evaluation']['cases'][0]['rounds'][0])
+    changed=deepcopy(plan)
+    changed['local_checkout_source']={**plan['local_checkout_source'],'snapshot_sha256':'b'*64}
+    calls=len(remote.calls)
+    with pytest.raises(module.EvaluationError,match='source'):
+        asyncio.run(module.execute(changed,directory,SETTINGS,resume=directory))
+    assert len(remote.calls)==calls
+    remote.extraction_retry_required=False
+    result=asyncio.run(module.execute(changed,directory,SETTINGS,
+        resume=directory,accept_source_change=True))
+    assert result['status']=='completed' and len(remote.submitted)==50
+    restored=result['evaluation']['cases'][0]['rounds'][0]
+    assert all(restored[key]==original[key] for key in ('client_turn_id','accepted_source_id','reply'))
+    change=result['source_changes'][0]
+    assert change['previous']==plan['local_checkout_source']
+    assert change['current']==changed['local_checkout_source']
+    assert change['backend_turn_submissions']==1
+    assert result['local_checkout_source']==changed['local_checkout_source']
+    saved_plan=json.loads((directory/'plan.json').read_text())
+    assert saved_plan['local_checkout_source']==changed['local_checkout_source']
+    assert saved_plan['cases']==plan['cases']
+    assert module.budget_contract(saved_plan)==module.budget_contract(plan)
+    again=asyncio.run(module.execute(changed,directory,SETTINGS,resume=directory))
+    assert again['status']=='completed' and len(again['source_changes'])==1
+
+
+def test_source_fix_opt_in_cannot_change_original_commit_or_service(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'source-fix-scope'
+    remote.extraction_retry_required=True
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    calls=len(remote.calls)
+    for key,value in [('source_revision','c'*40),('api_base','http://foreign.invalid'),('dataset_sha256','d'*64)]:
+        changed={**plan,key:value}
+        with pytest.raises(module.EvaluationError,match='identities'):
+            asyncio.run(module.execute(changed,directory,SETTINGS,resume=directory,accept_source_change=True))
+        assert len(remote.calls)==calls
+
+
+def test_accepted_source_without_reply_requires_explicit_idempotent_response_recovery(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'accepted-without-reply';handler=remote.handler
+    recovery=[]
+    def missing_response(request):
+        if request.url.path.endswith('read_lifetime_reply') and not recovery:
+            return httpx.Response(200,text='null',headers={'Content-Type':'application/json'})
+        if request.url.path.endswith('/agent/turn'):
+            payload=json.loads(request.content)
+            if remote.submitted and payload['client_turn_id']==remote.submitted[0]['client_turn_id']:
+                recovery.append(payload)
+                source=remote.storages[payload['project_id']].sources[0]
+                return httpx.Response(200,json={'project_id':payload['project_id'],
+                    'accepted_source_id':source['id'],'reply':'Recovered response','cached':False,'task_errors':[]})
+            result=handler(request)
+            if len(remote.submitted)==1:return httpx.Response(502,json={'detail':'Response failed after source acceptance'})
+            return result
+        return handler(request)
+    remote.handler=missing_response
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==1
+    stopped=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory))
+    assert stopped['status']=='incomplete' and not recovery
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,recover_accepted_turn=True))
+    assert result['status']=='completed',result
+    assert len(remote.submitted)==50 and len(recovery)==1
+    assert recovery[0]==remote.submitted[0]
+    assert len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources)==50
+    assert result['backend_turn_submissions']==50 and result['backend_recovery_submissions']==1
+    rounds=result['evaluation']['cases'][0]['rounds']
+    assert rounds[0]['accepted_source_id']==first['evaluation']['cases'][0]['rounds'][0].get('accepted_source_id',rounds[0]['accepted_source_id'])
+    assert rounds[0]['response_retry_attempts']==1
+    assert len({row['accepted_source_id'] for row in rounds})==50
+
+
+def test_response_recovery_cannot_resubmit_unaccepted_original(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'unaccepted-response';remote.fail_round=1
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    remote.fail_round=None
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,recover_accepted_turn=True))
+    assert result['status']=='incomplete' and len(remote.submitted)==1
 
 
 def test_unrecoverable_resume_preserves_project_without_another_post(setup,tmp_path):

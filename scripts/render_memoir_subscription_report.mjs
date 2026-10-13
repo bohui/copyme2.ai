@@ -51,12 +51,17 @@ export function renderReport(plan, receipt) {
     `Evaluation status: ${cell(evaluation.status)}  `,
     `Stop reason: ${cell(receipt.stop_reason ?? evaluation.stop_reason ?? accounting.stop_reason)}  `,
     ...(receipt.source_validation_error ? [`Source validation error: ${cell(receipt.source_validation_error)}  `] : []),
+    ...(receipt.source_changes?.length ? [
+      `Local source fixes recorded between attempts: ${receipt.source_changes.length}. Original turn identities and budgets retained.  `,
+      ...receipt.source_changes.map(change => `Source fix after ${cell(change.backend_turn_submissions)} original submissions: ${cell(change.previous?.snapshot_sha256)} → ${cell(change.current?.snapshot_sha256)}.  `),
+    ] : []),
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
     ...(remote ? [
       'Storage: remote Supabase; projects retained.  ',
       ...(perCase ? ['UI accounts: fixed case-to-account mapping shown below.  '] : [`UI account: ${cell(plan.user_email)}  `]),
       `Backend/Auth/readback HTTP requests reserved: ${cell(accounting.backend_http_requests_reserved)}  `,
       `Original turn submission attempts: ${cell(receipt.backend_turn_submissions)}  `,
+      `Accepted turn response retry requests: ${receipt.backend_recovery_submissions ?? 0}  `,
       `Family features available: ${perCase ? (Object.entries(receipt.preflight ?? {}).map(([id,value]) => `${cell(id)}: ${cell(value.family_features_enabled)}`).join('; ') || 'unknown') : cell(receipt.preflight?.family_features_enabled)}  `,
     ] : [
       `Client HTTP requests reserved: ${cell(accounting.client_requests_reserved)}  `,

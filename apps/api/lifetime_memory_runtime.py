@@ -28,6 +28,10 @@ class PolicyMaintenancePending(MaintenancePending):
     pass
 
 
+class AcceptedResponsePending(MaintenancePending):
+    code = 'LIFETIME_RESPONSE_PENDING'
+
+
 class LifetimePublicationContext:
     def __init__(self, emitter=None):
         self.emitter=emitter;self.fence=None;self.scope=None
@@ -63,7 +67,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     from .conversation_phase import explicit_action,resolve_phase
     from .interview_plan import CollectorVisibleStream,collector_instructions,public_interview_fields
     from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,LiteralContinuityInputError,validate_literal_continuity_input,validate_governed_collector_result)
-    from .lifetime_memory_engine import GovernedCollectorInput,governed_request_overhead,run_governed_collector
+    from .lifetime_memory_engine import (CollectorResponseUnavailable,GovernedCollectorInput,
+        governed_request_overhead,run_governed_collector)
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
     from .recall import storage_recall_status
     from .turn_progress import TurnProgress
@@ -156,8 +161,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
             # Source acceptance atomically persists the complete literal policy.
             publication.set_fence(fence)
+            progress=TurnProgress(on_event,client_turn_id,project_id,selected_language)
             if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                 'accepted_source_id':source['id'],**public_interview_fields(accepted)}})
+            await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
             context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
             if workspace_focus:
                 from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
@@ -204,35 +211,45 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             # Reject changed preparation; transport also fences actual prompt admission.
             current_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
             if current_fence!=fence:raise RuntimeError('Context changed during preparation; retry the accepted turn')
+            await progress.update('memory-context','Saved profile and memory context loaded','个人资料和回忆背景已加载',status='completed')
             governed=GovernedCollectorInput(packet=serialize_packet(packet),fence=fence,budget=overall,prompt_version='lifetime-v1')
             visible=CollectorVisibleStream()
             async def delta(chunk):
                 value=visible.feed(chunk)
                 if value and on_delta:await on_delta(value)
+            await progress.update('collector-call','LLM call · Generating reply and question pool','LLM 调用 · 正在生成回复和问题池')
             try:
                 if runtime.worker_url:
                     result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
                         family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
-                        interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None)
+                        interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None,
+                        on_event=progress.harness_event)
                 else:
                     result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
                         api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
-                        timeout=runtime.timeout,on_delta=delta if on_delta else None,effort=collector.effort,issue14_admission=runtime._issue14_admission)
+                        timeout=runtime.timeout,on_delta=delta if on_delta else None,on_event=progress.harness_event,
+                        effort=collector.effort,issue14_admission=runtime._issue14_admission)
             except PolicyUnavailable:
                 raise await policy_pending() from None
             except CanonicalActivationUnavailable as error:
                 pending=MaintenancePending('The source is accepted; conversation provider authority is unavailable')
                 pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
                 raise pending from error
+            except (CollectorResponseUnavailable,TimeoutError):
+                pending=AcceptedResponsePending('Your message is saved. Please retry the response.')
+                pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
+                raise pending from None
             if result.get('_artifact_task') is not None:
                 await result['_artifact_task']
             validated=validate_governed_collector_result(result['reply'],context)
+            await progress.update('collector-call','LLM call · Reply and question pool generated','LLM 调用 · 回复和问题池已生成',status='completed')
+            await progress.update('save','Saving conversation memory','正在保存对话记忆')
             await publication.flush()  # no old queued chunk can be relabeled by our phase commit
             committed=await call('commit_lifetime_turn',p_fence=fence,p_client_turn_id=client_turn_id,p_plan=validated['plan'],
                 p_associations=validated['associations'],p_reply=validated['reply'],p_response_photo_ids=[p['photo_id'] for p in validated['response_photos']],
                 p_thread_id=result['thread_id'],p_prompt_version='lifetime-v1',p_model=collector.model,p_continuity_updates=validated['continuity_updates'])
             fence=committed['fence'];publication.set_fence(fence)
-            progress=TurnProgress(on_event,client_turn_id,project_id,selected_language)
+            await progress.update('save','Conversation memory saved','对话记忆已保存',status='completed')
             await progress.record_question_pool(validated['plan'])
             if on_delta:
                 prefix=validated.get('acknowledgement','') if visible.emitted else ''
@@ -288,5 +305,9 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
                 **({'accepted_source_id':error.accepted_source_id,'client_turn_id':error.client_turn_id}
                    if getattr(error,'accepted_source_id',None) is not None else {})},
                 headers={'X-Error-Code':'LIFETIME_POLICY_PENDING','Retry-After':'60'}) from None
+        if isinstance(error,AcceptedResponsePending):
+            raise HTTPException(503,{'state':'source_accepted','message':str(error),
+                'accepted_source_id':error.accepted_source_id,'client_turn_id':error.client_turn_id},
+                headers={'X-Error-Code':error.code,'Retry-After':'1'}) from None
         if isinstance(error,MaintenancePending):raise HTTPException(503,{'state':'source_accepted','message':str(error),'accepted_source_id':getattr(error,'accepted_source_id',None),'client_turn_id':getattr(error,'client_turn_id',None)},headers={'X-Error-Code':'LIFETIME_MAINTENANCE_PENDING'}) from None
         raise

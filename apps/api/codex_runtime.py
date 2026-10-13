@@ -1862,7 +1862,8 @@ class CodexRuntime:
                 if isinstance(getattr(error, 'trajectory', None), Mapping):
                     busy.trajectory = dict(error.trajectory)
                 raise busy from None
-            rejected = RuntimeError(f'Codex worker rejected the turn: HTTP {status_code}')
+            from .lifetime_memory_engine import CollectorResponseUnavailable
+            rejected = CollectorResponseUnavailable('The saved message needs another response attempt')
             if isinstance(getattr(error, 'trajectory', None), Mapping):
                 rejected.trajectory = dict(error.trajectory)
             raise rejected from None
@@ -1879,7 +1880,8 @@ class CodexRuntime:
                 failure_class='request_error',
                 elapsed_ms=elapsed_ms(started),
             )
-            unavailable = RuntimeError('Codex worker unavailable')
+            from .lifetime_memory_engine import CollectorResponseUnavailable
+            unavailable = CollectorResponseUnavailable('The saved message needs another response attempt')
             if isinstance(getattr(error, 'trajectory', None), Mapping):
                 unavailable.trajectory = dict(error.trajectory)
             raise unavailable from None

@@ -64,6 +64,15 @@ def transport(phase='extract',current=None):
     return build_bounded_lane_input(current,phase=phase,packet=packet_for(current,phase),budget=BUDGET)
 
 
+@pytest.mark.parametrize('phase',['extract','prepare','index','draft','review'])
+def test_configured_background_model_alias_accepts_bounded_lane(phase):
+    current=page('timeline' if phase=='extract' else 'composer')
+    budget=BUDGET.model_copy(update={'model':'memoir-luna-low'})
+    bounded=build_bounded_lane_input(current,phase=phase,
+        packet=packet_for(current,phase),budget=budget)
+    assert bounded.budget.model=='memoir-luna-low'
+
+
 class Publisher:
     def __init__(self):
         self.snapshots=[]

@@ -2,8 +2,9 @@ import { translate } from '../i18n.js';
 import { createGuestUsage } from './auth-reminder.mjs';
 import { linkSocialIdentity } from './social-auth.mjs';
 
-export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransfer, onUserChanged }) {
+export function createAuthReminder({ getAuth, getConversation = () => ({}), busy, signInExisting, cancelTransfer, onUserChanged }) {
   let usage, userId, due = false, prompted = false;
+  const positions = new Map();
   let last = performance.now();
   let visible = document.visibilityState === 'visible';
   let refreshing = false;
@@ -109,8 +110,20 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
       return;
     }
     refreshCopy();
-    const chat = document.querySelector('#chat-scroll');
+    const chat = document.querySelector('#chat-history');
     if (!due || !chat || document.querySelector('[data-auth-reminder]')) return;
+    const conversation = getConversation();
+    const messages = conversation.messages || [];
+    const key = JSON.stringify([getAuth().user.id, conversation.id]);
+    if (!positions.has(key)) positions.set(key, { after: messages.at(-1), index: chat.children.length });
+    const position = positions.get(key);
+    // Keep the reminder at its original turn when the chat is repainted or
+    // earlier history is restored, instead of appending it after every reply.
+    const anchor = position.after;
+    const anchorIndex = anchor ? messages.findIndex(message => message === anchor
+      || (anchor.cacheId && message.cacheId === anchor.cacheId)
+      || (anchor.id && message.id === anchor.id)) : -1;
+    const index = anchorIndex >= 0 ? anchorIndex + 1 : position.index;
     const reminder = document.createElement('aside');
     reminder.dataset.authReminder = '';
     reminder.className = 'auth-history-reminder';
@@ -124,7 +137,7 @@ export function createAuthReminder({ getAuth, busy, signInExisting, cancelTransf
     button.textContent = t('title');
     button.onclick = open;
     reminder.append(message, button);
-    chat.append(reminder);
+    chat.insertBefore(reminder, chat.children[index] || null);
   }
 
   function tick() {

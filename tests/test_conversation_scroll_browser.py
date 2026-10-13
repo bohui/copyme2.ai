@@ -13,14 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
-def conversation_page():
+def conversation_page(request):
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         context = browser.new_context(viewport={'width':390, 'height':844}, reduced_motion='reduce')
         context.add_cookies([{'name':'copyme2_ui_locale','value':'en-AU','url':os.environ['MEMOIR_BROWSER_URL']},
                             {'name':'copyme2_ui_locale_source','value':'fixed','url':os.environ['MEMOIR_BROWSER_URL']}])
         base = os.environ['MEMOIR_BROWSER_URL']
-        user = {'id':'scroll-fixture-owner', 'is_anonymous':False, 'user_metadata':{}}
+        user = {'id':'scroll-fixture-owner', 'is_anonymous':bool(getattr(request, 'param', False)), 'user_metadata':{}}
         script = f"""window.supabase={{createClient:()=>({{auth:{{
           getSession:async()=>({{data:{{session:{{access_token:'fixture-only',user:{json.dumps(user)}}}}}}}),
           getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})
@@ -87,6 +87,33 @@ def screenshot(page, name):
 
 def expect_bottom(page):
     page.wait_for_function("(()=>{const e=document.querySelector('#chat-scroll');return e.scrollHeight-e.scrollTop-e.clientHeight<3})()")
+
+
+@pytest.mark.parametrize('conversation_page', [True], indirect=True)
+def test_guest_reminder_stays_at_its_turn_during_new_replies(conversation_page):
+    page = conversation_page
+    page.clock.install()
+    page.clock.fast_forward(600000)
+    page.locator('[data-auth-reminder-dialog] [data-close]').click()
+    page.clock.resume()
+    reminder = page.locator('[data-auth-reminder]')
+    expect(reminder).to_have_count(1)
+    assert reminder.evaluate('(node) => node.parentElement.id') == 'chat-history'
+    assert 'Synthetic history 39.' in reminder.evaluate('(node) => node.previousElementSibling.textContent')
+    page.locator('#chat-input').fill('A later synthetic memory about the garden.')
+    page.locator('#chat-form button[type="submit"]').click()
+    expect(page.locator('.user-message')).to_have_count(21)
+    expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled(timeout=10000)
+    expect_bottom(page)
+    expect(reminder).to_have_count(1)
+    assert 'Synthetic history 39.' in reminder.evaluate('(node) => node.previousElementSibling.textContent')
+    assert 'A later synthetic memory' in reminder.evaluate('(node) => node.nextElementSibling.textContent')
+    assert reminder.evaluate('''node => node.getBoundingClientRect().bottom
+      < document.querySelector('#chat-scroll').getBoundingClientRect().top''')
+    screenshot(page, 'guest-reminder-scrolled-away')
+    reminder.scroll_into_view_if_needed()
+    expect(reminder.get_by_role('button')).to_be_in_viewport()
+    screenshot(page, 'guest-reminder-in-history')
 
 
 def test_read_aloud_headers_align_for_short_and_long_replies(conversation_page):

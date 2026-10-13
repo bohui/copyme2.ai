@@ -7,6 +7,74 @@ from playwright.sync_api import sync_playwright, expect
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def assert_reminder_in_chat_flow(page):
+    page.evaluate('''() => {
+      conversation.messages.push(...Array.from({length: 20}, (_, index) => ({
+        cacheId: `after-${index}`, text: `Later memory ${index}. ` + 'A familiar garden and a small path. '.repeat(8)
+      })));
+      paintHistory();
+      document.querySelector('#chat-scroll').style.height = '350px';
+      const composer = document.createElement('div');
+      composer.className = 'composer-wrap';
+      composer.innerHTML = '<textarea aria-label="Memory">Unsent memory</textarea>';
+      document.querySelector('#chat-scroll').after(composer);
+    }''')
+    reminder = page.locator('[data-auth-reminder]')
+    expect(reminder).to_have_count(1)
+    assert reminder.evaluate('(node) => node.parentElement.id') == 'chat-history'
+    assert reminder.evaluate('(node) => node.previousElementSibling.dataset.fixtureMessage') == 'before-1'
+    assert reminder.evaluate('(node) => node.nextElementSibling.dataset.fixtureMessage') == 'after-0'
+
+    for width, height in [(390, 844), (1440, 1000)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        page.evaluate("document.querySelector('#chat-scroll').scrollTop = 1e9")
+        assert reminder.evaluate('''node => node.getBoundingClientRect().bottom
+          < document.querySelector('#chat-scroll').getBoundingClientRect().top''')
+        page.evaluate('''() => {
+          const scroll = document.querySelector('#chat-scroll');
+          scroll.scrollTop += document.querySelector('[data-auth-reminder]').getBoundingClientRect().top
+            - scroll.getBoundingClientRect().top - 20;
+        }''')
+        expect(reminder.get_by_role('button')).to_be_in_viewport()
+        before = page.evaluate('''() => ({
+          banner: document.querySelector('[data-auth-reminder]').getBoundingClientRect().top,
+          bubble: document.querySelector('[data-fixture-message="before-1"]').getBoundingClientRect().top,
+          composer: document.querySelector('.composer-wrap').getBoundingClientRect().top
+        })''')
+        page.evaluate("document.querySelector('#chat-scroll').scrollTop += 100")
+        after = page.evaluate('''() => ({
+          banner: document.querySelector('[data-auth-reminder]').getBoundingClientRect().top,
+          bubble: document.querySelector('[data-fixture-message="before-1"]').getBoundingClientRect().top,
+          composer: document.querySelector('.composer-wrap').getBoundingClientRect().top
+        })''')
+        assert abs(before['banner'] - after['banner'] - 100) < 1
+        assert abs(before['bubble'] - after['bubble'] - 100) < 1
+        assert abs(before['composer'] - after['composer']) < 1
+
+    # Hydration replaces message objects and can prepend earlier history.
+    page.evaluate('''() => {
+      conversation.messages = [{cacheId: 'earlier', text: 'Earlier memory'},
+        ...conversation.messages.map(message => ({...message}))];
+      paintHistory();
+    }''')
+    assert reminder.evaluate('(node) => node.previousElementSibling.dataset.fixtureMessage') == 'before-1'
+    assert reminder.evaluate('(node) => node.nextElementSibling.dataset.fixtureMessage') == 'after-0'
+    page.evaluate('''() => {
+      window.originalConversation = conversation;
+      conversation = {id: 'other-project', messages: [{cacheId: 'other', text: 'Another conversation'}]};
+      paintHistory();
+      conversation.messages.push({cacheId: 'other-later', text: 'A later reply'});
+      paintHistory();
+    }''')
+    assert reminder.evaluate('(node) => node.previousElementSibling.dataset.fixtureMessage') == 'other'
+    assert reminder.evaluate('(node) => node.nextElementSibling.dataset.fixtureMessage') == 'other-later'
+    page.evaluate('conversation = originalConversation; paintHistory(); reminder.mount()')
+    expect(reminder).to_have_count(1)
+    assert reminder.evaluate('(node) => node.previousElementSibling.dataset.fixtureMessage') == 'before-1'
+    assert reminder.evaluate('(node) => node.nextElementSibling.dataset.fixtureMessage') == 'after-0'
+    page.evaluate("document.querySelector('#chat-scroll').scrollTop = 1e9")
+
+
 def main():
     output = ROOT / 'output/playwright'
     output.mkdir(parents=True, exist_ok=True)
@@ -19,7 +87,7 @@ def main():
         def serve(route):
             path = route.request.url.split('http://reminder.test')[-1]
             if path == '/':
-                route.fulfill(content_type='text/html', body='<link rel="stylesheet" href="/public/styles.css"><div id="chat-scroll"></div>')
+                route.fulfill(content_type='text/html', body='<link rel="stylesheet" href="/public/styles.css"><div id="chat-scroll" class="chat-scroll"><div id="chat-history"></div></div>')
             elif path == '/public/styles.css':
                 route.fulfill(content_type='text/css', body=(ROOT / 'apps/web/public/styles.css').read_text())
             elif path == '/client/i18n.js':
@@ -33,13 +101,31 @@ def main():
         page.evaluate('''async () => {
           const { createAuthReminder } = await import('/client/memoir/auth-reminder.js');
           window.calls = [];
+          window.conversation = {id: 'guest-project', messages: Array.from({length: 2}, (_, index) => ({
+            cacheId: `before-${index}`, text: `Earlier memory ${index}. ` + 'A familiar garden and a small path. '.repeat(8)
+          }))};
+          window.paintHistory = () => {
+            document.querySelector('#chat-history').replaceChildren(...conversation.messages.map(message => {
+              const row = document.createElement('article');
+              row.className = 'chat-row assistant-message';
+              row.dataset.fixtureMessage = message.cacheId;
+              const bubble = document.createElement('div');
+              bubble.className = 'chat-bubble';
+              bubble.textContent = message.text;
+              row.append(bubble);
+              return row;
+            }));
+            window.reminder?.mount();
+          };
+          paintHistory();
           window.serverUser = {id: 'guest-1', is_anonymous: true};
           window.account = {user: {id: 'guest-1', is_anonymous: true}, client: {auth: {
             getUser: async () => ({data: {user: serverUser}}),
             updateUser: async (...args) => { calls.push(['email', ...args]); return {}; },
             linkIdentity: async (...args) => { calls.push(['social', ...args]); return {}; }
           }}};
-          window.reminder = createAuthReminder({getAuth: () => account, busy: () => false});
+          window.reminder = createAuthReminder({getAuth: () => account,
+            getConversation: () => conversation, busy: () => false});
           reminder.tick();
         }''')
         page.clock.run_for(599000)
@@ -58,6 +144,8 @@ def main():
         page.get_by_role('button', name='Not now').click()
         page.clock.run_for(5000)
         expect(page.locator('dialog')).to_have_count(0)
+        assert_reminder_in_chat_flow(page)
+        page.locator('[data-auth-reminder]').scroll_into_view_if_needed()
         if not page.locator('dialog[open]').count():
             page.get_by_role('button', name='Sign in to keep your history').click()
         page.get_by_role('button', name='Continue with Google').click()
@@ -180,7 +268,8 @@ def main():
         source = (ROOT / 'apps/web/client/memoir/client.js').read_text()
         functions = '\n'.join(re.search(r'function ' + name + r'\(.*?\n\}', source, re.S).group(0)
                               for name in ['profileDetails', 'profileMenu', 'closeProfileMenu',
-                                           'refreshProfileMenu', 'bindProfileMenu', 'syncSupabaseSession'])
+                                           'refreshProfileMenu', 'bindProfileMenu', 'syncSupabaseSession',
+                                           'captureProjectScope', 'isCurrentProjectScope'])
         page.evaluate('''functions => {
           window.state = {supabase: {user: {id: 'guest-1', is_anonymous: true}}};
           window.$ = selector => document.querySelector(selector);
@@ -188,6 +277,7 @@ def main():
           window.escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
           window.translate = key => key;
           window.UI_LOCALES = new Set();
+          window.uiPreferenceSession = {setSession() {}};
           window.authReminder = {tick() {}, open() {}};
           window.signOut = () => {};
           window.reviewCollection = () => {};
@@ -198,7 +288,7 @@ def main():
         page.locator('[data-profile-trigger]').click()
         expect(page.locator('[data-profile-action="login"]')).to_be_visible()
         page.evaluate('''syncSupabaseSession({access_token: 'test-token', user: {
-          id: 'owner', email: 'owner@example.com', is_anonymous: false
+          id: 'guest-1', email: 'owner@example.com', is_anonymous: false
         }})''')
         expect(page.locator('[data-profile-action="login"]')).to_have_count(0)
         expect(page.locator('[data-profile-action="logout"]')).to_be_visible()
@@ -207,11 +297,11 @@ def main():
         expect(page.locator('#chat-input')).to_have_value('Unsent memory')
         page.locator('#chat-input').focus()
         page.evaluate('''syncSupabaseSession({access_token: 'refreshed-token', user: {
-          id: 'owner', email: 'owner@example.com', is_anonymous: false
+          id: 'guest-1', email: 'owner@example.com', is_anonymous: false
         }})''')
         assert page.evaluate('document.activeElement.id') == 'chat-input'
         browser.close()
-        print('PASS: timing, email/social linking, Google consent/account selection, callback errors, retry, signed-in suppression')
+        print('PASS: inline reminder placement, desktop/mobile scrolling, rerenders, history hydration, project isolation, timing, email/social linking, callback errors, retry, signed-in suppression')
 
 
 if __name__ == '__main__':

@@ -181,6 +181,7 @@ const guestTransfer = createGuestConversationTransfer({
 
 const authReminder = createAuthReminder({
   getAuth: () => state.supabase,
+  getConversation: () => ({ id: state.project?.id, messages: state.chat }),
   busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
   signInExisting: provider => guestTransfer.signIn(provider),
   cancelTransfer: () => guestTransfer.cancel(),

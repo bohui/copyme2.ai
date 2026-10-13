@@ -93,6 +93,23 @@ def test_bounded_worker_never_uses_legacy_finish_and_resumes_after_quantum():
     assert 'finish_memoir_timeline' not in seen
 
 
+def test_invalid_extraction_retries_the_same_bounded_source_before_commit():
+    from apps.api.lifetime_memory_composer import _extract
+    current=page();requests=[]
+    class Broker:
+        async def rpc(self,name,**payload):
+            assert name=='read_lifetime_lane_policy_source'
+            return copy.deepcopy(current['source'])
+    def model(request):
+        requests.append(json.loads(request.content)['bounded_lane'])
+        reply='invalid structured output' if len(requests)==1 else '{"events":[]}'
+        return httpx.Response(200,json={'reply':reply})
+    worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
+    assert asyncio.run(_extract(current,worker))=={'events':[]}
+    assert len(requests)==2 and requests[0]==requests[1]
+
+
 def test_10000_mixed_language_packets_have_constant_declared_bound():
     maximum=0
     for index in range(10000):

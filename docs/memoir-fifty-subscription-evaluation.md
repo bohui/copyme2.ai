@@ -141,8 +141,17 @@ canonical identity, original input/source IDs and checkpoints. Delivered turns
 are not reposted. An uncertain submission can only be recovered through
 `read_lifetime_reply` using its original conversation and client-turn UUID; if
 acceptance cannot be proven, resume stops for inspection. Changed/foreign
-history, a different canonical binding, old shared-owner receipts, or changed
-source fingerprint cannot be resumed. Subset resume preserves the other cases'
+history, a different canonical binding, or old shared-owner receipts cannot be
+resumed. A changed source fingerprint requires an explicit local fix resume:
+
+```sh
+make memoir-live-fifty-test EVAL_RESUME_DIR=/absolute/path/to/saved-run EVAL_ACCEPT_SOURCE_CHANGE=1
+```
+
+This records both checkout fingerprints and the number of prior submissions in
+the receipt and report. Original turn IDs, accepted sources, commit, accounts,
+project bindings and budgets remain fixed. The checkout must still remain
+unchanged during each attempt. Subset resume preserves the other cases'
 evidence. All original limit values (global/case elapsed time, backend requests, settle and
 poll bounds), backend request reservations, and the original global and per-case
 elapsed-time origins are retained. Changed limits, rolled-back request counters

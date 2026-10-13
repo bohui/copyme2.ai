@@ -31,7 +31,7 @@ if str(ROOT) not in sys.path:
 
 from apps.api.namespaces import memoir_url
 from scripts.memoir_fifty_readback import CASE_IDS, CHECKPOINTS, DATASET_SHA256, FiftyReadback, case_plans_for_run
-from scripts.issue14_subscription_runner import _canonical_state, _saved_checkpoint, _readback_call
+from scripts.issue14_subscription_runner import _canonical_state, _readback_call
 from scripts.run_issue14_subscription_evaluation import local_checkout_snapshot, verify_execution_source
 from scripts.backend_operation_lock import BackendInUseError, LOCK_FD_ENV, backend_operation_lock
 
@@ -539,7 +539,7 @@ async def wait_for_backend(requests, plan):
     raise EvaluationError('Local backend did not become healthy before its deadline')
 
 
-async def verified_case_ledger(account, plan, directory, receipt, case_id):
+async def verified_case_ledger(account, plan, directory, receipt, case_id,*,recover_accepted_turn=False):
     binding=plan['cases'][case_id]
     account.assert_owner(binding)
     project=binding['project_id']
@@ -563,14 +563,26 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id):
         if record.get('round') != index or str(UUID(record['client_turn_id'])) != record['client_turn_id'] or record['client_turn_id'] in client_ids:
             raise EvaluationError('Saved original round/client identity is invalid')
         client_ids.add(record['client_turn_id'])
-        if not record.get('accepted_source_id'):
+        if not record.get('reply'):
             recovered = await account.rpc('read_lifetime_reply',p_conversation_id=binding['conversation_id'],p_client_turn_id=record['client_turn_id'])
             if (not isinstance(recovered,dict) or recovered.get('project_id') != project
                     or recovered.get('client_turn_id') != record['client_turn_id'] or not recovered.get('conversation_saved')
                     or recovered.get('context_rebuild_required') or not recovered.get('accepted_source_id')
                     or not isinstance(recovered.get('reply'),str) or not recovered['reply'].strip()):
-                raise EvaluationError('Prior submission cannot be safely recovered; no original input will be resubmitted')
-            record.update(status='delivered',accepted_source_id=recovered['accepted_source_id'],reply=recovered['reply'])
+                if not recover_accepted_turn:
+                    raise EvaluationError('Prior submission cannot be safely recovered; no original input will be resubmitted')
+                accepted=await account.rpc('validate_lifetime_replay_input',p_conversation_id=binding['conversation_id'],
+                    p_client_turn_id=record['client_turn_id'],p_text=inputs['rounds'][index-1],p_kind='narrator_chat')
+                candidate=initial['sources'][index-1] if index<=len(initial['sources']) else None
+                if (accepted is not True or not candidate or candidate.get('text')!=inputs['rounds'][index-1]
+                        or candidate.get('project_id')!=project or candidate.get('kind')!='narrator_chat'
+                        or candidate.get('language')!=binding['language'] or candidate.get('status')!='active'
+                        or candidate.get('version')!=1 or not candidate.get('id')
+                        or record.get('accepted_source_id') not in (None,candidate['id'])):
+                    raise EvaluationError('Prior source acceptance cannot be proven; no original input will be resubmitted')
+                record.update(status='response_pending',accepted_source_id=candidate['id'])
+            else:
+                record.update(status='delivered',accepted_source_id=recovered['accepted_source_id'],reply=recovered['reply'])
     if case['rounds']:
         accepted_ids = [record['accepted_source_id'] for record in case['rounds']]
         if len(initial['sources']) != len(accepted_ids):
@@ -590,12 +602,13 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id):
     return case,inputs,initial
 
 
-async def run_cases(accounts, plan, directory, receipt):
+async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=False):
     for case_id, binding in plan['cases'].items():
         account=accounts[case_id]
         requests=account.requests
         project=binding['project_id']
-        case,inputs,initial=await verified_case_ledger(account,plan,directory,receipt,case_id)
+        case,inputs,initial=await verified_case_ledger(account,plan,directory,receipt,case_id,
+            recover_accepted_turn=recover_accepted_turn)
         accepted = []
         for ordinal, text in enumerate(inputs['rounds'], 1):
             account.assert_owner(binding)
@@ -604,8 +617,27 @@ async def run_cases(accounts, plan, directory, receipt):
                 accepted.append(record['accepted_source_id'])
                 if record['status'] == 'completed':
                     continue
+                if not record.get('reply'):
+                    if not recover_accepted_turn or record.get('response_retry_attempts',0)>=3:
+                        raise EvaluationError('Accepted response needs explicit recovery within its retry limit')
+                    record['response_retry_attempts']=record.get('response_retry_attempts',0)+1
+                    receipt['backend_recovery_submissions']=receipt.get('backend_recovery_submissions',0)+1
+                    receipt.setdefault('accepted_response_recoveries',[]).append({'case_id':case_id,
+                        'client_turn_id':record['client_turn_id'],'accepted_source_id':record['accepted_source_id'],
+                        'attempt_id':receipt['attempt_id'],
+                        'checkout_snapshot_sha256':(plan.get('local_checkout_source') or {}).get('snapshot_sha256')})
+                    save(directory/'receipt.json',receipt)
+                    result=await backend(requests,account,plan,'POST','/v1/agent/turn',timeout=600,
+                        json={'project_id':project,'language':binding['language'],'text':text,'conversation_text':text,
+                            'source_kind':'narrator_chat','client_turn_id':record['client_turn_id']})
+                    if (result.get('project_id')!=project or result.get('accepted_source_id')!=record['accepted_source_id']
+                            or not isinstance(result.get('reply'),str) or not result['reply'].strip() or result.get('task_errors')):
+                        raise EvaluationError('Accepted response recovery did not preserve its original source')
+                    record.update(status='delivered',reply=result['reply'])
+                    save(directory/'receipt.json',receipt)
             else:
-                record = {'round':ordinal,'client_turn_id':str(uuid4()),'status':'submitting','background_settled':False}
+                record = {'round':ordinal,'client_turn_id':str(uuid4()),'status':'submitting','background_settled':False,
+                    'checkout_snapshot_sha256':(plan.get('local_checkout_source') or {}).get('snapshot_sha256')}
                 case['rounds'].append(record)
                 receipt['backend_turn_submissions'] += 1
                 save(directory / 'receipt.json',receipt)
@@ -644,7 +676,8 @@ async def run_cases(accounts, plan, directory, receipt):
                 await asyncio.sleep(min(plan['poll_seconds'], max(0, settle_deadline - time.monotonic())))
             if record.get('failure_summary'):
                 record['previous_failure_summary']=record.pop('failure_summary')
-            record.update(status='completed', background_settled=True, canonical_state=view)
+            record.update(status='completed', background_settled=True, canonical_state=view,
+                background_checkout_snapshot_sha256=(plan.get('local_checkout_source') or {}).get('snapshot_sha256'))
             save(directory / 'receipt.json', receipt)
             print(f'{case_id}: round {ordinal}/50 saved', file=sys.stderr, flush=True)
         final_view=await account.rpc('read_user_memory_events',p_project_id=project)
@@ -762,14 +795,20 @@ def validate_resume_budget(plan,previous,receipt):
         raise EvaluationError('Saved case progress has no original elapsed-time origin')
 
 
-async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None):
+async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None,accept_source_change=False,recover_accepted_turn=False):
     with backend_operation_lock() as descriptor:
         return await _execute(plan,directory,settings,start_backend=start_backend,
-            create_confirm=create_confirm,backend_lock_fd=descriptor,resume=resume)
+            create_confirm=create_confirm,backend_lock_fd=descriptor,resume=resume,
+            accept_source_change=accept_source_change,recover_accepted_turn=recover_accepted_turn)
 
 
-async def _execute(plan,directory,settings,*,start_backend,create_confirm,backend_lock_fd,resume=None):
+async def _execute(plan,directory,settings,*,start_backend,create_confirm,backend_lock_fd,resume=None,accept_source_change=False,recover_accepted_turn=False):
     previous = None
+    source_change = None
+    if type(accept_source_change) is not bool or accept_source_change and resume is None:
+        raise EvaluationError('An explicit source change requires a saved resume receipt')
+    if type(recover_accepted_turn) is not bool or recover_accepted_turn and resume is None:
+        raise EvaluationError('Accepted response recovery requires a saved resume receipt')
     if resume is None:
         directory = output_directory(directory)
         receipt = {'schema_version':'memoir-supabase-evaluation-receipt/2','run_id':plan['run_id'],
@@ -782,8 +821,14 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
     else:
         directory = Path(directory).absolute()
         previous,receipt = load_resume(directory)
-        if any(plan.get(key) != previous.get(key) for key in ('run_id','source_revision','local_checkout_source','dataset_sha256','api_base','web_base')):
+        if any(plan.get(key) != previous.get(key) for key in ('run_id','source_revision','dataset_sha256','api_base','web_base')):
             raise EvaluationError('Resume must retain its run/source/service identities')
+        if plan.get('local_checkout_source') != previous.get('local_checkout_source'):
+            if not accept_source_change or not plan.get('local_checkout_source') or not previous.get('local_checkout_source'):
+                raise EvaluationError('Resume source changed; explicitly accept the local fix with --accept-source-change')
+            source_change = {'previous':previous['local_checkout_source'],
+                'current':plan['local_checkout_source'],'backend_turn_submissions':receipt['backend_turn_submissions'],
+                'previous_attempt_id':receipt.get('attempt_id'),'changed_at_unix':time.time()}
         if any(case not in previous['cases'] for case in plan['case_ids']):
             raise EvaluationError('Resume cannot add or reassign an original case')
         validate_resume_budget(plan,previous,receipt)
@@ -823,6 +868,17 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         reserved(requests.reserved)
         try:
             verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
+            if source_change:
+                # Preserve original request provenance and immutable limits.
+                # The accepted source ledger is still revalidated below; a fix
+                # never authorizes a second POST for an existing client UUID.
+                for case in receipt['evaluation']['cases']:
+                    for record in case.get('rounds',[]):
+                        record.setdefault('checkout_snapshot_sha256',source_change['previous'].get('snapshot_sha256'))
+                receipt.setdefault('source_changes',[]).append({**source_change,'attempt_id':receipt['attempt_id']})
+                receipt['local_checkout_source']=plan['local_checkout_source']
+                save(directory/'plan.json',{**previous,'local_checkout_source':plan['local_checkout_source']})
+                save(directory/'receipt.json',receipt)
             if requests.remaining()<=0 and any(case not in read_only_cases for case in plan['case_ids']):
                 raise EvaluationError('Original campaign elapsed-time ceiling reached')
             for case_id in plan['case_ids']:
@@ -832,7 +888,8 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                     raise EvaluationError('Original case elapsed-time ceiling reached')
             if read_only_cases:begin_read_only_revalidation(requests,receipt,read_only_cases)
             await bind_accounts(requests,plan,settings,accounts,create_confirm=create_confirm,previous=previous,origins=receipt['case_started_at_unix'],read_only_cases=read_only_cases)
-            stored_plan = plan if previous is None else {**previous,'cases':{**previous['cases'],**plan['cases']},'last_resume_selection':plan['case_ids']}
+            stored_plan = plan if previous is None else {**previous,'local_checkout_source':plan['local_checkout_source'],
+                'cases':{**previous['cases'],**plan['cases']},'last_resume_selection':plan['case_ids']}
             save(directory/'plan.json',stored_plan)
             receipt.setdefault('preflight',{})
             for case_id in plan['case_ids']:
@@ -844,8 +901,9 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                 else:set_case_deadline(requests,plan,receipt['case_started_at_unix'][case_id])
                 single = {**plan,'case_ids':[case_id],'cases':{case_id:binding}}
                 stage = 'canonical_ledger'
-                ledger,_,_=await verified_case_ledger(account,single,directory,receipt,case_id)
-                needed_rounds=50-len(ledger['rounds'])
+                ledger,_,_=await verified_case_ledger(account,single,directory,receipt,case_id,
+                    recover_accepted_turn=recover_accepted_turn)
+                needed_rounds=50-sum(bool(record.get('reply')) for record in ledger['rounds'])
                 stage = 'backend_startup'
                 if start_backend and case_id not in read_only_cases:
                     await start_case_backend(requests,account,single,settings,backend_lock_fd,ledger=ledger,directory=directory,receipt=receipt)
@@ -864,7 +922,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                 checkpoint_head_shape(await account.rpc('read_lifetime_private_draft_head',p_project_id=binding['project_id'],p_locale=binding['language']),binding)
                 stage = 'conversation'
                 receipt['execution_started'] = True
-                await run_cases(accounts,single,directory,receipt)
+                await run_cases(accounts,single,directory,receipt,recover_accepted_turn=recover_accepted_turn)
             receipt['selected_case_status'] = 'completed'
             all_cases = (previous or plan)['case_ids']
             recorded={case['case_id']:case for case in receipt['evaluation']['cases']}
@@ -955,6 +1013,10 @@ def main(argv=None):
     parser.add_argument('--user-email')
     parser.add_argument('--case-id', choices=CASE_IDS, action='append')
     parser.add_argument('--resume-dir', type=Path)
+    parser.add_argument('--accept-source-change', action='store_true',
+        help='Record a local code fix when resuming; keep the original commit, accounts, ledger and budgets')
+    parser.add_argument('--recover-accepted-turn',action='store_true',
+        help='Retry a missing response only after proving original source acceptance; reuse the original client UUID')
     parser.add_argument('--project-id')
     parser.add_argument('--api-base', default='http://127.0.0.1:8010')
     parser.add_argument('--web-base', default='http://127.0.0.1:3010')
@@ -968,6 +1030,10 @@ def main(argv=None):
     parser.add_argument('--poll-seconds', type=float)
     args = parser.parse_args(argv)
     try:
+        if args.accept_source_change and not args.resume_dir:
+            raise EvaluationError('--accept-source-change requires --resume-dir')
+        if args.recover_accepted_turn and not args.resume_dir:
+            raise EvaluationError('--recover-accepted-turn requires --resume-dir')
         run_id = args.run_id or str(uuid4())
         directory = args.run_dir or Path.home() / 'memoir-test-results' / run_id
         settings = configuration(args.env_file) if args.execute or args.prepare_user else {}
@@ -1009,7 +1075,8 @@ def main(argv=None):
             return 0
         print('Evidence directory: ' + str(directory), file=sys.stderr, flush=True)
         result = asyncio.run(execute(plan, directory, settings,
-            start_backend=args.start_backend, create_confirm=args.create_confirmed_test_user,resume=args.resume_dir))
+            start_backend=args.start_backend, create_confirm=args.create_confirmed_test_user,resume=args.resume_dir,
+            accept_source_change=args.accept_source_change,recover_accepted_turn=args.recover_accepted_turn))
         print(json.dumps({'run_id': run_id, 'status': result['status'], 'receipt_path': str(directory / 'receipt.json'),
                          'stop_reason': result.get('stop_reason'), 'projects': plan['cases']}))
         return 0 if result['status'] == 'completed' else 3

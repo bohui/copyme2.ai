@@ -109,12 +109,19 @@ def test_question_pool_in_thinking_steps_keeps_reply_and_speech_to_one_question(
     reply=('我们可以接着聊。' if locale=='zh-CN' else 'We can keep going.')+'\n\n'+question
     step=dict(id='question-pool',kind='progress',status='completed',detail='已生成问题池 · 2 个候选问题' if locale=='zh-CN' else 'Generated question pool · 2 candidates',
         question_pool=dict(chosen_id='chosen',candidates=[dict(id='chosen',question=question,bridge=''),dict(id='later',question=alternative,bridge='')]))
-    page.evaluate('(data)=>turnEvent("progress",data)',step)
-    page.evaluate('(data)=>finishTurn(data)',dict(reply=reply,trace=[step],trace_mode='live',**receipt()))
+    trace_steps=[dict(id='collector-call',kind='progress',status='completed',detail='LLM 调用 · 回复和问题池已生成' if locale=='zh-CN' else 'LLM call · Reply and question pool generated'),
+                 dict(id='tool-1',kind='progress',status='completed',detail='read_file · Completed'),
+                 dict(id='save',kind='progress',status='completed',detail='对话记忆已保存' if locale=='zh-CN' else 'Conversation memory saved'),step]
+    for progress in trace_steps:
+        page.evaluate('(data)=>turnEvent("progress",data)',progress)
+    page.evaluate('(data)=>finishTurn(data)',dict(reply=reply,trace=trace_steps,trace_mode='live',**receipt()))
     trace=page.locator('.assistant-message .agent-loop').last
     expect(trace).not_to_have_attribute('open','')
     expect(page.locator('.assistant-message .message-text').last).to_have_text(reply,use_inner_text=True)
     trace.locator('summary').click()
+    expect(trace.locator('.agent-loop-step')).to_have_count(4)
+    expect(trace).to_contain_text('LLM')
+    expect(trace).to_contain_text('read_file')
     expect(trace.locator('.agent-question-candidate')).to_have_count(2)
     expect(trace.locator('[data-selected=true]')).to_contain_text(question)
     expect(trace.locator('.agent-question-selected')).to_have_text('已选' if locale=='zh-CN' else 'Selected')
@@ -131,6 +138,7 @@ def test_question_pool_in_thinking_steps_keeps_reply_and_speech_to_one_question(
     trace=page.locator('.assistant-message .agent-loop').last
     trace.locator('summary').click()
     expect(trace).to_contain_text(alternative)
+    expect(trace).to_contain_text('read_file')
     profile['show_thinking_steps']=False
     page.reload(wait_until='networkidle')
     expect(page.locator('.agent-question-pool')).to_have_count(0)

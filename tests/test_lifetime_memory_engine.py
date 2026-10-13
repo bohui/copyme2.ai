@@ -235,11 +235,32 @@ def test_provider_errors_never_become_missing_state_or_trigger_retry(tmp_path, e
     assert len(FakeConnection.instances[0].requests) == 1
 
 
-def test_invalid_structured_response_is_not_retried_on_unbounded_transcript(tmp_path):
+def test_invalid_structured_response_is_retried_only_in_fresh_bounded_homes(tmp_path):
     FakeConnection.reply = '{"acknowledgement":"bad"}'
     with pytest.raises(RuntimeError, match='validated'):
         run(tmp_path)
-    assert len(FakeConnection.instances[0].turns) == 1
+    assert len(FakeConnection.instances)==3
+    assert len({instance.home for instance in FakeConnection.instances})==3
+    assert all(len(instance.turns)==1 for instance in FakeConnection.instances)
+
+
+def test_valid_second_response_uses_the_same_packet_in_a_new_home(tmp_path):
+    class RecoveringConnection(FakeConnection):
+        async def turn(self,*args,**kwargs):
+            await super().turn(*args,**kwargs)
+            return 'invalid structured output' if len(self.instances)==1 else valid_reply()
+    result=run(tmp_path,connection_factory=RecoveringConnection)
+    assert result['reply']==valid_reply() and len(FakeConnection.instances)==2
+    assert len({instance.home for instance in FakeConnection.instances})==2
+    assert all(len(instance.turns)==1 for instance in FakeConnection.instances)
+    assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances})==1
+
+
+def test_invalid_visible_stream_is_not_followed_by_a_second_answer(tmp_path):
+    FakeConnection.reply='invalid structured output'
+    async def delta(value):pass
+    with pytest.raises(RuntimeError):run(tmp_path,on_delta=delta)
+    assert len(FakeConnection.instances)==1
 
 
 def test_worker_uses_same_governed_engine_and_no_artifact_export(tmp_path, monkeypatch):
@@ -252,7 +273,6 @@ def test_worker_uses_same_governed_engine_and_no_artifact_export(tmp_path, monke
         assert dsn is None and authenticated_owner == IDENTITY.owner_id
         return FakePublisher()
     monkeypatch.setattr(engine_module, 'ProviderPublication', publication_factory)
-    monkeypatch.setattr(worker_module, 'iter_artifacts', lambda home: pytest.fail('governed artifact export'))
     governed, context = fixture()
     worker = CodexWorker(home_root=tmp_path, model=BUDGET.model, api_key='transient-test-secret')
     payload = WorkerTurnInput(user_id=IDENTITY.owner_id, project_id='p', model=BUDGET.model,

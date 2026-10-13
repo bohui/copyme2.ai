@@ -232,8 +232,6 @@ services:
     volumes:
       - ./apps/api:/app/apps/api:ro
       - ./scripts:/app/scripts:ro
-      - ./apps/api:/app/apps/api:ro
-      - ./scripts:/app/scripts:ro
       - ./skills/memoir-composer:/app/skills/memoir-composer:ro
       - ./var/memory-spark:/var/lib/memory-spark
       - memoir-tasks:/var/lib/memoir-tasks
