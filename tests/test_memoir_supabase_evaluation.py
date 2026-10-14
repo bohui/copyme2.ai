@@ -911,6 +911,32 @@ def test_time_extension_requires_resume_and_original_single_case(setup,tmp_path)
     assert len(remote.calls)==calls
 
 
+def test_explicit_extension_targets_only_one_existing_case_without_resetting_campaign(setup,tmp_path):
+    plan,remote=setup(None);plan.update(max_elapsed_seconds=36000,max_case_elapsed_seconds=7200)
+    remote.draft_failed=True;directory=tmp_path/'scoped-extension'
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    target=module.CASE_IDS[0]
+    selected={**plan,'case_ids':[target],'cases':{target:plan['cases'][target]}}
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-7300;receipt['case_started_at_unix'][target]=now-7250
+    module.save(directory/'receipt.json',receipt);origins=deepcopy(receipt['case_started_at_unix'])
+    reserved=module.private_json(directory/'request-counter.json')['reserved'];remote.draft_failed=False
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory,extend_time_limit_seconds=14400))
+    case=next(c for c in result['evaluation']['cases'] if c['case_id']==target)
+    assert case['status']=='completed' and len(case['rounds'])==50
+    assert result['status']=='incomplete' and len(remote.submitted)==50
+    assert result['started_at_unix']==receipt['started_at_unix'] and result['case_started_at_unix']==origins
+    assert result['budget_contract']==module.budget_contract(plan)
+    assert result['request_accounting']['backend_http_requests_reserved']>reserved
+    history=result['elapsed_time_extensions'];assert history[0]['case_ids']==[target]
+    saved=module.private_json(directory/'plan.json');assert saved['case_ids']==plan['case_ids']
+    assert module.budget_contract(saved)==module.budget_contract(plan)
+    other=module.CASE_IDS[1];other_plan={**plan,'case_ids':[other],'cases':{other:plan['cases'][other]}}
+    assert module.resumed_time_limit(other_plan,saved,result) is None
+    with pytest.raises(module.EvaluationError,match='another case'):
+        module.resumed_time_limit(other_plan,saved,result,14400)
+
+
 def test_resumed_partial_case_reuses_remaining_time_and_reserves_all_prior_attempts(setup,tmp_path,monkeypatch):
     plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'remaining-time'
     first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'

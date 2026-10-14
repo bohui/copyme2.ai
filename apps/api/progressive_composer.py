@@ -1,5 +1,7 @@
 """Authoritative five-round deltas for the existing canonical composer."""
 from copy import deepcopy
+from hashlib import sha256
+import json
 
 from .memory_events import EvidenceRef
 
@@ -7,8 +9,26 @@ from .memory_events import EvidenceRef
 def batch_job(page):
     batch = page['batch']
     sources, events = deepcopy(batch['sources']), deepcopy(batch['events'])
+    previous = deepcopy(batch['previous'])
+    if previous and 'manuscript' not in previous and previous.get('kind') == 'sample_chapter':
+        chapters = {s['chapter_id'] for s in previous['sections']}
+        if len(chapters) > 1:
+            # Separate bounded jobs may have stored differently named samples.
+            # Their paragraphs are derived prior writing, not eight chapters
+            # that a one-chapter request must implicitly carry forward.
+            passages = []
+            for section in previous['sections']:
+                if 'block' not in section:
+                    continue
+                identity = sha256(json.dumps([section['chapter_id'],section['block'],section['event_ids']],
+                    sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:24]
+                section.update(id='progressive-memoir__'+identity,chapter_id='progressive-memoir')
+                section['block']['id'] = identity
+                if not any(s['id']==section['id'] for s in passages):
+                    passages.append(section)
+            previous['sections'] = passages
     return {**page, 'authoritative_page': deepcopy(page), 'governed_page': True,
-        'sources': sources, 'events': events, 'previous': deepcopy(batch['previous']),
+        'sources': sources, 'events': events, 'previous': previous,
         'source_manifest': [{'id': s['id'], 'version': s['version']} for s in sources],
         'event_manifest': [{'id': e['id'], 'revision': e['revision']} for e in events],
         'source_windows': {s['id']: {k: s[k] for k in ('char_start', 'char_end', 'original_length')} for s in sources}}

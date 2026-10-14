@@ -257,7 +257,8 @@ def test_governed_routes_capture_before_read_and_use_final_send_guard(recovery, 
         assert response.json()['text'] == 'I lived near the river.'
 
 
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
+from test_lifetime_memory_publication import database
 from test_agent_commit_postgres import OLD, as_user
 from test_shared_memory_events_postgres import rpc, literal
 
@@ -275,7 +276,7 @@ def setup_read(sql, *, profile=True):
         sql(as_user('delete from public.user_profile where user_id=auth.uid();'))
     fence = rpc(sql, 'capture_lifetime_read_fence', literal(identity['project_id']))
     command = sql.command
-    dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     return identity, source, fence, dsn
 
 

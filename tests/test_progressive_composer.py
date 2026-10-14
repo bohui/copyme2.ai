@@ -131,6 +131,28 @@ def test_second_checkpoint_keeps_unchanged_prose_and_uses_only_the_new_messages_
     assert second['request']['prior_state']['revision'] == 1
 
 
+def test_multiple_stored_sample_chapters_supply_one_bounded_prior_body_without_rewriting_text():
+    from apps.api.progressive_composer import batch_job
+    from apps.api.canonical_composer import composition_request
+    current=batch_page()
+    first=compose(current,[],Broker())
+    current['batch']['previous']=deepcopy(first)
+    current['batch']['previous'].pop('manuscript')
+    current['batch']['previous']['kind']='sample_chapter'
+    blocks=[s for s in current['batch']['previous']['sections'] if 'block' in s]
+    for index,section in enumerate(blocks):
+        section['chapter_id']='stored-sample-'+str(index)
+        section['block']['id']='paragraph'
+    before=deepcopy(current)
+    request,_=composition_request(batch_job(current))
+    chapters=request['prior_state']['chapters']
+    assert len(chapters)==1
+    body=chapters[0]['chapter']['blocks']
+    assert [b['text'] for b in body]==[s['block']['text'] for s in blocks]
+    assert len({b['id'] for b in body})==len(body)
+    assert current==before
+
+
 def test_repair_admission_and_composer_share_stale_projection_validation(monkeypatch):
     from apps.api.canonical_composer import validate_canonical_candidate
     from apps.api.lifetime_memory_lane_engine import validate_lane_payload
@@ -154,6 +176,19 @@ def test_repair_admission_and_composer_share_stale_projection_validation(monkeyp
     bounded.packet = json.dumps(data)
     with pytest.raises(ValueError, match='canonical page proof'):
         asyncio.run(validate_lane_payload(bounded))
+
+
+def test_canonical_repair_errors_are_stable_after_transport_key_sorting():
+    from apps.api.canonical_composer import canonical_evidence_errors
+    ref={'source_id':'source','version':'1','char_start':3,'char_end':8}
+    request={'sources':[{'id':'source','version':'1','text':'Original memory.'}],
+        'events':[{'id':'event','source_refs':[{**ref,'char_start':0,'char_end':3}]}],
+        'prior_state':{'chapters':[]},'context':{}}
+    draft={'outline':[{'source_refs':[ref]}],'chapters':[{'source_refs':[ref]}],
+        'carry_forward_chapter_ids':[]}
+    before=canonical_evidence_errors(request,draft)
+    after=canonical_evidence_errors(request,json.loads(json.dumps(draft,sort_keys=True)))
+    assert before and before==after
 
 
 @pytest.mark.parametrize('protected', [False, True])
@@ -275,3 +310,17 @@ def test_pg_long_original_summary_resumes_exact_windows_and_cannot_skip_proof(sq
         current = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{current['token']}'")
     assert ''.join(windows) == text and number == 3
     assert service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{current['token']}'")['retrieval_complete']
+
+
+@pytest.mark.parametrize('reason,seconds',[('LIFETIME_PROVIDER_AUTHORITY_UNAVAILABLE',15),('LIFETIME_GENERATION_PAUSED',300)])
+def test_pg_transient_authority_retry_keeps_originals_and_snapshot_cursor(sql,reason,seconds):  # noqa: F811
+    identity=resolve(sql)
+    original=rpc(sql,'accept_user_narrator_source',f"{literal(identity['project_id'])},'{UUID(int=400)}','Exact original testimony.'")
+    lane=create_lane(sql,identity)
+    current=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    result=service(sql,'defer_lifetime_memoir_lane',f"'{lane}','{current['token']}',{literal(reason)}")
+    assert result['status']=='pending' and result['retrieval_complete'] is False
+    delay=float(sql(f"select extract(epoch from available_at-clock_timestamp()) from public.user_memoir_lane where id='{lane}';").stdout.strip())
+    assert seconds-3<delay<=seconds
+    assert sql(f"select page_number from public.user_lifetime_lane_snapshot where id='{current['snapshot_id']}';").stdout.strip()=='0'
+    assert rpc(sql,'read_user_memory_events',literal(identity['project_id']))['sources'][0]['text']==original['text']

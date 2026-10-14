@@ -36,7 +36,7 @@ def _owner_rpc(storage, name, **parameters):
         except ValueError:
             failure = {}
         code = failure.get('code') if isinstance(failure, dict) else None
-        if code == '40001':
+        if code in {'40001', 'PT409'}:
             raise HTTPException(409, 'The collection or selected sources changed; review and retry') from None
         if code in {'22023', '22P02', 'P0001', '23514'}:
             raise HTTPException(422, 'The selected collection request is invalid') from None

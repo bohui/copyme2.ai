@@ -56,7 +56,7 @@ export function renderReport(plan, receipt) {
       ...receipt.source_changes.map(change => `Source fix after ${cell(change.backend_turn_submissions)} original submissions: ${cell(change.previous?.snapshot_sha256)} → ${cell(change.current?.snapshot_sha256)}.  `),
     ] : []),
     ...(receipt.elapsed_time_extensions?.length ? receipt.elapsed_time_extensions.map(extension =>
-      `Explicit elapsed-time extension: ${cell(extension.seconds)} seconds from the original clock origin, recorded after ${cell(extension.backend_turn_submissions)} original submissions. Original request, settle and poll limits retained.  `) : []),
+      `Explicit elapsed-time extension: ${cell(extension.seconds)} seconds total from the original clock origin for ${cell(extension.case_ids?.join(', ') ?? 'unknown case')}, recorded after ${cell(extension.backend_turn_submissions)} original submissions. Original request, settle and poll limits retained.  `) : []),
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
     ...(remote ? [
       'Storage: remote Supabase; projects retained.  ',
@@ -123,6 +123,40 @@ export function renderReport(plan, receipt) {
       lines.push(`| ${cell(round.round)} | ${cell(round.status)} | ${cell(round.background_settled)} | ${cell(round.accepted_source_id)} |`);
     }
     if (!rounds.length) lines.push('', 'No round evidence was retained.');
+    if (plan.progressive_rerun) {
+      const timings = rounds.map(row => row.streaming).filter(Boolean);
+      const percentile = (key, proportion, samples = timings) => {
+        const values = samples.map(row => row[key]).filter(Number.isFinite).sort((a,b) => a-b);
+        return values.length ? values[Math.ceil(values.length*proportion)-1].toFixed(3) : 'unknown';
+      };
+      const unchanged = (item.checkpoints ?? []).reduce((n, checkpoint) => n + (checkpoint.verification?.unchanged_passages?.length ?? 0), 0);
+      lines.push('', `Retained baseline: ${item.baseline?.completed_rounds ?? 0} rounds; this rerun appends 50 new original inputs.`, '',
+        `Measured backend streams: ${timings.length}. First visible text median / p95: ${percentile('first_text_seconds',0.5)} / ${percentile('first_text_seconds',0.95)} seconds.`,
+        `Durable save median / p95: ${percentile('saved_seconds',0.5)} / ${percentile('saved_seconds',0.95)} seconds. Browser paint is not measured.`,
+        `Unchanged passage comparisons passed: ${unchanged}. Only passages with unchanged canonical dependencies and policy qualify.`);
+      const profiles = new Map();
+      for (const round of rounds) {
+        if (!round.streaming || !round.collector_configuration) continue;
+        const config = round.collector_configuration;
+        const label = `${config.model}; requested effort ${config.requested_effort ?? 'default'}; ${config.prompt_version}`;
+        if (!profiles.has(label)) profiles.set(label, []);
+        profiles.get(label).push(round.streaming);
+      }
+      if (profiles.size) {
+        lines.push('', 'Collector configurations are measured separately. Requested effort is not independent proof of upstream policy.', '',
+          '| Collector configuration | Streams | First text median / p95 (s) | Save median / p95 (s) |', '| --- | ---: | ---: | ---: |');
+        for (const [label, samples] of profiles) {
+          lines.push(`| ${cell(label)} | ${samples.length} | ${percentile('first_text_seconds', .5, samples)} / ${percentile('first_text_seconds', .95, samples)} | ${percentile('saved_seconds', .5, samples)} / ${percentile('saved_seconds', .95, samples)} |`);
+        }
+      }
+      lines.push('',
+        '| Checkpoint in rerun | Total round | Saved summaries | New messages summarised | Evidence references | Unchanged passages |',
+        '| --- | ---: | ---: | ---: | ---: | ---: |');
+      for (const checkpoint of item.checkpoints ?? []) {
+        const check = checkpoint.verification ?? {};
+        lines.push(`| ${checkpoint.milestone} | ${checkpoint.coverage_round} | ${cell(check.saved_summaries)} | ${cell(check.summarised_original_messages)} | ${cell(check.references_verified)} | ${check.unchanged_passages?.length ?? 0} |`);
+      }
+    }
     for (const round of rounds) {
       const failures = Object.fromEntries(Object.entries(round).filter(([key, value]) => value &&
         (key === 'worker_failure' || key === 'failure_summary' || key.endsWith('_readback_diagnostic'))));

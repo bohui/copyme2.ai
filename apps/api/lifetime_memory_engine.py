@@ -35,9 +35,9 @@ GOVERNED_TURN_PROMPT = (
     'Respond to the current narrator evidence in the governed packet. '
     'Return the supplied structured collector schema.'
 )
-# Deliberately no wildcard or operator-defined alias. The production route is
-# the existing reviewed byte-BPE collector; the second is an offline fixture.
-SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'synthetic-byte-bpe'})
+# The installed pooled and dedicated low aliases route to the same byte-BPE
+# model. No wildcard or arbitrary operator-defined alias is admitted.
+SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-memoir-low', 'synthetic-byte-bpe'})
 SUPPORTED_PROMPT_VERSIONS = frozenset({'lifetime-v1'})
 
 
@@ -260,14 +260,24 @@ async def run_governed_collector(**options):
     """Retry rejected output in fresh bounded homes within the original timeout."""
     options={**options,'interview_context':deepcopy(options['interview_context']),
         'governed':GovernedCollectorInput.model_validate(options['governed'].model_dump(mode='json'))}
-    # Once visible streaming has begun, another answer cannot be appended to it.
-    attempts=1 if options.get('on_delta') else 3
+    # The presence of a callback does not mean any public text was delivered.
+    # A rejected, still-hidden answer can use the same bounded fresh-home retry.
+    published = False
+    original_delta = options.get('on_delta')
+    if original_delta:
+        async def observed_delta(text):
+            nonlocal published
+            if text:
+                published = True
+            await original_delta(text)
+        options['on_delta'] = observed_delta
+    attempts=3
     async with asyncio.timeout(options.get('timeout',120)):
         for attempt in range(attempts):
             try:
                 return await _run_governed_collector_once(**options)
             except CollectorOutputInvalid:
-                if attempt==attempts-1:raise
+                if published or attempt==attempts-1:raise
 
 
 async def _run_governed_collector_once(*, command, home_root, base_url, api_key, model,
@@ -328,7 +338,31 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             responsesapi_client_metadata=responsesapi_client_metadata or {})
         try:
             validate_governed_collector_result(reply, interview_context)
-        except (ValueError, TypeError, KeyError):
+        except (ValueError, TypeError, KeyError) as error:
+            reasons = {
+                'Continuity requires exact current narrator evidence',
+                'Unsupported biographical year', 'Unsupported life stage',
+                'Unknown candidate event', 'Unknown active event',
+                'Only one visible question is allowed', 'Choose one current candidate',
+                'Question candidates must be distinct', 'Acknowledgement cannot contain a question',
+                'Returning to another event needs a conversational bridge',
+                'Privacy and commitment continuity require asserted direct narrator wording',
+                'Continuity text must preserve the exact attributed quote',
+                'Continuity span must cover exact original characters',
+                'Inferred continuity requires explicit uncertainty',
+                'Duplicate continuity update',
+            }
+            reason = str(error) if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
+            from pydantic import ValidationError
+            if isinstance(error, ValidationError):
+                for detail in error.errors(include_input=False, include_url=False):
+                    cause = str((detail.get('ctx') or {}).get('error', ''))
+                    if cause in reasons:
+                        reason = cause
+                        break
+            import logging
+            logging.getLogger(__name__).warning('governed_collector rejected reason=%s',
+                reason)
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn') from None

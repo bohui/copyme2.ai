@@ -4,9 +4,15 @@ from copy import deepcopy
 
 import pytest
 from apps.api.lifetime_memory_publication import TransactionalPublication, PublicationUnavailable
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
+from test_agent_commit_postgres import database as postgres_database
 from test_agent_commit_postgres import OWNER, OTHER, OLD, as_user
 from test_shared_memory_events_postgres import rpc, literal
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from postgres_database.__wrapped__(publication_tcp=True)
 
 
 def setup(sql):
@@ -16,7 +22,7 @@ def setup(sql):
     sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
     fence = rpc(sql,'capture_lifetime_fence',f"'{identity['conversation_id']}', '{OLD}'")
     command = sql.command
-    dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     return identity,source,fence,dsn
 
 
@@ -45,9 +51,10 @@ def test_send_completes_before_correction_fence_and_later_output_is_blocked(sql)
             # Simulated ASGI send completes here while the correction is blocked.
         await edit
         await correction.close()
-        with pytest.raises(psycopg.errors.SerializationFailure):
+        with pytest.raises(psycopg.DatabaseError) as rejected:
             async with publisher.guard(fence):
                 pytest.fail('stale queued output must never be sent')
+        assert rejected.value.sqlstate == 'PT409'
     asyncio.run(scenario())
     assert rpc(sql,'capture_lifetime_fence',f"'{identity['conversation_id']}', '{OLD}'")['execution_generation'] == fence['execution_generation']+1
 
@@ -127,7 +134,46 @@ def test_actual_asgi_send_await_is_inside_the_guard_and_preference_changes_revok
         publisher=TransactionalPublication(dsn,authenticated_owner=OWNER)
         await send_governed(send,{'type':'http.response.body','body':b'authorized'},publisher=publisher,fence=fence)
         sql(as_user("update public.user_profile set profile='{" + '"preferred_language":"zh-CN"' + "}';"))
-        with pytest.raises(psycopg.errors.SerializationFailure):
+        with pytest.raises(psycopg.DatabaseError) as rejected:
             await send_governed(send,{'type':'http.response.body','body':b'stale'},publisher=publisher,fence=fence)
+        assert rejected.value.sqlstate == 'PT409'
     asyncio.run(scenario())
     assert len(sent)==1 and sent[0]['body']==b'authorized'
+
+
+def test_brief_background_project_lock_does_not_abort_valid_stream(sql):
+    from apps.api.lifetime_memory_publication import send_governed
+    import psycopg
+    identity,source,fence,dsn=setup(sql)
+    sent=[]
+
+    async def scenario():
+        blocker=await psycopg.AsyncConnection.connect(dsn)
+        observer=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
+        sending=None
+        try:
+            await blocker.execute('select 1 from public.user_memoir_project where user_id=%s and project_id=%s for update',
+                (OWNER,identity['project_id']))
+            publisher=TransactionalPublication(dsn+' application_name=publication-delay-regression',authenticated_owner=OWNER)
+            async def send(message):
+                sent.append(message)
+            sending=asyncio.create_task(send_governed(send,{'body':b'authorized'},publisher=publisher,fence=fence))
+            async with asyncio.timeout(2):
+                while True:
+                    row=await (await observer.execute("select exists(select 1 from pg_stat_activity where application_name='publication-delay-regression' and cardinality(pg_blocking_pids(pid))>0)")).fetchone()
+                    if row[0]:
+                        break
+                    await asyncio.sleep(.01)
+            # Release a transient background lock after the old two-second
+            # setup limit, but inside the bounded five-second guard allowance.
+            await asyncio.sleep(2.2)
+            await blocker.commit()
+            await sending
+        finally:
+            await blocker.close()
+            await observer.close()
+            if sending and not sending.done():
+                sending.cancel()
+                await asyncio.gather(sending,return_exceptions=True)
+    asyncio.run(scenario())
+    assert sent==[{'body':b'authorized'}]

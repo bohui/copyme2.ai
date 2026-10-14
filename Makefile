@@ -35,6 +35,7 @@ EVAL_MAX_BACKEND_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),20000,100000)
 EVAL_SETTLE_SECONDS ?= 600
 EVAL_POLL_SECONDS ?= 2
 EVAL_PROJECT_ID ?=
+EVAL_PROGRESSIVE_RERUN ?= 0
 MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
 ENV_FILE ?= .env
 LIVE_SKILL ?=
@@ -219,6 +220,7 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 	case "$(EVAL_RECOVER_ACCEPTED_TURN)" in 1) set -- "$$@" --recover-accepted-turn ;; 0) ;; *) echo "EVAL_RECOVER_ACCEPTED_TURN must be 0 or 1." >&2; exit 2 ;; esac; \
 	if test -n "$(EVAL_TIME_EXTENSION_SECONDS)"; then set -- "$$@" --extend-time-limit-seconds "$(EVAL_TIME_EXTENSION_SECONDS)"; fi; \
 	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
+	if test "$(EVAL_PROGRESSIVE_RERUN)" = "1"; then set -- "$$@" --progressive-rerun; fi; \
 	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
 	command -v node >/dev/null || { echo "Missing Node.js for the saved test report." >&2; exit 2; }; \
 	case "$(EVAL_START_BACKEND)" in 1) set -- "$$@" --start-backend ;; 0) ;; *) echo "EVAL_START_BACKEND must be 0 or 1." >&2; exit 2 ;; esac; \

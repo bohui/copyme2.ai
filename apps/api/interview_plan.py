@@ -98,6 +98,17 @@ def collector_schema(context=None):
     question_context = schema['$defs']['QuestionContext']
     question_context['required'] = list(question_context['properties'])
     question_context['properties']['historical_clue_id'].pop('default', None)
+    if context is not None:
+        events=[e for e in context.get('events',[]) if e.get('status')=='active']
+        pointers={
+            'event_id':[e['id'] for e in events],
+            'life_stage':[e.get('life_stage') for e in events if e.get('life_stage') in LIFE_STAGES],
+            'year':[year for e in events for year in
+                (e.get('temporal',{}).get('year_start'),e.get('temporal',{}).get('year_end')) if year],
+        }
+        for field,allowed in pointers.items():
+            question_context['properties'][field]['enum']=list(dict.fromkeys([None,*allowed]))
+        plan['properties']['active_event_id']['enum']=list(dict.fromkeys([None,*pointers['event_id']]))
     if (context or {}).get('historical_news', {}).get('clues'):
         schema['properties']['acknowledgement']['enum'] = sorted(historical_acknowledgements(context))
     return schema

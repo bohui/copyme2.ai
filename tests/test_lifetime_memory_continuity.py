@@ -63,7 +63,7 @@ def test_schema_is_governed_only_bounded_strict_and_current_source_constrained()
     assert item['properties']['text']['maxLength'] == 500
     for forbidden in ('owner_id', 'policy_epoch', 'record_id', 'revision'):
         assert forbidden not in item['properties']
-    validate(reply([update(ctx)]), schema)
+    validate({**reply([update(ctx)]), 'place_journeys': []}, schema)
 
 
 def test_missing_optional_extension_keeps_legacy_results_and_does_not_mutate_input():
@@ -71,7 +71,7 @@ def test_missing_optional_extension_keeps_legacy_results_and_does_not_mutate_inp
     raw = reply()
     before = deepcopy(raw)
     old = validate_collector_result(raw, ctx)
-    assert validate_governed_collector_result(raw, ctx) == {**old, 'continuity_updates': []}
+    assert validate_governed_collector_result(raw, ctx) == {**old, 'continuity_updates': [], 'place_journeys': []}
     assert raw == before
 
 

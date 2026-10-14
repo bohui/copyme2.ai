@@ -133,7 +133,7 @@ def configuration(env_file):
 
 def build_plan(*, run_id, source_revision, case_id, api_base, web_base,
                max_seconds, max_case_seconds, max_backend_requests, user_email,
-               settle_seconds=600, poll_seconds=2, original_case_ids=None):
+               settle_seconds=600, poll_seconds=2, original_case_ids=None, progressive_rerun=False):
     selection = selected_cases(case_id)
     budget_selection = selected_cases(original_case_ids) if original_case_ids is not None else selection
     if any(case not in budget_selection for case in selection):
@@ -157,6 +157,7 @@ def build_plan(*, run_id, source_revision, case_id, api_base, web_base,
         'run_id': run_id, 'source_revision': source_revision,
         'local_checkout_source': local_checkout_snapshot(source_revision),
         'case_ids': list(cases), 'cases': cases, 'rounds_per_case': 50,
+        **({'progressive_rerun': True} if progressive_rerun else {}),
         'checkpoints': list(CHECKPOINTS), 'dataset_sha256': DATASET_SHA256,
         'user_email': None, 'case_user_emails': {key: CASE_EMAILS[key] for key in cases}, 'api_base': api_base, 'web_base': web_base,
         'max_elapsed_seconds': max_seconds, 'max_case_elapsed_seconds': max_case_seconds,
@@ -465,7 +466,8 @@ def validate_checkpoint(head,pages,binding,ordinal,accepted):
                     or record.get('original_withheld') is not False or preview.get('locale')!=binding['language']
                     or not isinstance(preview.get('text'),str) or not preview['text'].strip()
                     or not isinstance(refs,list) or not refs
-                    or any(ref.get('source_id') not in accepted or ref.get('version')!=1 for ref in refs)):
+                    or any(ref.get('source_id') not in accepted or type(ref.get('version')) not in (str,int)
+                           or str(ref.get('version'))!='1' for ref in refs)):
                 raise EvaluationError('Canonical draft record provenance differs from the case sources')
             seen.add(record['id']);records.append(record)
     if not records:
@@ -561,7 +563,26 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id,*,reco
     readback_shape(initial,binding)
     inputs = FiftyReadback(case_id=case_id, run_id=plan['run_id'],project_id=project,
         source_revision=plan['source_revision']).driver_inputs()
-    if not case['rounds'] and (initial['sources'] or initial['completed_rounds'] or initial.get('events')):
+    if plan.get('progressive_rerun') and 'baseline' not in case:
+        if case['rounds'] or initial['completed_rounds'] != len(initial['sources']) or initial['completed_rounds'] % 5:
+            raise EvaluationError('A progressive rerun requires a fully saved five-round baseline')
+        if initial['processing']['pending_inputs'] or initial['processing']['extracted_through'] != len(initial['sources']):
+            raise EvaluationError('Existing baseline extraction must settle before a rerun')
+        case['baseline'] = initial
+        if initial['completed_rounds']:
+            case['baseline_checkpoint'] = await saved_canonical_checkpoint(account,binding,
+                initial['completed_rounds'],[s['id'] for s in initial['sources']])
+            if case['baseline_checkpoint'] is None:
+                raise EvaluationError('Existing baseline memoir must settle before a rerun')
+            case['baseline_checkpoint']['canonical_events'] = initial.get('events', [])
+        save(directory/'receipt.json', receipt)
+    baseline = case.get('baseline', {}).get('sources', [])
+    offset = len(baseline)
+    if baseline:
+        from scripts.memoir_progressive_verification import sources_unchanged
+        if not sources_unchanged(baseline, initial['sources']):
+            raise EvaluationError('Retained baseline original evidence changed')
+    if not plan.get('progressive_rerun') and not case['rounds'] and (initial['sources'] or initial['completed_rounds'] or initial.get('events')):
         raise EvaluationError('Canonical history already exists; use its saved resume receipt, never allocate a replacement project')
     client_ids = set()
     for index,record in enumerate(case['rounds'],1):
@@ -578,7 +599,7 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id,*,reco
                     raise EvaluationError('Prior submission cannot be safely recovered; no original input will be resubmitted')
                 accepted=await account.rpc('validate_lifetime_replay_input',p_conversation_id=binding['conversation_id'],
                     p_client_turn_id=record['client_turn_id'],p_text=inputs['rounds'][index-1],p_kind='narrator_chat')
-                candidate=initial['sources'][index-1] if index<=len(initial['sources']) else None
+                candidate=initial['sources'][offset+index-1] if offset+index<=len(initial['sources']) else None
                 if (accepted is not True or not candidate or candidate.get('text')!=inputs['rounds'][index-1]
                         or candidate.get('project_id')!=project or candidate.get('kind')!='narrator_chat'
                         or candidate.get('language')!=binding['language'] or candidate.get('status')!='active'
@@ -590,9 +611,9 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id,*,reco
                 record.update(status='delivered',accepted_source_id=recovered['accepted_source_id'],reply=recovered['reply'])
     if case['rounds']:
         accepted_ids = [record['accepted_source_id'] for record in case['rounds']]
-        if len(initial['sources']) != len(accepted_ids):
+        if len(initial['sources']) != offset+len(accepted_ids):
             raise EvaluationError('Saved receipt/source history differs; preserve it without replay')
-        for index,source in enumerate(initial['sources']):
+        for index,source in enumerate(initial['sources'][offset:]):
             if (source.get('id') != accepted_ids[index] or source.get('project_id') != project
                     or source.get('text') != inputs['rounds'][index] or source.get('language') != binding['language']
                     or source.get('kind') != 'narrator_chat' or source.get('status') != 'active' or source.get('version') != 1):
@@ -602,19 +623,23 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id,*,reco
                 raise EvaluationError('Saved checkpoint ordinal is invalid')
             if checkpoint.get('readback_protocol')!='lifetime_private_draft_pages':
                 raise EvaluationError('Resume requires original canonical checkpoint evidence')
-            validate_checkpoint(checkpoint['draft'],checkpoint['pages'],binding,checkpoint['milestone'],accepted_ids[:checkpoint['milestone']])
+            validate_checkpoint(checkpoint['draft'],checkpoint['pages'],binding,offset+checkpoint['milestone'],
+                [s['id'] for s in baseline]+accepted_ids[:checkpoint['milestone']])
     save(directory/'receipt.json',receipt)
     return case,inputs,initial
 
 
-async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=False):
+async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=False,verification_settings=None):
     for case_id, binding in plan['cases'].items():
         account=accounts[case_id]
         requests=account.requests
         project=binding['project_id']
         case,inputs,initial=await verified_case_ledger(account,plan,directory,receipt,case_id,
             recover_accepted_turn=recover_accepted_turn)
-        accepted = []
+        baseline = case.get('baseline', {}).get('sources', [])
+        offset = len(baseline)
+        accepted = [s['id'] for s in baseline]
+        full_inputs = {**inputs, 'rounds':[s['text'] for s in baseline]+inputs['rounds']}
         for ordinal, text in enumerate(inputs['rounds'], 1):
             account.assert_owner(binding)
             if ordinal <= len(case['rounds']):
@@ -642,14 +667,27 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
                     save(directory/'receipt.json',receipt)
             else:
                 record = {'round':ordinal,'client_turn_id':str(uuid4()),'status':'submitting','background_settled':False,
-                    'checkout_snapshot_sha256':(plan.get('local_checkout_source') or {}).get('snapshot_sha256')}
+                    'checkout_snapshot_sha256':(plan.get('local_checkout_source') or {}).get('snapshot_sha256'),
+                    **({'collector_configuration':receipt['active_collector_configuration']} if plan.get('progressive_rerun') else {})}
                 case['rounds'].append(record)
                 receipt['backend_turn_submissions'] += 1
                 save(directory / 'receipt.json',receipt)
                 # Exactly one original POST; resume recovers by this same UUID.
-                result = await backend(requests,account,plan,'POST','/v1/agent/turn',timeout=600,
-                    json={'project_id':project,'language':binding['language'],'text':text,'conversation_text':text,
-                        'source_kind':'narrator_chat','client_turn_id':record['client_turn_id']})
+                payload={'project_id':project,'language':binding['language'],'text':text,'conversation_text':text,
+                    'source_kind':'narrator_chat','client_turn_id':record['client_turn_id']}
+                if plan.get('progressive_rerun'):
+                    from scripts.memoir_progressive_verification import streamed_turn
+                    try:
+                        result, record['streaming'] = await streamed_turn(requests, plan['api_base']+'/api/v1/memoir/agent/turn',
+                            await account.headers(), payload)
+                    except httpx.RequestError as error:
+                        raise EvaluationError('Live stream transport failed ('+type(error).__name__+')') from None
+                    except ValueError:
+                        raise EvaluationError('Live streamed reply failed its delivery contract; inspect worker diagnostics') from None
+                    except TimeoutError:
+                        raise EvaluationError('Live stream exceeded its bounded response timeout') from None
+                else:
+                    result = await backend(requests,account,plan,'POST','/v1/agent/turn',timeout=600,json=payload)
                 if (result.get('project_id') != project or not result.get('accepted_source_id')
                         or not isinstance(result.get('reply'),str) or not result['reply'].strip()
                         or result.get('cached') or result.get('task_errors')):
@@ -671,16 +709,26 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
                                    ('extracted_through', processing.get('extracted_through')),
                                    ('pending_inputs', processing.get('pending_inputs'))):
                     settlement[key] = value if type(value) is int and value >= 0 else None
-                if (view.get('completed_rounds') == ordinal
-                        and view.get('processing', {}).get('extracted_through') == ordinal
+                if (view.get('completed_rounds') == offset+ordinal
+                        and view.get('processing', {}).get('extracted_through') == offset+ordinal
                         and view.get('processing', {}).get('pending_inputs') == 0):
-                    _readback_call(record, 'canonical', _canonical_state, view, inputs, accepted)
+                    _readback_call(record, 'canonical', _canonical_state, view, full_inputs, accepted)
                     if ordinal in CHECKPOINTS:
                         settlement['waiting_for'] = 'canonical_checkpoint'
-                        checkpoint=await saved_canonical_checkpoint(account,binding,ordinal,accepted)
+                        checkpoint=await saved_canonical_checkpoint(account,binding,offset+ordinal,accepted)
                         if checkpoint is None:
                             await asyncio.sleep(min(plan['poll_seconds'],max(0,settle_deadline-time.monotonic())))
                             continue
+                        checkpoint['coverage_round'] = offset+ordinal
+                        checkpoint['milestone'] = ordinal
+                        if plan.get('progressive_rerun'):
+                            from scripts.memoir_progressive_verification import original_evidence, preserve_unchanged, saved_message_summary
+                            previous = case['checkpoints'][-1] if case['checkpoints'] else case.get('baseline_checkpoint')
+                            checkpoint['verification'] = {**original_evidence(checkpoint,view['sources']),
+                                **preserve_unchanged(previous,checkpoint,(previous or {}).get('canonical_events', []),view.get('events', []))}
+                            checkpoint['verification'].update(await asyncio.to_thread(saved_message_summary,
+                                verification_settings,binding,checkpoint,view['sources'][offset+ordinal-5:offset+ordinal]))
+                            checkpoint['canonical_events'] = view.get('events', [])
                         case['checkpoints']=[item for item in case['checkpoints'] if item['milestone']!=ordinal]
                         case['checkpoints'].append(checkpoint)
                     settlement['waiting_for'] = 'complete'
@@ -697,16 +745,16 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
             save(directory / 'receipt.json', receipt)
             print(f'{case_id}: round {ordinal}/50 saved', file=sys.stderr, flush=True)
         final_view=await account.rpc('read_user_memory_events',p_project_id=project)
-        _canonical_state(final_view,inputs,accepted)
+        _canonical_state(final_view,full_inputs,accepted)
         if sorted(item['milestone'] for item in case['checkpoints']) != list(CHECKPOINTS):
             raise EvaluationError('Saved case checkpoints are incomplete; no completed status may be reused')
-        current=await saved_canonical_checkpoint(account,binding,50,accepted)
+        current=await saved_canonical_checkpoint(account,binding,offset+50,accepted)
         if current is None:
             raise EvaluationError('Current canonical private draft is pending or updating; saved checkpoints cannot establish current acceptance')
         final_view=await account.rpc('read_user_memory_events',p_project_id=project)
-        _canonical_state(final_view,inputs,accepted)
+        _canonical_state(final_view,full_inputs,accepted)
         head=await account.rpc('read_lifetime_private_draft_head',p_project_id=project,p_locale=binding['language'])
-        validate_checkpoint(head,current['pages'],binding,50,accepted)
+        validate_checkpoint(head,current['pages'],binding,offset+50,accepted)
         if any(head.get(key)!=current['draft'].get(key) for key in
                 ('snapshot_id','root_digest','revision','source_revision','event_revision','policy_epoch','coverage_round')):
             raise EvaluationError('Current canonical draft changed during final retrieval; no stale completion may be reused')
@@ -819,13 +867,18 @@ def resumed_time_limit(plan,previous,receipt,requested=None):
     if requested is not None and (type(requested) is not int or requested!=SINGLE_CASE_TIME_EXTENSION_SECONDS):
         raise EvaluationError('The explicit single-case time extension must be 14400 seconds')
     if history or requested is not None:
-        if (len(previous['case_ids'])!=1 or plan['case_ids']!=previous['case_ids']
-                or previous['max_elapsed_seconds']!=7200 or previous['max_case_elapsed_seconds']!=7200):
-            raise EvaluationError('Time extension requires an original two-hour single-case run')
+        target=history[0].get('case_ids') if history and isinstance(history[0],dict) else plan['case_ids']
+        if (not isinstance(target,list) or len(target)!=1 or target[0] not in previous['case_ids']
+                or previous['max_case_elapsed_seconds']!=7200
+                or (len(previous['case_ids'])==1 and previous['max_elapsed_seconds']!=7200)
+                or (set(target)&set(plan['case_ids']) and plan['case_ids']!=target)):
+            raise EvaluationError('Time extension requires one selected original two-hour single-case scope')
+        if requested is not None and plan['case_ids']!=target:
+            raise EvaluationError('A recorded time extension cannot move to another case')
     if history:
         event=history[0]
         if (not isinstance(event,dict) or event.get('seconds')!=SINGLE_CASE_TIME_EXTENSION_SECONDS
-                or event.get('case_ids')!=previous['case_ids']
+                or event.get('case_ids')!=target
                 or type(event.get('recorded_at_unix')) not in (int,float)
                 or not math.isfinite(event['recorded_at_unix'])
                 or not receipt['started_at_unix']<=event['recorded_at_unix']<=time.time()
@@ -833,7 +886,7 @@ def resumed_time_limit(plan,previous,receipt,requested=None):
                 or not 0<=event['backend_turn_submissions']<=receipt['backend_turn_submissions']
                 or event.get('original_budget_contract')!=budget_contract(previous)):
             raise EvaluationError('Saved elapsed-time extension history is invalid')
-    return SINGLE_CASE_TIME_EXTENSION_SECONDS if history or requested is not None else None
+    return SINGLE_CASE_TIME_EXTENSION_SECONDS if (history or requested is not None) and plan['case_ids']==target else None
 
 
 async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None,accept_source_change=False,recover_accepted_turn=False,extend_time_limit_seconds=None):
@@ -866,6 +919,8 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
     else:
         directory = Path(directory).absolute()
         previous,receipt = load_resume(directory)
+        if bool(previous.get('progressive_rerun')) != bool(plan.get('progressive_rerun')):
+            raise EvaluationError('Resume must retain its progressive verification mode')
         if any(plan.get(key) != previous.get(key) for key in ('run_id','source_revision','dataset_sha256','api_base','web_base')):
             raise EvaluationError('Resume must retain its run/source/service identities')
         if plan.get('local_checkout_source') != previous.get('local_checkout_source'):
@@ -885,6 +940,13 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         receipt['evaluation'].pop('failure_stage',None)
         receipt['status'] = receipt['evaluation']['status'] = 'running'
     receipt['attempt_id']=str(uuid4())
+    if plan.get('progressive_rerun'):
+        collector = {'model':settings.get('MEMORY_SPARK_COLLECTOR_MODEL') or settings.get('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled'),
+            'requested_effort':settings.get('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT') or settings.get('MEMORY_SPARK_LLM_REASONING_EFFORT','max'),
+            'prompt_version':settings.get('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION') or 'legacy'}
+        receipt['active_collector_configuration'] = collector
+        receipt.setdefault('execution_profiles',[]).append({'attempt_id':receipt['attempt_id'],
+            'collector_configuration':collector,'prior_original_submissions':receipt['backend_turn_submissions']})
     receipt['selected_case_status']='incomplete'
     for case in receipt['evaluation']['cases']:
         if case['case_id'] in plan['case_ids']:
@@ -905,7 +967,8 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         started=receipt.get('started_at_unix')
         if type(started) not in (int,float) or not math.isfinite(started) or started>time.time():
             raise EvaluationError('Resume elapsed-time origin is invalid')
-        requests.submission_deadline=time.monotonic()+max(0,(time_limit or plan['max_elapsed_seconds'])-(time.time()-started))
+        effective_global_limit=max(time_limit or 0,plan['max_elapsed_seconds'])
+        requests.submission_deadline=time.monotonic()+max(0,effective_global_limit-(time.time()-started))
         requests.deadline=requests.case_deadline=requests.submission_deadline
         def reserved(count):
             receipt['request_accounting']={'backend_http_requests_reserved':count,'actual_upstream_provider_requests':None,'model_request_ceiling_verified':False}
@@ -916,7 +979,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
             verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
             if time_limit:
                 if not receipt.get('elapsed_time_extensions'):
-                    receipt['elapsed_time_extensions']=[{'seconds':time_limit,'case_ids':previous['case_ids'],
+                    receipt['elapsed_time_extensions']=[{'seconds':time_limit,'case_ids':plan['case_ids'],
                         'original_budget_contract':budget_contract(previous),'recorded_at_unix':time.time(),
                         'backend_turn_submissions':receipt['backend_turn_submissions'],'attempt_id':receipt['attempt_id']}]
                 previous={**previous,'elapsed_time_extensions':receipt['elapsed_time_extensions']}
@@ -924,7 +987,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                 save(directory/'receipt.json',receipt)
                 # Only the effective in-memory deadlines change. Original plan
                 # limits, elapsed-time origins and request reservations remain.
-                plan={**plan,'max_elapsed_seconds':time_limit,'max_case_elapsed_seconds':time_limit}
+                plan={**plan,'max_elapsed_seconds':effective_global_limit,'max_case_elapsed_seconds':time_limit}
             if source_change:
                 # Preserve original request provenance and immutable limits.
                 # The accepted source ledger is still revalidated below; a fix
@@ -979,7 +1042,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                 checkpoint_head_shape(await account.rpc('read_lifetime_private_draft_head',p_project_id=binding['project_id'],p_locale=binding['language']),binding)
                 stage = 'conversation'
                 receipt['execution_started'] = True
-                await run_cases(accounts,single,directory,receipt,recover_accepted_turn=recover_accepted_turn)
+                await run_cases(accounts,single,directory,receipt,recover_accepted_turn=recover_accepted_turn,verification_settings=settings)
             receipt['selected_case_status'] = 'completed'
             all_cases = (previous or plan)['case_ids']
             recorded={case['case_id']:case for case in receipt['evaluation']['cases']}
@@ -1003,7 +1066,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
                     read_only_cases.add(case_id)
                     set_case_deadline(requests,plan,None,read_only=True)
                     stage='read_only_final_evidence'
-                    await run_cases(accounts,single,directory,receipt)
+                    await run_cases(accounts,single,directory,receipt,verification_settings=settings)
             completed = {case['case_id'] for case in receipt['evaluation']['cases'] if case['status'] == 'completed'
                 and case.get('evidence_validated') is True and case.get('validation_attempt_id')==receipt['attempt_id']}
             receipt['status'] = receipt['evaluation']['status'] = 'completed' if set(all_cases) <= completed else 'incomplete'
@@ -1065,6 +1128,8 @@ def main(argv=None):
     modes.add_argument('--execute', action='store_true')
     modes.add_argument('--prepare-user', action='store_true')
     parser.add_argument('--start-backend', action='store_true')
+    parser.add_argument('--progressive-rerun', action='store_true',
+        help='Preserve a settled original baseline, append fifty new rounds, verify streaming and unchanged passages')
     parser.add_argument('--create-confirmed-test-user', action='store_true')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     parser.add_argument('--user-email')
@@ -1128,7 +1193,7 @@ def main(argv=None):
             max_case_seconds=limit(args.max_case_elapsed_seconds,'max_case_elapsed_seconds',7200),
             max_backend_requests=limit(args.max_backend_requests,'max_backend_requests',20000 if len(selected_cases(selection))==1 else 100000),
             settle_seconds=limit(args.settle_seconds,'settle_seconds',600),poll_seconds=limit(args.poll_seconds,'poll_seconds',2),
-            original_case_ids=original.get('case_ids'))
+            original_case_ids=original.get('case_ids'),progressive_rerun=args.progressive_rerun or original.get('progressive_rerun',False))
         if args.resume_dir:
             validate_resume_budget(plan,retained,saved_receipt)
             resumed_time_limit(plan,retained,saved_receipt,args.extend_time_limit_seconds)

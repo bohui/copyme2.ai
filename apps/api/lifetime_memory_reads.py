@@ -61,7 +61,7 @@ async def _settle(task):
 
 
 class ReadPublication:
-    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=2.0):
+    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
         if not dsn:
             raise PublicationUnavailable('Governed reads require a transactional database connection')
         if not 0 < send_timeout <= 5 or not 0 < lock_timeout <= 5:

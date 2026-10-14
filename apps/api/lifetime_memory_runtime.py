@@ -32,6 +32,12 @@ class AcceptedResponsePending(MaintenancePending):
     code = 'LIFETIME_RESPONSE_PENDING'
 
 
+def place_workspace_update(project_id, journeys):
+    return {'project_id':project_id,'source_sequence':max(place.get('source_sequence',0) for place in journeys),
+        'place_journey':journeys[-1],'place_journeys':journeys,
+        'place_journey_change':{'changed':True,'mentioned':True}}
+
+
 class LifetimePublicationContext:
     def __init__(self, emitter=None):
         self.emitter=emitter;self.fence=None;self.scope=None
@@ -127,6 +133,11 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         if replay is not None:
             response={**replay,'cached':True,'recall_status':access}
             if replay.get('reply'):
+                journeys=await call('read_lifetime_place_journeys',p_project_id=project_id,p_source_id=replay['accepted_source_id'])
+                if journeys:
+                    workspace=place_workspace_update(project_id,journeys)
+                    response.update(workspace)
+                    if on_event:await on_event({'type':'workspace_update','data':workspace})
                 interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
                 if (interview or {}).get('plan'):
                     progress=TurnProgress(on_event,client_turn_id,project_id,language)
@@ -242,6 +253,11 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if result.get('_artifact_task') is not None:
                 await result['_artifact_task']
             validated=validate_governed_collector_result(result['reply'],context)
+            journeys=[{**place,'source_sequence':source['sequence'],'status':'active',
+                'revision':source['version'],'updated_at':source['created_at']} for place in validated['place_journeys']]
+            if journeys:
+                await call('persist_lifetime_place_journeys',p_fence=fence,p_source_id=source['id'],p_source_version=source['version'],
+                    p_journeys=validated['place_journeys'])
             await progress.update('collector-call','LLM call · Reply and question pool generated','LLM 调用 · 回复和问题池已生成',status='completed')
             await progress.update('save','Saving conversation memory','正在保存对话记忆')
             await publication.flush()  # no old queued chunk can be relabeled by our phase commit
@@ -259,6 +275,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 'conversation_saved':True,'reply':validated['reply'],'recall_status':access,**public_interview_fields(committed['interview']),
                 'trace':list(progress.steps),'trace_mode':'live'}
             if on_event:await on_event({'type':'conversation_saved','data':response})
+            if journeys:
+                workspace=place_workspace_update(project_id,journeys)
+                response.update(workspace)
+                if on_event:await on_event({'type':'workspace_update','data':workspace})
             response['required_memory_work']=await lease.io(LifetimeMemoryOutbox(storage.lifetime_rpc).drain,fence,limit=4)
         # Keep both cross-replica renewal and the local lock alive through actual
         # final ASGI send. The response cleanup is their sole release owner.

@@ -15,7 +15,7 @@ def receipt_scope_conflict(error, *, snapshot=False):
     except (ValueError,AttributeError):
         return False
     message='stale private draft snapshot' if snapshot else 'private draft receipt scope stale'
-    return isinstance(detail,dict) and detail.get('code')=='40001' and detail.get('message')==message
+    return isinstance(detail,dict) and detail.get('code') in {'40001','PT409'} and detail.get('message')==message
 
 
 class PrivateDraftBroker:

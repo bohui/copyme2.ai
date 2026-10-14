@@ -14,8 +14,12 @@ class PublicationUnavailable(RuntimeError):
     pass
 
 
+class PublicationDatabaseUnavailable(PublicationUnavailable):
+    """A database guard failed before any response bytes were sent."""
+
+
 class TransactionalPublication:
-    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=2.0):
+    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
         if not dsn:
             raise PublicationUnavailable('Governed publication requires a transactional database connection')
         if not 0 < send_timeout <= 5 or not 0 < lock_timeout <= 5:
@@ -58,12 +62,14 @@ class TransactionalPublication:
                 from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
                 if is_policy_pending(error):
                     raise PolicyUnavailable() from None
+                if connection is None:
+                    raise PublicationDatabaseUnavailable('Publication database connection unavailable') from error
                 raise
             except TimeoutError:
                 if activation_pending:
                     from .lifetime_memory_activation import CanonicalActivationUnavailable
                     raise CanonicalActivationUnavailable() from None
-                raise
+                raise PublicationDatabaseUnavailable('Publication database guard timed out') from None
             allowance = min(self.send_timeout, lease_deadline - asyncio.get_running_loop().time() - 0.1)
             if allowance <= 0:
                 raise PublicationUnavailable('Publication lease expires too soon')

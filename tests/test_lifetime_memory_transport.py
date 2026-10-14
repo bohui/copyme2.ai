@@ -104,6 +104,42 @@ def test_personal_bodies_sent_under_guard_and_cleanup_after_final_send():
     execute(scenario())
 
 
+def test_database_connection_timeout_ends_stream_with_retry_message(monkeypatch):
+    from apps.api.lifetime_memory_publication import TransactionalPublication
+    from psycopg import AsyncConnection
+
+    async def connect(*args, **kwargs):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(AsyncConnection, 'connect', connect)
+
+    async def scenario():
+        publisher = TransactionalPublication('synthetic',
+            authenticated_owner=FENCE['identity']['owner_id'], lock_timeout=.01)
+        messages = []
+        cleaned = []
+
+        async def run(emit):
+            emit.set_fence(FENCE)
+            await emit('private place cue')
+            await emit.flush()
+
+        async def send(message):
+            messages.append(message)
+
+        async def cleanup():
+            cleaned.append(True)
+
+        await GovernedStreamingResponse(governed_turn_events(run, cleanup),
+            publisher=publisher)(SCOPE, no_disconnect, send)
+        events = [body_event(message) for message in messages if body_event(message)]
+        assert [event['type'] for event in events] == ['started', 'error']
+        assert 'Please try again' in events[-1]['message']
+        assert 'private place cue' not in str(messages)
+        assert messages[-1]['more_body'] is False and cleaned == [True]
+
+    execute(scenario())
+
+
 @pytest.mark.parametrize('kind', ['text_delta', 'conversation_saved', 'result'])
 def test_queued_old_payload_is_not_blessed_by_later_fence(kind):
     async def scenario():

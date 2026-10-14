@@ -247,8 +247,17 @@ def config():
 async def place_journey(authorization: str | None = Header(default=None)):
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
-        record = await asyncio.to_thread(storage.place_journey)
-        return {'place_journey': normalize_persisted_place_journey(record)}
+        def read(fence):
+            if fence is not None:
+                places = storage.lifetime_rpc('read_lifetime_place_journeys', p_project_id=fence.identity.project_id)
+                record = places[-1] if places else None
+            else:
+                record = storage.place_journey()
+            return {'place_journey': normalize_persisted_place_journey(record)}
+        if callable(getattr(storage, 'lifetime_rpc', None)):
+            from .lifetime_memory_reads import snapshot_lifetime_read
+            return await asyncio.to_thread(snapshot_lifetime_read, storage, None, read)
+        return await asyncio.to_thread(read, None)
     except (httpx.HTTPStatusError, httpx.RequestError) as error:
         raise HTTPException(502, f'Supabase persistence failed: {error}') from None
     finally:

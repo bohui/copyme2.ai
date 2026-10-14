@@ -605,8 +605,14 @@ def _project_public_response(project: dict[str, Any], *, status_code: int = 200,
         from .lifetime_memory_reads import snapshot_lifetime_read
         from .lifetime_memory_publication import PublicationUnavailable
         def read(fence):
+            profile = service.profile() if fence is not None else None
+            if profile is not None:
+                from .place_identity import place_identity
+                saved = {place_identity(place): place for place in project['profile'].get('memory_places', [])}
+                journeys = service.lifetime_rpc('read_lifetime_place_journeys', p_project_id=project['id'])
+                profile['memory_places'] = [{**saved.get(place_identity(place), {}), **place} for place in journeys]
             return build(_project_response(project,
-                authoritative_profile=service.profile() if fence is not None else None))
+                authoritative_profile=profile))
         result = snapshot_lifetime_read(service, project['id'], read)
         if isinstance(result, Response):
             result.status_code = status_code

@@ -11,12 +11,13 @@ from copy import deepcopy
 from hashlib import sha256
 import json
 import re
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .interview_plan import collector_schema, validate_collector_result
+from .place_journey import grounded_place_journeys, validate_place_journey
 
 
 MAX_CONTINUITY_UPDATES = 8
@@ -52,6 +53,18 @@ as "Don't discuss my school", "Let's set aside my school for now", or
 "I'll return to the garden later"; do not promote another person's quotation.
 The application continues to own all phase transitions and validates the existing
 plan; this extension cannot override a pause or change language or chosen name.
+
+Return place_journeys for every distinct clear geographic place explicitly named
+in the CURRENT narrator source, in mention order, including an opening reply.
+Copy place from the original wording. Use an Earth-to-place hierarchy ending in
+that same label and country, region, city or suburb granularity. Map only coarse
+public geography: for 河北省承德市附属医院 use 承德市, never the hospital.
+Do not emit private addresses, buildings, schools, hospitals, generic places,
+quoted public references, uncertain locations or places only in saved context.
+Return [] when no clear place is named. These are visual recall cues, never
+evidence of residence or participation; keep them out of the spoken reply.
+Include approximate public place-centre latitude and longitude when known,
+otherwise set both to null. Never supply a person's address or precise location.
 """
 
 
@@ -84,6 +97,20 @@ class _Updates(BaseModel):
     continuity_updates: list[_ContinuityUpdate] = Field(max_length=MAX_CONTINUITY_UPDATES)
 
 
+class _PlaceJourney(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    place: str = Field(min_length=1, max_length=120)
+    hierarchy: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(min_length=2, max_length=6)
+    granularity: Literal['country', 'region', 'city', 'suburb']
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
+class _Places(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    place_journeys: list[_PlaceJourney] = Field(max_length=8)
+
+
 def governed_collector_schema(context=None):
     """Add the governed wire field without modifying the legacy schema.
 
@@ -100,6 +127,13 @@ def governed_collector_schema(context=None):
         item['source_version']['const'] = source['version']
     schema['properties']['continuity_updates'] = extension['properties']['continuity_updates']
     schema['required'].append('continuity_updates')
+    places = _Places.model_json_schema()
+    places['$defs']['_PlaceJourney']['required'] = list(places['$defs']['_PlaceJourney']['properties'])
+    for field in ('latitude', 'longitude'):
+        places['$defs']['_PlaceJourney']['properties'][field].pop('default', None)
+    schema['$defs'].update(places['$defs'])
+    schema['properties']['place_journeys'] = places['properties']['place_journeys']
+    schema['required'].append('place_journeys')
     return schema
 
 
@@ -220,7 +254,7 @@ def validate_governed_collector_result(raw, context):
     value = json.loads(raw) if isinstance(raw, str) else raw
     if not isinstance(value, dict):
         raise ValueError('Collector result must be an object')
-    ordinary = {key: item for key, item in value.items() if key != 'continuity_updates'}
+    ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
     proposed = _Updates.model_validate({'continuity_updates': value.get('continuity_updates', [])}).continuity_updates
     source = _current_source(context)
@@ -229,6 +263,12 @@ def validate_governed_collector_result(raw, context):
     literal = _literal_directives(source) if source else []
     seen = set()
     for item in proposed:
+        if source['text'][item.char_start:item.char_end] != item.quote:
+            start=source['text'].find(item.quote)
+            if start>=0 and source['text'].find(item.quote,start+1)<0:
+                # Unique verbatim testimony supplies its own exact coordinates.
+                item.char_start=start
+                item.char_end=start+len(item.quote)
         if (item.source_id != source['id'] or item.source_version != source['version']
                 or item.char_end > len(source['text'])
                 or source['text'][item.char_start:item.char_end] != item.quote):
@@ -241,7 +281,13 @@ def validate_governed_collector_result(raw, context):
                 or not any(_same_literal(item, direct) for direct in literal)):
             raise ValueError('Privacy and commitment continuity require asserted direct narrator wording')
 
-    return {**result, 'continuity_updates': _rows(_select_updates(literal, proposed))}
+    places = _Places.model_validate({'place_journeys': value.get('place_journeys', [])}).place_journeys
+    candidates = [validate_place_journey(place.model_dump()) for place in places
+                  if place.hierarchy[-1] == place.place]
+    journeys = grounded_place_journeys([place for place in candidates if place is not None],
+                                      source['text']) if source else []
+    return {**result, 'continuity_updates': _rows(_select_updates(literal, proposed)),
+            'place_journeys': journeys}
 
 
 def literal_continuity_updates(context):

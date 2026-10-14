@@ -50,7 +50,7 @@ def _rpc_error(error):
         'FORMAL_PLAN_CAPACITY_REQUIRED': 'This memoir needs a reviewed chapter plan.',
         'FORMAL_CHAPTER_CAPACITY_REQUIRED': 'This memoir needs a reviewed chapter plan.',
     }
-    if isinstance(code, str) and isinstance(message, str) and code in {'40001', '55000'} and message in gates:
+    if isinstance(code, str) and isinstance(message, str) and code in {'40001', 'PT409', '55000'} and message in gates:
         return HTTPException(409, gates[message], headers={'X-Error-Code': message})
     if code == '40001' or error.response.status_code == 409:
         return HTTPException(409, 'Memoir authority changed; reload and retry.')

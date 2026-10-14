@@ -90,7 +90,7 @@ def canonical_evidence_errors(request, draft):
     for prior in request['prior_state']['chapters']:
         if prior['chapter']['id'] in carried:
             inspect(prior['chapter'], list(events), 'carried.' + prior['chapter']['id'])
-    return errors
+    return sorted(errors, key=lambda error: (error['at'], error['code']))
 
 
 async def validate_canonical_candidate(request, draft):
@@ -328,7 +328,7 @@ def composer_request(job):
 def composition_request(job):
     request = composer_request(job)
     config = fingerprint({'locale': job['locale'],
-        'skill': 'canonical-batch-composer-1' if job.get('batch') else 'canonical-page-composer-1' if job.get('governed_page') else 'shared-composer-4',
+        'skill': 'canonical-batch-composer-2' if job.get('batch') else 'canonical-page-composer-1' if job.get('governed_page') else 'shared-composer-4',
         'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
         'policy': request['policy']})
     if job.get('previous') and job['previous'].get('content_config') != config:
@@ -375,6 +375,9 @@ async def compose_shared_snapshot(job, worker):
         runtime.lane_publisher = getattr(worker, 'lane_publisher', None)
     checkpoint_key = fingerprint({'snapshot': request['snapshot'], 'config': config})
     checkpoint = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=checkpoint_key) or {}
+    if checkpoint.get('repair', {}).get('candidate') is not None:
+        checkpoint['repair']['validation'] = await validate_canonical_candidate(
+            checkpoint.get('request', request), checkpoint['repair']['candidate'])
     async def progress(phase):
         checkpoint['phase'] = phase
         await worker.broker.rpc('save_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'],

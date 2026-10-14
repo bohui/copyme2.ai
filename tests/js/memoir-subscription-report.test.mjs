@@ -35,9 +35,9 @@ function fixture() {
 
 test('report identifies an explicit time extension and retained limits', () => {
   const { plan, receipt } = fixture();
-  receipt.elapsed_time_extensions = [{ seconds: 14400, backend_turn_submissions: 7 }];
+  receipt.elapsed_time_extensions = [{ seconds: 14400, case_ids: ['harbour'], backend_turn_submissions: 7 }];
   const report = renderReport(plan, receipt);
-  assert.match(report, /Explicit elapsed-time extension: 14400 seconds from the original clock origin, recorded after 7 original submissions/);
+  assert.match(report, /Explicit elapsed-time extension: 14400 seconds total from the original clock origin for harbour, recorded after 7 original submissions/);
   assert.match(report, /Original request, settle and poll limits retained/);
 });
 

@@ -8,6 +8,31 @@ budget adapters and all previous source proofs retain their own meaning.
 
 ## Make commands and saved reports
 
+For a complete new fifty-round rerun while preserving existing canonical history:
+
+```sh
+make memoir-live-fifty-test EVAL_PROGRESSIVE_RERUN=1
+```
+
+This mode freezes a settled baseline at a multiple of five, then appends fifty
+new original inputs per account with fresh turn IDs. It keeps previous receipts,
+memoir writing and narrator sources. Checkpoints remain every five new rounds;
+the report records both campaign round and absolute conversation coverage.
+Use an isolated source checkout to keep concurrent edits out of a long live run.
+
+The same API turn is requested as NDJSON. First meaningful `text_delta`, last
+text, durable `conversation_saved`, completion and delta counts are recorded
+separately. At each checkpoint, read-only database inspection verifies saved
+background summaries cite exactly the five new originals and their complete
+quoted spans. Owner-scoped saved pages are checked against original sources,
+and passage text must remain identical when canonical dependencies and policy
+have not changed. The report lists how many passages qualify; a zero count is
+not evidence of preservation. Measurements describe backend receipt, not browser
+paint, inferred upstream call counts or a literary-quality score.
+
+Resume keeps the rerun mode, baseline, original limits and accepted turn ledger.
+Default fresh-run and historical resume behavior remains unchanged.
+
 The default Make commands run each original 50-round conversation through the
 normal backend, authenticated as five distinct permanent Supabase UI accounts, selected by stable case ID. Projects and
 checkpoint drafts remain in the remote Supabase configured in `.env`.
@@ -188,8 +213,11 @@ report displays. It keeps the original plan's budget contract and clock origins;
 the effective global and case deadlines become four hours from those origins.
 Request reservations, the request ceiling, settle/poll bounds, account, project,
 conversation and original turn ledger remain fixed. Subsequent resumes retain the
-recorded extension. Other limit changes and extensions of multi-case runs are
-rejected. It cannot start a new run or restart its clock.
+recorded extension. A multi-case campaign can extend exactly one selected case
+by also passing `EVAL_CASE_ID`; its global campaign limit stays at the larger of
+the original limit and four hours. Other cases retain their original two-hour
+limit. Resume the extended case separately from unextended cases. The extension
+cannot move to another case, start a new run, or restart its clock.
 
 Failed revalidation invalidates the selected case's current completion status
 while preserving its historical rounds and checkpoints. Final campaign completion
@@ -550,6 +578,17 @@ zero skips; explicitly requested but unavailable PostgreSQL is a failure. Offlin
 tests use a labelled in-memory storage double and cannot establish PostgreSQL
 correctness. These deterministic checks prove runtime/readback wiring, not model
 quality, live browser acceptance or the cause of an earlier unretained failure.
+
+## REST application-conflict recovery
+
+Migration `202610140007_nonretryable_application_conflicts.sql` returns `PT409`
+for application version/lease conflicts while preserving their predicates,
+messages and grants. Deliberately raising `40001` can make PostgREST 14 repeat a
+stale transaction indefinitely and exhaust its connection pool; a client timeout
+does not stop those retries. See the [Supabase troubleshooting procedure](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b).
+During recovery, stop local admissions, apply the migration, clear only confirmed
+looping application backends, and verify authenticated readbacks before resuming
+the unchanged input ledger. Do not add turn or model retries to hide pool failure.
 
 ## Issue 53 and 55 verification gates
 

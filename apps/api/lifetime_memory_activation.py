@@ -32,7 +32,7 @@ class ActivationPublication:
     send_timeout: float
     lock_timeout: float
 
-    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=2.0):
+    def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
         if not dsn:
             raise CanonicalActivationUnavailable()
         if not 0 < send_timeout <= 5 or not 0 < lock_timeout <= 5:

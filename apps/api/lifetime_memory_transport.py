@@ -16,7 +16,7 @@ import anyio
 from starlette.responses import JSONResponse, StreamingResponse
 
 from .lifetime_memory_contracts import ExecutionFence
-from .lifetime_memory_publication import PublicationUnavailable, send_governed
+from .lifetime_memory_publication import PublicationDatabaseUnavailable, PublicationUnavailable, send_governed
 from .turn_stream import STREAM_HEADERS
 
 
@@ -237,10 +237,10 @@ class GovernedStreamingResponse(StreamingResponse):
                         await send_governed(send, message, publisher=self.publisher,
                                             fence=envelope.fence)
                     except Exception as error:
-                        # A stale database fence drops this and all queued private
+                        # A failed database guard drops this and all queued private
                         # bodies. Only a fixed, non-personal reconciliation notice
                         # is allowed after the failed publication attempt.
-                        if getattr(error, 'sqlstate', None) != '40001':
+                        if not isinstance(error, PublicationDatabaseUnavailable) and getattr(error, 'sqlstate', None) not in {'40001', 'PT409'}:
                             raise
                         await _send_generic(send, {'type': 'http.response.body',
                             'body': (json.dumps({'type': 'error', 'message': _ERROR}, separators=(',', ':')) + '\n').encode('utf-8'),

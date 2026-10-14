@@ -60,6 +60,19 @@ def valid_reply():
         'associations':[], 'response_photo_ids':[], 'stopped':False})
 
 
+def test_dedicated_same_model_low_alias_retains_the_declared_byte_bound():
+    governed, _ = fixture()
+    packet = json.loads(governed.packet)
+    model = 'gpt-5.6-luna-memoir-low'
+    packet['model'] = model
+    budget = BUDGET.model_copy(update={'model':model,'framing_headroom':2048})
+    for _ in range(8):
+        packet['input_tokens_upper_bound'] = budget.count(serialize_packet(packet))
+    checked = GovernedCollectorInput(packet=serialize_packet(packet),fence=FENCE,budget=budget,prompt_version='lifetime-v1')
+    assert checked.budget.model == model
+    assert checked.budget.count(checked.packet) <= checked.budget.input_budget
+
+
 class FakeConnection:
     instances = []
     failure = None
@@ -85,6 +98,30 @@ class FakeConnection:
     async def turn(self, thread_id, prompt, **options):
         self.turns.append((thread_id, prompt, options))
         return self.reply or valid_reply()
+
+
+@pytest.mark.parametrize('visible', [False, True])
+def test_streamed_rejection_retries_only_before_any_public_text(tmp_path, visible):
+    from apps.api.lifetime_memory_engine import CollectorOutputInvalid
+    class Rejected(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            self.turns.append((thread_id,prompt,options))
+            if len(FakeConnection.instances) == 1:
+                if visible:
+                    await options['on_delta']('Already visible acknowledgement.')
+                return 'invalid JSON'
+            return valid_reply()
+    seen = []
+    async def delta(text):
+        seen.append(text)
+    if visible:
+        with pytest.raises(CollectorOutputInvalid):
+            run(tmp_path,connection_factory=Rejected,on_delta=delta)
+        assert len(FakeConnection.instances) == 1 and len(seen) == 1
+    else:
+        run(tmp_path,connection_factory=Rejected,on_delta=delta)
+        assert len(FakeConnection.instances) == 2 and seen == []
+        assert FakeConnection.instances[0].home != FakeConnection.instances[1].home
 
 
 @pytest.fixture(autouse=True)
@@ -145,6 +182,19 @@ def test_each_turn_has_new_home_even_for_same_fence(tmp_path):
     run(tmp_path)
     run(tmp_path)
     assert FakeConnection.instances[0].home != FakeConnection.instances[1].home
+
+
+def test_continuity_validation_diagnostic_names_fixed_reason_without_private_values(tmp_path, caplog):
+    from apps.api.lifetime_memory_engine import CollectorOutputInvalid
+    value=json.loads(valid_reply())
+    value['continuity_updates']=[dict(kind='person',text='PRIVATE NARRATOR VALUE',
+        quote='PRIVATE NARRATOR VALUE',assertion='asserted',uncertainty=None,
+        source_id=str(UUID(int=4)),source_version=1,char_start=0,char_end=1)]
+    FakeConnection.reply=json.dumps(value)
+    with pytest.raises(CollectorOutputInvalid):
+        run(tmp_path)
+    assert 'Continuity span must cover exact original characters' in caplog.text
+    assert 'PRIVATE NARRATOR VALUE' not in caplog.text
 
 
 @pytest.mark.parametrize('changes', [
@@ -256,11 +306,12 @@ def test_valid_second_response_uses_the_same_packet_in_a_new_home(tmp_path):
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances})==1
 
 
-def test_invalid_visible_stream_is_not_followed_by_a_second_answer(tmp_path):
+def test_invalid_hidden_stream_exhausts_only_three_fresh_attempts(tmp_path):
     FakeConnection.reply='invalid structured output'
     async def delta(value):pass
     with pytest.raises(RuntimeError):run(tmp_path,on_delta=delta)
-    assert len(FakeConnection.instances)==1
+    assert len(FakeConnection.instances)==3
+    assert len({connection.home for connection in FakeConnection.instances})==3
 
 
 def test_worker_uses_same_governed_engine_and_no_artifact_export(tmp_path, monkeypatch):

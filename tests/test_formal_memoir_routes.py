@@ -102,7 +102,7 @@ def test_browser_cannot_supply_authority_or_content(surface, extra):
     assert observations == []
 
 
-@pytest.mark.parametrize('code,status,expected', [('40001', 400, 409), ('42501', 400, 403), ('XX000', 500, 503)])
+@pytest.mark.parametrize('code,status,expected', [('40001', 400, 409), ('PT409', 409, 409), ('42501', 400, 403), ('XX000', 500, 503)])
 def test_database_errors_do_not_leak_private_details(surface, code, status, expected):
     request, _, replies = surface
     replies['begin_formal_memoir'] = httpx.Response(status, json={'code': code, 'message': 'private synthetic testimony'})

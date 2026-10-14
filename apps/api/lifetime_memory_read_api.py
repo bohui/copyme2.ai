@@ -24,7 +24,7 @@ def read_mapped(storage, project_id, reader, legacy=lambda: None):
                 code = error.response.json().get('code')
             except (ValueError, AttributeError):
                 code = None
-            if code == '40001':
+            if code in {'40001', 'PT409'}:
                 raise HTTPException(409, 'This view changed. Reload from the first page.',
                     headers={'X-Error-Code': 'LIFETIME_READ_STALE'}) from None
             if code == '22023':

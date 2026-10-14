@@ -8,8 +8,8 @@ from apps.api.store import MemoryStore
 from apps.api.lifetime_memory_publication import TransactionalPublication
 from apps.api.lifetime_memory_reads import ReadPublication,ReadSnapshot,ReadJSONResponse
 from apps.api.lifetime_memory_transport import GovernedJSONResponse,GovernedStreamingResponse,GovernedResult,governed_turn_events
-from test_lifetime_memory_publication import setup
-from test_lifetime_memory_postgres import sql,event_database,private_database,attachment_database,database
+from test_lifetime_memory_publication import setup,database
+from test_lifetime_memory_postgres import sql,event_database,private_database,attachment_database
 from test_agent_commit_postgres import OWNER
 from test_shared_memory_events_postgres import rpc
 
