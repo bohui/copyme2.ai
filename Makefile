@@ -364,9 +364,9 @@ container-build: runtime-start ## Build the local images without changing runnin
 
 .PHONY: up down
 
-up: container-up ## Start the local stack (alias for container-up).
+up: container-up ## Recreate the local stack, building changed images (alias for container-up).
 
-container-up: ## Build changed images and start the local stack; CONTAINER_REBUILD=1 rebuilds all app images.
+container-up: ## Recreate all local services and build changed images; CONTAINER_REBUILD=1 rebuilds all app images.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-up
 
 _container-up: runtime-start _validate-skills

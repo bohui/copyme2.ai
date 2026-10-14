@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh Mocker's static Compose service aliases after partial recreation.
+"""Refresh Compose service aliases using Apple Container's live addresses.
 
 Only running containers returned by this Compose project are inspected. Peers
 must share its project and network labels. Existing unrelated hosts are kept;
@@ -26,18 +26,23 @@ def command(executable, *args):
 
 def records(metadata, expected_ids):
     if (not isinstance(metadata, list) or not all(isinstance(v, dict) for v in metadata)
-            or {v.get('Id') for v in metadata} != set(expected_ids)):
+            or len(metadata) != len(expected_ids)
+            or {v.get('id') for v in metadata} != set(expected_ids)):
         raise RefreshError('Compose container inspection did not match its running inventory')
     result = []
     for value in metadata:
-        labels = value.get('Config', {}).get('Labels', {})
+        labels = value.get('configuration', {}).get('labels', {})
         service = labels.get('com.mocker.compose.service', '')
         project = labels.get('com.mocker.compose.project', '')
         network = labels.get('com.mocker.compose.network', '')
         if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}', service) or not project or not network:
             raise RefreshError('Compose service/network labels are required for alias refresh')
-        address = str(ipaddress.ip_address(value['NetworkSettings']['IPAddress']))
-        result.append({'id': value['Id'], 'service': service, 'project': project,
+        status = value.get('status', {})
+        networks = [v for v in status.get('networks', []) if v.get('network') == network]
+        if status.get('state') != 'running' or len(networks) != 1:
+            raise RefreshError('A running container on its Compose network is required')
+        address = str(ipaddress.IPv4Interface(networks[0]['ipv4Address']).ip)
+        result.append({'id': value['id'], 'service': service, 'project': project,
                        'network': network, 'address': address})
     if len({v['project'] for v in result}) != 1:
         raise RefreshError('Alias refresh requires one Compose project')
@@ -67,10 +72,10 @@ def refresh(mocker, compose_file, apple_container='container'):
     ids = command(mocker, 'compose', 'ps', '-f', compose_file, '-q').split()
     if not ids:
         raise RefreshError('No running Compose containers to refresh')
-    # Mocker emits separate JSON documents when inspecting multiple containers.
+    # Mocker's inspect cache can retain the old IP after a restart.
     metadata = []
     for container_id in ids:
-        values = json.loads(command(mocker, 'inspect', container_id))
+        values = json.loads(command(apple_container, 'inspect', container_id))
         records(values, [container_id])
         metadata.extend(values)
     peers = records(metadata, ids)

@@ -22,7 +22,10 @@ def stack(tmp_path):
     # This fixture has no live backend and must not acquire the machine's lock.
     (tmp_path / 'scripts/backend_operation_lock.py').write_text(
         'import subprocess,sys\nraise SystemExit(subprocess.call(sys.argv[2:]))\n')
-    (tmp_path / 'scripts/refresh_mocker_compose_hosts.py').write_text('')
+    (tmp_path / 'scripts/refresh_mocker_compose_hosts.py').write_text(
+        'import json\nfrom pathlib import Path\n'
+        'with Path("commands.jsonl").open("a") as f:\n'
+        ' f.write(json.dumps(["refresh-aliases"]) + "\\n")\n')
     for name in ('Containerfile', 'codex-worker/Containerfile', 'apps/web/Containerfile',
                  'pyproject.toml', 'apps/api/main.py', 'skills/example/SKILL.md',
                  'apps/web/app/page.tsx', 'compose.yml'):
@@ -63,6 +66,7 @@ if args[:2] == ['compose', 'up']:
             containers.setdefault('memory-spark-' + service + '-1', mounts)
     containers_file.write_text(json.dumps(containers))
 if args[:2] == ['compose', 'ps']:
+    if (p / 'fail-inventory').exists(): sys.exit(10)
     print('\\n'.join('memory-spark-' + a + '-1' for a in args[2:] if 'memory-spark-' + a + '-1' in containers))
 if args[:1] == ['inspect']:
     if (p / 'fail-inspect').exists(): sys.exit(10)
@@ -103,18 +107,24 @@ def recreates(commands):
     return [c for c in commands if c[:1] == ['rm']]
 
 
-def test_repeat_up_skips_builds_and_keeps_unchanged_containers(stack):
+def test_repeat_up_skips_builds_and_recreates_every_service_before_alias_refresh(stack):
     _, up, calls = stack
     up()
     first = calls()
     assert builds(first) == [['compose', 'build', '-f', 'compose.yml', 'api', 'codex-worker', 'web']]
     assert not any(c[:2] == ['compose', 'down'] for c in first)
-    assert all('memory-spark-temporal-1' not in c for c in recreates(first))
     up()
     repeated = calls()
     assert not builds(repeated)
-    assert not recreates(repeated)
-    assert any('--wait' in c for c in repeated)
+    assert recreates(repeated) == [['rm', '-f', *[
+        'memory-spark-' + service + '-1'
+        for service in ('temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker')]]]
+    removal = next(i for i, c in enumerate(repeated) if c[0] == 'rm')
+    start = next(i for i, c in enumerate(repeated) if c[:2] == ['compose', 'up'] and '--wait' not in c)
+    refresh = repeated.index(['refresh-aliases'])
+    ready = next(i for i, c in enumerate(repeated) if '--wait' in c)
+    assert removal < start < refresh < ready
+    assert not any('--volumes' in c or c[:2] == ['compose', 'down'] for c in repeated)
 
 
 def test_up_restores_current_checkout_after_another_worktree_takes_over(stack):
@@ -132,20 +142,21 @@ def test_up_restores_current_checkout_after_another_worktree_takes_over(stack):
 
     commands = calls()
     assert not builds(commands)
-    assert recreates(commands) == [['rm', '-f', *foreign]]
+    assert len(recreates(commands)) == 1
+    assert set(recreates(commands)[0][2:]) == set(containers)
     restored = json.loads(file.read_text())
     assert all(restored[container][0]['source'] == str(root / 'apps/api') for container in foreign)
     up()
-    assert not recreates(calls())
+    assert recreates(calls())
 
 
-def test_failed_live_inspection_leaves_containers_and_cache_untouched(stack):
+def test_failed_inventory_leaves_containers_and_cache_untouched(stack):
     root, up, calls = stack
     up()
     calls()
     containers = (root / 'containers.json').read_bytes()
     cache = (root / 'var/container-startup.json').read_bytes()
-    (root / 'fail-inspect').touch()
+    (root / 'fail-inventory').touch()
     up(success=False)
     assert (root / 'containers.json').read_bytes() == containers
     assert (root / 'var/container-startup.json').read_bytes() == cache
@@ -168,9 +179,8 @@ def test_changed_inputs_rebuild_only_affected_images(stack, path, services):
     assert builds(changed) == [['compose', 'build', '-f', 'compose.yml', *services]]
     recreated = recreates(changed)
     assert len(recreated) == 1
-    assert 'memory-spark-temporal-1' not in recreated[0]
-    if 'api' in services:
-        assert all('memory-spark-' + s + '-1' in recreated[0] for s in ('api', 'worker', 'photo-worker'))
+    assert set(recreated[0][2:]) == {'memory-spark-' + s + '-1' for s in
+        ('temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker')}
     up()
     assert not builds(calls())
 

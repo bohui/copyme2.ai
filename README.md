@@ -163,11 +163,12 @@ make container-down
 
 `make up` (also `make container-up`) validates every repository skill and builds
 only images whose source, dependencies, build arguments, or local image IDs changed.
-It builds the shared backend image once and recreates its consumers when needed;
-unchanged containers, including Temporal, keep running. Changed Compose settings
-and environment values are reconciled on every run. Startup checks the live
-backend mounts and recreates containers bound to another checkout, even when the
-cached images are unchanged. Worktrees share the `memory-spark` Compose project;
+It builds the shared backend image once, then recreates all six local services on
+every run with the current checkout, Compose settings, and environment values.
+Named volumes, including Temporal history, are preserved. Startup refreshes
+service aliases from Apple Container's live addresses before waiting for health;
+Mocker's cached inspection addresses are not used. Running conversations and
+background tasks may be interrupted during startup. Worktrees share the `memory-spark` Compose project;
 running startup from a worktree changes the backend used by the main checkout.
 The first run establishes a
 local cache in `var/container-startup.json` after all health checks pass.
@@ -250,7 +251,7 @@ saves the place after the conversation commit. Ambiguous or ungrounded places
 produce no preview, and project/turn ordering guards reject late results.
 
 There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-worker`,
-`worker`, and `temporal`. `container-up` refreshes changed images and services
+`worker`, and `temporal`. `container-up` rebuilds changed images, recreates every service,
 and verifies the full stack. The API, background worker, and photo worker
 share the backend image; Temporal uses its upstream image. API and worker Python
 sources are bind-mounted; Codex worker Python and skills are image-baked.

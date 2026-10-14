@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build changed repository images and reconcile the local Mocker stack.
+"""Build changed repository images and recreate the local Mocker stack.
 
 The cache records content hashes and image IDs, never resolved environment
 values. It is committed only after alias repair and the stack health checks.
@@ -117,26 +117,6 @@ def compose_container_ids(mocker, compose_file, services):
     return ids
 
 
-def foreign_checkout_containers(args, root):
-    services = [service for image in IMAGES.values() for service in image['services'] if service != 'web']
-    expected = (root / 'apps/api').resolve()
-    foreign = []
-    for container_id in compose_container_ids(args.mocker, args.compose_file, services):
-        inspected = subprocess.run([args.apple_container, 'inspect', container_id],
-            capture_output=True, text=True, check=True, timeout=30)
-        metadata = json.loads(inspected.stdout)
-        if (not isinstance(metadata, list) or len(metadata) != 1
-                or metadata[0].get('id') != container_id):
-            raise ValueError('Container inspection did not match the Compose inventory')
-        mounts = metadata[0]['configuration']['mounts']
-        # All four backend services bind this directory from their owning checkout.
-        sources = [Path(mount['source']).resolve() for mount in mounts
-                   if mount['destination'] == '/app/apps/api']
-        if sources != [expected]:
-            foreign.append(container_id)
-    return foreign
-
-
 def start(args):
     root = Path.cwd()
     compose_file = Path(args.compose_file).resolve()
@@ -155,7 +135,8 @@ def start(args):
             changed.append(name)
 
     compose = [args.mocker, 'compose']
-    recreate = foreign_checkout_containers(args, root)
+    services = ['temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker']
+    recreate = compose_container_ids(args.mocker, args.compose_file, services)
     if changed:
         print('Building changed images: ' + ', '.join(changed), flush=True)
         subprocess.run([*compose, 'build', '-f', args.compose_file, *changed], check=True)
@@ -163,22 +144,17 @@ def start(args):
             current[name]['image_id'] = image_id(args.mocker, IMAGES[name]['tag'])
             if not current[name]['image_id']:
                 raise ValueError('Built image was not found in the local image store')
-        # Mocker 0.9.3 misses image-tag changes and ignores --no-deps with
-        # --force-recreate. Remove only consumers of rebuilt images using the
-        # project/service-filtered inventory, then let Compose start them again.
-        services = [service for name in changed for service in IMAGES[name]['services']]
-        recreate.extend(compose_container_ids(args.mocker, args.compose_file, services))
     else:
         print('Build inputs and local images unchanged; reusing existing images.', flush=True)
 
     if recreate:
         ids = list(dict.fromkeys(recreate))
-        print('Refreshing containers for current images and checkout: ' + ', '.join(ids), flush=True)
+        # Mocker misses image-tag changes and ignores --no-deps with --force-recreate.
+        # Remove only this stack's containers; their named volumes remain intact.
+        print('Recreating local stack containers: ' + ', '.join(ids), flush=True)
         subprocess.run([args.mocker, 'rm', '-f', *ids], check=True)
 
-    # Reconcile changed environment/configuration and start any stopped services.
-    # Repair static aliases before waiting: partial recreation changes addresses.
-    services = ['temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker']
+    # Start fresh processes with current mounts/config, then repair aliases before waiting.
     subprocess.run([*compose, 'up', '-f', args.compose_file, '--no-build', '--no-deps',
         '--detach', *services], check=True)
     subprocess.run(['python3', 'scripts/refresh_mocker_compose_hosts.py',
@@ -218,7 +194,7 @@ def main():
             or (not flag.startswith('--') and flag.lstrip('-').isalpha() and 'n' in flag)
             for flag in flags)
         if dry_run:
-            print('Incremental startup: build changed images, reconcile services, and refresh aliases.')
+            print('Startup: build changed images, recreate all services, and refresh live aliases.')
             subprocess.run(args.health_command, check=True)
             return 0
         start(args)
