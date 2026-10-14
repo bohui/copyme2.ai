@@ -257,6 +257,9 @@ class PostgresRest:
             # Never manufacture HTTP 409 from the word "conflict".
             status = int(code[2:]) if code.startswith('PT') and code[2:].isdigit() else 500 if code.startswith(('40', 'XX')) else 403 if code=='42501' else 409 if code in ('23503','23505') else 400
             return httpx.Response(status, json={'code': code, 'message': result.stderr})
+        if path == 'rpc/persist_lifetime_place_journeys':
+            # PostgREST returns an empty body for this void function.
+            return httpx.Response(200)
         value = _sql_json_record(result.stdout)
         return httpx.Response(200, content=json.dumps(value), headers={'Content-Type': 'application/json'})
 

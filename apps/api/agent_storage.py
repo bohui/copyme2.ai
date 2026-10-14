@@ -30,7 +30,9 @@ class UserStorage:
     def lifetime_rpc(self, name, **parameters):
         if name not in {'read_workspace_memory_focus', 'read_workspace_draft_section', 'request_workspace_section_rework'} and not name.startswith(('read_lifetime_', 'resolve_lifetime_', 'capture_lifetime_', 'begin_lifetime_', 'step_lifetime_', 'create_lifetime_', 'publish_lifetime_', 'commit_lifetime_', 'claim_lifetime_', 'complete_lifetime_', 'fail_lifetime_', 'cancel_lifetime_', 'inspect_lifetime_', 'link_lifetime_', 'validate_lifetime_', 'set_lifetime_', 'persist_lifetime_')):
             raise ValueError('Unknown lifetime operation')
-        return self.request('POST', '/rest/v1/rpc/' + name, json=parameters).json()
+        response = self.request('POST', '/rest/v1/rpc/' + name, json=parameters)
+        # This void RPC succeeds with an empty PostgREST response body.
+        return None if name == 'persist_lifetime_place_journeys' else response.json()
 
     @staticmethod
     def _jwt_claims(access_token):

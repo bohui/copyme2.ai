@@ -7,6 +7,40 @@ import pytest
 from apps.api.agent_storage import UserStorage
 
 
+@pytest.mark.parametrize('status', [200, 204])
+def test_void_lifetime_place_rpc_accepts_empty_success(status):
+    def server(request):
+        if request.url.path == '/auth/v1/user':
+            return httpx.Response(200, json={'id': '11111111-1111-4111-8111-111111111111'})
+        assert request.url.path == '/rest/v1/rpc/persist_lifetime_place_journeys'
+        assert json.loads(request.content) == {'p_journeys': []}
+        return httpx.Response(status)
+
+    with httpx.Client(transport=httpx.MockTransport(server)) as client:
+        storage = UserStorage('https://synthetic.invalid', 'public-key', 'user-jwt', client=client)
+        assert storage.lifetime_rpc('persist_lifetime_place_journeys', p_journeys=[]) is None
+
+
+@pytest.mark.parametrize('operation', ['persist_lifetime_place_journeys', 'read_lifetime_reply'])
+def test_lifetime_rpc_still_rejects_failed_http_requests(operation):
+    storage = UserStorage.__new__(UserStorage)
+    storage.url, storage.headers = 'https://synthetic.invalid', {}
+    with httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(400,
+            json={'code': '22023'}))) as client:
+        storage.client = client
+        with pytest.raises(httpx.HTTPStatusError):
+            storage.lifetime_rpc(operation)
+
+
+def test_lifetime_json_rpc_still_rejects_an_empty_response():
+    storage = UserStorage.__new__(UserStorage)
+    storage.url, storage.headers = 'https://synthetic.invalid', {}
+    with httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
+        storage.client = client
+        with pytest.raises(json.JSONDecodeError):
+            storage.lifetime_rpc('read_lifetime_reply')
+
+
 def test_interview_receipt_can_initialize_its_phase_in_a_writable_rpc():
     def server(request):
         if request.url.path == '/auth/v1/user':

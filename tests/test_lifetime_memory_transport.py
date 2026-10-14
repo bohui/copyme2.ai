@@ -140,6 +140,89 @@ def test_database_connection_timeout_ends_stream_with_retry_message(monkeypatch)
     execute(scenario())
 
 
+@pytest.mark.parametrize('database_code,expected_code', [
+    ('22023', '22023'), ('private-credential', 'HTTPStatusError'), (None, 'HTTPStatusError'),
+])
+def test_producer_failure_records_safe_stage_and_database_code(monkeypatch, database_code, expected_code):
+    import httpx
+    from apps.api import diagnostics, lifetime_memory_transport as transport
+
+    records = []
+
+    class Sink:
+        def info(self, template, body):
+            records.append(json.loads(body))
+
+    def capture(logger, event, request_id, **fields):
+        diagnostics.log_diagnostic(Sink(), event, request_id, **fields)
+
+    monkeypatch.setattr(transport, 'log_diagnostic', capture, raising=False)
+
+    async def scenario():
+        events = []
+
+        async def run(emit):
+            emit.set_fence(FENCE)
+            await emit.event({'type': 'progress', 'turn_id': 'diagnostic-save-1',
+                'data': {'id': 'save', 'status': 'running'}})
+            response = httpx.Response(400, json={'code': database_code,
+                'message': 'private story and credential'},
+                request=httpx.Request('POST', 'https://private.example/rpc?token=secret'))
+            raise httpx.HTTPStatusError('private exception',
+                request=response.request, response=response)
+
+        async def send(message):
+            if event := body_event(message):
+                events.append(event)
+
+        await GovernedStreamingResponse(governed_turn_events(run),
+            publisher=Publisher())(SCOPE, no_disconnect, send)
+        assert events[-1] == {'type': 'error', 'message': transport._ERROR}
+
+    execute(scenario())
+    assert records == [{'event': 'governed_turn_failed', 'request_id': 'diagnostic-save-1',
+        'component': 'memoir.lifetime_memory_transport', 'status': 'failed',
+        'call_type': 'save', 'failure_class': 'http_rejected',
+        'error_code': expected_code, 'http_status': 400}]
+    assert 'private' not in json.dumps(records)
+
+
+def test_publication_failure_is_logged_without_private_exception(monkeypatch):
+    from apps.api import lifetime_memory_transport as transport
+
+    records = []
+    monkeypatch.setattr(transport, 'log_diagnostic',
+        lambda logger, event, request_id, **fields: records.append(fields))
+
+    class RejectedPublisher(Publisher):
+        @asynccontextmanager
+        async def guard(self, fence):
+            error = RuntimeError('private publication details')
+            error.sqlstate = '40001'
+            raise error
+            yield
+
+    async def scenario():
+        events = []
+
+        async def run(emit):
+            emit.set_fence(FENCE)
+            await emit('private reply')
+
+        async def send(message):
+            if event := body_event(message):
+                events.append(event)
+
+        await GovernedStreamingResponse(governed_turn_events(run),
+            publisher=RejectedPublisher())(SCOPE, no_disconnect, send)
+        assert [event['type'] for event in events] == ['started', 'error']
+
+    execute(scenario())
+    assert len(records) == 1
+    assert records[0]['call_type'] == 'publication' and records[0]['error_code'] == '40001'
+    assert 'private' not in json.dumps(records)
+
+
 @pytest.mark.parametrize('kind', ['text_delta', 'conversation_saved', 'result'])
 def test_queued_old_payload_is_not_blessed_by_later_fence(kind):
     async def scenario():

@@ -11,11 +11,15 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import json
+import logging
+import re
 
 import anyio
 from starlette.responses import JSONResponse, StreamingResponse
 
 from .lifetime_memory_contracts import ExecutionFence
+from .diagnostics import (configure_diagnostic_logger, failure_class,
+                          log_diagnostic, new_request_id)
 from .lifetime_memory_publication import PublicationDatabaseUnavailable, PublicationUnavailable, send_governed
 from .turn_stream import STREAM_HEADERS
 
@@ -23,6 +27,7 @@ from .turn_stream import STREAM_HEADERS
 _ERROR = 'The response could not be completed or saved. Please try again.'
 _PROGRESS_IDS = frozenset({'context', 'language', 'reply', 'save', 'workspace'})
 _PROGRESS_STATUSES = frozenset({'pending', 'running', 'completed', 'failed', 'triggered'})
+diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.lifetime_memory_transport'))
 
 
 def _copy_fence(fence):
@@ -99,6 +104,14 @@ class GovernedEmitter:
         fence = None if _generic_event(event) else _copy_fence(self._fence)
         envelope = _Envelope(_json_bytes(event) + b'\n', fence,
                              terminal=event['type'] in {'result', 'error'})
+        if event.get('turn_id'):
+            self._stream.request_id = new_request_id(event['turn_id'])
+        if event['type'] == 'source_accepted':
+            self._stream.request_id = new_request_id((event.get('data') or {}).get('client_turn_id'))
+        if event['type'] == 'progress':
+            stage = (event.get('data') or {}).get('id')
+            if stage in _PROGRESS_IDS | {'memory-context', 'collector-call', 'question-pool'}:
+                self._stream.stage = stage
         await self._stream._queue.put(envelope)
 
     async def flush(self):
@@ -122,7 +135,26 @@ class GovernedTurnStream:
         self._task = None
         self._iterator = None
         self._closing = None
+        self.request_id = new_request_id()
+        self.stage = 'acceptance'
         self.emitter = GovernedEmitter(self)
+
+    def log_failure(self, error, *, stage=None):
+        response = getattr(error, 'response', None)
+        status = getattr(response, 'status_code', getattr(error, 'status_code', None))
+        code = getattr(error, 'sqlstate', None)
+        if response is not None:
+            try:
+                body = response.json()
+                code = body.get('code') if isinstance(body, dict) else None
+            except ValueError:
+                pass
+        # Database error messages may contain testimony, parameters or credentials.
+        code = code if isinstance(code, str) and re.fullmatch(r'(?:[0-9A-Z]{5}|PGRST[0-9]{3})', code) else type(error).__name__
+        log_diagnostic(diagnostic_logger, 'governed_turn_failed', self.request_id,
+            component='memoir.lifetime_memory_transport', status='failed',
+            call_type=stage or self.stage, failure_class=failure_class(error, status_code=status),
+            error_code=code, http_status=status)
 
     async def _produce(self):
         try:
@@ -133,7 +165,8 @@ class GovernedTurnStream:
             if not isinstance(result, GovernedResult):
                 result = self.emitter.snapshot_result(result)
             await self._queue.put(result._envelope())
-        except Exception:
+        except Exception as error:
+            self.log_failure(error)
             # Never expose raw errors, exception trajectories or arbitrary event
             # fields via the unfenced terminal-error escape hatch.
             await self._queue.put(_Envelope(
@@ -237,6 +270,7 @@ class GovernedStreamingResponse(StreamingResponse):
                         await send_governed(send, message, publisher=self.publisher,
                                             fence=envelope.fence)
                     except Exception as error:
+                        self.governed_stream.log_failure(error, stage='publication')
                         # A failed database guard drops this and all queued private
                         # bodies. Only a fixed, non-personal reconciliation notice
                         # is allowed after the failed publication attempt.
