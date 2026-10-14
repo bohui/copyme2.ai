@@ -333,7 +333,6 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         candidate = opened['thread_id']
         reply = await connection.turn(candidate, GOVERNED_TURN_PROMPT,
             output_schema=governed_collector_schema(interview_context),
-            **({'on_delta':on_delta} if on_delta else {}),
             **({'on_event':on_event} if on_event else {}),
             **({'effort':effort} if effort else {}),
             responsesapi_client_metadata=responsesapi_client_metadata or {})
@@ -367,6 +366,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn') from None
+    # Keep rejected attempts hidden so the same accepted turn can retry safely.
+    if on_delta:
+        await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
     if on_event:

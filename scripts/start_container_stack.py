@@ -108,6 +108,35 @@ def read_cache(path):
         return {}
 
 
+def compose_container_ids(mocker, compose_file, services):
+    inventory = subprocess.run([mocker, 'compose', 'ps', '-f', compose_file, '--all',
+        '-q', *services], capture_output=True, text=True, check=True, timeout=30)
+    ids = inventory.stdout.split()
+    if not all(re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}', value) for value in ids):
+        raise ValueError('Mocker returned an invalid container ID')
+    return ids
+
+
+def foreign_checkout_containers(args, root):
+    services = [service for image in IMAGES.values() for service in image['services'] if service != 'web']
+    expected = (root / 'apps/api').resolve()
+    foreign = []
+    for container_id in compose_container_ids(args.mocker, args.compose_file, services):
+        inspected = subprocess.run([args.apple_container, 'inspect', container_id],
+            capture_output=True, text=True, check=True, timeout=30)
+        metadata = json.loads(inspected.stdout)
+        if (not isinstance(metadata, list) or len(metadata) != 1
+                or metadata[0].get('id') != container_id):
+            raise ValueError('Container inspection did not match the Compose inventory')
+        mounts = metadata[0]['configuration']['mounts']
+        # All four backend services bind this directory from their owning checkout.
+        sources = [Path(mount['source']).resolve() for mount in mounts
+                   if mount['destination'] == '/app/apps/api']
+        if sources != [expected]:
+            foreign.append(container_id)
+    return foreign
+
+
 def start(args):
     root = Path.cwd()
     compose_file = Path(args.compose_file).resolve()
@@ -126,6 +155,7 @@ def start(args):
             changed.append(name)
 
     compose = [args.mocker, 'compose']
+    recreate = foreign_checkout_containers(args, root)
     if changed:
         print('Building changed images: ' + ', '.join(changed), flush=True)
         subprocess.run([*compose, 'build', '-f', args.compose_file, *changed], check=True)
@@ -137,16 +167,14 @@ def start(args):
         # --force-recreate. Remove only consumers of rebuilt images using the
         # project/service-filtered inventory, then let Compose start them again.
         services = [service for name in changed for service in IMAGES[name]['services']]
-        inventory = subprocess.run([*compose, 'ps', '-f', args.compose_file, '--all',
-            '-q', *services], capture_output=True, text=True, check=True, timeout=30)
-        ids = inventory.stdout.split()
-        if not all(re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}', v) for v in ids):
-            raise ValueError('Mocker returned an invalid container ID')
-        if ids:
-            print('Refreshing services: ' + ', '.join(services), flush=True)
-            subprocess.run([args.mocker, 'rm', '-f', *ids], check=True)
+        recreate.extend(compose_container_ids(args.mocker, args.compose_file, services))
     else:
         print('Build inputs and local images unchanged; reusing existing images.', flush=True)
+
+    if recreate:
+        ids = list(dict.fromkeys(recreate))
+        print('Refreshing containers for current images and checkout: ' + ', '.join(ids), flush=True)
+        subprocess.run([args.mocker, 'rm', '-f', *ids], check=True)
 
     # Reconcile changed environment/configuration and start any stopped services.
     # Repair static aliases before waiting: partial recreation changes addresses.

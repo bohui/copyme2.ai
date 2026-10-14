@@ -1269,6 +1269,38 @@ def test_all_completed_cases_can_be_revalidated_after_submission_deadlines_expir
     assert not any(call.method=='PUT' for call in remote.calls[before:])
 
 
+def test_saved_fiftieth_reply_can_finish_read_only_after_submission_deadline(setup,tmp_path,monkeypatch):
+    plan,remote=setup();directory=tmp_path/'late-final-checkpoint'
+    assert asyncio.run(module.execute(plan,directory,SETTINGS))['status']=='completed'
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-500;receipt['case_started_at_unix'][plan['case_ids'][0]]=now-450
+    origins=dict(receipt['case_started_at_unix']);case=receipt['evaluation']['cases'][0]
+    case['rounds'][-1].update(status='incomplete',background_settled=False,
+        failure_summary={'reason':'Original deadline expired during checkpoint readback'})
+    case['checkpoints']=case['checkpoints'][:-1];case.pop('current_checkpoint',None)
+    module.save(directory/'receipt.json',receipt);before=len(remote.calls)
+    monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('Read-only finalization must not start the backend.'))
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,start_backend=True))
+    assert result['status']=='completed',result
+    assert result['case_started_at_unix']==origins and result['budget_contract']==module.budget_contract(plan)
+    assert len(remote.submitted)==50 and result['backend_turn_submissions']==50
+    assert not any(call.url.path.endswith('/agent/turn') or call.url.path.endswith('/projects') and call.method=='POST'
+        or call.method=='PUT' for call in remote.calls[before:])
+    final=result['evaluation']['cases'][0]['rounds'][-1]
+    assert final['previous_failure_summary']['reason']=='Original deadline expired during checkpoint readback'
+    assert len(result['evaluation']['cases'][0]['checkpoints'])==10
+    assert result['request_accounting']['backend_http_requests_reserved']==len(remote.calls)
+
+
+@pytest.mark.parametrize('field,value',[('reply',None),('reply',' '),('accepted_source_id',None),('accepted_source_id','')])
+def test_delivered_submission_ledger_requires_all_original_sources_and_nonempty_replies(field,value):
+    case={'rounds':[{'round':i,'accepted_source_id':'source-'+str(i),'reply':'Saved reply.'} for i in range(1,51)]}
+    assert module.delivered_submission_ledger(case)
+    case['rounds'][-1][field]=value
+    assert not module.delivered_submission_ledger(case)
+    assert not module.delivered_submission_ledger({'rounds':case['rounds'][:-1]})
+
+
 def test_late_completed_case_still_respects_original_request_ceiling(setup,tmp_path):
     plan,remote=setup();directory=tmp_path/'late-counter'
     assert asyncio.run(module.execute(plan,directory,SETTINGS))['status']=='completed'

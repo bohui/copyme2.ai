@@ -10,7 +10,7 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&am
 function setup(overrides = {}) {
   const state = {project: {id:'p'}, workspaceTab:'memoir', workspaceUnlocked:false, compositionStage:0,
     familyFeaturesEnabled:true, familyContext:{}, storyPlans:[{}], checkout:{},
-    showThinkingSteps:false, recallStatus:null, privateDraft:null,
+    showThinkingSteps:false, showDraftUpdates:false, recallStatus:null, privateDraft:null,
     people:[], timeline:[], chapters:[], selectedMemoirChapter:null, placeJourney:{place:'Chengde'}, ...overrides};
   const translate = key => messages[key.split('.').at(-1)] || key;
   const context = vm.createContext({state, escapeHtml, translate,
@@ -111,12 +111,18 @@ test('ordinary storytellers cannot see early draft content or background status'
   }
 });
 
-test('the existing developer flag shows early checkpoint previews', () => {
-  const context = setup({showThinkingSteps:true, privateDraft:savedDraft,
+test('the draft-update flag shows early checkpoint previews without thinking steps', () => {
+  const context = setup({showDraftUpdates:true, privateDraft:savedDraft,
     recallStatus:{rounds_completed:5, free_rounds:20}});
   assert.match(context.privateDraftPreview(), /童年草稿|已保存的童年回忆/);
   assert.match(context.workspaceDetail(), /private-draft-status/);
   assert.equal(context.workspaceTabs().length, 0);
+});
+
+test('thinking steps alone do not show draft previews',()=>{
+  const context=setup({showThinkingSteps:true,privateDraft:savedDraft,
+    recallStatus:{rounds_completed:5,free_rounds:20}});
+  assert.equal(context.privateDraftPreview(),'');
 });
 
 test('paid Family storytellers retain their selected Family and Timeline tabs at round 20 before composition', () => {

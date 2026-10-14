@@ -4,7 +4,7 @@
 
 A reusable skill for the CopyMe2 memoir harness: organise memories and chat history into a chronological main storyline, give chapters meaningful titles, compose source-backed prose with eligible personal pictures, and enrich it over later runs. **Every chapter has a hard maximum of 7,000 words.**
 
-The first output can be small. More context should improve an existing memoir, not create a new unrelated book each time.
+The first output can be small. More context should improve an existing memoir, not create a new unrelated book each time. [Grounded imagination](references/narrative-enrichment.md) adds scene building, imagery, pacing and continuity from the conversation while preserving the narrator's facts and voice.
 
 ## Application triggers
 
@@ -64,6 +64,7 @@ memoir-composer/
 ├── references/
 │   ├── runtime-contract.md          Inputs, tools, persistence and output
 │   ├── workflows.md                 Triggers, coverage and progressive updates
+│   ├── narrative-enrichment.md       Grounded imagination and scene building
 │   ├── editorial-and-length.md      Narrative rules and word counting
 │   ├── editorial-review.prompt.md   Separate evidence-to-prose review pass
 │   └── sources.md                   Baseline and official documentation

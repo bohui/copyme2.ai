@@ -98,13 +98,16 @@ def test_five_new_messages_use_one_summary_instead_of_one_preparation_per_quote(
     assert current == before
     assert len(bundle['request']['context']['prepared_partitions']) == 1
     assert bundle['request']['context']['checkpoint_delta'] == {'starting_after': 0, 'through_source': 5}
+    for e in current['batch']['events']:
+        assert any(e['id'] in s['event_ids'] for s in bundle['sections'])
 
 
-def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sql):
+def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sql):  # noqa: F811
     identity=resolve(sql);project=identity['project_id']
     def add(first,last):
         for i in range(first,last+1):
             rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{UUID(int=i)}',{literal('Original round '+str(i))}")
+        sql("update public.user_narrator_source set processing_status='succeeded';")
     def finish_fixture(claim):
         sql(f"update public.user_lifetime_lane_snapshot set state='completed' where id='{claim['snapshot_id']}'; "
             f"update public.user_memoir_lane set token=null,lease_until=null,run_deadline=null,pending=true,available_at=clock_timestamp() where id='{lane}';")
@@ -114,7 +117,8 @@ def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sq
     finish_fixture(first);add(6,8)
     sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},client_turn_id,sequence from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)} and sequence between 6 and 8;")
     partial=service(sql,'claim_memoir_lane',f"'{lane}',900")
-    assert partial['coverage_round']==5 and partial['source_high_water']==8
+    assert partial['coverage_round']==8 and partial['source_high_water']==8
+    assert sql(f"select milestone from public.user_lifetime_lane_snapshot where id='{partial['snapshot_id']}';").stdout.strip()=='5'
     assert partial['batch']['new_messages']==[]
     finish_fixture(partial);add(9,10)
     sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},client_turn_id,sequence from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)} and sequence between 9 and 10; "
@@ -122,8 +126,14 @@ def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sq
     final=service(sql,'claim_memoir_lane',f"'{lane}',900")
     assert [s['sequence'] for s in final['batch']['new_messages']]==list(range(6,11))
     assert final['batch']['starting_after']==5
-    for e in current['batch']['events']:
-        assert any(e['id'] in s['event_ids'] for s in bundle['sections'])
+    originals=sql('select jsonb_agg(to_jsonb(s) order by sequence) from public.user_narrator_source s;').stdout
+    finish_fixture(final)
+    sql(f"update public.user_lifetime_lane_snapshot set state='stale' where id='{final['snapshot_id']}'; "
+        f"update public.user_memoir_lane set attempts=0 where id='{lane}';")
+    repaired=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    assert repaired['snapshot_id']!=final['snapshot_id']
+    assert [s['sequence'] for s in repaired['batch']['new_messages']]==list(range(6,11))
+    assert sql('select jsonb_agg(to_jsonb(s) order by sequence) from public.user_narrator_source s;').stdout==originals
 
 
 def test_second_checkpoint_keeps_unchanged_prose_and_uses_only_the_new_messages_for_summary():
@@ -266,7 +276,7 @@ def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql
                 source_refs=[dict(source_id=originals[0]['id'],version=1,quote=originals[0]['text']),dict(source_id=original['id'], version=1, quote=text)])]
         manifest = [dict(id=original['id'],version=1)] + ([dict(id=originals[0]['id'],version=1)] if i == 0 else [])
         rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal(manifest)},{literal(changes)}")
-    sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},gen_random_uuid(),n from generate_series(6,10)n;")
+    sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},client_turn_id,sequence from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)} and sequence between 6 and 10;")
     sql(f"update public.user_memoir_lane set pending=true,target_milestone=10,target_event=(select event_sequence from public.user_memoir_project where user_id='{OWNER}' and project_id={literal(project)}) where id='{lane}';")
     current = service(sql, 'claim_memoir_lane', f"'{lane}',900")
     assert current['batch']['starting_after'] == 5

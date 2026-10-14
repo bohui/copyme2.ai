@@ -16,6 +16,7 @@ from test_name_only_opening import proposal
 
 @pytest.mark.parametrize('streaming',[True,False])
 def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tmp_path,monkeypatch,streaming):
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     command=sql.command
     dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',dsn)

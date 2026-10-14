@@ -83,6 +83,7 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
     monkeypatch.setenv('SUPABASE_URL', 'https://example.supabase.co')
     monkeypatch.setenv('SUPABASE_PUBLISHABLE_KEY', 'public-key')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '0')
+    monkeypatch.delenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', raising=False)
     client = TestClient(create_app(MemoryStore()))
 
     response = client.get('/v1/agent/config')
@@ -95,6 +96,7 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
         'supabase_publishable_key': 'public-key',
         'google_maps_browser_api_key': None,
         'show_thinking_steps': False,
+        'show_draft_updates': False,
         'free_recall_rounds':20,
         'private_draft_cadence':5,
     }
@@ -108,6 +110,14 @@ def test_agent_config_exposes_enabled_thinking_steps_flag(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()['show_thinking_steps'] is True
+
+
+@pytest.mark.parametrize('thinking,drafts,enabled', [('1','1',True), ('0','1',True), ('1','0',False), ('1','',False)])
+def test_agent_config_draft_updates_are_independent_of_thinking_steps(monkeypatch, thinking, drafts, enabled):
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', thinking)
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', drafts)
+    response = TestClient(create_app(MemoryStore())).get('/v1/agent/config')
+    assert response.json()['show_draft_updates'] is enabled
 
 
 def test_agent_config_exposes_only_the_browser_maps_key(monkeypatch):

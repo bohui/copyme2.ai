@@ -9,7 +9,7 @@ function load(context, name) {
   vm.runInContext(match[0], context);
 }
 function setup(extra = {}) {
-  const state = {project:{id:'project'}, supabase:{accessToken:'token'}, showThinkingSteps:true,
+  const state = {project:{id:'project'}, supabase:{accessToken:'token'}, showThinkingSteps:true, showDraftUpdates:true,
     privateDraft:{snapshot_id:'root',next_cursor:'cursor',page_complete:false,coverage_round:5,
       preview:{title:'One',text:'First'},pages:[]}, ...extra};
   const context = vm.createContext({state, encodeURIComponent, URLSearchParams,
@@ -20,6 +20,22 @@ function setup(extra = {}) {
     storyApi:async()=>({snapshot_id:'root',complete:true,next_cursor:null,records:[{id:'two',preview:{title:'Two',text:'Second'}}]})});
   return context;
 }
+
+test('draft delivery failure offers reconnection while worker failure keeps generation retry',()=>{
+  for(const [error,action] of [['PRIVATE_DRAFT_UNAVAILABLE','refresh-private-draft'], ['DRAFT_UNAVAILABLE','retry-private-draft']]) {
+    const context=setup({privateDraft:{error,updating:false}});
+    load(context,'privateDraftPreview');
+    assert.match(context.privateDraftPreview(),new RegExp(`data-action="${action}"`));
+  }
+});
+
+test('a pending draft shows the background status without a preview or thinking steps',()=>{
+  const context=setup({showThinkingSteps:false,privateDraft:{updating:true}});
+  load(context,'privateDraftPreview');
+  assert.match(context.privateDraftPreview(),/privateDraftUpdating/);
+  context.state.showDraftUpdates=false;
+  assert.equal(context.privateDraftPreview(),'');
+});
 test('later frozen draft pages are reachable and first page is explicitly partial', async () => {
   const context = setup();
   load(context,'privateDraftPreview');

@@ -2,11 +2,7 @@
 
 ## 1. Voice
 
-Write as the storyteller, not as a generic motivational biographer. Preserve their diction, sense of humour and perspective. Smooth transcription disfluency and avoid repetitive question-and-answer formatting unless requested. Choose concrete source-supported details over elaborate adjectives.
-
-Do not make an ordinary event more dramatic by adding dialogue, weather, embarrassment, courage, happiness, destiny or moral growth. A warm memoir can contain uncertainty, grief, frustration and unresolved relationships. The user's goal is a peaceful and fulfilling process, not compulsory cheerful prose.
-
-No universal formula requires a dramatic opening, struggle, success and a life lesson in every chapter. A small coherent memory can have a simple ending.
+Use [grounded imagination](narrative-enrichment.md) for the narrator's voice, scene building, imagery, pacing and the boundary between editorial expression and personal fact. Smooth transcription disfluency and avoid repetitive question-and-answer formatting unless requested.
 
 ## 2. Meaningful titles
 

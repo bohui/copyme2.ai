@@ -324,19 +324,32 @@ def build_router(
             await asyncio.to_thread(_close, storage)
 
     @router.get('/private-draft')
-    async def saved_private_draft(project_id: str, language: str | None = None,
+    async def saved_private_draft(project_id: str, request: Request, language: str | None = None,
                                   authorization: str | None = Header(default=None)):
+        from .private_draft_stream import PrivateDraftStreamResponse, local_draft_updates
+        streaming = 'application/x-ndjson' in request.headers.get('accept', '')
+        if streaming and not local_draft_updates(request):
+            raise HTTPException(404, 'Local draft updates are disabled')
         storage = await asyncio.to_thread(storage_for, authorization)
+        transferred = False
         try:
             def legacy():
                 if isinstance(storage, UserStorage):
                     return storage.saved_memoir_draft(project_id, language)
                 from .private_drafts import synchronize
                 return synchronize(storage, project_id, language)
-            return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: draft_head(storage, project_id, language=language), legacy)
+            def read():
+                return read_mapped(storage, project_id,
+                    lambda fence: draft_head(storage, project_id, language=language), legacy)
+            result = await asyncio.to_thread(read)
+            if streaming:
+                response = PrivateDraftStreamResponse(result, read, lambda: _close(storage))
+                transferred = True
+                return response
+            return result
         finally:
-            await asyncio.to_thread(_close, storage)
+            if not transferred:
+                await asyncio.to_thread(_close, storage)
 
     @router.get('/private-draft/page')
     async def private_draft_page(project_id: str, snapshot_id: UUID,

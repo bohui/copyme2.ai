@@ -55,7 +55,7 @@ test('saved or failed drafts do not open an otherwise unavailable workspace', ()
   }
 });
 
-test('thinking steps and early drafts require an enabled flag and a local browser', async () => {
+test('thinking steps require an enabled flag and a local browser', async () => {
   for (const hostname of ['localhost', '127.0.0.1', '[::1]', 'memoir.example', 'localhost.example', '192.168.1.10']) {
     for (const flag of [undefined, false, true, 'true']) {
       const state = {showThinkingSteps:true};
@@ -69,17 +69,30 @@ test('thinking steps and early drafts require an enabled flag and a local browse
   }
 });
 
+test('live draft previews require only their own flag and a local browser', async () => {
+  for (const hostname of ['localhost', '127.0.0.1', '[::1]', 'memoir.example']) {
+    for (const thinking of [false, true]) for (const drafts of [false, true]) {
+      const state = {};
+      const context = vm.createContext({state, window:{location:{hostname}}, memoirApiPath:String,
+        fetch:async()=>({json:async()=>({auth_mode:'test',show_thinking_steps:thinking,show_draft_updates:drafts})})});
+      vm.runInContext(extract('loadSupabaseConfig'), context);
+      await context.loadSupabaseConfig();
+      assert.equal(state.showDraftUpdates, drafts && hostname !== 'memoir.example');
+    }
+  }
+});
+
 test('draft controls beneath the message input appear only with local debugging enabled', () => {
-  for (const showThinkingSteps of [false, true]) {
+  for (const showThinkingSteps of [false, true]) for (const showDraftUpdates of [false,true]) {
     for (const overrides of [{placeJourney:null}, {workspaceCollapsed:true}]) {
-      const html = renderedWorkspace({...overrides, showThinkingSteps,
+      const html = renderedWorkspace({...overrides, showThinkingSteps, showDraftUpdates,
         privateDraft:{error:'MEMOIR_UNAVAILABLE'}}, {
         chatComposer:() => '<form id="chat-form"><textarea id="chat-input"></textarea></form>',
         privateDraftPreview:() => '<section class="private-draft-status">Draft language and retry</section>',
       });
       const conversation = html.match(/<main\b[^]*?<\/main>/)[0];
       assert.match(conversation, /id="chat-input"/);
-      if (showThinkingSteps) assert.match(conversation, /<\/form>\s*<section class="private-draft-status"/);
+      if (showDraftUpdates) assert.match(conversation, /<\/form>\s*<section class="private-draft-status"/);
       else assert.doesNotMatch(conversation, /private-draft-status|Draft language and retry/);
     }
   }

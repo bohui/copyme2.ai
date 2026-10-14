@@ -165,7 +165,11 @@ make container-down
 only images whose source, dependencies, build arguments, or local image IDs changed.
 It builds the shared backend image once and recreates its consumers when needed;
 unchanged containers, including Temporal, keep running. Changed Compose settings
-and environment values are reconciled on every run. The first run establishes a
+and environment values are reconciled on every run. Startup checks the live
+backend mounts and recreates containers bound to another checkout, even when the
+cached images are unchanged. Worktrees share the `memory-spark` Compose project;
+running startup from a worktree changes the backend used by the main checkout.
+The first run establishes a
 local cache in `var/container-startup.json` after all health checks pass.
 Use `make up CONTAINER_REBUILD=1` to rebuild all app images with cached build layers.
 Startup uses `SUPABASE_DB_URL` for the publication guard when
@@ -317,7 +321,7 @@ does not offer this cache-preservation guarantee; use it only for an intentional
 full schema reset. Use
 `ENV_FILE=path/to/.env` to load a different file.
 
-High-level Codex activity and early private-draft previews are hidden from storytellers by default. For local debugging only, set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` and open the app at `localhost`, `127.0.0.1` or `[::1]`. This enables the "Thinking steps" summary and private-draft checkpoints, including draft language and retry controls beneath the message input when the workspace is hidden or collapsed. Other browser hosts keep this debug UI hidden even when the flag is enabled. With debugging off, the saved draft appears only in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
+High-level Codex activity and early private-draft previews are hidden from storytellers by default. The two debug flags are independent and default to off. Set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` to stream operation summaries and show "Thinking steps". Set `MEMORY_SPARK_SHOW_DRAFT_UPDATES=1` to stream live private-draft checkpoints and show the draft-status panel, including "您的私人草稿正在后台更新" while work is pending. Draft previews, language and retry controls appear beneath the message input when the workspace is hidden or collapsed. Either debug UI requires a browser URL at `localhost`, `127.0.0.1` or `[::1]`; draft streaming does not require the thinking-step flag. With thinking steps off, chat still streams its reply and saved/workspace events, but emits no thinking-step progress or trace. The draft endpoint negotiates `application/x-ndjson`, sends `draft_update` events when the saved view changes and periodic `heartbeat` events, then sends `complete` when background work settles or a safe `error` if delivery fails. The server checks durable draft state every two seconds while work is pending; the UI maintains one connection and only reconnects after transport interruptions, with two bounded retries. Each canonical update retains its own publication guard. Other browser hosts keep this debug UI hidden and cannot open the draft stream even when the flags are enabled. With draft debugging off, a one-time read loads the saved draft in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
 ### Langfuse trajectory evaluation
 

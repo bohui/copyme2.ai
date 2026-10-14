@@ -172,7 +172,7 @@ def composer_instructions(phase, *, canonical_page=False):
             'Respect current privacy preferences, excluded and paused topics. Keep disputed or approximate '
             'dates and relationships uncertain; never derive life chronology from capture order. '
             'Use a meaningful factual title and a readable provisional sequence. Thin evidence requires short '
-            'honest writing; do not pad it, impose life-stage chapters or manufacture narrative transitions. '
+            'honest writing; do not pad it or impose life-stage chapters. Use neutral transitions when causation is unknown. '
             'Every factual summary, title and prose block must cite the supplied canonical evidence exactly. '
             'Keep original source versions, event IDs and dependencies. Preserve unchanged and human-protected '
             'prose; changes to approved, locked or human-edited text require an exact-base proposal. '
@@ -206,14 +206,16 @@ def composer_instructions(phase, *, canonical_page=False):
         if phase == 'review':
             files = ['references/editorial-review.prompt.md']
         rules = '\n\n'.join((SKILL / name).read_text() for name in files)
+    if phase in {'draft', 'review'}:
+        rules += '\n\n' + (SKILL / 'references/narrative-enrichment.md').read_text()
     tasks = {
         'index': 'Return only the grounded index.',
         'draft': 'Return only a complete draft matching draft.schema.json and the supplied plan. '
                  'Copy the plan counter and fingerprint exactly. Compose readable first-person prose in '
                  'the target locale, with source references. Use no images: no registered assets were supplied. '
                  'For every non-image block, asset_id and asset_version must be null; caption, alt and credit must be empty strings. '
-                 'Keep the prose close to the narrator\'s stated facts. Do not add sensory details, emotions, motives, '
-                 'causal connections or lyrical conclusions unless the cited original evidence explicitly supports them. '
+                 'Apply grounded imagination to the supplied facts and conversation context: develop supported scenes, '
+                 'imagery, pacing and continuity under the narrative-enrichment guidance. '
                  'Preserve the subject and meaning of each recollection when paraphrasing. '
                  'When context.photo_associations includes a current confirmed relationship, preserve the '
                  'narrator-confirmed significance and identification of the photo in the relevant event prose. '
@@ -518,7 +520,8 @@ def snapshot_key(sources, project_id, language):
         'sources': sources, 'project_id': project_id, 'language': language,
         'free_round_limit': free_recall_rounds(),
         'skill': [(name, (SKILL / name).read_text()) for name in [
-            'SKILL.md', 'references/editorial-and-length.md', 'references/workflows.md',
+            'SKILL.md', 'references/narrative-enrichment.md', 'references/editorial-and-length.md',
+            'references/workflows.md',
             'references/editorial-review.prompt.md', 'schemas/request.schema.json',
             'schemas/draft.schema.json', 'scripts/lib.mjs',
         ]],

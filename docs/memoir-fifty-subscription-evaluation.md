@@ -30,6 +30,11 @@ have not changed. The report lists how many passages qualify; a zero count is
 not evidence of preservation. Measurements describe backend receipt, not browser
 paint, inferred upstream call counts or a literary-quality score.
 
+Summary progress has its own committed source/window cursor. Writing revisions
+between cadence checkpoints cannot consume messages from the next five-round
+summary. Long original messages continue in bounded windows until their complete
+evidence is covered; publication and replay checks still fence every page.
+
 Resume keeps the rerun mode, baseline, original limits and accepted turn ledger.
 Default fresh-run and historical resume behavior remains unchanged.
 
@@ -238,9 +243,13 @@ requests. Each read-only phase has a separate fixed 120-second limit and consume
 the remaining original request allowance. Completed-case submission deadlines
 and origins stay unchanged: this phase cannot submit another turn, restore a
 project with POST, start services, grant a new allowance, confirm an account or
-create additional private UI login files. It can verify completed evidence after
-submission deadlines expire. Unfinished cases still require their original
-submission time and request allowance.
+create additional private UI login files. A selected case with all 50 accepted
+sources and nonempty saved replies can also finish an interrupted final checkpoint
+readback in this bounded read-only phase. The canonical ledger is revalidated
+first, and the original deadline failure is retained. Background repairs require
+their own explicit authorization; this phase cannot queue them. Cases with any
+missing input or reply still require their original submission time and request
+allowance.
 
 Current acceptance always retrieves and validates the live canonical draft head
 and pages at round 50, then checks source state and the head again for a stable

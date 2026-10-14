@@ -845,6 +845,16 @@ def completed_submission_ledger(case):
         and record['accepted_source_id'] for ordinal,record in enumerate(rounds,1))
 
 
+def delivered_submission_ledger(case):
+    """Fifty saved replies allow bounded reads even if final settlement expired."""
+    rounds=case.get('rounds') if isinstance(case,dict) else None
+    if not isinstance(rounds,list) or len(rounds)!=50:return False
+    return all(isinstance(record,dict) and record.get('round')==ordinal
+        and isinstance(record.get('accepted_source_id'),str) and record['accepted_source_id']
+        and isinstance(record.get('reply'),str) and record['reply'].strip()
+        for ordinal,record in enumerate(rounds,1))
+
+
 def begin_read_only_revalidation(requests,receipt,case_ids):
     requests.revalidation_deadline=time.monotonic()+READ_ONLY_REVALIDATION_SECONDS
     receipt.setdefault('read_only_revalidation',[]).append({'attempt_id':receipt['attempt_id'],
@@ -982,7 +992,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         save(directory/'plan.json',plan)
     save(directory/'receipt.json',receipt)
     recorded={case['case_id']:case for case in receipt['evaluation']['cases']}
-    read_only_cases={case for case in plan['case_ids'] if completed_submission_ledger(recorded.get(case))}
+    read_only_cases={case for case in plan['case_ids'] if delivered_submission_ledger(recorded.get(case))}
     stage,accounts,current_case = 'authentication',{},None
     async with httpx.AsyncClient(follow_redirects=False,trust_env=False) as client:
         requests = Requests(client,plan['max_backend_requests'],plan['max_elapsed_seconds'])

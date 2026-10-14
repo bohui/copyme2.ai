@@ -41,6 +41,8 @@ with (p / 'commands.jsonl').open('a') as f:
     f.write(json.dumps(args) + '\\n')
 images_file = p / 'images.json'
 images = json.loads(images_file.read_text()) if images_file.exists() else {{}}
+containers_file = p / 'containers.json'
+containers = json.loads(containers_file.read_text()) if containers_file.exists() else {{}}
 tags = {{'api': 'localhost/memory-spark:dev', 'codex-worker': 'localhost/memory-spark-codex-worker:dev', 'web': 'localhost/copyme2-web:dev'}}
 if args[:2] == ['image', 'inspect']:
     if args[2] not in images: sys.exit(1)
@@ -53,9 +55,21 @@ if args[:2] == ['compose', 'build']:
         version = int(images.get(tag, 'sha256:' + '0' * 64)[7:], 16) + 1
         images[tag] = 'sha256:' + format(version, '064x')
     images_file.write_text(json.dumps(images))
-if args[:2] == ['compose', 'up'] and (p / 'fail-up').exists(): sys.exit(9)
+if args[:2] == ['compose', 'up']:
+    if (p / 'fail-up').exists(): sys.exit(9)
+    for service in ['api', 'worker', 'photo-worker', 'codex-worker', 'web', 'temporal']:
+        if service in args:
+            mounts = [{{'destination': '/app/apps/api', 'source': str(p / 'apps/api')}}] if service not in ['web', 'temporal'] else []
+            containers.setdefault('memory-spark-' + service + '-1', mounts)
+    containers_file.write_text(json.dumps(containers))
 if args[:2] == ['compose', 'ps']:
-    print('\\n'.join('memory-spark-' + a + '-1' for a in args[2:] if a in ['api', 'worker', 'photo-worker', 'codex-worker', 'web', 'temporal']))
+    print('\\n'.join('memory-spark-' + a + '-1' for a in args[2:] if 'memory-spark-' + a + '-1' in containers))
+if args[:1] == ['inspect']:
+    if (p / 'fail-inspect').exists(): sys.exit(10)
+    print(json.dumps([{{'id': args[1], 'configuration': {{'mounts': containers[args[1]]}}}}]))
+if args[:1] == ['rm']:
+    for container in args[2:]: containers.pop(container, None)
+    containers_file.write_text(json.dumps(containers))
 ''')
     command.chmod(0o700)
     overrides = tmp_path / 'overrides.mk'
@@ -68,7 +82,7 @@ container-health:
     def up(*options, success=True):
         result = subprocess.run(['make', '-f', 'Makefile', '-f', 'overrides.mk', 'up',
             'MAKE=make -f Makefile -f overrides.mk',
-            f'MOCKER={command}', *options], cwd=tmp_path, capture_output=True, text=True)
+            f'MOCKER={command}', f'APPLE_CONTAINER_BIN={command}', *options], cwd=tmp_path, capture_output=True, text=True)
         assert (result.returncode == 0) == success, result.stdout + result.stderr
         return result
 
@@ -101,6 +115,41 @@ def test_repeat_up_skips_builds_and_keeps_unchanged_containers(stack):
     assert not builds(repeated)
     assert not recreates(repeated)
     assert any('--wait' in c for c in repeated)
+
+
+def test_up_restores_current_checkout_after_another_worktree_takes_over(stack):
+    root, up, calls = stack
+    up()
+    calls()
+    file = root / 'containers.json'
+    containers = json.loads(file.read_text())
+    foreign = ['memory-spark-' + service + '-1' for service in ('api', 'worker', 'photo-worker', 'codex-worker')]
+    for container in foreign:
+        containers[container][0]['source'] = str(root / 'other-worktree/apps/api')
+    file.write_text(json.dumps(containers))
+
+    up()
+
+    commands = calls()
+    assert not builds(commands)
+    assert recreates(commands) == [['rm', '-f', *foreign]]
+    restored = json.loads(file.read_text())
+    assert all(restored[container][0]['source'] == str(root / 'apps/api') for container in foreign)
+    up()
+    assert not recreates(calls())
+
+
+def test_failed_live_inspection_leaves_containers_and_cache_untouched(stack):
+    root, up, calls = stack
+    up()
+    calls()
+    containers = (root / 'containers.json').read_bytes()
+    cache = (root / 'var/container-startup.json').read_bytes()
+    (root / 'fail-inspect').touch()
+    up(success=False)
+    assert (root / 'containers.json').read_bytes() == containers
+    assert (root / 'var/container-startup.json').read_bytes() == cache
+    assert not recreates(calls())
 
 
 @pytest.mark.parametrize('path,services', [

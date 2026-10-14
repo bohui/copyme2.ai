@@ -59,7 +59,10 @@ class Lease:
 
 @pytest.mark.parametrize('execution', ['worker', 'local'])
 @pytest.mark.parametrize('streaming', [True, False])
-def test_model_tool_activity_and_question_pool_share_the_same_turn_trace(tmp_path, monkeypatch, execution, streaming):
+@pytest.mark.parametrize('thinking,drafts', [(True,True),(True,False),(False,True),(False,False)])
+def test_model_tool_activity_and_question_pool_share_the_same_turn_trace(tmp_path, monkeypatch, execution, streaming, thinking, drafts):
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '1' if thinking else '0')
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', '1' if drafts else '0')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'synthetic-byte-bpe')
     monkeypatch.delenv('MEMORY_SPARK_CODEX_WORKER_URL', raising=False)
     storage = Storage()
@@ -106,6 +109,13 @@ def test_model_tool_activity_and_question_pool_share_the_same_turn_trace(tmp_pat
     assert result['reply'].endswith('Where did you carry it?')
     if streaming:
         assert result['reply'] == ''.join(deltas)
+    if not thinking:
+        assert result['trace'] == []
+        assert not any(event['type'] == 'progress' for event in events)
+        if streaming:
+            assert any(event['type'] == 'conversation_saved' for event in events)
+        return
+    if streaming:
         assert [event['data']['status'] for event in events
                 if event['type'] == 'progress' and event['data']['id'] == 'tool-1'] == ['running', 'completed']
     activity = next((step for step in result['trace'] if step['id'] == 'tool-1'), None)

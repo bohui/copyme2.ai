@@ -227,8 +227,10 @@ class PlaceJourneyResponse(BaseModel):
 @router.get('/config')
 def config():
     from .recall import free_recall_rounds,private_draft_cadence
+    from .private_draft_stream import draft_updates_enabled
+    from .turn_progress import thinking_steps_enabled
     configured = bool(os.getenv('SUPABASE_URL') and os.getenv('SUPABASE_PUBLISHABLE_KEY'))
-    show_thinking_steps = os.getenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+    show_thinking_steps = thinking_steps_enabled()
     return {
         'enabled': configured,
         'auth_mode': 'supabase' if configured else ('test' if os.getenv('MEMORY_SPARK_TEST_MODE') == '1' else 'disabled'),
@@ -238,6 +240,7 @@ def config():
         # The server-side geocoding key is intentionally never returned here.
         'google_maps_browser_api_key': os.getenv('GOOGLE_MAPS_BROWSER_API_KEY'),
         'show_thinking_steps': show_thinking_steps,
+        'show_draft_updates': draft_updates_enabled(),
         'free_recall_rounds':free_recall_rounds(),
         'private_draft_cadence':private_draft_cadence(),
     }

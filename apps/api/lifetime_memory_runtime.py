@@ -77,7 +77,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         governed_request_overhead,run_governed_collector)
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
     from .recall import storage_recall_status
-    from .turn_progress import TurnProgress
+    from .turn_progress import TurnProgress, thinking_steps_enabled
     # Explicit request resource bound, before accepting any narrator bytes.
     if len(text.encode('utf-8'))>16000:
         raise InputLimitExceeded('This message exceeds the governed request budget; the original was not accepted or truncated')
@@ -140,7 +140,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     if on_event:await on_event({'type':'workspace_update','data':workspace})
                 interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
                 if (interview or {}).get('plan'):
-                    progress=TurnProgress(on_event,client_turn_id,project_id,language)
+                    progress=TurnProgress(on_event,client_turn_id,project_id,language,enabled=thinking_steps_enabled())
                     await progress.record_question_pool(interview['plan'])
                     response.update(trace=list(progress.steps),trace_mode='live')
         elif access and access['payment_required']:
@@ -172,7 +172,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
             # Source acceptance atomically persists the complete literal policy.
             publication.set_fence(fence)
-            progress=TurnProgress(on_event,client_turn_id,project_id,selected_language)
+            progress=TurnProgress(on_event,client_turn_id,project_id,selected_language,enabled=thinking_steps_enabled())
             if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                 'accepted_source_id':source['id'],**public_interview_fields(accepted)}})
             await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')

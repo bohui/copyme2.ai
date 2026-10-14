@@ -1489,7 +1489,9 @@ def create_app(
         return _project_public_response(project, status_code=201)
 
     @app.get("/v1/projects/{project_id}")
-    def get_project(project_id: str, x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
+    def get_project(project_id: str, x_account_id: str | None = Header(default=None), authorization: str | None = Header(default=None)) -> dict[str, Any]:
+        if project_id not in memory.projects and authorization:
+            create_project(ProjectCreate(mode='self',restore_project_id=project_id),x_account_id,authorization=authorization)
         return _project_public_response(_project(memory, project_id, _account_id(x_account_id), allow_deleted=True))
 
     @app.patch("/v1/projects/{project_id}")
@@ -1658,8 +1660,10 @@ def create_app(
         return _entitlement_response(_project(memory, project_id, _account_id(x_account_id), allow_deleted=True))
 
     @app.post("/v1/projects/{project_id}/memory-sessions", status_code=status.HTTP_201_CREATED)
-    def start_session(project_id: str, payload: SessionCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")) -> dict[str, Any]:
+    def start_session(project_id: str, payload: SessionCreate, x_account_id: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"), authorization: str | None = Header(default=None)) -> dict[str, Any]:
         actor = _account_id(x_account_id)
+        if project_id not in memory.projects and authorization:
+            create_project(ProjectCreate(mode='self', restore_project_id=project_id), x_account_id, authorization=authorization)
         with memory.lock:
             project = _project(memory, project_id, actor)
             request_hash = sha256_json(payload.model_dump())

@@ -51,6 +51,8 @@ const state = {
   codexStarting: false,
   codexReady: false,
   showThinkingSteps: false,
+  showDraftUpdates: false,
+  privateDraftExpanded: false,
   profileIntakePending: true,
   placeJourney: null,
   placeJourneyChange: null,
@@ -336,6 +338,9 @@ function invalidateProjectNavigation() {
   state.profileMenuScope = null;
   for (const stream of state.conversationStreams || []) stream.abort();
   state.conversationStreams?.clear();
+  state.privateDraftStream?.controller.abort();
+  state.privateDraftStream = null;
+  state.privateDraftExpanded = false;
   state.photoRequests?.clear();
   state.pendingConversationTurn = null;
   state.photoTurns?.clearDisplay();
@@ -760,6 +765,8 @@ async function loadSupabaseConfig() {
   const response = await fetch(memoirApiPath("/v1/agent/config"));
   const config = await response.json();
   state.showThinkingSteps = config.show_thinking_steps === true &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  state.showDraftUpdates = config.show_draft_updates === true &&
     ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
   if (config.auth_mode === "test") {
     state.supabase = config;
@@ -3282,7 +3289,7 @@ function renderStory() {
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
           <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
-          ${!workspaceVisible && state.showThinkingSteps ? privateDraftPreview() : ""}
+          ${!workspaceVisible && state.showDraftUpdates ? privateDraftPreview() : ""}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
       </div>
@@ -3460,12 +3467,12 @@ async function submitSectionRework(event) {
     if (currentSectionRework() === rework) rework.error = true;
   } finally {
     rework.busy = false;
-    if (currentSectionRework() === rework) { render(); await refreshPrivateDraft(); }
+    if (currentSectionRework() === rework) { render(); await refreshPrivateDraft({restart:true}); }
   }
 }
 
-let privateDraftTimer = null;
 function updateBackgroundComposerProgress(result) {
+  if (!state.showThinkingSteps) return;
   const progress = result.background_progress;
   const message = state.chat?.find(item => item.role === "assistant" && item.clientTurnId === state.backgroundDraftTurn);
   if (!message || !progress || !["pending", "running", "finished", "retry_required"].includes(progress.state)) return;
@@ -3484,39 +3491,132 @@ function updateBackgroundComposerProgress(result) {
   persistChatHistory();
 }
 
-async function refreshPrivateDraft() {
-  const scope = captureProjectScope();
-  if (privateDraftTimer) clearTimeout(privateDraftTimer);
-  const projectId=state.project?.id;
-  if (!projectId || !state.supabase?.accessToken) return;
+async function applyPrivateDraftUpdate(result, scope, requestId) {
+  if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
+  const previous = state.privateDraft;
+  const sameRoot = result.snapshot_id && previous?.snapshot_id === result.snapshot_id && previous.root_digest === result.root_digest;
+  state.privateDraft={...result, pages: sameRoot ? previous.pages || [] : []};
+  updateBackgroundComposerProgress(result);
+  const rework = currentSectionRework();
+  if (rework && result.snapshot_id && !result.legacy) {
+    try {
+      const query = new URLSearchParams({project_id:scope.projectId, snapshot_id:result.snapshot_id, partition_id:rework.partitionId});
+      const section = await storyApi(`/v1/story/private-draft/section?${query}`);
+      if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
+      state.privateDraft.selected_record = section;
+      if (section.proposed_preview) rework.ready = true;
+    } catch (_) { /* A stale selected section does not hide the remaining draft. */ }
+  }
+  if (!state.loading && (!sameRoot || previous?.updating !== result.updating || previous?.status !== result.status || previous?.error !== result.error)) {
+    // A stream update can arrive before the browser dispatches the details toggle event.
+    const details = globalThis.document?.querySelector?.(".saved-draft-sections");
+    if (details) state.privateDraftExpanded = details.open;
+    render();
+  }
+}
+
+async function consumePrivateDraftStream(response, onUpdate, signal) {
+  if (!response.body || !response.headers.get("Content-Type")?.includes("application/x-ndjson")) {
+    throw new Error("Invalid draft stream");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", {fatal:true});
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener("abort", cancel, {once:true});
+  let buffer = "", latest = null;
   try {
-    const requestId = state.privateDraftRequest = (state.privateDraftRequest || 0) + 1;
-    const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
-    const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(language)}`);
-    if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
-    const previous = state.privateDraft;
-    const sameRoot = result.snapshot_id && previous?.snapshot_id === result.snapshot_id && previous.root_digest === result.root_digest;
-    state.privateDraft={...result, pages: sameRoot ? previous.pages || [] : []};
-    updateBackgroundComposerProgress(result);
-    const rework = currentSectionRework();
-    if (rework && result.snapshot_id && !result.legacy) {
-      try {
-        const query = new URLSearchParams({project_id:projectId, snapshot_id:result.snapshot_id, partition_id:rework.partitionId});
-        const section = await storyApi(`/v1/story/private-draft/section?${query}`);
-        if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
-        state.privateDraft.selected_record = section;
-        if (section.proposed_preview) rework.ready = true;
-      } catch (_) { /* A stale selected section does not hide the remaining draft. */ }
+    while (!signal.aborted) {
+      const {value, done} = await reader.read();
+      buffer += decoder.decode(value, {stream:!done});
+      const lines = buffer.split("\n");
+      buffer = done ? "" : lines.pop();
+      if (buffer.length > 1024 * 1024) throw new Error("Draft stream frame too large");
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (line.length > 1024 * 1024) throw new Error("Draft stream frame too large");
+        const event = JSON.parse(line);
+        if (signal.aborted) return;
+        if (event.type === "draft_update" && event.data && typeof event.data === "object" && !Array.isArray(event.data)) {
+          latest = event.data;
+          await onUpdate(latest);
+        } else if (event.type === "complete" && latest && !latest.updating) return;
+        else if (event.type !== "heartbeat") throw new Error("Draft stream unavailable");
+      }
+      if (done) throw Object.assign(new Error("Draft stream interrupted"), {retryable:true});
     }
-    if (!state.loading && (!sameRoot || previous?.updating !== result.updating || previous?.status !== result.status)) render();
-    if (result.updating) privateDraftTimer=setTimeout(refreshPrivateDraft,2000);
-  } catch (_) { /* Quiet background work never hides a saved interview. */ }
+  } finally {
+    signal.removeEventListener("abort", cancel);
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
+async function refreshPrivateDraft({restart = false} = {}) {
+  const scope = captureProjectScope();
+  if (!scope.projectId || !state.supabase?.accessToken) return;
+  const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
+  const debug = state.showDraftUpdates;
+  const active = state.privateDraftStream;
+  if (debug && !restart && active && !active.controller.signal.aborted &&
+      isCurrentProjectScope(active.scope) && active.language === language) return active.ready;
+  active?.controller.abort();
+  state.privateDraftStream = null;
+  const requestId = state.privateDraftRequest = (state.privateDraftRequest || 0) + 1;
+  const path = `/v1/story/private-draft?project_id=${encodeURIComponent(scope.projectId)}&language=${encodeURIComponent(language)}`;
+  const update = result => applyPrivateDraftUpdate(result, scope, requestId);
+  const fail = () => update({...state.privateDraft, updating:false, error:"PRIVATE_DRAFT_UNAVAILABLE",
+    background_progress:{state:"retry_required"}});
+  if (!debug) {
+    if (!freeRecallFinished()) return;
+    try { await update(await storyApi(path)); } catch (_) { await fail(); }
+    return;
+  }
+  const controller = new AbortController();
+  let ready;
+  const subscription = {scope, language, controller, ready:new Promise(resolve => { ready = resolve; })};
+  state.privateDraftStream = subscription;
+  const current = () => !controller.signal.aborted && isCurrentProjectScope(scope) && state.privateDraftStream === subscription;
+  // The first snapshot is awaitable; background updates continue after the caller resumes.
+  void (async () => {
+    try {
+      for (let attempt = 0; current(); attempt++) {
+        try {
+          const response = await fetch(memoirApiPath(path), {
+            headers:{Accept:"application/x-ndjson", Authorization:`Bearer ${state.supabase.accessToken}`},
+            signal:controller.signal,
+          });
+          if (!current()) return;
+          if (!response.ok) throw new Error("Draft stream unavailable");
+          await consumePrivateDraftStream(response, async result => {
+            if (!current()) return;
+            await update(result);
+            ready();
+          }, controller.signal);
+          break;
+        } catch (error) {
+          if (!current()) return;
+          if (!(error.retryable || error.name === "TypeError") || attempt >= 2) throw error;
+          await new Promise(resolve => {
+            const finish = () => { clearTimeout(timer); controller.signal.removeEventListener("abort", finish); resolve(); };
+            const timer = setTimeout(finish, 1000 * 2 ** attempt);
+            controller.signal.addEventListener("abort", finish, {once:true});
+          });
+        }
+      }
+    } catch (_) {
+      if (current()) await fail();
+    } finally {
+      ready();
+      if (state.privateDraftStream === subscription) state.privateDraftStream = null;
+    }
+  })();
+  return subscription.ready;
 }
 
 async function retryPrivateDraft() {
   await storyApi('/v1/story/private-draft/retry',{method:'POST',body:JSON.stringify({
     project_id:state.project.id,language:state.privateDraftLocale || profile().preferred_language || currentUiLocale()})});
-  await refreshPrivateDraft();
+  await refreshPrivateDraft({restart:true});
 }
 
 async function selectPrivateDraftLocale(language) {
@@ -3524,7 +3624,7 @@ async function selectPrivateDraftLocale(language) {
   state.sectionRework = null;
   state.privateDraftLocale = language;
   state.privateDraft = null;
-  await refreshPrivateDraft();
+  await refreshPrivateDraft({restart:true});
 }
 
 async function decidePrivateDraftProposal(partitionId, accept) {
@@ -3532,6 +3632,8 @@ async function decidePrivateDraftProposal(partitionId, accept) {
   const saved = state.privateDraft;
   const record = [saved?.first_record,...(saved?.pages || []),saved?.selected_record].find(item => item?.id === partitionId);
   if (!record?.proposal_digest || saved.deciding || saved.loading_page) return;
+  state.privateDraftStream?.controller.abort();
+  state.privateDraftRequest = (state.privateDraftRequest || 0) + 1;
   saved.deciding = true;
   saved.decision_error = false;
   render();
@@ -3649,10 +3751,10 @@ async function loadMoreEventDetails(eventId) {
 }
 
 function privateDraftPreview({ inChapters = false } = {}) {
-  if (!state.showThinkingSteps && !(inChapters && freeRecallFinished())) return "";
+  if (!state.showDraftUpdates && !(inChapters && freeRecallFinished())) return "";
   const saved=state.privateDraft;
   if (!saved || !saved.preview && !saved.error && !saved.approval_required && !saved.original_withheld &&
-      (!saved.updating || !saved.progress?.composition?.target_milestone)) return "";
+      !saved.updating) return "";
   const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
   const preview=saved.preview;
   const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.coverage_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
@@ -3668,7 +3770,7 @@ function privateDraftPreview({ inChapters = false } = {}) {
   const locale = saved.locale || state.privateDraftLocale || profile().preferred_language || currentUiLocale();
   const edition = saved.snapshot_id || saved.error ? `<label>${t('draftEditionLanguage')} <select data-draft-locale ${saved.deciding || saved.loading_page ? "disabled" : ""}><option value="en-AU" ${locale === "en-AU" ? "selected" : ""}>English</option><option value="zh-CN" ${locale === "zh-CN" ? "selected" : ""}>简体中文</option></select></label>` : "";
   const decisionError = saved.decision_error ? `<p role="status">${t('draftProposalChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : "";
-  return `<section class="private-draft-status">${edition}<p>${status}</p>${sections ? `<details class="saved-draft-sections" ${currentSectionRework() ? "open" : ""}><summary>${t('readSavedDraft')}</summary>${sections}</details>` : ""}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="retry-private-draft">${t('retryPrivateDraft')}</button>` : ""}</section>`;
+  return `<section class="private-draft-status">${edition}<p>${status}</p>${sections ? `<details class="saved-draft-sections" ${state.privateDraftExpanded || currentSectionRework() ? "open" : ""}><summary>${t('readSavedDraft')}</summary>${sections}</details>` : ""}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="${saved.error === 'PRIVATE_DRAFT_UNAVAILABLE' ? 'refresh-private-draft' : 'retry-private-draft'}">${t('retryPrivateDraft')}</button>` : ""}</section>`;
 }
 
 function workspaceProgressSummary() {
@@ -4847,6 +4949,12 @@ function bindViewActions() {
   document.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
   document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
   document.querySelectorAll("[data-draft-locale]").forEach(select => select.addEventListener("change", () => selectPrivateDraftLocale(select.value)));
+  document.querySelectorAll(".saved-draft-sections").forEach(details => {
+    const scope = captureProjectScope();
+    details.addEventListener("toggle", () => {
+      if (details.isConnected && isCurrentProjectScope(scope)) state.privateDraftExpanded = details.open;
+    });
+  });
   document.querySelectorAll("[data-proposal-id]").forEach(button => button.addEventListener("click", () => decidePrivateDraftProposal(button.dataset.proposalId, button.dataset.proposalAccept === "true")));
   document.querySelectorAll("[data-more-event-details]").forEach(button => button.addEventListener("click",() => loadMoreEventDetails(button.dataset.moreEventDetails)));
   document.querySelectorAll("[data-more-event-evidence]").forEach(button => button.addEventListener("click",() => loadMoreEventEvidence(button.dataset.moreEventEvidence)));
@@ -4882,7 +4990,7 @@ function bindViewActions() {
     "add-person": addPerson,
     "retry-private-draft": retryPrivateDraft,
     "load-more-private-draft": loadMorePrivateDraft,
-    "refresh-private-draft": refreshPrivateDraft,
+    "refresh-private-draft": () => refreshPrivateDraft({restart:true}),
     "load-more-memory-events": loadMoreMemoryEvents,
     "refresh-memory-events": refreshFamilyContext,
     "cancel-event-edit": () => { state.memoryEventEdit = null; render(); },

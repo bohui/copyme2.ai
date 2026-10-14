@@ -101,27 +101,21 @@ class FakeConnection:
 
 
 @pytest.mark.parametrize('visible', [False, True])
-def test_streamed_rejection_retries_only_before_any_public_text(tmp_path, visible):
-    from apps.api.lifetime_memory_engine import CollectorOutputInvalid
+def test_raw_model_deltas_cannot_publish_a_rejected_attempt(tmp_path, visible):
     class Rejected(FakeConnection):
         async def turn(self, thread_id, prompt, **options):
             self.turns.append((thread_id,prompt,options))
             if len(FakeConnection.instances) == 1:
-                if visible:
+                if visible and options.get('on_delta'):
                     await options['on_delta']('Already visible acknowledgement.')
                 return 'invalid JSON'
             return valid_reply()
     seen = []
     async def delta(text):
         seen.append(text)
-    if visible:
-        with pytest.raises(CollectorOutputInvalid):
-            run(tmp_path,connection_factory=Rejected,on_delta=delta)
-        assert len(FakeConnection.instances) == 1 and len(seen) == 1
-    else:
-        run(tmp_path,connection_factory=Rejected,on_delta=delta)
-        assert len(FakeConnection.instances) == 2 and seen == []
-        assert FakeConnection.instances[0].home != FakeConnection.instances[1].home
+    run(tmp_path,connection_factory=Rejected,on_delta=delta)
+    assert len(FakeConnection.instances) == 2 and seen == [valid_reply()]
+    assert FakeConnection.instances[0].home != FakeConnection.instances[1].home
 
 
 @pytest.fixture(autouse=True)
@@ -304,6 +298,31 @@ def test_valid_second_response_uses_the_same_packet_in_a_new_home(tmp_path):
     assert len({instance.home for instance in FakeConnection.instances})==2
     assert all(len(instance.turns)==1 for instance in FakeConnection.instances)
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances})==1
+
+
+def test_invalid_streamed_continuity_retries_before_publishing_acknowledgement(tmp_path):
+    invalid = json.loads(valid_reply())
+    invalid['continuity_updates'] = [{
+        'kind': 'person', 'text': 'Ming', 'quote': 'Ming',
+        'assertion': 'asserted', 'uncertainty': None,
+        'source_id': str(UUID(int=4)), 'source_version': 1,
+        'char_start': 0, 'char_end': 4,
+    }]
+    class RecoveringStream(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            await super().turn(thread_id, prompt, **options)
+            candidate = json.dumps(invalid) if len(self.instances) == 1 else valid_reply()
+            if options.get('on_delta'):
+                await options['on_delta'](candidate)
+            return candidate
+    seen = []
+    async def delta(value):
+        seen.append(value)
+    result = run(tmp_path, connection_factory=RecoveringStream, on_delta=delta)
+    assert result['reply'] == valid_reply()
+    assert len(FakeConnection.instances) == 2
+    assert seen == [valid_reply()]
+    assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances}) == 1
 
 
 def test_invalid_hidden_stream_exhausts_only_three_fresh_attempts(tmp_path):
