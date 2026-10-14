@@ -294,21 +294,33 @@ async def composer_call(runtime, storage, project_id, language, phase, packet):
     if not runtime.worker_url or not runtime.worker_secret:
         raise RuntimeError('Memoir composer is unavailable')
     if getattr(runtime, 'lifetime_bounded', False):
-        from .lifetime_memory_composer import check_model_packet
-        check_model_packet(packet, composer_instructions(phase, canonical_page=True), composer_output_schema(phase))
-        from .lifetime_memory_composer import lane_model_budget
-        from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
-        bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
-        result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
-            bounded_lane=bounded, worker_transport=runtime.worker_transport,
-            publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
-        from .lifetime_memory_lane_engine import lane_artifact_digest
-        artifact = json_reply(result['reply'])
-        await runtime.lane_broker.rpc('record_lifetime_lane_output',
-            p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
-            p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
-            p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
-        return normalize_composer_refs(artifact)
+        started = time.monotonic()
+        outcome, worker_elapsed_ms = 'failed', -1
+        try:
+            from .lifetime_memory_composer import check_model_packet
+            check_model_packet(packet, composer_instructions(phase, canonical_page=True), composer_output_schema(phase))
+            from .lifetime_memory_composer import lane_model_budget
+            from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
+            bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
+            worker_started = time.monotonic()
+            try:
+                result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
+                    bounded_lane=bounded, worker_transport=runtime.worker_transport,
+                    publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
+            finally:
+                worker_elapsed_ms = int((time.monotonic() - worker_started) * 1000)
+            from .lifetime_memory_lane_engine import lane_artifact_digest
+            artifact = json_reply(result['reply'])
+            await runtime.lane_broker.rpc('record_lifetime_lane_output',
+                p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
+                p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
+                p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
+            outcome = 'completed'
+            return normalize_composer_refs(artifact)
+        finally:
+            logger.info('memoir_preview canonical_page phase=%s page=%d elapsed_ms=%d worker_elapsed_ms=%d outcome=%s',
+                phase, runtime.lifetime_page['page_number'], (time.monotonic() - started) * 1000,
+                worker_elapsed_ms, outcome)
     started = time.monotonic()
     record_worker_request = getattr(runtime, 'record_worker_request', None)
     if callable(record_worker_request):
@@ -414,6 +426,10 @@ def incremental_model_request(request):
     application.
     """
     context = request.get('context') or {}
+    if context.get('lifetime_page', {}).get('coverage_scope') == 'canonical_message_batch':
+        # The database already supplied a bounded delta and only its affected
+        # prior writing. Further pruning would hide evidence needed for edits.
+        return request
     if (request.get('trigger', {}).get('type') != 'new_context'
             or context.get('incremental_model_context') != 'compact'):
         return request
@@ -725,21 +741,11 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
             draft['counter'] = plan['counter']
             normalize_canonical_actions(draft)
             normalize_canonical_event_dispositions(draft)
-        validation = await skill_operation('validate', request, draft)
-        if validation.get('ok') and request.get('context', {}).get('canonical_event_index'):
-            from .canonical_composer import canonical_evidence_errors
-            evidence_errors = canonical_evidence_errors(request, draft)
-            if evidence_errors:
-                validation['ok'] = False
-                validation.setdefault('errors', []).extend(evidence_errors)
-            invalidated = set(request['context'].get('projection_invalidated_chapter_ids', []))
-            carried = invalidated.intersection(draft.get('carry_forward_chapter_ids', []))
-            if carried:
-                validation['ok'] = False
-                validation.setdefault('errors', []).extend(
-                    {'code': 'STALE_CANONICAL_PROJECTION', 'at': chapter_id,
-                     'message': 'Replace this chapter using current canonical evidence; its prior projection cannot be carried forward.'}
-                    for chapter_id in sorted(carried))
+        if request.get('context', {}).get('canonical_event_index'):
+            from .canonical_composer import validate_canonical_candidate
+            validation = await validate_canonical_candidate(request, draft)
+        else:
+            validation = await skill_operation('validate', request, draft)
         if not validation.get('ok'):
             logger.info('memoir_preview validation_failed codes=%s',
                         sorted({error.get('code', 'UNKNOWN') for error in validation.get('errors', [])}))

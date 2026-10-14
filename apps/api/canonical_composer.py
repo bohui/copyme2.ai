@@ -50,7 +50,7 @@ def canonical_evidence_errors(request, draft):
         start, end = ref.get('char_start', offset), ref.get('char_end', offset + len(text))
         if start < offset or end > offset + len(text):
             return False
-        if request.get('context', {}).get('lifetime_page') and (
+        if request.get('context', {}).get('lifetime_page', {}).get('coverage_scope') != 'canonical_message_batch' and request.get('context', {}).get('lifetime_page') and (
                 ref.get('char_start') != offset or ref.get('char_end') != offset + len(text)):
             return False
         ranges = sorted((evidence['char_start'], evidence['char_end'])
@@ -69,11 +69,15 @@ def canonical_evidence_errors(request, draft):
         if isinstance(value, dict):
             scoped = value.get('event_ids', event_ids)
             for field in ('source_refs', 'title_source_refs'):
-                if any(not supported(ref, scoped) for ref in value.get(field, [])):
+                unsupported = [ref for ref in value.get(field, []) if not supported(ref, scoped)]
+                if unsupported:
                     errors.append({'code': 'NONCANONICAL_EVIDENCE_SPAN', 'at': path + '.' + field,
-                        'message': ('Copy the current bounded page evidence references exactly, including char_start and char_end.'
+                        'message': ('Cite only request.events source_refs; summary-only acknowledgements are not memoir evidence.'
+                            if request.get('context', {}).get('lifetime_page', {}).get('coverage_scope') == 'canonical_message_batch' else
+                            'Copy the current bounded page evidence references exactly, including char_start and char_end.'
                             if request.get('context', {}).get('lifetime_page') else
-                            'Cite spans covered by the current canonical event evidence, not another occurrence or the whole source.')})
+                            'Cite spans covered by the current canonical event evidence, not another occurrence or the whole source.'),
+                        'source_ids': sorted({ref['source_id'] for ref in unsupported})})
             for key, child in value.items():
                 if key not in {'source_refs', 'title_source_refs'}:
                     inspect(child, scoped, path + '.' + key)
@@ -87,6 +91,22 @@ def canonical_evidence_errors(request, draft):
         if prior['chapter']['id'] in carried:
             inspect(prior['chapter'], list(events), 'carried.' + prior['chapter']['id'])
     return errors
+
+
+async def validate_canonical_candidate(request, draft):
+    """One host validation proof for draft repairs and worker admission."""
+    from .memoir_preview import skill_operation
+    validation = await skill_operation('validate', request, draft)
+    if validation.get('ok'):
+        errors = canonical_evidence_errors(request, draft)
+        invalidated = set(request['context'].get('projection_invalidated_chapter_ids', []))
+        errors.extend({'code': 'STALE_CANONICAL_PROJECTION', 'at': chapter_id,
+            'message': 'Replace this chapter using current canonical evidence; its prior projection cannot be carried forward.'}
+            for chapter_id in sorted(invalidated.intersection(draft.get('carry_forward_chapter_ids', []))))
+        if errors:
+            validation['ok'] = False
+            validation.setdefault('errors', []).extend(errors)
+    return validation
 
 
 def restore_unchanged_sections(request, draft):
@@ -196,7 +216,7 @@ def composer_request(job):
                     continue
                 start += job.get('source_windows', {}).get(source['id'], {}).get('char_start', 0)
                 end = start + len(quote)
-            if job.get('governed_page'):
+            if job.get('governed_page') and not job.get('batch'):
                 window=job['source_windows'][source['id']]
                 if start!=window['char_start'] or end!=window['char_end']:
                     continue
@@ -292,19 +312,23 @@ def composer_request(job):
         'context': {'canonical_event_index': True, 'dirty_event_ids': dirty, 'style': 'plain, warm, faithful',
                     **({'editorial_request': job['editorial_request']} if job.get('editorial_request') else {}),
                     **({'lifetime_page': {'schema_version': 1, 'snapshot_id': job['snapshot_id'],
-                        'page_number': job['page_number'], 'coverage_scope': 'canonical_evidence_partition',
+                        'page_number': job['page_number'], 'coverage_scope': 'canonical_message_batch' if job.get('batch') else 'canonical_evidence_partition',
                         'snapshot_complete': False}, 'source_windows': job['source_windows'],
                         'preferences': job['preferences']} if job.get('governed_page') else {}),
+                    **({'new_source_ids': [s['id'] for s in job['batch']['new_messages']],
+                        'checkpoint_delta': {'starting_after': job['batch']['starting_after'],
+                            'through_source': job['batch']['through_source']},
+                        'continuity_summary': job['batch']['previous_summary']} if job.get('batch') else {}),
                     'photo_associations': photo_associations,
                     'photo_association_manifest': photo_manifest, 'photo_dirty_event_ids': photo_dirty,
                     'incremental_model_context': 'compact', 'affected_source_ids': affected_sources,
                     'overlap_source_ids': [s['id'] for s in sources[-2:]]}}
 
 
-async def compose_shared_snapshot(job, worker):
+def composition_request(job):
     request = composer_request(job)
     config = fingerprint({'locale': job['locale'],
-        'skill': 'canonical-page-composer-1' if job.get('governed_page') else 'shared-composer-4',
+        'skill': 'canonical-batch-composer-1' if job.get('batch') else 'canonical-page-composer-1' if job.get('governed_page') else 'shared-composer-4',
         'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
         'policy': request['policy']})
     if job.get('previous') and job['previous'].get('content_config') != config:
@@ -324,10 +348,6 @@ async def compose_shared_snapshot(job, worker):
                       if photo_dirty.intersection(prior['chapter']['event_ids'])]
     request['context']['projection_invalidated_chapter_ids'] = list(dict.fromkeys([
         *request['context'].get('projection_invalidated_chapter_ids', []), *photo_chapters]))
-    if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config:
-        bundle = copy.deepcopy(job['previous'])
-        bundle['unchanged'] = True
-        return bundle
     old_events = {e['id']: e['revision'] for e in (job.get('previous') or {}).get('event_manifest', [])}
     current_events = {e['id']: e['revision'] for e in job['event_manifest']}
     current_sources = {(s['id'], str(s['version'])) for s in job['sources']}
@@ -336,6 +356,15 @@ async def compose_shared_snapshot(job, worker):
         and not photo_dirty.intersection(section['event_ids'])
         and all(current_events.get(id) == old_events.get(id) for id in section['event_ids'])
         and all((ref['source_id'], str(ref['version'])) in current_sources for ref in section['source_refs'])]
+    return request, config
+
+
+async def compose_shared_snapshot(job, worker):
+    request, config = composition_request(job)
+    if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config and not job.get('batch'):
+        bundle = copy.deepcopy(job['previous'])
+        bundle['unchanged'] = True
+        return bundle
     runtime = SimpleNamespace(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
                               worker_transport=worker.worker_transport)
     storage = SimpleNamespace(user_id=job['user_id'])
@@ -347,6 +376,7 @@ async def compose_shared_snapshot(job, worker):
     checkpoint_key = fingerprint({'snapshot': request['snapshot'], 'config': config})
     checkpoint = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=checkpoint_key) or {}
     async def progress(phase):
+        checkpoint['phase'] = phase
         await worker.broker.rpc('save_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'],
                                p_key=checkpoint_key, p_kind='compose', p_value=checkpoint,
                                **({'p_page_digest': job['page_digest']} if job.get('governed_page') else {}))
@@ -373,7 +403,23 @@ async def compose_shared_snapshot(job, worker):
                                    p_key=key, p_kind='prepare', p_value=result,
                                    **({'p_page_digest': job['page_digest']} if job.get('governed_page') else {}))
             return result
-    prepared = await asyncio.gather(*(prepare(e) for e in job['events'] if e['id'] in request['context']['dirty_event_ids'] and e['status'] == 'active'), return_exceptions=True)
+    if job.get('batch'):
+        from .progressive_composer import summary_packet, validate_summary
+        prepared = []
+        if job['batch']['new_messages']:
+            await progress('summarizing')
+            key = fingerprint({'summary': job['batch']['new_messages'], 'config': config,
+                'policy': job['policy_epoch'], 'preferences': job['preference_revision']})
+            result = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=key)
+            if not result:
+                result = await composer_call(runtime, storage, job['project_id'], job['locale'], 'prepare', summary_packet(job, key))
+                validate_summary(result, job)
+                await worker.broker.rpc('save_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'],
+                    p_key=key, p_kind='prepare', p_value=result, p_page_digest=job['page_digest'])
+            validate_summary(result, job)
+            prepared = [result]
+    else:
+        prepared = await asyncio.gather(*(prepare(e) for e in job['events'] if e['id'] in request['context']['dirty_event_ids'] and e['status'] == 'active'), return_exceptions=True)
     failures = [result for result in prepared if isinstance(result, BaseException)]
     if failures:
         if job.get('governed_page'):
@@ -393,6 +439,8 @@ async def compose_shared_snapshot(job, worker):
     bundle = await compose_candidate(request, runtime, storage, job['project_id'], job['locale'],
                                      checkpoint=checkpoint, progress=progress)
     if bundle['status'] == 'insufficient_context':
+        if job.get('batch'):
+            bundle['summary'] = prepared[0] if prepared else None
         return bundle
     if bundle['status'] != 'ready':
         raise RuntimeError('No supported composition context')

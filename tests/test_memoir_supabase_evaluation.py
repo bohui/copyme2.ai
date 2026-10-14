@@ -285,6 +285,32 @@ def test_retryable_checkpoint_error_is_polled_until_the_worker_saves(setup, tmp_
     assert result['evaluation']['cases'][0]['checkpoints']
 
 
+def test_checkpoint_timeout_records_the_actual_wait_boundary_without_changing_the_deadline(setup, tmp_path, monkeypatch):
+    plan, remote = setup()
+    async def pending(*args):
+        return None
+    monkeypatch.setattr(module, 'saved_canonical_checkpoint', pending)
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'incomplete' and len(remote.submitted) == 5
+    assert result['stop_reason'] == 'Background extraction or saved checkpoint did not settle before its deadline'
+    progress = result['evaluation']['cases'][0]['rounds'][-1]['settlement_progress']
+    assert progress['waiting_for'] == 'canonical_checkpoint'
+    assert progress['completed_rounds'] == progress['extracted_through'] == 5
+    assert progress['pending_inputs'] == 0 and progress['polls'] > 0
+    assert progress['elapsed_seconds'] >= plan['settle_seconds']
+    assert result['evaluation']['cases'][0]['checkpoints'] == []
+
+
+def test_extraction_timeout_records_its_boundary(setup, tmp_path):
+    plan, remote = setup()
+    remote.pending_reads = 10000
+    result = asyncio.run(module.execute(plan, tmp_path / 'run', SETTINGS))
+    assert result['status'] == 'incomplete' and len(remote.submitted) == 1
+    progress = result['evaluation']['cases'][0]['rounds'][0]['settlement_progress']
+    assert progress['waiting_for'] == 'extraction' and progress['polls'] > 0
+    assert result['evaluation']['cases'][0]['rounds'][0]['background_settled'] is False
+
+
 def test_terminal_extraction_error_stops_without_waiting_for_settle_deadline(setup, tmp_path):
     plan, remote = setup()
     remote.extraction_retry_required = True

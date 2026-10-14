@@ -155,6 +155,10 @@ async def _extract(page,worker):
 
 
 async def _compose(page,worker):
+    if page.get('batch') is not None:
+        from .progressive_composer import batch_job
+        from .canonical_composer import compose_shared_snapshot
+        return await compose_shared_snapshot(batch_job(page), worker)
     if page.get('reuse'):
         return {'reuse':True}
     if not page.get('partition') or page['partition'].get('status')!='active' or not page.get('source'):

@@ -206,7 +206,13 @@
       "toolCall": "Call {tool} with the current story context.",
       "toolResult": "Completed with source-linked data; no personal facts were inferred.",
       "final": "Return one concise, speakable question grounded in the conversation.",
-      "opening": "Show the fixed opening message before profile intake begins."
+      "opening": "Show the fixed opening message before profile intake begins.",
+      "backgroundQueued": "Memoir update queued in the background",
+      "backgroundSummary": "Summarising the new messages",
+      "backgroundDraft": "Updating the existing memoir",
+      "backgroundReview": "Checking writing against original evidence",
+      "backgroundSave": "Saving the memoir checkpoint",
+      "backgroundSaved": "Memoir checkpoint saved"
     },
     "story": {
       "mainLabel": "Mira conversation",
@@ -445,7 +451,13 @@
       "eventUnresolved": "This event is not yet resolved.",
       "eventConflictingDates": "Sources give conflicting dates.",
       "loadMoreEventContext": "Load more event context",
-      "eventDetailKinds": {"temporal_accounts": "Reported date", "relations": "Event relation", "candidate_ids": "Possible event match", "supersedes": "Replaces claim", "contradicts": "Conflicts with claim"},
+      "eventDetailKinds": {
+        "temporal_accounts": "Reported date",
+        "relations": "Event relation",
+        "candidate_ids": "Possible event match",
+        "supersedes": "Replaces claim",
+        "contradicts": "Conflicts with claim"
+      },
       "draftEditionLanguage": "Draft language",
       "acceptDraftProposal": "Accept this change",
       "rejectDraftProposal": "Keep the earlier version",

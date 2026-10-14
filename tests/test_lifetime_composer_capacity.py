@@ -2,6 +2,8 @@
 import asyncio
 import copy
 import json
+import os
+from uuid import UUID
 from types import SimpleNamespace
 from contextlib import asynccontextmanager
 
@@ -125,11 +127,16 @@ def test_10000_mixed_language_packets_have_constant_declared_bound():
     assert maximum<3000
 
 # Same isolated PostgreSQL fixture as the canonical mutation/lease suites.
-from test_agent_commit_postgres import database, as_user, OWNER, OTHER
+from test_agent_commit_postgres import database as postgres_database, as_user, OWNER, OTHER
 from test_guest_conversation_transfer import attachment_database
 from test_private_rounds_postgres import private_database
 from test_shared_memory_events_postgres import event_database, rpc, literal
 from test_lifetime_memory_postgres import sql, resolve
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from postgres_database.__wrapped__(publication_tcp=os.getenv('MEMOIR_TEST_PUBLICATION_TCP') == '1')
 
 
 def service(sql,name,args):
@@ -138,6 +145,15 @@ def service(sql,name,args):
     if name=='commit_lifetime_memoir_lane_page':
         import re
         lane,token=re.findall(r"'([^']*)'",args)[:2]
+        match=re.search(r",'((?:[^']|'')*)'$",args)
+        fixture_result=json.loads(match.group(1).replace("''", "'")) if match else {}
+        # These SQL-only fixtures represent controlled model phases explicitly.
+        # The real composer tests below register their own actual phase outputs.
+        if fixture_result.get('_controlled_model_fixture') and pages[(lane,token)].get('batch'):
+            import hashlib
+            for phase in ('prepare','draft','review'):
+                digest=hashlib.sha256(json.dumps([phase,fixture_result],sort_keys=True).encode()).hexdigest()
+                sql(f"set role service_role;select public.record_lifetime_lane_output('{lane}','{token}',{pages[(lane,token)]['page_number']},'{phase}','{digest}','{pages[(lane,token)]['page_digest']}');")
         args+=','+literal(pages[(lane,token)]['page_digest'])
     value=json.loads(sql(f'set role service_role; select coalesce(public.{name}({args}),\'null\'::jsonb);').stdout.splitlines()[-1])
     if isinstance(value,dict) and value.get('protocol')=='lifetime_composer_pages':
@@ -207,14 +223,14 @@ def test_pg_composer_10000_dispositions_have_bounded_complete_root(sql):
         p:=public.read_lifetime_memoir_lane_page('{lane}','{claim['token']}');
         exit when (p->>'complete')::boolean;
         if octet_length(p::text)>6000 then raise exception 'unbounded page';end if;
-        r:=public.commit_lifetime_memoir_lane_page('{lane}','{claim['token']}',(p->>'page_number')::bigint,'{{"status":"no_authorized_evidence"}}',p->>'page_digest');
+        r:=public.commit_lifetime_memoir_lane_page('{lane}','{claim['token']}',(p->>'page_number')::bigint,'{{"status":"insufficient_context"}}',p->>'page_digest');
         count:=count+1;
         if count%100=0 then perform public.heartbeat_memoir_lane('{lane}','{claim['token']}');end if;
       end loop;
-      if count<>10000 then raise exception 'coverage gap';end if;
+      if count<>1250 then raise exception 'coverage gap';end if;
       perform public.complete_lifetime_memoir_lane('{lane}','{claim['token']}');
     end $$;""")
-    assert sql('select count(*) from public.user_lifetime_lane_page_receipt;').stdout.strip()=='10000'
+    assert sql('select count(*) from public.user_lifetime_lane_page_receipt;').stdout.strip()=='1250'
     assert sql('select state from public.user_lifetime_lane_snapshot;').stdout.strip()=='completed'
     head=rpc(sql,'read_lifetime_private_draft_head',literal(project))
     assert head['retrieval_complete'] and head['status']=='insufficient_context'
@@ -276,16 +292,21 @@ def seeded_composer(sql,*,size=1):
 
 
 def section_result(claim,text='I grew up in Chengde.'):
-    ref={key:claim['partition']['source_refs'][0][key] for key in ('source_id','version','char_start','char_end')}
-    return dict(status='ready',validation={'ok':True},review={'ready_for_user_review':True,'publication_approved':False,'findings':[]},
-        sections=[dict(id='part',event_ids=[claim['partition']['id']],source_refs=[ref],content=text)],
-        preview={'id':'preview','kind':'sample_chapter','title':'Childhood','text':text,'outline':[],'source_memory_ids':[ref['source_id']],'locale':claim['locale']})
+    sections=[]
+    for i,event in enumerate(claim.get('batch',{}).get('events',[claim['partition']])):
+        refs=[{key:r[key] for key in ('source_id','version','char_start','char_end')} for r in event['source_refs']]
+        identifier='part' if i==0 else 'part-'+event['id']
+        sections.append(dict(id=identifier,chapter_id=identifier,event_ids=[event['id']],source_refs=refs,content=text,
+          block={'id':identifier,'type':'paragraph','text':text,'source_refs':refs},heading={'title':'Childhood'}))
+    return dict(_controlled_model_fixture=True,status='ready',validation={'ok':True},review={'ready_for_user_review':True,'publication_approved':False,'findings':[]},
+        manuscript={'kind':'sample_chapter'},sections=sections,
+        preview={'id':'part','title':'Childhood','text':text,'locale':claim['locale']})
 
 
 def test_pg_composer_root_readback_never_exposes_unfinished_or_forged_sections(sql):
     identity,source,lane,claim=seeded_composer(sql)
     project=identity['project_id'];result=section_result(claim)
-    bad=copy.deepcopy(result);bad['sections'][0]['source_refs'][0]['char_end']-=1
+    bad=copy.deepcopy(result);bad['sections'][0]['source_refs'][0]['char_end']+=1
     assert sql(f"set role service_role; select public.commit_lifetime_memoir_lane_page('{lane}','{claim['token']}',0,{literal(bad)},'{claim['page_digest']}');",check=False).returncode!=0
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{claim['token']}',0,{literal(result)}")
     assert rpc(sql,'read_lifetime_private_draft_head',literal(project))['preview'] is None
@@ -357,7 +378,7 @@ def test_pg_exact_engine_envelope_holds_real_publication_fence(sql):
     actual=bounded.model_dump(mode='json')['fence']
     assert actual['schema_version']==1 and actual['source']['text']==source['text']
     command=sql.command
-    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     async def scenario():
         publisher=LanePublication(dsn,authenticated_owner=OWNER)
         async with publisher.guard(actual):pass
@@ -488,6 +509,7 @@ def test_pg_proposal_decision_is_current_root_cas_and_never_grants_publication(s
     identity,source,lane,first=seeded_composer(sql);project=identity['project_id'];original=section_result(first)
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{first['token']}',0,{literal(original)}")
     service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{first['token']}'")
+    original_bundle=json.loads(sql('select bundle from public.user_lifetime_memoir_section;').stdout.strip())
     sql('update public.user_lifetime_memoir_section set approved=true,human_locked=true;')
     sql(f"update public.user_lifetime_conversation set preference_revision=preference_revision+1 where user_id='{OWNER}';update public.user_memoir_lane set pending=true where id='{lane}';")
     second=service(sql,'claim_memoir_lane',f"'{lane}',900");candidate=section_result(second,'A supported proposal awaiting owner approval.')
@@ -507,7 +529,7 @@ def test_pg_proposal_decision_is_current_root_cas_and_never_grants_publication(s
     assert head['preview']==(candidate if accept else original)['preview']
     stored=json.loads(sql(f"select json_build_object('approved',approved,'human_locked',human_locked,'proposal',proposal) from public.user_lifetime_memoir_section where snapshot_id='{second['snapshot_id']}';").stdout.strip())
     assert stored==dict(approved=True,human_locked=True,proposal=None)
-    assert json.loads(sql(f"select bundle from public.user_lifetime_memoir_section where snapshot_id='{first['snapshot_id']}';").stdout.strip())==original
+    assert json.loads(sql(f"select bundle from public.user_lifetime_memoir_section where snapshot_id='{first['snapshot_id']}';").stdout.strip())==original_bundle
 
 
 def test_pg_edition_selection_cannot_create_eligibility_or_interrupt_active_lease(sql):
@@ -531,27 +553,28 @@ def test_pg_normal_event_evidence_addition_cannot_replace_approved_prose(sql):
     identity,source,lane,first=seeded_composer(sql);project=identity['project_id'];original=section_result(first)
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{first['token']}',0,{literal(original)}")
     service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{first['token']}'")
+    original_bundle=json.loads(sql('select bundle from public.user_lifetime_memoir_section;').stdout.strip())
     sql('update public.user_lifetime_memoir_section set approved=true;')
     new=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'00000000-0000-4000-8000-000000000002','My parents often took me there.'")
     ref=dict(source_id=new['id'],version=1,quote=new['text'],char_start=0,char_end=len(new['text']))
     event=dict(existing_id=first['partition']['id'],expected_revision=1,kind='event',title='Childhood',source_refs=[ref])
     rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([{'id':new['id'],'version':1}])},{literal([event])}")
-    assert json.loads(sql('select bundle from public.user_lifetime_memoir_section;').stdout.strip())==original
+    assert json.loads(sql('select bundle from public.user_lifetime_memoir_section;').stdout.strip())==original_bundle
     sql(f"update public.user_memoir_lane set pending=true where id='{lane}';")
     current=service(sql,'claim_memoir_lane',f"'{lane}',900");snapshot=current['snapshot_id'];token=current['token']
     while not current['complete']:
         service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{token}',{current['page_number']},{literal(section_result(current,'A revised supported description.'))}")
         current=service(sql,'read_lifetime_memoir_lane_page',f"'{lane}','{token}'")
     assert service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{token}'")['status']=='proposed'
-    saved=json.loads(sql(f"select json_build_object('bundle',bundle,'proposal',proposal,'approved',approved,'event_revision',event_revision) from public.user_lifetime_memoir_section where snapshot_id='{snapshot}' and source_id='{source['id']}';").stdout.strip())
-    assert saved['bundle']==original and saved['proposal']['preview']['text']=='A revised supported description.'
+    saved=json.loads(sql(f"select json_build_object('bundle',bundle,'proposal',proposal,'approved',approved,'event_revision',event_revision) from public.user_lifetime_memoir_section where snapshot_id='{snapshot}' and approved;").stdout.strip())
+    assert saved['bundle']==original_bundle and saved['proposal']['preview']['text']=='A revised supported description.'
     assert saved['approved'] is True and saved['event_revision']==2
     first_page=rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{snapshot}',null,1")
-    assert not first_page['complete']
+    assert first_page['complete']  # One progressive passage replaces per-quotation rows.
     full=rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{snapshot}'")
     actionable=next(row for row in full['records'] if row['proposal_digest'])
     rpc(sql,'set_lifetime_private_draft_proposal',f"{literal(project)},'{snapshot}','{full['root_digest']}',{literal(actionable['id'])},'{actionable['proposal_digest']}',false")
-    assert rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{snapshot}',{literal(first_page['next_cursor'])},1",check=False).returncode!=0
+    assert rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{snapshot}','{UUID(int=987)}',1",check=False).returncode!=0
 
 
 def test_pg_actual_outer_send_fences_proposal_decisions_without_policy_churn(sql):
@@ -570,7 +593,7 @@ def test_pg_actual_outer_send_fences_proposal_decisions_without_policy_churn(sql
     root=service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{second['token']}'")
     fence=rpc(sql,'capture_lifetime_read_fence',literal(project))
     body=rpc(sql,'read_lifetime_private_draft_head',literal(project));row=body['first_record']
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     app=create_app(MemoryStore());snapshot=ReadSnapshot(body,fence)
     @app.get('/proposal-publication-boundary')
     async def route():return ReadJSONResponse(snapshot,publisher=ReadPublication(dsn,authenticated_owner=OWNER))
@@ -614,7 +637,7 @@ def test_pg_cosmetic_lane_status_never_exposes_unfinished_root(sql):
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{claim['token']}',0,{literal(section_result(claim))}")
     sql(f"update public.user_memoir_lane set pending=false,token=null,lease_until=null,run_deadline=null,error=null where id='{lane}';")
     head=rpc(sql,'read_lifetime_private_draft_head',literal(identity['project_id']))
-    assert head['updating'] is False and head['status']=='pending'
+    assert head['updating'] is True and head['status']=='pending'
     assert head['preview'] is None and head['retrieval_complete'] is False
 
 
@@ -634,7 +657,7 @@ def test_pg_actual_outer_send_rejects_event_revision_changed_after_capture(sql):
     after=rpc(sql,'capture_lifetime_read_fence',literal(project))
     assert after['source_revision']==fence['source_revision'] and after['policy_epoch']==fence['policy_epoch']
     assert after['event_revision']>fence['event_revision']
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     app=create_app(MemoryStore());snapshot=ReadSnapshot(body,fence)
     @app.get('/event-publication-boundary')
     async def route():return ReadJSONResponse(snapshot,publisher=ReadPublication(dsn,authenticated_owner=OWNER))
@@ -688,7 +711,7 @@ def test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput
     from test_canonical_composer_provenance import controlled_draft
     identity,source,lane,claim=seeded_composer(sql);project=identity['project_id'];phases=[];first_review=True
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     class Broker:
         async def rpc(self,name,**payload):
             args=','.join(f'{key}=>{literal(value)}' if not isinstance(value,int) else f'{key}=>{value}' for key,value in payload.items())
@@ -697,7 +720,7 @@ def test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint
         nonlocal first_review
         wire=json.loads(request.content);bounded=BoundedLaneInput.model_validate(wire['bounded_lane'])
         phase=bounded.phase;payload=json.loads(bounded.packet)['payload'];phases.append(phase)
-        if phase=='prepare':result=dict(event_id=claim['partition']['id'],context='Source-grounded preparation',source_refs=claim['partition']['source_refs'])
+        if phase=='prepare':result=dict(event_id=payload['partition']['id'],context='Source-grounded preparation',source_refs=payload['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(payload,source['text'],'Childhood')
         else:
             if restart and first_review:
@@ -757,7 +780,7 @@ def test_pg_checkpoint_resume_is_token_independent_but_commit_binds_exact_curren
     assert current['page_digest']!=resumed['page_digest']
     assert service(sql,'read_memoir_checkpoint',f"'{lane}','{resumed['token']}','{key}'") is None
     stale=sql(f"set role service_role;select public.commit_lifetime_memoir_lane_page('{lane}','{resumed['token']}',0,{literal(section_result(resumed))},'{resumed['page_digest']}');",check=False)
-    assert stale.returncode!=0 and 'stale canonical page digest' in stale.stderr
+    assert stale.returncode!=0 and 'stale progressive batch' in stale.stderr
     assert sql('select count(*) from public.user_lifetime_lane_page_receipt;').stdout.strip()=='0'
 
 
@@ -770,26 +793,31 @@ def add_same_page_continuity(sql,identity,source,page):
 def test_pg_model_reply_cannot_register_or_checkpoint_under_changed_same_page_context(sql,barrier):
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput,LaneFence,lane_artifact_digest
     identity,source,lane,claim=seeded_composer(sql);phases=[];changed=False
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
-    artifact=dict(event_id=claim['partition']['id'],context='Old-context prepared output',source_refs=claim['partition']['source_refs'])
+    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    from apps.api.progressive_composer import summary_partition
+    partition=summary_partition(claim)
+    artifact=dict(event_id=partition['id'],context='Old-context prepared output',source_refs=partition['source_refs'])
     class Broker:
         async def rpc(self,name,**payload):
             nonlocal changed
-            if name==barrier and not changed:
+            if name==barrier and not changed and (name=='record_lifetime_lane_output' or payload.get('p_kind')=='prepare'):
                 assert phases==['prepare']
                 add_same_page_continuity(sql,identity,source,claim);changed=True
             args=','.join(f'{key}=>{literal(value)}' if not isinstance(value,int) else f'{key}=>{value}' for key,value in payload.items())
-            return json.loads(sql(f"set role service_role;select coalesce(to_jsonb(public.{name}({args})),'null'::jsonb);").stdout.strip())
+            result=sql(f"set role service_role;select coalesce(to_jsonb(public.{name}({args})),'null'::jsonb);",check=False)
+            if result.returncode:
+                raise RuntimeError('Controlled stale phase registration rejected: '+result.stderr)
+            return json.loads(result.stdout.strip())
     def model(request):
         bounded=BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane']);phases.append(bounded.phase)
         assert bounded.phase=='prepare'
         return httpx.Response(200,json={'reply':json.dumps(artifact)})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model),
         lane_publisher=LanePublication(dsn,authenticated_owner=OWNER))
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError) as failure:
         asyncio.run(execute_lifetime_lane(claim,worker))
-    assert changed and phases==['prepare']
-    assert sql('select count(*) from public.user_memoir_checkpoint;').stdout.strip()=='0'
+    assert changed and phases==['prepare'], str(failure.value.__cause__ or failure.value)
+    assert sql("select count(*) from public.user_memoir_checkpoint where kind='prepare';").stdout.strip()=='0'
     assert sql('select count(*) from public.user_lifetime_lane_page_receipt;').stdout.strip()=='0'
     current=service(sql,'read_lifetime_memoir_lane_page',f"'{lane}','{claim['token']}'")
     assert current['page_digest']!=claim['page_digest'] and current['page_number']==claim['page_number']

@@ -37,6 +37,10 @@ EVAL_POLL_SECONDS ?= 2
 EVAL_PROJECT_ID ?=
 MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
 ENV_FILE ?= .env
+LIVE_SKILL ?=
+LIVE_SKILL_CASE ?=
+LIVE_SKILL_EFFORT ?= max
+LIVE_SKILL_OUTPUT_ROOT ?= $(EVAL_OUTPUT_ROOT)/live-skills
 TUNNEL_ARGS ?=
 TUNNEL_CONFIG := $(CURDIR)/infra/cloudflare/config.yml
 TUNNEL_LABEL := com.cloudflare.cloudflared.copyme2
@@ -45,6 +49,16 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 
 .PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
+.PHONY: memoir-live-skills-plan memoir-live-skills-test
+
+memoir-live-skills-plan: ## Inspect isolated skill contracts; zero model calls.
+	@python3 scripts/run_memoir_live_skills.py $(if $(strip $(LIVE_SKILL)),--skill "$(LIVE_SKILL)",)
+
+memoir-live-skills-test: ## Test every skill with real gateway calls and independent validators.
+	@python3 scripts/run_memoir_live_skills.py --execute --env-file "$(ENV_FILE)" \
+		--output-root "$(LIVE_SKILL_OUTPUT_ROOT)" --effort "$(LIVE_SKILL_EFFORT)" \
+		$(if $(strip $(LIVE_SKILL)),--skill "$(LIVE_SKILL)",) \
+		$(if $(strip $(LIVE_SKILL_CASE)),--case "$(LIVE_SKILL_CASE)",)
 
 help: ## Show the Apple Container + Mocker commands.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nMemory Spark — Apple Container + Mocker\n\nUsage: make <target>\n\n"} \

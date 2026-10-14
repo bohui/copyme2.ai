@@ -206,7 +206,13 @@
       "toolCall": "使用当前故事背景调用 {tool}。",
       "toolResult": "操作已完成，结果保留了来源信息，未推断您的个人经历。",
       "final": "返回一个基于对话、简短且适合朗读的问题。",
-      "opening": "在开始个人资料收集前显示固定的开场白。"
+      "opening": "在开始个人资料收集前显示固定的开场白。",
+      "backgroundQueued": "回忆录更新已加入后台队列",
+      "backgroundSummary": "正在总结新消息",
+      "backgroundDraft": "正在逐步更新已有回忆录",
+      "backgroundReview": "正在核对写作内容与原始记录",
+      "backgroundSave": "正在保存回忆录进度",
+      "backgroundSaved": "回忆录进度已保存"
     },
     "story": {
       "mainLabel": "与 Mira 的对话",
@@ -445,7 +451,13 @@
       "eventUnresolved": "此事件尚未确定。",
       "eventConflictingDates": "原始依据中的日期存在冲突。",
       "loadMoreEventContext": "加载更多事件背景",
-      "eventDetailKinds": {"temporal_accounts": "所述日期", "relations": "事件关联", "candidate_ids": "可能匹配的事件", "supersedes": "替代的信息", "contradicts": "相矛盾的信息"},
+      "eventDetailKinds": {
+        "temporal_accounts": "所述日期",
+        "relations": "事件关联",
+        "candidate_ids": "可能匹配的事件",
+        "supersedes": "替代的信息",
+        "contradicts": "相矛盾的信息"
+      },
       "draftEditionLanguage": "草稿语言",
       "acceptDraftProposal": "接受此修改",
       "rejectDraftProposal": "保留先前版本",

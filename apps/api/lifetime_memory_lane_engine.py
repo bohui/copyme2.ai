@@ -100,7 +100,9 @@ class LaneFence(Contract):
     source: dict[str, Any] | None
     events: list[dict[str, Any]] = Field(max_length=8)
     partition: dict[str, Any] | None
+    batch: dict[str, Any] | None = None
     coverage_round: int = Field(ge=0, strict=True)
+    base_revision: int = Field(default=0, ge=0, strict=True)
     editorial_request: EditorialRequest | None = None
     prior_outputs: list[LaneArtifact] = Field(default_factory=list, max_length=16)
 
@@ -128,7 +130,7 @@ def _object(value):
     return parsed
 
 
-def lane_contract(phase, locale):
+def lane_contract(phase, locale, *, batch=False):
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'extract':
         from .memory_events import extraction_instructions, extraction_schema
@@ -136,6 +138,18 @@ def lane_contract(phase, locale):
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
         instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
+    if batch:
+        if phase == 'prepare':
+            instructions += ('\nSummarize only these new narrator messages since the preceding five-round checkpoint. '
+                'Return a concise grounded delta in context (at most 4000 characters), and copy partition.source_refs exactly. '
+                'Retain uncertainty and corrections. This summary is derived context; originals remain authoritative.')
+        else:
+            instructions += ('\nProgressively revise the existing memoir using this five-round message summary and original evidence. '
+                'Keep stable chapter and block IDs. Preserve unchanged writing exactly; enrich affected passages rather than restarting. '
+                'The summary and prior prose are derived context, never replacements for original source evidence. '
+                'Cite only spans in request.events[*].source_refs. Acknowledgements and other messages in prepared_partitions '
+                'may have no canonical event: omit them from memoir prose and citations. '
+                'For sample_chapter set storyline=null; for sample_storyline set chapters=[].')
     instructions += (
         '\nThe input payload is one bounded canonical partition, never the whole lifetime. '
         'Use the payload member for this phase and the lane_context member for authoritative '
@@ -250,6 +264,12 @@ def lane_extraction_packet(fence):
 
 def canonical_lane_request(fence):
     from .canonical_composer import composer_request
+    if fence.batch is not None:
+        from .progressive_composer import batch_job
+        from .canonical_composer import composition_request
+        request, _ = composition_request(batch_job(fence.model_dump(mode='json')))
+        request['context']['prepared_partitions'] = []
+        return request
     if not fence.source or not fence.partition or fence.partition.get('status')!='active':
         raise ValueError('Composer page lacks authoritative active evidence')
     source,event=deepcopy(fence.source),deepcopy(fence.partition)
@@ -264,6 +284,39 @@ def canonical_lane_request(fence):
 
 
 def _validate_phase_packet(fence,phase,payload):
+    if fence.batch is not None:
+        from .progressive_composer import summary_packet, validate_batch, validate_summary
+        validate_batch(fence.batch, fence.project_id)
+        if fence.skill != 'composer' or phase == 'extract':
+            raise ValueError('Progressive batches are background composition only')
+        if phase == 'prepare':
+            if (not isinstance(payload.get('preparation_id'), str)
+                or re.fullmatch('[a-f0-9]{64}', payload['preparation_id']) is None
+                or payload != summary_packet(fence.model_dump(mode='json'), payload.get('preparation_id'))):
+                raise ValueError('Summary packet differs from the new original messages')
+        else:
+            expected = canonical_lane_request(fence)
+            actual = payload.get('request')
+            if not isinstance(actual, dict):
+                raise ValueError('Progressive phase requires its canonical request')
+            prepared = actual.get('context', {}).get('prepared_partitions', [])
+            if len(prepared) != int(bool(fence.batch['new_messages'])):
+                raise ValueError('A new message batch requires its grounded summary')
+            for value in prepared:
+                validate_summary(value, fence.model_dump(mode='json'))
+            expected['context']['prepared_partitions'] = deepcopy(prepared)
+            # Stored unchanged sections and configuration invalidations are computed
+            # by the shared composer, not supplied by the model.
+            from .memoir_preview import incremental_model_request
+            if actual != expected and actual != incremental_model_request(expected):
+                raise ValueError('Progressive request differs from its authoritative batch')
+            if phase == 'draft' and (set(payload) - {'request', 'plan', 'candidate', 'validation', 'review'} or not isinstance(payload.get('plan'), dict)):
+                raise ValueError('Unsupported progressive draft context')
+            if phase == 'review' and set(payload) != {'request', 'candidate', 'validation'}:
+                raise ValueError('Unsupported progressive review context')
+        if fence.prior_outputs != _required_artifacts(phase, payload):
+            raise ValueError('Progressive bytes lack their same-batch artifact proofs')
+        return
     if not isinstance(fence.source,dict) or len(serialize_packet({
             'source':fence.source,'events':fence.events,'partition':fence.partition}).encode('utf-8'))>45000:
         raise ValueError('Invalid bounded authoritative lane evidence scope')
@@ -316,8 +369,11 @@ async def validate_lane_payload(bounded):
     """Recompute static host plan/errors; arbitrary free-form context is rejected."""
     if bounded.phase not in {'draft','review'}:return
     from .memoir_preview import skill_operation
-    from .canonical_composer import canonical_evidence_errors
+    from .canonical_composer import validate_canonical_candidate
     payload=_object(bounded.packet)['payload'];request=payload['request']
+    if bounded.fence.batch is not None:
+        request = canonical_lane_request(bounded.fence)
+        request['context']['prepared_partitions'] = deepcopy(payload['request']['context'].get('prepared_partitions', []))
     plan=await skill_operation('plan',request)
     if bounded.phase=='draft' and payload['plan']!=plan:
         raise ValueError('Draft plan differs from the canonical page plan')
@@ -331,16 +387,12 @@ async def validate_lane_payload(bounded):
         'expected_manuscript_revision':request['prior_state']['revision'],'counter':plan.get('counter')}
     if any(key in candidate and candidate[key]!=value for key,value in pins.items()):
         raise ValueError('Candidate metadata differs from the canonical page plan')
-    validation=await skill_operation('validate',request,candidate)
-    if validation.get('ok'):
-        errors=canonical_evidence_errors(request,candidate)
-        if errors:
-            validation['ok']=False;validation.setdefault('errors',[]).extend(errors)
+    validation=await validate_canonical_candidate(request,candidate)
     if payload.get('validation')!=validation:
         raise ValueError('Candidate validation differs from the canonical page proof')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
-    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale)
+    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None)
     return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
@@ -516,7 +568,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))
     def request_admission():
         return _admission(publisher,json.loads(fence_json))
-    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale)
+    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None)
     root = Path(home_root).expanduser().resolve()
     root.mkdir(parents=True,exist_ok=True,mode=0o700)
     fence = bounded.fence

@@ -1106,7 +1106,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     if (body.recall_status) state.recallStatus = body.recall_status;
     if (body.conversation_saved) markWorkspaceFocusStarted(requestTurn);
     if (body.reply && state.pendingConversationTurn === requestTurn) state.pendingConversationTurn = null;
-    if (body.conversation_saved) void refreshPrivateDraft();
+    if (body.conversation_saved) {
+      state.backgroundDraftTurn = requestTurn.id;
+      void refreshPrivateDraft();
+    }
     if (state.recallStatus?.payment_required) void ensureRecallPreview();
     if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
     if (!streamedMessage && body.reply) {
@@ -3462,6 +3465,25 @@ async function submitSectionRework(event) {
 }
 
 let privateDraftTimer = null;
+function updateBackgroundComposerProgress(result) {
+  const progress = result.background_progress;
+  const message = state.chat?.find(item => item.role === "assistant" && item.clientTurnId === state.backgroundDraftTurn);
+  if (!message || !progress || !["pending", "running", "finished", "retry_required"].includes(progress.state)) return;
+  const labels = {summarizing:"backgroundSummary", drafting:"backgroundDraft", reviewing:"backgroundReview", saving:"backgroundSave"};
+  const phase = progress.state === "finished" ? "saved" : labels[progress.phase] ? progress.phase : "queued";
+  const key = `memoir-composer-${phase}`;
+  const trace = message.trace ||= [];
+  for (const step of trace) if (step.id.startsWith("memoir-composer-") && step.id !== key) step.status = "completed";
+  const step = {id:key, kind:"skill", skill:"memoir-composer", label:"memoir-composer",
+    detail:translate(`Memoir.trace.${phase === "saved" ? "backgroundSaved" : labels[phase] || "backgroundQueued"}`),
+    status:progress.state === "retry_required" ? "failed" : phase === "saved" ? "completed" : "running"};
+  const index = trace.findIndex(item => item.id === key);
+  if (index < 0) trace.push(step); else trace[index] = step;
+  message.traceMode ||= "live";
+  updateStreamingAssistantMessage(message);
+  persistChatHistory();
+}
+
 async function refreshPrivateDraft() {
   const scope = captureProjectScope();
   if (privateDraftTimer) clearTimeout(privateDraftTimer);
@@ -3472,8 +3494,10 @@ async function refreshPrivateDraft() {
     const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
     const result=await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(projectId)}&language=${encodeURIComponent(language)}`);
     if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
-    // Refresh always replaces the frozen root and clears old page content.
-    state.privateDraft={...result, pages: []};
+    const previous = state.privateDraft;
+    const sameRoot = result.snapshot_id && previous?.snapshot_id === result.snapshot_id && previous.root_digest === result.root_digest;
+    state.privateDraft={...result, pages: sameRoot ? previous.pages || [] : []};
+    updateBackgroundComposerProgress(result);
     const rework = currentSectionRework();
     if (rework && result.snapshot_id && !result.legacy) {
       try {
@@ -3484,8 +3508,8 @@ async function refreshPrivateDraft() {
         if (section.proposed_preview) rework.ready = true;
       } catch (_) { /* A stale selected section does not hide the remaining draft. */ }
     }
-    render();
-    if (result.updating) privateDraftTimer=setTimeout(refreshPrivateDraft,15000);
+    if (!state.loading && (!sameRoot || previous?.updating !== result.updating || previous?.status !== result.status)) render();
+    if (result.updating) privateDraftTimer=setTimeout(refreshPrivateDraft,2000);
   } catch (_) { /* Quiet background work never hides a saved interview. */ }
 }
 

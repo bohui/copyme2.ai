@@ -6,6 +6,41 @@ Migration `202610140001_canonical_only_conversation.sql` removes the obsolete di
 
 The sections below retain the historical implementation/review evidence. Their opt-in, legacy fallback and separate rollout clearance instructions are superseded by this development decision. `MEMOIR_LIFETIME_GENERATION_PAUSED` remains the generation pause control; publication, privacy, owner and lease checks remain required.
 
+## Progressive background composition, 14 October 2026
+
+Every five completed rounds enqueue the existing durable composer lane. Migration
+`202610140004_progressive_composer_batches.sql` replaces preparation per quotation
+with a bounded batch of up to five new narrator messages. One grounded summary is
+saved for that batch, then the composer revises the affected existing passages.
+Original narrator rows, quotations, versions and absolute offsets remain the
+evidence; a summary is derived context and cannot replace or widen that evidence.
+
+Unchanged supported passages are restored byte for byte before validation and
+review. The database retains unaffected passages across snapshots. Stable storage
+keys include canonical event identity, preventing unrelated paragraph IDs from
+colliding. Approved or locked writing receives a proposed revision. Every source
+and event dependency participates in readback and withdrawal cleanup, including
+secondary sources and confirmed photograph associations.
+
+Composition remains outside the collector/streaming request, in the existing
+Temporal worker. Owner-scoped draft polling exposes only operational phases
+(queued, summarising, drafting, reviewing, saving and saved). Thinking steps may
+continue updating after the assistant reply finishes; polling never changes its
+text or rerenders an active stream. Voice input continues through the same saved
+canonical conversation.
+
+Large testimony continues through exact bounded windows, and a backlog may require
+several batches. Coverage advances only after the corresponding summary and model
+proofs are saved; resource limits, original policy/lease fences and the three-draft
+attempt ceiling remain enforced. This does not promise a fixed model latency or
+extend an evaluation deadline.
+
+`tests/test_progressive_composer.py` exercises the real five-to-ten-round database
+flow, unchanged writing, protected proposals, secondary-source withdrawal, long
+message continuation and matching repair validation. Live English and Chinese
+cases use real model calls through the same composer orchestration; see
+`docs/memoir-live-skill-tests.md` for their bounded scope.
+
 ## Execution and rollback
 
 `MEMOIR_LIFETIME_MEMORY=true` selects canonical identity/admission for new verified

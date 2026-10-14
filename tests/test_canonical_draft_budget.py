@@ -4,11 +4,46 @@ import json
 from types import SimpleNamespace
 
 import httpx
+import pytest
 
 from apps.api.lifetime_memory_composer import _compose
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, lane_request_tokens
 from test_canonical_composer_provenance import controlled_draft
 from test_lifetime_composer_capacity import page, Publisher
+
+
+@pytest.mark.parametrize('fail', [False, True])
+def test_canonical_phase_timings_include_success_and_failure_without_private_content(caplog, fail):
+    from apps.api.memoir_preview import composer_call
+    caplog.set_level('INFO', logger='apps.api.memoir_preview')
+    current = page('composer')
+    current['partition'] = dict(id='event', revision=1, kind='event', status='active', title='private event title',
+        source_refs=[dict(source_id=current['source']['id'], version=1, quote=current['source']['text'],
+                         char_start=0, char_end=len(current['source']['text']))])
+    class Broker:
+        async def rpc(self, name, **payload):
+            assert name == 'record_lifetime_lane_output'
+            return True
+    result = dict(event_id='event', context='private prepared context', source_refs=current['partition']['source_refs'])
+    def model(request):
+        if fail:
+            return httpx.Response(503, text='private provider detail')
+        return httpx.Response(200, json={'reply': json.dumps(result)})
+    runtime = SimpleNamespace(worker_url='https://synthetic.invalid', worker_secret='private-secret',
+        worker_transport=httpx.MockTransport(model), lifetime_bounded=True, lifetime_page=current,
+        lane_publisher=Publisher(), lane_broker=Broker())
+    packet = {'partition': current['partition'], 'sources': [current['source']], 'preparation_id': 'a' * 64}
+    call = composer_call(runtime, None, 'project', 'zh-CN', 'prepare', packet)
+    if fail:
+        with pytest.raises(httpx.HTTPStatusError):
+            asyncio.run(call)
+    else:
+        assert asyncio.run(call)['context'] == result['context']
+    assert 'canonical_page phase=prepare page=0 elapsed_ms=' in caplog.text
+    assert 'worker_elapsed_ms=' in caplog.text
+    assert ('outcome=failed' if fail else 'outcome=completed') in caplog.text
+    for text in ['private event title', 'private prepared context', 'private provider detail', 'private-secret', current['source']['text']]:
+        assert text not in caplog.text
 
 
 def test_mandarin_page_can_repair_evidence_within_the_reviewed_model_budget(monkeypatch):

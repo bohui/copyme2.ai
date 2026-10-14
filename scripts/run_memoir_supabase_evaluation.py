@@ -657,22 +657,33 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
                 record.update(status='delivered',accepted_source_id=result['accepted_source_id'],reply=result['reply'])
                 accepted.append(result['accepted_source_id'])
                 save(directory / 'receipt.json',receipt)
-            settle_deadline = min(requests.case_deadline, time.monotonic() + plan['settle_seconds'])
+            settle_started = time.monotonic()
+            settle_deadline = min(requests.case_deadline, settle_started + plan['settle_seconds'])
+            settlement = record['settlement_progress'] = {'waiting_for': 'extraction', 'polls': 0}
             while True:
+                settlement['elapsed_seconds'] = round(time.monotonic() - settle_started, 3)
                 if time.monotonic() >= settle_deadline:
                     raise EvaluationError('Background extraction or saved checkpoint did not settle before its deadline')
                 view = await account.rpc('read_user_memory_events', p_project_id=project)
+                settlement['polls'] += 1
+                processing = view.get('processing', {})
+                for key, value in (('completed_rounds', view.get('completed_rounds')),
+                                   ('extracted_through', processing.get('extracted_through')),
+                                   ('pending_inputs', processing.get('pending_inputs'))):
+                    settlement[key] = value if type(value) is int and value >= 0 else None
                 if (view.get('completed_rounds') == ordinal
                         and view.get('processing', {}).get('extracted_through') == ordinal
                         and view.get('processing', {}).get('pending_inputs') == 0):
                     _readback_call(record, 'canonical', _canonical_state, view, inputs, accepted)
                     if ordinal in CHECKPOINTS:
+                        settlement['waiting_for'] = 'canonical_checkpoint'
                         checkpoint=await saved_canonical_checkpoint(account,binding,ordinal,accepted)
                         if checkpoint is None:
                             await asyncio.sleep(min(plan['poll_seconds'],max(0,settle_deadline-time.monotonic())))
                             continue
                         case['checkpoints']=[item for item in case['checkpoints'] if item['milestone']!=ordinal]
                         case['checkpoints'].append(checkpoint)
+                    settlement['waiting_for'] = 'complete'
                     break
                 draft = await account.rpc('read_user_memoir_draft',
                     p_project_id=project, p_locale=binding['language'], p_cadence=5)
