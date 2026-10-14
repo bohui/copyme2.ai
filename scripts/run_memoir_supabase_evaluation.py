@@ -40,6 +40,7 @@ CASE_EMAILS = dict(zip(CASE_IDS, ('test@test.com', 'test2@test.com', 'test3@test
 BUDGET_FIELDS = ('max_elapsed_seconds','max_case_elapsed_seconds','max_backend_requests','settle_seconds','poll_seconds')
 READ_ONLY_REVALIDATION_SECONDS = 120
 SINGLE_CASE_TIME_EXTENSION_SECONDS = 14400
+RESPONSE_RECOVERY_LIMIT = 6
 
 
 def selected_cases(value):
@@ -600,6 +601,20 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id,*,reco
                 accepted=await account.rpc('validate_lifetime_replay_input',p_conversation_id=binding['conversation_id'],
                     p_client_turn_id=record['client_turn_id'],p_text=inputs['rounds'][index-1],p_kind='narrator_chat')
                 candidate=initial['sources'][offset+index-1] if offset+index<=len(initial['sources']) else None
+                if (accepted is False and candidate is None and index==len(case['rounds'])
+                        and not record.get('accepted_source_id')
+                        and len(initial['sources'])==offset+index-1
+                        and initial['completed_rounds']==offset+index-1
+                        and initial['processing']=={'pending_inputs':0,'extracted_through':offset+index-1}
+                        and all(prior['status']=='completed' for prior in case['rounds'][:-1])):
+                    fence=await account.rpc('capture_lifetime_read_fence',p_project_id=project)
+                    if (not isinstance(fence,dict) or type(fence.get('source_revision')) is not int
+                            or fence['source_revision']!=offset+index-1
+                            or any((fence.get('identity') or {}).get(key)!=binding[key]
+                                   for key in ('owner_id','conversation_id','project_id'))):
+                        raise EvaluationError('Absent original nonce has an advanced or foreign source counter')
+                    record.update(status='admission_pending',accepted_source_id=None)
+                    continue
                 if (accepted is not True or not candidate or candidate.get('text')!=inputs['rounds'][index-1]
                         or candidate.get('project_id')!=project or candidate.get('kind')!='narrator_chat'
                         or candidate.get('language')!=binding['language'] or candidate.get('status')!='active'
@@ -610,7 +625,7 @@ async def verified_case_ledger(account, plan, directory, receipt, case_id,*,reco
             else:
                 record.update(status='delivered',accepted_source_id=recovered['accepted_source_id'],reply=recovered['reply'])
     if case['rounds']:
-        accepted_ids = [record['accepted_source_id'] for record in case['rounds']]
+        accepted_ids = [record['accepted_source_id'] for record in case['rounds'] if record.get('accepted_source_id')]
         if len(initial['sources']) != offset+len(accepted_ids):
             raise EvaluationError('Saved receipt/source history differs; preserve it without replay')
         for index,source in enumerate(initial['sources'][offset:]):
@@ -644,26 +659,32 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
             account.assert_owner(binding)
             if ordinal <= len(case['rounds']):
                 record = case['rounds'][ordinal-1]
-                accepted.append(record['accepted_source_id'])
+                if record.get('accepted_source_id'):
+                    accepted.append(record['accepted_source_id'])
                 if record['status'] == 'completed':
                     continue
                 if not record.get('reply'):
-                    if not recover_accepted_turn or record.get('response_retry_attempts',0)>=3:
+                    if not recover_accepted_turn or record.get('response_retry_attempts',0)>=RESPONSE_RECOVERY_LIMIT:
                         raise EvaluationError('Accepted response needs explicit recovery within its retry limit')
                     record['response_retry_attempts']=record.get('response_retry_attempts',0)+1
                     receipt['backend_recovery_submissions']=receipt.get('backend_recovery_submissions',0)+1
                     receipt.setdefault('accepted_response_recoveries',[]).append({'case_id':case_id,
+                        'response_retry_attempt':record['response_retry_attempts'],'maximum_response_recoveries':RESPONSE_RECOVERY_LIMIT,
                         'client_turn_id':record['client_turn_id'],'accepted_source_id':record['accepted_source_id'],
+                        'admission_recovery':record['accepted_source_id'] is None,
                         'attempt_id':receipt['attempt_id'],
                         'checkout_snapshot_sha256':(plan.get('local_checkout_source') or {}).get('snapshot_sha256')})
                     save(directory/'receipt.json',receipt)
                     result=await backend(requests,account,plan,'POST','/v1/agent/turn',timeout=600,
                         json={'project_id':project,'language':binding['language'],'text':text,'conversation_text':text,
                             'source_kind':'narrator_chat','client_turn_id':record['client_turn_id']})
-                    if (result.get('project_id')!=project or result.get('accepted_source_id')!=record['accepted_source_id']
+                    if (result.get('project_id')!=project or not result.get('accepted_source_id')
+                            or (record['accepted_source_id'] is not None and result['accepted_source_id']!=record['accepted_source_id'])
                             or not isinstance(result.get('reply'),str) or not result['reply'].strip() or result.get('task_errors')):
                         raise EvaluationError('Accepted response recovery did not preserve its original source')
-                    record.update(status='delivered',reply=result['reply'])
+                    if record['accepted_source_id'] is None:
+                        accepted.append(result['accepted_source_id'])
+                    record.update(status='delivered',reply=result['reply'],accepted_source_id=result['accepted_source_id'])
                     save(directory/'receipt.json',receipt)
             else:
                 record = {'round':ordinal,'client_turn_id':str(uuid4()),'status':'submitting','background_settled':False,
@@ -862,23 +883,24 @@ def validate_resume_budget(plan,previous,receipt):
 def resumed_time_limit(plan,previous,receipt,requested=None):
     """Validate an explicit time extension without rewriting original limits."""
     history=receipt.get('elapsed_time_extensions',[])
-    if history!=previous.get('elapsed_time_extensions',[]) or not isinstance(history,list) or len(history)>1:
+    if (history!=previous.get('elapsed_time_extensions',[]) or not isinstance(history,list)
+            or len(history)>len(previous['case_ids'])):
         raise EvaluationError('Saved elapsed-time extension history is invalid')
     if requested is not None and (type(requested) is not int or requested!=SINGLE_CASE_TIME_EXTENSION_SECONDS):
         raise EvaluationError('The explicit single-case time extension must be 14400 seconds')
     if history or requested is not None:
-        target=history[0].get('case_ids') if history and isinstance(history[0],dict) else plan['case_ids']
-        if (not isinstance(target,list) or len(target)!=1 or target[0] not in previous['case_ids']
-                or previous['max_case_elapsed_seconds']!=7200
-                or (len(previous['case_ids'])==1 and previous['max_elapsed_seconds']!=7200)
-                or (set(target)&set(plan['case_ids']) and plan['case_ids']!=target)):
+        if (previous['max_case_elapsed_seconds']!=7200
+                or (len(previous['case_ids'])==1 and previous['max_elapsed_seconds']!=7200)):
             raise EvaluationError('Time extension requires one selected original two-hour single-case scope')
-        if requested is not None and plan['case_ids']!=target:
-            raise EvaluationError('A recorded time extension cannot move to another case')
-    if history:
-        event=history[0]
-        if (not isinstance(event,dict) or event.get('seconds')!=SINGLE_CASE_TIME_EXTENSION_SECONDS
-                or event.get('case_ids')!=target
+        if requested is not None and (len(plan['case_ids'])!=1 or plan['case_ids'][0] not in previous['case_ids']):
+            raise EvaluationError('Time extension requires one selected original two-hour single-case scope')
+    targets=[]
+    for event in history:
+        target=event.get('case_ids') if isinstance(event,dict) else None
+        if (not isinstance(event,dict) or type(event.get('seconds')) is not int
+                or event['seconds']!=SINGLE_CASE_TIME_EXTENSION_SECONDS
+                or not isinstance(target,list) or len(target)!=1 or target[0] not in previous['case_ids']
+                or target[0] in targets
                 or type(event.get('recorded_at_unix')) not in (int,float)
                 or not math.isfinite(event['recorded_at_unix'])
                 or not receipt['started_at_unix']<=event['recorded_at_unix']<=time.time()
@@ -886,7 +908,11 @@ def resumed_time_limit(plan,previous,receipt,requested=None):
                 or not 0<=event['backend_turn_submissions']<=receipt['backend_turn_submissions']
                 or event.get('original_budget_contract')!=budget_contract(previous)):
             raise EvaluationError('Saved elapsed-time extension history is invalid')
-    return SINGLE_CASE_TIME_EXTENSION_SECONDS if (history or requested is not None) and plan['case_ids']==target else None
+        if set(target)&set(plan['case_ids']) and plan['case_ids']!=target:
+            raise EvaluationError('Time extension requires one selected original two-hour single-case scope')
+        targets.append(target[0])
+    return (SINGLE_CASE_TIME_EXTENSION_SECONDS if requested is not None
+            or (len(plan['case_ids'])==1 and plan['case_ids'][0] in targets) else None)
 
 
 async def execute(plan,directory,settings,*,start_backend=False,create_confirm=False,resume=None,accept_source_change=False,recover_accepted_turn=False,extend_time_limit_seconds=None):
@@ -978,10 +1004,10 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         try:
             verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
             if time_limit:
-                if not receipt.get('elapsed_time_extensions'):
-                    receipt['elapsed_time_extensions']=[{'seconds':time_limit,'case_ids':plan['case_ids'],
+                if not any(event['case_ids']==plan['case_ids'] for event in receipt.get('elapsed_time_extensions',[])):
+                    receipt.setdefault('elapsed_time_extensions',[]).append({'seconds':time_limit,'case_ids':plan['case_ids'],
                         'original_budget_contract':budget_contract(previous),'recorded_at_unix':time.time(),
-                        'backend_turn_submissions':receipt['backend_turn_submissions'],'attempt_id':receipt['attempt_id']}]
+                        'backend_turn_submissions':receipt['backend_turn_submissions'],'attempt_id':receipt['attempt_id']})
                 previous={**previous,'elapsed_time_extensions':receipt['elapsed_time_extensions']}
                 save(directory/'plan.json',previous)
                 save(directory/'receipt.json',receipt)

@@ -39,7 +39,7 @@ class HomeRest(PostgresRest):
 def home_auth(sql, monkeypatch):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     command = sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
     tokens = {'owner': OWNER, 'owner-new-device': OWNER, 'reauthenticated': OWNER, 'other': OTHER, 'third': THIRD}
     def storage(authorization):
         token = (authorization or '').removeprefix('Bearer ')
@@ -230,7 +230,7 @@ def test_product_home_to_first_governed_turn_and_cold_replay(sql, home_auth, tmp
     from apps.api.codex_runtime import CodexRuntime
     from test_name_only_opening import proposal
     command = sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
     calls = []
     def provider(request):

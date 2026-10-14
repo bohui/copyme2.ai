@@ -153,6 +153,15 @@ make memoir-live-fifty-report EVAL_RUN_DIR=/absolute/path/to/saved-run
 
 ## Retry and resume without replay or new projects
 
+Explicit accepted-response recovery allows at most six attempts per saved client
+turn ID. All attempts stay in the receipt and consume the original request and
+elapsed-time limits. This permits bounded verification after a source fix; it
+never creates another original input or resets an earlier failed attempt.
+If the server proves the final reserved nonce is absent, all earlier turns are
+settled, and its source counter has never advanced past those originals, recovery
+may admit that same nonce and exact text. Changed counters, foreign identity or
+an earlier ledger gap stop the run. No new original reservation is created.
+
 A fresh invocation stops if that canonical project already contains history.
 It never creates a new project to make the test appear fresh. To continue an
 interrupted current-schema run:
@@ -208,16 +217,17 @@ hours after reviewing an interruption:
 make memoir-live-fifty-test EVAL_RESUME_DIR=/absolute/path/to/saved-run EVAL_TIME_EXTENSION_SECONDS=14400
 ```
 
-This option records one extension in both the saved plan and receipt, which the
+This option records one extension per explicitly selected case in the saved plan and receipt, which the
 report displays. It keeps the original plan's budget contract and clock origins;
 the effective global and case deadlines become four hours from those origins.
 Request reservations, the request ceiling, settle/poll bounds, account, project,
 conversation and original turn ledger remain fixed. Subsequent resumes retain the
-recorded extension. A multi-case campaign can extend exactly one selected case
+recorded extension. Each multi-case invocation can extend exactly one selected case
 by also passing `EVAL_CASE_ID`; its global campaign limit stays at the larger of
 the original limit and four hours. Other cases retain their original two-hour
-limit. Resume the extended case separately from unextended cases. The extension
-cannot move to another case, start a new run, or restart its clock.
+limit until separately authorised and explicitly extended. Resume each extended
+case separately. An earlier extension entry remains immutable; another case needs
+its own entry and flag. No extension can start a new run or restart its clock.
 
 Failed revalidation invalidates the selected case's current completion status
 while preserving its historical rounds and checkpoints. Final campaign completion

@@ -379,7 +379,7 @@ def test_profile_update_and_project_reader_do_not_deadlock_without_a_formal_run(
             assert held.returncode==0, errors
             assert json.loads(output)['available'] is False
         else:
-            assert held.returncode!=0 and '40001' in errors and 'stale lifetime read fence' in errors, errors
+            assert held.returncode!=0 and 'PT409' in errors and 'stale lifetime read fence' in errors, errors
         assert rpc(sql,'capture_lifetime_read_fence',literal(project))['preference_revision']>old['preference_revision']
     finally:
         if held.poll() is None:

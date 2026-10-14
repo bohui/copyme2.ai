@@ -125,6 +125,9 @@ def governed_collector_schema(context=None):
     if source:
         item['source_id']['const'] = source['id']
         item['source_version']['const'] = source['version']
+        direct_kinds = {directive.kind for directive in _literal_directives(source)}
+        item['kind']['enum'] = [kind for kind in item['kind']['enum']
+                               if kind not in _DIRECT_KINDS or kind in direct_kinds]
     schema['properties']['continuity_updates'] = extension['properties']['continuity_updates']
     schema['required'].append('continuity_updates')
     places = _Places.model_json_schema()
@@ -256,19 +259,31 @@ def validate_governed_collector_result(raw, context):
         raise ValueError('Collector result must be an object')
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
-    proposed = _Updates.model_validate({'continuity_updates': value.get('continuity_updates', [])}).continuity_updates
     source = _current_source(context)
+    updates = value.get('continuity_updates', [])
+    if isinstance(updates, list):
+        updates = [dict(item) if isinstance(item, dict) else item for item in updates]
+        for item in updates:
+            if not source or not isinstance(item, dict):
+                continue
+            start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
+            if (type(start) is not int or start < 0 or type(end) is not int or end < 1
+                    or not isinstance(quote, str) or not 0 < len(quote) <= 500
+                    or item.get('source_id') != source['id']
+                    or type(item.get('source_version')) is not int or item['source_version'] != source['version']):
+                continue
+            if source['text'][start:end] != quote:
+                original_start = source['text'].find(quote)
+                if original_start >= 0 and source['text'].find(quote, original_start + 1) < 0:
+                    # Resolve a unique exact quote before typed span validation.
+                    item['char_start'] = original_start
+                    item['char_end'] = original_start + len(quote)
+    proposed = _Updates.model_validate({'continuity_updates': updates}).continuity_updates
     if proposed and source is None:
         raise ValueError('Continuity requires exact current narrator evidence')
     literal = _literal_directives(source) if source else []
     seen = set()
     for item in proposed:
-        if source['text'][item.char_start:item.char_end] != item.quote:
-            start=source['text'].find(item.quote)
-            if start>=0 and source['text'].find(item.quote,start+1)<0:
-                # Unique verbatim testimony supplies its own exact coordinates.
-                item.char_start=start
-                item.char_end=start+len(item.quote)
         if (item.source_id != source['id'] or item.source_version != source['version']
                 or item.char_end > len(source['text'])
                 or source['text'][item.char_start:item.char_end] != item.quote):

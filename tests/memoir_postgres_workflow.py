@@ -255,7 +255,7 @@ class PostgresRest:
             code = native_code[1]
             # PostgREST documents 40* (transaction rollback) as HTTP 500.
             # Never manufacture HTTP 409 from the word "conflict".
-            status = 500 if code.startswith(('40', 'XX')) else 403 if code=='42501' else 409 if code in ('23503','23505') else 400
+            status = int(code[2:]) if code.startswith('PT') and code[2:].isdigit() else 500 if code.startswith(('40', 'XX')) else 403 if code=='42501' else 409 if code in ('23503','23505') else 400
             return httpx.Response(status, json={'code': code, 'message': result.stderr})
         value = _sql_json_record(result.stdout)
         return httpx.Response(200, content=json.dumps(value), headers={'Content-Type': 'application/json'})

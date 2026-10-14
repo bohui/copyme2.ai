@@ -166,7 +166,7 @@ def create_lane(sql,identity,skill='timeline',rounds=5):
     project=identity['project_id']
     sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_milestone) values('{OWNER}',{literal(project)},'{skill}',{rounds if skill=='composer' else 0});")
     if skill=='composer':
-        sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},gen_random_uuid(),g from generate_series(1,{rounds}) g;")
+        sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},coalesce((select client_turn_id from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)} order by sequence offset g-1 limit 1),gen_random_uuid()),g from generate_series(1,{rounds}) g;")
     return sql(f"select id from public.user_memoir_lane where user_id='{OWNER}' and skill='{skill}';").stdout.strip()
 
 

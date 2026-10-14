@@ -121,7 +121,8 @@ def test_canonical_collection_does_not_keyerror_on_valid_draft_head(mapped):
     assert calls[-1][0] == 'actual_send_guard'
 
 # Isolated real PostgreSQL migration/authority checks. No configured services.
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database, resolve
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, resolve
+from test_lifetime_memory_reads import database
 from test_shared_memory_events_postgres import rpc, literal
 from test_agent_commit_postgres import OWNER, OTHER
 from apps.api.stage_readiness import word_equivalents

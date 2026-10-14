@@ -903,7 +903,7 @@ def test_stale_event_edits_recognize_native_postgrest_conflicts_without_misclass
     storage = PostgresRest(sql, OWNER).storage()
     with pytest.raises(httpx.HTTPStatusError) as conflict:
         storage.correct_memory_event('project', event['id'], 1, {'life_stage':'adolescence'}, 'I was an adolescent then.')
-    assert conflict.value.response.status_code==500 and conflict.value.response.json()['code']=='40001'
+    assert conflict.value.response.status_code==409 and conflict.value.response.json()['code']=='PT409'
     monkeypatch.setenv('STRIPE_PRICE_FAMILY','synthetic-price')
     entitlement = {'status':'paid','plan_key':'family_memoir_v1','family_tree':True,'timeline':True,'stripe_price_id':'synthetic-price'}
     client = story_client(sql, entitlement=entitlement)

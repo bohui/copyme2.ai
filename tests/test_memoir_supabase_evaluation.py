@@ -133,6 +133,10 @@ class Remote:
                 accepted=bool(record and record['text']==payload['p_text'] and payload['p_kind']=='narrator_chat'
                     and any(source['text']==record['text'] for source in storage.sources))
                 return httpx.Response(200,json=accepted)
+            if path=='/rest/v1/rpc/capture_lifetime_read_fence':
+                return httpx.Response(200,json={'identity':{'owner_id':owner,'conversation_id':CONVERSATIONS[case_id],
+                    'project_id':PROJECTS[case_id],'product':'memoir'},
+                    'source_revision':len(self.storages[PROJECTS[case_id]].sources)})
             if payload and ('project_id' in payload or 'p_project_id' in payload):
                 assert payload.get('project_id',payload.get('p_project_id'))==PROJECTS[case_id],'Cross-account project request.'
             if path == '/api/v1/memoir/agent/config':
@@ -724,12 +728,58 @@ def test_accepted_source_without_reply_requires_explicit_idempotent_response_rec
     assert len({row['accepted_source_id'] for row in rounds})==50
 
 
-def test_response_recovery_cannot_resubmit_unaccepted_original(setup,tmp_path):
+def test_response_recovery_reuses_server_proven_absent_nonce_without_another_original(setup,tmp_path):
     plan,remote=setup();directory=tmp_path/'unaccepted-response';remote.fail_round=1
     asyncio.run(module.execute(plan,directory,SETTINGS))
     remote.fail_round=None
     result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,recover_accepted_turn=True))
+    assert result['status']=='completed',result
+    assert len(remote.submitted)==51 and remote.submitted[0]==remote.submitted[1]
+    assert result['backend_turn_submissions']==50 and result['backend_recovery_submissions']==1
+    assert len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources)==50
+
+
+def test_absent_nonce_with_advanced_source_counter_cannot_be_readmitted(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'absent-nonce-advanced-counter';remote.fail_round=1
+    asyncio.run(module.execute(plan,directory,SETTINGS));remote.fail_round=None;handler=remote.handler
+    def advanced(request):
+        response=handler(request)
+        if request.url.path.endswith('/capture_lifetime_read_fence'):
+            value=response.json();value['source_revision']=1
+            return httpx.Response(200,json=value)
+        return response
+    remote.handler=advanced
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,recover_accepted_turn=True))
     assert result['status']=='incomplete' and len(remote.submitted)==1
+
+
+def test_accepted_response_recovery_keeps_one_source_and_stops_after_six_attempts(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'bounded-response';handler=remote.handler
+    recoveries=[]
+    def rejected(request):
+        if request.url.path.endswith('read_lifetime_reply'):
+            return httpx.Response(200,text='null',headers={'Content-Type':'application/json'})
+        if request.url.path.endswith('/agent/turn'):
+            payload=json.loads(request.content)
+            if remote.submitted:
+                assert payload['client_turn_id']==remote.submitted[0]['client_turn_id']
+                recoveries.append(payload)
+            else:
+                handler(request)
+            return httpx.Response(502,json={'detail':'Synthetic rejected answer'})
+        return handler(request)
+    remote.handler=rejected
+    first=asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert first['status']=='incomplete' and len(remote.submitted)==1
+    for attempt in range(1,7):
+        result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,recover_accepted_turn=True))
+        assert len(recoveries)==attempt
+        assert result['backend_turn_submissions']==1
+        assert result['evaluation']['cases'][0]['rounds'][0]['response_retry_attempts']==attempt
+    result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,recover_accepted_turn=True))
+    assert result['status']=='incomplete' and 'retry limit' in result['stop_reason']
+    assert len(recoveries)==6 and len(remote.submitted)==1
+    assert len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources)==1
 
 
 def test_unrecoverable_resume_preserves_project_without_another_post(setup,tmp_path):
@@ -933,8 +983,38 @@ def test_explicit_extension_targets_only_one_existing_case_without_resetting_cam
     assert module.budget_contract(saved)==module.budget_contract(plan)
     other=module.CASE_IDS[1];other_plan={**plan,'case_ids':[other],'cases':{other:plan['cases'][other]}}
     assert module.resumed_time_limit(other_plan,saved,result) is None
-    with pytest.raises(module.EvaluationError,match='another case'):
-        module.resumed_time_limit(other_plan,saved,result,14400)
+    assert module.resumed_time_limit(other_plan,saved,result,14400)==14400
+    assert result['elapsed_time_extensions']==history
+
+
+def test_separately_requested_second_case_extension_preserves_first_and_all_original_clocks(setup,tmp_path):
+    plan,remote=setup(None);plan.update(max_elapsed_seconds=36000,max_case_elapsed_seconds=7200)
+    remote.draft_failed=True;directory=tmp_path/'second-scoped-extension'
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    first,second=module.CASE_IDS[:2]
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-7400
+    receipt['case_started_at_unix'].update({first:now-7300,second:now-7250})
+    module.save(directory/'receipt.json',receipt);origins=deepcopy(receipt['case_started_at_unix'])
+    remote.draft_failed=False
+    selected={**plan,'case_ids':[first],'cases':{first:plan['cases'][first]}}
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory,extend_time_limit_seconds=14400))
+    first_event=deepcopy(result['elapsed_time_extensions'][0])
+    selected={**plan,'case_ids':[second],'cases':{second:plan['cases'][second]}}
+    stopped=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory))
+    assert 'case elapsed-time ceiling' in stopped['stop_reason'] and len(remote.submitted)==50
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory,extend_time_limit_seconds=14400))
+    assert len(remote.submitted)==100
+    assert result['elapsed_time_extensions'][0]==first_event
+    assert result['elapsed_time_extensions'][1]['case_ids']==[second]
+    assert result['case_started_at_unix']==origins and result['started_at_unix']==receipt['started_at_unix']
+    saved=module.private_json(directory/'plan.json')
+    assert module.budget_contract(saved)==module.budget_contract(plan)==result['budget_contract']
+    third=module.CASE_IDS[2];selected={**plan,'case_ids':[third],'cases':{third:plan['cases'][third]}}
+    assert module.resumed_time_limit(selected,saved,result) is None
+    bad=deepcopy(result);bad['elapsed_time_extensions'].append(first_event)
+    with pytest.raises(module.EvaluationError,match='history'):
+        module.resumed_time_limit(selected,{**saved,'elapsed_time_extensions':bad['elapsed_time_extensions']},bad)
 
 
 def test_resumed_partial_case_reuses_remaining_time_and_reserves_all_prior_attempts(setup,tmp_path,monkeypatch):

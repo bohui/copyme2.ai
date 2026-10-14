@@ -5,6 +5,14 @@ from apps.api.interview_plan import collector_schema, validate_collector_result
 from test_lifetime_memory_continuity import context, reply
 
 
+@pytest.mark.parametrize('acknowledgement',[
+    'Did that feel like home?', '那时候开心吗？', 'You wondered, “Was I ready?”',
+])
+def test_model_schema_rejects_questions_inside_acknowledgements(acknowledgement):
+    with pytest.raises(ValidationError):
+        validate(acknowledgement,collector_schema()['properties']['acknowledgement'])
+
+
 @pytest.mark.parametrize('field,value', [('life_stage','childhood'),('year',1984),('event_id','missing-event')])
 def test_schema_prevents_pointers_without_current_canonical_evidence(field,value):
     ctx=context()

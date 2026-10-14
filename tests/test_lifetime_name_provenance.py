@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 from apps.api import main, agent_routes
 from apps.api.store import MemoryStore
 from test_lifetime_home_recovery import home_auth, headers
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
+from test_lifetime_memory_publication import database
 from test_lifetime_memory_commit import prepare, commit
 from test_agent_commit_postgres import OWNER, OTHER, OLD, as_user
 from test_shared_memory_events_postgres import rpc, literal
@@ -112,7 +113,7 @@ def test_profile_settings_and_name_invalidation_keep_project_profile_identity_lo
     identity, turn, accepted, fence = prepare(sql)
     commit(sql, turn, fence)
     command = sql.command
-    dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     async def scenario():
         settings = await psycopg.AsyncConnection.connect(dsn)
         editor = await psycopg.AsyncConnection.connect(dsn, autocommit=True)
@@ -176,7 +177,7 @@ def test_actual_main_home_send_holds_source_authority_until_outer_asgi_delivery(
     with TestClient(app) as client:
         assert client.post('/v1/projects', headers=headers(), json={}).status_code == 201
     command = sql.command
-    dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     async def scenario():
         entered, release = asyncio.Event(), asyncio.Event()
         delivered = []
@@ -262,7 +263,7 @@ def test_concurrent_profile_delete_and_stale_upsert_cannot_return_or_store_old_n
     identity, turn, accepted, fence = prepare(sql)
     commit(sql, turn, fence)
     command = sql.command
-    dsn = f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
     async def scenario():
         deleting = await psycopg.AsyncConnection.connect(dsn)
         inserting = await psycopg.AsyncConnection.connect(dsn, autocommit=True)
@@ -282,8 +283,9 @@ def test_concurrent_profile_delete_and_stale_upsert_cannot_return_or_store_old_n
                     pass
                 assert not write.done()
                 await deleting.commit()
-                with pytest.raises(psycopg.errors.SerializationFailure):
+                with pytest.raises(psycopg.DatabaseError) as rejected:
                     await write
+                assert rejected.value.sqlstate == 'PT409'
                 retry = await inserting.execute(f"insert into public.user_profile(user_id,profile) values('{OWNER}','{{\"name\":\"Joan\",\"birth_place\":\"Anshan\"}}') on conflict(user_id) do update set profile=excluded.profile returning profile")
                 returned = (await retry.fetchone())[0]
                 assert returned.get('name') is None

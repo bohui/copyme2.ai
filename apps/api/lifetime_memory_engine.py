@@ -277,7 +277,8 @@ async def run_governed_collector(**options):
             try:
                 return await _run_governed_collector_once(**options)
             except CollectorOutputInvalid:
-                if published or attempt==attempts-1:raise
+                if published or attempt==attempts-1:
+                    raise
 
 
 async def _run_governed_collector_once(*, command, home_root, base_url, api_key, model,

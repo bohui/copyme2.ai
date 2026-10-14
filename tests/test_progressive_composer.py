@@ -98,6 +98,30 @@ def test_five_new_messages_use_one_summary_instead_of_one_preparation_per_quote(
     assert current == before
     assert len(bundle['request']['context']['prepared_partitions']) == 1
     assert bundle['request']['context']['checkpoint_delta'] == {'starting_after': 0, 'through_source': 5}
+
+
+def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sql):
+    identity=resolve(sql);project=identity['project_id']
+    def add(first,last):
+        for i in range(first,last+1):
+            rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{UUID(int=i)}',{literal('Original round '+str(i))}")
+    def finish_fixture(claim):
+        sql(f"update public.user_lifetime_lane_snapshot set state='completed' where id='{claim['snapshot_id']}'; "
+            f"update public.user_memoir_lane set token=null,lease_until=null,run_deadline=null,pending=true,available_at=clock_timestamp() where id='{lane}';")
+    add(1,5);lane=create_lane(sql,identity,'composer',5)
+    first=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    assert len(first['batch']['new_messages'])==5
+    finish_fixture(first);add(6,8)
+    sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},client_turn_id,sequence from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)} and sequence between 6 and 8;")
+    partial=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    assert partial['coverage_round']==5 and partial['source_high_water']==8
+    assert partial['batch']['new_messages']==[]
+    finish_fixture(partial);add(9,10)
+    sql(f"insert into public.user_completed_round(user_id,project_id,turn_id,ordinal) select '{OWNER}',{literal(project)},client_turn_id,sequence from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)} and sequence between 9 and 10; "
+        f"update public.user_memoir_lane set target_milestone=10 where id='{lane}';")
+    final=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    assert [s['sequence'] for s in final['batch']['new_messages']]==list(range(6,11))
+    assert final['batch']['starting_after']==5
     for e in current['batch']['events']:
         assert any(e['id'] in s['event_ids'] for s in bundle['sections'])
 
