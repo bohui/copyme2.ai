@@ -341,6 +341,13 @@ def composition_request(job):
             ref['source_id'] for event in request['events'] for ref in event['source_refs']))
         request['context']['projection_invalidated_chapter_ids'] = [
             prior['chapter']['id'] for prior in request['prior_state']['chapters']]
+    if job.get('editorial_request'):
+        # The user selected this bounded writing for revision. Unchanged event
+        # facts cannot make its old prose an immutable carry-forward section.
+        request['context']['dirty_event_ids'] = [event['id'] for event in request['events']]
+        request['context']['affected_source_ids'] = [source['id'] for source in request['sources']]
+        request['context']['projection_invalidated_chapter_ids'] = [
+            prior['chapter']['id'] for prior in request['prior_state']['chapters']]
     # Even unchanged canonical event revisions cannot authorize reusing prose
     # whose photograph association changed or was explicitly removed.
     photo_dirty = set(request['context']['photo_dirty_event_ids'])
@@ -352,7 +359,7 @@ def composition_request(job):
     current_events = {e['id']: e['revision'] for e in job['event_manifest']}
     current_sources = {(s['id'], str(s['version'])) for s in job['sources']}
     request['context']['preserved_sections'] = [copy.deepcopy(section) for section in (job.get('previous') or {}).get('sections', [])
-        if job['previous'].get('content_config') == config
+        if not job.get('editorial_request') and job['previous'].get('content_config') == config
         and not photo_dirty.intersection(section['event_ids'])
         and all(current_events.get(id) == old_events.get(id) for id in section['event_ids'])
         and all((ref['source_id'], str(ref['version'])) in current_sources for ref in section['source_refs'])]

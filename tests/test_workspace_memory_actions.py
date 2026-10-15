@@ -36,8 +36,15 @@ def test_rework_http_admits_only_exact_section_request_without_a_narration_or_mo
 
 
 def finish(sql, lane, page, text=None):
+    from test_progressive_photo_invalidation import validated_result, block
+    passage = block('prose', page['source'])
+    passage['text'] = text or page['source']['text']
+    result = validated_result(page, [passage])
+    from apps.api.canonical_composer import composition_request
+    from apps.api.progressive_composer import batch_job
+    result['content_config'] = composition_request(batch_job(page))[1]
     service(sql, 'commit_lifetime_memoir_lane_page',
-        f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page, text or page['source']['text']))}")
+        f"'{lane}','{page['token']}',{page['page_number']},{literal(result)}")
     service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
     return rpc(sql, 'read_lifetime_private_draft_head', literal(page['project_id']))
 
@@ -77,7 +84,7 @@ def compose_rework(sql, page, text):
         lane_publisher=LanePublication(dsn,authenticated_owner=OWNER))
     result=asyncio.run(execute_lifetime_lane(page,worker))
     assert result['status']=='proposed', result
-    assert phases==['prepare','draft','review']
+    assert phases==(['prepare'] if page['batch']['new_messages'] else [])+['draft','review']
     return rpc(sql,'read_lifetime_private_draft_head',f"{literal(page['project_id'])},{literal(page['locale'])}")
 
 
@@ -138,15 +145,19 @@ def test_pg_section_rework_is_idempotent_and_preserves_original_until_review(sql
     assert page['partition']['revision'] == event_before['revision']
     assert page['editorial_request']['original_preview']['text'] == source['text']
     fence = LaneFence.model_validate({key:page[key] for key in LaneFence.model_fields if key in page})
+    from apps.api.memoir_preview import skill_operation
+    import asyncio
     request = canonical_lane_request(fence)
     assert request['context']['editorial_request']['instruction'] == 'Make this section shorter.'
     assert request['sources'][0]['text'] == source['text']
     assert 'Make this section shorter.' not in str(request['sources'])
     # The real bounded transport accepts the exact request; altered instructions fail.
-    build_bounded_lane_input(page, phase='index', packet=request, budget=BUDGET)
-    altered = deepcopy(request); altered['context']['editorial_request']['instruction'] = 'Invent new facts'
-    with pytest.raises(ValueError, match='authoritative'):
-        build_bounded_lane_input(page, phase='index', packet=altered, budget=BUDGET)
+    plan = asyncio.run(skill_operation('plan', request))
+    packet = {'request':request, 'plan':plan}
+    build_bounded_lane_input(page, phase='draft', packet=packet, budget=BUDGET)
+    altered = deepcopy(packet); altered['request']['context']['editorial_request']['instruction'] = 'Invent new facts'
+    with pytest.raises(ValueError, match='Progressive request differs from its authoritative batch'):
+        build_bounded_lane_input(page, phase='draft', packet=altered, budget=BUDGET)
     current = compose_rework(sql, page, 'Chengde was my childhood home.')
     record = rpc(sql, 'read_workspace_draft_section',
         f"{literal(identity['project_id'])},'{current['snapshot_id']}',{literal(head['first_record']['id'])}")
@@ -234,7 +245,8 @@ def test_pg_new_rework_behind_a_yielded_cursor_restarts_only_its_edition(sql):
     second = service(sql, 'claim_memoir_lane', f"'{lane}',900")
     head = finish(sql, lane, second)
     sequence = sql('select event_sequence from public.user_memoir_project;').stdout
-    newer = {**head,'first_record':{'id':second['partition_key']}}
+    records = rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{head['snapshot_id']}'")['records']
+    newer = {**head,'first_record':next(record for record in records if record['event_id']==second['partition']['id'])}
     rpc(sql, 'request_workspace_section_rework', rework_args(newer,str(uuid4())))
     old_page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
     service(sql, 'commit_lifetime_memoir_lane_page',
@@ -272,7 +284,7 @@ def test_pg_new_rework_preserves_an_unfinished_other_edition(sql):
     assert resumed['snapshot_id'] == chinese['snapshot_id'] and resumed['locale'] == 'zh-CN' and resumed['complete']
     service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{resumed['token']}'")
     page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
-    assert page['locale'] == 'en-AU' and page['editorial_request'] is not None
+    assert page['locale'] == 'en-AU' and page['editorial_request'] is not None, page
     finish(sql, lane, page, 'Chengde was my childhood home.')
     assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'composed'
     assert service(sql, 'claim_memoir_lane', f"'{lane}',900") is None
@@ -625,3 +637,54 @@ def test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_afte
         assert sql('select count(*) from public.user_narrator_source;').stdout==before
     assert len(calls)==1
     assert sql(f"select text from public.user_narrator_source where client_turn_id='{payload['client_turn_id']}';").stdout.strip()==payload['text']
+
+
+def test_progressive_editorial_commit_rejects_siblings_and_replays_exact_result(sql):
+    identity,source,lane,first=seeded_composer(sql)
+    head=finish(sql,lane,first)
+    rpc(sql,'request_workspace_section_rework',rework_args(head,str(uuid4())))
+    page=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    result=section_result(page,'Chengde was my childhood home.')
+    forged=deepcopy(result)
+    forged['sections'].append({**deepcopy(result['sections'][0]),'id':'unrequested-sibling'})
+    before=sql('select row_to_json(s) from public.user_lifetime_memoir_section s;').stdout
+    with pytest.raises(AssertionError,match='only the selected writing'):
+        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{page['token']}',{page['page_number']},{literal(forged)}")
+    assert sql('select row_to_json(s) from public.user_lifetime_memoir_section s;').stdout==before
+    args=f"'{lane}','{page['token']}',{page['page_number']},{literal(result)}"
+    committed=service(sql,'commit_lifetime_memoir_lane_page',args)
+    assert committed['status']=='page_saved'
+    import json
+    replay=json.loads(sql(f"set role service_role;select public.commit_lifetime_memoir_lane_page({args},{literal(page['page_digest'])});").stdout.strip())
+    assert replay['replayed'] is True
+    saved=sql('select row_to_json(s) from public.user_lifetime_memoir_section s order by snapshot_id;').stdout
+    changed=deepcopy(result);changed['sections'][0]['block']['text']='Changed after delivery'
+    with pytest.raises(AssertionError,match='replay conflict'):
+        sql(f"set role service_role;select public.commit_lifetime_memoir_lane_page('{lane}','{page['token']}',{page['page_number']},{literal(changed)},{literal(page['page_digest'])});")
+    assert sql('select row_to_json(s) from public.user_lifetime_memoir_section s order by snapshot_id;').stdout==saved
+    service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{page['token']}'")
+    current=rpc(sql,'read_lifetime_private_draft_head',literal(identity['project_id']))
+    assert current['first_record']['id']==head['first_record']['id']
+    assert current['first_record']['preview']['text']==source['text']
+    assert current['first_record']['proposed_preview']['text']=='Chengde was my childhood home.'
+
+
+def test_photo_attachment_policy_change_refuses_stale_rework_without_rewriting_prose(sql):
+    identity,source,lane,first=seeded_composer(sql)
+    head=finish(sql,lane,first)
+    request_id=str(uuid4())
+    args=rework_args(head,request_id)
+    rpc(sql,'request_workspace_section_rework',args)
+    original=sql(f"select bundle::text from public.user_lifetime_memoir_section where snapshot_id='{head['snapshot_id']}';").stdout
+    rounds=sql('select count(*) from public.user_completed_round;').stdout
+    sequence=sql('select event_sequence from public.user_memoir_project;').stdout
+    attach_first_photo(sql,identity,source,first['partition']['id'])
+    # The authenticated photo-plan RPC advances policy authority. Preserve
+    # stored original bytes while refusing the now-stale root and its request.
+    assert sql('select count(*) from public.user_workspace_section_rework;').stdout.strip()=='0'
+    with pytest.raises(AssertionError,match='section root changed'):
+        rpc(sql,'request_workspace_section_rework',args)
+    assert sql(f"select bundle::text from public.user_lifetime_memoir_section where snapshot_id='{head['snapshot_id']}';").stdout==original
+    assert sql('select text from public.user_narrator_source;').stdout.strip()==source['text']
+    assert sql('select count(*) from public.user_completed_round;').stdout==rounds
+    assert sql('select event_sequence from public.user_memoir_project;').stdout==sequence

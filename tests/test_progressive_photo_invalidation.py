@@ -55,6 +55,10 @@ def validated_result(page, blocks):
     draft = controlled_draft(dict(request=request,plan=plan),'I grew up in Chengde.','Childhood')
     assert draft['kind'] == 'sample_chapter'
     chapter = draft['chapters'][0]
+    prior = next((row for row in (request.get('prior_state') or {}).get('chapters', [])
+        if row['chapter']['id'] == chapter['id']), None)
+    chapter['base_revision'] = prior['revision'] if prior else 0
+    chapter['change_type'] = 'enrich' if prior else 'create'
     chapter['blocks'] = deepcopy(blocks)
     chapter['source_refs'] = refs
     validation = asyncio.run(skill_operation('validate',request,draft))
