@@ -25,6 +25,7 @@ from apps.api.turn_stream import turn_events
 from scripts.canonical_turn import canonical_turn, CanonicalTurnFailed
 from scripts.controlled_native_state import ROOT, controlled_database, open_case, snapshot_case
 from scripts.profile_conversation_latency import WorkerStream
+from scripts.controlled_lifecycle import sigterm_cancellable
 
 
 def digest(value):
@@ -64,6 +65,7 @@ def settings(dsn, variant):
             else:os.environ[key]=value
 
 
+@sigterm_cancellable
 async def canonical_campaign(rounds, *, timeout=20, candidate_model='gpt-5.6-luna-memoir-low'):
     with offline_settings():
         return await _canonical_campaign(rounds, timeout=timeout, candidate_model=candidate_model)

@@ -4,18 +4,25 @@ import asyncio
 import json
 import os
 from pathlib import Path
-import shutil
 import signal
 import sys
 import tempfile
 from scripts.controlled_native_state import ROOT, controlled_database, open_case, snapshot_case
+from scripts.controlled_lifecycle import reconcile_native_directory, sigterm_cancellable
 
 
 CHILD_CLEANUP_SECONDS = 20
 
 
-async def cleanup_case(process, database_directory, environment):
+async def cleanup_case(creation, database_directory, environment):
     """Let finally run, then reconcile only this child's private native cluster."""
+    process = None
+    if creation is not None:
+        try:
+            process = await creation
+        except Exception:
+            # The original launch failure still propagates from the caller.
+            pass
     if process is not None and process.returncode is None:
         process.terminate()
         try:
@@ -23,22 +30,10 @@ async def cleanup_case(process, database_directory, environment):
         except TimeoutError:
             process.kill()
             await asyncio.wait_for(process.wait(), 5)
-    for data in database_directory.glob('memoir-lease-pg-*/data'):
-        if not (data / 'postmaster.pid').exists():
-            continue
-        stop = await asyncio.create_subprocess_exec('pg_ctl', '-D', str(data), '-m', 'immediate', '-w', 'stop',
-            env=environment, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        try:
-            await asyncio.wait_for(stop.wait(), 12)
-        finally:
-            if stop.returncode is None:
-                stop.kill()
-                await stop.wait()
-        if (data / 'postmaster.pid').exists():
-            raise RuntimeError(f'Controlled cluster cleanup unverified; retained {database_directory}')
-    shutil.rmtree(database_directory)
+    await asyncio.to_thread(reconcile_native_directory, database_directory, environment)
 
 
+@sigterm_cancellable
 async def run_isolated_case(case, expected_payload, case_expected, *, args, run_dir, max_rounds, langfuse_publisher=None):
     from scripts.run_isolated_check import offline_environment
     env = offline_environment(ROOT)
@@ -49,16 +44,18 @@ async def run_isolated_case(case, expected_payload, case_expected, *, args, run_
     rounds_dir = Path(run_dir)/'cases'/case['id']/'rounds'
     before = {path.name:path.read_bytes() for path in rounds_dir.glob('round-???.json')}
     database_directory = Path(tempfile.mkdtemp(prefix='memoir-case-'))
-    process = None
+    process = creation = None
     value=dict(case=case,expected_payload=expected_payload,case_expected=case_expected,
         args=vars(args),run_dir=str(run_dir),max_rounds=max_rounds,database_directory=str(database_directory))
     try:
-        process = await asyncio.create_subprocess_exec(sys.executable,'-m','scripts.controlled_five_case',
-            cwd=ROOT,env=env,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE)
+        creation = asyncio.create_task(asyncio.create_subprocess_exec(sys.executable,'-m','scripts.controlled_five_case',
+            cwd=ROOT,env=env,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE))
+        # A cancelled supervisor must still obtain and reap an in-flight child.
+        process = await asyncio.shield(creation)
         stdout,_=await process.communicate(json.dumps(value).encode())
     finally:
         # Further cancellation cannot interrupt the bounded reconciliation task.
-        cleanup = asyncio.create_task(cleanup_case(process, database_directory, env))
+        cleanup = asyncio.create_task(cleanup_case(creation, database_directory, env))
         cancelled_during_cleanup = False
         while True:
             try:

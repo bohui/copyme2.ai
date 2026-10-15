@@ -12,7 +12,9 @@ import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 from uuid import UUID, uuid4
+from scripts.controlled_lifecycle import reconcile_native_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE_VERSION = 'memoir-controlled-canonical-state/1'
@@ -28,15 +30,18 @@ def _test_adapter():
 
 @contextmanager
 def controlled_database(*, directory_root=None):
-    """Owned Unix-socket database; a supplied root delegates deletion to its caller.
+    """Owned Unix-socket database with reconciliation after a failed closer.
 
-    The supervising caller must reconcile shutdown before removing that root,
-    including when this generator's bounded stop raises or times out.
+    A supplied root delegates deletion to its supervising caller. Otherwise this
+    context owns a private root and reconciles it before removal, even when the
+    generator's bounded stop raises or times out.
     """
     _test_adapter()
     from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database
     if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native') != 'native':
         raise ValueError('Controlled cloud tooling requires the local native PostgreSQL backend')
+    owns_root = directory_root is None
+    directory_root = directory_root or tempfile.mkdtemp(prefix='memoir-controlled-pg-')
     generator = database.__wrapped__(directory_root=directory_root)
     try:
         sql = next(generator)
@@ -54,7 +59,12 @@ def controlled_database(*, directory_root=None):
             else:
                 os.environ['MEMOIR_PUBLICATION_DATABASE_URL'] = previous
     finally:
-        generator.close()
+        try:
+            generator.close()
+        finally:
+            if owns_root:
+                environment = {key:value for key,value in os.environ.items() if not key.startswith('PG')}
+                reconcile_native_directory(directory_root, environment)
 
 
 def owner_tables(sql):

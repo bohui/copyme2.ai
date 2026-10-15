@@ -38,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.controlled_lifecycle import sigterm_cancellable
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.family_context import family_features_enabled
 from apps.api.memoir_preview import (
@@ -1486,6 +1487,7 @@ def make_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@sigterm_cancellable
 async def main_async(args: argparse.Namespace) -> int:
     inputs = load_json(args.inputs)
     expected_payload = load_json(args.expected)
@@ -1733,6 +1735,8 @@ def main() -> int:
         return asyncio.run(main_async(make_arg_parser().parse_args()))
     except KeyboardInterrupt:
         return 130
+    except asyncio.CancelledError:
+        return 143
 
 
 if __name__ == "__main__":
