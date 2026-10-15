@@ -126,6 +126,33 @@
         "pinned_junit": "4be91cb2a2825e795c0fadded8d5ab8677a62a2bc54bb133c148e5bcf7f36575"
       },
       "limits": "No product purge change is claimed. These constructions explain the observed failure and verify their own behavior; they do not prove the absence of other withdrawal defects or establish exposure through a production UI."
+    },
+    {
+      "batch": 4,
+      "code_revision": "0bbe44e336ce4d67016f4da5b1b8497d7749dd89",
+      "scope": "Remaining eight evaluation readback and governed route-spy failures exposed by batch two",
+      "red": {
+        "failed": 8,
+        "evidence": "Batch two pinned JUnit retains all eight IDs and failure summaries."
+      },
+      "pinned_result": {
+        "passed": 87,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 43.074
+      },
+      "commands": [
+        "python -m pytest -q tests/test_memoir_fifty_browser.py tests/test_agent_routes.py --tb=short"
+      ],
+      "root_causes": [
+        "Owned evaluation readback required retired GET receipt transport. It now accepts exact POST read arguments only. A regression rejects GET, another project, malformed client-turn IDs and extra arguments before SQL. Existing canonical SQL tests establish the permitted phase-row initialization/owned-project lock contract.",
+        "Generation-only spies now retain real disposable SQL owner identities, leases and execution fences through ASGI publication. Production publication safeguards are unchanged; all existing missing-authority/fence refusal tests also pass.",
+        "The owned adapter raised RuntimeError expecting the former route to format it. It now raises an explicit sanitized HTTP 502, retaining private diagnostic sidecars and original one-dispatch/no-retry assertions."
+      ],
+      "evidence_sha256": {
+        "pinned_junit": "282ad15f9bab1a6e34c4bf4be50f6cb4b7de6bd42e511f8baabfb629f70ec5a8"
+      },
+      "limits": "Offline ASGI handler/SQL evidence, not a native production browser or live provider run."
     }
   ],
   "current_disposition": {
@@ -136,7 +163,7 @@
     ],
     "historical_unresolved_still_pending": 21,
     "withdrawal_concern": "Observed intermittent assertion traced to misattributed synthetic model output. Batch three preserves purge/unrelated-content checks and adds four protected-original/edit/withdrawal cases. No product purge defect or production exposure is established by these constructions.",
-    "complete_continuation_aggregate": "pending",
+    "complete_continuation_aggregate": "Starting at the following evidence commit; no source/test edits will occur during it.",
     "independent_runtime_acceptance": "outstanding"
   }
 }
