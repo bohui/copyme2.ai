@@ -318,5 +318,8 @@ def test_five_case_round_runner_publishes_minimized_trajectory_receipt(tmp_path)
     # cannot make a successful canonical delivery claim old skill acceptance.
     assert round_trace['error'] is None
     assert round_trace['response']['conversation_saved'] is True
+    delivered = [event['text'] for event in round_trace['events'] if event['type'] == 'text_delta']
+    assert delivered and all(isinstance(text, str) for text in delivered)
+    assert round_trace['visible_delta_chars'] == sum(map(len, delivered)) > 0
     assert client.observation.updated[0]["metadata"]["evaluation_round_status"] == round_trace['grade']['overall']
     assert client.flushed

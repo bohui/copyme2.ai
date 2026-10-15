@@ -1168,12 +1168,16 @@ async def _run_case(
         try:
             from apps.api.agent_storage import UserStorage
             from scripts.canonical_turn import canonical_turn
+            async def on_delivered_event(event):
+                await on_event(event)
+                if event.get('type') == 'text_delta' and isinstance(event.get('text'), str):
+                    await on_delta(event['text'])
             async def deliver():
                 if isinstance(storage, UserStorage):
                     return await canonical_turn(runtime, storage, text, options={
                         'project_id':str(case['project_id']), 'language':str(case['locale']),
                         'client_turn_id':str(uuid4())}, evaluation=correlation,
-                        on_event=on_event, trajectory=turn_trajectory,
+                        on_event=on_delivered_event, trajectory=turn_trajectory,
                         evaluation_context={'enabled_skills':list(SKILLS), 'available_tools':['memoir-place-groups','place-photo-research']})
                 return await runtime.turn(
                 storage,
