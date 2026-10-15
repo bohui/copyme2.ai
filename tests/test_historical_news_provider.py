@@ -6,16 +6,19 @@ from apps.api.historical_news_provider import GatewayHistoricalProvider
 from test_historical_news import evidence
 
 
-def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch):
+@pytest.mark.parametrize('research_model',[None,'approved-low-model'])
+def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch,research_model):
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.example/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL','approved-model')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','synthetic-key')
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS_MODEL',raising=False)
+    if research_model:monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS_MODEL',research_model)
     captured=[]
     async def transport(request):
         captured.append(json.loads(request.content))
         if 'max_tool_calls' in captured[-1]:
             return httpx.Response(400,json={'error':{'message':'Unsupported parameter: max_tool_calls'}})
-        return httpx.Response(200,json={'id':'resp_test','output':[
+        return httpx.Response(200,json={'id':'resp_'+'a'*452,'output':[
             {'type':'web_search_call','id':'ws_test','status':'completed','action':{'sources':[{'url':evidence()['source_url']}]}},
             {'type':'message','content':[{'type':'output_text','text':json.dumps({'events':[evidence()]})}]}]})
     async def run():
@@ -23,11 +26,14 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
             provider=GatewayHistoricalProvider(client=client)
             result=await provider.discover('Boston, USA 1968–1975 civic culture sport public events',timeout=5)
             assert result['receipt']['status']=='completed'
+            assert len(result['receipt']['response_id'])==457
             assert result['receipt']['urls']==[evidence()['source_url']]
             assert result['events']==[evidence()]
     asyncio.run(run())
     assert captured[0]['tools']==[{'type':'web_search'}]
+    assert captured[0]['model']==(research_model or 'approved-model')
     assert 'max_tool_calls' not in captured[0] and captured[0]['store'] is False
+    assert captured[0]['reasoning']=={'effort':'low'}
     assert 'photograph' not in captured[0]['input']
 
 

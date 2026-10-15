@@ -102,6 +102,15 @@ Set `MEMORY_SPARK_TTS_VOICE_ZH_CN` or `MEMORY_SPARK_TTS_VOICE_EN_AU` to choose d
 
 Voice input uses microphone recording, `POST /api/v1/memoir/story/transcriptions`, and the same canonical saved conversation engine as typed input. Spoken replies use the speech endpoint. The separate direct WebRTC backend has been retired; see [the voice flow](docs/Realtime_WebRTC.md).
 
+Set `MEMORY_SPARK_HISTORICAL_NEWS=1` in `.env` and recreate the API service to
+enable optional public historical context during interviews. Research starts
+after the saved reply has been sent and its interview lease released; only
+inspected, cited clues become available to later questions. Missing or ambiguous
+life context and project opt-outs suppress research. It uses the existing LLM
+gateway and credentials. `MEMORY_SPARK_HISTORICAL_NEWS_MODEL` optionally selects
+an existing gateway alias for low reasoning effort when the main alias forces
+higher effort; blank uses `MEMORY_SPARK_LLM_MODEL`.
+
 ## Story packages and Stripe
 
 After the free first chapter, the story journey offers three one-time packages in Australian dollars:
