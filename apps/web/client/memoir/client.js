@@ -1243,6 +1243,9 @@ async function refreshFamilyEntitlement() {
     const features = new Set(entitlement.payment_features || []);
     state.familyEntitlement = entitlement;
     state.recallStatus = entitlement.recall_status || null;
+    // Project hydration can finish its draft read before restored allowance is
+    // known. Recheck once eligibility arrives, without delaying the interview.
+    if (freeRecallFinished() && !state.showDraftUpdates) void refreshPrivateDraft();
     if (state.recallStatus?.payment_required) void ensureRecallPreview();
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")

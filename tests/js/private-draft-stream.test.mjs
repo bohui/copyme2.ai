@@ -38,6 +38,34 @@ function response(events, split = false) {
   }})};
 }
 
+for (const rounds of [5, 20]) {
+  test(`restored ${rounds}-round entitlement rechecks the saved draft with debugging off`, async () => {
+    const s = setup({showDraftUpdates:false, showThinkingSteps:false});
+    const paths = [];
+    s.context.storyApi = async path => {
+      paths.push(path);
+      if (path === '/v1/story/state') return {
+        family_features_enabled:false,
+        recall_status:{rounds_completed:rounds, free_rounds:20, paid:true, payment_required:false},
+      };
+      assert.equal(path, '/v1/story/private-draft?project_id=p&language=zh-CN');
+      return {status:'ready', updating:false, preview:{title:'Saved garden', text:'Saved synthetic testimony'}};
+    };
+    for (const name of ['freeRecallFinished', 'refreshFamilyEntitlement']) {
+      vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], s.context);
+    }
+    // Reload starts project hydration before the entitlement request completes.
+    await s.context.refreshPrivateDraft();
+    assert.deepEqual(paths, []);
+    await s.context.refreshFamilyEntitlement();
+    await tick();
+    assert.deepEqual(paths, ['/v1/story/state', ...(rounds === 20
+      ? ['/v1/story/private-draft?project_id=p&language=zh-CN'] : [])]);
+    assert.equal(s.state.privateDraft?.preview?.text, rounds === 20 ? 'Saved synthetic testimony' : undefined);
+    assert.equal(s.requests(), 0, 'Debug-off restoration must not open a draft stream');
+  });
+}
+
 test('one request delivers draft changes without scheduling HTTP polling', async()=>{
   const s=setup();
   await s.context.refreshPrivateDraft();

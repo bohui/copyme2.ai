@@ -23,7 +23,7 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
     rounds = 20 if mapped else 5
     history = StoryHistoryFixture(STAGE_OWNER, project['id'], 'fixture-only')
     maps_ready = mapped
-    show_drafts = mapped
+    show_drafts = False
     place={'place':'Chengde','hierarchy':['Earth','China','Hebei','Chengde'],'granularity':'city','life_stage':'childhood'}
     if mapped:
         place.update(latitude=40.9515,longitude=117.9634)
@@ -122,10 +122,6 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         expect(page.locator('[role="dialog"]:visible')).to_have_count(0)
         page.get_by_text(workspace['readSavedDraft'],exact=True).click()
         expect(page.locator('.private-draft-status')).to_contain_text('safe synthetic private draft')
-        show_drafts=False
-        page.reload()
-        expect(page.locator('[data-life-stage-tab="childhood"]')).to_be_visible(timeout=30000)
-        expect(page.locator('.private-draft-status')).to_have_count(0)
         destination=ROOT/f'output/preview-debug/stage-rings-{locale}.png'
         destination.parent.mkdir(parents=True,exist_ok=True)
         page.locator('#workspace-detail').screenshot(path=str(destination))
