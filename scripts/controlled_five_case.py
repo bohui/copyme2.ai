@@ -4,8 +4,39 @@ import asyncio
 import json
 import os
 from pathlib import Path
+import shutil
+import signal
 import sys
+import tempfile
 from scripts.controlled_native_state import ROOT, controlled_database, open_case, snapshot_case
+
+
+CHILD_CLEANUP_SECONDS = 20
+
+
+async def cleanup_case(process, database_directory, environment):
+    """Let finally run, then reconcile only this child's private native cluster."""
+    if process is not None and process.returncode is None:
+        process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), CHILD_CLEANUP_SECONDS)
+        except TimeoutError:
+            process.kill()
+            await asyncio.wait_for(process.wait(), 5)
+    for data in database_directory.glob('memoir-lease-pg-*/data'):
+        if not (data / 'postmaster.pid').exists():
+            continue
+        stop = await asyncio.create_subprocess_exec('pg_ctl', '-D', str(data), '-m', 'immediate', '-w', 'stop',
+            env=environment, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        try:
+            await asyncio.wait_for(stop.wait(), 12)
+        finally:
+            if stop.returncode is None:
+                stop.kill()
+                await stop.wait()
+        if (data / 'postmaster.pid').exists():
+            raise RuntimeError(f'Controlled cluster cleanup unverified; retained {database_directory}')
+    shutil.rmtree(database_directory)
 
 
 async def run_isolated_case(case, expected_payload, case_expected, *, args, run_dir, max_rounds, langfuse_publisher=None):
@@ -17,16 +48,29 @@ async def run_isolated_case(case, expected_payload, case_expected, *, args, run_
         if os.environ.get(key): env[key]=os.environ[key]
     rounds_dir = Path(run_dir)/'cases'/case['id']/'rounds'
     before = {path.name:path.read_bytes() for path in rounds_dir.glob('round-???.json')}
-    process = await asyncio.create_subprocess_exec(sys.executable,'-m','scripts.controlled_five_case',
-        cwd=ROOT,env=env,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE)
+    database_directory = Path(tempfile.mkdtemp(prefix='memoir-case-'))
+    process = None
     value=dict(case=case,expected_payload=expected_payload,case_expected=case_expected,
-        args=vars(args),run_dir=str(run_dir),max_rounds=max_rounds)
+        args=vars(args),run_dir=str(run_dir),max_rounds=max_rounds,database_directory=str(database_directory))
     try:
+        process = await asyncio.create_subprocess_exec(sys.executable,'-m','scripts.controlled_five_case',
+            cwd=ROOT,env=env,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE)
         stdout,_=await process.communicate(json.dumps(value).encode())
-    except BaseException:
-        if process.returncode is None: process.terminate()
-        await process.wait()
-        raise
+    finally:
+        # Further cancellation cannot interrupt the bounded reconciliation task.
+        cleanup = asyncio.create_task(cleanup_case(process, database_directory, env))
+        cancelled_during_cleanup = False
+        while True:
+            try:
+                await asyncio.shield(cleanup)
+                break
+            except asyncio.CancelledError:
+                cancelled_during_cleanup = True
+                if cleanup.done():
+                    cleanup.result()
+                    break
+        if cancelled_during_cleanup:
+            raise asyncio.CancelledError
     if process.returncode:
         raise RuntimeError('Controlled canonical case subprocess failed')
     result = json.loads(stdout)
@@ -74,7 +118,7 @@ async def execute(value):
     case=value['case'];run_dir=Path(value['run_dir'])
     state_path=run_dir/'cases'/case['id']/'storage_state.json'
     state=json.loads(state_path.read_text()) if args.resume and state_path.exists() else None
-    with controlled_database() as sql:
+    with controlled_database(directory_root=value.get('database_directory')) as sql:
         storage,adapter,legacy_places=open_case(sql,case,state)
         storage.place_history=lambda:legacy_places+storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=storage.project_id)
         storage.state_snapshot=lambda:snapshot_case(sql,storage,legacy_places)
@@ -92,6 +136,18 @@ async def execute(value):
             storage.client.close()
 
 
+async def main():
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    previous = signal.getsignal(signal.SIGTERM)
+    loop.add_signal_handler(signal.SIGTERM, task.cancel)
+    try:
+        return await execute(json.load(sys.stdin))
+    finally:
+        loop.remove_signal_handler(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, previous)
+
+
 if __name__=='__main__':
-    result=asyncio.run(execute(json.load(sys.stdin)))
+    result=asyncio.run(main())
     print(json.dumps(result,ensure_ascii=False))

@@ -27,13 +27,13 @@ def _test_adapter():
 
 
 @contextmanager
-def controlled_database():
+def controlled_database(*, directory_root=None):
     """A new local Unix-socket database, never an inherited service or Mac."""
     _test_adapter()
     from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database
     if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native') != 'native':
         raise ValueError('Controlled cloud tooling requires the local native PostgreSQL backend')
-    generator = database.__wrapped__()
+    generator = database.__wrapped__(directory_root=directory_root)
     try:
         sql = next(generator)
         sql = event_database.__wrapped__(private_database.__wrapped__(attachment_database.__wrapped__(sql)))
