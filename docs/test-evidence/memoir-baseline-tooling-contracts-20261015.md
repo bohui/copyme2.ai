@@ -277,3 +277,33 @@ all three original red postmasters and their recorded owners are no longer
 running, and all original data/PID files are absent. Exited zombies are not
 claimed reaped. Before/action/after evidence is embedded separately, rather than
 using the failed teardown as proof. No product or PR68-owned policy changes.
+
+
+## Snapshot/fork/reap and emergency creator-exit races
+
+`51ca7fe5629f74f6a657a7a2e611d86dabf91bf8` repairs a runtime process-snapshot race and a separate
+test emergency-teardown race. Real snapshot/fork/reap handshakes previously
+reported verified cleanup with a live same-group descendant and removed identity
+metadata. Vanished captured PIDs now require fresh, bounded, identity-checked
+enumeration; unstable snapshots retain metadata. Recorded leader birth is checked
+early and before signalling. Changed session or denied inspection still refuses
+signals. Generic command and Apple-compatible field contracts remain passing.
+
+An actual controlled-case creator becoming zombie/reaped between its running
+check and command read previously aborted emergency cleanup with the original
+postmaster live and no stop attempt. The helper now rechecks birth/state after
+command inspection, including a missing proc. Verified exited creators permit
+separate verified database stop. Changed birth/command or a live unavailable
+identity still raises and retains resources. Five native positive/refusal
+variants preserve independent safe test teardown evidence.
+
+All sixteen complete selected modules, including the ordinary proposal-overlap
+regression, record 97 passes and two failures without errors/skips. Both the
+unchanged exited-zombie absence assertion and unresolved proposal-overlap
+assertion remain ordinary failed tests. Twenty-two instrumented postmasters are
+verified stopped; refusal paths retain their allocations until separate guarded
+test teardown. The [report](memoir-baseline-process-races-20261015.md) and
+[ledger](memoir-baseline-process-races-20261015.json) record exact source,
+red/green handshakes, refused identities, all outcomes and remaining gates.
+Native Mac and current full-repository acceptance remain unrun; independent
+final-head re-review is routed through the parent. No policy/PR68 change.

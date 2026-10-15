@@ -1,5 +1,7 @@
 # PR69: portable session inspection and audit corrections
 
+Historical d373 checkpoint. The [later process-race report](memoir-baseline-process-races-20261015.md) records the current tested source and selection, which includes the ordinary proposal-overlap failure.
+
 Fixed source/test commit: `d373e7435b6f1dc702e80cf02c567331eff7c4eb`.
 All **thirteen complete affected modules** record **88 passed, one failed, zero
 errors/skips** in **273.44 seconds** wall time
