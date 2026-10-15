@@ -183,3 +183,18 @@ The final reviewed commit and final check outcomes are recorded on PR #67 and
 the issue rather than represented by the earlier aggregate's starting SHA.
 Live human recall benefit remains unmeasured; no suitable live news is a valid
 outcome and no citation is fabricated to obtain a positive result.
+
+The second cloud review found an upgrade-only case: existing three-component
+clue revisions were invisible to the new source fence. The incremental
+`202610150002_historical_news_legacy_fences.sql` preserves those ready records
+with a legacy sentinel, making them eligible for local revalidation rather than
+direct selection or mandatory rediscovery. Real SQL covers both unchanged and
+changed hypotheses without creating another research job.
+
+The repeated canonical fixture timeout was independently reproduced with a
+262,144-byte command input and a child that waits before reading. The shared
+test command runner could stop writing stdin after its first 0.1-second poll.
+It now supplies input through an automatically closed temporary file while
+retaining deadline/cancellation polling and child cleanup. Text and binary
+regressions cover this case. The upgrade/runner/historical SQL/canonical set
+passed **58 checks** after the repair.

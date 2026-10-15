@@ -197,6 +197,22 @@ def test_ready_evidence_revalidation_requires_current_owned_unchanged_hypothesis
         assert state['clues'] == []
 
 
+@pytest.mark.parametrize('same_basis', [False, True])
+def test_legacy_ready_clue_upgrade_requires_revalidation_without_rediscovery(sql, same_basis):
+    job=begin(sql);assert finish(sql,job)
+    sql("update public.user_historical_news_clue set context_revision=regexp_replace(context_revision,':[^:]+$','');")
+    sql((ROOT/'supabase/migrations/202610150002_historical_news_legacy_fences.sql').read_text())
+    state=rpc(sql,'read_user_historical_news',"'project'")
+    assert state['clues'] == [] and state['needs_revalidation'] is True
+    hypothesis=ready_context()['historical_news']['clues'][0]['relevance']
+    if not same_basis:
+        hypothesis={**hypothesis,'place':'Sydney, Australia','country':'Australia'}
+    snapshot=rpc(sql,'read_user_historical_news_basis',"'project'")['news_snapshot']
+    state=rpc(sql,'revalidate_user_historical_news',f"'project',{literal(hypothesis)}::jsonb,{literal(snapshot)}::jsonb")
+    assert bool(state['clues']) is same_basis
+    assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '1'
+
+
 def test_durable_plan_rejects_forged_and_accepts_ready_reference(sql):
     job=begin(sql)
     p=plan('extract',None);c=p['candidates'][0]['context']

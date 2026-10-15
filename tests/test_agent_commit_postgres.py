@@ -1,5 +1,6 @@
 """Run fencing/atomicity checks on a disposable local PostgreSQL, never Supabase."""
 import os
+from contextlib import nullcontext
 import ipaddress
 import json
 import queue
@@ -8,6 +9,7 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -42,26 +44,38 @@ class ProcessDeadline:
 
     def run(self, command, *, check=False, text=False, input=None):
         self.remaining()
-        process = subprocess.Popen(command, stdin=subprocess.PIPE if input is not None else None,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text, env=self.environment)
-        try:
-            first = True
-            while True:
-                try:
-                    output, errors = process.communicate(input if first else None, timeout=self.remaining())
-                    break
-                except subprocess.TimeoutExpired:
-                    first = False
-            if check and process.returncode:
-                raise subprocess.CalledProcessError(process.returncode, command, output, errors)
-            return subprocess.CompletedProcess(command, process.returncode, output, errors)
-        finally:
-            if process.poll() is None:
-                process.kill()
-            process.wait(timeout=2)
-            for pipe in (process.stdin, process.stdout, process.stderr):
-                if pipe is not None and not pipe.closed:
-                    pipe.close()
+        # Retrying communicate(None) does not resume a partially written stdin.
+        # A temporary input file keeps cancellation polling without pipe deadlock.
+        with tempfile.TemporaryFile(mode='w+t' if text else 'w+b') if input is not None else nullcontext(None) as source:
+            if source is not None:
+                source.write(input);source.seek(0)
+            process = subprocess.Popen(command, stdin=source,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=text, env=self.environment)
+            try:
+                while True:
+                    try:
+                        output, errors = process.communicate(timeout=self.remaining())
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
+                if check and process.returncode:
+                    raise subprocess.CalledProcessError(process.returncode, command, output, errors)
+                return subprocess.CompletedProcess(command, process.returncode, output, errors)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=2)
+                for pipe in (process.stdout, process.stderr):
+                    if pipe is not None and not pipe.closed:
+                        pipe.close()
+
+
+@pytest.mark.parametrize('text', [False, True])
+def test_deadline_runner_delivers_large_input_after_polling_timeout(text):
+    value='x'*262144 if text else b'x'*262144
+    result=ProcessDeadline(time.monotonic()+3).run([sys.executable,'-c',
+        'import sys,time;time.sleep(.3);print(len(sys.stdin.buffer.read()))'],input=value,text=text,check=True)
+    assert int(result.stdout.strip()) == len(value)
 
 
 class ContainerSql:
