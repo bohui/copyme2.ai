@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
+import sys
 import time
 
 import pytest
@@ -14,8 +15,25 @@ from scripts import controlled_five_case as driver
 from scripts.run_memoir_five_case_evaluation import make_arg_parser
 
 
+@pytest.mark.parametrize('platform,proc_available', [('darwin', True), ('linux', False)])
+def test_process_identity_prerequisite_is_checked_before_postgres_allocation(tmp_path, monkeypatch, platform, proc_available):
+    real_is_file = Path.is_file
+    def is_file(path):
+        return proc_available if str(path) == '/proc/self/stat' else real_is_file(path)
+    def no_postgres_probe(name):
+        pytest.fail('Unavailable identity must gate before PostgreSQL tools or allocation')
+    with monkeypatch.context() as context:
+        context.setattr(sys, 'platform', platform)
+        context.setattr(Path, 'is_file', is_file)
+        context.setattr(shutil, 'which', no_postgres_probe)
+        with pytest.raises(pytest.skip.Exception, match='Linux /proc'):
+            test_cancelling_case_after_postgres_start_removes_owned_cluster(tmp_path, monkeypatch, 'graceful')
+
+
 @pytest.mark.parametrize('shutdown', ['graceful', 'unresponsive', 'fast_stop_fails', 'fast_stop_times_out'])
 def test_cancelling_case_after_postgres_start_removes_owned_cluster(tmp_path, monkeypatch, shutdown):
+    if sys.platform != 'linux' or not Path('/proc/self/stat').is_file():
+        pytest.skip('Linux /proc identity checks required; non-Linux lifecycle coverage unavailable')
     if os.geteuid() == 0 or not all(shutil.which(name) for name in ('pg_ctl', 'initdb', 'psql')):
         pytest.skip('local PostgreSQL tools and a non-root account required')
     real_pg_ctl = shutil.which('pg_ctl')
@@ -24,7 +42,6 @@ def test_cancelling_case_after_postgres_start_removes_owned_cluster(tmp_path, mo
     binary = tmp_path / 'bin'
     binary.mkdir()
     shim = binary / 'pg_ctl'
-    import sys
     shim.write_text(f'''#!{sys.executable}
 import json, os, pathlib, subprocess, sys, time
 if sys.argv[-1] == 'stop':
