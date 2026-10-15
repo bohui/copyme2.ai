@@ -1,0 +1,522 @@
+import { $, escapeHtml } from "./dom.mjs";
+import { createMapPhotoAlbums } from "./map-photo-albums.mjs";
+import { currentUiLocale, translate, translateWith } from "../i18n.js";
+import { groupMapFrame, groupPlaces, mapTarget, matchesPlaceStage, mergePlaces, placeHistoryKey, specificPlaceChoices } from "./places.mjs";
+
+export const PLACE_JOURNEY_PROJECT_STORAGE_KEY = "memory-spark-place-journey-project";
+
+export function createPlaceWorkspace({
+  api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
+  profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
+  photos
+}) {
+  const { bindPhotoMemoryActions, favoritePhotoWall, photoRequestKey, pictureWall, renderablePictureItems, workspacePictureItems } = photos;
+
+  const mapPhotoAlbums = createMapPhotoAlbums({
+    getProjectId: () => state.project?.id,
+    getAlbum: mapPhotoAlbum,
+    getAlbums: mapPhotoAlbumsForScene,
+    renderAlbum: album => favoritePhotoWall() + (pictureWall(album.pictures, album.entry) || mapPhotoAlbumStatus(album.entry)),
+    bindAlbum: (content, album) => {
+      bindPhotoMemoryActions(content);
+      content.querySelector("[data-photo-more]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {more:true}));
+      content.querySelector("[data-photo-retry]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {force:true}));
+    },
+    closeLabel: () => translate("Memoir.workspace.closePhotoAlbum"),
+    onOpen: album => void loadPlacePictures(album.entry, state.project?.id),
+  });
+
+  const CESIUM_VERSION = "1.145";
+
+  const PLACE_MAP_VIEW_HEIGHTS = {
+    country: 1_400_000,
+    region: 420_000,
+    city: 40_000,
+    town: 28_000,
+    suburb: 16_000,
+    neighbourhood: 12_000,
+    landmark: 6_000,
+  };
+
+  let cesiumPlaceJourneyViewer = null;
+
+  let cesiumLoadPromise = null;
+
+  async function hydratePlaceJourney() {
+    const scope = captureProjectScope();
+    const savedPlaces = mergePlaces(profile().memory_places || [], profile(), state.chat || []);
+    const projectId = state.project?.id;
+    if (Array.isArray(profile().memory_places)
+        && JSON.stringify(savedPlaces) !== JSON.stringify(profile().memory_places)) {
+      await saveProfileUpdates({ memory_places: savedPlaces }, projectId);
+      if (!isCurrentProjectScope(scope)) return;
+    }
+    if (Array.isArray(savedPlaces) && savedPlaces.length) {
+      let restoredProgress = false;
+      for (const message of state.chat || []) {
+        if (message.role !== "assistant" || !message.sourceSequence
+            || message.trace?.some(step => step.skill === "memoir-place-journey")) continue;
+        const places = savedPlaces.filter(place => String(place.source_sequence) === String(message.sourceSequence));
+        if (!places.length) continue;
+        // Old turns have no execution log; describe this restoration, not an invented past call.
+        (message.trace ||= []).push({id:"place-journey", kind:"skill", skill:"memoir-place-journey",
+          label:"memoir-place-journey", status:"completed",
+          detail:`${translate("Memoir.trace.placeJourneyRestored")} · ${places.map(place => place.place).join(" · ")}`});
+        message.traceMode = "live";
+        restoredProgress = true;
+      }
+      if (restoredProgress) persistChatHistory();
+      // History is ordered by life stage, while the current place follows the
+      // most recent explicit mention. Server sequence/revision records recency.
+      state.placeJourney = savedPlaces.reduce((current, place) =>
+        Number(place.source_sequence || place.revision || 0) > Number(current.source_sequence || current.revision || 0)
+          ? place : current, savedPlaces.at(-1));
+      state.lifeStage = state.placeJourney.life_stage || "all";
+      state.selectedPlace = placeHistoryKey(state.placeJourney);
+      state.workspaceTab = "memoir";
+      rememberPlaceJourneyProject(state.project?.id);
+      void loadPlacePictures(state.placeJourney, projectId);
+      resolvePlaceMap(state.placeJourney);
+      return;
+    }
+    if (!state.supabase?.accessToken || !placeJourneyIsActivatedForProject()) return;
+    try {
+      const body = await supabaseApi("/v1/agent/place-journey");
+      if (!isCurrentProjectScope(scope)) return;
+      state.placeJourney = body.place_journey || null;
+      state.placeJourneyChange = null;
+      if (state.placeJourney) {
+        state.lifeStage = state.placeJourney.life_stage || "all";
+        state.selectedPlace = placeHistoryKey(state.placeJourney);
+        resolvePlaceMap(state.placeJourney);
+        void loadPlacePictures(state.placeJourney, state.project?.id);
+      }
+    } catch {
+      // A missing journey endpoint must not prevent the memoir conversation.
+    }
+  }
+
+  function placeJourneyIsActivatedForProject(projectId = state.project?.id) {
+    if (!projectId) return false;
+    try {
+      return localStorage.getItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY) === projectId;
+    } catch {
+      return false;
+    }
+  }
+
+  function rememberPlaceJourneyProject(projectId = state.project?.id) {
+    if (!projectId) return;
+    try {
+      localStorage.setItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY, projectId);
+    } catch {
+      // The journey remains available for the current page when storage is restricted.
+    }
+  }
+
+  function placeHistoryChoices(places, current) {
+    if (places.length < 2) return "";
+    const label = escapeHtml(translate("Memoir.workspace.placeHistory"));
+    return `<nav class="place-choices" aria-label="${label}">${places.map(item => {
+      const context = (item.hierarchy || []).filter(part => part !== "Earth" && part !== item.place).join(" · ");
+      const stage = (item.life_stages || [item.life_stage]).filter(Boolean).map(stage => lifeStageText(stage, "label")).join(" · ");
+      const selected = placeHistoryKey(item) === placeHistoryKey(current) || item.group_members?.includes(placeHistoryKey(current));
+      return `<button type="button" data-place-choice="${escapeHtml(placeHistoryKey(item))}" aria-pressed="${selected}"><span>${escapeHtml(item.place)}</span><small>${escapeHtml([context, stage].filter(Boolean).join(" · "))}</small></button>`;
+    }).join("")}</nav>`;
+  }
+
+  function placeWorkspaceSelection({allowUnmapped = false} = {}) {
+    if (!state.placeJourney) return null;
+    if (state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)) {
+      return allowUnmapped || placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+    }
+    const places = mergePlaces(profile().memory_places || [], profile());
+    const matching = state.lifeStage === "all"
+      ? places
+      : places.filter(item => matchesPlaceStage(item, state.lifeStage));
+    const explicitlySelected = state.selectedPlace
+      ? matching.find(item => placeHistoryKey(item) === state.selectedPlace)
+      : null;
+    if (explicitlySelected) return allowUnmapped || placeMapTarget(explicitlySelected) ? explicitlySelected : null;
+    if (state.selectedPlace) {
+      const group = workspacePlaceGroups(matching).find(item => placeHistoryKey(item.city) === state.selectedPlace);
+      const member = group?.members.find(item => placeMapTarget(item)) || (allowUnmapped ? group?.members.at(-1) : null);
+      if (member) return member;
+    }
+    const current = matching.find(item => placeHistoryKey(item) === placeHistoryKey(state.placeJourney));
+    if (current) return allowUnmapped || placeMapTarget(current) ? current : null;
+    const selected = matching.filter((item) => placeMapTarget(item));
+    if (selected.length) {
+      return selected.at(-1);
+    }
+    return allowUnmapped || placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+  }
+
+  function placeMapTarget(journey) {
+    if (!journey) return null;
+    const key = placeHistoryKey(journey);
+    return mapTarget(journey, [])
+      || resolvedPlaceTargets.get(key)
+      || mapTarget(journey, mergePlaces(profile().memory_places || [], profile()));
+  }
+
+  function workspaceMediaOverview(toggle = "") {
+    const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+    const current = placeWorkspaceSelection();
+    if (!current || !placeMapTarget(current)) return "";
+    const places = mergePlaces(profile().memory_places || [], profile());
+    const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
+    const groups = workspacePlaceGroups(matching);
+    const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+    const photoGroup = current && (state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
+      .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current))));
+    const choices = current ? placeHistoryChoices(groupChoices(groups), current) : "";
+    const map = placeJourneyMarkup(current, "workspace", activeGroup);
+    const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
+    const requestKey = current ? photoRequestKey(current) : null;
+    const request = state.photoRequests?.get(requestKey);
+    const empty = request?.loading
+      ? `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`
+      : request?.error
+        ? `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
+        : `<p class="workspace-photo-status" role="status">${t(current && Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
+    const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${favoritePhotoWall()}${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
+    return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
+  }
+
+  function mapPhotoAlbumsForScene(scene) {
+    const container = scene.querySelector("[data-cesium-place]");
+    const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
+    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile());
+    const group = workspacePlaceGroups(places).find(item => item.key === container?.dataset.placeKey);
+    const entries = group?.members || [placeWorkspaceSelection()].filter(Boolean);
+    return entries.map(entry => mapPhotoAlbum(placeHistoryKey(entry))).filter(Boolean)
+      .map(album => ({...album, pinned:pins.has(album.key)}));
+  }
+
+  function mapPhotoAlbum(key) {
+    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile());
+    const entry = places.find(place => placeHistoryKey(place) === key);
+    if (!entry) return null;
+    const group = workspacePlaceGroups(places).find(item => item.members.some(member => placeHistoryKey(member) === key));
+    const pictures = workspacePictureItems(entry, group);
+    const request = state.photoRequests?.get(photoRequestKey(entry));
+    const status = request?.loading ? "loading" : request?.error ? "error" : pictures.length ? "ready" : "empty";
+    const detail = translate(`Memoir.workspace.${status === "loading" ? "picturesSearching" : status === "error" ? "picturesUnavailable" : "picturesNoMatch"}`);
+    return {key, place:entry.place, entry, pictures, count:pictures.length, status,
+      label: pictures.length ? translateWith("Memoir.workspace.openPhotoAlbum", {place:entry.place,count:pictures.length}) : `${entry.place} · ${detail}`};
+  }
+
+  function mapPhotoAlbumStatus(entry) {
+    const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+    const request = state.photoRequests?.get(photoRequestKey(entry));
+    if (request?.loading) return `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`;
+    if (request?.error) return `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button type="button" class="button button-secondary" data-photo-retry="${escapeHtml(placeHistoryKey(entry))}">${t("picturesSearchRetry")}</button></div>`;
+    return `<p class="workspace-photo-status" role="status">${t(entry.photo_search_complete || Object.hasOwn(entry, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
+  }
+
+  function placeMapViewHeight(journey, target = journey) {
+    const granularity = target?.granularity
+      || (target?.place === journey?.place ? journey?.granularity : "city");
+    return PLACE_MAP_VIEW_HEIGHTS[granularity] || PLACE_MAP_VIEW_HEIGHTS.city;
+  }
+
+  function placeJourneyMarkup(journey, variant = "surface", group = null) {
+    if (!journey) return "";
+    const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+    const title = group?.city || journey;
+    const target = group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
+    if (!target) return "";
+    const parentFallback = !group && target.place && placeHistoryKey({place: target.place}) !== placeHistoryKey({place: journey.place});
+    const latitude = Number.isFinite(target?.latitude) ? target.latitude : "";
+    const longitude = Number.isFinite(target?.longitude) ? target.longitude : "";
+    const duration = Number(journey.duration_ms) || 5200;
+    const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
+    const pinData = ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
+    const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
+    return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
+  }
+
+  function placeJourneySurface() {
+    return state.placeJourney && placeMapTarget(state.placeJourney) && !workspaceHasContent() ? placeJourneyMarkup(state.placeJourney) : "";
+  }
+
+  function disposeCesiumPlaceJourney() {
+    mapPhotoAlbums.dispose();
+    if (!cesiumPlaceJourneyViewer) return;
+    try {
+      if (!cesiumPlaceJourneyViewer.isDestroyed()) cesiumPlaceJourneyViewer.destroy();
+    } catch {
+      // A failed external Cesium load should never block the memoir conversation.
+    }
+    cesiumPlaceJourneyViewer = null;
+  }
+
+  function loadCesium() {
+    if (window.Cesium) return Promise.resolve(window.Cesium);
+    if (cesiumLoadPromise) return cesiumLoadPromise;
+    const base = `https://cesium.com/downloads/cesiumjs/releases/${CESIUM_VERSION}/Build/Cesium`;
+    if (!document.getElementById("cesium-place-journey-widgets")) {
+      const stylesheet = document.createElement("link");
+      stylesheet.id = "cesium-place-journey-widgets";
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = `${base}/Widgets/widgets.css`;
+      document.head.appendChild(stylesheet);
+    }
+    window.CESIUM_BASE_URL = `${base}/`;
+    cesiumLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = `${base}/Cesium.js`;
+      script.async = true;
+      script.addEventListener("load", () => window.Cesium ? resolve(window.Cesium) : reject(new Error("CesiumJS did not expose its global.")));
+      script.addEventListener("error", () => reject(new Error("CesiumJS could not be loaded.")));
+      document.head.appendChild(script);
+    });
+    return cesiumLoadPromise;
+  }
+
+  const resolvedPlaceTargets = new Map();
+
+  const pendingPlaceTargets = new Map();
+
+  const placeGroupRecords = new Map();
+
+  const placeGroupRequests = new Map();
+
+  const placeGroupLatest = new Map();
+
+  function publicPlaceFields(place) {
+    return {place: place.place, hierarchy: place.hierarchy, granularity: place.granularity,
+      latitude: place.latitude, longitude: place.longitude};
+  }
+
+  function selectPlace(key) {
+    state.selectedPlace = key;
+    const place = (profile().memory_places || []).find(item => placeHistoryKey(item) === key);
+    if (place) void loadPlacePictures(place, state.project?.id);
+    render();
+  }
+
+  function workspacePlaceGroups(places) {
+    const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])], profile());
+    return groupPlaces(entries.map(place => {
+      const record = placeGroupRecords.get(`${state.project?.id}:${placeHistoryKey(place)}`);
+      return record && record.input === JSON.stringify(publicPlaceFields(place))
+        ? {...place, map_city: record.city, map_city_key: record.city_key, map_pin: record.pin} : place;
+    }));
+  }
+
+  function groupChoices(groups) {
+    return specificPlaceChoices(groups.map(group => ({...group.city,
+      group_members: group.members.map(placeHistoryKey),
+      life_stages: [...new Set(group.members.flatMap(member => member.life_stages || [member.life_stage]).filter(Boolean))]})));
+  }
+
+  function resolvePlaceGroups(journey, {onProgress = null} = {}) {
+    const projectId = state.project?.id;
+    if (!projectId || !journey) return;
+    const merged = mergePlaces([...(profile().memory_places || []), journey], profile());
+    const newest = merged.find(place => placeHistoryKey(place) === placeHistoryKey(journey));
+    if (!newest) return;
+    // Resolve the newest mention first even when history is sorted by life stage.
+    const places = [newest,
+      ...merged.filter(place => placeHistoryKey(place) !== placeHistoryKey(journey))];
+    // The grouping service receives only public geographic fields.
+    const publicPlaces = places.map(publicPlaceFields);
+    const signature = JSON.stringify([projectId, publicPlaces]);
+    if (placeGroupRequests.has(signature)) return;
+    const scope = captureProjectScope();
+    const report = (status) => {
+      if (!isCurrentProjectScope(scope)) return;
+      recordWorkspaceSkillProgress({id:`place-groups:${signature}`, kind:"skill", skill:"memoir-place-groups",
+        label:"memoir-place-groups", status,
+        detail:`${translate(`Memoir.trace.placeGroups.${status}`)} · ${journey.place}`}, onProgress);
+    };
+    report("running");
+    placeGroupLatest.set(projectId, signature);
+    const request = api(`/v1/projects/${projectId}/place-groups`, {
+      method: "POST", body: JSON.stringify({places: publicPlaces}),
+    }).then(result => {
+      report("completed");
+      if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
+      for (const record of result.places || []) {
+        const place = places[record.index];
+        if (place) placeGroupRecords.set(`${projectId}:${placeHistoryKey(place)}`,
+          {...record, input: JSON.stringify(publicPlaces[record.index])});
+      }
+      render();
+    }).catch(() => { report("failed"); }).finally(() => {
+      // Keep a completed signature briefly; renders must not repeat failed lookups.
+      setTimeout(() => {
+        if (placeGroupRequests.get(signature) === request) placeGroupRequests.delete(signature);
+      }, 60_000);
+    });
+    placeGroupRequests.set(signature, request);
+    while (placeGroupRequests.size > 32) placeGroupRequests.delete(placeGroupRequests.keys().next().value);
+  }
+
+  function resolvePlaceMap(journey, {onProgress = null} = {}) {
+    if (!journey || !state.project?.id) return;
+    void resolvePlaceGroups(journey, {onProgress});
+    const key = placeHistoryKey(journey);
+    if (mapTarget(journey, []) || resolvedPlaceTargets.has(key) || pendingPlaceTargets.has(key)) return;
+    const projectId = state.project.id;
+    const request = api(`/v1/projects/${projectId}/place-map`, {method: "POST", body: JSON.stringify(journey)})
+      .then(result => {
+        if (result.target) resolvedPlaceTargets.set(key, result.target);
+        // Cache no-match as well to avoid repeated searches on every render.
+        else resolvedPlaceTargets.set(key, null);
+        if (result.target?.place === journey.place) void loadPlacePictures(journey, projectId);
+        if (state.project?.id === projectId) render();
+      }).catch(() => { resolvedPlaceTargets.set(key, null); })
+      .finally(() => pendingPlaceTargets.delete(key));
+    pendingPlaceTargets.set(key, request);
+  }
+
+  function initCesiumPlaceJourney() {
+    const container = $("[data-cesium-place]");
+    if (container) resolvePlaceMap(placeWorkspaceSelection());
+    if (!container || !container.dataset.cesiumLatitude || !container.dataset.cesiumLongitude) return;
+    const latitude = Number(container.dataset.cesiumLatitude);
+    const longitude = Number(container.dataset.cesiumLongitude);
+    const journey = placeWorkspaceSelection() || state.placeJourney;
+    const finalMapHeight = Number(container.dataset.cesiumHeight) || placeMapViewHeight(journey, placeMapTarget(journey));
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    loadCesium().then((cesium) => {
+      if (!container.isConnected) return;
+      let viewer = null;
+      let arrivalComplete = false;
+      let roadmapReady = false;
+      let finalViewStarted = false;
+      try {
+        viewer = new cesium.Viewer(container, {
+          animation: false,
+          baseLayer: false,
+          baseLayerPicker: false,
+          fullscreenButton: false,
+          geocoder: false,
+          homeButton: false,
+          infoBox: false,
+          navigationHelpButton: false,
+          sceneModePicker: false,
+          selectionIndicator: false,
+          timeline: false,
+          scene3DOnly: false,
+          mapProjection: new cesium.WebMercatorProjection(),
+          shouldAnimate: false,
+        });
+        cesiumPlaceJourneyViewer = viewer;
+        viewer.scene.backgroundColor = cesium.Color.fromCssColorString("#173f45");
+        viewer.scene.globe.enableLighting = false;
+        viewer.scene.globe.maximumScreenSpaceError = 1;
+        viewer.scene.skyAtmosphere.show = true;
+        viewer.scene.globe.baseColor = cesium.Color.fromCssColorString("#2a756b");
+        const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight);
+        const pins = container.dataset.cesiumPins ? JSON.parse(container.dataset.cesiumPins) : [
+          {place: container.dataset.cesiumPlace, latitude, longitude}];
+        for (const pin of pins) viewer.entities.add({
+          id: pin.key,
+          position: cesium.Cartesian3.fromDegrees(pin.longitude, pin.latitude),
+          point: {
+            color: cesium.Color.fromCssColorString("#f3c66b"),
+            outlineColor: cesium.Color.fromCssColorString("#fff8e7"),
+            outlineWidth: 2,
+            pixelSize: 12,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+          label: {
+            text: pin.place || "Memory place",
+            fillColor: cesium.Color.WHITE,
+            font: "600 14px DM Sans, sans-serif",
+            style: cesium.LabelStyle.FILL_AND_OUTLINE,
+            outlineColor: cesium.Color.fromCssColorString("#173f45"),
+            outlineWidth: 3,
+            pixelOffset: new cesium.Cartesian2(0, -24),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        });
+        viewer.screenSpaceEventHandler.setInputAction(event => {
+          const picked = viewer.scene.pick(event.position)?.id;
+          if (!picked?.id) return;
+          if (mapPhotoAlbums.open(picked.id)) return;
+          const member = (profile().memory_places || []).find(place => placeHistoryKey(place) === picked.id);
+          if (!member) return;
+          state.selectedPlace = picked.id;
+          void loadPlacePictures(member, state.project?.id);
+          render();
+        }, cesium.ScreenSpaceEventType.LEFT_CLICK);
+        mapPhotoAlbums.sync(container.closest(".place-journey-scene"));
+        mapPhotoAlbums.attach(viewer, cesium, pins);
+
+        const showFinalRoadMap = () => {
+          if (!arrivalComplete || !roadmapReady || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
+          finalViewStarted = true;
+          // The flight already arrives looking straight down. Switch projection
+          // without Cesium's world-scale unfolding animation pulling us away.
+          viewer.scene.morphTo2D(0);
+          viewer.camera.setView({
+            destination,
+            orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+          });
+          container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
+          viewer.scene.requestRender();
+        };
+
+        // Fit the whole Earth in the narrower dimension of this panel. Looking
+        // off-nadir at orbital altitude pushes the globe below the viewport.
+        viewer.resize();
+        const frustum = viewer.camera.frustum;
+        const halfFov = Math.min(frustum.fovy / 2, Math.atan(Math.tan(frustum.fovy / 2) * frustum.aspectRatio));
+        const radius = viewer.scene.globe.ellipsoid.maximumRadius;
+        const startHeight = radius * (1.15 / Math.sin(halfFov) - 1);
+        viewer.camera.setView({
+          destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
+          orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+        });
+        viewer.camera.flyTo({
+          destination,
+          orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+          duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? 0 : Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+          easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+          complete: () => {
+            arrivalComplete = true;
+            showFinalRoadMap();
+          },
+        });
+        container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
+        container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
+
+        const googleMapsKey = state.supabase?.google_maps_browser_api_key;
+        if (!googleMapsKey || typeof cesium.Google2DImageryProvider?.fromUrl !== "function") return;
+        cesium.Google2DImageryProvider.fromUrl({
+          key: googleMapsKey,
+          mapType: "roadmap",
+          language: currentUiLocale(),
+          region: currentUiLocale() === "zh-CN" ? "CN" : "AU",
+        }).then((imagery) => {
+          if (!container.isConnected || !viewer || viewer.isDestroyed()) return;
+          viewer.imageryLayers.addImageryProvider(imagery);
+          roadmapReady = true;
+          showFinalRoadMap();
+        }).catch((error) => {
+          console.warn("Google Maps roadmap imagery unavailable; using the globe surface.", error);
+        });
+      } catch (error) {
+        if (viewer && !viewer.isDestroyed()) viewer.destroy();
+        if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;
+        console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error);
+      }
+    }).catch((error) => console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error));
+  }
+
+  function resizeCesiumPlaceJourney() {
+    cesiumPlaceJourneyViewer?.resize();
+  }
+
+  return {
+    disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums,
+    placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
+    selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney
+  };
+}

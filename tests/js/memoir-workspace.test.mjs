@@ -1,9 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const messages = JSON.parse(fs.readFileSync(new URL('../../apps/web/messages/zh-CN.json', import.meta.url))).Memoir.workspace;
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));

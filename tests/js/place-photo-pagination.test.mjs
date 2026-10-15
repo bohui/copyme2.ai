@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {mergePlaces, placeHistoryKey} from '../../apps/web/client/memoir/places.mjs';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const center = {latitude: 40.98, longitude: 117.94};
 const scope = {photo_search_policy: 'place-fallback-gps-time-v9', photo_search_latitude: center.latitude,
   photo_search_longitude: center.longitude};

@@ -1,8 +1,9 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const clientSource = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const clientSource = readMemoirClientSource();
 const styleSource = fs.readFileSync(new URL('../../apps/web/public/styles.css', import.meta.url), 'utf8');
 
 test('keeps the conversation heading inside the scroll region', () => {

@@ -1,8 +1,9 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
+import { escapeHtml } from '../../apps/web/client/memoir/dom.mjs';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'currentWorkspaceMemoryFocus', 'workspaceTurnFocus', 'markWorkspaceFocusStarted', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
 test('forwards progress before text and skill events after conversation save', async () => {
  const seen=[];
@@ -183,8 +184,7 @@ test('skill calls are visible even when their IDs overlap routine progress', () 
 });
 
 test('generated question pool stays inside thinking steps and marks the chosen question', () => {
- const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',translate:key=>key==='Memoir.trace.selectedQuestion'?'Selected':key,formatText:String,cleanAssistantText:String});
- vm.runInContext(source.match(/^const escapeHtml = .*$/m)[0],context);
+ const context=vm.createContext({escapeHtml,state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',translate:key=>key==='Memoir.trace.selectedQuestion'?'Selected':key,formatText:String,cleanAssistantText:String});
  for (const name of ['renderAgentTrace','renderMessage']) vm.runInContext(extract(name),context);
  const pool={chosen_id:'chosen',candidates:[
   {id:'chosen',question:'Where did you play?',bridge:''},

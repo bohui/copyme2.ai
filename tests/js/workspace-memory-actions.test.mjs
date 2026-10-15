@@ -1,12 +1,12 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 
 const phase = (overrides = {}) => ({phase:'comfort', selection:'automatic', ...overrides});
 
 test('switching draft editions discards the old rewrite form before it can submit', async () => {
   const vm=await import('node:vm');
-  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const source=readMemoirClientSource();
   const scope={ownerId:'owner',projectId:'project',generation:1};
   const record={id:'section',preview:{title:'English',text:'Original English prose.'}};
   const state={privateDraftLocale:'en-AU',privateDraft:{locale:'en-AU',snapshot_id:'english-snapshot',root_digest:'english-root',first_record:record}};
@@ -28,7 +28,7 @@ test('switching draft editions discards the old rewrite form before it can submi
 
 test('an old edition response cannot mark a new rewrite form queued or refresh its draft', async () => {
   const vm=await import('node:vm');
-  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const source=readMemoirClientSource();
   const scope={ownerId:'owner',projectId:'project',generation:1};
   const record={id:'section',preview:{title:'English',text:'Original prose.'}};
   const state={privateDraftLocale:'en-AU',privateDraft:{locale:'en-AU',snapshot_id:'english-snapshot',root_digest:'english-root',first_record:record}};
@@ -55,7 +55,7 @@ test('an old edition response cannot mark a new rewrite form queued or refresh i
 
 test('saved receipt recovery consumes its workspace focus and preserves a later selection', async () => {
   const vm=await import('node:vm');
-  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const source=readMemoirClientSource();
   const scope={ownerId:'owner',projectId:'project',generation:1};
   const value={kind:'add_memory',life_stage:'childhood'};
   const state={chat:[],workspaceMemoryFocus:{...scope,value}};
@@ -78,7 +78,7 @@ test('saved receipt recovery consumes its workspace focus and preserves a later 
 test('a workspace task finalizes its reply, round status, cards and receipt without interrupting the flow', async () => {
   const vm=await import('node:vm');
   const {createInterviewPhotoState}=await import('../../apps/web/client/memoir/interview-photo-turns.mjs');
-  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const source=readMemoirClientSource();
   const scope={ownerId:'owner',projectId:'project',generation:1};
   const state={project:{id:'project',profile:{}},supabase:{accessToken:'fixture',user:{id:'owner'}},chat:[],attachments:[],loading:true,dictationStatus:'off',conversationStreams:new Set()};
   const cache=new Map();let persisted=[],draftReads=0,controller;
@@ -107,7 +107,7 @@ test('a workspace task finalizes its reply, round status, cards and receipt with
 
 test('the recall boundary keeps paid narration gated without mode controls', async () => {
   const vm=await import('node:vm');
-  const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const source=readMemoirClientSource();
   const state={project:{id:'project'},supabase:{accessToken:'fixture'},recallStatus:{rounds_completed:20,payment_required:true},
     conversationPhase:{view:()=>({value:phase(),busy:false,notice:null})},privateDraft:{status:'ready',text:'Private draft remains gated'}};
   const context=vm.createContext({state,workspaceMemoryFocusMarkup:()=>'',translate:key=>key});

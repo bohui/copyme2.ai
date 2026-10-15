@@ -1,3 +1,4 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -5,7 +6,7 @@ import vm from 'node:vm';
 import {responsePhotoCards} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
 
 const fixture=fs.readFileSync(new URL('../test_interview_photo_turns_browser.py',import.meta.url),'utf8');
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 const openingMessages=['en-AU','zh-CN'].map(locale=>JSON.parse(fs.readFileSync(new URL(`../../apps/web/messages/${locale}.json`,import.meta.url),'utf8')).Memoir.conversation.opening);
 const scripts=Object.fromEntries([...fixture.matchAll(/((?:PROJECT|CHAT)_STORAGE_INIT) = """([\s\S]*?)"""/g)].map(match=>[match[1],match[2].replace('__PRODUCT_OPENING__',JSON.stringify(openingMessages[0]))]));
 const registrations=[...fixture.matchAll(/\b(context|page)\.add_init_script\(((?:PROJECT|CHAT)_STORAGE_INIT)\b/g)].map(match=>({scope:match[1],script:scripts[match[2]]}));

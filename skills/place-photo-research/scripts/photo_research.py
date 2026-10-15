@@ -209,7 +209,8 @@ def public_addresses(host: str, port: int) -> list[str]:
         rows = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as e:
         fail(f"DNS lookup failed: {e}")
-    ips = sorted({row[4][0] for row in rows})
+    # Local workers may have IPv6 DNS but no IPv6 route. Validate both families.
+    ips = sorted({row[4][0] for row in rows}, key=lambda value: (ipaddress.ip_address(value).version, value))
     if not ips:
         fail("No DNS addresses")
     for text in ips:
@@ -342,9 +343,16 @@ class PageParser(HTMLParser):
         self._json_buffer = None
         self._figures = []
         self._link = None
+        self._pending_caption = None
+        self._caption = None
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        if (tag in {"p", "div", "small"} and self._pending_caption is not None
+                and set(a.get("class", "").split()).intersection(
+                    {"img-desc", "image-caption", "photo-caption", "wp-caption-text"})):
+            self._caption = {"tag": tag, "index": self._pending_caption, "text": []}
+            self._pending_caption = None
         if tag in {"script", "style", "noscript"}:
             self._skip += 1
             if tag == "script" and a.get("type", "").lower() == "application/ld+json":
@@ -366,9 +374,14 @@ class PageParser(HTMLParser):
             if urls:
                 record = {"candidate_urls": urls, "alt": a.get("alt", ""), "title": a.get("title", ""), "figure_text": ""}
                 self.images.append(record)
+                self._pending_caption = len(self.images) - 1
                 for figure in self._figures: figure["indices"].append(len(self.images)-1)
 
     def handle_endtag(self, tag):
+        if self._caption and tag == self._caption["tag"]:
+            record = self.images[self._caption["index"]]
+            record["figure_text"] = " ".join(self._caption["text"])[:1500]
+            self._caption = None
         if tag == "title": self._title = False
         if tag in {"script", "style", "noscript"}:
             if tag == "script" and self._json_buffer is not None:
@@ -391,6 +404,10 @@ class PageParser(HTMLParser):
         if self._skip: return
         t = " ".join(data.split())
         if not t: return
+        if self._caption:
+            self._caption["text"].append(t)
+        else:
+            self._pending_caption = None
         if self._title: self.title.append(t)
         self.text.append(t)
         if self._link: self._link["text"].append(t)

@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {signOutBrowserSession} from '../../apps/web/auth/browser.mjs';
 import {createPreferenceSession} from '../../apps/web/i18n/session.mjs';
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 test('SIGNED_OUT callback cannot reload before blocked-storage logout recovery',async()=>{
  const events=[],state={supabase:{supabase_url:'https://logout.supabase.co',user:{id:'a'}}};
  const session=createPreferenceSession();

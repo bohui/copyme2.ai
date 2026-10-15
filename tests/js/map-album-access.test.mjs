@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {groupPlaces, groupMapPins, mergePlaces, placeHistoryKey} from '../../apps/web/client/memoir/places.mjs';
 
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 const city={place:'承德',hierarchy:['Earth','中国','河北','承德'],granularity:'city',latitude:40.97,longitude:117.93,pictures:[{asset_id:'city-only'}]};
 const children=['双桥区','大石庙镇'].map((place,index)=>({...city,place,hierarchy:[...city.hierarchy,place],granularity:'suburb',latitude:40.94+index*.001,longitude:117.96,pictures:[{asset_id:`child-${index}`}]}));
 

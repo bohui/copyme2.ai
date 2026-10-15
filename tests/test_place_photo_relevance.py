@@ -71,7 +71,7 @@ def test_counted_paginated_photos_remain_visible_when_saved_in_the_browser(
     program = r'''
 const fs = require('node:fs'), vm = require('node:vm');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
-const source = fs.readFileSync('apps/web/client/memoir/client.js', 'utf8');
+const source = fs.readFileSync('apps/web/client/memoir/photo-workspace.mjs', 'utf8').replace(/^  /gm, '');
 const context = vm.createContext({});
 for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoMatchesScope']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);

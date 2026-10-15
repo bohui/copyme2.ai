@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {TextDecoder, TextEncoder} from 'node:util';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))?.[0];
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
 const tick = () => new Promise(resolve => setImmediate(resolve));

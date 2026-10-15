@@ -109,6 +109,90 @@ def test_google_source_extracts_item_capture_dates_without_dating_the_whole_page
     assert len(items) == 1, 'image-specific capture metadata was discarded because the page title has no date'
 
 
+def test_google_source_reads_explicit_sibling_captions_not_article_dates():
+    page = ('<title>承德建筑新变化</title><p>发表于2019年12月26日</p>'
+            '<div class="img-para"><img src="https://archive.example/old.jpg"></div>'
+            '<p class="img-desc">八十年代承德全景图。承德市档案馆供图</p>'
+            '<div class="img-para"><img src="https://archive.example/new.jpg"></div>'
+            '<p class="img-desc">2019年承德市全景。记者摄</p>'
+            '<img src="https://archive.example/uncaptioned.jpg"><p>文章讨论1983年的承德</p>')
+    items = browser._source_items(page, 'https://archive.example/chengde', '承德市', '1980s')
+    assert [item['image_url'] for item in items] == ['https://archive.example/old.jpg']
+    assert items[0]['date_expression'] == '1980-1989'
+
+
+def test_separated_caption_does_not_date_a_previous_unrelated_image():
+    page = ('<title>Chengde archive</title><img src="https://archive.example/logo.jpg">'
+            '<p>Navigation and unrelated text</p><p class="img-desc">Chengde 1983</p>')
+    assert not browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+
+
+@pytest.fixture
+def serpapi_sources(monkeypatch):
+    import subprocess
+    data = {'status': 'success', 'cards': []}
+    sources, searches, fetched = {}, [], []
+    def run(command, **kwargs):
+        searches.append((command, kwargs))
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps(data))
+    def fetch(self, url, size, hosts, **kwargs):
+        fetched.append(url)
+        value = sources[url]
+        if isinstance(value, Exception):
+            raise value
+        return 200, url, {'content-type': 'text/html; charset=utf-8'}, value.encode()
+    monkeypatch.setattr(subprocess, 'run', run)
+    monkeypatch.setattr(browser._research(), 'public_addresses', lambda *args: ['8.8.8.8'])
+    monkeypatch.setattr(browser._research().Fetcher, 'fetch', fetch)
+    return data, sources, searches, fetched
+
+
+def test_google_images_inspects_originals_deduplicates_and_ignores_preview_dates(serpapi_sources):
+    data, sources, searches, fetched = serpapi_sources
+    for index, date in enumerate(('1983-10-01', '2025-11-03', ''), 1):
+        url = f'https://archive.example/photo/{index}'
+        data['cards'].append({'source_url': url, 'text': 'Chengde 1983',
+                              'image_url': 'https://encrypted-tbn0.gstatic.com/preview'})
+        sources[url] = photo_html(index, date=date)
+    data['cards'].append(data['cards'][0])
+    items = photos._google_serpapi('Chengde', '1980s')
+    assert [item['image_url'] for item in items] == ['https://live.staticflickr.com/1/1.jpg']
+    assert items[0]['providers'] == ['google', 'serpapi']
+    assert len(fetched) == 3
+    command, options = searches[0]
+    assert command[-2:] == ['worker', 'serpapi']
+    assert json.loads(options['input'])['refresh'] is True
+    query = json.loads(options['input'])['query']
+    assert '1980年代 老照片' in query
+    assert '"1981" OR' not in query
+
+
+def test_google_images_keeps_verified_siblings_when_a_source_is_blocked(serpapi_sources):
+    data, sources, _, _ = serpapi_sources
+    for index in range(2):
+        url = f'https://archive.example/photo/{index}'
+        data['cards'].append({'source_url': url, 'text': 'Chengde'})
+        sources[url] = browser._research().ResearchError('robots.txt disallows this URL') if index else photo_html()
+    assert len(photos._google_serpapi('Chengde', '1980s')) == 1
+    sources['https://archive.example/photo/0'] = OSError('source down')
+    with pytest.raises(photos.PhotoResearchUnavailable) as error:
+        photos._google_serpapi('Chengde', '1980s')
+    assert error.value.failures == [{'provider': 'google', 'reason': 'source_unavailable'}]
+
+
+@pytest.mark.parametrize('response', [[], {'status': 'success', 'cards': None},
+                                    {'status': 'error', 'error': 'private-key-in-provider-error'}])
+def test_google_images_provider_failures_are_safe(serpapi_sources, response):
+    import subprocess
+    from unittest.mock import patch
+    with patch.object(subprocess, 'run', return_value=SimpleNamespace(
+            stdout='PLACE_PHOTO_RESULT:' + json.dumps(response))):
+        with pytest.raises(photos.PhotoResearchUnavailable) as error:
+            photos._google_serpapi('Chengde', '1980s')
+    assert error.value.failures[0]['reason'] in {'invalid_response', 'unavailable'}
+    assert 'private-key' not in str(error.value)
+
+
 @pytest.mark.parametrize('capture_date,expected', [('3 November 2025', True), ('3 November 1983', False), ('', False)])
 def test_mediawiki_uses_file_capture_date_and_original_not_upload_history(capture_date, expected):
     page = ('<title>File:Chengde Mountain Resort courtyard.jpg</title>'

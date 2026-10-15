@@ -1,9 +1,9 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const tick = () => new Promise(resolve => setImmediate(resolve));
 async function settled(state) {
   const deadline = Date.now() + 1000;

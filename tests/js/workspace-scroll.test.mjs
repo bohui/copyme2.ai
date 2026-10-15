@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {createConversationScroll} from '../../apps/web/client/memoir/conversation-scroll.mjs';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const selectLifeStage = source.match(/function selectLifeStage\([^]*?\n\}/)[0];
 
 test('life-stage navigation pauses auto-follow before workspace reflow', () => {

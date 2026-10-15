@@ -748,6 +748,8 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
     providers = [('commons', _commons), ('loc', _loc)]
     if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
         providers.insert(0, ('google', lambda p, t: _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit)))
+    elif _configured_env('SERPAPI_KEY'):
+        providers.insert(0, ('google', _google_serpapi))
     elif not skip_google_browser and (_configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID')):
         providers.insert(0, ('google', _google_browser))
     providers.insert(0, ('flickr', _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser))
@@ -841,6 +843,74 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
         raise PhotoResearchUnavailable(failures=[dict(item) for item in dict.fromkeys(
             tuple(failure.items()) for failure in failures)])
     return mixed[:limit] if limit is not None else mixed[:150]
+
+
+def _google_serpapi(place: str, period: str) -> list[dict]:
+    import json
+    from pathlib import Path
+    import subprocess
+    import sys
+    from threading import Lock
+    from .place_photo_browser import _research, _source_items, MAX_SOURCE_PAGES
+    helper = _research()
+    query = _google_query(place, period)
+    bounds = _photo_period_bounds(period)
+    if bounds or _is_historical_period(period):
+        temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01', 'end': f'{bounds[1]}-12-31'}
+                    if bounds else {'mode': 'historical_unspecified'})
+        query = helper._crawl4ai_query({'place': place, 'temporal': temporal})
+    # Reuse the skill's credential-redacting provider in its bounded process.
+    try:
+        result = subprocess.run([sys.executable, str(Path(helper.__file__).with_name('photo_search.py')),
+            'worker', 'serpapi'], input=json.dumps({'query': query, 'refresh': True}),
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=50, check=True)
+        data = next(json.loads(line.removeprefix('PLACE_PHOTO_RESULT:'))
+                    for line in reversed(result.stdout.splitlines()) if line.startswith('PLACE_PHOTO_RESULT:'))
+    except subprocess.TimeoutExpired:
+        raise PhotoResearchUnavailable('google', 'timeout') from None
+    except (subprocess.SubprocessError, OSError, StopIteration, ValueError):
+        raise PhotoResearchUnavailable('google', 'invalid_response') from None
+    if not isinstance(data, dict) or not isinstance(data.get('cards', []), list):
+        raise PhotoResearchUnavailable('google', 'invalid_response')
+    if data.get('status') != 'success':
+        reason = data.get('error', '')
+        if reason == 'TimeoutError':
+            raise PhotoResearchUnavailable('google', 'timeout')
+        raise PhotoResearchUnavailable('google', reason if isinstance(reason, str) and re.fullmatch(r'http_\d{3}', reason) else 'unavailable')
+    sources = {}
+    for card in data.get('cards', []):
+        if not isinstance(card, dict):
+            continue
+        if not _location_matches(card.get('text', ''), place):
+            continue
+        source = card.get('source_url')
+        if not isinstance(source, str) or source in sources:
+            continue
+        sources[source] = card
+        if len(sources) >= MAX_SOURCE_PAGES:
+            break
+    # Share robots rules and crawl-delay timing across pages of each source.
+    fetchers = {urlparse(source).netloc: (Lock(), helper.Fetcher()) for source in sources}
+    def inspect(source):
+        _, host, port = helper.valid_url(source)
+        helper.public_addresses(host, port)
+        lock, fetcher = fetchers[urlparse(source).netloc]
+        with lock:
+            status, final, headers, body = fetcher.fetch(source, helper.MAX_PAGE_BYTES, {host}, deadline_seconds=15)
+        if status != 200 or headers.get('content-type', '').split(';', 1)[0] not in {'text/html', 'application/xhtml+xml'}:
+            raise ValueError('Source unavailable')
+        return [{**item, 'providers': ['google', 'serpapi']} for item in
+            _source_items(body.decode('utf-8', errors='replace'), final, place, period)]
+    items, failed = [], False
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for future in as_completed([pool.submit(inspect, source) for source in sources]):
+            try:
+                items.extend(future.result())
+            except (helper.ResearchError, OSError, ValueError, http.client.HTTPException):
+                failed = True
+    if not items and failed:
+        raise PhotoResearchUnavailable('google', 'source_unavailable')
+    return _deduplicate(items)
 
 
 def _google_browser(place: str, period: str, *, on_items=None) -> list[dict]:

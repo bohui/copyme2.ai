@@ -1,6 +1,6 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {groupPlaces, groupMapPins, groupMapFrame, mergePlaces, placeHistoryKey, specificPlaceChoices} from '../../apps/web/client/memoir/places.mjs';
 
@@ -43,7 +43,7 @@ test('provider-confirmed city membership works without a city ancestor', () => {
   assert.equal(groupMapPins(groups[0]).length, 2);
 });
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', name]
   .map(helper => source.match(new RegExp(`function ${helper}\\([^]*?\\n\\}`))[0]).join('\n');
 

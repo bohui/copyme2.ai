@@ -151,6 +151,11 @@ class SecurityTests(unittest.TestCase):
     def test_public_dns_allowed(self):
         with patch.object(socket,"getaddrinfo",return_value=[(2,1,6,"",("93.184.216.34",443))]):
             self.assertEqual(p.public_addresses("example.com",443),["93.184.216.34"])
+    def test_dual_stack_prefers_ipv4_after_validating_every_address(self):
+        rows = [(10, 1, 6, "", ("2400:89c0:3013:1::11:122", 443, 0, 0)),
+                (2, 1, 6, "", ("36.51.224.192", 443))]
+        with patch.object(socket, "getaddrinfo", return_value=rows):
+            self.assertEqual(p.public_addresses("example.com", 443)[0], "36.51.224.192")
     def test_explicit_host_gate_before_fetch(self):
         with self.assertRaises(p.ResearchError): p.Fetcher().fetch("https://evil.example/a",10,{"example.com"},check_robots=False)
     def test_path_traversal(self):

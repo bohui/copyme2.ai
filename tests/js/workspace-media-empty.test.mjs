@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 
 test('no media workspace renders without a current location', () => {
-  const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+  const source = readMemoirClientSource();
   const context = vm.createContext({
     state: {placeJourney: null, lifeStage: 'all', photoRequests: new Map()},
     placeWorkspaceSelection: () => null, placeMapTarget: () => null, profile: () => ({memory_places: []}),
@@ -18,7 +18,7 @@ test('no media workspace renders without a current location', () => {
 
 for (const outcome of ['found', 'no-match', 'error']) {
 test(`background location lookup ${outcome} only shows the workspace when a map is found`, async () => {
-  const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+  const source = readMemoirClientSource();
   const journey = {place: '承德', hierarchy: ['Earth', '中国', '河北', '承德'], granularity: 'city'};
   const pending = new Map();
   let calls = 0;

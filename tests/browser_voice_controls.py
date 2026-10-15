@@ -10,7 +10,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     source = (ROOT / 'apps/web/client/memoir/client.js').read_text()
-    imports = re.findall(r'import \{([^}]+)\} from "([^"]+)";', source)
+    # This fixture replaces individual media functions with deterministic doubles.
+    # Keep that legacy harness while sourcing the functions from their new module.
+    audio_source = (ROOT / 'apps/web/client/memoir/conversation-audio.mjs').read_text()
+    audio_source = re.sub(r'^  ', '', audio_source, flags=re.M)
+    audio_functions = '\n'.join(re.findall(r'^(?:async )?function \w+\(.*?\n\}', audio_source, re.S | re.M))
+    source = re.sub(r'const \{[^}]+\} = createConversationAudio\(\{[^}]+\}\);',
+                    lambda _: audio_functions, source)
+    source = source.replace('createInterviewPhotoState({state, scope:captureProjectScope, render, api,',
+                            "createInterviewPhotoState({state, scope:captureProjectScope, render: () => render(), api: (...args) => api(...args), uuid: () => 'voice-turn-' + (window.turns || 0),")
+    imports = [(names, relative) for names, relative in
+               re.findall(r'import \{([^}]+)\} from "([^"]+)";', source)
+               if relative.startswith('.')]
     source = '\n'.join(line for line in source.splitlines() if not line.startswith('import '))
     source = source[:source.rindex('installUiLocaleBridge();')]
     catalog = json.loads((ROOT / 'apps/web/messages/en-AU.json').read_text())
@@ -92,7 +103,13 @@ window.AudioContext = class {
   close() { this.closed = true; return Promise.resolve(); }
 };
 ensureMemorySession = async () => null;
-agentTurn = async () => { turns++; return {reply: 'What do you remember?'}; };
+agentTurn = async () => {
+  turns++;
+  const turn = state.photoTurns.prepare({text: '', attachments: state.attachments});
+  const result = {reply: 'What do you remember?', conversation_saved: true};
+  state.photoTurns.finish(turn, result);
+  return result;
+};
 streamAssistantMessage = async () => {};
 storyApi = async (path, options) => {
   if (path === '/v1/story/transcriptions') {

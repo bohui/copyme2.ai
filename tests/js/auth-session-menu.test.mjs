@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import { createPreferenceSession } from "../../apps/web/i18n/session.mjs";
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 
 test('successful OAuth updates the visible guest menu without another chat turn', () => {
   const state = { chat: [], supabase: { user: { id: 'guest', is_anonymous: true } } };

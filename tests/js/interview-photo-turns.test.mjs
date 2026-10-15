@@ -1,3 +1,4 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createInterviewPhotoState, responsePhotoCards} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
@@ -54,7 +55,7 @@ test('accepted uploads clear only consumed pending attachments; failure preserve
 
 test('listening to a saved reply speaks that visible reply, not the optional session question', async () => {
  const fs=await import('node:fs'),vm=await import('node:vm');
- const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+ const source=readMemoirClientSource();
  const calls=[];
  const context=vm.createContext({state:{session:{id:'optional-session'}},captureProjectScope:()=>({}),isCurrentProjectScope:()=>true,
   cleanAssistantText:text=>text,conversationLanguage:()=> 'en-AU',currentUiLocale:()=> 'en-AU',translate:x=>x,toast(){},
@@ -107,7 +108,7 @@ test('reload receipt recovery keeps response cards and never issues a second tur
 
 test('the shipped stream sends saved photo identity and acknowledges acceptance before reply',async()=>{
  const fs=await import('node:fs'),vm=await import('node:vm');
- const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+ const source=readMemoirClientSource();
  const sent=[],events=[],deltas=[];let controller;
  const state={project:{id:'p'},supabase:{user:{id:'owner'},accessToken:'token'},navigationGeneration:1};
  const context=vm.createContext({state,AbortController,TextDecoder,TextEncoder,Response,

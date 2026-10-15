@@ -1,8 +1,8 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 function extract(name){
   const start=source.search(new RegExp(`^(?:async )?function ${name}\\(`,'m'));
   assert.ok(start>=0);

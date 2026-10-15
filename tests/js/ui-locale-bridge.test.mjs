@@ -1,9 +1,9 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import { createPreferenceSession, firstReplyUiCandidate } from '../../apps/web/i18n/session.mjs';
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 function harness(){
  const calls=[],toasts=[],state={project:{id:'p',profile:{}},supabase:{user:{id:'a'},accessToken:'fixture'}};
  const session=createPreferenceSession();let fail=false;

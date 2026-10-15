@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {responsePhotoCards} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
 
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 const card={photo_id:'upload:11111111-1111-4111-8111-111111111111',kind:'private_upload',title:'Your private photo'};
 const exchange=(id,more={})=>({server_turn_id:`server-${id}`,client_turn_id:id,created_at:'2026-10-08T12:00:00Z',narrator_text:`Narration ${id}`,reply:`Question ${id}?`,response_photos:[card],...more});
 function harness({anonymous=false,chat=[],pages=[{items:[exchange('turn')],next_cursor:null}],legacy=[]}={}){

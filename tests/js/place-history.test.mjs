@@ -1,3 +1,4 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mergePlaces, placeHistoryKey, mapTarget} from '../../apps/web/client/memoir/places.mjs';
@@ -107,7 +108,7 @@ test('restored narrator wording attaches birth dates only to the matching place'
 test('renders the place history navigation in chronological order', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
- const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const source = readMemoirClientSource();
  const context = vm.createContext({
   escapeHtml: String, translate: key => key, lifeStageText: stage => stage, placeHistoryKey,
  });
@@ -123,7 +124,7 @@ test('renders the place history navigation in chronological order', async () => 
 test('renderer keeps detailed title and parent map coordinates without a footer', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
- const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+ const source=readMemoirClientSource();
  const context=vm.createContext({mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
  for (const name of ['placeMapTarget','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
  const markup=context.placeJourneyMarkup(suburb);
@@ -139,7 +140,7 @@ test('renderer keeps detailed title and parent map coordinates without a footer'
 test('does not render a place card when no map target is available', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
- const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const source = readMemoirClientSource();
  const context = vm.createContext({
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
   profile: () => ({memory_places: []}), escapeHtml: String,
@@ -157,7 +158,7 @@ test('does not render a place card when no map target is available', async () =>
 test('hides an unresolved selected place even when another saved place has a map', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
- const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const source = readMemoirClientSource();
  const unknown = {place: 'Somewhere unknown', hierarchy: ['Earth', 'Somewhere unknown'], granularity: 'city'};
  const mapped = {place: 'Hobart', hierarchy: ['Earth', 'Australia', 'Hobart'], granularity: 'city', latitude: -42.88, longitude: 147.33};
  const context = vm.createContext({
@@ -179,7 +180,7 @@ test('hides an unresolved selected place even when another saved place has a map
 test('map framing retains a geocoded place scale and uses a saved parent scale', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
- const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+ const source = readMemoirClientSource();
  const context = vm.createContext({});
  vm.runInContext(source.match(/const PLACE_MAP_VIEW_HEIGHTS = \{[^]*?\n\};/)[0], context);
  vm.runInContext(source.match(/function placeMapViewHeight\([^]*?\n\}/)[0], context);

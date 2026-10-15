@@ -1,9 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const openingMessages = ['en-AU', 'zh-CN'].map(locale => JSON.parse(fs.readFileSync(
   new URL(`../../apps/web/messages/${locale}.json`, import.meta.url), 'utf8')).Memoir.conversation.opening);
 function load(context, name) {

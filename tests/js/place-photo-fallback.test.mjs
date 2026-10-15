@@ -1,10 +1,10 @@
+import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {groupPlaces, mergePlaces, placeHistoryKey, matchesPlaceStage} from '../../apps/web/client/memoir/places.mjs';
 
-const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
+const source = readMemoirClientSource();
 const photo = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
   source_url: `https://sources.example/${id}`, title: id, date_expression: '1989',
   latitude: 40.98, longitude: 117.94, attribution: 'Original photographer', allowed_actions: {embed: true}});
@@ -36,7 +36,7 @@ function harness(api, entries = [city, town, otherCity]) {
   });
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures',
     'renderablePictureItems', 'workspacePictureItems', 'photoPaginationMarkup',
-    'photoMemoryState', 'photoMemoryControls', 'favoritePhotoWall', 'pictureWall', 'workspaceMediaOverview', 'placesWorkspace']) {
+    'photoMemoryState', 'photoMemoryControls', 'favoritePhotoWall', 'pictureWall', 'workspaceMediaOverview']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   return {context, state, profile: () => saved,
@@ -44,13 +44,11 @@ function harness(api, entries = [city, town, otherCity]) {
 }
 
 function assertCityFallback(h) {
-  for (const render of ['workspaceMediaOverview', 'placesWorkspace']) {
-    const html = h.context[render]();
-    assert.match(html, /city-photo\.jpg/);
-    assert.match(html, /承德 · Original photographer/);
-    assert.match(html, /1989/);
-    assert.doesNotMatch(html, /other-city-photo/);
-  }
+  const html = h.context.workspaceMediaOverview();
+  assert.match(html, /city-photo\.jpg/);
+  assert.match(html, /承德 · Original photographer/);
+  assert.match(html, /1989/);
+  assert.doesNotMatch(html, /other-city-photo/);
   assert.equal(h.profile().memory_places[0].pictures[0].asset_id, 'city-photo');
   assert.equal(h.entry().pictures.length, 0, 'fallback photos were copied into the child');
 }

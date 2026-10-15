@@ -16,7 +16,10 @@ def test_voice_reply_keeps_the_same_speaker_after_audio_failure(failure_stage, e
     program = r'''
 const fs = require('node:fs'), vm = require('node:vm');
 const scenario = JSON.parse(fs.readFileSync(0, 'utf8'));
-const source = fs.readFileSync('apps/web/client/memoir/client.js', 'utf8');
+const source = ['client.js', 'conversation-audio.mjs'].map(file => {
+  const text = fs.readFileSync(`apps/web/client/memoir/${file}`, 'utf8');
+  return file === 'client.js' ? text : text.replace(/^  /gm, '');
+}).join('\n');
 const speakers = [], requests = [], notifications = [];
 let turn = 0;
 const error = Object.assign(new Error('Provider failed'), {status: scenario.error_status});
@@ -69,7 +72,10 @@ for (const name of ['speakBrowserText', 'speakVoiceReply']) {
 def test_voice_mode_prevents_separate_read_aloud_from_changing_the_speaker():
     program = r'''
 const fs = require('node:fs'), vm = require('node:vm');
-const source = fs.readFileSync('apps/web/client/memoir/client.js', 'utf8');
+const source = ['client.js', 'conversation-audio.mjs'].map(file => {
+  const text = fs.readFileSync(`apps/web/client/memoir/${file}`, 'utf8');
+  return file === 'client.js' ? text : text.replace(/^  /gm, '');
+}).join('\n');
 let playbacks = 0;
 const context = vm.createContext({
   state: {voiceMode: true}, CHATBOT_NAME: 'Mira',

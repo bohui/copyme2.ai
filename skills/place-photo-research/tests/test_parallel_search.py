@@ -178,6 +178,7 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(result['status'], 'success')
         options = parse_qs(urlsplit(opened.call_args.args[0].full_url).query)
         self.assertEqual(options['no_cache'], ['true'])
+        self.assertEqual(opened.call_args.kwargs['timeout'], 45)
 
     def test_worker_hard_timeout_kills_and_reaps(self):
         class Process:

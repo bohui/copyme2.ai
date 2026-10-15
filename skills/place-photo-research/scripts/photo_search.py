@@ -60,17 +60,19 @@ def normalize_cards(cards, provider):
     return normalized
 
 
-def serpapi(query):
+def serpapi(query, *, refresh=False):
     p._crawl4ai_load_dotenv()
     key = os.environ.get("SERPAPI_KEY", "").strip()
     if not key:
         return {"status": "not_configured", "cards": [], "requests": 0}
     options = {"engine": "google_images", "google_domain": "google.com", "hl": "zh-cn",
                "gl": "us", "ijn": 0, "safe": "active", "q": query, "api_key": key}
+    if refresh:
+        options['no_cache'] = 'true'
     try:
         # This URL is transient; neither it nor raw errors/responses are persisted.
         req = Request("https://serpapi.com/search.json?" + urlencode(options), headers={"User-Agent": p.UA})
-        with urlopen(req, timeout=25) as response:
+        with urlopen(req, timeout=45 if refresh else 25) as response:
             body = response.read(4 * 1024 * 1024 + 1)
         if len(body) > 4 * 1024 * 1024:
             return {"status": "error", "error": "response_limit", "cards": [], "requests": 1}
@@ -240,7 +242,7 @@ def discover(run, search_url=None, *, max_search_pages=1, source_limit=24, provi
 
 def worker_main(provider, params):
     if provider == "serpapi":
-        return serpapi(params["query"])
+        return serpapi(params["query"], refresh=params.get("refresh", False))
     if provider == "source":
         return {"status": "success", "page": p._crawl4ai_source_page(params["url"])}
     try:

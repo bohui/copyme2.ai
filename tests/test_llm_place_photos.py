@@ -34,6 +34,7 @@ def search_world(monkeypatch):
                        'MEMORY_SPARK_LLM_MODEL': 'search-model',
                        'MEMORY_SPARK_LLM_API_KEY': 'fixture-private-key',
                        'FLICKR_API_KEY': 'fixture-flickr-key',
+                       'SERPAPI_KEY': '',
                        'GOOGLE_CSE_ID': '', 'GOOGLE_CSE_URL': ''}.items():
         monkeypatch.setenv(key, value)
     monkeypatch.setattr(socket, 'getaddrinfo', lambda *a, **k:
