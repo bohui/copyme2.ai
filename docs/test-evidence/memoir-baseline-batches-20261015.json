@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "pr": 69,
+  "acceptance_complete": false,
+  "pr68_overlap": [
+    "apps/web/client/memoir/client.js",
+    "tests/test_stage_readiness_browser.py",
+    "tests/js/stream-latency.test.mjs"
+  ],
+  "batches": [
+    {
+      "batch": 1,
+      "code_revision": "c8542bd8f096e564bdb3191bdec5b46dcad7f5be",
+      "scope": "newly exposed recovery, policy/clearance and canonical guest/disabled identity fixtures",
+      "red": {
+        "failed": 4,
+        "passed": 2,
+        "head": "35b8fcd20b6b44d6598e16d652697684ab0f37dd"
+      },
+      "pinned_result": {
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 44.44
+      },
+      "commands": [
+        "python -m pytest -q tests/test_lifetime_composer_policy.py tests/test_lifetime_composer_clearance.py tests/test_lifetime_home_recovery.py tests/test_workspace_memory_actions.py::test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_after_event_changes --tb=short"
+      ],
+      "root_causes": [
+        "The focused recovery provider returned bare JSON while the real client requested NDJSON. The corrected synthetic worker retains one-call replay, literal-source and stale-event rejection assertions.",
+        "Real canonical PostgreSQL/worker reproduction traced fail_memoir_lane to validate_summary: the synthetic prepare output used the old event ID/reference set. It now uses the transmitted progressive summary partition. All no-attempt-consumption, durable-checkpoint and resume assertions remain.",
+        "Canonical-only policy permits owned guest identity and ignores the retired rollout flag. Cases now require one stable owned identity, cross-owner denial and no narrator/turn/round/lease admission. Family/demo cases still require no lifetime identity."
+      ],
+      "evidence_sha256": {
+        "red_junit": "47e957d9816bae83be8f59687ece7388042b86304c79abacb37a7256ed1611ff",
+        "pinned_junit": "006a3bf6db11277bbe899933c2ac6b391e52c8e53229346c1df758b643881a65"
+      },
+      "remaining": "Compatibility defects and the 23 earlier unresolved functional cases are pending later batches; the historical complete aggregate is not relabeled green."
+    }
+  ]
+}
