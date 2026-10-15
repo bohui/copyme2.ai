@@ -161,3 +161,19 @@ The [final report](memoir-baseline-final-20261015.md) and
 record every remaining failure/error, skip, classification and unrun check.
 Acceptance remains incomplete. Later evidence-only commits preserve the tested
 source and test files unchanged.
+
+
+## Four source-review repairs after the complete checkpoint
+
+The four follow-up findings are independently reproduced and repaired at
+`b1e54e8e65bbb0facc1edeb2d2bb90db99212788`: controlled-profiler offline authority,
+exact requested locale/root retirement after a secondary event change, bounded
+case-child/native-cluster cancellation cleanup, and delivered visible-character
+accounting. The complete follow-up run records 5,438 passes, 574 failures,
+21 setup errors, 249 skips and four warnings; all five guard cases pass. All
+seven large correctness checks pass separately; aggregate timeouts remain failed.
+The [follow-up report](memoir-baseline-review-four-20261015.md) and
+[complete follow-up ledger](memoir-baseline-review-four-20261015.json) preserve
+reproductions, every remaining case, prerequisites and unrun checks. Earlier
+complete ledgers remain unchanged. No pending-proposal inheritance, benchmark,
+legacy dataset, model-bound or other product-policy decision is resolved here.

@@ -468,6 +468,116 @@
         "memoir-new-regressions-green.xml": "f77336349df8ff24f502e7a7582ab0f61a236a2806a3f13ef708286a23bf5f56",
         "memoir-proposed-predecessor-validated.xml": "6f1112ac8ab570f5d1b168282f69cb72dd7fe3e09c06fb40c3150fa3c78cfca2"
       }
+    },
+    {
+      "batch": 12,
+      "code_revisions": {
+        "offline": "bad5f545d15a45c4de3d0046814fc818b08481af",
+        "edition": "9e347031da7ded659c5e11e2dc7a0d9833a8182d",
+        "cancellation": "3771838b69ceec463f7467f7d3723e897daccf93",
+        "visible": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788"
+      },
+      "scope": "Four independently reproduced source-review findings: offline profiler authority, exact requested edition/root retirement, bounded child/cluster cancellation cleanup, delivered canonical visible-character count.",
+      "root_causes": "Each finding has a failing runtime reproduction and passing guard assertions; no consequential product policy was guessed.",
+      "red_and_green_ledger": "memoir-baseline-review-four-20261015.json",
+      "targeted_results": {
+        "affected": {
+          "passed": 78,
+          "failed": 8
+        },
+        "new_guard_cases": {
+          "passed": 5,
+          "failed": 0
+        },
+        "javascript": {
+          "passed": 501,
+          "failed": 0
+        },
+        "specification_acceptance": {
+          "passed": 55,
+          "failed": 0
+        }
+      },
+      "complete_fixed_head": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "complete_python": {
+        "completed": true,
+        "collected_records": 6282,
+        "passed": 5438,
+        "failed": 574,
+        "skipped": 249,
+        "error": 21,
+        "seconds": 1327.407,
+        "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short",
+        "runner": "Linux 4 CPUs/16 GiB; disposable native Unix-socket PostgreSQL and installed local Temporal CLI. Fixed source/test head; affected native selection, seven larger-budget checks and static/specification checks ran concurrently.",
+        "classification_categories": {
+          "stale_canonical_execution_fixture": 192,
+          "legacy_lane_worker_fixture_compatibility_defect": 3,
+          "stale_retired_admission_fixture": 65,
+          "stale_publication_authority_fixture": 7,
+          "stale_browser_identity_fixture": 37,
+          "stale_retired_api_fixture": 225,
+          "stale_phase_publication_fixture": 6,
+          "stale_invalid_worker_request_fixture": 5,
+          "stale_retired_publisher_route_fixture": 3,
+          "aggregate_case_time_budget": 6,
+          "stale_retired_artifact_fixture": 1,
+          "stale_progressive_photo_partition_fixture": 7,
+          "unresolved_photo_policy_rework_contract": 1,
+          "diagnostic_adapter_canonical_fixture_compatibility_defect": 1,
+          "stale_guest_admission_contract": 1,
+          "stale_browser_source_extraction_fixture": 4,
+          "unresolved_legacy_evaluation_dataset_contract": 7,
+          "stale_legacy_collection_contract": 5,
+          "stale_photo_partition_fixture_with_progressive_coverage": 2,
+          "evaluation_driver_canonical_context_compatibility_defect": 6,
+          "stale_guest_identity_fixture": 6,
+          "environment_zombie_process": 1,
+          "stale_retired_clearance_contract": 1,
+          "stale_identity_rpc_fixture": 2,
+          "unresolved_pending_proposal_root_authority_contract": 1
+        },
+        "wall_seconds": 1339.13,
+        "warnings": 4,
+        "classification_rollup": {
+          "stale_fixture_or_retired_contract": 569,
+          "identified_product_or_tooling_compatibility": 10,
+          "environment_or_aggregate_budget": 7,
+          "unresolved_functional": 9
+        },
+        "comparison_limit": "No newly failing IDs or changed failure points were found. Matching IDs/summaries alone do not prove intended behaviour. Current source/SQL reproductions and preserved per-case explanations support classifications; all original unmet assertions remain failures."
+      },
+      "retained_failing_regression": "Pending-proposal root authority remains unresolved; ordinary failing test preserved.",
+      "evidence_sha256": {
+        "memoir-review4-full-complete.xml": "c7e72e3bf677b120d0f32281b9f5469359d591ab3cac70217ef02d55bee29d5a",
+        "memoir-review4-capacity.xml": "b2e2c8dad7e633590d5e3a94e18d51e87bbe607e0be201dc3bfdc7df105e9396",
+        "memoir-review4-affected.xml": "b25b4460edf483ea95a6b8729161bf6c01afbc8cc95e7d13f26b42676041e14f",
+        "memoir-review4-acceptance.xml": "a11345f837e25f64ba6d272939c824d982af081e4a893aeda4f0914464c0153c",
+        "memoir-review4-full.xml": "96c3b60aece7469367b629c6274171a5036f8bb309b9594f0ccd3fb1f63dbc63",
+        "memoir-review4-visible-green.xml": "f60939da6566099ed7ea509dc8a2c656629777ca8adffa04b984f47d7a674f7f",
+        "memoir-review4-visible-red.xml": "a23e2872b05689f0cb8d91734ecd56e5214c299c86cd7e0afe727fdd4fa38044",
+        "memoir-review4-cancel-both.xml": "cc58e54fafdae6c49b406a5aca1e70599e624c902525f930cf87e7c2b2978773",
+        "memoir-review4-edition-green.xml": "0dad4c4f58df8bdaef8209b51f623f038fb5e71a03168750241c51822d9413a9",
+        "memoir-review4-cancel-green.xml": "9f0c4b7c12fd14179f61731325c5cf5fa968ba393c5cece7b719fb7fe157c560",
+        "memoir-review4-cancel-red.xml": "33d03baf2eae82f1b5d2ae2b676773c32099236d8190609599f3619f74a0d332",
+        "memoir-review4-edition-red.xml": "1899e20842c374c78857aa6a178f14d0f568cdd10806f9c78f956624aa225e7e",
+        "memoir-review4-offline-green.xml": "39d216edb4c98ebb0f0ba01d10d6bd9a303ca42c1b28ef251132c7336724ba68",
+        "memoir-review4-offline-red.xml": "a0225f056b93a4f73838cc33853ea0009c7c9b6fa138f37b1198c3cf95fb6361",
+        "memoir-review4-full-complete.log": "0f62e35408ca5edfd919014b17bfa926fea1e45f22aee39042e3be0b2ab01231",
+        "memoir-review4-acceptance.log": "7403ad6af06a07d992c1444db55acadfd9de1b17a8f0d722a8f59dc88e79e62f",
+        "memoir-review4-node-complete.log": "7a4e89b2174c2097107abce6daed5f1f5d1f7949293048f65a505cd4f3bf2dbf",
+        "memoir-review4-node.log": "91d9ccebb75c654b0816fca3147e0e9fea261f6c251cbbb2a2c04789fda2aa4f",
+        "memoir-review4-capacity.log": "d2a36d7c9e8e91a40375bbd8ec7dda0e4c510b40d804cb54d283c821542deea6",
+        "memoir-review4-affected.log": "7154e3bf0ea837351cbb926775c659caa1a897504a34aa800c67f770d6f07a28",
+        "memoir-review4-full.log": "abb990ae8df56ea44d4703c76f01e01beba9cba061c835212a2299699da40210",
+        "memoir-review4-visible-green.log": "9eda4fd607de7f364692b254fd94143902d46ff885ad6e5e83a31c5f304ce249",
+        "memoir-review4-cancel-both.log": "91b22ed41a556c57123957f0eca39ce1d157d190ebe4d9c19508100314f4a19e",
+        "memoir-review4-visible-red.log": "b4110064123887dab69359aa7e298d7da399a6d9f82eed162050a5fa6a1738c8",
+        "memoir-review4-edition-green.log": "c23b915a81b47cafbe3288256e7d4fa87c7e46039125d74679126edeec41fafd",
+        "memoir-review4-cancel-green.log": "b024d587f6717779e1cf57d6f9caf82b197667b0fbc84ab4e593ed028e5fcb3e",
+        "memoir-review4-cancel-red.log": "2ed5b988e9fa75b28d6bb58d3ec91e903fc1d235d542989b404f62c6d1a7da2d",
+        "memoir-review4-edition-red.log": "9e7fdae1e84bdbd866c66db9754c2b592cd7512e85e5cfe6943543eea9b23fba",
+        "memoir-review4-offline-green.log": "7ba4d862ba9f2df232c2d9e9af4890f84b2b092f3097a8e8b9261cd5c96ad216"
+      }
     }
   ],
   "current_disposition": {
@@ -576,10 +686,10 @@
     "as_of_revision": "5e55d70c9e48a2fa91c3641c42822b149d772dab"
   },
   "latest_disposition": {
-    "source_test_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
+    "source_test_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
     "acceptance_complete": false,
-    "final_fixed_head_aggregate": "complete; every remaining failure/error and skip classified in current ledger",
-    "latest_complete_checkpoint": "memoir-baseline-checkpoint-cd73917-20261015.json",
+    "final_fixed_head_aggregate": "5438 passed / 574 failed / 21 errors / 249 skipped; four warnings; all remaining cases classified",
+    "latest_complete_checkpoint": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
     "historical_23_functional_outcomes_at_cd73917": {
       "failed": 18,
       "passed": 5
@@ -593,8 +703,8 @@
       "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
       "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
     ],
-    "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
-    "current_ledger": "memoir-baseline-current-checks-20261015.json",
+    "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "current_ledger": "memoir-baseline-review-four-20261015.json",
     "remaining_failure_or_error_count": 595,
     "classification_rollup": {
       "stale_fixture_or_retired_contract": 569,
@@ -604,6 +714,123 @@
     }
   },
   "final_fixed_head_checks": {
+    "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "source_tree": "1cd5904e336f89f0d2275801af36c77391589088",
+    "full_python": {
+      "completed": true,
+      "collected_records": 6282,
+      "passed": 5438,
+      "failed": 574,
+      "skipped": 249,
+      "error": 21,
+      "seconds": 1327.407,
+      "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short",
+      "runner": "Linux 4 CPUs/16 GiB; disposable native Unix-socket PostgreSQL and installed local Temporal CLI. Fixed source/test head; affected native selection, seven larger-budget checks and static/specification checks ran concurrently.",
+      "classification_categories": {
+        "stale_canonical_execution_fixture": 192,
+        "legacy_lane_worker_fixture_compatibility_defect": 3,
+        "stale_retired_admission_fixture": 65,
+        "stale_publication_authority_fixture": 7,
+        "stale_browser_identity_fixture": 37,
+        "stale_retired_api_fixture": 225,
+        "stale_phase_publication_fixture": 6,
+        "stale_invalid_worker_request_fixture": 5,
+        "stale_retired_publisher_route_fixture": 3,
+        "aggregate_case_time_budget": 6,
+        "stale_retired_artifact_fixture": 1,
+        "stale_progressive_photo_partition_fixture": 7,
+        "unresolved_photo_policy_rework_contract": 1,
+        "diagnostic_adapter_canonical_fixture_compatibility_defect": 1,
+        "stale_guest_admission_contract": 1,
+        "stale_browser_source_extraction_fixture": 4,
+        "unresolved_legacy_evaluation_dataset_contract": 7,
+        "stale_legacy_collection_contract": 5,
+        "stale_photo_partition_fixture_with_progressive_coverage": 2,
+        "evaluation_driver_canonical_context_compatibility_defect": 6,
+        "stale_guest_identity_fixture": 6,
+        "environment_zombie_process": 1,
+        "stale_retired_clearance_contract": 1,
+        "stale_identity_rpc_fixture": 2,
+        "unresolved_pending_proposal_root_authority_contract": 1
+      },
+      "wall_seconds": 1339.13,
+      "warnings": 4,
+      "classification_rollup": {
+        "stale_fixture_or_retired_contract": 569,
+        "identified_product_or_tooling_compatibility": 10,
+        "environment_or_aggregate_budget": 7,
+        "unresolved_functional": 9
+      },
+      "comparison_limit": "No newly failing IDs or changed failure points were found. Matching IDs/summaries alone do not prove intended behaviour. Current source/SQL reproductions and preserved per-case explanations support classifications; all original unmet assertions remain failures."
+    },
+    "all_remaining_cases_and_skips": "memoir-baseline-review-four-20261015.json",
+    "acceptance_complete": false,
+    "larger_correctness": {
+      "counts": {
+        "passed": 7
+      },
+      "seconds": 684.029,
+      "cases": [
+        {
+          "nodeid": "tests/test_lifetime_composer_capacity.py::test_10000_mixed_language_packets_have_constant_declared_bound",
+          "outcome": "passed",
+          "seconds": 118.591,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_composer_capacity.py::test_pg_composer_10000_dispositions_have_bounded_complete_root",
+          "outcome": "passed",
+          "seconds": 100.912,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_memory_capacity.py::test_real_10000_turn_admission_early_edit_pagination_and_cold_context",
+          "outcome": "passed",
+          "seconds": 149.539,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_draft_coalescing.py::test_database_ten_thousand_repeated_receipts_transmit_zero_old_source_bytes",
+          "outcome": "passed",
+          "seconds": 113.683,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_draft_capacity.py::test_database_ten_thousand_sources_rounds_complete_bounded_snapshot",
+          "outcome": "passed",
+          "seconds": 60.006,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_collection_jobs.py::test_selected_manifest_remains_bounded_as_history_grows_to_ten_thousand",
+          "outcome": "passed",
+          "seconds": 80.389,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_draft_coalescing.py::test_database_appended_turn_pages_only_new_source_and_round",
+          "outcome": "passed",
+          "seconds": 59.46,
+          "summary": ""
+        }
+      ],
+      "wall_seconds": 684.15
+    },
+    "affected_selection": {
+      "passed": 78,
+      "failed": 8
+    },
+    "javascript": {
+      "passed": 501,
+      "failed": 0,
+      "skipped": 0
+    },
+    "specification_acceptance": {
+      "passed": 55,
+      "failed": 0
+    }
+  },
+  "prior_final_fixed_head_checks_e15c0fb": {
     "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
     "last_source_test_change_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
     "source_tree": "879f8b4882d25a20e74ca2083e3961c80194962e",
@@ -652,5 +879,33 @@
     "web_build": "passed webpack and standalone",
     "all_remaining_cases_and_skips": "memoir-baseline-current-checks-20261015.json",
     "acceptance_complete": false
+  },
+  "latest_disposition_before_review_four": {
+    "source_test_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
+    "acceptance_complete": false,
+    "final_fixed_head_aggregate": "complete; every remaining failure/error and skip classified in current ledger",
+    "latest_complete_checkpoint": "memoir-baseline-checkpoint-cd73917-20261015.json",
+    "historical_23_functional_outcomes_at_cd73917": {
+      "failed": 18,
+      "passed": 5
+    },
+    "independent_runtime_acceptance": "outstanding",
+    "old_fields": "current_disposition above is preserved as the batch-eight historical disposition; this latest_disposition and later final ledger take precedence for current status",
+    "decisions": [
+      "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
+      "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
+      "Approved live canary model binding with reviewed canonical token bounds",
+      "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
+      "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
+    ],
+    "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
+    "current_ledger": "memoir-baseline-current-checks-20261015.json",
+    "remaining_failure_or_error_count": 595,
+    "classification_rollup": {
+      "stale_fixture_or_retired_contract": 569,
+      "identified_product_or_tooling_compatibility": 10,
+      "environment_or_aggregate_budget": 7,
+      "unresolved_functional": 9
+    }
   }
 }
