@@ -282,8 +282,7 @@ def setup_read(sql, *, profile=True):
         # this test's missing-profile precondition only after that acceptance.
         sql(as_user('delete from public.user_profile where user_id=auth.uid();'))
     fence = rpc(sql, 'capture_lifetime_read_fence', literal(identity['project_id']))
-    command = sql.command
-    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn
     return identity, source, fence, dsn
 
 
@@ -534,7 +533,13 @@ def test_flag_on_unmapped_legacy_gets_keep_original_owned_read_contract(recovery
     assert actual.status_code == 200
     assert actual.json() == expected.json()
     assert mappings == ['read_lifetime_project_identity']
-    assert all(call.method == 'GET' for call in calls)
+    for call in calls:
+        if call.method == 'POST':
+            assert call.url.path == '/rest/v1/rpc/read_user_interview_turn'
+            assert json.loads(call.content) == {
+                'p_project_id': 'project-a', 'p_client_turn_id': TURN}
+        else:
+            assert call.method == 'GET'
 
 
 def test_repeated_cancellation_does_not_interrupt_database_close(monkeypatch):
@@ -569,8 +574,8 @@ def test_repeated_cancellation_does_not_interrupt_database_close(monkeypatch):
     execute(scenario())
 
 
-@pytest.mark.parametrize('configured_dsn,legacy_only,allowed',[(True,True,False),(False,False,False),(False,True,True)])
-def test_rest_schema_cache_miss_never_proves_unmapped_mixed_cohort(monkeypatch,configured_dsn,legacy_only,allowed):
+@pytest.mark.parametrize('configured_dsn,legacy_only',[(True,True),(False,False),(False,True)])
+def test_rest_schema_cache_miss_never_proves_unmapped_even_with_legacy_flag(monkeypatch,configured_dsn,legacy_only):
     import httpx
     from types import SimpleNamespace
     from apps.api.lifetime_memory_reads import find_lifetime_read_identity
@@ -582,9 +587,9 @@ def test_rest_schema_cache_miss_never_proves_unmapped_mixed_cohort(monkeypatch,c
         json={'code':'PGRST202','message':'Could not find read_lifetime_project_identity in the schema cache'})
     def rpc(*args,**kwargs):response.raise_for_status()
     service=SimpleNamespace(user_id=OWNER,is_anonymous=False,lifetime_rpc=rpc)
-    if allowed:assert find_lifetime_read_identity(service,None) is None
-    else:
-        with pytest.raises(httpx.HTTPStatusError):find_lifetime_read_identity(service,None)
+    with pytest.raises(httpx.HTTPStatusError) as failure:
+        find_lifetime_read_identity(service,None)
+    assert failure.value.response is response
 
 
 @pytest.mark.parametrize('version',['2.3','2.4'])

@@ -55,8 +55,7 @@ def compose_rework(sql, page, text):
     from apps.api.lifetime_memory_lane_engine import LanePublication, BoundedLaneInput
     from test_canonical_composer_provenance import controlled_draft
     phases=[]
-    command=sql.command
-    dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     class Broker:
         async def rpc(self, name, **payload):
             args=','.join(f'{key}=>{literal(value)}' if not isinstance(value,int) else f'{key}=>{value}' for key,value in payload.items())
@@ -595,8 +594,7 @@ def test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_afte
     from test_name_only_opening import proposal
     identity, _, _, first = seeded_composer(sql)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
-    command=sql.command
-    dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS','999')

@@ -99,8 +99,7 @@ def mark_pending(sql, identity, original, *, inventory=False):
 
 
 def dsn_for(sql):
-    command = sql.command
-    return f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    return sql.publication_dsn
 
 
 class SQLBroker:

@@ -322,7 +322,7 @@ def test_typed_job_fences_match_exact_sql_pages_before_leaf_and_merge_publicatio
         assert rpc(sql,'lock_lifetime_collection_job_publication',f'{literal(fence)}::jsonb')>0
         import asyncio
         from apps.api.lifetime_memory_job_engine import JobPublication
-        command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+        command=sql.command;dsn=sql.publication_dsn
         async def admitted():
             async with JobPublication(dsn,authenticated_owner=OWNER).guard(fence):
                 return True
@@ -359,7 +359,7 @@ def test_selected_result_actual_send_holds_all_authority_and_releases_on_cancel(
     job=create(sql,project,[],'BuildOutline',1);lease=claim(sql,job);frozen=page(sql,job,lease['token']);commit(sql,frozen,outline_result(frozen))
     result=rpc(sql,'read_lifetime_collection_job',f"'{job['id']}',null,8")
     fence=rpc(sql,'capture_lifetime_read_fence',literal(project))
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     publisher=CollectionResultPublication(dsn,authenticated_owner=OWNER,job_id=job['id']);publisher.root_digest=result['root_digest']
     async def scenario():
         sending_entered=asyncio.Event();release=asyncio.Event();sent=[]
@@ -471,7 +471,7 @@ def test_real_worker_dispatches_fenced_leaf_and_merge_without_legacy_history(sql
     monkeypatch.delenv('MEMOIR_LIFETIME_GENERATION_PAUSED',raising=False)
     project=resolve(sql)['project_id'];originals=[source(sql,project,f'Memory {i}') for i in range(2)]
     confirm(sql,project,originals);paid(sql);job=create(sql,project,[],'BuildOutline',1)
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     class Broker:
         async def rpc(self,name,**kwargs):
             def encode(value):
@@ -623,7 +623,7 @@ def test_collection_job_guard_matches_existing_auth_then_project_lock_order(sql)
     project=resolve(sql)['project_id'];original=source(sql,project);confirm(sql,project,[original]);paid(sql)
     job=create(sql,project,[],'BuildOutline',1);lease=claim(sql,job);frozen=page(sql,job,lease['token']);commit(sql,frozen,outline_result(frozen))
     result=rpc(sql,'read_lifetime_collection_job',f"'{job['id']}',null,8");fence=rpc(sql,'capture_lifetime_read_fence',literal(project))
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     async def scenario():
         writer=await psycopg.AsyncConnection.connect(dsn);observer=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
         publisher=CollectionResultPublication(dsn,authenticated_owner=OWNER,job_id=job['id']);publisher.root_digest=result['root_digest']

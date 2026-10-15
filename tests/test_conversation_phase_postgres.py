@@ -9,6 +9,46 @@ def read(sql,owner=OWNER):
     return rpc(sql,'read_user_conversation_phase',"'project'",owner=owner)
 
 
+@pytest.mark.parametrize('operation', ['context', 'receipt'])
+def test_legacy_read_only_initializes_phase_without_admission_or_generation(sql, operation):
+    import json
+    accept(sql, 'My name is Joan')
+    # Reproduce an owned pre-phase deployment with an already accepted turn.
+    sql('delete from public.user_conversation_phase;')
+    tables = sql("select tablename from pg_tables where schemaname='public' "
+                 "and tablename<>'user_conversation_phase' order by tablename;").stdout.splitlines()
+    def snapshot():
+        queries = ' union all '.join(f"select '{table}' name, coalesce(jsonb_agg(to_jsonb(t) "
+                                    f"order by to_jsonb(t)::text),'[]') value from public.\"{table}\" t"
+                                    for table in tables)
+        return json.loads(sql(f'select jsonb_object_agg(name,value) from ({queries}) tables;').stdout)
+    arguments = "'project'" if operation == 'context' else f"'project','{TURN}'"
+    name = 'read_user_interview_context' if operation == 'context' else 'read_user_interview_turn'
+    before = snapshot()
+    first = rpc(sql, name, arguments)
+    assert first['conversation_phase']['phase'] == 'comfort'
+    assert first['conversation_phase']['revision'] == 0
+    assert sql('select count(*) from public.user_conversation_phase;').stdout.strip() == '1'
+    assert rpc(sql, name, arguments) == first
+    assert snapshot() == before, 'Read changed durable state beyond phase initialization'
+    if operation == 'receipt':
+        assert rpc(sql, name, arguments, owner=OTHER) is None
+    else:
+        assert rpc(sql, name, arguments, owner=OTHER, check=False).returncode != 0
+    assert snapshot() == before
+    # A read can take the documented owned-project lock. It cannot bypass a
+    # concurrent writer, resolve/adopt a conversation, or admit another turn.
+    import psycopg
+    with psycopg.connect(sql.publication_dsn) as reader:
+        reader.execute('set role authenticated')
+        reader.execute("select set_config('request.jwt.claim.sub',%s,false)", (OWNER,))
+        reader.execute(f'select public.{name}({arguments})')
+        with psycopg.connect(sql.publication_dsn) as writer:
+            writer.execute("set lock_timeout='100ms'")
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                writer.execute("select 1 from public.user_memoir_project where project_id='project' for update")
+
+
 def test_anonymous_project_initialization_precedes_narration_and_preserves_ownership(sql):
     sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
     rpc(sql, 'ensure_user_memoir_project', "'project'")

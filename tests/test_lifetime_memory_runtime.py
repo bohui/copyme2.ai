@@ -12,13 +12,13 @@ from test_lifetime_memory_postgres import sql,event_database,private_database,at
 from test_agent_commit_postgres import OWNER
 from test_shared_memory_events_postgres import rpc,literal
 from test_name_only_opening import proposal
+from controlled_collector import worker_reply
 
 
 @pytest.mark.parametrize('streaming',[True,False])
 def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tmp_path,monkeypatch,streaming):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
-    command=sql.command
-    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS','1')
@@ -30,7 +30,7 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
         assert body['memories']==[] and body['profile']=={} and body['text']=='' and body['thread_id'] is None
         raw=json.dumps(output)
         if request.headers.get('accept')!='application/x-ndjson':
-            return httpx.Response(200,json={'reply':raw,'thread_id':'synthetic-governed','artifacts':[]})
+            return worker_reply(request,{'reply':raw,'thread_id':'synthetic-governed','artifacts':[]})
         return httpx.Response(200,headers={'Content-Type':'application/x-ndjson'},content='\n'.join(json.dumps(x) for x in [
             {'type':'codex_activity','data':{'id':'tool-1','kind':'commandExecution','label':'Read saved context','status':'running'}},
             {'type':'codex_activity','data':{'id':'tool-1','kind':'commandExecution','label':'Read saved context','status':'completed'}},
@@ -91,8 +91,7 @@ def test_oversized_input_rejected_before_source_acceptance(sql,tmp_path,monkeypa
 
 
 def test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn(sql,tmp_path,monkeypatch):
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     packets=[]
     def provider(request):
@@ -108,7 +107,7 @@ def test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn(
             assert packet['pinned']['chosen_name']=='Joan'
             assert any('school' in value.lower() for value in packet['pinned']['excluded_topics'])
             assert any('garden' in item['data']['text'] for item in packet['pinned']['known_continuity'] if item['kind']=='commitment')
-        return httpx.Response(200,json={'thread_id':f'synthetic-{len(packets)}','reply':json.dumps(response),'artifacts':[]})
+        return worker_reply(request,{'thread_id':f'synthetic-{len(packets)}','reply':json.dumps(response),'artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     from apps.api.main import create_app
@@ -130,8 +129,7 @@ def test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn(
 
 @pytest.mark.parametrize('streaming',[True,False])
 def test_correction_after_provider_admission_blocks_old_text_and_commit(sql,tmp_path,monkeypatch,streaming):
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     output=proposal(name='Joan',question='What would you like to share?');output['acknowledgement']='Private old answer about Joan.'
     def provider(request):
@@ -139,7 +137,7 @@ def test_correction_after_provider_admission_blocks_old_text_and_commit(sql,tmp_
         source=packet['current']['narrator'];project=packet['identity']['project_id']
         rpc(sql,'change_user_narrator_source',f"'{project}','{source['source_id']}',1,'withdraw',null")
         raw=json.dumps(output)
-        if not streaming:return httpx.Response(200,json={'reply':raw,'thread_id':'stale-thread','artifacts':[]})
+        if request.headers.get('accept') != 'application/x-ndjson':return worker_reply(request,{'reply':raw,'thread_id':'stale-thread','artifacts':[]})
         return httpx.Response(200,headers={'Content-Type':'application/x-ndjson'},content='\n'.join(json.dumps(x) for x in [
             {'type':'text_delta','text':raw},{'type':'result','data':{'reply':raw,'thread_id':'stale-thread','artifacts':[]}}])+'\n')
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
@@ -157,8 +155,7 @@ def test_correction_after_provider_admission_blocks_old_text_and_commit(sql,tmp_
 
 def test_active_privacy_byte_overflow_retains_source_without_provider_and_retry_recovers(sql,tmp_path,monkeypatch):
     from test_agent_commit_postgres import as_user
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     exclusions=['private forbidden subject '+str(n)+' '+('x'*100) for n in range(200)]
@@ -166,7 +163,7 @@ def test_active_privacy_byte_overflow_retains_source_without_provider_and_retry_
     calls=[]
     def provider(request):
         calls.append(request)
-        return httpx.Response(200,json={'thread_id':'recovered-policy','reply':json.dumps(proposal(name='Joan',question='What would you like to share?')),'artifacts':[]})
+        return worker_reply(request,{'thread_id':'recovered-policy','reply':json.dumps(proposal(name='Joan',question='What would you like to share?')),'artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     from apps.api.main import create_app
@@ -191,8 +188,7 @@ def test_active_privacy_byte_overflow_retains_source_without_provider_and_retry_
     ('我不想再提学校','excluded_topics'),
 ])
 def test_literal_privacy_variants_persist_before_http_provider(sql,tmp_path,monkeypatch,text,kind):
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     calls=[]
     def provider(request):
@@ -200,7 +196,7 @@ def test_literal_privacy_variants_persist_before_http_provider(sql,tmp_path,monk
         assert text in packet['pinned'][kind]
         result=proposal(mode='extract',name=None,question='What would you like to share?')
         result['acknowledgement']='We can choose another memory.'
-        return httpx.Response(200,json={'thread_id':'privacy-variant','reply':json.dumps(result),'artifacts':[]})
+        return worker_reply(request,{'thread_id':'privacy-variant','reply':json.dumps(result),'artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     from apps.api.main import create_app
@@ -216,8 +212,7 @@ def test_literal_privacy_variants_persist_before_http_provider(sql,tmp_path,monk
 def test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model(sql,tmp_path,monkeypatch,language,streaming):
     from test_agent_commit_postgres import as_user
     from apps.api.main import create_app
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     rpc(sql,'change_user_conversation_phase',f"'{identity['project_id']}','shape',0")
@@ -242,8 +237,7 @@ def test_large_single_event_keeps_real_http_turn_bounded_and_resumable(sql,tmp_p
     from test_lifetime_event_context import seed_large_event
     from apps.api.main import create_app
     identity,_=seed_large_event(sql)
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     packets=[]
@@ -255,7 +249,7 @@ def test_large_single_event_keeps_real_http_turn_bounded_and_resumable(sql,tmp_p
         response=proposal(name=None,question='What do you remember about school?')
         response['plan']['work']={'mode':'extract','name':None}
         response['plan']['conversation_phase']='explore'
-        return httpx.Response(200,json={'reply':json.dumps(response),'thread_id':'bounded-large-event','artifacts':[]})
+        return worker_reply(request,{'reply':json.dumps(response),'thread_id':'bounded-large-event','artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     payload={'project_id':identity['project_id'],'client_turn_id':str(uuid4()),'text':'What happened at school?'}
@@ -274,8 +268,7 @@ def test_large_single_event_keeps_real_http_turn_bounded_and_resumable(sql,tmp_p
 def test_accepted_source_survives_provider_failure_then_exact_retry(sql,tmp_path,monkeypatch):
     from apps.api.main import create_app
     identity=rpc(sql,'resolve_lifetime_conversation','null')
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     calls=[]
@@ -284,7 +277,7 @@ def test_accepted_source_survives_provider_failure_then_exact_retry(sql,tmp_path
         if len(calls)==1:return httpx.Response(503,json={'detail':'synthetic provider unavailable'})
         response=proposal(name='Joan',question='Where would you like to begin?')
         response['plan']['conversation_phase']='comfort'
-        return httpx.Response(200,json={'reply':json.dumps(response),'thread_id':'recovered-provider','artifacts':[]})
+        return worker_reply(request,{'reply':json.dumps(response),'thread_id':'recovered-provider','artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     payload={'project_id':identity['project_id'],'client_turn_id':str(uuid4()),'text':'My name is Joan'}
@@ -311,8 +304,7 @@ def test_clearance_rejection_preserves_accepted_source_and_exact_retry(sql, tmp_
     from apps.api.lifetime_memory_activation import CanonicalActivationUnavailable
     from apps.api import lifetime_memory_engine
     identity = rpc(sql, 'resolve_lifetime_conversation', 'null')
-    command = sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
     calls = []
@@ -323,12 +315,12 @@ def test_clearance_rejection_preserves_accepted_source_and_exact_retry(sql, tmp_
     def provider(request):
         calls.append('worker')
         if len(calls) == 1:
-            return httpx.Response(503, headers={'X-Error-Code': 'LIFETIME_REALTIME_CLEARANCE_REQUIRED'},
+            return httpx.Response(503, headers={'X-Error-Code': CanonicalActivationUnavailable.code},
                                   json={'detail': 'Conversation generation is awaiting operator clearance'})
         if request.headers.get('accept') == 'application/x-ndjson':
             return httpx.Response(200, headers={'Content-Type': 'application/x-ndjson'},
                                   content=json.dumps({'type': 'result', 'data': result}) + '\n')
-        return httpx.Response(200, json=result)
+        return worker_reply(request, result)
 
     async def local_provider(**kwargs):
         calls.append('local')
@@ -369,8 +361,7 @@ def test_clearance_rejection_preserves_accepted_source_and_exact_retry(sql, tmp_
 @pytest.mark.parametrize('language,source_kind',[('en-AU','narrator_chat'),('zh-CN','narrator_transcript')])
 def test_privacy_limit_rejects_before_acceptance_and_exact_eight_retry_is_atomic(sql,tmp_path,monkeypatch,language,source_kind):
     from apps.api.main import create_app
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     controls=[f'Do not discuss topic{i}.' if language=='en-AU' else f'不要讨论话题{i}。' for i in range(9)]
@@ -382,7 +373,7 @@ def test_privacy_limit_rejects_before_acceptance_and_exact_eight_retry_is_atomic
             assert directive.rstrip('.。') in ' '.join(packet['pinned']['excluded_topics'])
         output=proposal(mode='extract',name=None,question='What would you like to share?')
         output['acknowledgement']='We can choose another memory.'
-        return httpx.Response(200,json={'thread_id':'privacy-boundary','reply':json.dumps(output),'artifacts':[]})
+        return worker_reply(request,{'thread_id':'privacy-boundary','reply':json.dumps(output),'artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     turn=str(uuid4())
@@ -417,8 +408,7 @@ def test_prior_unreviewed_policy_blocks_fresh_http_turn_with_truthful_metadata(s
     sql(f"""insert into public.user_narrator_source(user_id,project_id,id,client_turn_id,sequence,text,kind,language)
       values('{OWNER}',{literal(identity['project_id'])},'{prior_source}','{prior_turn}',1,'Do not discuss my school.','narrator_chat','en-AU');
       update public.user_memoir_project set source_sequence=1 where user_id='{OWNER}' and project_id={literal(identity['project_id'])};""")
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     calls=[]
     def provider(request):

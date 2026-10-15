@@ -377,8 +377,7 @@ def test_pg_exact_engine_envelope_holds_real_publication_fence(sql):
     bounded=build_bounded_lane_input(claim,phase='extract',packet=lane_extraction_packet(fence),budget=lane_model_budget())
     actual=bounded.model_dump(mode='json')['fence']
     assert actual['schema_version']==1 and actual['source']['text']==source['text']
-    command=sql.command
-    dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     async def scenario():
         publisher=LanePublication(dsn,authenticated_owner=OWNER)
         async with publisher.guard(actual):pass
@@ -593,7 +592,7 @@ def test_pg_actual_outer_send_fences_proposal_decisions_without_policy_churn(sql
     root=service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{second['token']}'")
     fence=rpc(sql,'capture_lifetime_read_fence',literal(project))
     body=rpc(sql,'read_lifetime_private_draft_head',literal(project));row=body['first_record']
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     app=create_app(MemoryStore());snapshot=ReadSnapshot(body,fence)
     @app.get('/proposal-publication-boundary')
     async def route():return ReadJSONResponse(snapshot,publisher=ReadPublication(dsn,authenticated_owner=OWNER))
@@ -657,7 +656,7 @@ def test_pg_actual_outer_send_rejects_event_revision_changed_after_capture(sql):
     after=rpc(sql,'capture_lifetime_read_fence',literal(project))
     assert after['source_revision']==fence['source_revision'] and after['policy_epoch']==fence['policy_epoch']
     assert after['event_revision']>fence['event_revision']
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     app=create_app(MemoryStore());snapshot=ReadSnapshot(body,fence)
     @app.get('/event-publication-boundary')
     async def route():return ReadJSONResponse(snapshot,publisher=ReadPublication(dsn,authenticated_owner=OWNER))
@@ -711,7 +710,7 @@ def test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput
     from test_canonical_composer_provenance import controlled_draft
     identity,source,lane,claim=seeded_composer(sql);project=identity['project_id'];phases=[];first_review=True
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     class Broker:
         async def rpc(self,name,**payload):
             args=','.join(f'{key}=>{literal(value)}' if not isinstance(value,int) else f'{key}=>{value}' for key,value in payload.items())
@@ -793,7 +792,7 @@ def add_same_page_continuity(sql,identity,source,page):
 def test_pg_model_reply_cannot_register_or_checkpoint_under_changed_same_page_context(sql,barrier):
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput,LaneFence,lane_artifact_digest
     identity,source,lane,claim=seeded_composer(sql);phases=[];changed=False
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     from apps.api.progressive_composer import summary_partition
     partition=summary_partition(claim)
     artifact=dict(event_id=partition['id'],context='Old-context prepared output',source_refs=partition['source_refs'])

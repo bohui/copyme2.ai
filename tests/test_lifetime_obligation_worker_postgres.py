@@ -69,8 +69,7 @@ def test_busy_owner_locks_release_before_worker_waits_on_another_tenant(sql):
     other=rpc(sql,'resolve_lifetime_conversation','null',owner=OTHER)
     rpc(sql,'accept_user_narrator_source',f"{literal(other['project_id'])},'{NEW}','Other synthetic source'",owner=OTHER)
     sql(f"insert into public.user_profile(user_id,profile) values('{OTHER}','{{}}') on conflict do nothing;insert into public.user_agent_turn_lease(user_id,lease_token,expires_at) values('{OTHER}','{NEW}',clock_timestamp()-interval '1 second');")
-    command=sql.command
-    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     async def scenario():
         blocker=await psycopg.AsyncConnection.connect(dsn)
         worker=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
@@ -124,8 +123,7 @@ def test_pending_after_selection_defers_without_aborting_other_required_work(sql
     other_source=rpc(sql,'accept_user_narrator_source',f"{literal(other['project_id'])},'{NEW}','Other synthetic source'",owner=OTHER)
     sql(f"insert into public.user_agent_turn_lease(user_id,lease_token,expires_at) values('{OWNER}','{OLD}',clock_timestamp()-interval '1 second');")
     sql(f"update public.user_lifetime_memory_obligation set created_at=clock_timestamp()-interval '1 day' where user_id='{OWNER}';")
-    command=sql.command
-    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     async def scenario():
         blocker=await psycopg.AsyncConnection.connect(dsn)
         worker=await psycopg.AsyncConnection.connect(dsn,autocommit=True)

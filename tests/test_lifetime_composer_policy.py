@@ -144,7 +144,7 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
     from apps.api.lifetime_memory_policy import is_policy_pending
     identity,source,lane,claim=seeded_composer(sql);project=identity['project_id'];phases=[];blocked=False
     service(sql,'yield_lifetime_memoir_lane',f"'{lane}','{claim['token']}'")
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     class Broker:
         async def rpc(self,name,**payload):
             nonlocal blocked

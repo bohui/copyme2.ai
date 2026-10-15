@@ -112,8 +112,7 @@ def test_profile_settings_and_name_invalidation_keep_project_profile_identity_lo
     import psycopg
     identity, turn, accepted, fence = prepare(sql)
     commit(sql, turn, fence)
-    command = sql.command
-    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn
     async def scenario():
         settings = await psycopg.AsyncConnection.connect(dsn)
         editor = await psycopg.AsyncConnection.connect(dsn, autocommit=True)
@@ -176,8 +175,7 @@ def test_actual_main_home_send_holds_source_authority_until_outer_asgi_delivery(
     app = main.create_app(MemoryStore())
     with TestClient(app) as client:
         assert client.post('/v1/projects', headers=headers(), json={}).status_code == 201
-    command = sql.command
-    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn
     async def scenario():
         entered, release = asyncio.Event(), asyncio.Event()
         delivered = []
@@ -262,8 +260,7 @@ def test_concurrent_profile_delete_and_stale_upsert_cannot_return_or_store_old_n
     import psycopg
     identity, turn, accepted, fence = prepare(sql)
     commit(sql, turn, fence)
-    command = sql.command
-    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn
     async def scenario():
         deleting = await psycopg.AsyncConnection.connect(dsn)
         inserting = await psycopg.AsyncConnection.connect(dsn, autocommit=True)

@@ -1,5 +1,19 @@
 """Synthetic provider output for native orchestration tests, never quality evidence."""
 
+import json
+import httpx
+
+
+def worker_reply(request, result):
+    """Honor worker framing even for a JSON caller awaiting early acknowledgement."""
+    if request.headers.get('accept') == 'application/x-ndjson':
+        events = [{'type': 'text_delta', 'text': result['reply']},
+                  {'type': 'provider_complete', 'data': result},
+                  {'type': 'result', 'data': result}]
+        return httpx.Response(200, headers={'Content-Type': 'application/x-ndjson'},
+                              content=''.join(json.dumps(event) + '\n' for event in events))
+    return httpx.Response(200, json=result)
+
 
 def extraction_proposal(language='en-AU'):
     chinese = language == 'zh-CN'
