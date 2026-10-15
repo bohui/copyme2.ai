@@ -625,6 +625,55 @@
       },
       "full_repository_at_this_followup_head": "not rerun; prior complete b1e54e8 ledger remains historical",
       "policy_decisions": "unchanged"
+    },
+    {
+      "batch": 14,
+      "code_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
+      "scope": "Supervisor SIGTERM and default profiler ownership/failed-close reconciliation",
+      "red_cases": 4,
+      "expanded_green_cases": 8,
+      "complete_affected_modules": 10,
+      "passed": 66,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0,
+      "native_scenarios": 6,
+      "observed_postmasters": 9,
+      "ledger": "memoir-baseline-supervision-20261015.json",
+      "raw_evidence_sha256": {
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/allocations.jsonl": "e9f3e23991282dc26581be94222b2a3783d23aa64070504139aa506ebde1eaf3",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/stops.jsonl": "1b91d4bef0de26210bf164fa22728a44f4767891d65a92c7c0d50770f1acb852",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/supervisor.log": "abfa70c618338cd585b67f4f614001a1b91b17ff5203fabf01b97f09448b62aa",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/allocations.jsonl": "41f27458c0bfb4c01202957efa9faac112c97898912389df1ed64ababa0a953d",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/stops.jsonl": "796da64d62c8dd4f949a29c1b3f77f46509589a044142e3ab74e8ca06e33c536",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/supervisor.log": "f2990d03a9cfdb423eb79cd506bf7217307cd6e6ec74033fc8058cb37716fecf",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/allocations.jsonl": "56c13cd047c06d6f347ed2feefab9816b6c32e391b1a300a457b2c1e12c3db4c",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/stops.jsonl": "0cbcce43df14de2e978028a9ff87e38ec3e4c32054736303e00ce7e4aa383f92",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/allocations.jsonl": "5f187fdb2c440dd4a70f0675158fdc25569566a2f09e6181820d9a15a3122350",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/stops.jsonl": "e666e6d5c650c88e395f853a06af619dcc87c09d7cfeb29a7e111e8564b5dded",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/allocations.jsonl": "46493010889e1056828d1de7cbb30be69546c36edbc937ec02fd98b91aa66cf3",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/stops.jsonl": "2a558f47b5f0b365d2bf2b25ee8a5ed11eb096987ecf7374e627aefffa888b3a",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/profiler.log": "1b233461a16cf28f31882a95921cda60c43578e6233145210ec04a69ff878223",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/allocations.jsonl": "1bfe095e8956df6233bd2fac15700025ae138ff78d5bf80a6c26eb7440354f56",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/stops.jsonl": "e4b6e037204fc9d71517351e2a064c24e64a2d2d5f81af5f5a305f27ea45a3ea",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/profiler.log": "461e8a843323a1c4fb63aaad218acfef0c3c536b4c970af0904f1645c1d34433",
+        "/tmp/memoir-supervision-red.xml": "e667e805ead6ef71b84213322f39bf6bf6b06448144fd9f2d020cacbc1dcddad",
+        "/tmp/memoir-supervision-red.log": "0c7dedf1b4ac957b0fa5aa0715145b9b59796ae64786c3811e183d15e6bb9390",
+        "/tmp/memoir-supervision-green.xml": "09ce93df8e0de8f535998d88e4ed18452037d2a32b595550b441d424cfe3eff8",
+        "/tmp/memoir-supervision-green.log": "e114d952ce7a7408b92feeb5babc08607bc46d34418757aa2bece7edf47d88c0",
+        "/tmp/memoir-supervision-expanded-green.xml": "0a56e1f8ba4aea78d724ad5220881e0d56a4a22b0dba5dbb58ddb1cf4533e7f5",
+        "/tmp/memoir-supervision-expanded-green.log": "e8adc695c6bb259b70b588612399deb8ca781c2b0f30c305a774deeeeb7741c0",
+        "/tmp/memoir-supervision-unit.xml": "38c0c0cde0e47ab490e88d0282beb16edb7540104ce24e667ebe6bc2f9f2376d",
+        "/tmp/memoir-supervision-unit.log": "4de64934605dc63b561f8b2a59ff4a7fa10d1068e8dfcae0f632ddefa3a3b684",
+        "/tmp/memoir-supervision-spawn-before-shield.xml": "e9409d5d1b1b926a91c5da2a38d67986a1605bb07931fc4f2ad3cff2f8c798b3",
+        "/tmp/memoir-supervision-spawn-before-shield.log": "e46162c392fc0ffd1ed4648aa5c7926d5b02620b4b3152c2ae2e3774e8a667be",
+        "/tmp/memoir-supervision-affected.xml": "43cd0e6ebe55f1a7779bc1ae35f5f1698d96467ebcbe73c08d8c503fc021dcc5",
+        "/tmp/memoir-supervision-affected.log": "f2de2edca357c2cdcdce3c00235979d608ff76f0ed9ebbf5ffb932140361a9e2"
+      },
+      "full_repository_at_this_source": false,
+      "policy_decisions": "unchanged"
     }
   ],
   "current_disposition": {
@@ -759,8 +808,8 @@
       "environment_or_aggregate_budget": 7,
       "unresolved_functional": 9
     },
-    "current_source_test_revision": "d08aa215b9a1670727d1a89248957ce8e5028219",
-    "latest_targeted_followup": "memoir-baseline-cancel-retention-20261015.json",
+    "current_source_test_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
+    "latest_targeted_followup": "memoir-baseline-supervision-20261015.json",
     "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788"
   },
   "final_fixed_head_checks": {
@@ -969,5 +1018,16 @@
     "ledger": "memoir-baseline-cancel-retention-20261015.json",
     "native_mac_coverage": "not run; Linux/proc-specific lifecycle cases explicitly gated",
     "full_repository_at_this_followup_head": false
+  },
+  "latest_supervision_followup": {
+    "tested_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
+    "acceptance_complete": false,
+    "modules": 10,
+    "passed": 66,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-supervision-20261015.json",
+    "whole_repository_aggregate_rerun": false
   }
 }

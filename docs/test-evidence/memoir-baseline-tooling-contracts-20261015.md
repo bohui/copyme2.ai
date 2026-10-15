@@ -201,3 +201,24 @@ follow-up; its earlier b1e54e8 results remain historical. The
 [per-case/process evidence](memoir-baseline-cancel-retention-20261015.json)
 record scope, red/green cases, identities, hashes and unrun checks. No pending
 proposal inheritance or other consequential product decision changes.
+
+
+## Supervisor SIGTERM and profiler-owned allocation reconciliation
+
+The d08aa21/6177248 checks did not cover SIGTERM killing the supervisor or the
+default profiler path losing metadata when a closer failed. Four native cases
+reproduce those two paths. `a294f8b6cc47952d1e85b2003352f36dec69a347` adds shared
+SIGTERM-to-owner cancellation with shielded cleanup, retained in-flight child
+creation, and reconciled private roots for default controlled_database calls.
+The native scenarios stop nine original postmasters across direct/CLI,
+concurrent, creation and profiler fast-stop fault paths. Unknown ownership or
+reconciliation failure remains visible and retains metadata. The original
+profiler closer failure is not silently converted into success.
+
+All ten complete affected modules pass 66 tests with no failures or skips at
+that fixed source. This is not a new whole-repository aggregate; earlier whole
+and focused results remain pinned to their own sources. The
+[supervision report](memoir-baseline-supervision-20261015.md) and
+[per-case/process evidence](memoir-baseline-supervision-20261015.json) record red/
+green results, allocation identities, hashes, platform limits and remaining
+gates. No pending-proposal inheritance or other product-policy choice changes.
