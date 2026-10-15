@@ -17,7 +17,12 @@ begin
       lateral jsonb_array_elements(coalesce(photo->'source_refs','[]'::jsonb)) ref
     where photo->>'asset_id'=old.photo_id
       and ref->>'source_id'=old.source_id::text
-      and ref->>'version'=old.source_version::text));
+      and ref->>'version'=old.source_version::text
+      and exists(select 1 from public.user_narrator_source original
+        where original.user_id=old.user_id and original.project_id=old.project_id
+          and original.id=old.source_id and original.version=old.source_version
+          and strpos(substring(original.text from (ref->>'char_start')::integer+1
+            for (ref->>'char_end')::integer-(ref->>'char_start')::integer),old.quote)>0)));
  return coalesce(new,old);
 end $$;
 

@@ -69,3 +69,33 @@ def test_photo_change_rejects_inflight_progressive_commit(sql, action):
     result = sql(f"set role service_role;select public.commit_lifetime_memoir_lane_page('{lane}','{page['token']}',{page['page_number']},{literal(proposed)},'{page['page_digest']}');", check=False)
     assert result.returncode != 0 and 'stale progressive batch' in result.stderr
     assert sql('select count(*) from public.user_lifetime_memoir_section;').stdout.strip() == '0'
+
+
+def test_same_asset_in_another_exact_evidence_span_remains_unchanged(sql):
+    identity, source, lane, first = seeded_composer(sql)
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    first_link = add_photo_link(sql, identity, source, first)
+    second_link = add_photo_link(sql, identity, source, first)
+    asset = sql(f"select photo_id from public.user_interview_photo_link where id='{first_link}';").stdout.strip()
+    quotes = [(first_link, 'I grew up', 'photo-first'), (second_link, 'Chengde.', 'photo-second')]
+    for link, quote, _ in quotes:
+        sql(f"update public.user_interview_photo_link set photo_id={literal(asset)},quote={literal(quote)} where id='{link}';")
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    result = section_result(page)
+    prose = result['sections'][0]
+    prose.update(id='prose', chapter_id='prose')
+    prose['block']['id'] = 'prose'
+    for _, quote, key in quotes:
+        photo = deepcopy(prose)
+        start = source['text'].index(quote)
+        refs = [dict(source_id=source['id'], version=1, char_start=start, char_end=start+len(quote))]
+        photo.update(id=key, chapter_id=key, source_refs=refs, content='')
+        photo['block'].update(id=key, type='photo', text='', asset_id=asset, asset_version='1', source_refs=refs)
+        result['sections'].append(photo)
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',0,{literal(result)}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    sibling = sql("select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key like '%:photo-second';").stdout
+    assert asset in sibling
+    sql(f"delete from public.user_interview_photo_link where id='{first_link}';")
+    assert sql("select count(*) from public.user_lifetime_memoir_section where partition_key like '%:photo-first';").stdout.strip() == '0'
+    assert sql("select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key like '%:photo-second';").stdout == sibling
