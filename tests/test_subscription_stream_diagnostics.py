@@ -333,6 +333,43 @@ def test_protocol_message_timings_do_not_log_private_text(tmp_path, monkeypatch,
     assert PRIVATE not in json.dumps(records)
 
 
+@pytest.mark.parametrize('phase', ['commentary', 'partial_answer'])
+@pytest.mark.parametrize('structured', [True, False])
+def test_structured_final_remains_parseable_after_an_early_acknowledgement(tmp_path, phase, structured):
+    from apps.api.codex_agent import CodexConnection
+    acknowledgement = json.dumps({'acknowledgement': 'You remember your mother holding your hand.'})
+    final = json.dumps({'acknowledgement': 'You remember your mother holding your hand.', 'plan': {}})
+
+    async def scenario():
+        connection = CodexConnection(['never-executed'], tmp_path)
+        async def request(method, params):
+            return {'turn': {'id': 'turn'}}
+        events = [
+            {'method': 'item/agentMessage/delta', 'params': {'threadId': 'thread', 'turnId': 'turn',
+                'itemId': 'early', 'delta': acknowledgement}},
+            {'method': 'item/completed', 'params': {'threadId': 'thread', 'turnId': 'turn',
+                'item': {'type': 'agentMessage', 'id': 'early', 'phase': phase, 'text': acknowledgement}}},
+            {'method': 'item/agentMessage/delta', 'params': {'threadId': 'thread', 'turnId': 'turn',
+                'itemId': 'final', 'delta': final}},
+            {'method': 'item/completed', 'params': {'threadId': 'thread', 'turnId': 'turn',
+                'item': {'type': 'agentMessage', 'id': 'final', 'phase': 'final_answer', 'text': final}}},
+            {'method': 'turn/completed', 'params': {'threadId': 'thread',
+                'turn': {'id': 'turn', 'status': 'completed'}}},
+        ]
+        async def receive(): return events.pop(0)
+        deltas = []
+        async def delta(text): deltas.append(text)
+        connection.request, connection.receive = request, receive
+        result = await connection.turn('thread', PRIVATE, on_delta=delta,
+            output_schema={'type': 'object'} if structured else None)
+        if structured:
+            assert json.loads(result) == json.loads(final)
+        else:
+            assert result == acknowledgement+'\n'+final
+        assert deltas == [acknowledgement, final]
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize('mutation',[{'threadId':'foreign'},{'turnId':'foreign'},
     {'item':{'id':'bad private id','type':'dynamicToolCall'}},
     {'item':{'id':'one','type':PRIVATE}}, {'item':{'id':'one','type':'dynamicToolCall','status':PRIVATE}},

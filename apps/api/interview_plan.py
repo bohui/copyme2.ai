@@ -118,7 +118,7 @@ def collector_schema(context=None):
 def collector_instructions(context):
     return (
         '\n\nPrivate structured interview contract:\n'
-        'Return one JSON object matching the supplied schema. Put acknowledgement first. '
+        'For the final answer return one JSON object matching the supplied schema. Put acknowledgement first. '
         'The acknowledgement is brief and natural, without a question; it need not name '
         'or rephrase a concrete detail. A short topic choice can receive simple assent, '
         'such as "没问题。" or "Of course.", followed by a chosen question about that topic. '

@@ -170,8 +170,12 @@ make container-logs SERVICE=api
 make container-down
 ```
 
-`make up` (also `make container-up`) validates every repository skill and builds
-only images whose source, dependencies, build arguments, or local image IDs changed.
+`make up` (also `make container-up`) validates every repository skill. Local Python
+services use the Containerfiles' `runtime` targets with read-only application and
+skill mounts, so Python, prompt, and skill edits do not rebuild those images.
+Dependency manifests, Containerfiles, build arguments, or local image changes
+still trigger builds. The frontend rebuilds when its source changes, preserving
+Next's compiler cache and shipping only its standalone runtime files.
 It builds the shared backend image once, then recreates all six local services on
 every run with the current checkout, Compose settings, and environment values.
 Named volumes, including Temporal history, are preserved. Startup refreshes
@@ -263,7 +267,8 @@ There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-w
 `worker`, and `temporal`. `container-up` rebuilds changed images, recreates every service,
 and verifies the full stack. The API, background worker, and photo worker
 share the backend image; Temporal uses its upstream image. API and worker Python
-sources are bind-mounted; Codex worker Python and skills are image-baked.
+sources and all service skills are bind-mounted. The default `app` Containerfile
+targets still bake application files into self-contained images for other deployments.
 
 The collector and organiser are two **roles within `codex-worker`**, not separate
 containers. Collection remains the default. In the profile menu, choose

@@ -4,6 +4,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 const apiOrigin = process.env.MEMORY_SPARK_API_ORIGIN || "http://127.0.0.1:8000";
 
 const nextConfig = {
+  output: "standalone",
   reactStrictMode: true,
   // Browser discovery can spend 45s per provider, then widen an exact year
   // to its decade. Next's 30s default disconnects these valid searches.

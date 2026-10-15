@@ -232,8 +232,13 @@ class CodexConnection:
                     if item.get('type') == 'agentMessage':
                         log_diagnostic(diagnostic_logger, 'appserver_message_complete', request_id,
                             component='memoir.appserver.client', elapsed_ms=elapsed_ms(started),
-                            streaming=item.get('id') in streamed_items)
-                        messages.append(item['text'])
+                            streaming=item.get('id') in streamed_items,
+                            call_type=item.get('phase') if item.get('phase') in
+                                {'commentary', 'partial_answer', 'final_answer'} else None)
+                        # A structured final answer is its own document; early
+                        # messages still stream but cannot be prepended to JSON.
+                        if output_schema is None or item.get('phase') not in {'commentary', 'partial_answer'}:
+                            messages.append(item['text'])
                         if on_delta and item.get('id') not in streamed_items:
                             await on_delta(item['text'])
                 if event.get('method') == 'turn/completed' and params['turn']['id'] == turn_id:

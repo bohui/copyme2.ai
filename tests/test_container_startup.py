@@ -34,6 +34,27 @@ def stack(tmp_path):
         file.write_text(name)
     (tmp_path / '.dockerignore').write_text('__pycache__\n*.py[cod]\nnode_modules\n**/node_modules\n**/.next\n')
     (tmp_path / 'apps/web/.dockerignore').write_text('node_modules\n.next\n')
+    (tmp_path / 'compose.yml').write_text('''name: memory-spark
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: runtime
+    environment:
+      MEMORY_SPARK_MODE: demo
+  codex-worker:
+    build:
+      context: .
+      dockerfile: codex-worker/Containerfile
+      target: runtime
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Containerfile
+      args:
+        MEMORY_SPARK_API_ORIGIN: http://api:8000
+''')
     command = tmp_path / 'mocker'
     command.write_text(f'''#!{sys.executable}
 import json, sys
@@ -107,6 +128,20 @@ def recreates(commands):
     return [c for c in commands if c[:1] == ['rm']]
 
 
+@pytest.mark.parametrize('explicit', [False, True])
+def test_up_resolves_publication_database_before_starting_services(stack, explicit):
+    root, up, _ = stack
+    database = 'postgresql://synthetic.invalid/application'
+    publication = 'postgresql://synthetic.invalid/publication' if explicit else database
+    (root / '.env').write_text('SUPABASE_DB_URL=' + database + '\n'
+        + ('MEMOIR_PUBLICATION_DATABASE_URL=' + publication + '\n' if explicit else ''))
+    with (root / 'overrides.mk').open('a') as file:
+        file.write('\ncontainer-health:\n\t@python3 -c '
+            + shlex.quote('import os; assert os.environ["MEMOIR_PUBLICATION_DATABASE_URL"] == ' + repr(publication))
+            + '\n')
+    up()
+
+
 def test_repeat_up_skips_builds_and_recreates_every_service_before_alias_refresh(stack):
     _, up, calls = stack
     up()
@@ -164,8 +199,8 @@ def test_failed_inventory_leaves_containers_and_cache_untouched(stack):
 
 
 @pytest.mark.parametrize('path,services', [
-    ('apps/api/main.py', ['api', 'codex-worker']),
-    ('skills/example/SKILL.md', ['api', 'codex-worker']),
+    ('apps/api/main.py', []),
+    ('skills/example/SKILL.md', []),
     ('apps/web/app/page.tsx', ['web']),
     ('pyproject.toml', ['api', 'codex-worker']),
 ])
@@ -176,7 +211,7 @@ def test_changed_inputs_rebuild_only_affected_images(stack, path, services):
     (root / path).write_text('changed')
     up()
     changed = calls()
-    assert builds(changed) == [['compose', 'build', '-f', 'compose.yml', *services]]
+    assert builds(changed) == ([['compose', 'build', '-f', 'compose.yml', *services]] if services else [])
     recreated = recreates(changed)
     assert len(recreated) == 1
     assert set(recreated[0][2:]) == {'memory-spark-' + s + '-1' for s in
@@ -194,7 +229,7 @@ def test_deleted_input_invalidates_image_but_generated_cache_does_not(stack):
     generated.write_bytes(b'cache')
     up()
     assert not builds(calls())
-    (root / 'apps/api/main.py').unlink()
+    (root / 'pyproject.toml').write_text('changed dependencies')
     up()
     assert builds(calls())[0][-2:] == ['api', 'codex-worker']
 
@@ -241,6 +276,8 @@ def test_copy_inputs_are_covered_by_image_fingerprints():
     for name, image in IMAGES.items():
         containerfile = ROOT / ('apps/web/Containerfile' if name == 'web' else image['inputs'][0])
         for line in containerfile.read_text().splitlines():
+            if line == 'FROM runtime AS app':
+                break  # Local Compose builds the runtime target; application code is mounted.
             if line.startswith('COPY ') and '--from=' not in line:
                 for source in shlex.split(line)[1:-1]:
                     if source.startswith('--'):
@@ -270,3 +307,16 @@ def test_make_dry_run_never_builds_or_changes_containers(stack):
     assert calls() == []
     assert not (root / 'images.json').exists()
     assert not (root / 'var/container-startup.json').exists()
+
+
+def test_runtime_settings_do_not_rebuild_images_but_build_settings_do(stack):
+    root, up, calls = stack
+    up()
+    calls()
+    compose = root / 'compose.yml'
+    compose.write_text(compose.read_text().replace('MEMORY_SPARK_MODE: demo', 'MEMORY_SPARK_MODE: connected'))
+    up()
+    assert not builds(calls())
+    compose.write_text(compose.read_text().replace('http://api:8000', 'http://api:9000'))
+    up()
+    assert builds(calls()) == [['compose', 'build', '-f', 'compose.yml', 'web']]

@@ -15,23 +15,20 @@ import subprocess
 import tempfile
 
 
-# Keep these COPY inputs aligned with the three repository Containerfiles.
+# Keep these inputs aligned with the Compose build targets' COPY instructions.
 IMAGES = {
     'api': {
         'tag': 'localhost/memory-spark:dev',
         'services': ['api', 'worker', 'photo-worker'],
         'context': '.',
-        'inputs': ['Containerfile', 'pyproject.toml', 'apps/__init__.py', 'apps/api',
-                   'README.md', 'Mira_Memoir_Journalist_System_Prompt_v1.0.md',
-                   'apps/web/public', 'skills', 'docs', 'infra', 'scripts'],
+        'inputs': ['Containerfile', 'pyproject.toml'],
     },
     'codex-worker': {
         'tag': 'localhost/memory-spark-codex-worker:dev',
         'services': ['codex-worker'],
         'context': '.',
-        'inputs': ['codex-worker/Containerfile', 'pyproject.toml', 'apps/__init__.py',
-                   'apps/api', 'README.md', 'Mira_Memoir_Journalist_System_Prompt_v1.0.md',
-                   'skills', 'scripts/verify_codex_worker_isolation.py'],
+        'inputs': ['codex-worker/Containerfile', 'pyproject.toml',
+                   'scripts/verify_codex_worker_isolation.py'],
     },
     'web': {
         'tag': 'localhost/copyme2-web:dev',
@@ -42,10 +39,23 @@ IMAGES = {
 }
 
 
+def compose_build_text(compose_file, service):
+    text = compose_file.read_text()
+    # Anchors or other layouts conservatively keep the whole-file cache key.
+    if re.search(r'(?m)^[^#\n]*[&*][a-zA-Z_]', text):
+        return text
+    section = re.search(rf'(?ms)^  {re.escape(service)}:[ \t]*\n(.*?)(?=^  \S|\Z)', text)
+    if section:
+        build = re.search(r'(?ms)^    build:[ \t]*\n(.*?)(?=^    \S|\Z)', section[1])
+        if build:
+            return build[0]
+    return text
+
+
 def fingerprint(root, definition, compose_file, build_args):
     digest = hashlib.sha256()
     digest.update(json.dumps([definition, build_args], sort_keys=True).encode())
-    digest.update(compose_file.read_bytes())
+    digest.update(compose_build_text(compose_file, definition['services'][0]).encode())
     ignore_file = root / definition['context'] / '.dockerignore'
     rules = ignore_file.read_text().splitlines() if ignore_file.exists() else []
     digest.update('\n'.join(rules).encode())
@@ -136,7 +146,6 @@ def start(args):
 
     compose = [args.mocker, 'compose']
     services = ['temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker']
-    recreate = compose_container_ids(args.mocker, args.compose_file, services)
     if changed:
         print('Building changed images: ' + ', '.join(changed), flush=True)
         subprocess.run([*compose, 'build', '-f', args.compose_file, *changed], check=True)
@@ -147,6 +156,7 @@ def start(args):
     else:
         print('Build inputs and local images unchanged; reusing existing images.', flush=True)
 
+    recreate = compose_container_ids(args.mocker, args.compose_file, services)
     if recreate:
         ids = list(dict.fromkeys(recreate))
         # Mocker misses image-tag changes and ignores --no-deps with --force-recreate.

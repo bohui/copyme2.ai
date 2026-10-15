@@ -13,12 +13,13 @@ services:
     build:
       context: .
       dockerfile: Containerfile
+      target: runtime
     ports:
       - "${MEMORY_SPARK_API_PORT:-8010}:8000"
     environment:
       # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
-      MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
+      MEMOIR_PUBLICATION_DATABASE_URL: "${MEMOIR_PUBLICATION_DATABASE_URL:-}"
       FLICKR_API_KEY: ${FLICKR_API_KEY:-}
       SERPAPI_KEY: ${SERPAPI_KEY:-}
       GOOGLE_MAPS_GEOCODING_API_KEY: ${GOOGLE_MAPS_GEOCODING_API_KEY:-}
@@ -85,15 +86,15 @@ services:
       MEMORY_SPARK_TASK_DB: /var/lib/memoir-tasks/tasks.sqlite
       PYTHONUNBUFFERED: "1"
     volumes:
+      - ./apps/__init__.py:/app/apps/__init__.py:ro
       - ./apps/api:/app/apps/api:ro
       - ./apps/web/public:/app/apps/web/public:ro
+      - ./README.md:/app/README.md:ro
       - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
-      - ./skills/memoir-place-journey:/app/skills/memoir-place-journey:ro
-      - ./skills/memoir-author-timeline:/app/skills/memoir-author-timeline:ro
-      - ./skills/memoir-family-tree:/app/skills/memoir-family-tree:ro
-      - ./skills/memoir-composer:/app/skills/memoir-composer:ro
-      - ./skills/place-photo-research:/app/skills/place-photo-research:ro
+      - ./skills:/app/skills:ro
+      - ./scripts:/app/scripts:ro
+      - ./infra:/app/infra:ro
       - ./var/memory-spark:/var/lib/memory-spark
       - memoir-tasks:/var/lib/memoir-tasks
     depends_on:
@@ -118,6 +119,7 @@ services:
     build:
       context: .
       dockerfile: Containerfile
+      target: runtime
     command: ["uvicorn", "apps.api.photo_worker_service:app", "--host", "0.0.0.0", "--port", "8767"]
     expose: ["8767"]
     init: true
@@ -137,8 +139,15 @@ services:
       MEMORY_SPARK_LLM_API_KEY: ${MEMORY_SPARK_LLM_API_KEY:-}
       PYTHONUNBUFFERED: "1"
     volumes:
+      - ./apps/__init__.py:/app/apps/__init__.py:ro
       - ./apps/api:/app/apps/api:ro
-      - ./skills/place-photo-research:/app/skills/place-photo-research:ro
+      - ./apps/web/public:/app/apps/web/public:ro
+      - ./README.md:/app/README.md:ro
+      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
+      - ./docs:/app/docs:ro
+      - ./skills:/app/skills:ro
+      - ./scripts:/app/scripts:ro
+      - ./infra:/app/infra:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8767/health').read()"]
@@ -152,6 +161,7 @@ services:
     build:
       context: .
       dockerfile: codex-worker/Containerfile
+      target: runtime
       args:
         CODEX_VERSION: ${MEMORY_SPARK_CODEX_VERSION:-0.156.1}
     expose:
@@ -159,7 +169,7 @@ services:
     environment:
       # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
-      MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
+      MEMOIR_PUBLICATION_DATABASE_URL: "${MEMOIR_PUBLICATION_DATABASE_URL:-}"
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_TASK_STORE_URL: http://api:8000
@@ -178,11 +188,11 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - codex-worker-home:/var/lib/memory-spark/codex-users
+      - ./apps/__init__.py:/app/apps/__init__.py:ro
       - ./apps/api:/app/apps/api:ro
-      - ./skills/memoir-place-journey:/app/skills/memoir-place-journey:ro
-      - ./skills/memoir-author-timeline:/app/skills/memoir-author-timeline:ro
-      - ./skills/memoir-family-tree:/app/skills/memoir-family-tree:ro
-      - ./skills/memoir-composer:/app/skills/memoir-composer:ro
+      - ./README.md:/app/README.md:ro
+      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
+      - ./skills:/app/skills:ro
     read_only: true
     tmpfs:
       - /tmp
@@ -213,10 +223,11 @@ services:
     build:
       context: .
       dockerfile: Containerfile
+      target: runtime
     environment:
       # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
-      MEMOIR_PUBLICATION_DATABASE_URL: ${MEMOIR_PUBLICATION_DATABASE_URL:-}
+      MEMOIR_PUBLICATION_DATABASE_URL: "${MEMOIR_PUBLICATION_DATABASE_URL:-}"
       # Shared memoir lane dispatch and fenced commits use the same trusted
       # Supabase boundary as the API; without it this worker skips those lanes.
       SUPABASE_URL: ${SUPABASE_URL:-}
@@ -235,9 +246,15 @@ services:
       MEMORY_SPARK_TEMPORAL_TASK_QUEUE: memoir-tasks
       PYTHONUNBUFFERED: "1"
     volumes:
+      - ./apps/__init__.py:/app/apps/__init__.py:ro
       - ./apps/api:/app/apps/api:ro
+      - ./apps/web/public:/app/apps/web/public:ro
+      - ./README.md:/app/README.md:ro
+      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
+      - ./docs:/app/docs:ro
       - ./scripts:/app/scripts:ro
-      - ./skills/memoir-composer:/app/skills/memoir-composer:ro
+      - ./skills:/app/skills:ro
+      - ./infra:/app/infra:ro
       - ./var/memory-spark:/var/lib/memory-spark
       - memoir-tasks:/var/lib/memoir-tasks
     depends_on:

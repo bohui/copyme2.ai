@@ -1,4 +1,4 @@
-FROM node:26-bookworm-slim
+FROM node:26-bookworm-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -23,6 +23,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && rm /tmp/memory-spark-requirements.txt \
     && python -m playwright install --with-deps chromium
 
+EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
+
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Local Compose mounts application files onto this stable dependency image.
+FROM runtime AS app
+
 COPY apps/__init__.py ./apps/__init__.py
 COPY apps/api ./apps/api
 RUN pip install --no-cache-dir --no-deps --no-build-isolation '.[photo-browser,lifetime-memory]'
@@ -33,10 +43,3 @@ COPY skills ./skills
 COPY docs ./docs
 COPY infra ./infra
 COPY scripts ./scripts
-
-EXPOSE 8000
-
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
-
-CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
