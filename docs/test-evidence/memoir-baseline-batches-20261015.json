@@ -226,6 +226,49 @@
         "pinned_junit": "252b3f257d7b6ce27514832ca546d97add8797f939252bddfd0d70f7110a2803"
       },
       "limits": "The two retained older cases still fail before mutation by querying retired key suffixes. Fifteen new progressive SQL cases pass; this does not complete workspace section-rework integration or independent runtime acceptance."
+    },
+    {
+      "batch": 7,
+      "code_revision": "5e02ff6eb78e71fcf59ac343cf2de46076b5aa5c",
+      "scope": "Review correction: actual image schema/renderer, normal proposal-only removal and authenticated protected-original readback",
+      "red": {
+        "validated_image_matrix": {
+          "failed": 5,
+          "passed": 11
+        },
+        "normal_protected_proposal_readback_after_image_match_fix": {
+          "failed": 2,
+          "passed": 0
+        },
+        "cause": "The prior migration matched invalid photo blocks. Schema-valid image originals/proposals were left stored. Once the type was corrected, deleting an image-only proposal also deleted its independent original row; the older completed snapshot could not satisfy the current event revision, so authenticated readback lost it."
+      },
+      "pinned_result": {
+        "passed": 123,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 72.317
+      },
+      "additional_privacy_proposal_checks": {
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 10.41
+      },
+      "commands": [
+        "python -m pytest -q tests/test_progressive_photo_invalidation.py tests/test_lifetime_memory_reads.py tests/test_lifetime_composer_policy.py tests/test_lifetime_composer_clearance.py tests/test_lifetime_composer_capacity.py::test_pg_composer_root_readback_never_exposes_unfinished_or_forged_sections tests/test_lifetime_composer_capacity.py::test_pg_proposal_decision_is_current_root_cas_and_never_grants_publication tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump --timeout=60 --timeout-method=signal --tb=short",
+        "python -m pytest -q tests/test_lifetime_composer_capacity.py::test_pg_protected_section_survives_preference_snapshot_and_exposes_only_safe_proposal tests/test_lifetime_composer_capacity.py::test_pg_normal_event_evidence_addition_cannot_replace_approved_prose tests/test_lifetime_composer_capacity.py::test_pg_actual_outer_send_fences_proposal_decisions_without_policy_churn --tb=short"
+      ],
+      "root_causes": [
+        "The migration matches actual image blocks and preserves eligible originals when only a proposal depends on the changed link. Only the two protected-original preview cases change in the existing reader; every owner/root/policy/evidence/paging check and function privilege remains unchanged.",
+        "Tests supply an explicitly synthetic catalog to the real full draft validator and renderer; use the current block/heading flattening; create protected proposals through actual canonical SQL commits; inspect authenticated pages/head; deny another owner; preserve sibling/unrelated writing and unapproved candidate withholding. They also prove current canonical assets=[] rejects image admission and invalid photo blocks fail schema validation."
+      ],
+      "limits": "No live rendered-image exposure is established; current producer/asset-mapping policy remains unchanged. These are controlled validated-bundle storage and readback checks.",
+      "evidence_sha256": {
+        "schema_valid_red_junit": "89bfdb79a3d59d990708ffb5a9ae90e63bbc461ca1e0996cdbdcbacc581a8ea8",
+        "normal_proposal_readback_red_junit": "3e9d0cb9bdc7ded6a0b2c4b3ce08b17a215006ecbe6135e63e8dbe1897f7c466",
+        "pinned_junit": "bc58cffd56e4beb58fbaf03cd0c5d6f0964d182160a03f6c2c369ee3efab2de0",
+        "privacy_junit": "934c1b1f7f74f53a0d6c65f279f3369c342a66bb6cc39fcbbc0a098cc0686cd4"
+      }
     }
   ],
   "current_disposition": {
@@ -236,7 +279,7 @@
     ],
     "historical_unresolved_still_pending": 21,
     "withdrawal_concern": "Observed intermittent assertion traced to misattributed synthetic model output. Batch three preserves purge/unrelated-content checks and adds four protected-original/edit/withdrawal cases. No product purge defect or production exposure is established by these constructions.",
-    "complete_continuation_aggregate": "pending at the following fixed evidence head; source/test worktree is clean",
+    "complete_continuation_aggregate": "pending at the following evidence head after the schema/readback correction; code/test worktree is clean",
     "independent_runtime_acceptance": "outstanding",
     "additional_functional_reproduction": {
       "head": "0bbe44e336ce4d67016f4da5b1b8497d7749dd89",
@@ -284,6 +327,34 @@
         "completed": false
       },
       "acceptance_use": "Neither partial run is completeness evidence."
+    },
+    "image_evidence_correction": {
+      "reviewed_heads": [
+        "91a59b0521c4645f60fb445f12b883ec7b9de274",
+        "dccff32bd6e921c2c43a7e8d734535b134ac3097"
+      ],
+      "supersedes_batches": [
+        5,
+        6
+      ],
+      "finding": "Those matrices injected block type photo, which the real draft schema rejects. Their claimed rendered-image/product evidence was invalid. The current schema and renderer use image. The corrected matrix validates complete drafts and renders HTML through the actual JavaScript implementation, with an explicitly synthetic eligible asset catalog.",
+      "production_limit": "composer_request currently supplies assets=[]. A negative current-producer check requires INELIGIBLE_ASSET for a schema-valid image; photo is rejected as SCHEMA. No actual live image admission, production exposure, or upload-to-composer asset mapping is established. Production asset policy is unchanged.",
+      "normal_proposal_readback": "After correcting image matching, two normal protected-row commit/read tests reproduced loss of an unrelated approved original when only the image proposal depended on a removed link. Cleanup now clears only that proposal; the existing reader returns the protected original while other unapproved candidates remain withheld. This is validated stored-bundle/SQL coverage, not live production exposure."
+    },
+    "superseded_reviewed_aggregate": {
+      "head": "dccff32bd6e921c2c43a7e8d734535b134ac3097",
+      "status": "interrupted after blocking independent schema review",
+      "partial_result": {
+        "failed": 155,
+        "passed": 1655,
+        "seconds": 161.22
+      },
+      "capacity_partial_result": {
+        "passed": 1,
+        "seconds": 151.96,
+        "completed": false
+      },
+      "acceptance_use": "Not completeness evidence. An additional unpinned preliminary broad selection was also stopped before the final pinned batch; it is not acceptance evidence."
     }
   }
 }
