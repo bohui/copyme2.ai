@@ -171,8 +171,8 @@ policy. Ordinary opt-in round-five draft access is also still a product-policy
 gap. This PR repairs already eligible round-20 reload and does not change either
 threshold/debug or map-availability policy.
 
-PR68 belongs to its existing owner. Shared files are the client and stage-browser
-test; overlap is lint cleanup, saved-draft hydration and fixture compatibility.
+PR68 belongs to its existing owner. Shared files are the client, stage-browser test and
+`tests/js/stream-latency.test.mjs`; overlap is lint cleanup, saved-draft hydration and fixture compatibility.
 No readiness migration, attribution or polling/recovery implementation is copied.
 
 The aggregate's **249 skips** are enumerated individually in the ledger. They

@@ -251,7 +251,8 @@
     "pr68_unchanged": true,
     "overlapping_files": [
       "apps/web/client/memoir/client.js",
-      "tests/test_stage_readiness_browser.py"
+      "tests/test_stage_readiness_browser.py",
+      "tests/js/stream-latency.test.mjs"
     ],
     "boundary": "No PR68 polling/recovery, attribution, readiness SQL or migration implementation is copied. Shared client changes are dead-code/catch-binding cleanup and saved-draft entitlement hydration; browser changes are service/contract fixtures."
   },

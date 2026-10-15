@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
+from controlled_collector import worker_reply
 
 from apps.api.workspace_memory_actions import WorkspaceMemoryFocus, apply_workspace_focus
 from apps.api.lifetime_memory_lane_engine import LaneFence, canonical_lane_request, build_bounded_lane_input
@@ -607,7 +608,7 @@ def test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_afte
         assert json.loads(body['governed']['packet'])['interview_context']['workspace_focus']==focus
         response=proposal(name=None,question='What do you remember about the garden?')
         response['acknowledgement']='You remember roses in the garden.'
-        return httpx.Response(200,json={'reply':json.dumps(response),'thread_id':'synthetic','artifacts':[]})
+        return worker_reply(request,{'reply':json.dumps(response),'thread_id':'synthetic','artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     payload={'project_id':identity['project_id'],'client_turn_id':str(uuid4()),'text':'There were roses in the garden.','workspace_focus':focus}

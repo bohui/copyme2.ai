@@ -134,7 +134,7 @@ def test_home_rejects_owner_and_restore_substitution_without_claiming_history(sq
 
 
 @pytest.mark.parametrize('variant', ['guest', 'family', 'disabled', 'demo'])
-def test_legacy_guest_family_and_disabled_paths_do_not_claim_lifetime_identity(sql, home_auth, monkeypatch, variant):
+def test_home_creation_keeps_canonical_guest_and_rollout_policy(sql, home_auth, monkeypatch, variant):
     if variant == 'guest':
         sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
     if variant == 'disabled':
@@ -142,8 +142,19 @@ def test_legacy_guest_family_and_disabled_paths_do_not_claim_lifetime_identity(s
     with TestClient(main.create_app(MemoryStore())) as client:
         response = client.post('/v1/projects', headers={} if variant == 'demo' else headers(), json={'mode': 'family'} if variant == 'family' else {})
         assert response.status_code == 201, response.text
-    assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == '0'
-    assert sql('select count(*) from public.user_memoir_project;').stdout.strip() == '0'
+        if variant in {'guest', 'disabled'}:
+            canonical = identity(sql)
+            assert response.json()['id'] == canonical['project_id']
+            repeated = client.post('/v1/projects', headers=headers(), json={})
+            assert repeated.status_code == 201 and repeated.json()['id'] == canonical['project_id']
+            denied = client.get('/v1/projects/' + canonical['project_id'], headers=headers('other'))
+            assert denied.status_code in {403, 404}, denied.text
+            assert rpc(sql, 'read_lifetime_project_identity', literal(canonical['project_id']), owner=OTHER) is None
+    expected = '1' if variant in {'guest', 'disabled'} else '0'
+    assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == expected
+    assert sql('select count(*) from public.user_memoir_project;').stdout.strip() == expected
+    for table in ('user_narrator_source', 'user_interview_turn', 'user_completed_round', 'user_agent_turn_lease'):
+        assert sql(f'select count(*) from public.{table};').stdout.strip() == '0'
 
 
 def test_guest_transfer_reports_mapping_without_replacing_canonical_or_original_evidence(sql, home_auth):
@@ -323,20 +334,20 @@ def test_guest_transfer_racing_first_home_never_adopts_or_merges_a_project(sql):
     assert rpc(sql, 'read_user_interview_turn', f"'guest-original','{original['client_turn_id']}'", owner=OTHER)['source']['id'] == original['source']['id']
 
 
-def test_lifetime_admission_keeps_verified_legacy_adapters_without_canonical_downgrade(sql):
+def test_lifetime_admission_never_downgrades_to_retired_legacy_execution(sql):
     def admission(project=None, owner=OWNER):
         return rpc(sql, 'read_lifetime_admission', 'null' if project is None else literal(project), owner=owner)
     assert admission() == 'governed'
     assert admission('invented') == 'governed'
     assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == '0'
     rpc(sql, 'accept_user_narrator_source', f"'legacy','{uuid4()}','Original testimony'")
-    assert admission('legacy') == 'legacy'
+    assert admission('legacy') == 'governed'
     assert admission() == 'governed'
     assert admission('legacy', OTHER) == 'governed'
     # Truly old durable adapters may predate canonical narrator sources.
     sql(f"insert into public.user_memory(user_id,project_id,kind,content) values('{OWNER}','old-memory','memoir','Legacy prose');")
     sql(f"insert into public.user_conversation_attachment(user_id,project_id,messages) values('{OWNER}','old-attachment','[]');")
-    assert admission('old-memory') == admission('old-attachment') == 'legacy'
+    assert admission('old-memory') == admission('old-attachment') == 'governed'
     before = sql('select row_to_json(t) from public.user_memoir_project t;').stdout
     sql(as_user("begin read only; select public.read_lifetime_admission('legacy'); commit;"))
     assert sql('select row_to_json(t) from public.user_memoir_project t;').stdout == before
@@ -345,7 +356,7 @@ def test_lifetime_admission_keeps_verified_legacy_adapters_without_canonical_dow
     for project in (None, canonical['project_id'], 'invented', 'legacy', 'old-memory', 'old-attachment'):
         assert admission(project, OTHER) == 'governed'
     sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
-    assert admission() == admission('legacy') == admission('invented') == 'legacy'
+    assert admission() == admission('legacy') == admission('invented') == 'governed'
     assert sql("set role anon; select public.read_lifetime_admission(null);", check=False).returncode != 0
 
 

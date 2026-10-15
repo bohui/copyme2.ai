@@ -162,7 +162,7 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
             return result
     def model(request):
         bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase'];packet=json.loads(bounded['packet'])['payload'];phases.append(phase)
-        if phase=='prepare':result=dict(event_id=bounded['fence']['partition']['id'],context='Preserved grounded preparation',source_refs=bounded['fence']['partition']['source_refs'])
+        if phase=='prepare':result=dict(event_id=packet['partition']['id'],context='Preserved grounded preparation',source_refs=packet['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(packet,source['text'],'Childhood')
         else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
         return httpx.Response(200,json={'reply':json.dumps(result)})
