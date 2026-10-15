@@ -1,5 +1,7 @@
 # PR69: snapshot/fork/reap and creator-exit cleanup races
 
+Historical focused 51ca checkpoint. The [later complete cloud aggregate](memoir-baseline-cloud-aggregate-20261015.md) records current whole-cloud outcomes and separately attributed parent-verified cloud/Mac updates.
+
 Exact tested source/test commit: `51ca7fe5629f74f6a657a7a2e611d86dabf91bf8`.
 Fifteen complete affected modules plus the complete ordinary proposal-overlap
 module record **97 passed, two failed, zero errors/skips** across **sixteen

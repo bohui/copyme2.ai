@@ -787,6 +787,34 @@
       "native_mac_runtime_coverage": false,
       "independent_final_head_rereview": "outstanding; route through parent thread",
       "policy": "No proposal inheritance, SQL/client, PR68 ownership or publication/review/identity fence change"
+    },
+    {
+      "batch": 18,
+      "execution_revision": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+      "source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+      "scope": "Complete applicable cloud repository aggregate, exact per-case historical comparison, separate supplemental checks and separately attributed parent verifications",
+      "pinned_result": {
+        "records": 6320,
+        "passed": 5478,
+        "failed": 572,
+        "error": 21,
+        "skipped": 249,
+        "warnings": 3,
+        "wall_seconds": 1233.4
+      },
+      "ledger": "memoir-baseline-cloud-aggregate-20261015.json",
+      "acceptance_complete": false,
+      "comparison": {
+        "historical_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+        "newly_failing": 0,
+        "added_passes": 38,
+        "newly_passed_budget_cases": 2,
+        "removed": 0,
+        "skip_identities_and_reasons_unchanged": true
+      },
+      "policy": "No policy or assertion change; ordinary zombie/proposal-overlap failures remain failed",
+      "source_changes": false,
+      "pr68_ownership": "preserved"
     }
   ],
   "current_disposition": {
@@ -895,16 +923,16 @@
     "as_of_revision": "5e55d70c9e48a2fa91c3641c42822b149d772dab"
   },
   "latest_disposition": {
-    "source_test_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
     "acceptance_complete": false,
-    "final_fixed_head_aggregate": "5438 passed / 574 failed / 21 errors / 249 skipped; four warnings; all remaining cases classified",
-    "latest_complete_checkpoint": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "final_fixed_head_aggregate": "5478 passed / 572 failed / 21 errors / 249 skipped; three warnings; every current failure/error and skip recorded",
+    "latest_complete_checkpoint": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
     "historical_23_functional_outcomes_at_cd73917": {
       "failed": 18,
       "passed": 5
     },
-    "independent_runtime_acceptance": "outstanding",
-    "old_fields": "current_disposition above is preserved as the batch-eight historical disposition; this latest_disposition and later final ledger take precedence for current status",
+    "independent_runtime_acceptance": "Parent-verified exact-source cloud review and scoped native Mac generic verification completed; full acceptance remains incomplete and new aggregate evidence review is outstanding",
+    "old_fields": "Earlier current_disposition and final_fixed_head_checks retain their historical provenance. The previous latest_disposition is copied exactly under historical_disposition_before_current_cloud_aggregate.",
     "decisions": [
       "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
       "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
@@ -912,19 +940,19 @@
       "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
       "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
     ],
-    "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
-    "current_ledger": "memoir-baseline-review-four-20261015.json",
-    "remaining_failure_or_error_count": 595,
+    "tested_revision": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "current_ledger": "memoir-baseline-cloud-aggregate-20261015.json",
+    "remaining_failure_or_error_count": 593,
     "classification_rollup": {
       "stale_fixture_or_retired_contract": 569,
       "identified_product_or_tooling_compatibility": 10,
-      "environment_or_aggregate_budget": 7,
+      "environment_or_aggregate_budget": 5,
       "unresolved_functional": 9
     },
     "current_source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
-    "latest_targeted_followup": "memoir-baseline-process-races-20261015.json",
-    "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
-    "aggregate_fields_scope": "source_test_revision/tested_revision/current_ledger, aggregate counts and classifications identify the preserved b1e54e8 whole-repository checkpoint. current_source_test_revision/latest_targeted_followup identify the newer targeted scope; no whole-repository acceptance is implied."
+    "latest_targeted_followup": "memoir-baseline-cloud-aggregate-20261015.json",
+    "latest_complete_repository_run_still_at": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "aggregate_fields_scope": "These current aggregate fields refer to own complete b4 execution, source unchanged from 51ca. Historical b1 counts/fields are preserved separately and are not relabelled current."
   },
   "final_fixed_head_checks": {
     "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
@@ -1178,5 +1206,93 @@
     "ledger": "memoir-baseline-process-races-20261015.json",
     "whole_repository_aggregate_rerun": false,
     "native_mac_runtime_coverage": false
+  },
+  "historical_disposition_before_current_cloud_aggregate": {
+    "provenance": "Preserved exactly before recording the new b4 complete aggregate; b1 aggregate fields remain historical",
+    "disposition": {
+      "source_test_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "acceptance_complete": false,
+      "final_fixed_head_aggregate": "5438 passed / 574 failed / 21 errors / 249 skipped; four warnings; all remaining cases classified",
+      "latest_complete_checkpoint": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "historical_23_functional_outcomes_at_cd73917": {
+        "failed": 18,
+        "passed": 5
+      },
+      "independent_runtime_acceptance": "outstanding",
+      "old_fields": "current_disposition above is preserved as the batch-eight historical disposition; this latest_disposition and later final ledger take precedence for current status",
+      "decisions": [
+        "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
+        "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
+        "Approved live canary model binding with reviewed canonical token bounds",
+        "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
+        "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
+      ],
+      "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "current_ledger": "memoir-baseline-review-four-20261015.json",
+      "remaining_failure_or_error_count": 595,
+      "classification_rollup": {
+        "stale_fixture_or_retired_contract": 569,
+        "identified_product_or_tooling_compatibility": 10,
+        "environment_or_aggregate_budget": 7,
+        "unresolved_functional": 9
+      },
+      "current_source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+      "latest_targeted_followup": "memoir-baseline-process-races-20261015.json",
+      "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "aggregate_fields_scope": "source_test_revision/tested_revision/current_ledger, aggregate counts and classifications identify the preserved b1e54e8 whole-repository checkpoint. current_source_test_revision/latest_targeted_followup identify the newer targeted scope; no whole-repository acceptance is implied."
+    }
+  },
+  "final_fixed_head_checks_provenance": "Preserved historical b1e54e8 checkpoint, unchanged; use latest_complete_cloud_checks for the new actual current execution.",
+  "latest_complete_cloud_checks": {
+    "tested_revision": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+    "acceptance_complete": false,
+    "ledger": "memoir-baseline-cloud-aggregate-20261015.json",
+    "records": 6320,
+    "passed": 5478,
+    "failed": 572,
+    "error": 21,
+    "skipped": 249,
+    "comparison": {
+      "historical_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "newly_failing": 0,
+      "added_passes": 38,
+      "newly_passed_budget_cases": 2,
+      "removed": 0,
+      "skip_identities_and_reasons_unchanged": true
+    },
+    "parent_verified_external_results": {
+      "provenance": "Parent-verified report supplied in delegated instruction; not executed by this implementation agent. Raw per-case artifacts were not supplied here; counts/scopes are recorded without merging with own aggregate.",
+      "received_in_current_task": true,
+      "cloud": {
+        "thread_id": "01a1404f-c3cb-760e-aa04-bd89f35b50d0",
+        "tested_source": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+        "affected_passed": 98,
+        "retained_failed": 2,
+        "ownership_probes_passed": 17,
+        "exact_race_reproductions_passed": 3,
+        "real_clock_budget_checks_passed": 1,
+        "subscope_counts_not_summed": "Possible overlap was not specified; do not add probes to affected pass totals."
+      },
+      "native_mac": {
+        "thread_id": "01a140fb-2615-7041-aea3-ea54644fb016",
+        "tested_head": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+        "passed": 23,
+        "skipped": 17,
+        "failed": 0,
+        "skip_scope": "Explicit Linux-only cases",
+        "real_apple_ps_os_getsid_and_generic_timeout_cleanup": "passed",
+        "recorded_task_pids_absent": 75,
+        "temporary_roots_absent": 15,
+        "protected_resources": "preserved",
+        "macos": "26.3.1(a)",
+        "python": "3.12.11",
+        "installed_pytest": "8.4.2",
+        "declared_pytest": ">=9.1.1,<10",
+        "dependency_gap": "Installed Mac pytest is below the declared test dependency range. This is not a dependency-conformant full acceptance run.",
+        "unverified": "Mac PostgreSQL supervisor/emergency cleanup remains unverified."
+      },
+      "complete_acceptance": false
+    }
   }
 }

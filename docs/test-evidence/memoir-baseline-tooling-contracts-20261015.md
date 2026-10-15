@@ -307,3 +307,36 @@ test teardown. The [report](memoir-baseline-process-races-20261015.md) and
 red/green handshakes, refused identities, all outcomes and remaining gates.
 Native Mac and current full-repository acceptance remain unrun; independent
 final-head re-review is routed through the parent. No policy/PR68 change.
+
+
+## Complete current cloud aggregate and separately verified platform progress
+
+Exact b4e184c execution, with source/test code unchanged from 51ca7fe, completes
+6,320 Python records: 5,478 passed, 572 failed, 21 errors and 249 skips. All 6,282
+historical b1 IDs remain, 38 added IDs pass, none are removed, and no newly
+failing ID appears. Two earlier aggregate timeouts now pass within sixty
+seconds; all seven larger-budget correctness checks pass separately while the
+four remaining aggregate timeouts stay failed. Every old skip identity/reason
+is unchanged. Source/trace review retains 569 stale/retired assertions,
+10 compatibility cases, five environment/budget cases and nine unresolved
+functional/authority cases as current failures/errors, not acceptance.
+
+The ordinary proposal-overlap and exited-zombie absence assertions remain
+unchanged and failed. The current full run, supplemental JS/mobile/build/
+controlled Chromium/spec/lint results, first failed Expo export and successful
+offline rerun, and all current skip/unrun gates are in the
+[aggregate report](memoir-baseline-cloud-aggregate-20261015.md) and
+[ledger](memoir-baseline-cloud-aggregate-20261015.json). Exact current and
+historical JUnit archives preserve every original identity and problem entry
+losslessly, including large synthetic parametrizations. Historical b1 fields
+and reports remain historical; new current pointers identify the b4 execution.
+
+Parent-verified source review separately reports 98 affected passes/two retained
+failures and passed ownership/race/budget probes at exact 51ca. Parent-verified
+Mac b4 results are 23 passes, 17 explicit Linux-only skips and no failures, with
+real Apple ps/getsid/generic timeout cleanup and task PID/root absence verified.
+These are not this agent's executions and are not added to its aggregate.
+Mac pytest 8.4.2 is below declared >=9.1.1,<10; Mac PostgreSQL supervisor/emergency
+cleanup remains unverified. Full product/platform/live-service acceptance and
+consequential policy decisions remain open. No source, assertion, PR68-owned
+policy, merge, deployment, migration or access change occurs in this delivery.
