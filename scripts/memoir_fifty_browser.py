@@ -131,9 +131,9 @@ class _ArmedRuntime:
                 arm['future'].set_result({'ok': False, 'worker_failure': cause})
             if isinstance(error, asyncio.CancelledError):
                 raise
-            # The production JSON handler formats RuntimeError text; never let
-            # a provider exception or its trajectory reach that boundary.
-            raise RuntimeError('Owned browser turn failed') from None
+            # Keep provider exceptions and their private trajectories behind
+            # the owned adapter's explicit HTTP boundary.
+            raise HTTPException(502, 'Owned browser turn failed') from None
         finally:
             api._running_turns.discard(task)
 
@@ -231,7 +231,7 @@ class OwnedFiftyBrowserAPI:
             or path.removeprefix('/rest/v1/') in _READ_TABLES and path.startswith('/rest/v1/'))
         if path.startswith('/rest/v1/rpc/'):
             rpc = path.rsplit('/', 1)[-1]
-            allowed = (rpc in _READ_RPCS and request.method == ('GET' if rpc == 'read_user_interview_turn' else 'POST'))
+            allowed = rpc in _READ_RPCS and request.method == 'POST'
             if allowed:
                 import json
                 data = dict(url.params) if request.method == 'GET' else json.loads(request.content)
@@ -239,6 +239,11 @@ class OwnedFiftyBrowserAPI:
                     # Cohort selection may inspect this verified owner without
                     # adopting or selecting any different historical project.
                     allowed = set(data) == {'p_project_id'} and data['p_project_id'] in (None, plan['project_id'])
+                elif rpc == 'read_user_interview_turn':
+                    allowed = (set(data) == {'p_project_id', 'p_client_turn_id'}
+                        and data['p_project_id'] == plan['project_id']
+                        and type(data['p_client_turn_id']) is str
+                        and re.fullmatch(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}', data['p_client_turn_id']) is not None)
                 else:
                     allowed = data.get('p_project_id') == plan['project_id']
         for key, value in url.params.multi_items():

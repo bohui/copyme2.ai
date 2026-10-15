@@ -11,6 +11,7 @@ import pytest
 from memoir_postgres_workflow import PostgresRest
 from scripts import memoir_fifty_browser as browser
 from scripts.memoir_fifty_readback import case_plans_for_run
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
 
 
 def test_route_contexts_preserve_nested_prefix_and_response_contract():
@@ -258,6 +259,24 @@ def test_actual_history_source_and_receipt_read_contract(owned):
     assert receipt.json()['source_id'] == source_id
 
 
+def test_interview_receipt_adapter_allows_only_exact_post_read_arguments(owned):
+    session, queries = owned
+    case = session.case_ids[0]
+    api = browser.OwnedFiftyBrowserAPI.build(session)
+    body = {'p_project_id': session.case_plans[case]['project_id'], 'p_client_turn_id': str(uuid4())}
+    path = 'http://synthetic.invalid/rest/v1/rpc/read_user_interview_turn'
+    for method, candidate in [('GET', body), ('POST', {**body, 'p_project_id': 'another-project'}),
+                              ('POST', {**body, 'p_client_turn_id': 'invalid'}),
+                              ('POST', {**body, 'p_mutate': True})]:
+        response = api._handle_read(case, httpx.Request(method, path, headers=auth(session, case), json=candidate))
+        assert response.status_code == 403
+    assert queries == []
+    response = api._handle_read(case, httpx.Request('POST', path, headers=auth(session, case), json=body))
+    assert response.status_code == 200
+    assert len(queries) == 1 and 'read_user_interview_turn' in queries[0]
+    assert 'p_client_turn_id=>' in queries[0] and body['p_client_turn_id'] in queries[0]
+
+
 def test_owned_listener_lifecycle_with_no_real_socket_or_server(owned, monkeypatch):
     session, _ = owned
     import uvicorn
@@ -330,8 +349,31 @@ def test_canonical_project_restore_uses_private_real_handlers_not_shared_globals
 
 
 @pytest.fixture
-def turn_owned(owned):
+def turn_owned(owned, sql, monkeypatch):
     session, queries = owned
+    from contextlib import AsyncExitStack
+    from apps.api.agent_lock import AgentTurnLease
+    # The runtime spy replaces generation; publication still uses a native SQL
+    # identity, live owner lease and execution fence through the actual ASGI send.
+    authorities = {}
+    for case, plan in session.case_plans.items():
+        owner, project = plan['owner_id'], plan['project_id']
+        from test_shared_memory_events_postgres import literal
+        sql(f"insert into auth.users(id) values('{owner}') on conflict do nothing;")
+        sql(f"insert into public.user_memoir_project(user_id,project_id) values('{owner}',{literal(project)});")
+        conversation = sql(f"insert into public.user_lifetime_conversation(user_id,project_id) values('{owner}',{literal(project)}) returning conversation_id;").stdout.strip()
+        authorities[owner] = (PostgresRest(sql, owner).storage(), conversation)
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    async def prepare_publication(owner, publication):
+        authority, conversation = authorities[owner]
+        scope = AsyncExitStack()
+        await scope.__aenter__()
+        publication.scope = scope
+        lease = await scope.enter_async_context(AgentTurnLease(authority))
+        fence = await lease.io(authority.lifetime_rpc, 'capture_lifetime_fence',
+            p_conversation_id=conversation, p_lease_token=lease.lease_token)
+        publication.set_fence(fence)
+    session.prepare_publication = prepare_publication
     from scripts.memoir_fifty_readback import FiftyReadback
     session.bridge_for_case = lambda case: FiftyReadback(case_id=case, run_id=session.run.run_id,
         project_id=session.case_plans[case]['project_id'], source_revision=session.run.source_revision)
@@ -339,6 +381,7 @@ def turn_owned(owned):
     calls = []
     class Runtime:
         async def turn(self, storage, text, **options):
+            await session.prepare_publication(storage.user_id, options['lifetime_context'])
             calls.append((storage, text, options))
             storage.save_profile({'name': 'Synthetic narrator'})
             if options.get('on_delta'):
@@ -349,7 +392,10 @@ def turn_owned(owned):
                 'reasoning': 'must not reach browser',
                 'tasks': [{'status': 'completed', 'private_protocol': 'must not reach browser'}]}
     session.runtime = Runtime()
-    return session, queries, calls
+    yield session, queries, calls
+    for authority, _ in authorities.values():
+        authority.client.close()
+    assert sql('select count(*) from public.user_agent_turn_lease where expires_at>clock_timestamp();').stdout.strip() == '0'
 
 
 def turn_payload(session, case, ordinal=1, **changes):
