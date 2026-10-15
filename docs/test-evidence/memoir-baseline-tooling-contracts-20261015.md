@@ -145,3 +145,19 @@ make no native claim. Upgrade tests now stage a real prefix and verify data
 preservation before forward migrations. Seven focused follow-up checks pass.
 The next aggregate uses one fixed commit after these repairs; this checkpoint
 is complete evidence for its own source and is not final acceptance.
+
+## Final fixed-commit aggregate
+
+The completed aggregate at `e15c0fbeb3b2fe5658fee9ea6361c98062deaca4`
+records 5,434 passes, 574 failures, 21 setup errors, 249 skips and three warnings
+in 1,289.34 seconds wall time. All seven large correctness cases pass with their
+separate 600-second allowance; the aggregate's six case timeouts remain failures.
+The two pure orchestration fixtures, migration-history fixture and stranded
+request recovery now pass. The pending-proposal overlap regression above remains
+an ordinary failing test, with no review-authority relaxation.
+
+The [final report](memoir-baseline-final-20261015.md) and
+[complete current per-case ledger](memoir-baseline-current-checks-20261015.json)
+record every remaining failure/error, skip, classification and unrun check.
+Acceptance remains incomplete. Later evidence-only commits preserve the tested
+source and test files unchanged.

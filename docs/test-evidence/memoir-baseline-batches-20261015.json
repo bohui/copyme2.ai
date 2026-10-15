@@ -578,7 +578,7 @@
   "latest_disposition": {
     "source_test_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
     "acceptance_complete": false,
-    "final_fixed_head_aggregate": "pending after the retained complete cd73917 checkpoint and batch eleven repairs",
+    "final_fixed_head_aggregate": "complete; every remaining failure/error and skip classified in current ledger",
     "latest_complete_checkpoint": "memoir-baseline-checkpoint-cd73917-20261015.json",
     "historical_23_functional_outcomes_at_cd73917": {
       "failed": 18,
@@ -592,6 +592,65 @@
       "Approved live canary model binding with reviewed canonical token bounds",
       "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
       "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
-    ]
+    ],
+    "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
+    "current_ledger": "memoir-baseline-current-checks-20261015.json",
+    "remaining_failure_or_error_count": 595,
+    "classification_rollup": {
+      "stale_fixture_or_retired_contract": 569,
+      "identified_product_or_tooling_compatibility": 10,
+      "environment_or_aggregate_budget": 7,
+      "unresolved_functional": 9
+    }
+  },
+  "final_fixed_head_checks": {
+    "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
+    "last_source_test_change_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
+    "source_tree": "879f8b4882d25a20e74ca2083e3961c80194962e",
+    "full_python": {
+      "completed": true,
+      "collected_records": 6278,
+      "passed": 5434,
+      "failed": 574,
+      "error": 21,
+      "skipped": 249,
+      "warnings": 3,
+      "wall_seconds": 1289.34,
+      "seconds": 1282.085,
+      "classification_rollup": {
+        "stale_fixture_or_retired_contract": 569,
+        "identified_product_or_tooling_compatibility": 10,
+        "environment_or_aggregate_budget": 7,
+        "unresolved_functional": 9
+      }
+    },
+    "larger_correctness": {
+      "passed": 7,
+      "failed": 0,
+      "timeout_seconds": 600,
+      "wall_seconds": 648.55
+    },
+    "javascript": {
+      "passed": 501,
+      "failed": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "passed": 174,
+      "failed": 0,
+      "native_binary_or_device": false
+    },
+    "browser_selection": {
+      "passed": 36,
+      "failed": 4,
+      "real_standalone_stage_chromium_passed": 4
+    },
+    "specification_acceptance": {
+      "passed": 55,
+      "failed": 0
+    },
+    "web_build": "passed webpack and standalone",
+    "all_remaining_cases_and_skips": "memoir-baseline-current-checks-20261015.json",
+    "acceptance_complete": false
   }
 }
