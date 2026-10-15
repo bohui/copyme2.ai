@@ -187,6 +187,45 @@
         "span_refinement_red_junit": "ba6910d4dd42f800e0194bbbfa6b581bd6efda317edf4e460d94d56c09ffce57",
         "pinned_junit": "c4badc05d27652cee0717699ba212c0eacc341240b4fcb16a6d2e50864ce55b5"
       }
+    },
+    {
+      "batch": 6,
+      "code_revision": "7a4ade875a950f0d74122758eedd94238af8d31f",
+      "scope": "Preserve current photo writing when an inactive/derived link changes and keep model writing IDs separate from dependency IDs",
+      "red": {
+        "basis_cases_failed": 4,
+        "writing_id_collision_cases_failed": 4,
+        "writing_id_collision_cases_passed": 4,
+        "cause": "The first local photo repair matched inactive/derived links to current writing. A progressive model-local writing ID equal to a retired link UUID also accidentally entered old key-suffix cleanup."
+      },
+      "pinned_result": {
+        "passed": 40,
+        "failed": 2,
+        "skipped": 0,
+        "seconds": 31.446
+      },
+      "new_progressive_matrix": {
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      "commands": [
+        "python -m pytest -q tests/test_progressive_photo_invalidation.py tests/test_lifetime_review_repairs.py tests/test_interview_photo_composer.py tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump --tb=short"
+      ],
+      "root_causes": [
+        "Modern dependency cleanup now requires the old link to be confirmed narrator_metadata, matching the canonical composer photo basis. Legacy suffix cleanup applies only to legacy passage keys; progressive model writing IDs never act as dependency authority.",
+        "Eight additional native cases preserve current writing for unlinked/invalidated/visual-derived/narrator-provenance links, including a UUID model writing ID that coincides with a retired link ID. All prior exact purge, independent-asset/span, no-op, in-flight fence and round-accounting checks remain."
+      ],
+      "remaining_failures": [
+        "tests/test_lifetime_review_repairs.py::test_photo_change_invalidates_only_its_partition_and_pending_proposal[update]",
+        "tests/test_lifetime_review_repairs.py::test_photo_change_invalidates_only_its_partition_and_pending_proposal[delete]"
+      ],
+      "evidence_sha256": {
+        "basis_red_junit": "6647f0d9ed4269efa10beec1886ad61d19c4475fc8483e9e948bb5e9500a3f18",
+        "writing_id_red_junit": "6ba0828d1c64b7848c739d28eb3b7506e91ee444c4b27f4b9659e1c0553b4e05",
+        "pinned_junit": "252b3f257d7b6ce27514832ca546d97add8797f939252bddfd0d70f7110a2803"
+      },
+      "limits": "The two retained older cases still fail before mutation by querying retired key suffixes. Fifteen new progressive SQL cases pass; this does not complete workspace section-rework integration or independent runtime acceptance."
     }
   ],
   "current_disposition": {
@@ -197,7 +236,7 @@
     ],
     "historical_unresolved_still_pending": 21,
     "withdrawal_concern": "Observed intermittent assertion traced to misattributed synthetic model output. Batch three preserves purge/unrelated-content checks and adds four protected-original/edit/withdrawal cases. No product purge defect or production exposure is established by these constructions.",
-    "complete_continuation_aggregate": "pending at the following fixed evidence head",
+    "complete_continuation_aggregate": "pending at the following fixed evidence head; source/test worktree is clean",
     "independent_runtime_acceptance": "outstanding",
     "additional_functional_reproduction": {
       "head": "0bbe44e336ce4d67016f4da5b1b8497d7749dd89",
@@ -229,6 +268,22 @@
         "skipped": 38
       },
       "acceptance_use": "Not completeness evidence; final aggregate will use the following fixed evidence head."
+    },
+    "superseded_photo_aggregate": {
+      "head": "91a59b0521c4645f60fb445f12b883ec7b9de274",
+      "status": "interrupted to retain the new photo-preservation regressions and refine the product repair",
+      "partial_result": {
+        "failed": 156,
+        "passed": 1819,
+        "skipped": 0,
+        "seconds": 224.55
+      },
+      "capacity_partial_result": {
+        "passed": 2,
+        "seconds": 196.96,
+        "completed": false
+      },
+      "acceptance_use": "Neither partial run is completeness evidence."
     }
   }
 }
