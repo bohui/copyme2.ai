@@ -23,6 +23,8 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
     # compatibility case checks a genuinely eligible, paid round-20 draft.
     rounds = 20 if mapped else 5
     history = StoryHistoryFixture(STAGE_OWNER, project['id'], 'fixture-only')
+    maps_ready = mapped
+    show_drafts = False
     place={'place':'Chengde','hierarchy':['Earth','China','Hebei','Chengde'],'granularity':'city','life_stage':'childhood'}
     if mapped:
         place.update(latitude=40.9515,longitude=117.9634)
@@ -36,7 +38,8 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         path=route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
         data={}
         if path=='/agent/config':
-            data={'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase'}
+            data={'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase',
+                  'show_draft_updates':show_drafts}
         elif path in ('/agent/profile','/user/profile'):
             if route.request.method=='PATCH': project['profile'].update(route.request.post_data_json)
             data=project['profile']
@@ -46,12 +49,25 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         elif path=='/projects/stage-project/journey': data={'active_session':None}
         elif path=='/story/state': data={'recall_status':{'rounds_completed':rounds,'free_rounds':20,'payment_required':False,'paid':mapped},'family_features_enabled':False}
         elif path=='/story/readiness': data={'project_id':'stage-project','stages':stages}
-        elif path=='/story/private-draft': data={'status':'ready','preview':{'title':'The fixture garden','text':'A safe synthetic private draft.'},'covered_round':rounds,'milestone':rounds,'revision':1,'updating':False}
-        elif path=='/agent/place-journey': data={'place_journey':place if mapped else None}
-        elif path=='/agent/turn': data={'reply':'What do you remember about Chengde?',
+        elif path=='/story/private-draft':
+            data={'status':'ready','preview':{'title':'The fixture garden','text':'A safe synthetic private draft.'},'covered_round':rounds,'milestone':rounds,'revision':1,'updating':False}
+            if route.request.headers.get('accept') == 'application/x-ndjson':
+                return route.fulfill(content_type='application/x-ndjson',body='\n'.join(json.dumps(event) for event in [
+                    {'type':'draft_update','data':data},{'type':'complete'}])+'\n')
+        elif path=='/agent/place-journey': data={'place_journey':place if maps_ready else None}
+        elif path=='/agent/turn':
+            packet=route.request.post_data_json
+            saved=history.save(packet,'What do you remember about Chengde?')
+            data={'reply':'What do you remember about Chengde?', 'project_id':project['id'],
+                  'client_turn_id':saved['client_turn_id'],'accepted_source_id':saved['_source']['id'],
+                  'conversation_saved':True,
                                       'place_journey':place,'place_journey_change':{'changed':True},
                                       'profile_updates':{'story_focus':{'life_stage':'childhood'}}}
-        elif path.endswith('/place-map'): data={'status':'READY' if mapped else 'NO_MATCH','target':place if mapped else None}
+            assert route.request.headers.get('accept') == 'application/x-ndjson'
+            return route.fulfill(content_type='application/x-ndjson',body='\n'.join(json.dumps(event) for event in [
+                {'type':'conversation_saved','data':data},
+                {'type':'workspace_update','data':data},{'type':'result','data':data}])+'\n')
+        elif path.endswith('/place-map'): data={'status':'READY' if maps_ready else 'NO_MATCH','target':place if maps_ready else None}
         elif path=='/user/conversations' or path.startswith('/projects/stage-project/'): data={'items':[]}
         return route.fulfill(content_type='application/json',body=json.dumps(data))
     with sync_playwright() as pw:
@@ -61,6 +77,7 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         context.add_cookies([{'name':'copyme2_ui_locale','value':locale,'url':base},
                             {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         page=context.new_page()
+        page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base+'/') else route.abort())
         page.add_init_script("localStorage.setItem('memory-spark-project','stage-project');")
         user={'id':STAGE_OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':locale}}
         script=f"window.supabase={{createClient:()=>({{auth:{{getSession:async()=>({{data:{{session:{{access_token:'fixture-only',user:{json.dumps(user)}}}}}}}),getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})}}}})}};"
@@ -74,13 +91,23 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
             with page.expect_response(lambda response: response.url.endswith('/place-map')):
                 page.locator('.send-button').click()
             expect(page.locator('.assistant-message').last).to_contain_text('What do you remember about Chengde?',timeout=30000)
-            # A place cue opens the workspace before geocoding succeeds.
-            expect(page.locator('.story-shell.context-visible')).to_be_visible()
+            # Current workspace policy waits for an actual map target. A cue
+            # alone remains visible in the conversation, including NO_MATCH.
+            expect(page.locator('.story-shell.conversation-only')).to_be_visible()
+            expect(page.locator('#workspace-detail, .life-stage-navigator')).to_have_count(0)
+            expect(page.locator('.private-draft-status')).to_have_count(0)
+            assert len(history.rows)==1
+            maps_ready=True
+            place.update(latitude=40.9515,longitude=117.9634)
+            project['profile']['memory_places']=[place]
+            page.reload()
+            expect(page.locator('.story-shell.context-visible')).to_be_visible(timeout=30000)
             expect(page.locator('#workspace-detail')).to_be_visible()
             expect(page.locator('.workspace-media-map, .workspace-media-gallery')).to_have_count(2)
             expect(page.locator('.life-stage-navigator')).to_be_visible()
-            expect(page.locator('.place-journey-card, [data-workspace-tab]')).to_have_count(0)
-            # Observed compatibility limitation, not satisfaction of round-five opt-in access.
+            expect(page.locator('.place-journey-card')).to_have_count(1)
+            expect(page.locator('[data-workspace-tab]')).to_have_count(0)
+            # Debug-off draft policy remains unchanged at round five.
             expect(page.locator('.private-draft-status')).to_have_count(0)
             browser.close()
             return

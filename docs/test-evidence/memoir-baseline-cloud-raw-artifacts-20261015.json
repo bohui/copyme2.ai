@@ -1,0 +1,483 @@
+{
+  "schema_version": 1,
+  "repository": "bohui/copyme2.ai",
+  "pull_request": 69,
+  "date": "2026-10-15",
+  "source_ledger_revision": "c74715a360d10b25f7ac87fe3b31203dca870bb6",
+  "source_ledger_path": "docs/test-evidence/memoir-baseline-cloud-aggregate-20261015.json",
+  "source_ledger_sha256": "cce6800f1d5cee65ca43642bac7c854025dc0fe03e395c364c8a1efef5df8b4a",
+  "original_execution_head": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+  "unchanged_source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+  "scope": "Exact bytes of every original file listed in the c747 raw_evidence_sha256 map. No repository tests, builds, services or supplementary check commands were rerun and no missing original was reconstructed.",
+  "parent_reported_audit": {
+    "reviewer_task": "01a1404f-c3cb-760e-aa04-bd89f35b50d0",
+    "audited_head": "c74715a360d10b25f7ac87fe3b31203dca870bb6",
+    "raw_hashes_independently_verified": 22,
+    "raw_files_unavailable_to_reviewer": 20,
+    "finding": "No discrepancy in the evidence delta, non-document source identity, case archives, historical comparison or 593 retained failures/errors.",
+    "provenance": "Supplied by parent; this package makes all 42 originals transferable. Independent verification of this new package is pending parent-routed re-review."
+  },
+  "archive": {
+    "repository_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+    "format": "gzip-compressed USTAR archive",
+    "bytes": 293893,
+    "sha256": "e220786560688c60a1b6d529edd3a9b5f64f1f235b76e3845f7a6c19e7e26bc5",
+    "regular_files": 42,
+    "member_policy": "Only relative raw/ regular-file members; no absolute paths, parent traversal, symlinks or executable modes. Stream-read for verification; do not execute bundled helpers or overwrite original /tmp paths."
+  },
+  "validation": {
+    "original_files_found": 42,
+    "original_hashes_matched": 42,
+    "packaged_files_read_back": 42,
+    "packaged_bytes_equal_originals": true,
+    "files_unavailable_locally": [],
+    "files_excluded_for_sensitivity": [],
+    "redactions_applied": 0,
+    "test_reruns": 0,
+    "unchanged_non_document_files": 1037
+  },
+  "sensitivity_review": {
+    "provenance": "Synthetic controlled aggregate with cleared provider/service authority, example-only env files and no real user data.",
+    "checks": [
+      "Credential/private-key/cloud-key/JWT shapes and credential URL/email patterns scanned without printing potential values",
+      "Credential-shaped matches reviewed against tracked negative-test fixtures",
+      "Structured receipts/environment/network metadata and three helper files reviewed for authority/private-data content"
+    ],
+    "findings": "No real secrets or private user data found. Credential-shaped URL text is synthetic negative-test input; exact bytes are retained without redaction.",
+    "synthetic_fixture_references": [
+      "tests/test_memoir_fifty_photo.py:165-170 (literal user:password rejected URL)",
+      "tests/test_setup_memoir_test_accounts.py:200-204 (userinfo-shaped wrong destination rejected before network)"
+    ],
+    "limits": "This is an artifact-content review, not new test execution or a claim that the reviewer already verified the previously unavailable originals."
+  },
+  "artifacts": [
+    {
+      "original_path": "/tmp/memoir-cloud-current-acceptance.xml",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-acceptance.xml",
+      "bytes": 8155,
+      "sha256": "fbb8d431a7f28c93b910e1765b60bfbba1961be9dce02b9050c8f4d64268a023",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-browser-build.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-browser-build.log",
+      "bytes": 655,
+      "sha256": "8ea88d56c7789d069bd804c25313739c6d4bfac4acb9f45330be68971b488b35",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-browser-network.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-browser-network.json",
+      "bytes": 498,
+      "sha256": "3396b129f0c2cd034688bbedfaed463863abcf501990fb3f4634f686393f2841",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-browser-phases.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-browser-phases.json",
+      "bytes": 330,
+      "sha256": "98f2bad30ed8d9da55f10c9e8604152b6afebae29ba56f46eacbf5276811ab2e",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-browser-server.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-browser-server.log",
+      "bytes": 149,
+      "sha256": "2525d237465fdaa18d6ee47844c12add6b09b42ccc6ab7753a29587d0ffd7536",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-browser.xml",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-browser.xml",
+      "bytes": 36136,
+      "sha256": "9bdb02faefd2db7b881fe995c78d388e4551edd054cdf85cf820f378bcb066a0",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-capacity.xml",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-capacity.xml",
+      "bytes": 1296,
+      "sha256": "cc098335f05d21a281497fdecc18feb7737d91b93379d619e5fba58b0895dd37",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-classification-overrides.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-classification-overrides.json",
+      "bytes": 961,
+      "sha256": "1f72039fabb32ee9f212ae1d9c44b301848bfc69800602ff48535d9e60f16942",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-environment.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-environment.json",
+      "bytes": 1338,
+      "sha256": "e0db5f655f00e435f4e57022745652ef4acd0f4130295aa6b349b39ed0adc071",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-finish.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-finish.json",
+      "bytes": 307,
+      "sha256": "fc32f5d8be5f35a225c6f78f0d88f9b880b65bae7c7e11889c89e7beaabb52dd",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-full.xml",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-full.xml",
+      "bytes": 12704416,
+      "sha256": "f5e143d2425da04e4b7684618c8eebaf43012ef313b3740d9765a337a2cf0b81",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-parent-verifications.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-parent-verifications.json",
+      "bytes": 1506,
+      "sha256": "e23dd23cbef51b71bffc2545e769682b34687e0345e3ef7347a7fd4f987164f2",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/acceptance.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/acceptance.json",
+      "bytes": 1117,
+      "sha256": "79ba10048c1e7deacf8af0b3866d9917871bc9dd233c84af66fd771cf66cf6c3",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/acceptance.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/acceptance.log",
+      "bytes": 100,
+      "sha256": "f71c0f97933713797eefdc69343517cbda7595f2ee57405b9a2576db38e8d520",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/browser-standalone.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/browser-standalone.json",
+      "bytes": 1093,
+      "sha256": "6c75ff58396c932171869a98fe13daebaa72ddbf295284fbc8a51b785814d7e2",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/browser-standalone.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/browser-standalone.log",
+      "bytes": 30088,
+      "sha256": "75ad2a646a24769a10edf87f9103653c1e793779adb6760542eaebb6ec8e43fe",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/capacity.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/capacity.json",
+      "bytes": 1914,
+      "sha256": "3ccffe851b85ef8411a4cbcaff0b52dfa7eda1cb0b6d8c48d6ddd8442fd02a13",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/capacity.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/capacity.log",
+      "bytes": 110,
+      "sha256": "296fccac9b6ca1518b1905a840323fa7ecede54cf683e428335b73e3f5d11f4f",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/full-python.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/full-python.json",
+      "bytes": 5884,
+      "sha256": "9b2e49e9c4977fee935c24264717a0f6d4c825be07a17a0eb421d69b094ae924",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/full-python.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/full-python.log",
+      "bytes": 1548040,
+      "sha256": "4bc5080511bdf6ad4f171d7d09800cda110af14be472f4c8e63994a3a23b6833",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/javascript-lint.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/javascript-lint.json",
+      "bytes": 1212,
+      "sha256": "d7b05c81761f717289b0afc8c4772e04600db61c0ea354bf3a20e5c3fb883bde",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/javascript-lint.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/javascript-lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/javascript.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/javascript.json",
+      "bytes": 4796,
+      "sha256": "f33689dc1cf2da06a4aeb62becbc6ad9a3ec140b476ece9447ddc1d389fdee29",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/javascript.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/javascript.log",
+      "bytes": 45272,
+      "sha256": "4cb9ad844f82283771743009148dcd401422894ddf91f3968a4e1d3e81e2291f",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/localization.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/localization.json",
+      "bytes": 994,
+      "sha256": "214476dced1c5b8359519b68c3a427b70e9899539c079a66a8d41cc17f282e22",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/localization.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/localization.log",
+      "bytes": 64,
+      "sha256": "b87f78cb36b33f608df9224175918d747f83f4b0aee68990cbeae62a62d4c3ab",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/mobile-export-offline.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/mobile-export-offline.json",
+      "bytes": 1076,
+      "sha256": "12ad8ca6b93ece591d7562aefa4390eca98ce5ba4e07a3994171f0e439c7a6bc",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/mobile-export-offline.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/mobile-export-offline.log",
+      "bytes": 4361,
+      "sha256": "02dd3f20bfedaa17c11767bfd4c63afb34e6b07908961a02618fe12b698fd890",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/mobile-export.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/mobile-export.json",
+      "bytes": 978,
+      "sha256": "e912ef58ce202fc4b7cfef17129582e114370aa4da0932bb3ac5f3da076d28bd",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/mobile-export.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/mobile-export.log",
+      "bytes": 1635,
+      "sha256": "623d1705ebea8773c663cd4df494f9562a793a7b21d9ae046eb4dc54556c1bd3",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/mobile.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/mobile.json",
+      "bytes": 972,
+      "sha256": "4d42f3d586a46192ea692de5a3205dbf084633a62afed164d7f04d37ee234a31",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/mobile.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/mobile.log",
+      "bytes": 12374,
+      "sha256": "53d2cbe7633b4d81bb8b133f967893767322a3b3b28061ddee4ecf0851a39585",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/routes.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/routes.json",
+      "bytes": 1045,
+      "sha256": "d53ec1b4a3a1423c52785d3111e54256adca3d29a88aa39ef1f19155561ed5d7",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/routes.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/routes.log",
+      "bytes": 110,
+      "sha256": "32eaa98999494e406327408df35be13892becae619399d661c1fc6b013f1c03b",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/web-build.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/web-build.json",
+      "bytes": 1142,
+      "sha256": "f6cce0f1f95a12b1b3a66d593801783d77c5c05cdd0d94d358a6327aaf02d5da",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-receipts/web-build.log",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-receipts/web-build.log",
+      "bytes": 655,
+      "sha256": "c3b46e28d7309f38a3f8d6f53561345da4d28c6bc2d8264a5c065b00a6dbc580",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-start.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-start.json",
+      "bytes": 394,
+      "sha256": "1976b698b1db77c20b50cb54db12abf4ee9ee3089dad78a86610285a68384833",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-syntax.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-syntax.json",
+      "bytes": 101,
+      "sha256": "d1b60c6bab6877cb941e20e0257f0cc0fc387bccf6893fa1a3cfe1e498fc3d95",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/memoir-cloud-current-zombie.json",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/memoir-cloud-current-zombie.json",
+      "bytes": 257,
+      "sha256": "d34e865c4b1c6e09bfec4c198762acaee13b0ba5dba6ca3538578ec56292321f",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/run_memoir_cloud_current_browser.py",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/run_memoir_cloud_current_browser.py",
+      "bytes": 4157,
+      "sha256": "cee50d87b06434debe81aa67d14f33ab19db12f0496f6fd4c684ff6400b15c66",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/run_memoir_cloud_current_check.py",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/run_memoir_cloud_current_check.py",
+      "bytes": 2453,
+      "sha256": "b8a6c6b373e8b7d9121d4ae54660454bcf86b6304962a7820b6058b0a78d46cb",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    },
+    {
+      "original_path": "/tmp/run_memoir_cloud_current_matrix.py",
+      "repository_archive_path": "docs/test-evidence/memoir-baseline-cloud-raw-artifacts-20261015.tar.gz",
+      "archive_member": "raw/run_memoir_cloud_current_matrix.py",
+      "bytes": 633,
+      "sha256": "9be79047191b680f8d376270f37e6dacb550bed3c00bdec5ea3e56adaec5e6e9",
+      "original_hash_matches_c747_ledger": true,
+      "redacted": false,
+      "availability": "Included as an unchanged regular-file member"
+    }
+  ],
+  "acceptance_complete": false,
+  "original_aggregate_outcomes_unchanged": {
+    "passed": 5478,
+    "failed": 572,
+    "error": 21,
+    "skipped": 249,
+    "retained_failure_or_error_records": 593
+  }
+}

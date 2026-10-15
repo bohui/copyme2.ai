@@ -9,6 +9,26 @@ import pytest
 import test_agent_commit_postgres as fixture
 
 
+@pytest.mark.parametrize('backend', ['native', 'native-tcp'])
+def test_native_publication_dsn_connects_to_the_same_disposable_cluster(monkeypatch, backend):
+    import psycopg
+    monkeypatch.setenv('MEMOIR_TEST_POSTGRES_BACKEND', backend)
+    monkeypatch.setenv('PGHOST', 'unrelated.invalid')
+    monkeypatch.setenv('PGPORT', '1')
+    setup = fixture.database.__wrapped__()
+    try:
+        sql = next(setup)
+        sql('create table public.fixture_identity(value text); '
+            "insert into public.fixture_identity values ('owned disposable cluster');")
+        with psycopg.connect(sql.publication_dsn) as connection:
+            assert connection.execute('select value from public.fixture_identity').fetchone() == (
+                'owned disposable cluster',)
+            assert connection.execute('select inet_server_addr()').fetchone()[0] == (
+                None if backend == 'native' else __import__('ipaddress').ip_address('127.0.0.1'))
+    finally:
+        setup.close()
+
+
 @pytest.mark.parametrize('backend, tcp', [('native-tcp', False), ('native', True)])
 def test_native_tcp_fixture_uses_loopback_and_owned_port(monkeypatch, tmp_path, backend, tcp):
     monkeypatch.setenv('MEMOIR_TEST_POSTGRES_BACKEND', backend)

@@ -1,0 +1,946 @@
+{
+  "schema_version": 1,
+  "repository": "bohui/copyme2.ai",
+  "pull_request": 69,
+  "date": "2026-10-15",
+  "inspected_source_head": "afb20289a051f929162ba5f8facab3752aa093df",
+  "application_tested_head": "9a89c4961b2448d8243c39fccdf1a66bc0b00edb",
+  "created_at_utc": "2026-10-15T23:18:46.040704+00:00",
+  "original_failure": {
+    "archive": "docs/test-evidence/memoir-baseline-repair-20261015.tar.gz",
+    "archive_sha256": "c39fa390b805c54edfe7943e5e3e4a55bbd0c89339c8014a88ef5b39ed81e5e5",
+    "raw_xml_member": "raw/memoir-pr69-final-full.xml",
+    "raw_xml_sha256": "03f185ab9746032f3e2f22fe4a207f1dde62417298dd15a155b2f3fb15e4c8ea",
+    "zero_based_record_index": 4771,
+    "attributes": {
+      "classname": "tests.test_single_collector_process",
+      "name": "test_completed_process_is_reaped_before_receipt_return",
+      "time": "0.898"
+    },
+    "problems": [
+      {
+        "kind": "failure",
+        "attributes": {
+          "message": "AssertionError: assert ('incomplete' == 'observation'\n  \n  - observation\n  + incomplete)"
+        },
+        "text": "tests/test_single_collector_process.py:98: in test_completed_process_is_reaped_before_receipt_return\n    assert result['status']=='observation' and result['cleanup_complete'] is True\nE   AssertionError: assert ('incomplete' == 'observation'\nE     \nE     - observation\nE     + incomplete)"
+      }
+    ],
+    "parsed_representation_not_raw_xml_slice": true
+  },
+  "original_inspection": {
+    "head": "afb20289a051f929162ba5f8facab3752aa093df",
+    "inspected_at_utc": "2026-10-15T23:12:12.576960+00:00",
+    "original_child_receipt_found": false,
+    "original_child_identity_found": false,
+    "prior_archived_search": [],
+    "current_task_test_path_search": [],
+    "original_case_seconds": 0.898,
+    "execution_seconds": 2,
+    "cleanup_seconds": 0.4,
+    "stop_grace": 0.1,
+    "original_cleanup": "Unestablished. Outer pytest group identity cannot identify this separately sessionized child. No guessed/reused PID is signalled and no missing receipt is reconstructed."
+  },
+  "original_log_inspection": {
+    "original_log_sha256": "0a4fe8e030497d6aa72ef13808af253dc85df39dbf64a7642bb92f86ee3fe0e2",
+    "section_is_exact_text_from_original": true,
+    "recorded_child_identity_in_section": false,
+    "system_output_discarded_by_original_child_launcher": true
+  },
+  "unchanged_full_aggregate": {
+    "counts": {
+      "passed": 5517,
+      "failed": 574,
+      "skipped": 259,
+      "error": 21
+    },
+    "records": 6371,
+    "unmet_failures_and_errors": 595,
+    "aggregate_budget_failures": 5,
+    "rerun": false
+  },
+  "preliminary_file_launch": {
+    "schema_version": 1,
+    "source_file": "tests/test_single_collector_process.py",
+    "source_sha256": "3b7b4c3d18f22dc4c4dab7d295e8eea5438e1857158e9f170500a5d89ae7caf0",
+    "source_of_original_child": "Read existing committed CHILD fixture; no lost aggregate receipt or identity reconstructed.",
+    "cases": [
+      {
+        "case": "unchanged_complete",
+        "seconds": 0.8024876940035028,
+        "budgets": {
+          "execution": 2,
+          "cleanup": 0.4,
+          "stop_grace": 0.1
+        },
+        "child_sha256": "b9859a645745ba38a4b18f5c5452d433f98df73775591b0e861d5cf69ae8fef6",
+        "original_identity": {
+          "pid": 1194822,
+          "ppid": 1194820,
+          "pgid": 1194822,
+          "sid": 1194822,
+          "birth_ticks": "4478318",
+          "uid": 1000,
+          "state": "R"
+        },
+        "receipt": {
+          "run_id": "synthetic-run",
+          "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "observation",
+          "observation": {
+            "outcome": "collector_completed",
+            "campaign_acceptance": false
+          },
+          "native": {
+            "cleanup_complete": true
+          },
+          "cleanup_complete": true,
+          "request_accounting": {
+            "client_requests_started": 3,
+            "completed_http_responses": 2,
+            "unresolved_requests": 1,
+            "closed": true,
+            "stop_reason": "closed"
+          },
+          "cleanup_started_monotonic": 44783.857563987,
+          "process_supervision": {
+            "owned_group_id": 1194822,
+            "leader_reaped": true,
+            "owned_group_gone": true,
+            "forced_stop": false,
+            "term_sent": false,
+            "execution_deadline_monotonic": 44785.186631084,
+            "cleanup_deadline_monotonic": 44784.257563987005
+          },
+          "admission_closed": true,
+          "accounting_verified": true,
+          "cumulative_accounting": {
+            "charged": 38,
+            "unresolved": 3,
+            "prior_charged": 35,
+            "prior_unresolved": 2
+          }
+        },
+        "returncode": 0,
+        "identity_after_return": null,
+        "leader_reaped": true,
+        "waitpid_check": "not-waitable-already-reaped",
+        "exit_tail_marker": false
+      },
+      {
+        "case": "completed_receipt_with_live_exit_tail",
+        "seconds": 0.7797572120034602,
+        "budgets": {
+          "execution": 2,
+          "cleanup": 0.4,
+          "stop_grace": 0.1
+        },
+        "child_sha256": "1220e53fe97c43f25ce4c5ff3c39a1b7a43d76735d7635d9cf6cbee3da8e9b20",
+        "original_identity": {
+          "pid": 1194825,
+          "ppid": 1194820,
+          "pgid": 1194825,
+          "sid": 1194825,
+          "birth_ticks": "4478398",
+          "uid": 1000,
+          "state": "R"
+        },
+        "receipt": {
+          "run_id": "synthetic-run",
+          "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "incomplete",
+          "observation": {
+            "outcome": "collector_completed",
+            "campaign_acceptance": false
+          },
+          "native": {
+            "cleanup_complete": false
+          },
+          "cleanup_complete": false,
+          "request_accounting": {
+            "client_requests_started": 3,
+            "completed_http_responses": 2,
+            "unresolved_requests": 1,
+            "closed": true,
+            "stop_reason": "closed"
+          },
+          "cleanup_started_monotonic": 44784.431332142,
+          "process_supervision": {
+            "owned_group_id": 1194825,
+            "leader_reaped": true,
+            "owned_group_gone": true,
+            "forced_stop": true,
+            "term_sent": false,
+            "execution_deadline_monotonic": 44785.986979044,
+            "cleanup_deadline_monotonic": 44784.831332142
+          },
+          "cleanup_limit_reached": true,
+          "native_cleanup_verified": false,
+          "admission_closed": true,
+          "accounting_verified": true,
+          "cumulative_accounting": {
+            "charged": 38,
+            "unresolved": 3,
+            "prior_charged": 35,
+            "prior_unresolved": 2
+          }
+        },
+        "returncode": -9,
+        "identity_after_return": null,
+        "leader_reaped": true,
+        "waitpid_check": "not-waitable-already-reaped",
+        "exit_tail_marker": true
+      },
+      {
+        "case": "startup_exceeds_execution_budget",
+        "seconds": 2.0217527490021894,
+        "budgets": {
+          "execution": 2,
+          "cleanup": 0.4,
+          "stop_grace": 0.1
+        },
+        "child_sha256": "15905bbd8280681be6f9140fa05f85a26b678d1643da8d18081d6ef6fc43ae80",
+        "original_identity": {
+          "pid": 1194828,
+          "ppid": 1194820,
+          "pgid": 1194828,
+          "sid": 1194828,
+          "birth_ticks": "4478476",
+          "uid": 1000,
+          "state": "R"
+        },
+        "receipt": {
+          "run_id": "synthetic-run",
+          "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "incomplete",
+          "observation": {
+            "outcome": "execution_limit",
+            "campaign_acceptance": false
+          },
+          "cleanup_complete": false,
+          "process_supervision": {
+            "owned_group_id": 1194828,
+            "leader_reaped": true,
+            "owned_group_gone": true,
+            "forced_stop": false,
+            "term_sent": true,
+            "execution_deadline_monotonic": 44786.766917825,
+            "cleanup_deadline_monotonic": 44787.167328020005
+          },
+          "admission_closed": true,
+          "accounting_verified": false,
+          "accounting_uncertainty": {
+            "additional_charges_max": 4,
+            "replay_allowed": false
+          },
+          "cumulative_accounting": {
+            "charged_lower_bound": 35,
+            "charged_upper_bound": 39,
+            "unresolved_lower_bound": 2,
+            "unresolved_upper_bound": 6,
+            "prior_charged": 35,
+            "prior_unresolved": 2
+          }
+        },
+        "returncode": -15,
+        "identity_after_return": null,
+        "leader_reaped": true,
+        "waitpid_check": "not-waitable-already-reaped",
+        "exit_tail_marker": false
+      }
+    ],
+    "signals": [
+      {
+        "case": "completed_receipt_with_live_exit_tail",
+        "pgid": 1194825,
+        "signal": 9,
+        "identity_verified": true,
+        "identity_at_signal": {
+          "pid": 1194825,
+          "ppid": 1194820,
+          "pgid": 1194825,
+          "sid": 1194825,
+          "birth_ticks": "4478398",
+          "uid": 1000,
+          "state": "S"
+        },
+        "monotonic": 44784.745363288
+      },
+      {
+        "case": "startup_exceeds_execution_budget",
+        "pgid": 1194828,
+        "signal": 15,
+        "identity_verified": true,
+        "identity_at_signal": {
+          "pid": 1194828,
+          "ppid": 1194820,
+          "pgid": 1194828,
+          "sid": 1194828,
+          "birth_ticks": "4478476",
+          "uid": 1000,
+          "state": "S"
+        },
+        "monotonic": 44786.767548677
+      }
+    ],
+    "receipt_transitions": [
+      {
+        "key": [
+          "unchanged_complete",
+          "observation",
+          false,
+          44783.857563987
+        ],
+        "case": "unchanged_complete",
+        "monotonic": 44783.860930761,
+        "status": "observation",
+        "cleanup_complete": false,
+        "cleanup_started": 44783.857563987
+      },
+      {
+        "key": [
+          "unchanged_complete",
+          "observation",
+          true,
+          44783.857563987
+        ],
+        "case": "unchanged_complete",
+        "monotonic": 44783.881491668,
+        "status": "observation",
+        "cleanup_complete": true,
+        "cleanup_started": 44783.857563987
+      },
+      {
+        "key": [
+          "completed_receipt_with_live_exit_tail",
+          "observation",
+          true,
+          44784.431332142
+        ],
+        "case": "completed_receipt_with_live_exit_tail",
+        "monotonic": 44784.435967252,
+        "status": "observation",
+        "cleanup_complete": true,
+        "cleanup_started": 44784.431332142
+      }
+    ],
+    "scope": "New synthetic owned children only. No listeners/databases/leases/providers or arbitrary PID signalling. Native production budgets are unchanged.",
+    "limit": "Reproduces tooling boundaries only. Does not establish the cause or cleanup of the original0.898s aggregate failure."
+  },
+  "exact_original_dash_c_launch": {
+    "schema_version": 1,
+    "source_file": "tests/test_single_collector_process.py",
+    "source_sha256": "3b7b4c3d18f22dc4c4dab7d295e8eea5438e1857158e9f170500a5d89ae7caf0",
+    "source_of_original_child": "Read existing committed CHILD fixture; no lost aggregate receipt or identity reconstructed.",
+    "cases": [
+      {
+        "case": "unchanged_complete",
+        "seconds": 0.8233327989946702,
+        "budgets": {
+          "execution": 2,
+          "cleanup": 0.4,
+          "stop_grace": 0.1
+        },
+        "child_sha256": "b9859a645745ba38a4b18f5c5452d433f98df73775591b0e861d5cf69ae8fef6",
+        "original_identity": {
+          "pid": 1194852,
+          "ppid": 1194850,
+          "pgid": 1194852,
+          "sid": 1194852,
+          "birth_ticks": "4486007",
+          "uid": 1000,
+          "state": "R"
+        },
+        "receipt": {
+          "run_id": "synthetic-run",
+          "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "observation",
+          "observation": {
+            "outcome": "collector_completed",
+            "campaign_acceptance": false
+          },
+          "native": {
+            "cleanup_complete": true
+          },
+          "cleanup_complete": true,
+          "request_accounting": {
+            "client_requests_started": 3,
+            "completed_http_responses": 2,
+            "unresolved_requests": 1,
+            "closed": true,
+            "stop_reason": "closed"
+          },
+          "cleanup_started_monotonic": 44860.735383268,
+          "process_supervision": {
+            "owned_group_id": 1194852,
+            "leader_reaped": true,
+            "owned_group_gone": true,
+            "forced_stop": false,
+            "term_sent": false,
+            "execution_deadline_monotonic": 44862.078001051,
+            "cleanup_deadline_monotonic": 44861.135383268
+          },
+          "admission_closed": true,
+          "accounting_verified": true,
+          "cumulative_accounting": {
+            "charged": 38,
+            "unresolved": 3,
+            "prior_charged": 35,
+            "prior_unresolved": 2
+          }
+        },
+        "returncode": 0,
+        "identity_after_return": null,
+        "leader_reaped": true,
+        "waitpid_check": "not-waitable-already-reaped",
+        "exit_tail_marker": false
+      },
+      {
+        "case": "completed_receipt_with_live_exit_tail",
+        "seconds": 0.9785625229997095,
+        "budgets": {
+          "execution": 2,
+          "cleanup": 0.4,
+          "stop_grace": 0.1
+        },
+        "child_sha256": "1220e53fe97c43f25ce4c5ff3c39a1b7a43d76735d7635d9cf6cbee3da8e9b20",
+        "original_identity": {
+          "pid": 1194855,
+          "ppid": 1194850,
+          "pgid": 1194855,
+          "sid": 1194855,
+          "birth_ticks": "4486089",
+          "uid": 1000,
+          "state": "R"
+        },
+        "receipt": {
+          "run_id": "synthetic-run",
+          "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "incomplete",
+          "observation": {
+            "outcome": "collector_completed",
+            "campaign_acceptance": false
+          },
+          "native": {
+            "cleanup_complete": false
+          },
+          "cleanup_complete": false,
+          "request_accounting": {
+            "client_requests_started": 3,
+            "completed_http_responses": 2,
+            "unresolved_requests": 1,
+            "closed": true,
+            "stop_reason": "closed"
+          },
+          "cleanup_started_monotonic": 44861.547338705,
+          "process_supervision": {
+            "owned_group_id": 1194855,
+            "leader_reaped": true,
+            "owned_group_gone": true,
+            "forced_stop": true,
+            "term_sent": false,
+            "execution_deadline_monotonic": 44862.898705204,
+            "cleanup_deadline_monotonic": 44861.947338705
+          },
+          "cleanup_limit_reached": true,
+          "native_cleanup_verified": false,
+          "admission_closed": true,
+          "accounting_verified": true,
+          "cumulative_accounting": {
+            "charged": 38,
+            "unresolved": 3,
+            "prior_charged": 35,
+            "prior_unresolved": 2
+          }
+        },
+        "returncode": -9,
+        "identity_after_return": null,
+        "leader_reaped": true,
+        "waitpid_check": "not-waitable-already-reaped",
+        "exit_tail_marker": true
+      },
+      {
+        "case": "startup_exceeds_execution_budget",
+        "seconds": 2.032090768996568,
+        "budgets": {
+          "execution": 2,
+          "cleanup": 0.4,
+          "stop_grace": 0.1
+        },
+        "child_sha256": "15905bbd8280681be6f9140fa05f85a26b678d1643da8d18081d6ef6fc43ae80",
+        "original_identity": {
+          "pid": 1194858,
+          "ppid": 1194850,
+          "pgid": 1194858,
+          "sid": 1194858,
+          "birth_ticks": "4486187",
+          "uid": 1000,
+          "state": "R"
+        },
+        "receipt": {
+          "run_id": "synthetic-run",
+          "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "incomplete",
+          "observation": {
+            "outcome": "execution_limit",
+            "campaign_acceptance": false
+          },
+          "cleanup_complete": false,
+          "process_supervision": {
+            "owned_group_id": 1194858,
+            "leader_reaped": true,
+            "owned_group_gone": true,
+            "forced_stop": false,
+            "term_sent": true,
+            "execution_deadline_monotonic": 44863.877853734,
+            "cleanup_deadline_monotonic": 44864.279880711
+          },
+          "admission_closed": true,
+          "accounting_verified": false,
+          "accounting_uncertainty": {
+            "additional_charges_max": 4,
+            "replay_allowed": false
+          },
+          "cumulative_accounting": {
+            "charged_lower_bound": 35,
+            "charged_upper_bound": 39,
+            "unresolved_lower_bound": 2,
+            "unresolved_upper_bound": 6,
+            "prior_charged": 35,
+            "prior_unresolved": 2
+          }
+        },
+        "returncode": -15,
+        "identity_after_return": null,
+        "leader_reaped": true,
+        "waitpid_check": "not-waitable-already-reaped",
+        "exit_tail_marker": false
+      }
+    ],
+    "signals": [
+      {
+        "case": "completed_receipt_with_live_exit_tail",
+        "pgid": 1194855,
+        "signal": 9,
+        "identity_verified": true,
+        "identity_at_signal": {
+          "pid": 1194855,
+          "ppid": 1194850,
+          "pgid": 1194855,
+          "sid": 1194855,
+          "birth_ticks": "4486089",
+          "uid": 1000,
+          "state": "S"
+        },
+        "monotonic": 44861.853194934
+      },
+      {
+        "case": "startup_exceeds_execution_budget",
+        "pgid": 1194858,
+        "signal": 15,
+        "identity_verified": true,
+        "identity_at_signal": {
+          "pid": 1194858,
+          "ppid": 1194850,
+          "pgid": 1194858,
+          "sid": 1194858,
+          "birth_ticks": "4486187",
+          "uid": 1000,
+          "state": "S"
+        },
+        "monotonic": 44863.880228545
+      }
+    ],
+    "receipt_transitions": [
+      {
+        "key": [
+          "unchanged_complete",
+          "observation",
+          true,
+          44860.735383268
+        ],
+        "case": "unchanged_complete",
+        "monotonic": 44860.753082713,
+        "status": "observation",
+        "cleanup_complete": true,
+        "cleanup_started": 44860.735383268
+      },
+      {
+        "key": [
+          "completed_receipt_with_live_exit_tail",
+          "observation",
+          true,
+          44861.547338705
+        ],
+        "case": "completed_receipt_with_live_exit_tail",
+        "monotonic": 44861.555895381,
+        "status": "observation",
+        "cleanup_complete": true,
+        "cleanup_started": 44861.547338705
+      }
+    ],
+    "scope": "New synthetic owned children only. No listeners/databases/leases/providers or arbitrary PID signalling. Native production budgets are unchanged.",
+    "limit": "Reproduces tooling boundaries only. Does not establish the cause or cleanup of the original0.898s aggregate failure."
+  },
+  "native_scope": "Six new synthetic child processes, no listeners/databases/leases/model calls. Four nonzero signals each verified against captured PID birth ticks, UID, PGID and SID immediately before dispatch. Every new child reaped and exact child PID absent at return. Not a global PID-absence claim.",
+  "finding": "A complete child receipt does not establish process exit. With original2/.4/.1budgets, a0.7s post-receipt live exit tail deterministically causes incomplete through the cleanup deadline while still safely stopping/reaping the owned process. Startup delay is a distinct execution-limit boundary.",
+  "classification": "Original aggregate failure remains unresolved_process_observation_failure. The0.898s duration is below2s execution budget and is consistent with a cleanup-boundary candidate, but does not prove it.",
+  "exact_blocker": "Original child receipt and owned-child PID/birth/session identity are missing. Outer pytest group1094789 is not the separately sessionized child. Original cause and original child cleanup cannot be verified retroactively. No original or unverified PID guessed/signalled and no lost evidence reconstructed.",
+  "unchanged_production_and_test_sources": true,
+  "prior_evidence_hashes": {
+    "docs/test-evidence/memoir-baseline-repair-20261015.md": "04803f061b14cd26f080acf999fff4bb336eb8d844855f9abde1ad5367dc423f",
+    "docs/test-evidence/memoir-baseline-repair-20261015.json": "5dd6989eee39bcfcc21a48df411a1a81051f981131b83828cf546e6f9d2b28ab",
+    "docs/test-evidence/memoir-baseline-repair-20261015.tar.gz": "c39fa390b805c54edfe7943e5e3e4a55bbd0c89339c8014a88ef5b39ed81e5e5"
+  },
+  "archive": {
+    "path": "docs/test-evidence/memoir-process-boundary-20261015.tar.gz",
+    "regular_files": 48,
+    "bytes": 24646,
+    "sha256": "3ac457d1a571d90e9b00ee9186bda61fa60549f75a3da8bfc41c8eb3f8d5cd8f",
+    "readback_exact_matches": 48,
+    "artifacts": [
+      {
+        "original_path": "/tmp/build_memoir_process_boundary_evidence.py",
+        "member": "raw/build_memoir_process_boundary_evidence.py",
+        "bytes": 11070,
+        "sha256": "5fce281836af77c05c32f329bf01e73e464f5bd3df2b30734d44be331e541ed1",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/child.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/child.py",
+        "bytes": 1987,
+        "sha256": "1220e53fe97c43f25ce4c5ff3c39a1b7a43d76735d7635d9cf6cbee3da8e9b20",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/exit-tail-started",
+        "member": "raw/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/exit-tail-started",
+        "bytes": 35,
+        "sha256": "a1d98317c6dc99645f560bae0f3aed3f5dfdd37ac27bf54206a8ac538cb18102",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/late-write",
+        "member": "raw/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/late-write",
+        "bytes": 17,
+        "sha256": "9bbd657dd7bae17783f1dc9ad7b9dc8419920902d5289d6b73fc551a189162a7",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/probe-result.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/probe-result.json",
+        "bytes": 1726,
+        "sha256": "10a59067b34727fafad1a5b7efa2cd60af7348cf8d7fc47dbe4deb5de7ca7c3f",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/receipt.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/completed_receipt_with_live_exit_tail/receipt.json",
+        "bytes": 1047,
+        "sha256": "ab03624a41c0b8a5c37410181197bb91aecdffd34c9d314f1a8bfa43490cd9ff",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/original-child-receipt-search.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/original-child-receipt-search.json",
+        "bytes": 3,
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/original-failure-log-section.txt",
+        "member": "raw/memoir-pr69-process-boundary-evidence/original-failure-log-section.txt",
+        "bytes": 438,
+        "sha256": "037ae988a0c14e0b9d6c01a19dddfa14141391d9a6304581d5e55cb92b956fbb",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/original-failure.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/original-failure.json",
+        "bytes": 1073,
+        "sha256": "a3942c63622723cafe712c9984a98fc1037a392574db9c97412225ec8ac846ed",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/original-inspection.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/original-inspection.json",
+        "bytes": 570,
+        "sha256": "c77acca4ee00568755256a3126baa99f9f2845922cb232001f9d9e82a7b825fd",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/original-log-inspection.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/original-log-inspection.json",
+        "bytes": 252,
+        "sha256": "e5fecc9576d2d6fb3773a815f53d17319745f74c17b6b561762cfaf73c07b704",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/original-outer-runner.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/original-outer-runner.json",
+        "bytes": 5972,
+        "sha256": "b5af635d5bdaf79f6e4d72eb678263382a77a8477fc54ef41db3d800f86b6354",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/prior-focused-probe-runner.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/prior-focused-probe-runner.json",
+        "bytes": 1045,
+        "sha256": "9196599ab45187b132269f891c27c0713b2f7a2ed7b612d31940796abe368b8e",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/prior-focused-probe.log",
+        "member": "raw/memoir-pr69-process-boundary-evidence/prior-focused-probe.log",
+        "bytes": 98,
+        "sha256": "fb9eab2e9be43235f832f2e1ea81774c6515d986b40a1f7f9489b4fb98f9c9bc",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/prior-focused-probe.xml",
+        "member": "raw/memoir-pr69-process-boundary-evidence/prior-focused-probe.xml",
+        "bytes": 383,
+        "sha256": "295c9ddf33b1a750fa95ca0327d21d048e78a92f152ae139580534a68ac78f84",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/probe-start.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/probe-start.json",
+        "bytes": 416,
+        "sha256": "d35f9b6cc96c5e640d945cd2938666039f8d77300205e054dbb95f35df213c6e",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/probe.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/probe.json",
+        "bytes": 8031,
+        "sha256": "e738ae9ca454a70f83504499a917cde935611b4352094040a89fc65d7615bda4",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/runner/bounded-process-boundaries.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/runner/bounded-process-boundaries.json",
+        "bytes": 845,
+        "sha256": "9dca02d946aa10b6fa1d034f391de0ef9163fd8d69770d4414583eac0e3e5326",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/runner/bounded-process-boundaries.log",
+        "member": "raw/memoir-pr69-process-boundary-evidence/runner/bounded-process-boundaries.log",
+        "bytes": 711,
+        "sha256": "7d52f8d3801da7f2ee0bfac05fa2e44534bebf7fe92b63438b7d0dd1a375fa16",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/single_collector_observation.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence/single_collector_observation.py",
+        "bytes": 22409,
+        "sha256": "3675bd5e92bbcbb8165d51d039b24fc1682ae1bad931d09398fe93c39dcb54a6",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/startup_exceeds_execution_budget/child.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence/startup_exceeds_execution_budget/child.py",
+        "bytes": 1917,
+        "sha256": "15905bbd8280681be6f9140fa05f85a26b678d1643da8d18081d6ef6fc43ae80",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/startup_exceeds_execution_budget/probe-result.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/startup_exceeds_execution_budget/probe-result.json",
+        "bytes": 1549,
+        "sha256": "26f3b5f4d441aa39588e48e73c430e4b39c95241bf1211db5f84b44c0dba56ad",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/startup_exceeds_execution_budget/receipt.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/startup_exceeds_execution_budget/receipt.json",
+        "bytes": 887,
+        "sha256": "c67a3ec464273eef15deda8c8611951e86188789d022a1be38198879c00d4210",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/test_single_collector_process.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence/test_single_collector_process.py",
+        "bytes": 12496,
+        "sha256": "3b7b4c3d18f22dc4c4dab7d295e8eea5438e1857158e9f170500a5d89ae7caf0",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/unchanged_complete/child.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence/unchanged_complete/child.py",
+        "bytes": 1889,
+        "sha256": "b9859a645745ba38a4b18f5c5452d433f98df73775591b0e861d5cf69ae8fef6",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/unchanged_complete/late-write",
+        "member": "raw/memoir-pr69-process-boundary-evidence/unchanged_complete/late-write",
+        "bytes": 17,
+        "sha256": "9bbd657dd7bae17783f1dc9ad7b9dc8419920902d5289d6b73fc551a189162a7",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/unchanged_complete/probe-result.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/unchanged_complete/probe-result.json",
+        "bytes": 1637,
+        "sha256": "37df6c9fa3aed6b41d85b2be0b69ae928b83bc6135e252bce32f32d9d79d359c",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence/unchanged_complete/receipt.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence/unchanged_complete/receipt.json",
+        "bytes": 981,
+        "sha256": "0f97dbc852434618d9ad53d995339d0504ca258ea380afcfea5cee39f28d1381",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/child.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/child.py",
+        "bytes": 1987,
+        "sha256": "1220e53fe97c43f25ce4c5ff3c39a1b7a43d76735d7635d9cf6cbee3da8e9b20",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/exit-tail-started",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/exit-tail-started",
+        "bytes": 35,
+        "sha256": "a1d98317c6dc99645f560bae0f3aed3f5dfdd37ac27bf54206a8ac538cb18102",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/late-write",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/late-write",
+        "bytes": 17,
+        "sha256": "9bbd657dd7bae17783f1dc9ad7b9dc8419920902d5289d6b73fc551a189162a7",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/probe-result.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/probe-result.json",
+        "bytes": 1726,
+        "sha256": "c90b7160c373d8620b7e61369dc19f1b2e236196de9883debed7a0af993a4770",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/receipt.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/completed_receipt_with_live_exit_tail/receipt.json",
+        "bytes": 1047,
+        "sha256": "5639e6a62ddf5788d47f3851114f7309cb56e6a746e3727c89165edbc6adc773",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/probe-start.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/probe-start.json",
+        "bytes": 363,
+        "sha256": "9a99bea45fa1579f0f6b2cf3a381b38521f29aa512dcc588643529050b3d0864",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/probe.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/probe.json",
+        "bytes": 7718,
+        "sha256": "d9056ced3aa19dafb4886674d61973631d0dfeccc04ddc88e11023cb73a257de",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/runner/exact-launch-boundaries.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/runner/exact-launch-boundaries.json",
+        "bytes": 845,
+        "sha256": "15b8a460fbacf31b7440c56280d780d00a499c525327245da1e80dcca8723971",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/runner/exact-launch-boundaries.log",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/runner/exact-launch-boundaries.log",
+        "bytes": 710,
+        "sha256": "fe93a98110990a0671fe03d5582a8b0b3c6c2cce201a72837b713021a8e72563",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/startup_exceeds_execution_budget/child.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/startup_exceeds_execution_budget/child.py",
+        "bytes": 1917,
+        "sha256": "15905bbd8280681be6f9140fa05f85a26b678d1643da8d18081d6ef6fc43ae80",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/startup_exceeds_execution_budget/probe-result.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/startup_exceeds_execution_budget/probe-result.json",
+        "bytes": 1545,
+        "sha256": "9d8600b1796f2191c4e329b44245b3631df2129e4b7d6fa7842f38b0c5408b22",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/startup_exceeds_execution_budget/receipt.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/startup_exceeds_execution_budget/receipt.json",
+        "bytes": 884,
+        "sha256": "41493d4631b2ba3a41235d77c32041d1d60fee6faff1b64365b280e08abf33a1",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/child.py",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/child.py",
+        "bytes": 1889,
+        "sha256": "b9859a645745ba38a4b18f5c5452d433f98df73775591b0e861d5cf69ae8fef6",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/late-write",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/late-write",
+        "bytes": 17,
+        "sha256": "9bbd657dd7bae17783f1dc9ad7b9dc8419920902d5289d6b73fc551a189162a7",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/probe-result.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/probe-result.json",
+        "bytes": 1634,
+        "sha256": "596ca6e0f551e7096ee73ff5d8b44e8695cf3ef4315fbc26bc88fe06837967eb",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/receipt.json",
+        "member": "raw/memoir-pr69-process-boundary-evidence-v2/unchanged_complete/receipt.json",
+        "bytes": 978,
+        "sha256": "c53bf79e0b1512af195c01a93bfb2cd21d57f0dcd348be41f9a45faa926aede3",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-probe-v2.py",
+        "member": "raw/memoir-pr69-process-boundary-probe-v2.py",
+        "bytes": 6489,
+        "sha256": "e20eb11c149a8354f9462cdf6fbabec748a476e463ccdbed0365acc69e7939ce",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-probe.py",
+        "member": "raw/memoir-pr69-process-boundary-probe.py",
+        "bytes": 6501,
+        "sha256": "a7cbad97e8c393eb8c3aa2f15b1b61e25bbed514f686c43a8014cd5450d8b0ad",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-supervisor.log",
+        "member": "raw/memoir-pr69-process-boundary-supervisor.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "redacted": false
+      },
+      {
+        "original_path": "/tmp/memoir-pr69-process-boundary-v2-supervisor.log",
+        "member": "raw/memoir-pr69-process-boundary-v2-supervisor.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "redacted": false
+      }
+    ]
+  },
+  "sensitivity_review": "Only synthetic test data, local process identities, exact repository source and task-owned logs. Common provider/private-key pattern scan found none; limited scan, not a universal credential detector. No redactions.",
+  "limits": [
+    "No production code or test assertion/budget changed.",
+    "No full aggregate rerun; no passing probe waives the original failure or any of five aggregate budget failures.",
+    "No product-policy decision, merge to main, deployment, real-user data or provider execution."
+  ]
+}

@@ -1,0 +1,3563 @@
+{
+  "schema_version": 1,
+  "repository": "bohui/copyme2.ai",
+  "pull_request": 69,
+  "date": "2026-10-15",
+  "tested_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+  "source_tree": "b3a64d936c88d6c7d4257809d4a4a7935fde6545",
+  "acceptance_complete": false,
+  "scope": "Fifteen complete affected modules plus the complete ordinary proposal-overlap module; sixteen selected modules, not a whole-repository aggregate",
+  "complete_selected": {
+    "counts": {
+      "passed": 97,
+      "failed": 2
+    },
+    "seconds": 269.049,
+    "cases": [
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_deadline_runner_delivers_large_input_after_polling_timeout[False]",
+        "outcome": "passed",
+        "seconds": 0.327,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_deadline_runner_delivers_large_input_after_polling_timeout[True]",
+        "outcome": "passed",
+        "seconds": 0.334,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_commit_checks_authenticated_lease_and_writes_both_rows",
+        "outcome": "passed",
+        "seconds": 1.069,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_sql_transport_resets_roles_and_stops_at_the_first_error",
+        "outcome": "passed",
+        "seconds": 0.081,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_expired_or_replaced_lease_cannot_commit",
+        "outcome": "passed",
+        "seconds": 0.119,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_memory_failure_rolls_back_session_write",
+        "outcome": "passed",
+        "seconds": 0.071,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_commit_only_publishes_its_own_staged_paths",
+        "outcome": "passed",
+        "seconds": 0.049,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_commit_rechecks_expiry_after_waiting_for_row_lock",
+        "outcome": "passed",
+        "seconds": 1.177,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_process_identity_prerequisite_is_checked_before_postgres_allocation[darwin-True]",
+        "outcome": "passed",
+        "seconds": 0.002,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_process_identity_prerequisite_is_checked_before_postgres_allocation[linux-False]",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[graceful]",
+        "outcome": "passed",
+        "seconds": 3.704,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[unresponsive]",
+        "outcome": "passed",
+        "seconds": 2.484,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[fast_stop_fails]",
+        "outcome": "passed",
+        "seconds": 4.953,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[fast_stop_times_out]",
+        "outcome": "passed",
+        "seconds": 13.583,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_native_state.py::test_controlled_snapshot_roundtrip_preserves_identity_sources_rounds_and_places",
+        "outcome": "passed",
+        "seconds": 8.722,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_controlled_profile.py::test_controlled_comparison_matches_real_prestate_and_labels_actual_contract",
+        "outcome": "passed",
+        "seconds": 15.365,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_controlled_profile.py::test_canonical_comparison_stops_on_first_failed_delivery_without_raw_error",
+        "outcome": "passed",
+        "seconds": 9.422,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_controlled_profile.py::test_controlled_comparison_isolates_hostile_inherited_research_and_gateway_config",
+        "outcome": "passed",
+        "seconds": 10.008,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_checked_in_five_case_fixture_is_exactly_250_rounds_and_covers_the_contract",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_round_contract_marks_negative_rounds_as_must_not_call",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_round_contract_does_not_turn_unasserted_optional_behavior_into_a_negative",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_stage_contract_uses_sparse_case_anchors_not_global_bands",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_round_thirty_boundary_oracle_matches_its_band_without_changing_runtime_schema",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_evaluator_does_not_treat_persisted_later_life_context_as_a_new_review_stage",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_aggregate_separates_required_and_negative_contract_rounds",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_fixture_worker_has_no_expected_or_truth_constructor_inputs",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_fixture_contract_heuristics_read_only_current_visible_text",
+        "outcome": "passed",
+        "seconds": 0.006,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_langfuse_round_scores_keep_skill_invocation_and_output_grades_separate",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_unavailable_round_omits_missing_evidence_scores_and_status_is_consistent",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_five_case_runner_preserves_partial_trajectory_on_live_worker_failure",
+        "outcome": "passed",
+        "seconds": 0.046,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_five_case_runner_preserves_recorder_on_runner_timeout",
+        "outcome": "passed",
+        "seconds": 0.056,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_five_case_round_runner_publishes_minimized_trajectory_receipt",
+        "outcome": "passed",
+        "seconds": 6.917,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_turn_publication.py::test_controlled_delivery_and_replay_keep_sql_authority_until_asgi_send",
+        "outcome": "passed",
+        "seconds": 2.9,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_turn_publication.py::test_unconfigured_publication_never_dispatches_or_accepts_input",
+        "outcome": "passed",
+        "seconds": 0.092,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_turn_publication.py::test_actual_worker_correlation_and_trace_survive_canonical_delivery",
+        "outcome": "passed",
+        "seconds": 0.786,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save[worker]",
+        "outcome": "passed",
+        "seconds": 2.953,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save[inprocess]",
+        "outcome": "passed",
+        "seconds": 0.934,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-volume_loss]",
+        "outcome": "passed",
+        "seconds": 1.676,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-corrupt]",
+        "outcome": "passed",
+        "seconds": 1.648,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-incompatible]",
+        "outcome": "passed",
+        "seconds": 1.901,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-restart]",
+        "outcome": "passed",
+        "seconds": 2.1,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-volume_loss]",
+        "outcome": "passed",
+        "seconds": 1.812,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-corrupt]",
+        "outcome": "passed",
+        "seconds": 1.586,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-incompatible]",
+        "outcome": "passed",
+        "seconds": 2.242,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-restart]",
+        "outcome": "passed",
+        "seconds": 2.237,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-volume_loss]",
+        "outcome": "passed",
+        "seconds": 1.637,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-corrupt]",
+        "outcome": "passed",
+        "seconds": 1.844,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-incompatible]",
+        "outcome": "passed",
+        "seconds": 1.501,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-restart]",
+        "outcome": "passed",
+        "seconds": 1.671,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct]",
+        "outcome": "passed",
+        "seconds": 2.577,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct_delayed_handle]",
+        "outcome": "passed",
+        "seconds": 7.396,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli]",
+        "outcome": "passed",
+        "seconds": 2.341,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli_concurrent]",
+        "outcome": "passed",
+        "seconds": 2.642,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_sigterm_before_handle_return_waits_for_exact_created_child",
+        "outcome": "passed",
+        "seconds": 0.532,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_fails]",
+        "outcome": "passed",
+        "seconds": 10.381,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_times_out]",
+        "outcome": "passed",
+        "seconds": 31.706,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+        "outcome": "passed",
+        "seconds": 0.012,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[False]",
+        "outcome": "passed",
+        "seconds": 0.05,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[True]",
+        "outcome": "passed",
+        "seconds": 0.056,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_transitive_registration_keeps_sibling_roots_short_and_removes_every_owner",
+        "outcome": "passed",
+        "seconds": 0.003,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_changed_registered_root_identity_retains_both_owners",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_changed_command_birth_never_signals_a_group",
+        "outcome": "passed",
+        "seconds": 0.195,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_missing_wrapper_command_record_cannot_verify_an_empty_root",
+        "outcome": "passed",
+        "seconds": 0.017,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_null_cases_returns_invalid_dataset_without_allocation",
+        "outcome": "passed",
+        "seconds": 0.253,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_fixture_zero_request_budget_refuses_service_allocation",
+        "outcome": "passed",
+        "seconds": 0.207,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_fixture_requires_explicit_publication_network_opt_in_before_allocation",
+        "outcome": "passed",
+        "seconds": 0.25,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_fixture_expired_deadline_records_a_stop_before_native_allocation",
+        "outcome": "passed",
+        "seconds": 0.256,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_case_identifier_cannot_escape_its_run_directory",
+        "outcome": "passed",
+        "seconds": 0.2,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credentials[fixture]",
+        "outcome": "passed",
+        "seconds": 8.018,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credentials[pilot]",
+        "outcome": "passed",
+        "seconds": 8.518,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_plan_keeps_250_original_inputs_and_allocates_separate_case_owners",
+        "outcome": "passed",
+        "seconds": 0.267,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_skipping_preflight_cannot_start_unmetered_live_worker_calls",
+        "outcome": "passed",
+        "seconds": 0.504,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_outer_cleanup.py::test_default_outer_kill_boundary_reconciles_detached_postmasters[False-frozen_case]",
+        "outcome": "passed",
+        "seconds": 9.388,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_outer_cleanup.py::test_default_outer_kill_boundary_reconciles_detached_postmasters[False-profiler_closer]",
+        "outcome": "passed",
+        "seconds": 18.889,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_outer_cleanup.py::test_default_outer_kill_boundary_reconciles_detached_postmasters[True-frozen_case]",
+        "outcome": "passed",
+        "seconds": 8.579,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_outer_cleanup.py::test_default_outer_kill_boundary_reconciles_detached_postmasters[True-profiler_closer]",
+        "outcome": "passed",
+        "seconds": 16.458,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_outer_cleanup.py::test_long_tmpdir_keeps_owned_native_socket_paths_short",
+        "outcome": "passed",
+        "seconds": 4.557,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_isolated_check_runner.py::test_completed_child_keeps_its_receipt_when_later_git_would_abort",
+        "outcome": "passed",
+        "seconds": 0.219,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_isolated_check_runner.py::test_unavailable_identity_prevents_the_check_and_records_the_blocker",
+        "outcome": "passed",
+        "seconds": 0.115,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_isolated_check_runner.py::test_timed_out_child_is_stopped_and_receipted_as_a_timeout",
+        "outcome": "passed",
+        "seconds": 0.517,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_isolated_check_runner.py::test_offline_child_cannot_inherit_provider_or_database_credentials",
+        "outcome": "passed",
+        "seconds": 0.174,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+        "outcome": "failed",
+        "seconds": 6.77,
+        "summary": "AssertionError: Owned descendant survived after its parent exited\nassert 798950 is None",
+        "trace": "tests/test_isolated_check_runner.py:106: in test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits\n    assert descendant_group is None, 'Owned descendant survived after its parent exited'\nE   AssertionError: Owned descendant survived after its parent exited\nE   assert 798950 is None"
+      },
+      {
+        "nodeid": "tests/test_isolated_check_runner.py::test_supervisor_sigterm_stops_the_child_and_finalizes_termination_receipt",
+        "outcome": "passed",
+        "seconds": 0.217,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[False]",
+        "outcome": "passed",
+        "seconds": 0.191,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[True]",
+        "outcome": "passed",
+        "seconds": 0.266,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_portability.py::test_darwin_compatible_inspection_stops_the_exact_live_owned_session",
+        "outcome": "passed",
+        "seconds": 0.288,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_portability.py::test_member_exiting_before_session_lookup_is_reaped_without_signalling",
+        "outcome": "passed",
+        "seconds": 0.481,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[different_session]",
+        "outcome": "passed",
+        "seconds": 0.211,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[permission_denied]",
+        "outcome": "passed",
+        "seconds": 0.166,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[none]",
+        "outcome": "passed",
+        "seconds": 0.618,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[different_session]",
+        "outcome": "passed",
+        "seconds": 0.561,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[permission_denied]",
+        "outcome": "passed",
+        "seconds": 0.673,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_process_snapshot.py::test_repeated_snapshot_member_disappearance_is_bounded_and_retains_identity",
+        "outcome": "passed",
+        "seconds": 0.003,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[zombie]",
+        "outcome": "passed",
+        "seconds": 1.907,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[reaped]",
+        "outcome": "passed",
+        "seconds": 1.815,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[command_mismatch]",
+        "outcome": "passed",
+        "seconds": 1.667,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[birth_mismatch]",
+        "outcome": "passed",
+        "seconds": 1.842,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[live_command_unavailable]",
+        "outcome": "passed",
+        "seconds": 1.722,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_progressive_rework_proposal_overlap.py::test_rework_does_not_revisit_a_completed_proposal_on_another_section",
+        "outcome": "failed",
+        "seconds": 4.39,
+        "summary": "AssertionError: A completely processed proposed root must not be recomposed for unrelated editorial work\nassert False",
+        "trace": "tests/test_progressive_rework_proposal_overlap.py:48: in test_rework_does_not_revisit_a_completed_proposal_on_another_section\n    assert after['complete'], 'A completely processed proposed root must not be recomposed for unrelated editorial work'\nE   AssertionError: A completely processed proposed root must not be recomposed for unrelated editorial work\nE   assert False"
+      }
+    ],
+    "module_counts": {
+      "tests/test_agent_commit_postgres.py": {
+        "passed": 8
+      },
+      "tests/test_controlled_five_case_lifecycle.py": {
+        "passed": 6
+      },
+      "tests/test_controlled_native_state.py": {
+        "passed": 1
+      },
+      "tests/test_canonical_controlled_profile.py": {
+        "passed": 3
+      },
+      "tests/test_memoir_five_case_evaluator.py": {
+        "passed": 14
+      },
+      "tests/test_canonical_turn_publication.py": {
+        "passed": 3
+      },
+      "tests/test_lifetime_actual_engines.py": {
+        "passed": 14
+      },
+      "tests/test_controlled_supervisor_lifecycle.py": {
+        "passed": 7
+      },
+      "tests/test_controlled_lifecycle.py": {
+        "passed": 7
+      },
+      "tests/test_canonical_evaluation_cli.py": {
+        "passed": 9
+      },
+      "tests/test_controlled_outer_cleanup.py": {
+        "passed": 5
+      },
+      "tests/test_isolated_check_runner.py": {
+        "passed": 5,
+        "failed": 1
+      },
+      "tests/test_controlled_process_portability.py": {
+        "passed": 6
+      },
+      "tests/test_controlled_process_snapshot.py": {
+        "passed": 4
+      },
+      "tests/test_controlled_emergency_cleanup.py": {
+        "passed": 5
+      },
+      "tests/test_progressive_rework_proposal_overlap.py": {
+        "failed": 1
+      }
+    },
+    "wall_seconds": 269.1
+  },
+  "snapshot_red": {
+    "parent_source": "ae174f15ede789a7605316f3dd70f812779138aa",
+    "outcomes": {
+      "counts": {
+        "failed": 4
+      },
+      "seconds": 1.82,
+      "cases": [
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[none]",
+          "outcome": "failed",
+          "seconds": 0.582,
+          "summary": "AssertionError: Snapshot race left the newly forked owned descendant running\nassert ('S' == 'absent'\n  \n  - absent\n  + S or False)\n +  where False = <built-in method startswith of str object at 0x1557bc0>('Z')\n +    where <built-in method startswith of str object at 0x1557bc0> = 'S'.startswith",
+          "trace": "tests/test_controlled_process_snapshot.py:89: in test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant\n    assert state == 'absent' or state.startswith('Z'), 'Snapshot race left the newly forked owned descendant running'\nE   AssertionError: Snapshot race left the newly forked owned descendant running\nE   assert ('S' == 'absent'\nE     \nE     - absent\nE     + S or False)\nE    +  where False = <built-in method startswith of str object at 0x1557bc0>('Z')\nE    +    where <built-in method startswith of str object at 0x1557bc0> = 'S'.startswith"
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[different_session]",
+          "outcome": "failed",
+          "seconds": 0.539,
+          "summary": "AssertionError: assert False\n +  where False = isinstance(None, <class 'RuntimeError'>)",
+          "trace": "tests/test_controlled_process_snapshot.py:94: in test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant\n    assert isinstance(error,PermissionError if fault=='permission_denied' else RuntimeError)\nE   AssertionError: assert False\nE    +  where False = isinstance(None, <class 'RuntimeError'>)"
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[permission_denied]",
+          "outcome": "failed",
+          "seconds": 0.557,
+          "summary": "AssertionError: assert False\n +  where False = isinstance(None, <class 'PermissionError'>)",
+          "trace": "tests/test_controlled_process_snapshot.py:94: in test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant\n    assert isinstance(error,PermissionError if fault=='permission_denied' else RuntimeError)\nE   AssertionError: assert False\nE    +  where False = isinstance(None, <class 'PermissionError'>)"
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_repeated_snapshot_member_disappearance_is_bounded_and_retains_identity",
+          "outcome": "failed",
+          "seconds": 0.002,
+          "summary": "Failed: DID NOT RAISE RuntimeError",
+          "trace": "tests/test_controlled_process_snapshot.py:138: in test_repeated_snapshot_member_disappearance_is_bounded_and_retains_identity\n    with pytest.raises(RuntimeError,match='snapshot.*retained'):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   Failed: DID NOT RAISE RuntimeError"
+        }
+      ]
+    },
+    "observations": [
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-103/test_fork_after_snapshot_and_r0",
+        "observation": {
+          "fault": "none",
+          "leader": {
+            "group_id": 784041,
+            "leader_started": "Thu Oct 15 18:53:16 2026"
+          },
+          "leader_reaped": true,
+          "descendant": {
+            "pid": 784044,
+            "group": 784041,
+            "session": 784041,
+            "started": "Thu Oct 15 18:53:16 2026"
+          },
+          "lookup_pids": [
+            784041
+          ],
+          "signals": [],
+          "reconciliation": {
+            "result": {
+              "verified": true,
+              "root_removed": true,
+              "postmasters_stopped": [],
+              "registered_roots": [
+                {
+                  "root": "/tmp/pytest-of-agent/pytest-103/test_fork_after_snapshot_and_r0/owned-root",
+                  "device": 33,
+                  "inode": 5529267
+                }
+              ],
+              "command_groups_stopped": []
+            }
+          },
+          "root_exists": false,
+          "descendant_state": "S",
+          "descendant_running": true
+        },
+        "teardown": {
+          "descendant": {
+            "pid": 784044,
+            "group": 784041,
+            "session": 784041,
+            "started": "Thu Oct 15 18:53:16 2026"
+          },
+          "signal_sent": true,
+          "before_state": "S",
+          "after_state": "Z",
+          "verified_not_running": true
+        }
+      },
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-103/test_fork_after_snapshot_and_r1",
+        "observation": {
+          "fault": "different_session",
+          "leader": {
+            "group_id": 784050,
+            "leader_started": "Thu Oct 15 18:53:16 2026"
+          },
+          "leader_reaped": true,
+          "descendant": {
+            "pid": 784053,
+            "group": 784050,
+            "session": 784050,
+            "started": "Thu Oct 15 18:53:16 2026"
+          },
+          "lookup_pids": [
+            784050
+          ],
+          "signals": [],
+          "reconciliation": {
+            "result": {
+              "verified": true,
+              "root_removed": true,
+              "postmasters_stopped": [],
+              "registered_roots": [
+                {
+                  "root": "/tmp/pytest-of-agent/pytest-103/test_fork_after_snapshot_and_r1/owned-root",
+                  "device": 33,
+                  "inode": 5529278
+                }
+              ],
+              "command_groups_stopped": []
+            }
+          },
+          "root_exists": false,
+          "descendant_state": "S",
+          "descendant_running": true
+        },
+        "teardown": {
+          "descendant": {
+            "pid": 784053,
+            "group": 784050,
+            "session": 784050,
+            "started": "Thu Oct 15 18:53:16 2026"
+          },
+          "signal_sent": true,
+          "before_state": "S",
+          "after_state": "Z",
+          "verified_not_running": true
+        }
+      },
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-103/test_fork_after_snapshot_and_r2",
+        "observation": {
+          "fault": "permission_denied",
+          "leader": {
+            "group_id": 784059,
+            "leader_started": "Thu Oct 15 18:53:17 2026"
+          },
+          "leader_reaped": true,
+          "descendant": {
+            "pid": 784062,
+            "group": 784059,
+            "session": 784059,
+            "started": "Thu Oct 15 18:53:17 2026"
+          },
+          "lookup_pids": [
+            784059
+          ],
+          "signals": [],
+          "reconciliation": {
+            "result": {
+              "verified": true,
+              "root_removed": true,
+              "postmasters_stopped": [],
+              "registered_roots": [
+                {
+                  "root": "/tmp/pytest-of-agent/pytest-103/test_fork_after_snapshot_and_r2/owned-root",
+                  "device": 33,
+                  "inode": 5529289
+                }
+              ],
+              "command_groups_stopped": []
+            }
+          },
+          "root_exists": false,
+          "descendant_state": "S",
+          "descendant_running": true
+        },
+        "teardown": {
+          "descendant": {
+            "pid": 784062,
+            "group": 784059,
+            "session": 784059,
+            "started": "Thu Oct 15 18:53:17 2026"
+          },
+          "signal_sent": true,
+          "before_state": "S",
+          "after_state": "Z",
+          "verified_not_running": true
+        }
+      }
+    ],
+    "root_cause": "All captured PIDs can disappear after forking new same-group/session descendants. Skipping every ProcessLookupError returned an empty group, removed metadata and falsely verified while the descendant remained live."
+  },
+  "snapshot_repair": "Re-enumerate whenever a captured live PID disappears during session inspection. Bounded unstable snapshots retain metadata and raise. Early leader-birth refusal prevents inspecting a known mismatched group; existing pre-signal birth/session equality remains. No fallback signals an unverified group.",
+  "creator_red": {
+    "helper_source": "ae174f15ede789a7605316f3dd70f812779138aa:tests/test_controlled_supervisor_lifecycle.py::emergency_cleanup",
+    "outcomes": {
+      "counts": {
+        "failed": 3,
+        "passed": 2
+      },
+      "seconds": 11.689,
+      "cases": [
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[zombie]",
+          "outcome": "failed",
+          "seconds": 2.365,
+          "summary": "AssertionError: assert b'scripts.controlled_five_case' in [b'']",
+          "trace": "tests/test_controlled_emergency_cleanup.py:70: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    if error is not None:raise error\n                         ^^^^^^^^^^^\ntests/test_controlled_emergency_cleanup.py:60: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    emergency_cleanup([supplied],real,os.getpid(),held_child=True)\ntests/test_controlled_supervisor_lifecycle.py:79: in emergency_cleanup\n    assert b'scripts.controlled_five_case' in command\nE   AssertionError: assert b'scripts.controlled_five_case' in [b'']"
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[reaped]",
+          "outcome": "failed",
+          "seconds": 2.274,
+          "summary": "FileNotFoundError: [Errno 2] No such file or directory: '/proc/784451/cmdline'",
+          "trace": "tests/test_controlled_emergency_cleanup.py:70: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    if error is not None:raise error\n                         ^^^^^^^^^^^\ntests/test_controlled_emergency_cleanup.py:60: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    emergency_cleanup([supplied],real,os.getpid(),held_child=True)\ntests/test_controlled_supervisor_lifecycle.py:78: in emergency_cleanup\n    command = Path(f\"/proc/{item['owner']}/cmdline\").read_bytes().split(b'\\0')\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\ntests/test_controlled_emergency_cleanup.py:41: in inspect\n    return read_bytes(path)\n           ^^^^^^^^^^^^^^^^\n/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py:1019: in read_bytes\n    with self.open(mode='rb') as f:\n         ^^^^^^^^^^^^^^^^^^^^\n/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py:1013: in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   FileNotFoundError: [Errno 2] No such file or directory: '/proc/784451/cmdline'"
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[command_mismatch]",
+          "outcome": "passed",
+          "seconds": 2.785,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[birth_mismatch]",
+          "outcome": "failed",
+          "seconds": 2.383,
+          "summary": "AssertionError: assert False\n +  where False = isinstance(None, <class 'AssertionError'>)",
+          "trace": "tests/test_controlled_emergency_cleanup.py:76: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    assert isinstance(error,FileNotFoundError if fault=='live_command_unavailable' else AssertionError)\nE   AssertionError: assert False\nE    +  where False = isinstance(None, <class 'AssertionError'>)"
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[live_command_unavailable]",
+          "outcome": "passed",
+          "seconds": 1.607,
+          "summary": ""
+        }
+      ]
+    },
+    "observations": [
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-107/test_creator_exit_during_comma0",
+        "observation": {
+          "fault": "zombie",
+          "allocation": {
+            "data": "/tmp/memoir-case-7fn6wj7b/memoir-lease-pg-a97nk_v0/data",
+            "pid": 784443,
+            "started": "2951059",
+            "owner": 784425,
+            "owner_started": "2950846",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-7fn6wj7b",
+              "device": 33,
+              "inode": 5529901
+            }
+          },
+          "inspection_triggered": true,
+          "cleanup_outcome": "AssertionError",
+          "stop_attempts": [],
+          "creator_identity": [
+            "Z",
+            "2950846"
+          ],
+          "postmaster_running": true,
+          "data_exists": true,
+          "root_exists": true
+        },
+        "teardown": {
+          "creator_pid": 784425,
+          "postmaster": 784443,
+          "stop_returncode": 0,
+          "postmaster_not_running": true,
+          "creator_reaped": true,
+          "root_removed": true
+        }
+      },
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-107/test_creator_exit_during_comma1",
+        "observation": {
+          "fault": "reaped",
+          "allocation": {
+            "data": "/tmp/memoir-case-qbag0w29/memoir-lease-pg-2ov0733r/data",
+            "pid": 784469,
+            "started": "2951290",
+            "owner": 784451,
+            "owner_started": "2951086",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-qbag0w29",
+              "device": 33,
+              "inode": 5530921
+            }
+          },
+          "inspection_triggered": true,
+          "cleanup_outcome": "FileNotFoundError",
+          "stop_attempts": [],
+          "creator_identity": null,
+          "postmaster_running": true,
+          "data_exists": true,
+          "root_exists": true
+        },
+        "teardown": {
+          "creator_pid": 784451,
+          "postmaster": 784469,
+          "stop_returncode": 0,
+          "postmaster_not_running": true,
+          "creator_reaped": true,
+          "root_removed": true
+        }
+      },
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-107/test_creator_exit_during_comma2",
+        "observation": {
+          "fault": "command_mismatch",
+          "allocation": {
+            "data": "/tmp/memoir-case-f9iux00k/memoir-lease-pg-1v11xsih/data",
+            "pid": 784495,
+            "started": "2951579",
+            "owner": 784477,
+            "owner_started": "2951324",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-f9iux00k",
+              "device": 33,
+              "inode": 5531941
+            }
+          },
+          "inspection_triggered": true,
+          "cleanup_outcome": "AssertionError",
+          "stop_attempts": [],
+          "creator_identity": [
+            "T",
+            "2951324"
+          ],
+          "postmaster_running": true,
+          "data_exists": true,
+          "root_exists": true
+        },
+        "teardown": {
+          "creator_pid": 784477,
+          "postmaster": 784495,
+          "stop_returncode": 0,
+          "postmaster_not_running": true,
+          "creator_reaped": true,
+          "root_removed": true
+        }
+      },
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-107/test_creator_exit_during_comma3",
+        "observation": {
+          "fault": "birth_mismatch",
+          "allocation": {
+            "data": "/tmp/memoir-case-2jgzo3ut/memoir-lease-pg-98i8tnmo/data",
+            "pid": 784521,
+            "started": "2951814",
+            "owner": 784503,
+            "owner_started": "2951603",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-2jgzo3ut",
+              "device": 33,
+              "inode": 5532961
+            }
+          },
+          "inspection_triggered": false,
+          "cleanup_outcome": "returned",
+          "stop_attempts": [
+            [
+              "/workspace/.tools/postgresql/usr/lib/postgresql/17/bin/pg_ctl",
+              "-D",
+              "/tmp/memoir-case-2jgzo3ut/memoir-lease-pg-98i8tnmo/data",
+              "-m",
+              "immediate",
+              "-w",
+              "stop"
+            ]
+          ],
+          "creator_identity": [
+            "T",
+            "2951603"
+          ],
+          "postmaster_running": false,
+          "data_exists": false,
+          "root_exists": false
+        },
+        "teardown": {
+          "creator_pid": 784503,
+          "postmaster": 784521,
+          "stop_returncode": null,
+          "postmaster_not_running": true,
+          "creator_reaped": true,
+          "root_removed": true
+        }
+      },
+      {
+        "case_directory": "/tmp/pytest-of-agent/pytest-107/test_creator_exit_during_comma4",
+        "observation": {
+          "fault": "live_command_unavailable",
+          "allocation": {
+            "data": "/tmp/memoir-case-ot78c9p3/memoir-lease-pg-fn7orhri/data",
+            "pid": 784547,
+            "started": "2951982",
+            "owner": 784529,
+            "owner_started": "2951844",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-ot78c9p3",
+              "device": 33,
+              "inode": 5533981
+            }
+          },
+          "inspection_triggered": true,
+          "cleanup_outcome": "FileNotFoundError",
+          "stop_attempts": [],
+          "creator_identity": [
+            "T",
+            "2951844"
+          ],
+          "postmaster_running": true,
+          "data_exists": true,
+          "root_exists": true
+        },
+        "teardown": {
+          "creator_pid": 784529,
+          "postmaster": 784547,
+          "stop_returncode": 0,
+          "postmaster_not_running": true,
+          "creator_reaped": true,
+          "root_removed": true
+        }
+      }
+    ],
+    "root_cause": "Real controlled-case creator exits between running check and cmdline read. Zombie empty command or reaped missing proc aborts old emergency teardown before a database stop. A recorded-birth mismatch was silently skipped by the old running predicate."
+  },
+  "creator_repair": "Check exact birth/state both before and after command inspection, including missing proc. Verified gone/zombie creators permit independent verified database stop. Live unavailable command, changed birth or changed command still raise and retain allocations. Same helper protects postmaster inspection.",
+  "intermediate_attempts": {
+    "initial_snapshot_fix": {
+      "counts": {
+        "passed": 16,
+        "failed": 1
+      },
+      "seconds": 5.489,
+      "cases": [
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[none]",
+          "outcome": "passed",
+          "seconds": 0.734,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[different_session]",
+          "outcome": "passed",
+          "seconds": 0.638,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[permission_denied]",
+          "outcome": "passed",
+          "seconds": 0.61,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_repeated_snapshot_member_disappearance_is_bounded_and_retains_identity",
+          "outcome": "passed",
+          "seconds": 0.002,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[False]",
+          "outcome": "passed",
+          "seconds": 0.225,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[True]",
+          "outcome": "passed",
+          "seconds": 0.236,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_darwin_compatible_inspection_stops_the_exact_live_owned_session",
+          "outcome": "passed",
+          "seconds": 0.273,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_member_exiting_before_session_lookup_is_reaped_without_signalling",
+          "outcome": "passed",
+          "seconds": 0.194,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[different_session]",
+          "outcome": "passed",
+          "seconds": 0.114,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[permission_denied]",
+          "outcome": "passed",
+          "seconds": 0.129,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+          "outcome": "passed",
+          "seconds": 0.012,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[False]",
+          "outcome": "passed",
+          "seconds": 0.039,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[True]",
+          "outcome": "passed",
+          "seconds": 0.038,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_transitive_registration_keeps_sibling_roots_short_and_removes_every_owner",
+          "outcome": "passed",
+          "seconds": 0.003,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_changed_registered_root_identity_retains_both_owners",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_changed_command_birth_never_signals_a_group",
+          "outcome": "failed",
+          "seconds": 2.029,
+          "summary": "AssertionError: Regex pattern did not match.\n  Expected regex: 'command identity unverified'\n  Actual message: 'Controlled command snapshot unstable; retained /tmp/pytest-of-agent/pytest-104/test_changed_command_birth_nev0'",
+          "trace": "tests/test_controlled_lifecycle.py:113: in test_changed_command_birth_never_signals_a_group\n    with pytest.raises(RuntimeError, match='command identity unverified'):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   AssertionError: Regex pattern did not match.\nE     Expected regex: 'command identity unverified'\nE     Actual message: 'Controlled command snapshot unstable; retained /tmp/pytest-of-agent/pytest-104/test_changed_command_birth_nev0'"
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_missing_wrapper_command_record_cannot_verify_an_empty_root",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        }
+      ]
+    },
+    "initial_snapshot_fix_note": "Sixteen passes/one birth-refusal message failure before adding early leader-birth validation; not a remaining failure at final source.",
+    "snapshot_guard_green": {
+      "counts": {
+        "passed": 17
+      },
+      "seconds": 3.467,
+      "cases": [
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[none]",
+          "outcome": "passed",
+          "seconds": 0.618,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[different_session]",
+          "outcome": "passed",
+          "seconds": 0.549,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[permission_denied]",
+          "outcome": "passed",
+          "seconds": 0.566,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_repeated_snapshot_member_disappearance_is_bounded_and_retains_identity",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[False]",
+          "outcome": "passed",
+          "seconds": 0.203,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[True]",
+          "outcome": "passed",
+          "seconds": 0.271,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_darwin_compatible_inspection_stops_the_exact_live_owned_session",
+          "outcome": "passed",
+          "seconds": 0.318,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_member_exiting_before_session_lookup_is_reaped_without_signalling",
+          "outcome": "passed",
+          "seconds": 0.277,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[different_session]",
+          "outcome": "passed",
+          "seconds": 0.191,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[permission_denied]",
+          "outcome": "passed",
+          "seconds": 0.177,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+          "outcome": "passed",
+          "seconds": 0.012,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[False]",
+          "outcome": "passed",
+          "seconds": 0.042,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[True]",
+          "outcome": "passed",
+          "seconds": 0.039,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_transitive_registration_keeps_sibling_roots_short_and_removes_every_owner",
+          "outcome": "passed",
+          "seconds": 0.002,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_changed_registered_root_identity_retains_both_owners",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_changed_command_birth_never_signals_a_group",
+          "outcome": "passed",
+          "seconds": 0.034,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_missing_wrapper_command_record_cannot_verify_an_empty_root",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        }
+      ]
+    },
+    "blocked_creator_probe": {
+      "classification": "Invalid harness probe: stdin remained open so json.load could not start the creator. Probe was interrupted and its raw outcomes retained. Corrected EOF before valid red reproduction; not used as product-defect evidence.",
+      "cases": [
+        {
+          "attributes": {
+            "classname": "tests.test_controlled_emergency_cleanup",
+            "name": "test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[zombie]",
+            "time": "30.013"
+          },
+          "problems": [
+            {
+              "kind": "failure",
+              "message": "assert 29446.292135056 < 29446.286875204\n +  where 29446.292135056 = <built-in function monotonic>()\n +    where <built-in function monotonic> = time.monotonic",
+              "text": "tests/test_controlled_emergency_cleanup.py:52: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    assert time.monotonic()<deadline;time.sleep(.01)\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   assert 29446.292135056 < 29446.286875204\nE    +  where 29446.292135056 = <built-in function monotonic>()\nE    +    where <built-in function monotonic> = time.monotonic"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "classname": "tests.test_controlled_emergency_cleanup",
+            "name": "test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[reaped]",
+            "time": "30.017"
+          },
+          "problems": [
+            {
+              "kind": "failure",
+              "message": "assert 29476.335312048 < 29476.326211294\n +  where 29476.335312048 = <built-in function monotonic>()\n +    where <built-in function monotonic> = time.monotonic",
+              "text": "tests/test_controlled_emergency_cleanup.py:52: in test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe\n    assert time.monotonic()<deadline;time.sleep(.01)\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   assert 29476.335312048 < 29476.326211294\nE    +  where 29476.335312048 = <built-in function monotonic>()\nE    +    where <built-in function monotonic> = time.monotonic"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "time": "0.001"
+          },
+          "problems": []
+        }
+      ]
+    },
+    "combined_green": {
+      "counts": {
+        "passed": 22
+      },
+      "seconds": 14.426,
+      "cases": [
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[zombie]",
+          "outcome": "passed",
+          "seconds": 2.448,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[reaped]",
+          "outcome": "passed",
+          "seconds": 2.47,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[command_mismatch]",
+          "outcome": "passed",
+          "seconds": 1.961,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[birth_mismatch]",
+          "outcome": "passed",
+          "seconds": 1.944,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_emergency_cleanup.py::test_creator_exit_during_command_inspection_keeps_database_cleanup_identity_safe[live_command_unavailable]",
+          "outcome": "passed",
+          "seconds": 1.722,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[none]",
+          "outcome": "passed",
+          "seconds": 0.625,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[different_session]",
+          "outcome": "passed",
+          "seconds": 0.774,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_fork_after_snapshot_and_reap_before_lookup_does_not_hide_descendant[permission_denied]",
+          "outcome": "passed",
+          "seconds": 0.573,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_snapshot.py::test_repeated_snapshot_member_disappearance_is_bounded_and_retains_identity",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[False]",
+          "outcome": "passed",
+          "seconds": 0.177,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_generic_success_keeps_zero_exit_and_verified_cleanup[True]",
+          "outcome": "passed",
+          "seconds": 0.265,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_darwin_compatible_inspection_stops_the_exact_live_owned_session",
+          "outcome": "passed",
+          "seconds": 0.309,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_member_exiting_before_session_lookup_is_reaped_without_signalling",
+          "outcome": "passed",
+          "seconds": 0.382,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[different_session]",
+          "outcome": "passed",
+          "seconds": 0.176,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_process_portability.py::test_portable_session_identity_failure_retains_metadata_and_never_signals[permission_denied]",
+          "outcome": "passed",
+          "seconds": 0.18,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+          "outcome": "passed",
+          "seconds": 0.014,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[False]",
+          "outcome": "passed",
+          "seconds": 0.044,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity[True]",
+          "outcome": "passed",
+          "seconds": 0.04,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_transitive_registration_keeps_sibling_roots_short_and_removes_every_owner",
+          "outcome": "passed",
+          "seconds": 0.003,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_changed_registered_root_identity_retains_both_owners",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_changed_command_birth_never_signals_a_group",
+          "outcome": "passed",
+          "seconds": 0.03,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_controlled_lifecycle.py::test_missing_wrapper_command_record_cannot_verify_an_empty_root",
+          "outcome": "passed",
+          "seconds": 0.001,
+          "summary": ""
+        }
+      ]
+    }
+  },
+  "current_snapshot_observations": [
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r0",
+      "observation": {
+        "fault": "none",
+        "leader": {
+          "group_id": 799003,
+          "leader_started": "Thu Oct 15 19:04:06 2026"
+        },
+        "leader_reaped": true,
+        "descendant": {
+          "pid": 799007,
+          "group": 799003,
+          "session": 799003,
+          "started": "Thu Oct 15 19:04:06 2026"
+        },
+        "lookup_pids": [
+          799003,
+          799007
+        ],
+        "signals": [
+          {
+            "group": 799003,
+            "signal": 9
+          }
+        ],
+        "reconciliation": {
+          "result": {
+            "verified": true,
+            "root_removed": true,
+            "postmasters_stopped": [],
+            "registered_roots": [
+              {
+                "root": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r0/owned-root",
+                "device": 33,
+                "inode": 5600621
+              }
+            ],
+            "command_groups_stopped": [
+              {
+                "group_id": 799003,
+                "leader_started": "Thu Oct 15 19:04:06 2026"
+              }
+            ]
+          }
+        },
+        "root_exists": false,
+        "descendant_state": "Z",
+        "descendant_running": false
+      },
+      "separate_teardown": {
+        "descendant": {
+          "pid": 799007,
+          "group": 799003,
+          "session": 799003,
+          "started": "Thu Oct 15 19:04:06 2026"
+        },
+        "signal_sent": false,
+        "before_state": "Z",
+        "after_state": "Z",
+        "verified_not_running": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r1",
+      "observation": {
+        "fault": "different_session",
+        "leader": {
+          "group_id": 799015,
+          "leader_started": "Thu Oct 15 19:04:07 2026"
+        },
+        "leader_reaped": true,
+        "descendant": {
+          "pid": 799019,
+          "group": 799015,
+          "session": 799015,
+          "started": "Thu Oct 15 19:04:07 2026"
+        },
+        "lookup_pids": [
+          799015,
+          799019
+        ],
+        "signals": [],
+        "reconciliation": {
+          "error": "RuntimeError",
+          "message": "Controlled command identity unverified; retained /tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r1/owned-root"
+        },
+        "root_exists": true,
+        "descendant_state": "S",
+        "descendant_running": true
+      },
+      "separate_teardown": {
+        "descendant": {
+          "pid": 799019,
+          "group": 799015,
+          "session": 799015,
+          "started": "Thu Oct 15 19:04:07 2026"
+        },
+        "signal_sent": true,
+        "before_state": "S",
+        "after_state": "Z",
+        "verified_not_running": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r2",
+      "observation": {
+        "fault": "permission_denied",
+        "leader": {
+          "group_id": 799026,
+          "leader_started": "Thu Oct 15 19:04:07 2026"
+        },
+        "leader_reaped": true,
+        "descendant": {
+          "pid": 799030,
+          "group": 799026,
+          "session": 799026,
+          "started": "Thu Oct 15 19:04:08 2026"
+        },
+        "lookup_pids": [
+          799026,
+          799030
+        ],
+        "signals": [],
+        "reconciliation": {
+          "error": "PermissionError",
+          "message": "Synthetic descendant session denial"
+        },
+        "root_exists": true,
+        "descendant_state": "S",
+        "descendant_running": true
+      },
+      "separate_teardown": {
+        "descendant": {
+          "pid": 799030,
+          "group": 799026,
+          "session": 799026,
+          "started": "Thu Oct 15 19:04:08 2026"
+        },
+        "signal_sent": true,
+        "before_state": "S",
+        "after_state": "Z",
+        "verified_not_running": true
+      }
+    }
+  ],
+  "current_creator_observations": [
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma0",
+      "observation": {
+        "fault": "zombie",
+        "allocation": {
+          "data": "/tmp/memoir-case-2ijal4e8/memoir-lease-pg-uws4ptb3/data",
+          "pid": 799055,
+          "started": "2987724",
+          "owner": 799037,
+          "owner_started": "2987562",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-2ijal4e8",
+            "device": 33,
+            "inode": 5600657
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "returned",
+        "stop_attempts": [
+          [
+            "/workspace/.tools/postgresql/usr/lib/postgresql/17/bin/pg_ctl",
+            "-D",
+            "/tmp/memoir-case-2ijal4e8/memoir-lease-pg-uws4ptb3/data",
+            "-m",
+            "immediate",
+            "-w",
+            "stop"
+          ]
+        ],
+        "creator_identity": [
+          "Z",
+          "2987562"
+        ],
+        "postmaster_running": false,
+        "data_exists": false,
+        "root_exists": false
+      },
+      "teardown": {
+        "creator_pid": 799037,
+        "postmaster": 799055,
+        "stop_returncode": null,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma1",
+      "observation": {
+        "fault": "reaped",
+        "allocation": {
+          "data": "/tmp/memoir-case-z3vuxj4j/memoir-lease-pg-7qsx0w5e/data",
+          "pid": 799081,
+          "started": "2987911",
+          "owner": 799063,
+          "owner_started": "2987754",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-z3vuxj4j",
+            "device": 33,
+            "inode": 5601677
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "returned",
+        "stop_attempts": [
+          [
+            "/workspace/.tools/postgresql/usr/lib/postgresql/17/bin/pg_ctl",
+            "-D",
+            "/tmp/memoir-case-z3vuxj4j/memoir-lease-pg-7qsx0w5e/data",
+            "-m",
+            "immediate",
+            "-w",
+            "stop"
+          ]
+        ],
+        "creator_identity": null,
+        "postmaster_running": false,
+        "data_exists": false,
+        "root_exists": false
+      },
+      "teardown": {
+        "creator_pid": 799063,
+        "postmaster": 799081,
+        "stop_returncode": null,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma2",
+      "observation": {
+        "fault": "command_mismatch",
+        "allocation": {
+          "data": "/tmp/memoir-case-urd85_cy/memoir-lease-pg-4vawyypm/data",
+          "pid": 799107,
+          "started": "2988079",
+          "owner": 799089,
+          "owner_started": "2987935",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-urd85_cy",
+            "device": 33,
+            "inode": 5602697
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "AssertionError",
+        "stop_attempts": [],
+        "creator_identity": [
+          "T",
+          "2987935"
+        ],
+        "postmaster_running": true,
+        "data_exists": true,
+        "root_exists": true
+      },
+      "teardown": {
+        "creator_pid": 799089,
+        "postmaster": 799107,
+        "stop_returncode": 0,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma3",
+      "observation": {
+        "fault": "birth_mismatch",
+        "allocation": {
+          "data": "/tmp/memoir-case-2i80q9qi/memoir-lease-pg-3x8ck_91/data",
+          "pid": 799133,
+          "started": "2988263",
+          "owner": 799115,
+          "owner_started": "2988102",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-2i80q9qi",
+            "device": 33,
+            "inode": 5603717
+          }
+        },
+        "inspection_triggered": false,
+        "cleanup_outcome": "AssertionError",
+        "stop_attempts": [],
+        "creator_identity": [
+          "T",
+          "2988102"
+        ],
+        "postmaster_running": true,
+        "data_exists": true,
+        "root_exists": true
+      },
+      "teardown": {
+        "creator_pid": 799115,
+        "postmaster": 799133,
+        "stop_returncode": 0,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma4",
+      "observation": {
+        "fault": "live_command_unavailable",
+        "allocation": {
+          "data": "/tmp/memoir-case-svjmpesy/memoir-lease-pg-l3aqfz34/data",
+          "pid": 799159,
+          "started": "2988435",
+          "owner": 799141,
+          "owner_started": "2988286",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-svjmpesy",
+            "device": 33,
+            "inode": 5604737
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "FileNotFoundError",
+        "stop_attempts": [],
+        "creator_identity": [
+          "T",
+          "2988286"
+        ],
+        "postmaster_running": true,
+        "data_exists": true,
+        "root_exists": true
+      },
+      "teardown": {
+        "creator_pid": 799141,
+        "postmaster": 799159,
+        "stop_returncode": 0,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    }
+  ],
+  "native_observations": [
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc0",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-1nreqna7/memoir-lease-pg-8qjjc27p/data",
+          "pid": 793358,
+          "started": "2973166",
+          "owner": 793340,
+          "owner_started": "2972995",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-1nreqna7",
+            "device": 33,
+            "inode": 5573939
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793358,
+            "started": "2973166",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 793358,
+          "data": "/tmp/memoir-case-1nreqna7/memoir-lease-pg-8qjjc27p/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc1",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-27q091mc/memoir-lease-pg-ur4sus2p/data",
+          "pid": 793389,
+          "started": "2973908",
+          "owner": 793371,
+          "owner_started": "2973256",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-27q091mc",
+            "device": 33,
+            "inode": 5574958
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793389,
+            "started": "2973908",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 793389,
+          "data": "/tmp/memoir-case-27q091mc/memoir-lease-pg-ur4sus2p/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc2",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-zb76hb85/memoir-lease-pg-a_50ozg6/data",
+          "pid": 793435,
+          "started": "2974124",
+          "owner": 793417,
+          "owner_started": "2973998",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-zb76hb85",
+            "device": 33,
+            "inode": 5575982
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793435,
+            "started": "2974124",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 793435,
+          "data": "/tmp/memoir-case-zb76hb85/memoir-lease-pg-a_50ozg6/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc3",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-zi_azkix/memoir-lease-pg-_8yta_36/data",
+          "pid": 793499,
+          "started": "2974405",
+          "owner": 793463,
+          "owner_started": "2974243",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-zi_azkix",
+            "device": 33,
+            "inode": 5577004
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793499,
+            "started": "2974405",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        },
+        {
+          "data": "/tmp/memoir-case-at5ieed1/memoir-lease-pg-feqajk1t/data",
+          "pid": 793500,
+          "started": "2974405",
+          "owner": 793464,
+          "owner_started": "2974243",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-at5ieed1",
+            "device": 33,
+            "inode": 5577005
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793500,
+            "started": "2974405",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 793499,
+          "data": "/tmp/memoir-case-zi_azkix/memoir-lease-pg-_8yta_36/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 793500,
+          "data": "/tmp/memoir-case-at5ieed1/memoir-lease-pg-feqajk1t/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_unsupervised_profiler_rec0",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-controlled-pg-a0puj7lx/memoir-lease-pg-69i1o1sq/data",
+          "pid": 793544,
+          "started": "2974671",
+          "owner": 793526,
+          "owner_started": "2974522",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-a0puj7lx",
+            "device": 33,
+            "inode": 5579048
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793544,
+            "started": "2974671",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-vok8q6oh/memoir-lease-pg-4v_fkqms/data",
+          "pid": 793886,
+          "started": "2974953",
+          "owner": 793526,
+          "owner_started": "2974522",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-vok8q6oh",
+            "device": 33,
+            "inode": 5580633
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 793886,
+            "started": "2974953",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 793886,
+          "data": "/tmp/memoir-controlled-pg-vok8q6oh/memoir-lease-pg-4v_fkqms/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 793886,
+          "data": "/tmp/memoir-controlled-pg-vok8q6oh/memoir-lease-pg-4v_fkqms/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 793544,
+          "data": "/tmp/memoir-controlled-pg-a0puj7lx/memoir-lease-pg-69i1o1sq/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 793544,
+          "data": "/tmp/memoir-controlled-pg-a0puj7lx/memoir-lease-pg-69i1o1sq/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_unsupervised_profiler_rec1",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-controlled-pg-lxhetdzd/memoir-lease-pg-whp6xuk7/data",
+          "pid": 794501,
+          "started": "2975725",
+          "owner": 794483,
+          "owner_started": "2975560",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-lxhetdzd",
+            "device": 33,
+            "inode": 5582358
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 794501,
+            "started": "2975725",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-kt02tsj_/memoir-lease-pg-ex1cg_ll/data",
+          "pid": 794843,
+          "started": "2976034",
+          "owner": 794483,
+          "owner_started": "2975560",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-kt02tsj_",
+            "device": 33,
+            "inode": 5583943
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 794843,
+            "started": "2976034",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 794843,
+          "data": "/tmp/memoir-controlled-pg-kt02tsj_/memoir-lease-pg-ex1cg_ll/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 794843,
+          "data": "/tmp/memoir-controlled-pg-kt02tsj_/memoir-lease-pg-ex1cg_ll/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 794501,
+          "data": "/tmp/memoir-controlled-pg-lxhetdzd/memoir-lease-pg-whp6xuk7/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 794501,
+          "data": "/tmp/memoir-controlled-pg-lxhetdzd/memoir-lease-pg-whp6xuk7/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-ns8hi691/memoir-lease-pg-xiaanj27/data",
+          "pid": 796712,
+          "started": "2980856",
+          "owner": 796694,
+          "owner_started": "2980694",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-ns8hi691",
+            "device": 33,
+            "inode": 5589186
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 796712,
+            "started": "2980856",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 796692,
+            "started": "2980694",
+            "original_identity_matches": true
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 796712,
+          "data": "/tmp/memoir-case-ns8hi691/memoir-lease-pg-xiaanj27/data"
+        }
+      ],
+      "observed_after_return": {
+        "receipt": {
+          "name": "default-boundary",
+          "command": [
+            "/workspace/copyme2.ai/.venv/bin/python",
+            "-c",
+            "import os,json\nfrom pathlib import Path\npid=os.getpid()\nPath('/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0/command-owner.json').write_text(json.dumps(dict(pid=pid,started=Path('/proc/'+str(pid)+'/stat').read_text().split()[21])))\nimport asyncio\nfrom scripts import controlled_five_case as driver\nfrom scripts.run_memoir_five_case_evaluation import make_arg_parser\nassert driver.CHILD_CLEANUP_SECONDS==20\nargs=make_arg_parser().parse_args(['--mode','pilot','--run-id','outer-defaults','--output-root','/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0'])\nasyncio.run(driver.run_isolated_case(dict(id='outer-defaults',project_id='outer-defaults',locale='en-AU',rounds=['Synthetic memory.']),{},{},args=args,run_dir=Path('/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0'),max_rounds=1))\n"
+          ],
+          "exit_code": 143,
+          "base_head": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+          "tree": "b3a64d936c88d6c7d4257809d4a4a7935fde6545",
+          "status": "terminated",
+          "native_allocation_root": "/tmp/memoir-check-pg-z0uipbbu",
+          "command_group": {
+            "group_id": 796692,
+            "leader_started": "Thu Oct 15 19:02:59 2026"
+          },
+          "termination_signal": 15,
+          "cleanup": {
+            "owned_group_id": 796692,
+            "group_gone": false
+          },
+          "native_allocation_cleanup": {
+            "verified": true,
+            "root_removed": true,
+            "postmasters_stopped": [
+              {
+                "pid": 796712,
+                "data": "/tmp/memoir-case-ns8hi691/memoir-lease-pg-xiaanj27/data"
+              }
+            ],
+            "registered_roots": [
+              {
+                "root": "/tmp/memoir-check-pg-z0uipbbu",
+                "device": 33,
+                "inode": 5589180
+              },
+              {
+                "root": "/tmp/memoir-case-ns8hi691",
+                "device": 33,
+                "inode": 5589186
+              }
+            ],
+            "command_groups_stopped": []
+          },
+          "child_returncode": -9,
+          "duration_seconds": 9.2
+        },
+        "command": {
+          "pid": 796692,
+          "started": "2980629"
+        },
+        "command_running": false,
+        "databases": [
+          {
+            "data": "/tmp/memoir-case-ns8hi691/memoir-lease-pg-xiaanj27/data",
+            "pid": 796712,
+            "started": "2980856",
+            "owner": 796694,
+            "owner_started": "2980694",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-ns8hi691",
+              "device": 33,
+              "inode": 5589186
+            },
+            "running": false,
+            "owner_running": false
+          }
+        ]
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-controlled-pg-m80kkj90/memoir-lease-pg-mm1p8grv/data",
+          "pid": 796745,
+          "started": "2981787",
+          "owner": 796726,
+          "owner_started": "2981573",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-m80kkj90",
+            "device": 33,
+            "inode": 5590221
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 796745,
+            "started": "2981787",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-7mu5z4y8/memoir-lease-pg-ctabuhau/data",
+          "pid": 797087,
+          "started": "2982208",
+          "owner": 796726,
+          "owner_started": "2981573",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-7mu5z4y8",
+            "device": 33,
+            "inode": 5591808
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 797087,
+            "started": "2982208",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 797087,
+          "data": "/tmp/memoir-controlled-pg-7mu5z4y8/memoir-lease-pg-ctabuhau/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 797087,
+          "data": "/tmp/memoir-controlled-pg-7mu5z4y8/memoir-lease-pg-ctabuhau/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 796745,
+          "data": "/tmp/memoir-controlled-pg-m80kkj90/memoir-lease-pg-mm1p8grv/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 796745,
+          "data": "/tmp/memoir-controlled-pg-m80kkj90/memoir-lease-pg-mm1p8grv/data"
+        }
+      ],
+      "observed_after_return": {
+        "receipt": {
+          "name": "default-boundary",
+          "command": [
+            "/workspace/copyme2.ai/.venv/bin/python",
+            "-c",
+            "import os,json\nfrom pathlib import Path\npid=os.getpid()\nPath('/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1/command-owner.json').write_text(json.dumps(dict(pid=pid,started=Path('/proc/'+str(pid)+'/stat').read_text().split()[21])))\nimport runpy,sys\nsys.argv=['profile','--inputs','/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1/inputs.json','--output','/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1/profile.json']\nrunpy.run_module('scripts.profile_canonical_controlled',run_name='__main__')\n"
+          ],
+          "exit_code": 143,
+          "base_head": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+          "tree": "b3a64d936c88d6c7d4257809d4a4a7935fde6545",
+          "status": "terminated",
+          "native_allocation_root": "/tmp/memoir-check-pg-rxf5tbnk",
+          "command_group": {
+            "group_id": 796726,
+            "leader_started": "Thu Oct 15 19:03:08 2026"
+          },
+          "termination_signal": 15,
+          "cleanup": {
+            "owned_group_id": 796726,
+            "group_gone": false
+          },
+          "native_allocation_cleanup": {
+            "verified": true,
+            "root_removed": true,
+            "postmasters_stopped": [
+              {
+                "pid": 796745,
+                "data": "/tmp/memoir-controlled-pg-m80kkj90/memoir-lease-pg-mm1p8grv/data"
+              }
+            ],
+            "registered_roots": [
+              {
+                "root": "/tmp/memoir-check-pg-rxf5tbnk",
+                "device": 33,
+                "inode": 5590213
+              },
+              {
+                "root": "/tmp/memoir-controlled-pg-7mu5z4y8",
+                "device": 33,
+                "inode": 5591808
+              },
+              {
+                "root": "/tmp/memoir-controlled-pg-m80kkj90",
+                "device": 33,
+                "inode": 5590221
+              }
+            ],
+            "command_groups_stopped": []
+          },
+          "child_returncode": -9,
+          "duration_seconds": 18.73
+        },
+        "command": {
+          "pid": 796726,
+          "started": "2981573"
+        },
+        "command_running": false,
+        "databases": [
+          {
+            "data": "/tmp/memoir-controlled-pg-m80kkj90/memoir-lease-pg-mm1p8grv/data",
+            "pid": 796745,
+            "started": "2981787",
+            "owner": 796726,
+            "owner_started": "2981573",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-controlled-pg-m80kkj90",
+              "device": 33,
+              "inode": 5590221
+            },
+            "running": false,
+            "owner_running": false
+          },
+          {
+            "data": "/tmp/memoir-controlled-pg-7mu5z4y8/memoir-lease-pg-ctabuhau/data",
+            "pid": 797087,
+            "started": "2982208",
+            "owner": 796726,
+            "owner_started": "2981573",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-controlled-pg-7mu5z4y8",
+              "device": 33,
+              "inode": 5591808
+            },
+            "running": false,
+            "owner_running": false
+          }
+        ]
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda2",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-0pizzd1k/memoir-lease-pg-zheg0587/data",
+          "pid": 797711,
+          "started": "2983647",
+          "owner": 797693,
+          "owner_started": "2983515",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-0pizzd1k",
+            "device": 33,
+            "inode": 5593558
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 797711,
+            "started": "2983647",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 797691,
+            "started": "2983515",
+            "original_identity_matches": true
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 797711,
+          "data": "/tmp/memoir-case-0pizzd1k/memoir-lease-pg-zheg0587/data"
+        }
+      ],
+      "observed_after_return": {
+        "receipt": {
+          "name": "default-boundary",
+          "command": [
+            "/workspace/copyme2.ai/.venv/bin/python",
+            "-m",
+            "pytest",
+            "-q",
+            "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda2/test_nested_helper.py",
+            "--basetemp",
+            "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda2/helper-pytest"
+          ],
+          "exit_code": 143,
+          "base_head": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+          "tree": "b3a64d936c88d6c7d4257809d4a4a7935fde6545",
+          "status": "terminated",
+          "native_allocation_root": "/tmp/memoir-check-pg-tzhk4ctm",
+          "command_group": {
+            "group_id": 797687,
+            "leader_started": "Thu Oct 15 19:03:27 2026"
+          },
+          "termination_signal": 15,
+          "cleanup": {
+            "owned_group_id": 797687,
+            "group_gone": false
+          },
+          "native_allocation_cleanup": {
+            "verified": true,
+            "root_removed": true,
+            "postmasters_stopped": [
+              {
+                "pid": 797711,
+                "data": "/tmp/memoir-case-0pizzd1k/memoir-lease-pg-zheg0587/data"
+              }
+            ],
+            "registered_roots": [
+              {
+                "root": "/tmp/memoir-check-pg-tzhk4ctm",
+                "device": 33,
+                "inode": 5593537
+              },
+              {
+                "root": "/tmp/memoir-check-pg-416wwr98",
+                "device": 33,
+                "inode": 5593550
+              },
+              {
+                "root": "/tmp/memoir-case-0pizzd1k",
+                "device": 33,
+                "inode": 5593558
+              }
+            ],
+            "command_groups_stopped": [
+              {
+                "group_id": 797691,
+                "leader_started": "Thu Oct 15 19:03:27 2026"
+              }
+            ]
+          },
+          "child_returncode": -15,
+          "duration_seconds": 8.46
+        },
+        "command": {
+          "pid": 797691,
+          "started": "2983490"
+        },
+        "command_running": false,
+        "databases": [
+          {
+            "data": "/tmp/memoir-case-0pizzd1k/memoir-lease-pg-zheg0587/data",
+            "pid": 797711,
+            "started": "2983647",
+            "owner": 797693,
+            "owner_started": "2983515",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-case-0pizzd1k",
+              "device": 33,
+              "inode": 5593558
+            },
+            "running": false,
+            "owner_running": false
+          }
+        ]
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda3",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-controlled-pg-sk91l4oy/memoir-lease-pg-7toiyn6h/data",
+          "pid": 797752,
+          "started": "2984502",
+          "owner": 797733,
+          "owner_started": "2984352",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-sk91l4oy",
+            "device": 33,
+            "inode": 5594609
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 797752,
+            "started": "2984502",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 797733,
+            "started": "2984352",
+            "original_identity_matches": true
+          },
+          "socket_path_bytes": 73
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-ey45kgut/memoir-lease-pg-xoou6w3j/data",
+          "pid": 798094,
+          "started": "2984802",
+          "owner": 797733,
+          "owner_started": "2984352",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-ey45kgut",
+            "device": 33,
+            "inode": 5596196
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 798094,
+            "started": "2984802",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 797733,
+            "started": "2984352",
+            "original_identity_matches": true
+          },
+          "socket_path_bytes": 73
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 798094,
+          "data": "/tmp/memoir-controlled-pg-ey45kgut/memoir-lease-pg-xoou6w3j/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 798094,
+          "data": "/tmp/memoir-controlled-pg-ey45kgut/memoir-lease-pg-xoou6w3j/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 797752,
+          "data": "/tmp/memoir-controlled-pg-sk91l4oy/memoir-lease-pg-7toiyn6h/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 797752,
+          "data": "/tmp/memoir-controlled-pg-sk91l4oy/memoir-lease-pg-7toiyn6h/data"
+        }
+      ],
+      "observed_after_return": {
+        "receipt": {
+          "name": "default-boundary",
+          "command": [
+            "/workspace/copyme2.ai/.venv/bin/python",
+            "-m",
+            "pytest",
+            "-q",
+            "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda3/test_nested_helper.py",
+            "--basetemp",
+            "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda3/helper-pytest"
+          ],
+          "exit_code": 143,
+          "base_head": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+          "tree": "b3a64d936c88d6c7d4257809d4a4a7935fde6545",
+          "status": "terminated",
+          "native_allocation_root": "/tmp/memoir-check-pg-fjvdyxqq",
+          "command_group": {
+            "group_id": 797729,
+            "leader_started": "Thu Oct 15 19:03:36 2026"
+          },
+          "termination_signal": 15,
+          "cleanup": {
+            "owned_group_id": 797729,
+            "group_gone": false
+          },
+          "native_allocation_cleanup": {
+            "verified": true,
+            "root_removed": true,
+            "postmasters_stopped": [
+              {
+                "pid": 797752,
+                "data": "/tmp/memoir-controlled-pg-sk91l4oy/memoir-lease-pg-7toiyn6h/data"
+              }
+            ],
+            "registered_roots": [
+              {
+                "root": "/tmp/memoir-check-pg-fjvdyxqq",
+                "device": 33,
+                "inode": 5594586
+              },
+              {
+                "root": "/tmp/memoir-check-pg-j13ack6b",
+                "device": 33,
+                "inode": 5594599
+              },
+              {
+                "root": "/tmp/memoir-controlled-pg-ey45kgut",
+                "device": 33,
+                "inode": 5596196
+              },
+              {
+                "root": "/tmp/memoir-controlled-pg-sk91l4oy",
+                "device": 33,
+                "inode": 5594609
+              }
+            ],
+            "command_groups_stopped": [
+              {
+                "group_id": 797733,
+                "leader_started": "Thu Oct 15 19:03:36 2026"
+              }
+            ]
+          },
+          "child_returncode": -15,
+          "duration_seconds": 16.34
+        },
+        "command": {
+          "pid": 797733,
+          "started": "2984352"
+        },
+        "command_running": false,
+        "databases": [
+          {
+            "data": "/tmp/memoir-controlled-pg-sk91l4oy/memoir-lease-pg-7toiyn6h/data",
+            "pid": 797752,
+            "started": "2984502",
+            "owner": 797733,
+            "owner_started": "2984352",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-controlled-pg-sk91l4oy",
+              "device": 33,
+              "inode": 5594609
+            },
+            "running": false,
+            "owner_running": false
+          },
+          {
+            "data": "/tmp/memoir-controlled-pg-ey45kgut/memoir-lease-pg-xoou6w3j/data",
+            "pid": 798094,
+            "started": "2984802",
+            "owner": 797733,
+            "owner_started": "2984352",
+            "allocation_root_identity": {
+              "root": "/tmp/memoir-controlled-pg-ey45kgut",
+              "device": 33,
+              "inode": 5596196
+            },
+            "running": false,
+            "owner_running": false
+          }
+        ]
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_long_tmpdir_keeps_owned_n0",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-lease-pg-vqbm8pzt/data",
+          "pid": 798723,
+          "started": "2986019",
+          "owner": 798699,
+          "owner_started": "2985953",
+          "allocation_root_identity": {
+            "root": "/tmp",
+            "device": 33,
+            "inode": 1
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 798723,
+            "started": "2986019",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 43
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-o1e1ub0b/memoir-lease-pg-ch27gjpj/data",
+          "pid": 798763,
+          "started": "2986198",
+          "owner": 798699,
+          "owner_started": "2985953",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-controlled-pg-o1e1ub0b",
+            "device": 33,
+            "inode": 5598982
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 798763,
+            "started": "2986198",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 73
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 798723,
+          "data": "/tmp/memoir-lease-pg-vqbm8pzt/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 798763,
+          "data": "/tmp/memoir-controlled-pg-o1e1ub0b/memoir-lease-pg-ch27gjpj/data"
+        }
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma0",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-2ijal4e8/memoir-lease-pg-uws4ptb3/data",
+          "pid": 799055,
+          "started": "2987724",
+          "owner": 799037,
+          "owner_started": "2987562",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-2ijal4e8",
+            "device": 33,
+            "inode": 5600657
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 799055,
+            "started": "2987724",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [],
+      "creator_observation": {
+        "fault": "zombie",
+        "allocation": {
+          "data": "/tmp/memoir-case-2ijal4e8/memoir-lease-pg-uws4ptb3/data",
+          "pid": 799055,
+          "started": "2987724",
+          "owner": 799037,
+          "owner_started": "2987562",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-2ijal4e8",
+            "device": 33,
+            "inode": 5600657
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "returned",
+        "stop_attempts": [
+          [
+            "/workspace/.tools/postgresql/usr/lib/postgresql/17/bin/pg_ctl",
+            "-D",
+            "/tmp/memoir-case-2ijal4e8/memoir-lease-pg-uws4ptb3/data",
+            "-m",
+            "immediate",
+            "-w",
+            "stop"
+          ]
+        ],
+        "creator_identity": [
+          "Z",
+          "2987562"
+        ],
+        "postmaster_running": false,
+        "data_exists": false,
+        "root_exists": false
+      },
+      "separate_teardown": {
+        "creator_pid": 799037,
+        "postmaster": 799055,
+        "stop_returncode": null,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma1",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-z3vuxj4j/memoir-lease-pg-7qsx0w5e/data",
+          "pid": 799081,
+          "started": "2987911",
+          "owner": 799063,
+          "owner_started": "2987754",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-z3vuxj4j",
+            "device": 33,
+            "inode": 5601677
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 799081,
+            "started": "2987911",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [],
+      "creator_observation": {
+        "fault": "reaped",
+        "allocation": {
+          "data": "/tmp/memoir-case-z3vuxj4j/memoir-lease-pg-7qsx0w5e/data",
+          "pid": 799081,
+          "started": "2987911",
+          "owner": 799063,
+          "owner_started": "2987754",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-z3vuxj4j",
+            "device": 33,
+            "inode": 5601677
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "returned",
+        "stop_attempts": [
+          [
+            "/workspace/.tools/postgresql/usr/lib/postgresql/17/bin/pg_ctl",
+            "-D",
+            "/tmp/memoir-case-z3vuxj4j/memoir-lease-pg-7qsx0w5e/data",
+            "-m",
+            "immediate",
+            "-w",
+            "stop"
+          ]
+        ],
+        "creator_identity": null,
+        "postmaster_running": false,
+        "data_exists": false,
+        "root_exists": false
+      },
+      "separate_teardown": {
+        "creator_pid": 799063,
+        "postmaster": 799081,
+        "stop_returncode": null,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma2",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-urd85_cy/memoir-lease-pg-4vawyypm/data",
+          "pid": 799107,
+          "started": "2988079",
+          "owner": 799089,
+          "owner_started": "2987935",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-urd85_cy",
+            "device": 33,
+            "inode": 5602697
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 799107,
+            "started": "2988079",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [],
+      "creator_observation": {
+        "fault": "command_mismatch",
+        "allocation": {
+          "data": "/tmp/memoir-case-urd85_cy/memoir-lease-pg-4vawyypm/data",
+          "pid": 799107,
+          "started": "2988079",
+          "owner": 799089,
+          "owner_started": "2987935",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-urd85_cy",
+            "device": 33,
+            "inode": 5602697
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "AssertionError",
+        "stop_attempts": [],
+        "creator_identity": [
+          "T",
+          "2987935"
+        ],
+        "postmaster_running": true,
+        "data_exists": true,
+        "root_exists": true
+      },
+      "separate_teardown": {
+        "creator_pid": 799089,
+        "postmaster": 799107,
+        "stop_returncode": 0,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma3",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-2i80q9qi/memoir-lease-pg-3x8ck_91/data",
+          "pid": 799133,
+          "started": "2988263",
+          "owner": 799115,
+          "owner_started": "2988102",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-2i80q9qi",
+            "device": 33,
+            "inode": 5603717
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 799133,
+            "started": "2988263",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [],
+      "creator_observation": {
+        "fault": "birth_mismatch",
+        "allocation": {
+          "data": "/tmp/memoir-case-2i80q9qi/memoir-lease-pg-3x8ck_91/data",
+          "pid": 799133,
+          "started": "2988263",
+          "owner": 799115,
+          "owner_started": "2988102",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-2i80q9qi",
+            "device": 33,
+            "inode": 5603717
+          }
+        },
+        "inspection_triggered": false,
+        "cleanup_outcome": "AssertionError",
+        "stop_attempts": [],
+        "creator_identity": [
+          "T",
+          "2988102"
+        ],
+        "postmaster_running": true,
+        "data_exists": true,
+        "root_exists": true
+      },
+      "separate_teardown": {
+        "creator_pid": 799115,
+        "postmaster": 799133,
+        "stop_returncode": 0,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma4",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-svjmpesy/memoir-lease-pg-l3aqfz34/data",
+          "pid": 799159,
+          "started": "2988435",
+          "owner": 799141,
+          "owner_started": "2988286",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-svjmpesy",
+            "device": 33,
+            "inode": 5604737
+          },
+          "post_check": {
+            "state": "Z",
+            "ppid": 1,
+            "group": 799159,
+            "started": "2988435",
+            "original_identity_matches": true
+          },
+          "owner_post_check": {
+            "state": "absent"
+          },
+          "socket_path_bytes": 64
+        }
+      ],
+      "stop_attempts": [],
+      "creator_observation": {
+        "fault": "live_command_unavailable",
+        "allocation": {
+          "data": "/tmp/memoir-case-svjmpesy/memoir-lease-pg-l3aqfz34/data",
+          "pid": 799159,
+          "started": "2988435",
+          "owner": 799141,
+          "owner_started": "2988286",
+          "allocation_root_identity": {
+            "root": "/tmp/memoir-case-svjmpesy",
+            "device": 33,
+            "inode": 5604737
+          }
+        },
+        "inspection_triggered": true,
+        "cleanup_outcome": "FileNotFoundError",
+        "stop_attempts": [],
+        "creator_identity": [
+          "T",
+          "2988286"
+        ],
+        "postmaster_running": true,
+        "data_exists": true,
+        "root_exists": true
+      },
+      "separate_teardown": {
+        "creator_pid": 799141,
+        "postmaster": 799159,
+        "stop_returncode": 0,
+        "postmaster_not_running": true,
+        "creator_reaped": true,
+        "root_removed": true
+      }
+    }
+  ],
+  "instrumented_postmasters": 22,
+  "darwin_compatible_process_commands": [
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_darwin_compatible_inspect0",
+      "calls": [
+        [
+          "-p",
+          "798984",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "798984",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "798984",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r0",
+      "calls": [
+        [
+          "-p",
+          "799003",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "799003",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799007",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799003",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799007",
+          "-o",
+          "stat="
+        ],
+        [
+          "-p",
+          "799007",
+          "-o",
+          "stat="
+        ],
+        [
+          "-p",
+          "799007",
+          "-o",
+          "stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r1",
+      "calls": [
+        [
+          "-p",
+          "799015",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "799015",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799019",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799019",
+          "-o",
+          "stat="
+        ],
+        [
+          "-p",
+          "799019",
+          "-o",
+          "stat="
+        ],
+        [
+          "-p",
+          "799019",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "799019",
+          "-o",
+          "stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r2",
+      "calls": [
+        [
+          "-p",
+          "799026",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "799026",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799030",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-p",
+          "799030",
+          "-o",
+          "stat="
+        ],
+        [
+          "-p",
+          "799030",
+          "-o",
+          "stat="
+        ],
+        [
+          "-p",
+          "799030",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "799030",
+          "-o",
+          "stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_generic_success_keeps_zer1",
+      "calls": [
+        [
+          "-p",
+          "798980",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "798980",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_member_exiting_before_ses0",
+      "calls": [
+        [
+          "-p",
+          "798990",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "798990",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_portable_session_identity0",
+      "calls": [
+        [
+          "-p",
+          "798995",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "798995",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ]
+      ]
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-109/test_portable_session_identity1",
+      "calls": [
+        [
+          "-p",
+          "798999",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-p",
+          "798999",
+          "-o",
+          "lstart="
+        ],
+        [
+          "-e",
+          "-o",
+          "pid=,pgid=,stat="
+        ]
+      ]
+    }
+  ],
+  "retained_failures": [
+    {
+      "nodeid": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+      "outcome": "failed",
+      "seconds": 6.77,
+      "summary": "AssertionError: Owned descendant survived after its parent exited\nassert 798950 is None",
+      "trace": "tests/test_isolated_check_runner.py:106: in test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits\n    assert descendant_group is None, 'Owned descendant survived after its parent exited'\nE   AssertionError: Owned descendant survived after its parent exited\nE   assert 798950 is None",
+      "classification": "environment_zombie_process"
+    },
+    {
+      "nodeid": "tests/test_progressive_rework_proposal_overlap.py::test_rework_does_not_revisit_a_completed_proposal_on_another_section",
+      "outcome": "failed",
+      "seconds": 4.39,
+      "summary": "AssertionError: A completely processed proposed root must not be recomposed for unrelated editorial work\nassert False",
+      "trace": "tests/test_progressive_rework_proposal_overlap.py:48: in test_rework_does_not_revisit_a_completed_proposal_on_another_section\n    assert after['complete'], 'A completely processed proposed root must not be recomposed for unrelated editorial work'\nE   AssertionError: A completely processed proposed root must not be recomposed for unrelated editorial work\nE   assert False",
+      "classification": "unresolved_pending_proposal_root_authority_contract"
+    }
+  ],
+  "zombie_observation": {
+    "pid": 798952,
+    "state": "Z",
+    "ppid": 1,
+    "group": 798950,
+    "started": "2986520",
+    "original_identity_matches": true,
+    "stop_owned_ast_unchanged": true,
+    "assertion_unchanged": true
+  },
+  "proposal_contract": "Ordinary regression remains failed and unweakened. Later root B requeues completed pending proposal A while A stored bytes remain unchanged. Pending-proposal inheritance into latest review authority versus waiting for existing decisions remains unresolved. No policy decision or SQL/client change.",
+  "environment": {
+    "platform": "Linux/proc",
+    "configured_provider_service_authority_variables": 0,
+    "data": "Disposable synthetic native Unix-socket PostgreSQL and fake workers",
+    "real_provider_calls": 0,
+    "production_or_access_actions": false
+  },
+  "remaining_gates": [
+    "Ordinary zombie-absence assertion failure",
+    "Ordinary proposal-overlap failure and consequential pending-proposal policy decision",
+    "Parent-routed independent re-review at final exact head",
+    "Native Mac/runtime and other non-Linux coverage",
+    "Whole-repository aggregate at current source",
+    "Live provider/judge, semantic/latency and real Auth",
+    "Full opt-in UI/artifact/complete-round and 250-round acceptance",
+    "Native device/binary and production execution"
+  ],
+  "source_file_sha256": {
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "tests/test_controlled_emergency_cleanup.py": "02cd2f0cb54734e2b7bc1d7670cac61bdce13a8b4170d229c5acfca8708b2c1d",
+    "tests/test_controlled_process_snapshot.py": "33e07f87b23f15e397b903240eaaaeb8804ac1bb68f01e8b241529c34cfb0524",
+    "tests/test_controlled_supervisor_lifecycle.py": "300def786a0db56a38402f3008527da9b327aa1d26a80e4a38f689c706d4f02a"
+  },
+  "raw_evidence_sha256": {
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc0/allocations.jsonl": "b7bf6d6af78888c027e8431b87267e9dd7cd933091b6101279f0965d01ef0f8c",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc0/stops.jsonl": "50e95e674ff6e8ecc828fad81cac5eea0d6b6f79b92a71bd69966ff5133bd389",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc1/allocations.jsonl": "274f1af93aeff87f82ce2d08a0c2840b09a3830b9e264ff5a86eb622f725b2c1",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc1/stops.jsonl": "1009767b1dcbe91b09265d5b9f2b07e5ccd144f1bf9e4115578d6f7cd712b457",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc2/allocations.jsonl": "2bcda64f5fa8421d4ef1e90afe90a1c0e8dc023c6dae10f60b1cc9587b5c292d",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc2/stops.jsonl": "0f2cd78a23a588e5541caf49c505bff8b44ae59aa49c2b75b5038f385b52bcf2",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc3/allocations.jsonl": "623c1f03737c7bad1a308fb0eb9698044ee1d7d69852389904cdf92a25af7e1a",
+    "/tmp/pytest-of-agent/pytest-109/test_supervisor_sigterm_reconc3/stops.jsonl": "a8c1dbc81390097dc806cc32e9b5609d7276f319a6176ea44fedac549cff8d6f",
+    "/tmp/pytest-of-agent/pytest-109/test_unsupervised_profiler_rec0/allocations.jsonl": "2ec856a54ed2785b7fa594d7337c1bf798634ec07988923699ce1ab99f3ee276",
+    "/tmp/pytest-of-agent/pytest-109/test_unsupervised_profiler_rec0/stops.jsonl": "e53ebe611716a205a74ff6ea3a7927cc12e5491420ac21a56210abd5332fe3a3",
+    "/tmp/pytest-of-agent/pytest-109/test_unsupervised_profiler_rec1/allocations.jsonl": "911282b94aabed9d4b4dc3c6aa9ffa730d98830d6cc505c13805e427b27fef6f",
+    "/tmp/pytest-of-agent/pytest-109/test_unsupervised_profiler_rec1/stops.jsonl": "cabe55378de7c341cf984b07788c4c090f1d28cf82315a20ab1da6e21b5a47af",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0/observed-after-return.json": "b5dafa055784856621b2446e5b0f3ad45af537f5b6feb9ad76c99b2f8a96bd58",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0/allocations.jsonl": "07162f384283134578ee2d4c729a6b281e8a5759a0d60ad26ab2cb781a1b4f73",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda0/stops.jsonl": "ab75d04f0da3c41757fa10a99c109bec1b601e3de61b6c3b3568ccb71b8029ae",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1/observed-after-return.json": "c44c8f08a8ce597ef3b9d68d3eae0e926cc9db741b54b1c8dd9ed49fa4449448",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1/allocations.jsonl": "218a75eaa7f3edcf942b1279d112112a32070eca55010a67d545002df08b9da3",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda1/stops.jsonl": "26d37110d0cd99986de991e82fe4e066793d4e6788eba856d302d4ad895a8a8d",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda2/observed-after-return.json": "07f0a513513b5dd8f307d439ce1cc61f45199553a7580a501e3ff003c70b8cbd",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda2/allocations.jsonl": "d811448467388998a5df6393959e8ceee88ee4aa8c956eeabe5aa9bf2a88a8b4",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda2/stops.jsonl": "84212469499e1181d787ff9d268f35e0b2881f37b181e25725fc0f3df5d760ee",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda3/observed-after-return.json": "3e72bce96f33a01b6ef7789a57f43596e02c6b8b0b9fb00a433fb7ea457ec264",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda3/allocations.jsonl": "e21233628f99e0eeedb7b2b9752db88b0972eb3386521f3faf580e554ca33ed8",
+    "/tmp/pytest-of-agent/pytest-109/test_default_outer_kill_bounda3/stops.jsonl": "43f5e9cb2a308587c3b7be09ac9d319eebd51da5b15a78b1da4570e165f02e0c",
+    "/tmp/pytest-of-agent/pytest-109/test_long_tmpdir_keeps_owned_n0/allocations.jsonl": "83a4f076a1608777d41eb36e2a8e203f112c66090db50bb1262908fb949c58bf",
+    "/tmp/pytest-of-agent/pytest-109/test_long_tmpdir_keeps_owned_n0/stops.jsonl": "770b449c1a3677dbbe87a3dafc62d54f38904b8e26c67a313e8c3394cb385f6b",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma0/creator-race-observation.json": "18e5d75349173e832e0e784a5af367d6359d7f9fdd506c7a4f0bedfc8948490c",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma0/creator-race-teardown.json": "6dbb48f45b749c6995f22fc0121723f9173940899261fdd6f799d3d55adf66ef",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma0/allocations.jsonl": "53b417120111ed20338afa75cd2dc1b35e7db19339c75a2f8fd6b8a6a71b5ab4",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma1/creator-race-observation.json": "bdaef5f7b381017ed332e39f4d12fe825fa82d6fd770fbcec709a1850da2b766",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma1/creator-race-teardown.json": "d67c4739403848e332b91b400f1d8dc9255b082bd020c4e32003a6463ca4987e",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma1/allocations.jsonl": "4734d549a5c2f50121333b25218602abd831652e09677c4b978b8a1c60cda8ab",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma2/creator-race-observation.json": "6aa5a218bca4a81abf1cacfd314eddd55d9bf10ef245d28ed4c20ab125c8ffa9",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma2/creator-race-teardown.json": "043a081b3c133dbe55fa7a96c0f1280252cd46569d4e71c3772c96f1e1d65752",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma2/allocations.jsonl": "38d913e1c03ba9f10f367ee32e3950860854985ed4b3eb82da4be7414d069ff8",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma3/creator-race-observation.json": "dfbb2eb8f84719446ba34c8b49bf27534b40b8d9547b328ebd18069a83637209",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma3/creator-race-teardown.json": "4e0265e19d723180784874ad79c76f756b826575a8e3d6bf46c943d1f360a5be",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma3/allocations.jsonl": "e4b07d34dcbc17bcfac2ff3f1d26e5d91bd8eb585333589919ab986a3fcf421d",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma4/creator-race-observation.json": "7caa422a43d0be9c9ddacfffb8447019f296ff0d14981e66925632a66740177f",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma4/creator-race-teardown.json": "534b6fab3f6fdde505585c916da60d886ca0075ce6409a9d92ae30b91d4d20cf",
+    "/tmp/pytest-of-agent/pytest-109/test_creator_exit_during_comma4/allocations.jsonl": "de029f4e9a4eddd1799fbe7f2de7dd58ff630096e1b5ea5c5cbca6d0c618d260",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r0/snapshot-observation.json": "69671a5f640f9d1029f20c9b60c3e03a572e5860cc3abb3f5cc3a4ef7eff241d",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r0/snapshot-teardown.json": "50a9fcfed62b9f89992c4c3c90628f1060fa55d9ade9160e426f1a36fbb9c671",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r1/snapshot-observation.json": "68cd55aba54ac9b132322a6e69fbbb81471f4359b4028045ebfc1250b44fa120",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r1/snapshot-teardown.json": "31821599b34347f97819307ab13b54679f6c05245ab17a7375b4abbb499f3107",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r2/snapshot-observation.json": "37985ae9862ecba8fbd02c5487852022485a9938c002708b088bd509496df6d6",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r2/snapshot-teardown.json": "248f7107ecf5b78a1ed9e342465451f8c6deec9231b95890f70f1203558499a4",
+    "/tmp/pytest-of-agent/pytest-109/test_darwin_compatible_inspect0/ps-calls.jsonl": "e440f464378a10db3b6327c1627a1219d9579cdd2fb2dd42edb786c27a35ea27",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r0/ps-calls.jsonl": "93cb532af35d8a0ba7f364acd24587a78c283cf171aaa00f469129bd23b17550",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r1/ps-calls.jsonl": "3b575203e24fa2d93f5e55ac2ff0e73aadc297083c85521ceb13e1eb2cf5f068",
+    "/tmp/pytest-of-agent/pytest-109/test_fork_after_snapshot_and_r2/ps-calls.jsonl": "78af4144824e33da9f7e08282a86c8e6f74e283d6aa41955567fde42e7229238",
+    "/tmp/pytest-of-agent/pytest-109/test_generic_success_keeps_zer1/ps-calls.jsonl": "580dd3a8a0e06550993b7345ad06d6bb587fd62604f64b09472653bee9913f8d",
+    "/tmp/pytest-of-agent/pytest-109/test_member_exiting_before_ses0/ps-calls.jsonl": "8fb1b73f37f03b5c3006667d8dd537bedcaea42e555c3b5625a951baf2771022",
+    "/tmp/pytest-of-agent/pytest-109/test_portable_session_identity0/ps-calls.jsonl": "4e3b00107cec6be82b54734f8d665c2021d3d2365d2dc565911c7ce9bec8c787",
+    "/tmp/pytest-of-agent/pytest-109/test_portable_session_identity1/ps-calls.jsonl": "aff318d14fe0171461d58419b8aa2fd8ee9983ec9bc1ba8b9d815a9dab54b0b3",
+    "/tmp/memoir-snapshot-red.xml": "02ca6c0cb1d198d378275c0fbfbcaf726ff7b6542f121962067c3635617265c9",
+    "/tmp/memoir-snapshot-red.log": "e872d03a5655678b6f1b588e25800ea33a15de067192ea4cffd42b8677f3eb9c",
+    "/tmp/memoir-snapshot-green.xml": "9d267fef5fcd5f854b585c607249ea04aa24f851aaf6e26a7433fa4a380239af",
+    "/tmp/memoir-snapshot-green.log": "2784bf206287f333205e91e70b96cb7f4918fccecd52a2d494a137b73077f398",
+    "/tmp/memoir-snapshot-guards.xml": "5221da9b6dde8a1e59a273ea246a2ba6db53cf806aa329424e9d8f1b2239a75f",
+    "/tmp/memoir-snapshot-guards.log": "44bcc611fefeb3849d26bacf7178572c647369e7fee4561000228a17d6872e06",
+    "/tmp/memoir-creator-harness-blocked.xml": "9a3ee23f27c4ccfb9c4427fdcae897cff2d7c8802efa7231f9de64c9d788c1da",
+    "/tmp/memoir-creator-harness-blocked.log": "494a01b068fedcb22f02ce1577c514aa3166e711361f6da036eff731b1ab5716",
+    "/tmp/memoir-creator-red.xml": "360399e8a228a46b36dc6056b2a51a543b405ea110eab9c7e5c9f4eacde87277",
+    "/tmp/memoir-creator-red.log": "ea64277fa8b5a31145016ece0c5bbc0211d1d3ba83fa551a6a94e4e9c6fa7c10",
+    "/tmp/memoir-races-green.xml": "af6b2892495ca093cc7f53e359e3255fd140e528f3874a51747b5324bda315cc",
+    "/tmp/memoir-races-green.log": "c20988a53783ddb9c5ef47a894e3a83ecc32d5eaa20a8299553413f8485ade90",
+    "/tmp/memoir-races-final.xml": "256be4a003a90a9388ca41c2cd9a22b36940ed53ca697ee9900b6a0573b60000",
+    "/tmp/memoir-races-final.log": "b1b5cb65367d2e45a5c1dbf4b329a33d43cb3c16c7fcaf09046ef07c367985e1",
+    "/tmp/memoir-snapshot-red-observations.json": "6f12ff01746ca3440aff407e308cf99bb5e7306029660e5dc4caecb69620c647",
+    "/tmp/memoir-creator-red-observations.json": "6d075ea78696fa2716b51ec40b656ba0e7a6355d94d1671d7a7fa455cce7e9c4",
+    "/tmp/pytest-of-agent/pytest-109/test_timeout_stops_a_term_resi0/descendant-pid": "a120ad5d4b77cced4978505cf04091dd48b6bf5dcae7a9511c91fac79a801a0b"
+  }
+}

@@ -26,6 +26,14 @@ from types import CellType, FunctionType
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi import routing as fastapi_routing
+
+
+def _route_contexts(routes):
+    # New FastAPI releases defer include_router and expose effective paths
+    # through RouteContext. Older supported releases eagerly flatten includes.
+    iterator = getattr(fastapi_routing, 'iter_route_contexts', None)
+    return iterator(routes) if iterator is not None else iter(routes)
 
 _READ_TABLES = frozenset({'user_profile', 'user_memory', 'user_recall_usage',
     'user_completed_round', 'user_place_journey', 'user_family_context',
@@ -123,9 +131,9 @@ class _ArmedRuntime:
                 arm['future'].set_result({'ok': False, 'worker_failure': cause})
             if isinstance(error, asyncio.CancelledError):
                 raise
-            # The production JSON handler formats RuntimeError text; never let
-            # a provider exception or its trajectory reach that boundary.
-            raise RuntimeError('Owned browser turn failed') from None
+            # Keep provider exceptions and their private trajectories behind
+            # the owned adapter's explicit HTTP boundary.
+            raise HTTPException(502, 'Owned browser turn failed') from None
         finally:
             api._running_turns.discard(task)
 
@@ -223,7 +231,7 @@ class OwnedFiftyBrowserAPI:
             or path.removeprefix('/rest/v1/') in _READ_TABLES and path.startswith('/rest/v1/'))
         if path.startswith('/rest/v1/rpc/'):
             rpc = path.rsplit('/', 1)[-1]
-            allowed = (rpc in _READ_RPCS and request.method == ('GET' if rpc == 'read_user_interview_turn' else 'POST'))
+            allowed = rpc in _READ_RPCS and request.method == 'POST'
             if allowed:
                 import json
                 data = dict(url.params) if request.method == 'GET' else json.loads(request.content)
@@ -231,6 +239,11 @@ class OwnedFiftyBrowserAPI:
                     # Cohort selection may inspect this verified owner without
                     # adopting or selecting any different historical project.
                     allowed = set(data) == {'p_project_id'} and data['p_project_id'] in (None, plan['project_id'])
+                elif rpc == 'read_user_interview_turn':
+                    allowed = (set(data) == {'p_project_id', 'p_client_turn_id'}
+                        and data['p_project_id'] == plan['project_id']
+                        and type(data['p_client_turn_id']) is str
+                        and re.fullmatch(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}', data['p_client_turn_id']) is not None)
                 else:
                     allowed = data.get('p_project_id') == plan['project_id']
         for key, value in url.params.multi_items():
@@ -313,7 +326,7 @@ class OwnedFiftyBrowserAPI:
                 if isinstance(function, FunctionType) and function.__module__ == main.__name__:
                     private_globals[name] = _function(function, private_globals)
             restore = None
-            for route in main.app.routes:
+            for route in _route_contexts(main.app.routes):
                 if getattr(route, 'path', None) not in (_PROJECT_READS | {'/v1/projects'}):
                     continue
                 if route.path == '/v1/projects' and route.methods == {'POST'}:
@@ -334,7 +347,7 @@ class OwnedFiftyBrowserAPI:
                 (story_routes.build_router(factory, entitlement_store=_Entitlements(self, case),
                                           stripe_client=object(), speech_service=object()), _STORY_READS, {})]
             for router, paths, changes in routers:
-                for route in router.routes:
+                for route in _route_contexts(router.routes):
                     if route.path not in paths or route.methods != {'GET'}:
                         continue
                     endpoint = _bind(route.endpoint, **changes) if changes else route.endpoint

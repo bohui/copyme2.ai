@@ -157,6 +157,7 @@ test('place activation and later progress do not wait for photo discovery', asyn
   context.refreshStageReadiness = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('I remember Chengde');
+  assert.equal(result.reply, 'Hello');
   let delivered = false;
   const delivery = event({type: 'workspace_update', data: {
     place_journey: {place: 'Chengde', granularity: 'city', hierarchy: ['Earth', 'China', 'Chengde']},

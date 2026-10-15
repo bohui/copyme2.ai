@@ -207,8 +207,7 @@ def test_real_sql_pending_policy_reaches_collector_saved_and_read_guards(sql):
     # An explicit synthetic inventory blocker stands in for incomplete historic
     # policy review. Current authority remains valid; only policy readiness fails.
     sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','literal-v1');")
-    command=sql.command
-    dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     async def run():
         for factory,snapshot in ((ProviderPublication,fence),(TransactionalPublication,fence),(ReadPublication,read_fence)):
             with pytest.raises(PolicyUnavailable) as caught:

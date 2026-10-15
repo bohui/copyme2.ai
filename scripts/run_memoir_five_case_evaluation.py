@@ -38,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.controlled_lifecycle import sigterm_cancellable
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.family_context import family_features_enabled
 from apps.api.memoir_preview import (
@@ -798,6 +799,18 @@ class FixtureWorker:
     async def turn(self, **kwargs: Any) -> dict[str, Any]:
         role = str(kwargs.get("agent_role") or "collector")
         text = str(kwargs.get("text") or "")
+        if kwargs.get('governed'):
+            # Only current authorized narrator bytes supply synthetic cues.
+            from controlled_collector import extraction_proposal
+            context = kwargs['interview_context']
+            text = context['source']['text']
+            value = extraction_proposal(kwargs.get('language'))
+            value['place_journeys'] = [dict(place=place,hierarchy=['Earth',place],granularity='city',
+                latitude=None,longitude=None) for place in _fixture_places(text)]
+            self.calls.append({'agent_role':role,'round':self.current_round,'text_chars':len(text)})
+            return {'thread_id':f'fixture-canonical-{self.current_round:03d}',
+                'reply':json.dumps(value,ensure_ascii=False),'artifacts':[]}
+
         self.calls.append({"agent_role": role, "round": self.current_round, "text_chars": len(text)})
         if role == "composer":
             try:
@@ -820,13 +833,14 @@ class FixtureWorker:
 
 class FixtureRuntime(CodexRuntime):
     def __init__(self, case: Mapping[str, Any]):
-        super().__init__(worker_url="http://fixture-private-worker", worker_secret="fixture-secret", model="fixture-model", task_publisher_enabled=False)
+        super().__init__(worker_url="http://fixture-private-worker", worker_secret="fixture-secret", model="synthetic-byte-bpe", task_publisher_enabled=False)
         self.fixture_worker = FixtureWorker(case)
 
         async def handle(request: httpx.Request) -> httpx.Response:
             if request.url.path != "/internal/codex/turn":
                 return httpx.Response(404, request=request)
-            payload = json.loads(request.content.decode("utf-8"))
+            from apps.api.codex_worker_service import WorkerTurnInput
+            payload = WorkerTurnInput.model_validate_json(request.content).model_dump(mode='json')
             self.fixture_worker.set_round(self.fixture_worker.current_round or 1)
             result = await self.fixture_worker.turn(**payload)
             if "application/x-ndjson" in request.headers.get("accept", ""):
@@ -990,7 +1004,19 @@ def state_for_grade(storage: CaseStorage) -> dict[str, Any]:
     return state
 
 
-async def run_case(
+async def run_case(case, expected_payload, case_expected, *, args, run_dir, execution_mode,
+                   runtime=None, max_rounds=50, langfuse_publisher=None):
+    if execution_mode == 'fixture' and runtime is None:
+        # A separate process per case keeps native SQL authority isolated even
+        # when the outer runner schedules several cases concurrently.
+        from scripts.controlled_five_case import run_isolated_case
+        return await run_isolated_case(case, expected_payload, case_expected, args=args,
+            run_dir=run_dir, max_rounds=max_rounds, langfuse_publisher=langfuse_publisher)
+    return await _run_case(case,expected_payload,case_expected,args=args,run_dir=run_dir,
+        execution_mode=execution_mode,runtime=runtime,max_rounds=max_rounds,langfuse_publisher=langfuse_publisher)
+
+
+async def _run_case(
     case: Mapping[str, Any],
     expected_payload: Mapping[str, Any],
     case_expected: Mapping[str, Any],
@@ -1001,6 +1027,7 @@ async def run_case(
     runtime: CodexRuntime | None = None,
     max_rounds: int = 50,
     langfuse_publisher: LangfusePublisher | None = None,
+    canonical_storage=None,
 ) -> dict[str, Any]:
     case_dir = run_dir / "cases" / str(case["id"])
     rounds_dir = case_dir / "rounds"
@@ -1010,7 +1037,7 @@ async def run_case(
     # The hidden truth is loaded only by the outer evaluator for post-run
     # assertions; it is never attached to this application storage adapter or
     # to any worker packet.
-    storage = CaseStorage(case, state)
+    storage = canonical_storage or CaseStorage(case, state)
     if runtime is None:
         runtime = FixtureRuntime(case) if execution_mode == "fixture" else CodexRuntime(
             worker_url=args.worker_url,
@@ -1140,7 +1167,20 @@ async def run_case(
         error: dict[str, Any] | None = None
         prior_place_count = len(storage.place_history())
         try:
-            result = await asyncio.wait_for(runtime.turn(
+            from apps.api.agent_storage import UserStorage
+            from scripts.canonical_turn import canonical_turn
+            async def on_delivered_event(event):
+                await on_event(event)
+                if event.get('type') == 'text_delta' and isinstance(event.get('text'), str):
+                    await on_delta(event['text'])
+            async def deliver():
+                if isinstance(storage, UserStorage):
+                    return await canonical_turn(runtime, storage, text, options={
+                        'project_id':str(case['project_id']), 'language':str(case['locale']),
+                        'client_turn_id':str(uuid4())}, evaluation=correlation,
+                        on_event=on_delivered_event, trajectory=turn_trajectory,
+                        evaluation_context={'enabled_skills':list(SKILLS), 'available_tools':['memoir-place-groups','place-photo-research']})
+                return await runtime.turn(
                 storage,
                 text,
                 project_id=str(case["project_id"]),
@@ -1151,7 +1191,8 @@ async def run_case(
                 include_trajectory=True,
                 evaluation_context={"enabled_skills": list(SKILLS), "available_tools": ["memoir-place-groups", "place-photo-research"]},
                 trajectory=turn_trajectory,
-            ), timeout=args.timeout + 30)
+                )
+            result = await asyncio.wait_for(deliver(), timeout=args.timeout + 30)
         except Exception as exc:
             partial_trajectory = getattr(exc, "trajectory", None)
             if not isinstance(partial_trajectory, Mapping):
@@ -1446,6 +1487,7 @@ def make_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@sigterm_cancellable
 async def main_async(args: argparse.Namespace) -> int:
     inputs = load_json(args.inputs)
     expected_payload = load_json(args.expected)
@@ -1693,6 +1735,8 @@ def main() -> int:
         return asyncio.run(main_async(make_arg_parser().parse_args()))
     except KeyboardInterrupt:
         return 130
+    except asyncio.CancelledError:
+        return 143
 
 
 if __name__ == "__main__":

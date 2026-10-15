@@ -377,8 +377,7 @@ def test_pg_exact_engine_envelope_holds_real_publication_fence(sql):
     bounded=build_bounded_lane_input(claim,phase='extract',packet=lane_extraction_packet(fence),budget=lane_model_budget())
     actual=bounded.model_dump(mode='json')['fence']
     assert actual['schema_version']==1 and actual['source']['text']==source['text']
-    command=sql.command
-    dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     async def scenario():
         publisher=LanePublication(dsn,authenticated_owner=OWNER)
         async with publisher.guard(actual):pass
@@ -593,7 +592,7 @@ def test_pg_actual_outer_send_fences_proposal_decisions_without_policy_churn(sql
     root=service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{second['token']}'")
     fence=rpc(sql,'capture_lifetime_read_fence',literal(project))
     body=rpc(sql,'read_lifetime_private_draft_head',literal(project));row=body['first_record']
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     app=create_app(MemoryStore());snapshot=ReadSnapshot(body,fence)
     @app.get('/proposal-publication-boundary')
     async def route():return ReadJSONResponse(snapshot,publisher=ReadPublication(dsn,authenticated_owner=OWNER))
@@ -657,7 +656,7 @@ def test_pg_actual_outer_send_rejects_event_revision_changed_after_capture(sql):
     after=rpc(sql,'capture_lifetime_read_fence',literal(project))
     assert after['source_revision']==fence['source_revision'] and after['policy_epoch']==fence['policy_epoch']
     assert after['event_revision']>fence['event_revision']
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     app=create_app(MemoryStore());snapshot=ReadSnapshot(body,fence)
     @app.get('/event-publication-boundary')
     async def route():return ReadJSONResponse(snapshot,publisher=ReadPublication(dsn,authenticated_owner=OWNER))
@@ -666,7 +665,46 @@ def test_pg_actual_outer_send_rejects_event_revision_changed_after_capture(sql):
         assert response.status_code>=400 and 'Childhood' not in response.text
 
 
-def test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump(sql):
+@pytest.mark.parametrize('protection', ['approved', 'human_locked'])
+@pytest.mark.parametrize('action', ['edit', 'withdraw'])
+def test_pg_protected_original_is_purged_when_new_proposal_uses_another_source(sql, protection, action):
+    identity, source, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{first['token']}',0,{literal(section_result(first))}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    sql(f'update public.user_lifetime_memoir_section set {protection}=true;')
+    replacement = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'00000000-0000-4000-8000-000000000002','My parents often took me there.'")
+    ref = dict(source_id=replacement['id'], version=1, quote=replacement['text'], char_start=0, char_end=len(replacement['text']))
+    event = dict(existing_id=first['partition']['id'], expected_revision=1, kind='event', title='Childhood', source_refs=[ref])
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':replacement['id'],'version':1}])},{literal([event])}")
+    sql(f"update public.user_memoir_lane set pending=true where id='{lane}';")
+    current = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    snapshot, token = current['snapshot_id'], current['token']
+    while not current['complete']:
+        proposed = section_result(current, replacement['text'])
+        for section in proposed['sections']:
+            selected_refs = [ref for ref in section['source_refs'] if ref['source_id'] == replacement['id']]
+            assert selected_refs
+            section['source_refs'] = selected_refs
+            section['block']['source_refs'] = selected_refs
+        service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{token}',{current['page_number']},{literal(proposed)}")
+        current = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{token}'")
+    assert service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{token}'")['status'] == 'proposed'
+    saved = json.loads(sql(f"select json_build_object('source_id',source_id,'bundle',bundle,'proposal',proposal) from public.user_lifetime_memoir_section where snapshot_id='{snapshot}';").stdout)
+    # The new row points to source two but its protected original still quotes source one.
+    assert saved['source_id'] == replacement['id']
+    assert source['text'] in json.dumps(saved['bundle'])
+    assert replacement['text'] in json.dumps(saved['proposal'])
+    rounds = sql('select count(*) from public.user_completed_round;').stdout
+    rpc(sql, 'change_user_narrator_source', f"{literal(project)},'{source['id']}',1,'{action}',{literal('Corrected original narration.') if action == 'edit' else 'null'}")
+    assert source['text'] not in sql("select bundle::text||coalesce(proposal::text,'') from public.user_lifetime_memoir_section;").stdout
+    assert sql(f"select status from public.user_narrator_source where id='{replacement['id']}';").stdout.strip() == 'active'
+    assert sql('select count(*) from public.user_completed_round;').stdout == rounds
+    assert source['text'] not in json.dumps(rpc(sql, 'read_lifetime_private_draft_head', literal(project)))
+
+
+@pytest.mark.parametrize('reverse_events', [False, True])
+def test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump(sql, reverse_events):
     identity,source,lane,first=seeded_composer(sql);project=identity['project_id']
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{first['token']}',0,{literal(section_result(first))}")
     service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{first['token']}'")
@@ -681,7 +719,21 @@ def test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoc
     sql(f"update public.user_memoir_lane set pending=true where id='{lane}';")
     current=service(sql,'claim_memoir_lane',f"'{lane}',900");token=current['token']
     while not current['complete']:
-        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{token}',{current['page_number']},{literal(section_result(current,current['source']['text']))}")
+        proposed = section_result(current)
+        events = {event['id']: event for event in current['batch']['events']}
+        for section in proposed['sections']:
+            event = events[section['event_ids'][0]]
+            # Each synthetic passage quotes its own evidence. The first source
+            # in a multisource packet is not evidence for every other event.
+            text = event['source_refs'][0]['quote']
+            identifier = 'part' if event['id'] == first['partition']['id'] else 'part-' + event['id']
+            section.update(id=identifier, chapter_id=identifier, content=text)
+            section['block'].update(id=identifier, text=text)
+            if event['id'] != first['partition']['id']:
+                assert text == 'An unrelated account in Sydney.'
+        if reverse_events:
+            proposed['sections'].reverse()
+        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{token}',{current['page_number']},{literal(proposed)}")
         current=service(sql,'read_lifetime_memoir_lane_page',f"'{lane}','{token}'")
     service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{token}'")
     sql('update public.user_lifetime_memoir_section set approved=true;')
@@ -689,7 +741,8 @@ def test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoc
     assert before.strip()
     rpc(sql,'change_user_narrator_source',f"{literal(project)},'{source['id']}',1,'withdraw',null")
     assert sql(f"select count(*) from public.user_lifetime_memoir_section where source_id='{source['id']}';").stdout.strip()=='0'
-    assert 'I grew up in Chengde.' not in sql('select bundle::text||coalesce(proposal::text,\'\') from public.user_lifetime_memoir_section;').stdout
+    surviving = sql("select json_build_object('source_id',source_id,'event_id',event_id,'source_dependencies',source_dependencies,'bundle',bundle,'proposal',proposal) from public.user_lifetime_memoir_section;").stdout
+    assert 'I grew up in Chengde.' not in surviving, surviving
     assert sql(f"select bundle::text from public.user_lifetime_memoir_section where source_id='{unrelated}' order by snapshot_id;").stdout==before
 
 
@@ -711,7 +764,7 @@ def test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput
     from test_canonical_composer_provenance import controlled_draft
     identity,source,lane,claim=seeded_composer(sql);project=identity['project_id'];phases=[];first_review=True
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     class Broker:
         async def rpc(self,name,**payload):
             args=','.join(f'{key}=>{literal(value)}' if not isinstance(value,int) else f'{key}=>{value}' for key,value in payload.items())
@@ -793,7 +846,7 @@ def add_same_page_continuity(sql,identity,source,page):
 def test_pg_model_reply_cannot_register_or_checkpoint_under_changed_same_page_context(sql,barrier):
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput,LaneFence,lane_artifact_digest
     identity,source,lane,claim=seeded_composer(sql);phases=[];changed=False
-    command=sql.command;dsn=sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     from apps.api.progressive_composer import summary_partition
     partition=summary_partition(claim)
     artifact=dict(event_id=partition['id'],context='Old-context prepared output',source_refs=partition['source_refs'])

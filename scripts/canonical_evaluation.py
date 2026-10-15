@@ -11,6 +11,8 @@ from uuid import uuid4
 from apps.api.agent_storage import UserStorage
 from apps.api.recall import private_draft_cadence
 from scripts.task_runtime import dispatch_memoir_lanes_once
+from scripts.canonical_turn import canonical_turn, canonical_read
+from apps.api.lifetime_memory_read_api import draft_head
 
 
 class CanonicalEvaluationDriver:
@@ -56,9 +58,9 @@ class CanonicalEvaluationDriver:
             if progress is not None:
                 await progress({'status': 'running', 'rounds': records, 'checkpoints': checkpoints})
             try:
-                result = await self.runtime.turn(self.storage, text, project_id=project_id,
-                    language=language, client_turn_id=str(uuid4()), include_trajectory=True,
-                    evaluation=correlation, conversation_text=text, source_kind='narrator_chat')
+                result = await canonical_turn(self.runtime,self.storage,text,options={
+                    'project_id':project_id,'language':language,'client_turn_id':str(uuid4()),
+                    'conversation_text':text,'source_kind':'narrator_chat'},evaluation=correlation)
             except BaseException as error:
                 record.update(status='failed', error_class=type(error).__name__,
                               trajectory=getattr(error, 'trajectory', None))
@@ -92,8 +94,9 @@ class CanonicalEvaluationDriver:
                         await asyncio.sleep(.05)
                         continue
                     if ordinal % cadence == 0:
-                        draft = await asyncio.to_thread(self.storage.saved_memoir_draft, project_id, language)
-                        if draft['covered_round'] < ordinal:
+                        draft = await canonical_read(self.storage, project_id,
+                            lambda fence: draft_head(self.storage, project_id, language=language))
+                        if draft.get('coverage_round', 0) < ordinal:
                             if single_attempt:
                                 raise RuntimeError('Canary draft did not settle without redelivery')
                             await asyncio.sleep(.05)

@@ -129,17 +129,21 @@ def recreates(commands):
 
 
 @pytest.mark.parametrize('explicit', [False, True])
-def test_up_resolves_publication_database_before_starting_services(stack, explicit):
+@pytest.mark.parametrize('env_kind', ['default', 'relative_spaced', 'absolute_spaced'])
+def test_up_resolves_publication_database_before_starting_services(stack, explicit, env_kind):
     root, up, _ = stack
     database = 'postgresql://synthetic.invalid/application'
     publication = 'postgresql://synthetic.invalid/publication' if explicit else database
-    (root / '.env').write_text('SUPABASE_DB_URL=' + database + '\n'
+    filename = '.env' if env_kind == 'default' else 'settings/test env.conf'
+    config = root / filename
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text('SUPABASE_DB_URL=' + database + '\n'
         + ('MEMOIR_PUBLICATION_DATABASE_URL=' + publication + '\n' if explicit else ''))
     with (root / 'overrides.mk').open('a') as file:
         file.write('\ncontainer-health:\n\t@python3 -c '
             + shlex.quote('import os; assert os.environ["MEMOIR_PUBLICATION_DATABASE_URL"] == ' + repr(publication))
             + '\n')
-    up()
+    up(*([] if env_kind == 'default' else ['ENV_FILE=' + (str(config) if env_kind == 'absolute_spaced' else filename)]))
 
 
 def test_repeat_up_skips_builds_and_recreates_every_service_before_alias_refresh(stack):

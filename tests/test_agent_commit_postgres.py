@@ -224,7 +224,7 @@ def publication_guest_address(snapshot, name, port):
 @pytest.fixture(scope='module')
 def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None,
              legacy_schema=True, postgres_image='postgres:18.3', tcp=False, publication_tcp=False,
-             publication_endpoint=None):
+             publication_endpoint=None, directory_root=None):
     # An opt-in guest startup gate must never wait without a task deadline.
     if publication_tcp and deadline is None:
         deadline = time.monotonic() + 180
@@ -236,7 +236,12 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
     publication_dsn = None
     if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
-    with tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir='/tmp') as directory:
+    # A supplied root belongs to the supervising case process. It alone removes
+    # these allocations after verified shutdown, retaining postmaster.pid/data
+    # for its immediate-stop fallback if this child's bounded fast stop fails.
+    directory_context = (nullcontext(tempfile.mkdtemp(prefix='memoir-lease-pg-', dir=directory_root))
+        if directory_root is not None else tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir='/tmp'))
+    with directory_context as directory:
         data = str(Path(directory) / 'data')
         if container_backend:
             pg_container_name = os.getenv('MEMOIR_TEST_POSTGRES_CONTAINER_NAME') or 'memoir-issue6-pg-' + uuid4().hex[:12]
@@ -308,13 +313,14 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                     port = listener.getsockname()[1]
                 options = f"-h 127.0.0.1 -p {port} -k ''"
                 target = ['-h', '127.0.0.1', '-p', str(port)]
-                if publication_tcp:
-                    publication_dsn = f'host=127.0.0.1 port={port} user=postgres dbname=postgres'
+                publication_dsn = f'host=127.0.0.1 port={port} user=postgres dbname=postgres'
             else:
                 options = f"-k {directory} -h ''"
                 target = ['-h', directory]
-                if publication_tcp:
-                    publication_dsn = f'host={directory} user=postgres dbname=postgres'
+                # Native callers can always open an independent connection to
+                # this task-owned cluster. Unix sockets use PostgreSQL's default
+                # port; there need not be a -p argument in the psql command.
+                publication_dsn = f'host={directory} port=5432 user=postgres dbname=postgres'
             log = Path(directory) / 'server.log'
             try:
                 commands.run(['initdb', '-D', data, '-U', 'postgres', '-A', 'trust', '--no-locale', '--encoding=UTF8'], check=True)

@@ -102,7 +102,7 @@ def test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints(sql,sk
     def model(request):
         bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase'];payload=json.loads(bounded['packet'])['payload'];phases.append(phase)
         if phase=='extract':result={'events':[]}
-        elif phase=='prepare':result=dict(event_id=bounded['fence']['partition']['id'],context='Persisted grounded preparation',source_refs=bounded['fence']['partition']['source_refs'])
+        elif phase=='prepare':result=dict(event_id=payload['partition']['id'],context='Persisted grounded preparation',source_refs=payload['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(payload,source['text'],'Childhood')
         else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
         return httpx.Response(200,json={'reply':json.dumps(result)})

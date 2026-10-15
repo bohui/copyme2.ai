@@ -21,8 +21,7 @@ def setup(sql):
     source = rpc(sql,'accept_user_narrator_source',f"{literal(identity['project_id'])}, '00000000-0000-4000-8000-000000000001', 'Private original memory'")
     sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
     fence = rpc(sql,'capture_lifetime_fence',f"'{identity['conversation_id']}', '{OLD}'")
-    command = sql.command
-    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn
     return identity,source,fence,dsn
 
 

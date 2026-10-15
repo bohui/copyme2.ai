@@ -276,6 +276,19 @@ def test_existing_driver_hook_abi_with_controlled_storage_no_dispatch(monkeypatc
                     'trajectory': sample['rounds'][ordinal-1]['trajectory']}
     async def no_lanes(*args, **kwargs):
         return []
+    # This is the pure orchestration/readback ABI test: explicit closed
+    # boundaries supply its synthetic records. Real SQL/ASGI delivery is tested
+    # by test_canonical_turn_publication and the native evaluation/canary suites.
+    async def delivery(runtime, storage, text, *, options, evaluation=None, **unused):
+        return await runtime.turn(storage,text,**options,evaluation=evaluation)
+    async def read(storage, project_id, reader):
+        return reader(None)
+    def head(storage, project_id, *, language=None):
+        draft=storage.saved_memoir_draft(project_id,language)
+        return {**draft,'coverage_round':draft['covered_round']}
+    monkeypatch.setattr(canonical,'canonical_turn',delivery)
+    monkeypatch.setattr(canonical,'canonical_read',read)
+    monkeypatch.setattr(canonical,'draft_head',head)
     monkeypatch.setattr(canonical, 'dispatch_memoir_lanes_once', no_lanes)
     monkeypatch.setattr(canonical, 'private_draft_cadence', lambda: 5)
     driver = canonical.CanonicalEvaluationDriver(storage=Storage(), runtime=Runtime(),

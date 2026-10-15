@@ -11,8 +11,7 @@ from test_shared_memory_events_postgres import rpc
 
 
 def test_mapped_workspace_reads_are_governed_and_legacy_cache_writes_are_explicit(sql,monkeypatch):
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     monkeypatch.setattr(supabase_routes,'storage',lambda _:PostgresRest(sql,OWNER).storage())

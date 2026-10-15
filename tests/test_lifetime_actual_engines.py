@@ -19,8 +19,7 @@ from test_name_only_opening import proposal
 
 @pytest.mark.parametrize('execution', ['worker', 'inprocess'])
 def test_first_visible_ack_precedes_proposal_completion_and_durable_save(sql, tmp_path, monkeypatch, execution):
-    command = sql.command
-    dsn = sql.publication_dsn or f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn = sql.publication_dsn
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
@@ -164,8 +163,7 @@ def test_first_visible_ack_precedes_proposal_completion_and_durable_save(sql, tm
 @pytest.mark.parametrize('recovery',['volume_loss','corrupt','incompatible','restart'])
 @pytest.mark.parametrize('execution,streaming',[('worker',False),('worker',True),('inprocess',True)])
 def test_actual_engine_seams_cold_recover_and_replay_once(sql,tmp_path,monkeypatch,execution,streaming,recovery):
-    command=sql.command
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET','synthetic-worker-secret')
@@ -195,7 +193,9 @@ def test_actual_engine_seams_cold_recover_and_replay_once(sql,tmp_path,monkeypat
             return raw
     monkeypatch.setattr(worker_module,'CodexConnection',ControlledAppServer)
     monkeypatch.setattr(engine_module,'CodexConnection',ControlledAppServer)
-    monkeypatch.setattr(worker_module,'iter_artifacts',lambda *_:pytest.fail('Governed cold execution cannot enumerate old home artifacts'))
+    from apps.api import codex_artifacts
+    assert not hasattr(worker_module, 'iter_artifacts'), 'Canonical worker must not retain the legacy home enumerator'
+    monkeypatch.setattr(codex_artifacts,'iter_artifacts',lambda *_:pytest.fail('Governed cold execution cannot enumerate old home artifacts'))
     monkeypatch.setattr(worker_module,'worker',worker_module.CodexWorker(home_root=tmp_path/'worker',api_key='synthetic-provider-value',model='gpt-5.6-luna-pooled'))
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     runtime=CodexRuntime(home_root=tmp_path/'api',

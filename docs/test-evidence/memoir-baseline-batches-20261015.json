@@ -1,0 +1,1298 @@
+{
+  "schema_version": 1,
+  "pr": 69,
+  "acceptance_complete": false,
+  "pr68_overlap": [
+    "apps/web/client/memoir/client.js",
+    "tests/test_stage_readiness_browser.py",
+    "tests/js/stream-latency.test.mjs"
+  ],
+  "batches": [
+    {
+      "batch": 1,
+      "code_revision": "c8542bd8f096e564bdb3191bdec5b46dcad7f5be",
+      "scope": "newly exposed recovery, policy/clearance and canonical guest/disabled identity fixtures",
+      "red": {
+        "failed": 4,
+        "passed": 2,
+        "head": "35b8fcd20b6b44d6598e16d652697684ab0f37dd"
+      },
+      "pinned_result": {
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 44.44
+      },
+      "commands": [
+        "python -m pytest -q tests/test_lifetime_composer_policy.py tests/test_lifetime_composer_clearance.py tests/test_lifetime_home_recovery.py tests/test_workspace_memory_actions.py::test_pg_focused_narration_keeps_literal_source_and_recovers_saved_reply_after_event_changes --tb=short"
+      ],
+      "root_causes": [
+        "The focused recovery provider returned bare JSON while the real client requested NDJSON. The corrected synthetic worker retains one-call replay, literal-source and stale-event rejection assertions.",
+        "Real canonical PostgreSQL/worker reproduction traced fail_memoir_lane to validate_summary: the synthetic prepare output used the old event ID/reference set. It now uses the transmitted progressive summary partition. All no-attempt-consumption, durable-checkpoint and resume assertions remain.",
+        "Canonical-only policy permits owned guest identity and ignores the retired rollout flag. Cases now require one stable owned identity, cross-owner denial and no narrator/turn/round/lease admission. Family/demo cases still require no lifetime identity."
+      ],
+      "evidence_sha256": {
+        "red_junit": "47e957d9816bae83be8f59687ece7388042b86304c79abacb37a7256ed1611ff",
+        "pinned_junit": "006a3bf6db11277bbe899933c2ac6b391e52c8e53229346c1df758b643881a65"
+      },
+      "remaining": "Two of the historical 23 unresolved functional cases are repaired by batch one; 21 remain pending. Historical aggregate is unchanged. See current_disposition."
+    },
+    {
+      "batch": 2,
+      "code_revision": "1b491f7c7246eaba24b976db4b24de5bf2ca2b34",
+      "scope": "Deferred FastAPI route traversal and portable container-up ENV_FILE sourcing",
+      "red": {
+        "failed": 45,
+        "passed": 33,
+        "head": "c489139ed5e16237813ff4aff6d4cb1e232e09dd"
+      },
+      "pinned_result": {
+        "tests": 83,
+        "failures": 8,
+        "errors": 0,
+        "skipped": 0
+      },
+      "pinned_seconds": "39.282",
+      "commands": [
+        "python -m pytest -q tests/test_memoir_fifty_browser.py tests/test_container_startup.py --tb=short"
+      ],
+      "root_causes": [
+        "FastAPI defers included routers; raw .routes contains _IncludedRouter objects without path. Official iter_route_contexts preserves effective prefixes and response metadata; older eagerly flattened releases use the previous traversal. A nested-prefix/response-contract regression is added.",
+        "POSIX dot sourcing a bare .env searches PATH under dash. Relative ENV_FILE values now receive ./; absolute values are preserved. All original startup assertions remain, with relative/absolute filenames containing spaces also checked."
+      ],
+      "remaining_failures": [
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_actual_history_source_and_receipt_read_contract",
+          "summary": "AssertionError: {\"detail\":\"Project history temporarily unavailable\"}\nassert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_armed_turn_calls_actual_owned_runtime_once_and_keeps_diagnostics_private",
+          "summary": "AssertionError: {\"detail\":\"Governed publication is not configured\"}\nassert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_production_browser_wrapper_is_exact_and_stream_is_real",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_runtime_failure_is_sanitized_and_cannot_be_retried",
+          "summary": "assert (503 == 502)\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_concurrent_duplicate_never_dispatches_second_runtime",
+          "summary": "TimeoutError"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_original_english_chinese_wrappers_reject_forged_suffix_and_other_case[0]",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_original_english_chinese_wrappers_reject_forged_suffix_and_other_case[1]",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_turn_client_cannot_write_after_runtime_completes",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        }
+      ],
+      "evidence_sha256": {
+        "red_junit": "7bb9f4de6405a366dfacd436efd2957572d6d979d948c6ec0adb2188758b6177",
+        "pinned_junit": "bd4087f5a5950395d33adf78734d84930cd0548a462298dc33d6b3b451accd63"
+      },
+      "limits": "Eight evaluation fixture cases now reach later canonical history/publication failures. No authority checks bypassed; they remain failures and need a separate batch. Only disposable/fake local startup tools ran; no actual container stack or Mac run."
+    },
+    {
+      "batch": 3,
+      "code_revision": "66ef41950a894c6f7cc0f69a7f59e818e18699a0",
+      "scope": "Intermittent multisource withdrawal reproduction and evidence-grounded synthetic passages",
+      "red": {
+        "repeated_original_case": "Two passes then a failure in fresh isolated PostgreSQL databases. The failure printed all surviving source IDs, event IDs, dependency sets, bundles and proposals.",
+        "cause": "The Sydney section had only the unrelated 31-character source as evidence, but the SQL-only synthetic model copied the first packet source text (Chengde) into every section. Random event order also changed the model-local writing ID. This is a fixture attribution defect, not a demonstrated purge defect."
+      },
+      "pinned_result": {
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 10.961
+      },
+      "commands": [
+        "python -m pytest -q tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump tests/test_lifetime_composer_capacity.py::test_pg_normal_event_evidence_addition_cannot_replace_approved_prose tests/test_lifetime_composer_capacity.py::test_pg_actual_outer_send_rejects_event_revision_changed_after_capture --tb=short"
+      ],
+      "root_causes": [
+        "Synthetic passages now quote their own canonical event evidence and retain an event-stable writing ID. Both model output event orders are covered. The original exact purge and unrelated-bundle byte-preservation assertions remain.",
+        "Four new canonical SQL cases cover approved/human-locked originals with proposals based solely on a second source, followed by edit/withdrawal of the original. These passed before any product change; original prose is removed from raw stored bundles/proposals and authenticated head, the replacement source remains active and rounds stay unchanged."
+      ],
+      "evidence_sha256": {
+        "failing_repeat_trace": "3127a93579326fb0c45dd8a535ca7feedf0873b52e65d59efb9bff675ed08356",
+        "pinned_junit": "4be91cb2a2825e795c0fadded8d5ab8677a62a2bc54bb133c148e5bcf7f36575"
+      },
+      "limits": "No product purge change is claimed. These constructions explain the observed failure and verify their own behavior; they do not prove the absence of other withdrawal defects or establish exposure through a production UI."
+    },
+    {
+      "batch": 4,
+      "code_revision": "0bbe44e336ce4d67016f4da5b1b8497d7749dd89",
+      "scope": "Remaining eight evaluation readback and governed route-spy failures exposed by batch two",
+      "red": {
+        "failed": 8,
+        "evidence": "Batch two pinned JUnit retains all eight IDs and failure summaries."
+      },
+      "pinned_result": {
+        "passed": 87,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 43.074
+      },
+      "commands": [
+        "python -m pytest -q tests/test_memoir_fifty_browser.py tests/test_agent_routes.py --tb=short"
+      ],
+      "root_causes": [
+        "Owned evaluation readback required retired GET receipt transport. It now accepts exact POST read arguments only. A regression rejects GET, another project, malformed client-turn IDs and extra arguments before SQL. Existing canonical SQL tests establish the permitted phase-row initialization/owned-project lock contract.",
+        "Generation-only spies now retain real disposable SQL owner identities, leases and execution fences through ASGI publication. Production publication safeguards are unchanged; all existing missing-authority/fence refusal tests also pass.",
+        "The owned adapter raised RuntimeError expecting the former route to format it. It now raises an explicit sanitized HTTP 502, retaining private diagnostic sidecars and original one-dispatch/no-retry assertions."
+      ],
+      "evidence_sha256": {
+        "pinned_junit": "282ad15f9bab1a6e34c4bf4be50f6cb4b7de6bd42e511f8baabfb629f70ec5a8"
+      },
+      "limits": "Offline ASGI handler/SQL evidence, not a native production browser or live provider run."
+    },
+    {
+      "batch": 5,
+      "code_revision": "70a9506a5e2c3e4d3be5e3402f78b8edc46118fc",
+      "scope": "Actual progressive photo originals/proposals and exact evidence-span invalidation",
+      "red": {
+        "unmodified_head": "42ff957d12780db6d8b103ba1c9d20c019c2b881",
+        "failed": 4,
+        "cause": "Old photo invalidation matches a photo-link UUID suffix, absent from normal progressive writing IDs. Four actual rendered-asset original/proposal update/delete cases leave the dependent section stored.",
+        "refinement": "A separate same-asset/different-evidence-span regression also failed against the first local repair, preventing broad deletion by asset ID alone."
+      },
+      "pinned_result": {
+        "passed": 32,
+        "failed": 2,
+        "skipped": 0,
+        "seconds": 27.536
+      },
+      "commands": [
+        "python -m pytest -q tests/test_progressive_photo_invalidation.py tests/test_lifetime_review_repairs.py tests/test_interview_photo_composer.py tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump --tb=short"
+      ],
+      "root_causes": [
+        "Additive migration 202610150004 inspects actual rendered photo blocks in originals and proposals, with existing owner/project/event scope, asset ID, source ID/version and the quoted original evidence span. Old key-based cleanup remains for old sections. No-op updates, unrelated prose, sibling photos, and the same asset used with independent evidence remain byte-for-byte unchanged.",
+        "Two additional checks retain current page-digest rejection for photo mutations during in-flight composition. Round accounting remains unchanged. No production database was contacted or migrated."
+      ],
+      "remaining_failures": [
+        "tests/test_lifetime_review_repairs.py::test_photo_change_invalidates_only_its_partition_and_pending_proposal[update]",
+        "tests/test_lifetime_review_repairs.py::test_photo_change_invalidates_only_its_partition_and_pending_proposal[delete]"
+      ],
+      "remaining_cause": "The two unchanged old cases query sections by retired photo-link key suffixes and fail before mutating a photo. Their original assertions remain. Seven new progressive cases cover stored asset/proposal purging, independent evidence and in-flight refusal; workspace editorial/rework integration remains incomplete.",
+      "evidence_sha256": {
+        "red_junit": "abb2e9da7d44f1430eb87e5c16b741ffec73028280006b2434ce6d4ae0f64433",
+        "span_refinement_red_junit": "ba6910d4dd42f800e0194bbbfa6b581bd6efda317edf4e460d94d56c09ffce57",
+        "pinned_junit": "c4badc05d27652cee0717699ba212c0eacc341240b4fcb16a6d2e50864ce55b5"
+      }
+    },
+    {
+      "batch": 6,
+      "code_revision": "7a4ade875a950f0d74122758eedd94238af8d31f",
+      "scope": "Preserve current photo writing when an inactive/derived link changes and keep model writing IDs separate from dependency IDs",
+      "red": {
+        "basis_cases_failed": 4,
+        "writing_id_collision_cases_failed": 4,
+        "writing_id_collision_cases_passed": 4,
+        "cause": "The first local photo repair matched inactive/derived links to current writing. A progressive model-local writing ID equal to a retired link UUID also accidentally entered old key-suffix cleanup."
+      },
+      "pinned_result": {
+        "passed": 40,
+        "failed": 2,
+        "skipped": 0,
+        "seconds": 31.446
+      },
+      "new_progressive_matrix": {
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      "commands": [
+        "python -m pytest -q tests/test_progressive_photo_invalidation.py tests/test_lifetime_review_repairs.py tests/test_interview_photo_composer.py tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump --tb=short"
+      ],
+      "root_causes": [
+        "Modern dependency cleanup now requires the old link to be confirmed narrator_metadata, matching the canonical composer photo basis. Legacy suffix cleanup applies only to legacy passage keys; progressive model writing IDs never act as dependency authority.",
+        "Eight additional native cases preserve current writing for unlinked/invalidated/visual-derived/narrator-provenance links, including a UUID model writing ID that coincides with a retired link ID. All prior exact purge, independent-asset/span, no-op, in-flight fence and round-accounting checks remain."
+      ],
+      "remaining_failures": [
+        "tests/test_lifetime_review_repairs.py::test_photo_change_invalidates_only_its_partition_and_pending_proposal[update]",
+        "tests/test_lifetime_review_repairs.py::test_photo_change_invalidates_only_its_partition_and_pending_proposal[delete]"
+      ],
+      "evidence_sha256": {
+        "basis_red_junit": "6647f0d9ed4269efa10beec1886ad61d19c4475fc8483e9e948bb5e9500a3f18",
+        "writing_id_red_junit": "6ba0828d1c64b7848c739d28eb3b7506e91ee444c4b27f4b9659e1c0553b4e05",
+        "pinned_junit": "252b3f257d7b6ce27514832ca546d97add8797f939252bddfd0d70f7110a2803"
+      },
+      "limits": "The two retained older cases still fail before mutation by querying retired key suffixes. Fifteen new progressive SQL cases pass; this does not complete workspace section-rework integration or independent runtime acceptance."
+    },
+    {
+      "batch": 7,
+      "code_revision": "5e02ff6eb78e71fcf59ac343cf2de46076b5aa5c",
+      "scope": "Review correction: actual image schema/renderer, normal proposal-only removal and authenticated protected-original readback",
+      "red": {
+        "validated_image_matrix": {
+          "failed": 5,
+          "passed": 11
+        },
+        "normal_protected_proposal_readback_after_image_match_fix": {
+          "failed": 2,
+          "passed": 0
+        },
+        "cause": "The prior migration matched invalid photo blocks. Schema-valid image originals/proposals were left stored. Once the type was corrected, deleting an image-only proposal also deleted its independent original row; the older completed snapshot could not satisfy the current event revision, so authenticated readback lost it."
+      },
+      "pinned_result": {
+        "passed": 123,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 72.317
+      },
+      "additional_privacy_proposal_checks": {
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 10.41
+      },
+      "commands": [
+        "python -m pytest -q tests/test_progressive_photo_invalidation.py tests/test_lifetime_memory_reads.py tests/test_lifetime_composer_policy.py tests/test_lifetime_composer_clearance.py tests/test_lifetime_composer_capacity.py::test_pg_composer_root_readback_never_exposes_unfinished_or_forged_sections tests/test_lifetime_composer_capacity.py::test_pg_proposal_decision_is_current_root_cas_and_never_grants_publication tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump --timeout=60 --timeout-method=signal --tb=short",
+        "python -m pytest -q tests/test_lifetime_composer_capacity.py::test_pg_protected_section_survives_preference_snapshot_and_exposes_only_safe_proposal tests/test_lifetime_composer_capacity.py::test_pg_normal_event_evidence_addition_cannot_replace_approved_prose tests/test_lifetime_composer_capacity.py::test_pg_actual_outer_send_fences_proposal_decisions_without_policy_churn --tb=short"
+      ],
+      "root_causes": [
+        "The migration matches actual image blocks and preserves eligible originals when only a proposal depends on the changed link. Only the two protected-original preview cases change in the existing reader; every owner/root/policy/evidence/paging check and function privilege remains unchanged.",
+        "Tests supply an explicitly synthetic catalog to the real full draft validator and renderer; use the current block/heading flattening; create protected proposals through actual canonical SQL commits; inspect authenticated pages/head; deny another owner; preserve sibling/unrelated writing and unapproved candidate withholding. They also prove current canonical assets=[] rejects image admission and invalid photo blocks fail schema validation."
+      ],
+      "limits": "No live rendered-image exposure is established; current producer/asset-mapping policy remains unchanged. These are controlled validated-bundle storage and readback checks.",
+      "evidence_sha256": {
+        "schema_valid_red_junit": "89bfdb79a3d59d990708ffb5a9ae90e63bbc461ca1e0996cdbdcbacc581a8ea8",
+        "normal_proposal_readback_red_junit": "3e9d0cb9bdc7ded6a0b2c4b3ce08b17a215006ecbe6135e63e8dbe1897f7c466",
+        "pinned_junit": "bc58cffd56e4beb58fbaf03cd0c5d6f0964d182160a03f6c2c369ee3efab2de0",
+        "privacy_junit": "934c1b1f7f74f53a0d6c65f279f3369c342a66bb6cc39fcbbc0a098cc0686cd4"
+      }
+    },
+    {
+      "batch": 8,
+      "code_revision": "dc3d891746de2902979f501f5f72cd58e03e3faf",
+      "scope": "Preserve current main nonretryable PostgREST application-conflict policy in the replaced reader",
+      "red": {
+        "head": "165f330bd13051f66daeb3d172727a21e2dd202a",
+        "failure": "test_public_application_functions_never_raise_serialization_failure found one function with a 40001 exception site"
+      },
+      "pinned_result": {
+        "passed": 88,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 48.39
+      },
+      "command": "python -m pytest -q tests/test_postgrest_application_conflicts.py tests/test_progressive_photo_invalidation.py tests/test_lifetime_memory_reads.py --timeout=60 --timeout-method=signal --tb=short",
+      "root_cause": "The copied older reader preceded 202610140007, which converts deliberate application conflicts to PT409 to avoid PostgREST serialization retry loops. Its one stale-root exception now retains PT409; no retry/admission policy is changed.",
+      "evidence_sha256": "1d86c5d5bb6d903cb6dcd641e5c5cbd49a96d5ee09157fa9794fd62a25abc42e"
+    },
+    {
+      "batch": 9,
+      "code_revision": "61cc9e19ef0e727df82339d5f0f87f3b271281f5",
+      "scope": "Canonical SQL/ASGI controlled delivery, worker correlation, canary coverage and resumable synthetic state",
+      "root_causes": [
+        "Drivers invoked runtime.turn without canonical publication context; native fixtures lacked explicit fresh identity mappings and private NDJSON framing.",
+        "Canonical checkpoint delivery used the legacy saved-draft reader. It now consumes actual canonical read responses under SQL publication.",
+        "The scoped canary broker omitted the required canonical receipt coverage scan before queuing. Controlled canary model names must use reviewed bounds; the live pinned name stays blocked.",
+        "The resumed fixture CLI used an in-memory legacy storage adapter. Each controlled case now owns a separate native SQL subprocess and retains original identity/source/round/place state; legacy display places are never imported as testimony.",
+        "Parent-owned minimized telemetry receipts remain outside the native child. Pure orchestration fixtures are separately adjusted in batch eleven; they do not establish SQL durability."
+      ],
+      "checkpoint_proof": {
+        "tested_revision": "cd739174823a1fc907b2ee845f7a86c8c059e9c4",
+        "ledger": "memoir-baseline-checkpoint-cd73917-20261015.json",
+        "canonical_turn_tests_passed": 3,
+        "canonical_evaluation_tests_passed": 17,
+        "controlled_native_canary": "passed ten originals/two drafts/single-attempt jobs",
+        "resumed_place_variants_passed": 2,
+        "native_snapshot_roundtrip": "passed"
+      },
+      "preliminary_runs": {
+        "canonical_driver_red": {
+          "failed": 4,
+          "passed": 36,
+          "source": "uncommitted transition before fixture/reader corrections; not pinned acceptance"
+        },
+        "driver_selection": {
+          "passed": 81,
+          "failed": 1,
+          "seconds": 124.58,
+          "source": "uncommitted transition; parent telemetry drop exposed and subsequently fixed"
+        },
+        "parent_telemetry_and_replay_followup": {
+          "passed": 2,
+          "failed": 0,
+          "seconds": 15.41
+        }
+      },
+      "evidence_sha256": {
+        "memoir-canonical-driver-red.xml": "820cea0db66f1791edb7c4f9ec5e1e94331b66fe1c4c0fb75ec2034a8dc0d158",
+        "memoir-driver-batch-unpinned.xml": "88bed5ce2a24c5516d2618b5002711526eb6a98194d9e2241d519695ea571709",
+        "memoir-parent-receipt-replay-progress.xml": "e715a509325dba3fb008a3ba2c827a53b47ceabcbb5e3985cccea655d2fd02d7",
+        "memoir-native-state-progress3.xml": "60d1424be3b3b3734b550af832cf0d349bba899986664fc774a5d8e5856829fe",
+        "memoir-canary-checkpoint-progress.xml": "ebc33d2f31045fff335aa52e0096df4c017d067b12761384de06869e5dd7af8e"
+      }
+    },
+    {
+      "batch": 10,
+      "code_revision": "cd739174823a1fc907b2ee845f7a86c8c059e9c4",
+      "scope": "Bounded progressive editorial request/page/commit integration and separately labelled canonical comparison candidate",
+      "root_causes": [
+        "Admission recognized only retired evidence/photo partition keys, rejecting real progressive saved writing.",
+        "Editorial tasks must use exact selected original spans and stored writing identity without advancing canonical event/message cursors. The composer must not restore selected prose as unchanged carry-forward writing.",
+        "A predecessor from another locale can reset edition cursors; lookup now selects the requested edition. Model presentation IDs cannot route into siblings.",
+        "The old profiler compares legacy prompts and resumed homes; canonical execution uses lifetime-v1 and fresh ephemeral homes. The separate candidate compares matching actual SQL prestate and labels requested/effective policy without claiming the old benchmark or semantic/latency acceptance."
+      ],
+      "targeted_preliminary_results": {
+        "focused_rework": {
+          "passed": 8,
+          "failed": 0,
+          "seconds": 24.85
+        },
+        "rework_image_provenance_selection": {
+          "passed": 111,
+          "failed": 9,
+          "seconds": 125.81
+        },
+        "canonical_candidate": {
+          "passed": 2,
+          "failed": 0,
+          "seconds": 32.74
+        }
+      },
+      "complete_checkpoint": {
+        "tested_revision": "cd739174823a1fc907b2ee845f7a86c8c059e9c4",
+        "collected_records": 6275,
+        "passed": 5429,
+        "failed": 576,
+        "errors": 21,
+        "skipped": 249,
+        "warnings": 3,
+        "wall_seconds": 1379.35,
+        "junit_seconds": 1369.057,
+        "ledger": "memoir-baseline-checkpoint-cd73917-20261015.json",
+        "larger_seven_correctness_checks": {
+          "passed": 7,
+          "failed": 0,
+          "seconds": 703.96
+        },
+        "newly_failing_ids": [
+          {
+            "nodeid": "tests/test_issue14_progressive_readback.py::test_existing_driver_hook_abi_with_controlled_storage_no_dispatch",
+            "summary": "scripts.canonical_turn.CanonicalTurnFailed: Canonical evaluation turn was not delivered"
+          },
+          {
+            "nodeid": "tests/test_fifty_round_campaign_adapter.py::test_fifty_round_real_canonical_driver_with_synthetic_dependencies",
+            "summary": "scripts.canonical_turn.CanonicalTurnFailed: Canonical evaluation turn was not delivered"
+          },
+          {
+            "nodeid": "tests/test_lifetime_composer_capacity.py::test_pg_composer_10000_dispositions_have_bounded_complete_root",
+            "summary": "Failed: Timeout (>60.0s) from pytest-timeout."
+          },
+          {
+            "nodeid": "tests/test_consolidated_migration_upgrade.py::test_main_migration_history_accepts_the_unapplied_workspace_upgrade[main-upgrade-history]",
+            "summary": "AssertionError: ERROR:  relation \"public.user_workspace_section_rework\" does not exist"
+          }
+        ]
+      },
+      "evidence_sha256": {
+        "memoir-progressive-rework-red.xml": "20ecad0bb3aea7d66399ab35b69925695328c6aebe2d0f98ca05544b56f049cc",
+        "memoir-rework-current-config-red.xml": "04f3e454206b04cddaa25fb1bd469eac9c77de169f7c33410d87e4d1fd92ef6b",
+        "memoir-rework-functional-green2.xml": "556b77a681f196ac2a1260266c2a488ef3ab6daf1c9e8c526ebf46c321ed352d",
+        "memoir-canonical-profile-green.xml": "34cab15d1be3d0526035ead8b52c34e0ecc4f52c766f8f153a9c76c886ce2973",
+        "memoir-final4-full.xml": "735af6951d5598c39017544e4b2cae96c80cce1a9244f60d744b6b71d616e277",
+        "memoir-final4-capacity.xml": "3726cd023353aea56fc136f59584b115e3ed769ca85ca786185bfc5340cf6c26"
+      }
+    },
+    {
+      "batch": 11,
+      "code_revisions": [
+        "a61ed759d8f979173a393875697c16ae4d3b0bdf",
+        "75bc1fb2ef620440d9015f7ce3d031c92d845a05"
+      ],
+      "scope": "Retire stranded stale requests and repair newly exposed pure-boundary/upgrade fixtures; retain unresolved pending-proposal regression",
+      "root_causes": [
+        "A pending editorial request stranded before invalidation could make every lane claim raise selected writing evidence changed. Only stale pending requests are retired under the current owner/project lane lock; instructions are not rebound to new policy authority.",
+        "Two pure orchestration tests replaced Runtime.turn while the driver now uses delivery/read adapters. Their explicit closed boundaries preserve all literal-input, 15/50-round, checkpoint, correlation, 180-reservation and no-native-evidence assertions. Actual SQL/ASGI authority remains tested separately.",
+        "An old upgrade fixture moved workspace after all later dependent migrations. It now stages real pre-workspace and current-main history prefixes, preserves profile bytes and applies every forward migration in numeric version order.",
+        "A new validated native regression demonstrates that a later rework requeues another section with an already pending proposal. Latest-root/same-snapshot proposal CAS has no inherited-proposal contract. The regression stays failing while inheritance versus waiting for decisions is unresolved."
+      ],
+      "red": {
+        "stranded_native": {
+          "failed": 1,
+          "passed": 0,
+          "seconds": 6.82
+        },
+        "first_uncommitted_sql_draft": {
+          "failed": 9,
+          "cause": "PL/pgSQL alias collided with its request record; corrected before commit"
+        }
+      },
+      "targeted_results": {
+        "nine_native_rework": {
+          "passed": 9,
+          "failed": 0,
+          "seconds": 28.25
+        },
+        "whole_workspace_selection": {
+          "passed": 24,
+          "failed": 8,
+          "seconds": 50.12
+        },
+        "pure_boundary_and_upgrade_regressions": {
+          "passed": 7,
+          "failed": 0,
+          "seconds": 21.37
+        },
+        "larger_boundary_module_selection": {
+          "passed": 147,
+          "failed": 1,
+          "seconds": 24.89,
+          "remaining": "unchanged raw legacy worker input without canonical envelope"
+        }
+      },
+      "retained_failing_regression": {
+        "path": "tests/test_progressive_rework_proposal_overlap.py",
+        "outcome": "failed",
+        "validated_diagnostic_seconds": 11.68,
+        "scope": "native SQL with schema-validated synthetic drafts and explicit controlled phase receipts; not model/ASGI acceptance",
+        "observed": "B saves; A storage is unchanged at that point, but its event is queued for another page. No overwrite/exposure is claimed.",
+        "decision": "Inherit pending proposals under the latest root digest, or wait for existing decisions before another rework. Preserve ownership/source/policy/review guards either way."
+      },
+      "evidence_sha256": {
+        "memoir-stale-rework-red.xml": "7edd4e8ec00347abe2563c8bd24377828f7e772da80d9799c708080d27e0e939",
+        "memoir-stale-rework-green.xml": "bceeef4f4993eefc94c4cd8dd3e900a8723f08c46a560b8b78f397484f07669c",
+        "memoir-stale-rework-green2.xml": "95e30a061f8d61efe64c0da8caae02d1c5fbcb98d793884a08baf42411b9babc",
+        "memoir-stale-rework-all.xml": "3d7105d622c769fc6de352fd2f175ccbadc7fe545bbbafce976e9748f33d1a3d",
+        "memoir-new-regressions-green.xml": "f77336349df8ff24f502e7a7582ab0f61a236a2806a3f13ef708286a23bf5f56",
+        "memoir-proposed-predecessor-validated.xml": "6f1112ac8ab570f5d1b168282f69cb72dd7fe3e09c06fb40c3150fa3c78cfca2"
+      }
+    },
+    {
+      "batch": 12,
+      "code_revisions": {
+        "offline": "bad5f545d15a45c4de3d0046814fc818b08481af",
+        "edition": "9e347031da7ded659c5e11e2dc7a0d9833a8182d",
+        "cancellation": "3771838b69ceec463f7467f7d3723e897daccf93",
+        "visible": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788"
+      },
+      "scope": "Four independently reproduced source-review findings: offline profiler authority, exact requested edition/root retirement, bounded child/cluster cancellation cleanup, delivered canonical visible-character count.",
+      "root_causes": "Each finding has a failing runtime reproduction and passing guard assertions; no consequential product policy was guessed.",
+      "red_and_green_ledger": "memoir-baseline-review-four-20261015.json",
+      "targeted_results": {
+        "affected": {
+          "passed": 78,
+          "failed": 8
+        },
+        "new_guard_cases": {
+          "passed": 5,
+          "failed": 0
+        },
+        "javascript": {
+          "passed": 501,
+          "failed": 0
+        },
+        "specification_acceptance": {
+          "passed": 55,
+          "failed": 0
+        }
+      },
+      "complete_fixed_head": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "complete_python": {
+        "completed": true,
+        "collected_records": 6282,
+        "passed": 5438,
+        "failed": 574,
+        "skipped": 249,
+        "error": 21,
+        "seconds": 1327.407,
+        "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short",
+        "runner": "Linux 4 CPUs/16 GiB; disposable native Unix-socket PostgreSQL and installed local Temporal CLI. Fixed source/test head; affected native selection, seven larger-budget checks and static/specification checks ran concurrently.",
+        "classification_categories": {
+          "stale_canonical_execution_fixture": 192,
+          "legacy_lane_worker_fixture_compatibility_defect": 3,
+          "stale_retired_admission_fixture": 65,
+          "stale_publication_authority_fixture": 7,
+          "stale_browser_identity_fixture": 37,
+          "stale_retired_api_fixture": 225,
+          "stale_phase_publication_fixture": 6,
+          "stale_invalid_worker_request_fixture": 5,
+          "stale_retired_publisher_route_fixture": 3,
+          "aggregate_case_time_budget": 6,
+          "stale_retired_artifact_fixture": 1,
+          "stale_progressive_photo_partition_fixture": 7,
+          "unresolved_photo_policy_rework_contract": 1,
+          "diagnostic_adapter_canonical_fixture_compatibility_defect": 1,
+          "stale_guest_admission_contract": 1,
+          "stale_browser_source_extraction_fixture": 4,
+          "unresolved_legacy_evaluation_dataset_contract": 7,
+          "stale_legacy_collection_contract": 5,
+          "stale_photo_partition_fixture_with_progressive_coverage": 2,
+          "evaluation_driver_canonical_context_compatibility_defect": 6,
+          "stale_guest_identity_fixture": 6,
+          "environment_zombie_process": 1,
+          "stale_retired_clearance_contract": 1,
+          "stale_identity_rpc_fixture": 2,
+          "unresolved_pending_proposal_root_authority_contract": 1
+        },
+        "wall_seconds": 1339.13,
+        "warnings": 4,
+        "classification_rollup": {
+          "stale_fixture_or_retired_contract": 569,
+          "identified_product_or_tooling_compatibility": 10,
+          "environment_or_aggregate_budget": 7,
+          "unresolved_functional": 9
+        },
+        "comparison_limit": "No newly failing IDs or changed failure points were found. Matching IDs/summaries alone do not prove intended behaviour. Current source/SQL reproductions and preserved per-case explanations support classifications; all original unmet assertions remain failures."
+      },
+      "retained_failing_regression": "Pending-proposal root authority remains unresolved; ordinary failing test preserved.",
+      "evidence_sha256": {
+        "memoir-review4-full-complete.xml": "c7e72e3bf677b120d0f32281b9f5469359d591ab3cac70217ef02d55bee29d5a",
+        "memoir-review4-capacity.xml": "b2e2c8dad7e633590d5e3a94e18d51e87bbe607e0be201dc3bfdc7df105e9396",
+        "memoir-review4-affected.xml": "b25b4460edf483ea95a6b8729161bf6c01afbc8cc95e7d13f26b42676041e14f",
+        "memoir-review4-acceptance.xml": "a11345f837e25f64ba6d272939c824d982af081e4a893aeda4f0914464c0153c",
+        "memoir-review4-full.xml": "96c3b60aece7469367b629c6274171a5036f8bb309b9594f0ccd3fb1f63dbc63",
+        "memoir-review4-visible-green.xml": "f60939da6566099ed7ea509dc8a2c656629777ca8adffa04b984f47d7a674f7f",
+        "memoir-review4-visible-red.xml": "a23e2872b05689f0cb8d91734ecd56e5214c299c86cd7e0afe727fdd4fa38044",
+        "memoir-review4-cancel-both.xml": "cc58e54fafdae6c49b406a5aca1e70599e624c902525f930cf87e7c2b2978773",
+        "memoir-review4-edition-green.xml": "0dad4c4f58df8bdaef8209b51f623f038fb5e71a03168750241c51822d9413a9",
+        "memoir-review4-cancel-green.xml": "9f0c4b7c12fd14179f61731325c5cf5fa968ba393c5cece7b719fb7fe157c560",
+        "memoir-review4-cancel-red.xml": "33d03baf2eae82f1b5d2ae2b676773c32099236d8190609599f3619f74a0d332",
+        "memoir-review4-edition-red.xml": "1899e20842c374c78857aa6a178f14d0f568cdd10806f9c78f956624aa225e7e",
+        "memoir-review4-offline-green.xml": "39d216edb4c98ebb0f0ba01d10d6bd9a303ca42c1b28ef251132c7336724ba68",
+        "memoir-review4-offline-red.xml": "a0225f056b93a4f73838cc33853ea0009c7c9b6fa138f37b1198c3cf95fb6361",
+        "memoir-review4-full-complete.log": "0f62e35408ca5edfd919014b17bfa926fea1e45f22aee39042e3be0b2ab01231",
+        "memoir-review4-acceptance.log": "7403ad6af06a07d992c1444db55acadfd9de1b17a8f0d722a8f59dc88e79e62f",
+        "memoir-review4-node-complete.log": "7a4e89b2174c2097107abce6daed5f1f5d1f7949293048f65a505cd4f3bf2dbf",
+        "memoir-review4-node.log": "91d9ccebb75c654b0816fca3147e0e9fea261f6c251cbbb2a2c04789fda2aa4f",
+        "memoir-review4-capacity.log": "d2a36d7c9e8e91a40375bbd8ec7dda0e4c510b40d804cb54d283c821542deea6",
+        "memoir-review4-affected.log": "7154e3bf0ea837351cbb926775c659caa1a897504a34aa800c67f770d6f07a28",
+        "memoir-review4-full.log": "abb990ae8df56ea44d4703c76f01e01beba9cba061c835212a2299699da40210",
+        "memoir-review4-visible-green.log": "9eda4fd607de7f364692b254fd94143902d46ff885ad6e5e83a31c5f304ce249",
+        "memoir-review4-cancel-both.log": "91b22ed41a556c57123957f0eca39ce1d157d190ebe4d9c19508100314f4a19e",
+        "memoir-review4-visible-red.log": "b4110064123887dab69359aa7e298d7da399a6d9f82eed162050a5fa6a1738c8",
+        "memoir-review4-edition-green.log": "c23b915a81b47cafbe3288256e7d4fa87c7e46039125d74679126edeec41fafd",
+        "memoir-review4-cancel-green.log": "b024d587f6717779e1cf57d6f9caf82b197667b0fbc84ab4e593ed028e5fcb3e",
+        "memoir-review4-cancel-red.log": "2ed5b988e9fa75b28d6bb58d3ec91e903fc1d235d542989b404f62c6d1a7da2d",
+        "memoir-review4-edition-red.log": "9e7fdae1e84bdbd866c66db9754c2b592cd7512e85e5cfe6943543eea9b23fba",
+        "memoir-review4-offline-green.log": "7ba4d862ba9f2df232c2d9e9af4890f84b2b092f3097a8e8b9261cd5c96ad216"
+      }
+    },
+    {
+      "batch": 13,
+      "code_revisions": {
+        "retention": "3a2243131583e6ffcab75d5b6b2af99fe0f320e9",
+        "platform_prerequisite": "d08aa215b9a1670727d1a89248957ce8e5028219"
+      },
+      "scope": "Residual child fast-stop failure/timeout retention and explicit Linux/proc prerequisite before allocation.",
+      "root_cause": "Child TemporaryDirectory removed native allocation metadata while a failed or timed-out fast stop left the detached postmaster running; parent scan then lost the original identity.",
+      "repair": "A supplied directory_root delegates deletion to the supervisor. Bounded child stop failures remain visible and leave data/postmaster.pid for parent immediate-stop reconciliation. Default standalone fixture lifetime is unchanged.",
+      "tested_revision": "d08aa215b9a1670727d1a89248957ce8e5028219",
+      "targeted_results": {
+        "complete_modules": 7,
+        "passed": 49,
+        "failed": 0,
+        "error": 0,
+        "skipped": 0,
+        "native_modes": 4,
+        "unit_prerequisite_cases": 2
+      },
+      "evidence": "memoir-baseline-cancel-retention-20261015.json",
+      "raw_evidence_sha256": {
+        "/tmp/memoir-cancel-retention-red.xml": "c338715bd14dfe0c4afed48ea7d259717ce4d33d035a5b407d47731f15a0e2a9",
+        "/tmp/memoir-cancel-retention-timeout-red.xml": "df80406d7adc02b3db3a3ada1a5ef35e72f0dc207a9d827f1f989bca97c1524f",
+        "/tmp/memoir-cancel-retention-green.xml": "61fa0a322e45b9bbf9509aa95855ed27ab55531f5d5cc97ef0a554a42cd1c644",
+        "/tmp/memoir-cancel-retention-affected.xml": "0ea96bb2dd4333b7ab18e949c4611719b386e1e60259f3ca8a4d8fd999528bf7",
+        "/tmp/memoir-cancel-retention-final.xml": "5780aeb270b77d6520a2ff1374bab86a742096862c2151b58adfe168985b8aba",
+        "/tmp/memoir-cancel-platform-red.xml": "8620c85fc2d096e6080d1068ed673f7a988c9498462808f113eb8a0e9d5ee877",
+        "/tmp/memoir-cancel-platform-green.xml": "8cb46255a35e70378db3fac93bbfd6db93f3c668b64cdebda198a71e3f6ac271",
+        "/tmp/memoir-cancel-retention-red.log": "275cb221b36ef8649c3b5822cb14c537dab23bb4221ee306d3e742f82706135e",
+        "/tmp/memoir-cancel-retention-timeout-red.log": "bbd727d59d8d48137801acfd34768c0211681f30967014f45c6b8b546813d48e",
+        "/tmp/memoir-cancel-retention-green.log": "60009dbea2bfa7e379a5d34b4a114e79b1a636ee86969a9e824de2c9cd8a1a9b",
+        "/tmp/memoir-cancel-retention-affected.log": "42f1d61666cfc0862a4345350782dd6cb353d3d1ec3e3e1e9dd92547acfeb148",
+        "/tmp/memoir-cancel-retention-final.log": "ad84ca96167429a4567d44c82bbe7af89c8c38abcedb4862d14c9b03c9b794b3",
+        "/tmp/memoir-cancel-platform-red.log": "1cd417a78dbcb16d8a5ba41ce4b6ef04b7f58f75d44ac14bbe46aa6e74e5dc33",
+        "/tmp/memoir-cancel-platform-green.log": "6c5377bc7aeb995ca9cd805ea8b63a2e9dc6d9b3c36f5d15acaf6316c3a75f8a",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos0/started.json": "75dc6c67ce623f3b46ea78c2810a41ddce78ee5f806107010fc5900a1fcd4d6b",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos0/stops.jsonl": "0604cc5721aab812ee6a18e3a77e36d0aaaa301c4592526b5f8fc17d2bdfd43f",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos1/started.json": "95602437bcb880e0ffa552b3a9cda82700c2a39d55d6b35d8d251931424d0e4d",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos1/stops.jsonl": "b445a6247cd8a49913c6c21fdc800d4b394c9dbdaa4885e9c782a69ce526db86",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos2/started.json": "bf0f037a334f0f99a4aba9e5ec58f018191a2d3494854bdebe8b585393e7e746",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos2/stops.jsonl": "917fb96a52cae0054ddcfa7d07f3ac607566301550e4b8527663b5411f0cd5d0",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos3/started.json": "51c488ca3834e8f4c8dac96cd9d7d36f70a0755421dfff8c2369b1deddc6cc1e",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos3/stops.jsonl": "06fc579268bc14c3822199e1bb76efc75e5947351fcbde5255d27d3d0042cf67"
+      },
+      "full_repository_at_this_followup_head": "not rerun; prior complete b1e54e8 ledger remains historical",
+      "policy_decisions": "unchanged"
+    },
+    {
+      "batch": 14,
+      "code_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
+      "scope": "Supervisor SIGTERM and default profiler ownership/failed-close reconciliation",
+      "red_cases": 4,
+      "expanded_green_cases": 8,
+      "complete_affected_modules": 10,
+      "passed": 66,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0,
+      "native_scenarios": 6,
+      "observed_postmasters": 9,
+      "ledger": "memoir-baseline-supervision-20261015.json",
+      "raw_evidence_sha256": {
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/allocations.jsonl": "e9f3e23991282dc26581be94222b2a3783d23aa64070504139aa506ebde1eaf3",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/stops.jsonl": "1b91d4bef0de26210bf164fa22728a44f4767891d65a92c7c0d50770f1acb852",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/supervisor.log": "abfa70c618338cd585b67f4f614001a1b91b17ff5203fabf01b97f09448b62aa",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/allocations.jsonl": "41f27458c0bfb4c01202957efa9faac112c97898912389df1ed64ababa0a953d",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/stops.jsonl": "796da64d62c8dd4f949a29c1b3f77f46509589a044142e3ab74e8ca06e33c536",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/supervisor.log": "f2990d03a9cfdb423eb79cd506bf7217307cd6e6ec74033fc8058cb37716fecf",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/allocations.jsonl": "56c13cd047c06d6f347ed2feefab9816b6c32e391b1a300a457b2c1e12c3db4c",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/stops.jsonl": "0cbcce43df14de2e978028a9ff87e38ec3e4c32054736303e00ce7e4aa383f92",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/allocations.jsonl": "5f187fdb2c440dd4a70f0675158fdc25569566a2f09e6181820d9a15a3122350",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/stops.jsonl": "e666e6d5c650c88e395f853a06af619dcc87c09d7cfeb29a7e111e8564b5dded",
+        "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/allocations.jsonl": "46493010889e1056828d1de7cbb30be69546c36edbc937ec02fd98b91aa66cf3",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/stops.jsonl": "2a558f47b5f0b365d2bf2b25ee8a5ed11eb096987ecf7374e627aefffa888b3a",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/profiler.log": "1b233461a16cf28f31882a95921cda60c43578e6233145210ec04a69ff878223",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/allocations.jsonl": "1bfe095e8956df6233bd2fac15700025ae138ff78d5bf80a6c26eb7440354f56",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/stops.jsonl": "e4b6e037204fc9d71517351e2a064c24e64a2d2d5f81af5f5a305f27ea45a3ea",
+        "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/profiler.log": "461e8a843323a1c4fb63aaad218acfef0c3c536b4c970af0904f1645c1d34433",
+        "/tmp/memoir-supervision-red.xml": "e667e805ead6ef71b84213322f39bf6bf6b06448144fd9f2d020cacbc1dcddad",
+        "/tmp/memoir-supervision-red.log": "0c7dedf1b4ac957b0fa5aa0715145b9b59796ae64786c3811e183d15e6bb9390",
+        "/tmp/memoir-supervision-green.xml": "09ce93df8e0de8f535998d88e4ed18452037d2a32b595550b441d424cfe3eff8",
+        "/tmp/memoir-supervision-green.log": "e114d952ce7a7408b92feeb5babc08607bc46d34418757aa2bece7edf47d88c0",
+        "/tmp/memoir-supervision-expanded-green.xml": "0a56e1f8ba4aea78d724ad5220881e0d56a4a22b0dba5dbb58ddb1cf4533e7f5",
+        "/tmp/memoir-supervision-expanded-green.log": "e8adc695c6bb259b70b588612399deb8ca781c2b0f30c305a774deeeeb7741c0",
+        "/tmp/memoir-supervision-unit.xml": "38c0c0cde0e47ab490e88d0282beb16edb7540104ce24e667ebe6bc2f9f2376d",
+        "/tmp/memoir-supervision-unit.log": "4de64934605dc63b561f8b2a59ff4a7fa10d1068e8dfcae0f632ddefa3a3b684",
+        "/tmp/memoir-supervision-spawn-before-shield.xml": "e9409d5d1b1b926a91c5da2a38d67986a1605bb07931fc4f2ad3cff2f8c798b3",
+        "/tmp/memoir-supervision-spawn-before-shield.log": "e46162c392fc0ffd1ed4648aa5c7926d5b02620b4b3152c2ae2e3774e8a667be",
+        "/tmp/memoir-supervision-affected.xml": "43cd0e6ebe55f1a7779bc1ae35f5f1698d96467ebcbe73c08d8c503fc021dcc5",
+        "/tmp/memoir-supervision-affected.log": "f2de2edca357c2cdcdce3c00235979d608ff76f0ed9ebbf5ffb932140361a9e2"
+      },
+      "full_repository_at_this_source": false,
+      "policy_decisions": "unchanged"
+    },
+    {
+      "batch": 15,
+      "code_revision": "7884af336740044f7e4f7829092a1a174e37dd88",
+      "scope": "Correct creation-phase attribution; actual default/long-TMPDIR and nested wrapper ownership repairs",
+      "red": {
+        "default_native": 3,
+        "nested_native": 2,
+        "creation_coverage_guard": 1
+      },
+      "pinned_result": {
+        "passed": 82,
+        "failed": 1,
+        "error": 0,
+        "skipped": 0,
+        "modules": 12,
+        "seconds": 270.78
+      },
+      "remaining_failure": {
+        "nodeid": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+        "classification": "environment_zombie_process",
+        "current_process": {
+          "pid": 769102,
+          "state": "Z",
+          "ppid": 1,
+          "group": 769100,
+          "started": "2720457",
+          "original_identity_matches": true
+        },
+        "parent_comparison": {
+          "source": "56344c045bdc74fafb6c2a3b90342b8510f2a322",
+          "pid": 732924,
+          "state": "Z",
+          "ppid": 1,
+          "group": 732923,
+          "started": "2544237",
+          "fixture": "/tmp/pytest-of-agent/pytest-92/test_timeout_stops_a_term_resi0"
+        },
+        "stop_owned_ast_unchanged": true,
+        "evidence": "Exact original descendant-absence assertion fails at both detached parent 56344 and final source. Both descendants are exited Z processes owned by PID 1. No live descendant is observed. The failed assertion is unchanged and remains failed."
+      },
+      "ledger": "memoir-baseline-transitive-cleanup-20261015.json",
+      "root_causes": [
+        "Old creation harness signalled after handle return; test coverage correction only",
+        "Outer five-second escalation can kill the controlled owner before its longer database shutdown finishes",
+        "Long TMPDIR pushed Unix sockets beyond native path limits",
+        "Nested wrappers replaced inherited allocation ownership and lost inner command-session/native roots"
+      ],
+      "policy": "No pending-proposal inheritance or PR68-owned policy change"
+    },
+    {
+      "batch": 16,
+      "code_revision": "d373e7435b6f1dc702e80cf02c567331eff7c4eb",
+      "scope": "Portable session inspection with generic command and Apple-compatible ps regressions; current-pointer and historical red-teardown corrections",
+      "red": {
+        "passed": 1,
+        "failed": 4,
+        "source": "d2f6ffa19a77c0ab7357219d08f4fa8fac622a8f"
+      },
+      "pinned_result": {
+        "passed": 88,
+        "failed": 1,
+        "error": 0,
+        "skipped": 0,
+        "modules": 13,
+        "seconds": 273.44
+      },
+      "ledger": "memoir-baseline-process-portability-20261015.json",
+      "ordinary_failure": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+      "excluded_policy_failure": {
+        "nodeid": "tests/test_progressive_rework_proposal_overlap.py::test_rework_does_not_revisit_a_completed_proposal_on_another_section",
+        "status": "Previously failing ordinary regression; excluded and not rerun by this selection. Pending-proposal inheritance contract remains unresolved; no policy/guard change."
+      },
+      "native_mac_runtime_coverage": "not run; Apple-column shim and actual Linux process sessions only",
+      "historical_red_teardown": "Failed identity assertion remains recorded; previously running exact synthetic postmaster stopped separately at 18:26 UTC, separately verified at 18:27 UTC"
+    },
+    {
+      "batch": 17,
+      "code_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+      "scope": "Fifteen complete affected modules plus the complete ordinary proposal-overlap module; sixteen selected modules, not a whole-repository aggregate",
+      "snapshot_red": {
+        "passed": 0,
+        "failed": 4
+      },
+      "creator_red": {
+        "passed": 2,
+        "failed": 3
+      },
+      "focused_green": {
+        "passed": 22
+      },
+      "pinned_result": {
+        "passed": 97,
+        "failed": 2,
+        "error": 0,
+        "skipped": 0,
+        "modules": 16,
+        "seconds": 269.1
+      },
+      "ledger": "memoir-baseline-process-races-20261015.json",
+      "retained_failures": [
+        {
+          "nodeid": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+          "classification": "environment_zombie_process"
+        },
+        {
+          "nodeid": "tests/test_progressive_rework_proposal_overlap.py::test_rework_does_not_revisit_a_completed_proposal_on_another_section",
+          "classification": "unresolved_pending_proposal_root_authority_contract"
+        }
+      ],
+      "native_mac_runtime_coverage": false,
+      "independent_final_head_rereview": "outstanding; route through parent thread",
+      "policy": "No proposal inheritance, SQL/client, PR68 ownership or publication/review/identity fence change"
+    },
+    {
+      "batch": 18,
+      "execution_revision": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+      "source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+      "scope": "Complete applicable cloud repository aggregate, exact per-case historical comparison, separate supplemental checks and separately attributed parent verifications",
+      "pinned_result": {
+        "records": 6320,
+        "passed": 5478,
+        "failed": 572,
+        "error": 21,
+        "skipped": 249,
+        "warnings": 3,
+        "wall_seconds": 1233.4
+      },
+      "ledger": "memoir-baseline-cloud-aggregate-20261015.json",
+      "acceptance_complete": false,
+      "comparison": {
+        "historical_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+        "newly_failing": 0,
+        "added_passes": 38,
+        "newly_passed_budget_cases": 2,
+        "removed": 0,
+        "skip_identities_and_reasons_unchanged": true
+      },
+      "policy": "No policy or assertion change; ordinary zombie/proposal-overlap failures remain failed",
+      "source_changes": false,
+      "pr68_ownership": "preserved"
+    }
+  ],
+  "current_disposition": {
+    "historical_unresolved_functional": 23,
+    "repaired_by_batch_one": [
+      "tests/test_lifetime_composer_policy.py::test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume",
+      "tests/test_lifetime_composer_clearance.py::test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints[composer]"
+    ],
+    "historical_unresolved_still_pending": 21,
+    "withdrawal_concern": "Observed intermittent assertion traced to misattributed synthetic model output. Batch three preserves purge/unrelated-content checks and adds four protected-original/edit/withdrawal cases. No product purge defect or production exposure is established by these constructions.",
+    "complete_continuation_aggregate": "Checkpoint at 165f330 is complete and preserved. Final aggregate after continued driver/rework work is pending.",
+    "independent_runtime_acceptance": "outstanding",
+    "additional_functional_reproduction": {
+      "head": "0bbe44e336ce4d67016f4da5b1b8497d7749dd89",
+      "targeted_result": {
+        "failed": 12,
+        "passed": 0,
+        "skipped": 0
+      },
+      "causes": [
+        "Six latency-profiler cases fail before dispatch because ProfileStorage/runtime.turn omits lifetime_context. A direct synthetic reproduction returns ValueError: A canonical publication context is required.",
+        "Both resumed fixture/pilot place traces record that same exception before accepting Hobart; the existing Perth state remains. This does not establish a geocoding or grouping failure.",
+        "One legacy timeline worker and two legacy Temporal cases send an author_timeline request without any canonical execution envelope. WorkerTurnInput rejects it with HTTP 422 before the controlled provider. The composer parameter is separately rejected by canonical SQL legacy admission.",
+        "The ten-round application canary records first-round ValueError, zero worker requests and nine not-run rounds. CanonicalEvaluationDriver directly invokes runtime.turn without lifetime_context. Other manifest live-readiness blockers are not the cause of this controlled-provider failure."
+      ],
+      "limits": "These diagnoses do not repair the tools or satisfy their original behavior assertions. Migrating canonical authority/context into the remaining evaluation drivers and legacy maintenance fixtures is unfinished; no guard was bypassed.",
+      "evidence_sha256": {
+        "targeted_junit": "9bf1900de9a2ab1b3b534f5b22bfb367f2c35fecd630bee1110686cdeff082a3",
+        "canonical_diagnostics": "197ebecae3329953728fd6703412c0b7c5ac91d74ad38ea122898fb37bfa7b38",
+        "canary_junit": "0e0a45c96dbd33ac97d19db0c8bf1cfcff1c8dde97b4d834d2f230ccf176c586",
+        "canary_manifest": "79d96a044519d04894c6c5cc50f56eca43260768d246af0960de806a8aa7e82f"
+      }
+    },
+    "superseded_aggregate": {
+      "head": "42ff957d12780db6d8b103ba1c9d20c019c2b881",
+      "status": "interrupted after 481.36 seconds when the independent photo reproduction established a further product fix was required",
+      "partial_result": {
+        "failed": 254,
+        "passed": 3197,
+        "skipped": 38
+      },
+      "acceptance_use": "Not completeness evidence; final aggregate will use the following fixed evidence head."
+    },
+    "superseded_photo_aggregate": {
+      "head": "91a59b0521c4645f60fb445f12b883ec7b9de274",
+      "status": "interrupted to retain the new photo-preservation regressions and refine the product repair",
+      "partial_result": {
+        "failed": 156,
+        "passed": 1819,
+        "skipped": 0,
+        "seconds": 224.55
+      },
+      "capacity_partial_result": {
+        "passed": 2,
+        "seconds": 196.96,
+        "completed": false
+      },
+      "acceptance_use": "Neither partial run is completeness evidence."
+    },
+    "image_evidence_correction": {
+      "reviewed_heads": [
+        "91a59b0521c4645f60fb445f12b883ec7b9de274",
+        "dccff32bd6e921c2c43a7e8d734535b134ac3097"
+      ],
+      "supersedes_batches": [
+        5,
+        6
+      ],
+      "finding": "Those matrices injected block type photo, which the real draft schema rejects. Their claimed rendered-image/product evidence was invalid. The current schema and renderer use image. The corrected matrix validates complete drafts and renders HTML through the actual JavaScript implementation, with an explicitly synthetic eligible asset catalog.",
+      "production_limit": "composer_request currently supplies assets=[]. A negative current-producer check requires INELIGIBLE_ASSET for a schema-valid image; photo is rejected as SCHEMA. No actual live image admission, production exposure, or upload-to-composer asset mapping is established. Production asset policy is unchanged.",
+      "normal_proposal_readback": "After correcting image matching, two normal protected-row commit/read tests reproduced loss of an unrelated approved original when only the image proposal depended on a removed link. Cleanup now clears only that proposal; the existing reader returns the protected original while other unapproved candidates remain withheld. This is validated stored-bundle/SQL coverage, not live production exposure."
+    },
+    "superseded_reviewed_aggregate": {
+      "head": "dccff32bd6e921c2c43a7e8d734535b134ac3097",
+      "status": "interrupted after blocking independent schema review",
+      "partial_result": {
+        "failed": 155,
+        "passed": 1655,
+        "seconds": 161.22
+      },
+      "capacity_partial_result": {
+        "passed": 1,
+        "seconds": 151.96,
+        "completed": false
+      },
+      "acceptance_use": "Not completeness evidence. An additional unpinned preliminary broad selection was also stopped before the final pinned batch; it is not acceptance evidence."
+    },
+    "aggregate_checkpoint": {
+      "tested_revision": "165f330bd13051f66daeb3d172727a21e2dd202a",
+      "completed": true,
+      "passed": 5404,
+      "failed": 592,
+      "errors": 21,
+      "skipped": 249,
+      "warnings": 4,
+      "wall_seconds": 1238.16,
+      "junit_seconds": 1227.99,
+      "ledger": "memoir-baseline-checkpoint-165f330-20261015.json",
+      "larger_six_correctness_checks": "six passed with 600-second allowance",
+      "newly_failing_ids": [
+        "tests/test_lifetime_draft_coalescing.py::test_database_appended_turn_pages_only_new_source_and_round",
+        "tests/test_postgrest_application_conflicts.py::test_public_application_functions_never_raise_serialization_failure"
+      ],
+      "disposition": "Conflict-code regression fixed in batch eight. Appended 10,000-prefix case passes its larger-budget diagnostic; aggregate timeout is retained. Continue newly authorized evaluation-driver and rework repairs before a final aggregate."
+    },
+    "as_of_revision": "5e55d70c9e48a2fa91c3641c42822b149d772dab"
+  },
+  "latest_disposition": {
+    "source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+    "acceptance_complete": false,
+    "final_fixed_head_aggregate": "5478 passed / 572 failed / 21 errors / 249 skipped; three warnings; every current failure/error and skip recorded",
+    "latest_complete_checkpoint": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "historical_23_functional_outcomes_at_cd73917": {
+      "failed": 18,
+      "passed": 5
+    },
+    "independent_runtime_acceptance": "Parent-verified exact-source cloud review and scoped native Mac generic verification completed; full acceptance remains incomplete and new aggregate evidence review is outstanding",
+    "old_fields": "Earlier current_disposition and final_fixed_head_checks retain their historical provenance. The previous latest_disposition is copied exactly under historical_disposition_before_current_cloud_aggregate.",
+    "decisions": [
+      "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
+      "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
+      "Approved live canary model binding with reviewed canonical token bounds",
+      "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
+      "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
+    ],
+    "tested_revision": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "current_ledger": "memoir-baseline-cloud-aggregate-20261015.json",
+    "remaining_failure_or_error_count": 593,
+    "classification_rollup": {
+      "stale_fixture_or_retired_contract": 569,
+      "identified_product_or_tooling_compatibility": 10,
+      "environment_or_aggregate_budget": 5,
+      "unresolved_functional": 9
+    },
+    "current_source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+    "latest_targeted_followup": "memoir-baseline-cloud-aggregate-20261015.json",
+    "latest_complete_repository_run_still_at": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "aggregate_fields_scope": "These current aggregate fields refer to own complete b4 execution, source unchanged from 51ca. Historical b1 counts/fields are preserved separately and are not relabelled current."
+  },
+  "final_fixed_head_checks": {
+    "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "source_tree": "1cd5904e336f89f0d2275801af36c77391589088",
+    "full_python": {
+      "completed": true,
+      "collected_records": 6282,
+      "passed": 5438,
+      "failed": 574,
+      "skipped": 249,
+      "error": 21,
+      "seconds": 1327.407,
+      "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short",
+      "runner": "Linux 4 CPUs/16 GiB; disposable native Unix-socket PostgreSQL and installed local Temporal CLI. Fixed source/test head; affected native selection, seven larger-budget checks and static/specification checks ran concurrently.",
+      "classification_categories": {
+        "stale_canonical_execution_fixture": 192,
+        "legacy_lane_worker_fixture_compatibility_defect": 3,
+        "stale_retired_admission_fixture": 65,
+        "stale_publication_authority_fixture": 7,
+        "stale_browser_identity_fixture": 37,
+        "stale_retired_api_fixture": 225,
+        "stale_phase_publication_fixture": 6,
+        "stale_invalid_worker_request_fixture": 5,
+        "stale_retired_publisher_route_fixture": 3,
+        "aggregate_case_time_budget": 6,
+        "stale_retired_artifact_fixture": 1,
+        "stale_progressive_photo_partition_fixture": 7,
+        "unresolved_photo_policy_rework_contract": 1,
+        "diagnostic_adapter_canonical_fixture_compatibility_defect": 1,
+        "stale_guest_admission_contract": 1,
+        "stale_browser_source_extraction_fixture": 4,
+        "unresolved_legacy_evaluation_dataset_contract": 7,
+        "stale_legacy_collection_contract": 5,
+        "stale_photo_partition_fixture_with_progressive_coverage": 2,
+        "evaluation_driver_canonical_context_compatibility_defect": 6,
+        "stale_guest_identity_fixture": 6,
+        "environment_zombie_process": 1,
+        "stale_retired_clearance_contract": 1,
+        "stale_identity_rpc_fixture": 2,
+        "unresolved_pending_proposal_root_authority_contract": 1
+      },
+      "wall_seconds": 1339.13,
+      "warnings": 4,
+      "classification_rollup": {
+        "stale_fixture_or_retired_contract": 569,
+        "identified_product_or_tooling_compatibility": 10,
+        "environment_or_aggregate_budget": 7,
+        "unresolved_functional": 9
+      },
+      "comparison_limit": "No newly failing IDs or changed failure points were found. Matching IDs/summaries alone do not prove intended behaviour. Current source/SQL reproductions and preserved per-case explanations support classifications; all original unmet assertions remain failures."
+    },
+    "all_remaining_cases_and_skips": "memoir-baseline-review-four-20261015.json",
+    "acceptance_complete": false,
+    "larger_correctness": {
+      "counts": {
+        "passed": 7
+      },
+      "seconds": 684.029,
+      "cases": [
+        {
+          "nodeid": "tests/test_lifetime_composer_capacity.py::test_10000_mixed_language_packets_have_constant_declared_bound",
+          "outcome": "passed",
+          "seconds": 118.591,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_composer_capacity.py::test_pg_composer_10000_dispositions_have_bounded_complete_root",
+          "outcome": "passed",
+          "seconds": 100.912,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_memory_capacity.py::test_real_10000_turn_admission_early_edit_pagination_and_cold_context",
+          "outcome": "passed",
+          "seconds": 149.539,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_draft_coalescing.py::test_database_ten_thousand_repeated_receipts_transmit_zero_old_source_bytes",
+          "outcome": "passed",
+          "seconds": 113.683,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_draft_capacity.py::test_database_ten_thousand_sources_rounds_complete_bounded_snapshot",
+          "outcome": "passed",
+          "seconds": 60.006,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_collection_jobs.py::test_selected_manifest_remains_bounded_as_history_grows_to_ten_thousand",
+          "outcome": "passed",
+          "seconds": 80.389,
+          "summary": ""
+        },
+        {
+          "nodeid": "tests/test_lifetime_draft_coalescing.py::test_database_appended_turn_pages_only_new_source_and_round",
+          "outcome": "passed",
+          "seconds": 59.46,
+          "summary": ""
+        }
+      ],
+      "wall_seconds": 684.15
+    },
+    "affected_selection": {
+      "passed": 78,
+      "failed": 8
+    },
+    "javascript": {
+      "passed": 501,
+      "failed": 0,
+      "skipped": 0
+    },
+    "specification_acceptance": {
+      "passed": 55,
+      "failed": 0
+    }
+  },
+  "prior_final_fixed_head_checks_e15c0fb": {
+    "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
+    "last_source_test_change_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
+    "source_tree": "879f8b4882d25a20e74ca2083e3961c80194962e",
+    "full_python": {
+      "completed": true,
+      "collected_records": 6278,
+      "passed": 5434,
+      "failed": 574,
+      "error": 21,
+      "skipped": 249,
+      "warnings": 3,
+      "wall_seconds": 1289.34,
+      "seconds": 1282.085,
+      "classification_rollup": {
+        "stale_fixture_or_retired_contract": 569,
+        "identified_product_or_tooling_compatibility": 10,
+        "environment_or_aggregate_budget": 7,
+        "unresolved_functional": 9
+      }
+    },
+    "larger_correctness": {
+      "passed": 7,
+      "failed": 0,
+      "timeout_seconds": 600,
+      "wall_seconds": 648.55
+    },
+    "javascript": {
+      "passed": 501,
+      "failed": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "passed": 174,
+      "failed": 0,
+      "native_binary_or_device": false
+    },
+    "browser_selection": {
+      "passed": 36,
+      "failed": 4,
+      "real_standalone_stage_chromium_passed": 4
+    },
+    "specification_acceptance": {
+      "passed": 55,
+      "failed": 0
+    },
+    "web_build": "passed webpack and standalone",
+    "all_remaining_cases_and_skips": "memoir-baseline-current-checks-20261015.json",
+    "acceptance_complete": false
+  },
+  "latest_disposition_before_review_four": {
+    "source_test_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
+    "acceptance_complete": false,
+    "final_fixed_head_aggregate": "complete; every remaining failure/error and skip classified in current ledger",
+    "latest_complete_checkpoint": "memoir-baseline-checkpoint-cd73917-20261015.json",
+    "historical_23_functional_outcomes_at_cd73917": {
+      "failed": 18,
+      "passed": 5
+    },
+    "independent_runtime_acceptance": "outstanding",
+    "old_fields": "current_disposition above is preserved as the batch-eight historical disposition; this latest_disposition and later final ledger take precedence for current status",
+    "decisions": [
+      "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
+      "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
+      "Approved live canary model binding with reviewed canonical token bounds",
+      "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
+      "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
+    ],
+    "tested_revision": "e15c0fbeb3b2fe5658fee9ea6361c98062deaca4",
+    "current_ledger": "memoir-baseline-current-checks-20261015.json",
+    "remaining_failure_or_error_count": 595,
+    "classification_rollup": {
+      "stale_fixture_or_retired_contract": 569,
+      "identified_product_or_tooling_compatibility": 10,
+      "environment_or_aggregate_budget": 7,
+      "unresolved_functional": 9
+    }
+  },
+  "latest_cleanup_followup": {
+    "tested_revision": "d08aa215b9a1670727d1a89248957ce8e5028219",
+    "acceptance_complete": false,
+    "complete_affected_modules": 7,
+    "passed": 49,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-cancel-retention-20261015.json",
+    "native_mac_coverage": "not run; Linux/proc-specific lifecycle cases explicitly gated",
+    "full_repository_at_this_followup_head": false
+  },
+  "latest_supervision_followup": {
+    "tested_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
+    "acceptance_complete": false,
+    "modules": 10,
+    "passed": 66,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-supervision-20261015.json",
+    "whole_repository_aggregate_rerun": false
+  },
+  "latest_transitive_followup": {
+    "tested_revision": "7884af336740044f7e4f7829092a1a174e37dd88",
+    "acceptance_complete": false,
+    "modules": 12,
+    "passed": 82,
+    "failed": 1,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-transitive-cleanup-20261015.json",
+    "whole_repository_aggregate_rerun": false
+  },
+  "latest_process_portability_followup": {
+    "tested_revision": "d373e7435b6f1dc702e80cf02c567331eff7c4eb",
+    "acceptance_complete": false,
+    "modules": 13,
+    "passed": 88,
+    "failed": 1,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-process-portability-20261015.json",
+    "whole_repository_aggregate_rerun": false,
+    "native_mac_runtime_coverage": false
+  },
+  "latest_process_race_followup": {
+    "tested_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+    "acceptance_complete": false,
+    "modules": 16,
+    "passed": 97,
+    "failed": 2,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-process-races-20261015.json",
+    "whole_repository_aggregate_rerun": false,
+    "native_mac_runtime_coverage": false
+  },
+  "historical_disposition_before_current_cloud_aggregate": {
+    "provenance": "Preserved exactly before recording the new b4 complete aggregate; b1 aggregate fields remain historical",
+    "disposition": {
+      "source_test_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "acceptance_complete": false,
+      "final_fixed_head_aggregate": "5438 passed / 574 failed / 21 errors / 249 skipped; four warnings; all remaining cases classified",
+      "latest_complete_checkpoint": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "historical_23_functional_outcomes_at_cd73917": {
+        "failed": 18,
+        "passed": 5
+      },
+      "independent_runtime_acceptance": "outstanding",
+      "old_fields": "current_disposition above is preserved as the batch-eight historical disposition; this latest_disposition and later final ledger take precedence for current status",
+      "decisions": [
+        "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
+        "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
+        "Approved live canary model binding with reviewed canonical token bounds",
+        "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
+        "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
+      ],
+      "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "current_ledger": "memoir-baseline-review-four-20261015.json",
+      "remaining_failure_or_error_count": 595,
+      "classification_rollup": {
+        "stale_fixture_or_retired_contract": 569,
+        "identified_product_or_tooling_compatibility": 10,
+        "environment_or_aggregate_budget": 7,
+        "unresolved_functional": 9
+      },
+      "current_source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+      "latest_targeted_followup": "memoir-baseline-process-races-20261015.json",
+      "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "aggregate_fields_scope": "source_test_revision/tested_revision/current_ledger, aggregate counts and classifications identify the preserved b1e54e8 whole-repository checkpoint. current_source_test_revision/latest_targeted_followup identify the newer targeted scope; no whole-repository acceptance is implied."
+    }
+  },
+  "final_fixed_head_checks_provenance": "Preserved historical b1e54e8 checkpoint, unchanged; use latest_complete_cloud_checks for the new actual current execution.",
+  "latest_complete_cloud_checks": {
+    "tested_revision": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+    "source_test_revision": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+    "acceptance_complete": false,
+    "ledger": "memoir-baseline-cloud-aggregate-20261015.json",
+    "records": 6320,
+    "passed": 5478,
+    "failed": 572,
+    "error": 21,
+    "skipped": 249,
+    "comparison": {
+      "historical_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+      "newly_failing": 0,
+      "added_passes": 38,
+      "newly_passed_budget_cases": 2,
+      "removed": 0,
+      "skip_identities_and_reasons_unchanged": true
+    },
+    "parent_verified_external_results": {
+      "provenance": "Parent-verified report supplied in delegated instruction; not executed by this implementation agent. Raw per-case artifacts were not supplied here; counts/scopes are recorded without merging with own aggregate.",
+      "received_in_current_task": true,
+      "cloud": {
+        "thread_id": "01a1404f-c3cb-760e-aa04-bd89f35b50d0",
+        "tested_source": "51ca7fe5629f74f6a657a7a2e611d86dabf91bf8",
+        "affected_passed": 98,
+        "retained_failed": 2,
+        "ownership_probes_passed": 17,
+        "exact_race_reproductions_passed": 3,
+        "real_clock_budget_checks_passed": 1,
+        "subscope_counts_not_summed": "Possible overlap was not specified; do not add probes to affected pass totals."
+      },
+      "native_mac": {
+        "thread_id": "01a140fb-2615-7041-aea3-ea54644fb016",
+        "tested_head": "b4e184c8ad2568b6c671b0f6ea22b0ae404b8afb",
+        "passed": 23,
+        "skipped": 17,
+        "failed": 0,
+        "skip_scope": "Explicit Linux-only cases",
+        "real_apple_ps_os_getsid_and_generic_timeout_cleanup": "passed",
+        "recorded_task_pids_absent": 75,
+        "temporary_roots_absent": 15,
+        "protected_resources": "preserved",
+        "macos": "26.3.1(a)",
+        "python": "3.12.11",
+        "installed_pytest": "8.4.2",
+        "declared_pytest": ">=9.1.1,<10",
+        "dependency_gap": "Installed Mac pytest is below the declared test dependency range. This is not a dependency-conformant full acceptance run.",
+        "unverified": "Mac PostgreSQL supervisor/emergency cleanup remains unverified."
+      },
+      "complete_acceptance": false
+    }
+  }
+}

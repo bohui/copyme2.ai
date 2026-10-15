@@ -28,6 +28,7 @@ def composer_reply(params):
     """Controlled literal story; copy only host IDs and protocol metadata."""
     text = next(part['text'] for part in params['input'] if part['type'] == 'text')
     packet = json.loads(text.split('Storyteller message:\n', 1)[-1])
+    packet = packet.get('payload', packet)
     if 'partition' in packet:
         partition = packet['partition']
         with open(control['calls'], 'a', encoding='utf-8') as calls:
@@ -124,6 +125,7 @@ for line in sys.stdin:
         if control.get('mode') == 'timeline':
             text=next(part['text'] for part in params['input'] if part['type']=='text')
             packet=json.loads(text.split('Storyteller message:\n',1)[-1])
+            packet=packet.get('payload',packet)
             with open(control['calls'],'a',encoding='utf-8') as calls:
                 calls.write(json.dumps({'phase':'timeline','source_ids':[s['id'] for s in packet['sources']]})+'\n')
             hold('timeline',packet)

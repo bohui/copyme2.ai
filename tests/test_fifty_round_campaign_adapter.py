@@ -175,6 +175,20 @@ def test_fifty_round_real_canonical_driver_with_synthetic_dependencies(tmp_path,
     from apps.api.agent_storage import UserStorage
     from scripts.canonical_evaluation import CanonicalEvaluationDriver
     monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE','5')
+    # Closed orchestration boundaries, with no native/publication claim. The
+    # real adapter's authority is exercised by dedicated native tests; all 180
+    # synthetic reservations and lifecycle assertions below stay intact.
+    import scripts.canonical_evaluation as canonical
+    async def delivery(runtime, storage, text, *, options, evaluation=None, **unused):
+        return await runtime.turn(storage,text,**options,evaluation=evaluation)
+    async def read(storage, project_id, reader):
+        return reader(None)
+    def head(storage, project_id, *, language=None):
+        draft=storage.saved_memoir_draft(project_id,language)
+        return {**draft,'coverage_round':draft['covered_round']}
+    monkeypatch.setattr(canonical,'canonical_turn',delivery)
+    monkeypatch.setattr(canonical,'canonical_read',read)
+    monkeypatch.setattr(canonical,'draft_head',head)
     async def scenario():
         p = plan(False); case = p['cases'][0]
         a = create(tmp_path, p, fixture(180))  # 3/round plus 3 per checkpoint

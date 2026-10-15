@@ -1,0 +1,888 @@
+{
+  "schema_version": 1,
+  "repository": "bohui/copyme2.ai",
+  "pull_request": 69,
+  "date": "2026-10-15",
+  "tested_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
+  "source_tree": "c3ef1e967af294c808fe8f6ff1afd0c15af9041c",
+  "acceptance_complete": false,
+  "scope": "Ten complete affected modules, not a whole-repository aggregate",
+  "root_causes": {
+    "supervisor": "Default SIGTERM killed the direct/CLI supervisor before child reconciliation, leaving an unresponsive case child and its detached native postmaster/allocation.",
+    "profiler": "The default controlled_database path used self-deleting fixture directories. Failed or timed-out child fast stops removed metadata while both baseline and candidate postmasters remained alive."
+  },
+  "repairs": {
+    "signals": "Shared ref-counted main-thread SIGTERM scope cancels all registered diagnostic owners. Existing shielded cleanup tasks remain alive through repeated signals. Previous handlers restore after the last owner exits; CLI cancellation returns 143.",
+    "child_creation": "Creation is a retained shielded task; cleanup obtains the in-flight handle before terminating/reaping it.",
+    "profiler": "Default controlled_database now owns a private root, delegates inner allocation deletion, then reconciles after generator.close even when close raises. Stop errors remain visible.",
+    "ownership": "Reconciliation checks owned root boundaries, postmaster.pid data identity and the matching postgres -D command before bounded immediate stop. Uncertain identity/failure retains metadata and raises."
+  },
+  "native_red": {
+    "parent_source": "6177248c087e9fbab901d7c20e35c89cc7da39c1",
+    "development_worktree": "Only the new fault regression was added before the original executable paths were tested.",
+    "counts": {
+      "failed": 4
+    },
+    "seconds": 49.387,
+    "cases": [
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct]",
+        "outcome": "failed",
+        "seconds": 2.536,
+        "summary": "AssertionError: Supervisor termination left its postmaster running\nassert not True\n +  where True = running(700082, '2320396')"
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli]",
+        "outcome": "failed",
+        "seconds": 2.6,
+        "summary": "AssertionError: Supervisor termination left its postmaster running\nassert not True\n +  where True = running(700124, '2320659')"
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_fails]",
+        "outcome": "failed",
+        "seconds": 12.15,
+        "summary": "AssertionError: Profiler lost live postmasters during failed close\nassert False\n +  where False = all(<generator object test_unsupervised_profiler_reconciles_both_failed_database_closers.<locals>.<genexpr> at 0x7f411e99eb20>)"
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_times_out]",
+        "outcome": "failed",
+        "seconds": 31.986,
+        "summary": "AssertionError: Profiler lost live postmasters during failed close\nassert False\n +  where False = all(<generator object test_unsupervised_profiler_reconciles_both_failed_database_closers.<locals>.<genexpr> at 0x7f411e99f5a0>)"
+      }
+    ]
+  },
+  "initial_native_green": {
+    "counts": {
+      "passed": 4
+    },
+    "seconds": 55.353,
+    "cases": [
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct]",
+        "outcome": "passed",
+        "seconds": 2.826,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli]",
+        "outcome": "passed",
+        "seconds": 2.909,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_fails]",
+        "outcome": "passed",
+        "seconds": 14.266,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_times_out]",
+        "outcome": "passed",
+        "seconds": 35.279,
+        "summary": ""
+      }
+    ]
+  },
+  "expanded_green": {
+    "counts": {
+      "passed": 8
+    },
+    "seconds": 58.714,
+    "cases": [
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct]",
+        "outcome": "passed",
+        "seconds": 3.217,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct_during_spawn]",
+        "outcome": "passed",
+        "seconds": 7.606,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli]",
+        "outcome": "passed",
+        "seconds": 2.522,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli_concurrent]",
+        "outcome": "passed",
+        "seconds": 2.76,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_fails]",
+        "outcome": "passed",
+        "seconds": 10.903,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_times_out]",
+        "outcome": "passed",
+        "seconds": 31.563,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+        "outcome": "passed",
+        "seconds": 0.012,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity",
+        "outcome": "passed",
+        "seconds": 0.033,
+        "summary": ""
+      }
+    ]
+  },
+  "unit_checks": {
+    "counts": {
+      "passed": 2
+    },
+    "seconds": 0.107,
+    "cases": [
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+        "outcome": "passed",
+        "seconds": 0.012,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity",
+        "outcome": "passed",
+        "seconds": 0.039,
+        "summary": ""
+      }
+    ]
+  },
+  "before_shield_probe": {
+    "note": "This exploratory delayed-wrapper probe signalled after handle return and passed before explicit launch shielding. It establishes neither a red runtime reproduction nor pre-handle cancellation coverage. Historical IDs/results/hashes are retained.",
+    "counts": {
+      "passed": 1
+    },
+    "seconds": 7.797,
+    "cases": [
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct_during_spawn]",
+        "outcome": "passed",
+        "seconds": 7.737,
+        "summary": ""
+      }
+    ]
+  },
+  "complete_affected_modules": {
+    "counts": {
+      "passed": 66
+    },
+    "seconds": 226.787,
+    "cases": [
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_deadline_runner_delivers_large_input_after_polling_timeout[False]",
+        "outcome": "passed",
+        "seconds": 0.375,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_deadline_runner_delivers_large_input_after_polling_timeout[True]",
+        "outcome": "passed",
+        "seconds": 0.35,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_commit_checks_authenticated_lease_and_writes_both_rows",
+        "outcome": "passed",
+        "seconds": 1.688,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_sql_transport_resets_roles_and_stops_at_the_first_error",
+        "outcome": "passed",
+        "seconds": 0.201,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_expired_or_replaced_lease_cannot_commit",
+        "outcome": "passed",
+        "seconds": 0.227,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_memory_failure_rolls_back_session_write",
+        "outcome": "passed",
+        "seconds": 0.129,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_commit_only_publishes_its_own_staged_paths",
+        "outcome": "passed",
+        "seconds": 0.062,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_agent_commit_postgres.py::test_commit_rechecks_expiry_after_waiting_for_row_lock",
+        "outcome": "passed",
+        "seconds": 1.194,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_process_identity_prerequisite_is_checked_before_postgres_allocation[darwin-True]",
+        "outcome": "passed",
+        "seconds": 0.004,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_process_identity_prerequisite_is_checked_before_postgres_allocation[linux-False]",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[graceful]",
+        "outcome": "passed",
+        "seconds": 6.477,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[unresponsive]",
+        "outcome": "passed",
+        "seconds": 2.979,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[fast_stop_fails]",
+        "outcome": "passed",
+        "seconds": 5.493,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_five_case_lifecycle.py::test_cancelling_case_after_postgres_start_removes_owned_cluster[fast_stop_times_out]",
+        "outcome": "passed",
+        "seconds": 15.044,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_native_state.py::test_controlled_snapshot_roundtrip_preserves_identity_sources_rounds_and_places",
+        "outcome": "passed",
+        "seconds": 11.398,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_controlled_profile.py::test_controlled_comparison_matches_real_prestate_and_labels_actual_contract",
+        "outcome": "passed",
+        "seconds": 18.133,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_controlled_profile.py::test_canonical_comparison_stops_on_first_failed_delivery_without_raw_error",
+        "outcome": "passed",
+        "seconds": 9.684,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_controlled_profile.py::test_controlled_comparison_isolates_hostile_inherited_research_and_gateway_config",
+        "outcome": "passed",
+        "seconds": 11.25,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_checked_in_five_case_fixture_is_exactly_250_rounds_and_covers_the_contract",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_round_contract_marks_negative_rounds_as_must_not_call",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_round_contract_does_not_turn_unasserted_optional_behavior_into_a_negative",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_stage_contract_uses_sparse_case_anchors_not_global_bands",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_round_thirty_boundary_oracle_matches_its_band_without_changing_runtime_schema",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_evaluator_does_not_treat_persisted_later_life_context_as_a_new_review_stage",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_aggregate_separates_required_and_negative_contract_rounds",
+        "outcome": "passed",
+        "seconds": 0.002,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_fixture_worker_has_no_expected_or_truth_constructor_inputs",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_fixture_contract_heuristics_read_only_current_visible_text",
+        "outcome": "passed",
+        "seconds": 0.004,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_langfuse_round_scores_keep_skill_invocation_and_output_grades_separate",
+        "outcome": "passed",
+        "seconds": 0.0,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_unavailable_round_omits_missing_evidence_scores_and_status_is_consistent",
+        "outcome": "passed",
+        "seconds": 0.001,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_five_case_runner_preserves_partial_trajectory_on_live_worker_failure",
+        "outcome": "passed",
+        "seconds": 0.038,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_five_case_runner_preserves_recorder_on_runner_timeout",
+        "outcome": "passed",
+        "seconds": 0.063,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_memoir_five_case_evaluator.py::test_five_case_round_runner_publishes_minimized_trajectory_receipt",
+        "outcome": "passed",
+        "seconds": 7.472,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_turn_publication.py::test_controlled_delivery_and_replay_keep_sql_authority_until_asgi_send",
+        "outcome": "passed",
+        "seconds": 3.122,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_turn_publication.py::test_unconfigured_publication_never_dispatches_or_accepts_input",
+        "outcome": "passed",
+        "seconds": 0.135,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_turn_publication.py::test_actual_worker_correlation_and_trace_survive_canonical_delivery",
+        "outcome": "passed",
+        "seconds": 1.355,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save[worker]",
+        "outcome": "passed",
+        "seconds": 4.232,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save[inprocess]",
+        "outcome": "passed",
+        "seconds": 1.531,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-volume_loss]",
+        "outcome": "passed",
+        "seconds": 2.564,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-corrupt]",
+        "outcome": "passed",
+        "seconds": 3.241,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-incompatible]",
+        "outcome": "passed",
+        "seconds": 2.365,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-False-restart]",
+        "outcome": "passed",
+        "seconds": 1.982,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-volume_loss]",
+        "outcome": "passed",
+        "seconds": 2.676,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-corrupt]",
+        "outcome": "passed",
+        "seconds": 2.539,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-incompatible]",
+        "outcome": "passed",
+        "seconds": 2.2,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[worker-True-restart]",
+        "outcome": "passed",
+        "seconds": 2.64,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-volume_loss]",
+        "outcome": "passed",
+        "seconds": 2.698,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-corrupt]",
+        "outcome": "passed",
+        "seconds": 2.559,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-incompatible]",
+        "outcome": "passed",
+        "seconds": 2.269,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_lifetime_actual_engines.py::test_actual_engine_seams_cold_recover_and_replay_once[inprocess-True-restart]",
+        "outcome": "passed",
+        "seconds": 2.304,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct]",
+        "outcome": "passed",
+        "seconds": 3.791,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[direct_during_spawn]",
+        "outcome": "passed",
+        "seconds": 7.894,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli]",
+        "outcome": "passed",
+        "seconds": 2.849,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_supervisor_sigterm_reconciles_an_unresponsive_case[evaluation_cli_concurrent]",
+        "outcome": "passed",
+        "seconds": 2.634,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_fails]",
+        "outcome": "passed",
+        "seconds": 12.927,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_supervisor_lifecycle.py::test_unsupervised_profiler_reconciles_both_failed_database_closers[fast_times_out]",
+        "outcome": "passed",
+        "seconds": 32.521,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_nested_concurrent_owners_cancel_and_restore_previous_handler",
+        "outcome": "passed",
+        "seconds": 0.012,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_controlled_lifecycle.py::test_reconciliation_refuses_an_unrelated_pid_without_removing_identity",
+        "outcome": "passed",
+        "seconds": 0.055,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_null_cases_returns_invalid_dataset_without_allocation",
+        "outcome": "passed",
+        "seconds": 0.267,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_fixture_zero_request_budget_refuses_service_allocation",
+        "outcome": "passed",
+        "seconds": 0.643,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_fixture_requires_explicit_publication_network_opt_in_before_allocation",
+        "outcome": "passed",
+        "seconds": 0.399,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_fixture_expired_deadline_records_a_stop_before_native_allocation",
+        "outcome": "passed",
+        "seconds": 0.569,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_case_identifier_cannot_escape_its_run_directory",
+        "outcome": "passed",
+        "seconds": 0.373,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credentials[fixture]",
+        "outcome": "passed",
+        "seconds": 12.544,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credentials[pilot]",
+        "outcome": "passed",
+        "seconds": 13.545,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_canonical_plan_keeps_250_original_inputs_and_allocates_separate_case_owners",
+        "outcome": "passed",
+        "seconds": 0.346,
+        "summary": ""
+      },
+      {
+        "nodeid": "tests/test_canonical_evaluation_cli.py::test_skipping_preflight_cannot_start_unmetered_live_worker_calls",
+        "outcome": "passed",
+        "seconds": 0.505,
+        "summary": ""
+      }
+    ],
+    "module_counts": {
+      "tests/test_agent_commit_postgres.py": {
+        "passed": 8
+      },
+      "tests/test_controlled_five_case_lifecycle.py": {
+        "passed": 6
+      },
+      "tests/test_controlled_native_state.py": {
+        "passed": 1
+      },
+      "tests/test_canonical_controlled_profile.py": {
+        "passed": 3
+      },
+      "tests/test_memoir_five_case_evaluator.py": {
+        "passed": 14
+      },
+      "tests/test_canonical_turn_publication.py": {
+        "passed": 3
+      },
+      "tests/test_lifetime_actual_engines.py": {
+        "passed": 14
+      },
+      "tests/test_controlled_supervisor_lifecycle.py": {
+        "passed": 6
+      },
+      "tests/test_controlled_lifecycle.py": {
+        "passed": 2
+      },
+      "tests/test_canonical_evaluation_cli.py": {
+        "passed": 9
+      }
+    },
+    "timeout_seconds": 180,
+    "wall_seconds": 226.86
+  },
+  "native_shutdown_observations": [
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0",
+      "kind": "supervisor",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-0ajgkql_/memoir-lease-pg-vcpssrg8/data",
+          "pid": 714931,
+          "started": "2399826",
+          "owner": 714913,
+          "owner_started": "2399551",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 714931,
+          "data": "/tmp/memoir-case-0ajgkql_/memoir-lease-pg-vcpssrg8/data"
+        }
+      ],
+      "all_owned_directories_absent": true
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1",
+      "kind": "supervisor",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-9mjrpkns/memoir-lease-pg-mp_2h_pa/data",
+          "pid": 714962,
+          "started": "2400623",
+          "owner": 714944,
+          "owner_started": "2399934",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 714962,
+          "data": "/tmp/memoir-case-9mjrpkns/memoir-lease-pg-mp_2h_pa/data"
+        }
+      ],
+      "all_owned_directories_absent": true
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2",
+      "kind": "supervisor",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-vopc9cd_/memoir-lease-pg-w68vjink/data",
+          "pid": 715008,
+          "started": "2400912",
+          "owner": 714990,
+          "owner_started": "2400733",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 715008,
+          "data": "/tmp/memoir-case-vopc9cd_/memoir-lease-pg-w68vjink/data"
+        }
+      ],
+      "all_owned_directories_absent": true
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3",
+      "kind": "supervisor",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-case-5rk2v6tv/memoir-lease-pg-mic9h96e/data",
+          "pid": 715068,
+          "started": "2401174",
+          "owner": 715036,
+          "owner_started": "2401013",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        },
+        {
+          "data": "/tmp/memoir-case-j6itcnt2/memoir-lease-pg-em4tjd4y/data",
+          "pid": 715079,
+          "started": "2401181",
+          "owner": 715037,
+          "owner_started": "2401013",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "immediate",
+          "pid": 715068,
+          "data": "/tmp/memoir-case-5rk2v6tv/memoir-lease-pg-mic9h96e/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 715079,
+          "data": "/tmp/memoir-case-j6itcnt2/memoir-lease-pg-em4tjd4y/data"
+        }
+      ],
+      "all_owned_directories_absent": true
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0",
+      "kind": "profiler",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-controlled-pg-it33i7jj/memoir-lease-pg-t49jqrm7/data",
+          "pid": 715113,
+          "started": "2401397",
+          "owner": 715095,
+          "owner_started": "2401240",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-0utvb1fh/memoir-lease-pg-txowjnxg/data",
+          "pid": 715455,
+          "started": "2401782",
+          "owner": 715095,
+          "owner_started": "2401240",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 715455,
+          "data": "/tmp/memoir-controlled-pg-0utvb1fh/memoir-lease-pg-txowjnxg/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 715455,
+          "data": "/tmp/memoir-controlled-pg-0utvb1fh/memoir-lease-pg-txowjnxg/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 715113,
+          "data": "/tmp/memoir-controlled-pg-it33i7jj/memoir-lease-pg-t49jqrm7/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 715113,
+          "data": "/tmp/memoir-controlled-pg-it33i7jj/memoir-lease-pg-t49jqrm7/data"
+        }
+      ],
+      "all_owned_directories_absent": true
+    },
+    {
+      "case_directory": "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1",
+      "kind": "profiler",
+      "allocations": [
+        {
+          "data": "/tmp/memoir-controlled-pg-i7d5zrgl/memoir-lease-pg-hvz699qq/data",
+          "pid": 716070,
+          "started": "2402730",
+          "owner": 716052,
+          "owner_started": "2402533",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        },
+        {
+          "data": "/tmp/memoir-controlled-pg-odatlqr6/memoir-lease-pg-m40h5yoe/data",
+          "pid": 716412,
+          "started": "2403108",
+          "owner": 716052,
+          "owner_started": "2402533",
+          "post_check_state": "Z (exited; cloud PID 1 has not reaped daemon)"
+        }
+      ],
+      "stop_attempts": [
+        {
+          "mode": "fast",
+          "pid": 716412,
+          "data": "/tmp/memoir-controlled-pg-odatlqr6/memoir-lease-pg-m40h5yoe/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 716412,
+          "data": "/tmp/memoir-controlled-pg-odatlqr6/memoir-lease-pg-m40h5yoe/data"
+        },
+        {
+          "mode": "fast",
+          "pid": 716070,
+          "data": "/tmp/memoir-controlled-pg-i7d5zrgl/memoir-lease-pg-hvz699qq/data"
+        },
+        {
+          "mode": "immediate",
+          "pid": 716070,
+          "data": "/tmp/memoir-controlled-pg-i7d5zrgl/memoir-lease-pg-hvz699qq/data"
+        }
+      ],
+      "all_owned_directories_absent": true
+    }
+  ],
+  "native_postmasters_observed": 9,
+  "guards_preserved": "Provider isolation, actual delivery/visible characters, SQL identity/lease/publication/replay and existing provider-accounting gates remain asserted. No SQL, migration, client, PR68 ownership or pending-proposal policy changes.",
+  "platform_coverage": "Native process observers explicitly require Linux/proc before allocation. All selected checks ran on Linux; no Mac/native non-Linux execution or coverage claimed.",
+  "environment_controls": {
+    "configured_provider_service_authority_variables": 0,
+    "data": "Disposable synthetic Unix-socket PostgreSQL",
+    "provider_boundary": "Checked-in synthetic app-server or mock transport; no real provider/source/geocoding calls",
+    "production_or_access_actions": false
+  },
+  "baseline_scope": {
+    "whole_repository_aggregate_rerun": false,
+    "preserved_whole_repository_source": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "preserved_whole_repository_ledger": "memoir-baseline-review-four-20261015.json",
+    "prior_targeted_49_source": "d08aa215b9a1670727d1a89248957ce8e5028219"
+  },
+  "limits": [
+    "Current results cover the ten affected modules; no full aggregate acceptance inferred.",
+    "Primary stop faults remain visible failures even after fallback succeeds.",
+    "Unknown postmaster identity or immediate-stop failure retains allocation state and raises; no unrelated process is stopped.",
+    "Already-exited daemon zombies may be retained by cloud PID 1; no running original postmaster or usable allocation remains in the passing native cases.",
+    "Native faults are injected only at fast stop or held case execution; PostgreSQL, immediate stop, supervisor signals and process observations are real."
+  ],
+  "remaining_gates": [
+    "Pending-proposal inheritance/user policy decision and other recorded consequential decisions",
+    "Full repository aggregate at current source",
+    "Live provider/judge, semantic/production latency and real Auth acceptance",
+    "Full opt-in UI/artifact/complete-round and full 250-round acceptance",
+    "Native Mac/device/binary and production execution",
+    "Independent runtime acceptance unless separately delivered"
+  ],
+  "raw_evidence_sha256": {
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/allocations.jsonl": "e9f3e23991282dc26581be94222b2a3783d23aa64070504139aa506ebde1eaf3",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/stops.jsonl": "1b91d4bef0de26210bf164fa22728a44f4767891d65a92c7c0d50770f1acb852",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc0/supervisor.log": "abfa70c618338cd585b67f4f614001a1b91b17ff5203fabf01b97f09448b62aa",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/allocations.jsonl": "41f27458c0bfb4c01202957efa9faac112c97898912389df1ed64ababa0a953d",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/stops.jsonl": "796da64d62c8dd4f949a29c1b3f77f46509589a044142e3ab74e8ca06e33c536",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc1/supervisor.log": "f2990d03a9cfdb423eb79cd506bf7217307cd6e6ec74033fc8058cb37716fecf",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/allocations.jsonl": "56c13cd047c06d6f347ed2feefab9816b6c32e391b1a300a457b2c1e12c3db4c",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/stops.jsonl": "0cbcce43df14de2e978028a9ff87e38ec3e4c32054736303e00ce7e4aa383f92",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc2/supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/allocations.jsonl": "5f187fdb2c440dd4a70f0675158fdc25569566a2f09e6181820d9a15a3122350",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/stops.jsonl": "e666e6d5c650c88e395f853a06af619dcc87c09d7cfeb29a7e111e8564b5dded",
+    "/tmp/pytest-of-agent/pytest-84/test_supervisor_sigterm_reconc3/supervisor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/allocations.jsonl": "46493010889e1056828d1de7cbb30be69546c36edbc937ec02fd98b91aa66cf3",
+    "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/stops.jsonl": "2a558f47b5f0b365d2bf2b25ee8a5ed11eb096987ecf7374e627aefffa888b3a",
+    "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec0/profiler.log": "1b233461a16cf28f31882a95921cda60c43578e6233145210ec04a69ff878223",
+    "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/allocations.jsonl": "1bfe095e8956df6233bd2fac15700025ae138ff78d5bf80a6c26eb7440354f56",
+    "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/stops.jsonl": "e4b6e037204fc9d71517351e2a064c24e64a2d2d5f81af5f5a305f27ea45a3ea",
+    "/tmp/pytest-of-agent/pytest-84/test_unsupervised_profiler_rec1/profiler.log": "461e8a843323a1c4fb63aaad218acfef0c3c536b4c970af0904f1645c1d34433",
+    "/tmp/memoir-supervision-red.xml": "e667e805ead6ef71b84213322f39bf6bf6b06448144fd9f2d020cacbc1dcddad",
+    "/tmp/memoir-supervision-red.log": "0c7dedf1b4ac957b0fa5aa0715145b9b59796ae64786c3811e183d15e6bb9390",
+    "/tmp/memoir-supervision-green.xml": "09ce93df8e0de8f535998d88e4ed18452037d2a32b595550b441d424cfe3eff8",
+    "/tmp/memoir-supervision-green.log": "e114d952ce7a7408b92feeb5babc08607bc46d34418757aa2bece7edf47d88c0",
+    "/tmp/memoir-supervision-expanded-green.xml": "0a56e1f8ba4aea78d724ad5220881e0d56a4a22b0dba5dbb58ddb1cf4533e7f5",
+    "/tmp/memoir-supervision-expanded-green.log": "e8adc695c6bb259b70b588612399deb8ca781c2b0f30c305a774deeeeb7741c0",
+    "/tmp/memoir-supervision-unit.xml": "38c0c0cde0e47ab490e88d0282beb16edb7540104ce24e667ebe6bc2f9f2376d",
+    "/tmp/memoir-supervision-unit.log": "4de64934605dc63b561f8b2a59ff4a7fa10d1068e8dfcae0f632ddefa3a3b684",
+    "/tmp/memoir-supervision-spawn-before-shield.xml": "e9409d5d1b1b926a91c5da2a38d67986a1605bb07931fc4f2ad3cff2f8c798b3",
+    "/tmp/memoir-supervision-spawn-before-shield.log": "e46162c392fc0ffd1ed4648aa5c7926d5b02620b4b3152c2ae2e3774e8a667be",
+    "/tmp/memoir-supervision-affected.xml": "43cd0e6ebe55f1a7779bc1ae35f5f1698d96467ebcbe73c08d8c503fc021dcc5",
+    "/tmp/memoir-supervision-affected.log": "f2de2edca357c2cdcdce3c00235979d608ff76f0ed9ebbf5ffb932140361a9e2"
+  },
+  "source_file_sha256": {
+    "scripts/controlled_five_case.py": "7a4d6463742b2f95e0ea9da0285bfe79dc8d57d54cd3a56b3691cdaa7bc941f2",
+    "scripts/controlled_lifecycle.py": "ff4078faad78b3d7529614a2363fc62820fa91013e67beeafc8d8b382d4c8b3f",
+    "scripts/controlled_native_state.py": "1f3605f078791adb1899debee7e0e47127b0a21d082fa81bfb0882005aac6031",
+    "scripts/profile_canonical_controlled.py": "dc29460d3265b87e74b6e74e04b8d07b084872abb2f2ef4600336a9cafe35b3f",
+    "scripts/run_memoir_five_case_evaluation.py": "6620e8e1d7f9553fda8043bad1891483bff125b8b9423f6f1760f1c73842dc00",
+    "tests/test_controlled_lifecycle.py": "4129004dc6d188adb9b881c7d31d5a6fb6535bb3984ed3e7850c2f3104024a9b",
+    "tests/test_controlled_supervisor_lifecycle.py": "35de8fc9a752f1b09e3985efd1c49dfb589c82b0c19e15f61ec049b03ca8f6b5"
+  },
+  "coverage_correction": {
+    "original_case_id": "direct_during_spawn",
+    "actual_phase": "After the delayed subprocess wrapper returned its handle; SIGTERM followed observed database startup.",
+    "claim_withdrawn": "This historical case does not establish cancellation while the handle is unavailable.",
+    "correction_commit": "56344c045bdc74fafb6c2a3b90342b8510f2a322",
+    "new_coverage": "A real child-created marker is observed while handle return is held. Cleanup starts before the handle-return marker, repeated SIGTERM arrives, then the exact handle is released and reaped. No JSON input or PostgreSQL allocation occurs in this phase.",
+    "historical_counts_ids_and_hashes_preserved": true,
+    "classification": "Test coverage gap; not a failing runtime reproduction."
+  }
+}

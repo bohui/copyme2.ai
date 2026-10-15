@@ -144,7 +144,7 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
     from apps.api.lifetime_memory_policy import is_policy_pending
     identity,source,lane,claim=seeded_composer(sql);project=identity['project_id'];phases=[];blocked=False
     service(sql,'yield_lifetime_memoir_lane',f"'{lane}','{claim['token']}'")
-    command=sql.command;dsn=f"host={command[command.index('-h')+1]} port={command[command.index('-p')+1]} user=postgres dbname=postgres"
+    dsn=sql.publication_dsn
     class Broker:
         async def rpc(self,name,**payload):
             nonlocal blocked
@@ -162,7 +162,7 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
             return result
     def model(request):
         bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase'];packet=json.loads(bounded['packet'])['payload'];phases.append(phase)
-        if phase=='prepare':result=dict(event_id=bounded['fence']['partition']['id'],context='Preserved grounded preparation',source_refs=bounded['fence']['partition']['source_refs'])
+        if phase=='prepare':result=dict(event_id=packet['partition']['id'],context='Preserved grounded preparation',source_refs=packet['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(packet,source['text'],'Childhood')
         else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
         return httpx.Response(200,json={'reply':json.dumps(result)})

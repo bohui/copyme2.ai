@@ -338,10 +338,6 @@ function currentPath() {
   return window.location.pathname.replace(/\/$/, "") || "/";
 }
 
-function isMemoirRoute() {
-  return currentPath() === MEMOIR_ROUTES.home || currentPath().startsWith("/memoir/");
-}
-
 function navigateTo(path, replace = false) {
   invalidateProjectNavigation();
   window.history[replace ? "replaceState" : "pushState"]({}, "", path);
@@ -1250,6 +1246,9 @@ async function refreshFamilyEntitlement() {
     const features = new Set(entitlement.payment_features || []);
     state.familyEntitlement = entitlement;
     state.recallStatus = entitlement.recall_status || null;
+    // Project hydration can finish its draft read before restored allowance is
+    // known. Recheck once eligibility arrives, without delaying the interview.
+    if (freeRecallFinished() && !state.showDraftUpdates) void refreshPrivateDraft();
     if (state.recallStatus?.payment_required) void ensureRecallPreview();
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")
@@ -1640,24 +1639,9 @@ async function signOut() {
   }
 }
 
-function memoryFollowUpBudget(session = state.session) {
-  const offered = Number(session?.follow_ups_offered || 0);
-  return Math.max(1, Math.min(3, offered));
-}
-
-function memoryFollowUpsRemaining(session = state.session) {
-  const used = Number(session?.follow_ups_used || 0);
-  return Math.max(0, memoryFollowUpBudget(session) - used);
-}
-
 function memoryFollowUpPrompt(session = state.session) {
   if (session?.context_cues?.length) return conversationMessage("publicCueFollowUp");
   return conversationMessage("memoryFollowUp");
-}
-
-function memoryTurnFallback(session = state.session) {
-  if (memoryFollowUpsRemaining(session) > 0) return memoryFollowUpPrompt(session);
-  return conversationMessage("memoryComplete");
 }
 
 function render() {
@@ -2206,19 +2190,6 @@ function workspaceMemoryFocusMarkup() {
   if (!focus) return "";
   const label = translateWith(`Memoir.workspace.${focus.value.kind === "add_memory" ? "addingMemory" : "exploringMemory"}`, {title:focus.title});
   return `<div class="workspace-memory-focus" role="status"><span>${escapeHtml(label)}</span><button type="button" class="text-button" data-finish-workspace-memory ${state.loading ? "disabled" : ""}>${escapeHtml(translate("Memoir.workspace.finishMemoryFocus"))}</button></div>`;
-}
-
-function workspaceProgressSummary() {
-  const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
-  const answers = state.chat.filter((message) => message.role === "user" && message.text && message.text !== "Voice answer");
-  const latest = answers.at(-1)?.text || translate("Memoir.workspace.firstChapterEmpty");
-  const sourceCount = state.sources.length + searchedPictures().length;
-  const signals = [
-    answers.length ? t(answers.length === 1 ? "memorySingular" : "memoryPlural", { count: answers.length }) : t("conversationBeginning"),
-    state.placeJourney ? t("placeContextAdded") : null,
-    sourceCount ? t(sourceCount === 1 ? "sourceSingular" : "sourcePlural", { count: sourceCount }) : null,
-  ].filter(Boolean);
-  return `<section class="workspace-progress-summary" aria-live="polite"><div><span class="eyebrow">${t("storySoFar")}</span><strong>${signals.join(" · ")}</strong></div><p>${escapeHtml(latest.length > 180 ? `${latest.slice(0, 177)}…` : latest)}</p></section>`;
 }
 
 function freeRecallFinished() {
@@ -2852,29 +2823,6 @@ async function ensureMemorySession() {
     // Codex remains usable when the chapter/session adapter is unavailable.
     return null;
   }
-}
-
-async function beginMemoryConversation(renderNow = true) {
-  const scope = captureProjectScope();
-  const current = () => isCurrentProjectScope(scope);
-  if (state.recallStatus?.payment_required) return;
-  await ensureMemorySession();
-  if (!current()) return;
-  const fallback = conversationMessage("fallback");
-  const result = await agentTurn("The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.", fallback, ["memory.start", "memory.search"], conversationLanguage(), false, undefined, "begin");
-  if (result.detached || !current()) return;
-  await streamAssistantMessage(result.reply || fallback, { scope, streamedMessage: result.streamedMessage, trace: result.trace, traceMode: result.traceMode });
-  if (!current()) return;
-  try {
-  const context = await api(`/v1/projects/${state.project.id}/context-search`, { method: "POST", body: JSON.stringify({ coarse_place: profile().birth_place || profile().childhood_place || null, approximate_year_start: profile().birth_year ? profile().birth_year + 5 : null, approximate_year_end: profile().birth_year ? profile().birth_year + 16 : null, topic_id: "childhood_home", language: conversationLanguage(), requested_media: ["image"] }) });
-    if (!current()) return;
-    if (context.items?.length) {
-      await streamAssistantMessage(conversationMessage("publicContext"), { scope, cues: context.items });
-    }
-  } catch {
-    // A context provider can be unavailable; the conversation continues without it.
-  }
-  if (renderNow && current()) render();
 }
 
 async function startMemory() {
