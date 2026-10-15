@@ -178,3 +178,17 @@ and decoded hashes. Decode with Python's `gzip.open` and parse with
 and failure/error/skip entry. No assertion or outcome is omitted to keep the
 readable index compact. Raw current XML/log and helper hashes are also recorded.
 Historical reports and their counts remain unchanged.
+
+## Transferable original supplementary files
+
+The later [raw-evidence transfer guide](memoir-baseline-cloud-raw-artifacts-20261015.md),
+[accessible-path manifest](memoir-baseline-cloud-raw-artifacts-20261015.json) and
+[unchanged-file bundle](memoir-baseline-cloud-raw-artifacts-20261015.tar.gz)
+make all 42 files in this ledger's original raw-hash map available through the
+repository, including supplementary logs/XML/helper files unavailable to the
+independent review task. Originals and packaged members match their existing
+hashes byte-for-byte. No test was rerun, original reconstructed or original
+ledger/hash changed. Content review found only synthetic negative-test
+credential-shaped literals and no real secrets or private user data. The
+reviewer's earlier 22-of-42 verification remains historical; independent
+verification of the new package is pending parent-routed re-review.
