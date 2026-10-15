@@ -95,7 +95,7 @@ def emergency_cleanup(records, real, supervisor_pid, *, held_child=False):
             shutil.rmtree(parent)
 
 
-@pytest.mark.parametrize('entry', ['direct', 'direct_during_spawn', 'evaluation_cli', 'evaluation_cli_concurrent'])
+@pytest.mark.parametrize('entry', ['direct', 'direct_delayed_handle', 'evaluation_cli', 'evaluation_cli_concurrent'])
 def test_supervisor_sigterm_reconciles_an_unresponsive_case(tmp_path, entry):
     env, record_path, stops, real = native_fault_environment(tmp_path, 'hold_case')
     setup = "import sys; from scripts import controlled_five_case as driver; driver.CHILD_CLEANUP_SECONDS=.2; "
@@ -106,11 +106,13 @@ from scripts.run_memoir_five_case_evaluation import make_arg_parser
 from pathlib import Path
 args=make_arg_parser().parse_args(['--mode','pilot','--run-id','term-owned','--output-root',{str(tmp_path)!r}])
 '''
-        if entry == 'direct_during_spawn':
-            code += '''launch=asyncio.create_subprocess_exec
+        if entry == 'direct_delayed_handle':
+            code += f'''launch=asyncio.create_subprocess_exec
 async def delayed_handle(*args,**kwargs):
     process=await launch(*args,**kwargs)
+    Path({str(tmp_path/'child-created.json')!r}).write_text(str(process.pid))
     await asyncio.sleep(5)
+    Path({str(tmp_path/'handle-returned')!r}).touch()
     return process
 asyncio.create_subprocess_exec=delayed_handle
 '''
@@ -133,6 +135,9 @@ raise SystemExit(main())
                 assert process.poll() is None, (tmp_path/'supervisor.log').read_text()
                 assert time.monotonic()<until, 'Owned native startup was not observed'
                 time.sleep(.02)
+            if entry == 'direct_delayed_handle':
+                assert (tmp_path/'handle-returned').exists(), 'This separate case exercises post-return startup'
+                assert int((tmp_path/'child-created.json').read_text()) == records[0]['owner']
             process.send_signal(signal.SIGTERM)
             # A repeated termination must not interrupt the cleanup task.
             time.sleep(.05)
@@ -151,6 +156,80 @@ raise SystemExit(main())
         finally:
             if process.poll() is None: process.kill(); process.wait(timeout=5)
             emergency_cleanup(allocations(record_path), real, process.pid, held_child=True)
+
+
+def test_sigterm_before_handle_return_waits_for_exact_created_child(tmp_path):
+    env, record_path, stops, real = native_fault_environment(tmp_path, 'hold_case')
+    created, returned = tmp_path/'child-created.json', tmp_path/'handle-returned.json'
+    cleanup_started, release = tmp_path/'cleanup-started.json', tmp_path/'release-handle'
+    code = f'''import asyncio,json
+from pathlib import Path
+from scripts import controlled_five_case as driver
+from scripts.run_memoir_five_case_evaluation import make_arg_parser
+driver.CHILD_CLEANUP_SECONDS=.2
+def save(path,value):
+    path=Path(path);path.with_suffix('.tmp').write_text(json.dumps(value));path.with_suffix('.tmp').replace(path)
+launch=asyncio.create_subprocess_exec
+async def delayed_handle(*args,**kwargs):
+    child=await launch(*args,**kwargs)
+    identity=dict(pid=child.pid,started=Path('/proc/'+str(child.pid)+'/stat').read_text().split()[21])
+    save({str(created)!r},identity)
+    while not Path({str(release)!r}).exists(): await asyncio.sleep(.01)
+    save({str(returned)!r},identity)
+    return child
+cleanup=driver.cleanup_case
+async def observed_cleanup(*args,**kwargs):
+    save({str(cleanup_started)!r},dict(directory=str(args[1])))
+    return await cleanup(*args,**kwargs)
+asyncio.create_subprocess_exec=delayed_handle
+driver.cleanup_case=observed_cleanup
+args=make_arg_parser().parse_args(['--mode','pilot','--run-id','creation-owned','--output-root',{str(tmp_path)!r}])
+asyncio.run(driver.run_isolated_case(dict(id='creation-owned',project_id='creation-owned-project',locale='en-AU',rounds=['Synthetic memory.']),{{}},{{}},args=args,run_dir=Path({str(tmp_path)!r}),max_rounds=1))
+'''
+    child, directory = None, None
+    with (tmp_path/'supervisor.log').open('w') as log:
+        process = subprocess.Popen([sys.executable,'-c',code],cwd=ROOT,env=env,stdout=log,stderr=log)
+        try:
+            until=time.monotonic()+15
+            while not created.exists():
+                assert process.poll() is None, (tmp_path/'supervisor.log').read_text()
+                assert time.monotonic()<until
+                time.sleep(.01)
+            child=json.loads(created.read_text())
+            assert running(child['pid'],child['started'])
+            assert not returned.exists() and not release.exists()
+            process.send_signal(signal.SIGTERM)
+            while not cleanup_started.exists():
+                assert process.poll() is None, (tmp_path/'supervisor.log').read_text()
+                assert time.monotonic()<until
+                time.sleep(.01)
+            directory=Path(json.loads(cleanup_started.read_text())['directory'])
+            assert directory.name.startswith('memoir-case-') and directory.exists()
+            assert not returned.exists(), 'Supervisor cancellation must precede handle return'
+            # No JSON reaches the case until the handle is returned. This phase
+            # owns a real child, with no database admitted or allocated yet.
+            assert allocations(record_path)==[] and not stops.exists()
+            process.send_signal(signal.SIGTERM)
+            time.sleep(.05)
+            assert process.poll() is None and not returned.exists()
+            release.touch()
+            process.wait(timeout=15)
+            assert json.loads(returned.read_text())==child, 'Cleanup must receive the original child handle'
+            assert not running(child['pid'],child['started'])
+            assert not directory.exists()
+            assert allocations(record_path)==[] and not stops.exists()
+            assert process.returncode != -signal.SIGTERM and process.returncode != 0
+        finally:
+            if process.poll() is None: process.kill();process.wait(timeout=5)
+            if child and running(child['pid'],child['started']):
+                command=Path(f"/proc/{child['pid']}/cmdline").read_bytes().split(b'\0')
+                assert b'scripts.controlled_five_case' in command
+                os.kill(child['pid'],signal.SIGKILL)
+                until=time.monotonic()+5
+                while running(child['pid'],child['started']) and time.monotonic()<until:time.sleep(.01)
+                assert not running(child['pid'],child['started'])
+            emergency_cleanup(allocations(record_path),real,process.pid,held_child=True)
+            if directory and directory.exists():shutil.rmtree(directory)
 
 
 @pytest.mark.parametrize('fault', ['fast_fails', 'fast_times_out'])
