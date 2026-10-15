@@ -41,6 +41,7 @@ def place_workspace_update(project_id, journeys):
 class LifetimePublicationContext:
     def __init__(self, emitter=None):
         self.emitter=emitter;self.fence=None;self.scope=None
+        self.historical_research=None
 
     def set_fence(self,fence):
         self.fence=json.loads(json.dumps(fence))
@@ -53,6 +54,15 @@ class LifetimePublicationContext:
         if self.scope is not None:
             scope,self.scope=self.scope,None
             await scope.aclose()
+        if self.historical_research is not None:
+            from .historical_news import enrich
+            storage,project_id,engine=self.historical_research
+            self.historical_research=None
+            try:
+                await enrich(storage,project_id,engine)
+            except Exception as error:
+                import logging
+                logging.getLogger(__name__).warning('Historical research unavailable: %s',type(error).__name__)
 
 
 def lifetime_enabled():
@@ -294,6 +304,13 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 response.update(workspace)
                 if on_event:await on_event({'type':'workspace_update','data':workspace})
             response['required_memory_work']=await lease.io(LifetimeMemoryOutbox(storage.lifetime_rpc).drain,fence,limit=4)
+            if context['historical_news'].get('enabled') is True and not validated['stopped']:
+                from .historical_news import HistoricalResearch
+                from .historical_news_provider import GatewayHistoricalProvider
+                if runtime._news_engine is None:
+                    runtime._news_engine=HistoricalResearch(GatewayHistoricalProvider())
+                # Response cleanup runs after final publication and lease release.
+                publication.historical_research=(storage,project_id,runtime._news_engine)
         # Keep both cross-replica renewal and the local lock alive through actual
         # final ASGI send. The response cleanup is their sole release owner.
         publication.scope=scope;scope=None

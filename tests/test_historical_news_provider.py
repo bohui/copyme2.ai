@@ -13,6 +13,8 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
     captured=[]
     async def transport(request):
         captured.append(json.loads(request.content))
+        if 'max_tool_calls' in captured[-1]:
+            return httpx.Response(400,json={'error':{'message':'Unsupported parameter: max_tool_calls'}})
         return httpx.Response(200,json={'id':'resp_test','output':[
             {'type':'web_search_call','id':'ws_test','status':'completed','action':{'sources':[{'url':evidence()['source_url']}]}},
             {'type':'message','content':[{'type':'output_text','text':json.dumps({'events':[evidence()]})}]}]})
@@ -25,7 +27,7 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
             assert result['events']==[evidence()]
     asyncio.run(run())
     assert captured[0]['tools']==[{'type':'web_search'}]
-    assert captured[0]['max_tool_calls']==1 and captured[0]['store'] is False
+    assert 'max_tool_calls' not in captured[0] and captured[0]['store'] is False
     assert 'photograph' not in captured[0]['input']
 
 

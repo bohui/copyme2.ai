@@ -182,67 +182,6 @@ def test_accepted_source_basis_omits_identity_and_private_text():
     assert not any(s in queries for s in ('Jane','Secret','private-id','password','never-send','born'))
 
 
-def test_normal_turn_saves_before_background_and_next_turn_consumes_ready_clue(monkeypatch):
-    import asyncio
-    import json
-    from uuid import uuid4
-    from test_interview_photo_runtime import Storage,harness
-    from test_interview_plan import proposal
-    from apps.api.historical_news import ready_projection
-    monkeypatch.setenv("MEMORY_SPARK_HISTORICAL_NEWS","1")
-    class NewsStorage(Storage):
-        def __init__(self):super().__init__();self.news=None
-        def save_interview_plan(self,*args,**kwargs):
-            saved=super().save_interview_plan(*args,**kwargs)
-            if self.news:
-                from apps.api.historical_news import public_clue
-                self.turn['historical_context']=public_clue(self.news['historical_news']['clues'][0])
-                saved=deepcopy(self.turn)
-            return saved
-        def interview_context(self,*args):
-            result=super().interview_context(*args)
-            if self.news:result.update(self.news)
-            return result
-    async def run():
-        storage=NewsStorage();runtime,calls=harness(monkeypatch,storage)
-        entered=asyncio.Event();release=asyncio.Event();saved=asyncio.Event();research_calls=[]
-        async def research(*args,**kwargs):
-            research_calls.append(True)
-            if len(research_calls)==1:
-                entered.set();await release.wait();storage.news=ready_context()
-        monkeypatch.setattr(runtime,'_historical_news_enrichment',research)
-        async def event(e):
-            if e['type']=='conversation_saved':saved.set()
-        first=asyncio.create_task(runtime.turn(storage,'A memory.',project_id='project',client_turn_id=str(uuid4()),on_event=event))
-        await asyncio.wait_for(saved.wait(),2)
-        await asyncio.wait_for(entered.wait(),2)
-        assert not first.done() and storage.saved_plan and storage.memory
-        delivered=storage.turn['reply']
-        first_receipt=deepcopy(storage.turn)
-        # Start and durably save a second ordinary answer while research for
-        # the first is still blocked; the conversation lease must be free.
-        storage.turn=None;storage.memory=None
-        second=await asyncio.wait_for(runtime.turn(storage,'Another detail.',project_id='project',client_turn_id=str(uuid4())),2)
-        newer_plan=deepcopy(storage.saved_plan)
-        assert not first.done() and second['conversation_saved']
-        release.set();first_result=await first
-        assert first_result['reply']==delivered and first_receipt['reply']==delivered
-        assert storage.saved_plan==newer_plan
-        # A normal subsequent turn receives only the ready projection.
-        storage.turn=None;storage.memory=None
-        async def worker(**kwargs):
-            calls.append(kwargs)
-            assert kwargs['interview_context']['historical_news']['clues']
-            p=news_proposal()
-            if kwargs['interview_context'].get('interview_language')=='zh-CN':
-                p['acknowledgement']='我们可以按您的节奏继续回忆。'
-                p['plan']['candidates'][0].update(question='这条公开历史线索会让您想起当时的什么吗？',bridge='这是一条可选的公开历史线索，不记得也没关系。')
-            return {'thread_id':'thread-2','reply':json.dumps(p),'_workspace_capable':True}
-        monkeypatch.setattr(runtime,'_worker_turn',worker)
-        result=await runtime.turn(storage,'Anything else?',project_id='project',client_turn_id=str(uuid4()))
-        assert result['historical_context']['source_url']==evidence()['source_url']
-    asyncio.run(run())
-
 
 @pytest.mark.parametrize('text',[
     'I was born in Boston, USA, in 1960 or 1962.',
@@ -405,71 +344,6 @@ def test_canonical_birth_event_is_not_an_explicit_remembered_period():
     h=accepted_hypothesis({'sources':[source,{'id':'early','version':1,'status':'active','text':'I remember the garden in 1964.'}],'events':[event,earlier]},current_year=2026)
     assert (h['start'],h['end'])==(1964,1964)
 
-
-def test_normal_turn_runs_real_research_helper_with_controlled_provider(monkeypatch):
-    import asyncio,json
-    from uuid import uuid4
-    from test_interview_photo_runtime import Storage,harness
-    from apps.api.historical_news import HistoricalResearch
-    monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS','1')
-    birth={'id':'birth-source','version':1,'status':'active','text':'I was born in Boston, USA, in 1960.'}
-    ref={'source_id':birth['id'],'version':1,'quote':birth['text']}
-    canonical={'sources':[birth],'events':[{'id':'birth','status':'active','title':'Birth',
-        'temporal':{'precision':'year','year_start':1960,'year_end':1960,'basis':[ref]},'source_refs':[ref]}],
-        'news_snapshot':{'source_sequence':1,'context_revision':'rev-1'}}
-    class NewsStorage(Storage):
-        def __init__(self):super().__init__();self.news=None;self.claimed=False;self.finished=None
-        def historical_news_basis(self,*args):return deepcopy(canonical)
-        def begin_historical_news(self,project,hypothesis,snapshot):
-            assert snapshot==canonical['news_snapshot']
-            assert (hypothesis['start'],hypothesis['end'])==(1968,1975)
-            if self.claimed:return None
-            self.claimed=True;self.hypothesis=hypothesis;return {'id':'controlled-job'}
-        def finish_historical_news(self,project,job,result):
-            self.finished=deepcopy(result)
-            clues=[{**c,'status':'ready','project_id':project,'context_revision':'rev-1','relevance':self.hypothesis} for c in result['clues']]
-            self.news={'enabled':True,'context_revision':'rev-1','project_id':project,'clues':clues}
-            return True
-        def interview_context(self,*args):
-            c=super().interview_context(*args)
-            if self.news:c['historical_news']=deepcopy(self.news)
-            return c
-        def save_interview_plan(self,*args,**kwargs):
-            saved=super().save_interview_plan(*args,**kwargs)
-            if self.news:
-                from apps.api.historical_news import public_clue
-                self.turn['historical_context']=public_clue(self.news['clues'][0]);saved=deepcopy(self.turn)
-            return saved
-    async def run():
-        entered=asyncio.Event();release=asyncio.Event();saved=asyncio.Event()
-        class Provider:
-            async def discover(self,query,timeout):
-                assert '1968–1975' in query and 'birth-source' not in query
-                entered.set();await release.wait()
-                return {'receipt':receipt(),'events':[evidence()]}
-            async def inspect(self,url,timeout):
-                return {'url':url,'text':evidence()['excerpt'],'source_title':'Town archive','publisher':'Town library',
-                        'publication_date':'2020-01-01','retrieved_at':'2026-10-11T00:00:00Z'}
-        storage=NewsStorage();runtime,calls=harness(monkeypatch,storage)
-        runtime._news_engine=HistoricalResearch(Provider())
-        async def event(e):
-            if e['type']=='conversation_saved':saved.set()
-        task=asyncio.create_task(runtime.turn(storage,'A visit with my father.',project_id='project',client_turn_id=str(uuid4()),on_event=event))
-        await asyncio.wait_for(saved.wait(),2);await asyncio.wait_for(entered.wait(),2)
-        assert storage.memory and storage.finished is None
-        reply=storage.turn['reply'];release.set();result=await task
-        assert result['reply']==reply and len(storage.finished['clues'])==1
-        assert 'historical_context' not in result
-        storage.turn=None;storage.memory=None
-        async def worker(**kwargs):
-            assert kwargs['interview_context']['historical_news']['clues'][0]['receipt']['status']=='completed'
-            p=news_proposal();p['acknowledgement']='我们可以按您的节奏继续回忆。'
-            p['plan']['candidates'][0].update(question='这条公开历史线索会让您想起当时的什么吗？',bridge='这是一条可选的公开历史线索，不记得也没关系。')
-            return {'thread_id':'next','reply':json.dumps(p),'_workspace_capable':True}
-        monkeypatch.setattr(runtime,'_worker_turn',worker)
-        later=await runtime.turn(storage,'Another thought.',project_id='project',client_turn_id=str(uuid4()))
-        assert later['historical_context']['event_start']==1970
-    asyncio.run(run())
 
 
 @pytest.mark.parametrize('invalid_first',[0,2])

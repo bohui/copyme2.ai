@@ -1551,6 +1551,7 @@ class CodexRuntime:
         # application. Keep a separate request counter for evaluation receipts
         # so it is never mistaken for billing evidence.
         self._observed_worker_requests = 0
+        self._news_engine = None
 
     def record_worker_request(self) -> None:
         self._observed_worker_requests += 1
