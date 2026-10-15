@@ -30,7 +30,7 @@ def test_birth_and_relation_background_do_not_inflate_direct_childhood_evidence(
               'source_refs':[refs[4]], 'stage_evidence':[refs[4]]}], [manifest[0],manifest[4]])
     event = sql("select id from public.user_memory_event where data->>'title'='Bakery';").stdout.strip()
     persist([{'kind':'event', 'title':'School', 'life_stage':'childhood',
-              'source_refs':[refs[1]], 'stage_evidence':[refs[1],refs[2]],
+              'source_refs':[refs[1]], 'stage_evidence':[refs[2]],
               'temporal':{'expression':'age 6', 'precision':'age', 'year_start':1956,
                           'year_end':1956, 'basis':[refs[0],refs[1]]},
               'relations':[{'kind':'before', 'event_id':event, 'source_refs':[refs[3]]}]}])
@@ -67,10 +67,9 @@ def test_direct_multi_stage_attribution_is_supported_without_counting_whole_sour
         start = item['text'].index(quote)
         return {'source_id':item['id'], 'version':item['version'], 'quote':quote,
                 'char_start':start, 'char_end':start+len(quote)}
-    original = ref(source,text)
     birth = ref(background,background['text'])
     proposals = [{'kind':'event','title':stage,'life_stage':stage,
-                  'source_refs':[original], 'stage_evidence':[ref(source,piece)],
+                  'source_refs':[ref(source,piece)], 'stage_evidence':[ref(source,piece)],
                   'temporal':{'expression':'unknown','precision':'unknown','basis':[birth]}}
                  for stage,piece in zip(['childhood','midlife'],pieces)]
     manifest = [{'id':item['id'],'version':item['version']} for item in [source,background]]
@@ -127,7 +126,7 @@ def test_bounded_large_history_readiness_query_plan(sql, tmp_path, monkeypatch, 
       insert into public.user_memory_event_source
       select s.user_id,s.project_id,'cost-event-'||s.sequence,s.id,s.version,md5(offset_value::text),
         jsonb_build_object('source_id',s.id,'version',s.version,'char_start',offset_value,'char_end',offset_value+600,
-          'quote',substring(s.text from offset_value+1 for 600))
+          'quote',substring(s.text from offset_value+1 for 600)),'primary'
       from public.user_narrator_source s cross join unnest(array[0,300,600]) offset_value;
       update public.user_memoir_project set source_sequence={size},event_sequence={size},extraction_cursor={size}
         where user_id='{OWNER}' and project_id={project};

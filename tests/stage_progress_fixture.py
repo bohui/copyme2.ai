@@ -33,5 +33,5 @@ def link_stage(sql, project, source, stage, start=0, end=None, event=None):
         "on conflict(user_id,project_id,id) do update set data=jsonb_set(saved_event.data,'{stage_evidence}',"
         "coalesce(saved_event.data->'stage_evidence','[]') || (excluded.data->'stage_evidence'));")
     sql(f"insert into public.user_memory_event_source values('{OWNER}',{literal(project)},'{event}',"
-        f"'{source['id']}',{source['version']},md5({literal(ref)}),{literal(ref)}::jsonb) on conflict do nothing;")
+        f"'{source['id']}',{source['version']},md5({literal(ref)}),{literal(ref)}::jsonb,'primary') on conflict do nothing;")
     return event
