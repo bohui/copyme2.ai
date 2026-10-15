@@ -99,19 +99,17 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
             expect(begin).to_be_visible(timeout=30000)
             page.wait_for_load_state('networkidle')
             assert reads and reads[-1]['pending'] and reads[-1]['stages']['childhood']['percent'] == 10
-            page.clock.install()
             begin.click()
             expect(page).to_have_url(re.compile('/memoir/interview/' + project_id + '$'))
             ring = page.locator('[data-life-stage-tab="childhood"] .life-stage-readiness')
             expect(ring).to_have_attribute('style', '--readiness:10%')
             page.wait_for_load_state('networkidle')
             extract(pending_source)  # Real extraction finishes after the resume navigation.
-            # Let real Auth/HTTP work settle between simulated timer events.
-            # Jumping all 60 seconds at once can expire the 10s read timeout
-            # before the asynchronous session lookup has started its fetch.
-            for elapsed in [2000,4000,8000,16000,16000,14000]:
-                page.clock.fast_forward(elapsed)
-                page.wait_for_load_state('networkidle')
+            # Boot already scheduled native timers. Installing a fake clock
+            # here mixes timer implementations, and virtual jumps can expire
+            # the read timeout before real Auth/HTTP work finishes. Exercise
+            # the actual recovery timer with the same 60-second bound.
+            expect(ring).to_have_attribute('style', '--readiness:30%', timeout=60000)
             after_resume = ring.get_attribute('style')
             after_color = ring.get_attribute('class')
             # Characterize the failure completely: reload reads 30 immediately,
