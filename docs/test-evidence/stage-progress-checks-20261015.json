@@ -114,5 +114,6 @@
   ],
   "acceptance_complete": false,
   "historical_snapshot": true,
-  "followup_report": "stage-progress-recovery-20261015.md"
+  "followup_report": "stage-progress-recovery-20261015.md",
+  "current_report": "stage-progress-direct-policy-integration-20261015.md"
 }

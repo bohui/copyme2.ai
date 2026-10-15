@@ -191,5 +191,7 @@
   ],
   "cost_scope": "Isolated synthetic PostgreSQL projection; three post-warmup RPC samples per case. Body/pending reads bounded at 20s, setup at 30s. Not production load, ingestion, HTTP publication or concurrency acceptance.",
   "remaining_limits": ["Independent fresh cloud runtime creation failed per review handoff; author tests do not complete independent review.", "Branch-protection / required-check configuration unverified after reported 403.", "Product attribution of shared temporal/stage/relation dependency words remains unapproved.", "Large-history production concurrency, larger datasets and ten-second request-timeout margin remain unverified.", "Original full Python, older browser and lint baseline limits remain; supplied screenshot was not materialized.", "No merge, deployment, production migration or live/paid provider execution."],
-  "acceptance_complete": false
+  "acceptance_complete": false,
+  "historical_snapshot": true,
+  "current_report": "stage-progress-direct-policy-integration-20261015.md"
 }

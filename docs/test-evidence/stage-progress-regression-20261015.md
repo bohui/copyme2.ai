@@ -1,5 +1,8 @@
 # Memoir stage-progress ring repair
 
+Current behavior and checks are recorded in the [approved direct-only integration
+report](stage-progress-direct-policy-integration-20261015.md). This file is historical.
+
 This is the initial PR68 review snapshot. The [recovery follow-up](stage-progress-recovery-20261015.md)
 supersedes the original thirty-second retry behavior and records the current
 checks, realistic dependency characterization and bounded query-cost evidence.

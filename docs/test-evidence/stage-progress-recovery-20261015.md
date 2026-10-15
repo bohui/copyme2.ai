@@ -1,5 +1,9 @@
 # PR68 recovery follow-up
 
+Historical snapshot before the current-main integration and approved direct-only
+counting rule. The [current integration/policy report](stage-progress-direct-policy-integration-20261015.md)
+supersedes the unresolved attribution discussion and records final-head checks.
+
 Reviewed head: `d96a17826fcae88dbfd5fe7b5c2f9c2a95eebb2b`.
 Tested code: `a6c623329f8f697eeaa43b59b924f1b5f6de9aab`.
 This follow-up preserves the reviewed commits and adds task-only updates on the
@@ -30,6 +34,10 @@ The client now has one recovery job per project/principal/navigation scope:
 - Navigation aborts requests and timers immediately. Scope/job identity checks
   also reject late results. A hung auth/fetch operation cannot retain the job
   after cancellation because the read races its abort signal.
+
+That finite window does not guarantee completion of longer queued, retried or
+multi-page extraction. If it expires, a later explicit save/reload starts another
+window; these author tests do not establish arbitrary-delay live recovery.
 
 The **17 recovery cases pass**, including completion after 240 seconds, a failed
 newer read during an older pending poll, repeated fenced failures, coalesced
