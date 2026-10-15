@@ -41,7 +41,7 @@ IMAGES = {
 
 def compose_build_text(compose_file, service):
     text = compose_file.read_text()
-    # Anchors or other layouts conservatively keep the whole-file cache key.
+    # shortcut: anchors/custom layouts hash the full file; parse YAML if those become common.
     if re.search(r'(?m)^[^#\n]*[&*][a-zA-Z_]', text):
         return text
     section = re.search(rf'(?ms)^  {re.escape(service)}:[ \t]*\n(.*?)(?=^  \S|\Z)', text)

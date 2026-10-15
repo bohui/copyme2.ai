@@ -220,7 +220,7 @@ def test_changed_inputs_rebuild_only_affected_images(stack, path, services):
     assert not builds(calls())
 
 
-def test_deleted_input_invalidates_image_but_generated_cache_does_not(stack):
+def test_dependency_change_invalidates_image_but_generated_cache_does_not(stack):
     root, up, calls = stack
     up()
     calls()

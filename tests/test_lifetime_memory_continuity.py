@@ -89,6 +89,37 @@ def test_original_language_exact_span_maps_to_existing_rpc_data_contract():
     assert out['reply'] == validate_collector_result(reply(), ctx)['reply']
 
 
+@pytest.mark.parametrize('text,quote', [
+    ('My brother Ming moved to Perth.', 'Ming'),
+    ('我记得大哥阿明。后来他搬去了珀斯。', '大哥阿明'),
+    ('😀 Mum held my hand.', 'Mum held my hand'),
+])
+def test_server_locates_unique_exact_quotes_without_model_character_counting(text, quote):
+    ctx = context(text)
+    item = update(ctx, quote=quote, char_start=None, char_end=None)
+    raw = {**reply([item]), 'place_journeys': []}
+    before = deepcopy(raw)
+    validate(raw, governed_collector_schema(ctx))
+    result = validate_governed_collector_result(raw, ctx)
+    ref = result['continuity_updates'][0]['data']['source_refs'][0]
+    assert ref['char_start'] == text.index(quote)
+    assert text[ref['char_start']:ref['char_end']] == ref['quote'] == quote
+    assert raw == before
+
+
+@pytest.mark.parametrize('text,changes', [
+    ('Ming left. Ming left.', {}), ('Ming left.', {'source_version': 2}),
+    ('Ming left.', {'source_id': 'another-source'}), ('Ming left.', {'char_start': 0}),
+    ('Ming left.', {'quote': 'Invented narrator wording', 'text': 'Invented narrator wording'}),
+])
+def test_server_cannot_guess_ambiguous_or_unauthorized_quote_positions(text, changes):
+    ctx = context(text)
+    item = update(ctx, quote='Ming left', char_start=None, char_end=None)
+    item.update(changes)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
 def test_server_record_identity_is_stable_by_source_version_kind_and_index():
     ctx = context()
     person = update(ctx)
