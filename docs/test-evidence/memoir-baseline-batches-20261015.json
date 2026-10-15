@@ -269,6 +269,24 @@
         "pinned_junit": "bc58cffd56e4beb58fbaf03cd0c5d6f0964d182160a03f6c2c369ee3efab2de0",
         "privacy_junit": "934c1b1f7f74f53a0d6c65f279f3369c342a66bb6cc39fcbbc0a098cc0686cd4"
       }
+    },
+    {
+      "batch": 8,
+      "code_revision": "dc3d891746de2902979f501f5f72cd58e03e3faf",
+      "scope": "Preserve current main nonretryable PostgREST application-conflict policy in the replaced reader",
+      "red": {
+        "head": "165f330bd13051f66daeb3d172727a21e2dd202a",
+        "failure": "test_public_application_functions_never_raise_serialization_failure found one function with a 40001 exception site"
+      },
+      "pinned_result": {
+        "passed": 88,
+        "failed": 0,
+        "skipped": 0,
+        "seconds": 48.39
+      },
+      "command": "python -m pytest -q tests/test_postgrest_application_conflicts.py tests/test_progressive_photo_invalidation.py tests/test_lifetime_memory_reads.py --timeout=60 --timeout-method=signal --tb=short",
+      "root_cause": "The copied older reader preceded 202610140007, which converts deliberate application conflicts to PT409 to avoid PostgREST serialization retry loops. Its one stale-root exception now retains PT409; no retry/admission policy is changed.",
+      "evidence_sha256": "1d86c5d5bb6d903cb6dcd641e5c5cbd49a96d5ee09157fa9794fd62a25abc42e"
     }
   ],
   "current_disposition": {
@@ -279,7 +297,7 @@
     ],
     "historical_unresolved_still_pending": 21,
     "withdrawal_concern": "Observed intermittent assertion traced to misattributed synthetic model output. Batch three preserves purge/unrelated-content checks and adds four protected-original/edit/withdrawal cases. No product purge defect or production exposure is established by these constructions.",
-    "complete_continuation_aggregate": "pending at the following evidence head after the schema/readback correction; code/test worktree is clean",
+    "complete_continuation_aggregate": "Checkpoint at 165f330 is complete and preserved. Final aggregate after continued driver/rework work is pending.",
     "independent_runtime_acceptance": "outstanding",
     "additional_functional_reproduction": {
       "head": "0bbe44e336ce4d67016f4da5b1b8497d7749dd89",
@@ -355,6 +373,24 @@
         "completed": false
       },
       "acceptance_use": "Not completeness evidence. An additional unpinned preliminary broad selection was also stopped before the final pinned batch; it is not acceptance evidence."
+    },
+    "aggregate_checkpoint": {
+      "tested_revision": "165f330bd13051f66daeb3d172727a21e2dd202a",
+      "completed": true,
+      "passed": 5404,
+      "failed": 592,
+      "errors": 21,
+      "skipped": 249,
+      "warnings": 4,
+      "wall_seconds": 1238.16,
+      "junit_seconds": 1227.99,
+      "ledger": "memoir-baseline-checkpoint-165f330-20261015.json",
+      "larger_six_correctness_checks": "six passed with 600-second allowance",
+      "newly_failing_ids": [
+        "tests/test_lifetime_draft_coalescing.py::test_database_appended_turn_pages_only_new_source_and_round",
+        "tests/test_postgrest_application_conflicts.py::test_public_application_functions_never_raise_serialization_failure"
+      ],
+      "disposition": "Conflict-code regression fixed in batch eight. Appended 10,000-prefix case passes its larger-budget diagnostic; aggregate timeout is retained. Continue newly authorized evaluation-driver and rework repairs before a final aggregate."
     }
   }
 }
