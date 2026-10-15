@@ -11,7 +11,8 @@ begin
   where section.user_id=old.user_id and section.project_id=old.project_id
    and (section.event_id=old.event_id or
      section.event_dependencies @> jsonb_build_array(jsonb_build_object('id',old.event_id)))
-   and (right(section.partition_key,37)=':'||old.id::text or exists(
+   and ((section.partition_key not like 'progressive:%' and right(section.partition_key,37)=':'||old.id::text) or
+    (old.status='confirmed' and old.provenance='narrator_metadata' and exists(
     select 1 from jsonb_path_query(jsonb_build_array(section.bundle,section.proposal),
       '$.** ? (@.type == "photo" && exists(@.asset_id))') photo,
       lateral jsonb_array_elements(coalesce(photo->'source_refs','[]'::jsonb)) ref
@@ -22,7 +23,7 @@ begin
         where original.user_id=old.user_id and original.project_id=old.project_id
           and original.id=old.source_id and original.version=old.source_version
           and strpos(substring(original.text from (ref->>'char_start')::integer+1
-            for (ref->>'char_end')::integer-(ref->>'char_start')::integer),old.quote)>0)));
+            for (ref->>'char_end')::integer-(ref->>'char_start')::integer),old.quote)>0))));
  return coalesce(new,old);
 end $$;
 

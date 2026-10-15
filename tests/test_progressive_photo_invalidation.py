@@ -99,3 +99,30 @@ def test_same_asset_in_another_exact_evidence_span_remains_unchanged(sql):
     sql(f"delete from public.user_interview_photo_link where id='{first_link}';")
     assert sql("select count(*) from public.user_lifetime_memoir_section where partition_key like '%:photo-first';").stdout.strip() == '0'
     assert sql("select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key like '%:photo-second';").stdout == sibling
+
+
+@pytest.mark.parametrize('retired_link_writing_id', [False, True])
+@pytest.mark.parametrize('status,provenance', [
+    ('unlinked', 'narrator_metadata'), ('invalidated', 'narrator_metadata'),
+    ('confirmed', 'visual_derived'), ('confirmed', 'narrator'),
+])
+def test_link_outside_canonical_photo_basis_preserves_current_writing(sql, status, provenance, retired_link_writing_id):
+    identity, source, lane, first = seeded_composer(sql)
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    inactive = add_photo_link(sql, identity, source, first)
+    active = add_photo_link(sql, identity, source, first)
+    asset = sql(f"select photo_id from public.user_interview_photo_link where id='{inactive}';").stdout.strip()
+    sql(f"update public.user_interview_photo_link set quote='I grew up',status='{status}',provenance='{provenance}' where id='{inactive}';")
+    sql(f"update public.user_interview_photo_link set photo_id={literal(asset)} where id='{active}';")
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    result = section_result(page)
+    photo = result['sections'][0]
+    key = inactive if retired_link_writing_id else 'current-photo'
+    photo.update(id=key, chapter_id=key, content='')
+    photo['block'].update(id=key, type='photo', text='', asset_id=asset, asset_version='1')
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',0,{literal(result)}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    before = sql('select row_to_json(s)::text from public.user_lifetime_memoir_section s;').stdout
+    assert asset in before
+    sql(f"delete from public.user_interview_photo_link where id='{inactive}';")
+    assert sql('select row_to_json(s)::text from public.user_lifetime_memoir_section s;').stdout == before
