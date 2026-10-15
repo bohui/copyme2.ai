@@ -253,6 +253,26 @@ language sql stable security definer set search_path=public,auth as $$
 $$;
 revoke all on function public.workspace_rework_partition_current(uuid,text,text,text) from public,anon,authenticated;
 
+-- The broad partition probe above is used by older admission/invalidation
+-- callers. Retirement and dispatch must resolve the very same requested
+-- edition and historical root; another edition cannot validate its evidence.
+create function public.workspace_progressive_rework_section(p_request public.user_workspace_section_rework)
+returns setof public.user_lifetime_memoir_section
+language sql stable security definer set search_path=public,auth as $$
+ select s.* from public.user_lifetime_memoir_section s
+ join public.user_lifetime_lane_snapshot root on root.id=s.snapshot_id
+ join public.user_lifetime_lane_snapshot requested on requested.id=p_request.snapshot_id
+ where s.user_id=p_request.user_id and s.project_id=p_request.project_id
+   and s.locale=p_request.locale and s.partition_key=p_request.partition_key and s.event_id=p_request.event_id
+   and requested.user_id=p_request.user_id and requested.project_id=p_request.project_id
+   and requested.locale=p_request.locale and requested.root_digest=p_request.root_digest
+   and requested.state in ('completed','proposed') and root.state in ('completed','proposed')
+   and root.created_at<=requested.created_at and root.policy_epoch=requested.policy_epoch
+   and root.preference_revision=requested.preference_revision
+ order by root.created_at desc limit 1
+$$;
+revoke all on function public.workspace_progressive_rework_section(public.user_workspace_section_rework) from public,anon,authenticated,service_role;
+
 alter function public.read_lifetime_memoir_lane_page(uuid,uuid) rename to read_lifetime_memoir_lane_page_before_progressive_rework;
 revoke all on function public.read_lifetime_memoir_lane_page_before_progressive_rework(uuid,uuid) from public,anon,authenticated,service_role;
 create function public.read_lifetime_memoir_lane_page(p_lane_id uuid,p_token uuid) returns jsonb
@@ -268,8 +288,9 @@ begin
  -- old instruction is never rebound to a newer privacy/preference authority.
  delete from public.user_workspace_section_rework obsolete where obsolete.user_id=snap.user_id
    and obsolete.project_id=snap.project_id and obsolete.locale=snap.locale and obsolete.status='pending'
-   and obsolete.partition_key like 'progressive:%' and (not public.workspace_rework_partition_current(
-     obsolete.user_id,obsolete.project_id,obsolete.event_id,obsolete.partition_key) or not exists(
+   and obsolete.partition_key like 'progressive:%' and (not exists(
+     select 1 from public.workspace_progressive_rework_section(obsolete) selected
+       where public.workspace_progressive_section_current(selected)) or not exists(
        select 1 from public.user_lifetime_lane_snapshot original where original.id=obsolete.snapshot_id
         and original.policy_epoch=snap.policy_epoch and original.preference_revision=snap.preference_revision));
  select * into request from public.user_workspace_section_rework where user_id=snap.user_id and project_id=snap.project_id
@@ -277,10 +298,7 @@ begin
    and composed_snapshot_id is distinct from snap.id
    order by (select change_sequence from public.user_memory_event e where e.user_id=snap.user_id and e.project_id=snap.project_id and e.id=event_id),event_id,partition_key,request_id limit 1;
  if not found then return page;end if;
- select s.* into section from public.user_lifetime_memoir_section s join public.user_lifetime_lane_snapshot root on root.id=s.snapshot_id
-   where s.user_id=request.user_id and s.project_id=request.project_id and s.locale=request.locale and s.partition_key=request.partition_key
-     and root.created_at<=(select created_at from public.user_lifetime_lane_snapshot where id=request.snapshot_id)
-     and root.state in ('completed','proposed') order by root.created_at desc limit 1;
+ select * into section from public.workspace_progressive_rework_section(request);
  if not found or not public.workspace_progressive_section_current(section) then
    raise exception 'selected writing evidence changed' using errcode='PT409';end if;
  -- Include only references actually used by the selected writing and its

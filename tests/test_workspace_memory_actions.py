@@ -716,3 +716,66 @@ def test_stranded_progressive_rework_is_retired_after_policy_change_before_dispa
     assert service(sql,'claim_memoir_lane',f"'{lane}',900") is None
     assert sql(f"select row_to_json(s) from public.user_lifetime_memoir_section s where snapshot_id='{head['snapshot_id']}';").stdout==original
     assert sql('select count(*) from public.user_completed_round;').stdout==rounds
+
+
+def test_secondary_event_change_retires_exact_edition_request_despite_other_edition(sql):
+    from test_progressive_photo_invalidation import block, validated_result
+    identity, source_a, lane, initial = seeded_composer(sql)
+    project = identity['project_id']
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{initial['token']}'")
+    source_b = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{uuid4()}','Later I moved to Sydney.'")
+    ref_b = dict(source_id=source_b['id'], version=1, quote=source_b['text'], char_start=0, char_end=len(source_b['text']))
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':source_b['id'],'version':1}])},{literal([dict(kind='event',title='Sydney',source_refs=[ref_b])])}")
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    event_a = initial['partition']['id']
+    event_b = next(event['id'] for event in page['batch']['events'] if event['id'] != event_a)
+    shared = block('shared', source_a)
+    shared['source_refs'].extend(block('b', source_b)['source_refs'])
+    shared['text'] += ' ' + source_b['text']
+    english_result = validated_result(page, [shared, block('unrelated', source_a)], event_ids=[event_a, event_b])
+    # The second passage depends only on A. Validate that exact chapter separately
+    # before combining its independent stored writing with the A+B passage.
+    independent = validated_result(page, [block('unrelated', source_a)], event_ids=[event_a])
+    english_result['sections'] = [item for item in english_result['sections'] if item['id'].endswith('__shared')]
+    english_result['sections'] += independent['sections']
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',{page['page_number']},{literal(english_result)}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    english = rpc(sql, 'read_lifetime_private_draft_head', literal(project))
+    records = rpc(sql, 'read_lifetime_private_draft_page', f"{literal(project)},'{english['snapshot_id']}'")['records']
+    selected = next(item for item in records if item['id'].endswith('__shared'))
+    unrelated = next(item for item in records if item['id'].endswith('__unrelated'))
+    rpc(sql, 'set_lifetime_draft_edition', f"{literal(project)},'zh-CN'")
+    chinese = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    result = validated_result(chinese, [block('shared', source_a)], event_ids=[event_a])
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{chinese['token']}',{chinese['page_number']},{literal(result)}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{chinese['token']}'")
+    stale_id, valid_id = str(uuid4()), str(uuid4())
+    rpc(sql, 'request_workspace_section_rework', rework_args({**english,'first_record':selected}, stale_id))
+    rpc(sql, 'request_workspace_section_rework', rework_args({**english,'first_record':unrelated}, valid_id))
+    before = sql(f"select bundle::text from public.user_lifetime_memoir_section where snapshot_id='{english['snapshot_id']}' and partition_key={literal(selected['id'])};").stdout
+    epoch = sql('select policy_epoch from public.user_memoir_project;').stdout
+    changed_source = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{uuid4()}','My Sydney home had a blue front door.'")
+    changed_ref = dict(source_id=changed_source['id'], version=1, quote=changed_source['text'], char_start=0, char_end=len(changed_source['text']))
+    update = dict(existing_id=event_b, expected_revision=1, kind='event', title='My later Sydney home', source_refs=[changed_ref])
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':changed_source['id'],'version':1}])},{literal([update])}")
+    assert sql('select policy_epoch from public.user_memoir_project;').stdout == epoch
+    assert sql(f"select revision from public.user_memory_event where id={literal(event_b)};").stdout.strip() == '2'
+    assert sql(f"select public.workspace_progressive_section_current(s) from public.user_lifetime_memoir_section s where snapshot_id='{english['snapshot_id']}' and partition_key={literal(selected['id'])};").stdout.strip() == 'f'
+    assert sql(f"select public.workspace_rework_partition_current('{OWNER}',{literal(project)},{literal(event_a)},{literal(selected['id'])});").stdout.strip() == 't'
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{stale_id}';").stdout.strip() == '1'
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert page['locale'] == 'en-AU' and page['editorial_request']['request_id'] == valid_id
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{stale_id}';").stdout.strip() == '0'
+    assert page['partition_key'] == unrelated['id']
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+    for _ in range(4):
+        page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{page['token']}'")
+        if page['complete']:
+            break
+        assert page['editorial_request'] is None
+        service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+    assert page['complete']
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
+    assert service(sql, 'claim_memoir_lane', f"'{lane}',900") is None
+    assert sql(f"select status from public.user_workspace_section_rework where request_id='{valid_id}';").stdout.strip() == 'composed'
+    assert sql(f"select bundle::text from public.user_lifetime_memoir_section where snapshot_id='{english['snapshot_id']}' and partition_key={literal(selected['id'])};").stdout == before

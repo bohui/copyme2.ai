@@ -42,7 +42,7 @@ def block(key, source, *, asset=None, quote=None):
         source_refs=[dict(source_id=source['id'],version='1',char_start=start,char_end=start+len(text))])
 
 
-def validated_result(page, blocks):
+def validated_result(page, blocks, *, event_ids=None):
     request = composer_request(batch_job(page))
     assert request['assets'] == []  # Current product does not admit image assets.
     refs = [ref for item in blocks for ref in item['source_refs']]
@@ -55,6 +55,15 @@ def validated_result(page, blocks):
     draft = controlled_draft(dict(request=request,plan=plan),'I grew up in Chengde.','Childhood')
     assert draft['kind'] == 'sample_chapter'
     chapter = draft['chapters'][0]
+    if event_ids is not None:
+        chapter['event_ids'] = event_ids
+        draft['outline'][0]['event_ids'] = event_ids
+        for summary in draft['source_summary']:
+            summary['event_ids'] = event_ids
+        draft['event_dispositions'] = [dict(event_id=event['id'],
+            disposition='included' if event['id'] in event_ids else 'deferred',
+            chapter_ids=[chapter['id']] if event['id'] in event_ids else [],
+            reason='Original evidence or a later supported chapter.') for event in request['events']]
     prior = next((row for row in (request.get('prior_state') or {}).get('chapters', [])
         if row['chapter']['id'] == chapter['id']), None)
     chapter['base_revision'] = prior['revision'] if prior else 0
