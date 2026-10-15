@@ -177,3 +177,27 @@ The [follow-up report](memoir-baseline-review-four-20261015.md) and
 reproductions, every remaining case, prerequisites and unrun checks. Earlier
 complete ledgers remain unchanged. No pending-proposal inheritance, benchmark,
 legacy dataset, model-bound or other product-policy decision is resolved here.
+
+
+## Residual fast-stop failure and process-identity platform coverage
+
+The earlier graceful/unresponsive-child evidence did not establish cleanup when
+the child's own bounded fast stop failed and TemporaryDirectory erased the
+allocation. Real nonzero and ten-second-timeout reproductions left a running
+postmaster after that deletion. `3a2243131583e6ffcab75d5b6b2af99fe0f320e9` makes
+caller-supplied allocation roots explicitly supervisor-owned through shutdown
+reconciliation. Both fault variants now preserve the original PID/data identity
+for real parent immediate stop; standalone no-root fixture lifetime is unchanged.
+
+The source-derived portability finding is addressed by
+`d08aa215b9a1670727d1a89248957ce8e5028219`: Linux/proc identity availability is
+checked before PostgreSQL tools/allocation. Four native ownership regressions
+run on the selected Linux host; two unit simulations test the unavailable
+platform/proc gate. No Mac execution or native non-Linux coverage is claimed.
+All seven complete affected modules pass 49 tests with no failures or skips at
+that fixed source. The full repository aggregate was not repeated for this
+follow-up; its earlier b1e54e8 results remain historical. The
+[follow-up report](memoir-baseline-cancel-retention-20261015.md) and
+[per-case/process evidence](memoir-baseline-cancel-retention-20261015.json)
+record scope, red/green cases, identities, hashes and unrun checks. No pending
+proposal inheritance or other consequential product decision changes.

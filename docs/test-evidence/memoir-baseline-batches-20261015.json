@@ -578,6 +578,53 @@
         "memoir-review4-edition-red.log": "9e7fdae1e84bdbd866c66db9754c2b592cd7512e85e5cfe6943543eea9b23fba",
         "memoir-review4-offline-green.log": "7ba4d862ba9f2df232c2d9e9af4890f84b2b092f3097a8e8b9261cd5c96ad216"
       }
+    },
+    {
+      "batch": 13,
+      "code_revisions": {
+        "retention": "3a2243131583e6ffcab75d5b6b2af99fe0f320e9",
+        "platform_prerequisite": "d08aa215b9a1670727d1a89248957ce8e5028219"
+      },
+      "scope": "Residual child fast-stop failure/timeout retention and explicit Linux/proc prerequisite before allocation.",
+      "root_cause": "Child TemporaryDirectory removed native allocation metadata while a failed or timed-out fast stop left the detached postmaster running; parent scan then lost the original identity.",
+      "repair": "A supplied directory_root delegates deletion to the supervisor. Bounded child stop failures remain visible and leave data/postmaster.pid for parent immediate-stop reconciliation. Default standalone fixture lifetime is unchanged.",
+      "tested_revision": "d08aa215b9a1670727d1a89248957ce8e5028219",
+      "targeted_results": {
+        "complete_modules": 7,
+        "passed": 49,
+        "failed": 0,
+        "error": 0,
+        "skipped": 0,
+        "native_modes": 4,
+        "unit_prerequisite_cases": 2
+      },
+      "evidence": "memoir-baseline-cancel-retention-20261015.json",
+      "raw_evidence_sha256": {
+        "/tmp/memoir-cancel-retention-red.xml": "c338715bd14dfe0c4afed48ea7d259717ce4d33d035a5b407d47731f15a0e2a9",
+        "/tmp/memoir-cancel-retention-timeout-red.xml": "df80406d7adc02b3db3a3ada1a5ef35e72f0dc207a9d827f1f989bca97c1524f",
+        "/tmp/memoir-cancel-retention-green.xml": "61fa0a322e45b9bbf9509aa95855ed27ab55531f5d5cc97ef0a554a42cd1c644",
+        "/tmp/memoir-cancel-retention-affected.xml": "0ea96bb2dd4333b7ab18e949c4611719b386e1e60259f3ca8a4d8fd999528bf7",
+        "/tmp/memoir-cancel-retention-final.xml": "5780aeb270b77d6520a2ff1374bab86a742096862c2151b58adfe168985b8aba",
+        "/tmp/memoir-cancel-platform-red.xml": "8620c85fc2d096e6080d1068ed673f7a988c9498462808f113eb8a0e9d5ee877",
+        "/tmp/memoir-cancel-platform-green.xml": "8cb46255a35e70378db3fac93bbfd6db93f3c668b64cdebda198a71e3f6ac271",
+        "/tmp/memoir-cancel-retention-red.log": "275cb221b36ef8649c3b5822cb14c537dab23bb4221ee306d3e742f82706135e",
+        "/tmp/memoir-cancel-retention-timeout-red.log": "bbd727d59d8d48137801acfd34768c0211681f30967014f45c6b8b546813d48e",
+        "/tmp/memoir-cancel-retention-green.log": "60009dbea2bfa7e379a5d34b4a114e79b1a636ee86969a9e824de2c9cd8a1a9b",
+        "/tmp/memoir-cancel-retention-affected.log": "42f1d61666cfc0862a4345350782dd6cb353d3d1ec3e3e1e9dd92547acfeb148",
+        "/tmp/memoir-cancel-retention-final.log": "ad84ca96167429a4567d44c82bbe7af89c8c38abcedb4862d14c9b03c9b794b3",
+        "/tmp/memoir-cancel-platform-red.log": "1cd417a78dbcb16d8a5ba41ce4b6ef04b7f58f75d44ac14bbe46aa6e74e5dc33",
+        "/tmp/memoir-cancel-platform-green.log": "6c5377bc7aeb995ca9cd805ea8b63a2e9dc6d9b3c36f5d15acaf6316c3a75f8a",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos0/started.json": "75dc6c67ce623f3b46ea78c2810a41ddce78ee5f806107010fc5900a1fcd4d6b",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos0/stops.jsonl": "0604cc5721aab812ee6a18e3a77e36d0aaaa301c4592526b5f8fc17d2bdfd43f",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos1/started.json": "95602437bcb880e0ffa552b3a9cda82700c2a39d55d6b35d8d251931424d0e4d",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos1/stops.jsonl": "b445a6247cd8a49913c6c21fdc800d4b394c9dbdaa4885e9c782a69ce526db86",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos2/started.json": "bf0f037a334f0f99a4aba9e5ec58f018191a2d3494854bdebe8b585393e7e746",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos2/stops.jsonl": "917fb96a52cae0054ddcfa7d07f3ac607566301550e4b8527663b5411f0cd5d0",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos3/started.json": "51c488ca3834e8f4c8dac96cd9d7d36f70a0755421dfff8c2369b1deddc6cc1e",
+        "/tmp/pytest-of-agent/pytest-78/test_cancelling_case_after_pos3/stops.jsonl": "06fc579268bc14c3822199e1bb76efc75e5947351fcbde5255d27d3d0042cf67"
+      },
+      "full_repository_at_this_followup_head": "not rerun; prior complete b1e54e8 ledger remains historical",
+      "policy_decisions": "unchanged"
     }
   ],
   "current_disposition": {
@@ -711,7 +758,10 @@
       "identified_product_or_tooling_compatibility": 10,
       "environment_or_aggregate_budget": 7,
       "unresolved_functional": 9
-    }
+    },
+    "current_source_test_revision": "d08aa215b9a1670727d1a89248957ce8e5028219",
+    "latest_targeted_followup": "memoir-baseline-cancel-retention-20261015.json",
+    "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788"
   },
   "final_fixed_head_checks": {
     "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
@@ -907,5 +957,17 @@
       "environment_or_aggregate_budget": 7,
       "unresolved_functional": 9
     }
+  },
+  "latest_cleanup_followup": {
+    "tested_revision": "d08aa215b9a1670727d1a89248957ce8e5028219",
+    "acceptance_complete": false,
+    "complete_affected_modules": 7,
+    "passed": 49,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-cancel-retention-20261015.json",
+    "native_mac_coverage": "not run; Linux/proc-specific lifecycle cases explicitly gated",
+    "full_repository_at_this_followup_head": false
   }
 }
