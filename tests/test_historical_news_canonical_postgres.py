@@ -24,7 +24,8 @@ def database():
 
 
 @pytest.mark.parametrize('streaming', [False, True])
-def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, streaming):
+@pytest.mark.parametrize('moved', [False, True])
+def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, streaming, moved):
     from apps.api import agent_routes
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
@@ -35,7 +36,9 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
         body = json.loads(request.content)
         context = body['interview_context']
         calls.append(context)
-        output = json.loads(valid_reply()) if len(calls) == 1 else news_proposal()
+        if len(calls) > 1:
+            assert bool(context['historical_news']['clues']) is not moved
+        output = json.loads(valid_reply()) if len(calls) == 1 or moved else news_proposal()
         output['plan']['conversation_phase'] = 'explore'
         data = {'thread_id': 'controlled-news-thread', 'reply': json.dumps(output), 'artifacts': []}
         if request.headers.get('accept') == 'application/x-ndjson':
@@ -81,8 +84,12 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
         assert replay['cached'] and len(calls) == 1
         assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '1'
         later = result(client.post('/v1/agent/turn', headers=headers, json={
-            'project_id': project, 'text': 'What else could we explore?', 'language': 'en-AU'}))
-        assert later['historical_context']['source_url'] == evidence()['source_url']
-        assert len(calls[1]['historical_news']['clues']) == 1
+            'project_id': project, 'text': 'I moved to Sydney, Australia in 1965.' if moved else 'What else could we explore?', 'language': 'en-AU'}))
+        if moved:
+            assert 'historical_context' not in later
+            assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '2'
+        else:
+            assert later['historical_context']['source_url'] == evidence()['source_url']
+            assert len(calls[1]['historical_news']['clues']) == 1
         assert rpc(sql, 'read_user_historical_news', literal(project))['clues'] == []
     assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'

@@ -165,7 +165,7 @@ def test_saved_reply_releases_lease_before_research_and_later_turn_consumes_clue
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize('situation', ['disabled', 'missing_context', 'provider_failure', 'storage_failure'])
+@pytest.mark.parametrize('situation', ['disabled', 'missing_context', 'provider_failure', 'storage_failure', 'revalidation_failure'])
 def test_optional_research_never_breaks_a_saved_reply(interview, monkeypatch, situation):
     runtime, storage, state, respond = interview
     calls = []
@@ -184,10 +184,15 @@ def test_optional_research_never_breaks_a_saved_reply(interview, monkeypatch, si
         def failed(*args):
             raise OSError('private storage exception must not be published')
         monkeypatch.setattr(storage, 'historical_news_basis', failed)
+    elif situation == 'revalidation_failure':
+        storage.news['needs_revalidation'] = True
+        def failed(*args):
+            raise OSError('optional revalidation failed')
+        monkeypatch.setattr(storage, 'revalidate_historical_news', failed, raising=False)
     result = asyncio.run(respond(True))
     assert result['conversation_saved'] and result['reply']
     assert not state.leased and storage.closed == 1
-    assert len(calls) == (2 if situation == 'provider_failure' else 0)
+    assert len(calls) == (2 if situation in {'provider_failure', 'revalidation_failure'} else 0)
 
 
 @pytest.mark.parametrize('streaming', [False, True])

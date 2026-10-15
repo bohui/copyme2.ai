@@ -142,3 +142,44 @@ restarted container, using its saved configuration without overrides, completed
 in **24.81 seconds**, returning a completed native receipt, **24 source URLs** and
 **two leads**. This final call verifies discovery, not independent inspection or
 publication of those leads. The full repository test suite was not rerun.
+
+## Independent cloud review repair — 15 October 2026
+
+The GitHub Codex cloud review on PR #67 reviewed published `bb0b371` and found
+three defects. Regression tests reproduced all three before repair:
+
+- Source-only narration now changes the durable historical context/job revision.
+  An older running job cannot suppress replacement research, and ready clues are
+  hidden until their hypothesis is checked against the current accepted basis.
+  Local revalidation can retain inspected evidence for an unchanged hypothesis;
+  a move, changed preference, stale snapshot or different owner cannot rebind it.
+- JSON and streaming transports record successful terminal delivery. Cleanup
+  always releases the lease and storage, but only a delivered reply starts
+  external research. A failed terminal or final body makes no search request.
+- A native search receipt now requires the whole response and its event message
+  to have explicit completed statuses. Valid JSON inside partial output fails
+  closed instead of being reported as completed research.
+
+The follow-up set passed **215 tests**, including the historical application,
+provider, current canonical JSON/stream SQL, historical SQL, actual Chromium,
+interview-plan, skill installation/configuration and governed transport suites.
+The source fence is an incremental migration,
+`202610150001_historical_news_source_fences.sql`; apply pending migrations using
+`make migrate` before running this application version.
+
+The broader Python aggregate completed 6,179 cases with **5,016 passed,
+647 failed, 275 errors and 241 skipped**. It used four isolated workers and a
+30-second per-test timeout. Many setup errors were fixture timeouts; the directly
+relevant canonical SQL cases subsequently passed with a sufficient fixture
+budget. Representative route failures, a removed worker-contract expectation
+and an indefinitely waiting legacy worker test were also reproduced on baseline
+`6808ef5`. This aggregate overlapped follow-up edits and is diagnostic evidence,
+not an exact-final-commit green run. It does not establish that every broader
+failure is pre-existing.
+
+The owner explicitly permits closing #55 when its feature checks and final
+independent cloud review pass, with broader failures recorded as non-blocking.
+The final reviewed commit and final check outcomes are recorded on PR #67 and
+the issue rather than represented by the earlier aggregate's starting SHA.
+Live human recall benefit remains unmeasured; no suitable live news is a valid
+outcome and no citation is fabricated to obtain a positive result.
