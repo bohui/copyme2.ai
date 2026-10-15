@@ -1,10 +1,10 @@
 # Memory Spark acceptance evidence
 
-Generated: `2026-09-26T11:23:28.680700+00:00`
+Generated: `2026-10-15T08:51:21.629879+00:00`
 
 This report runs the 55 functional and adversarial acceptance cases from section 26.2 of `Memory_Spark_Full_Specification_v1.0.docx` against the credential-free local deterministic cell.
 
-Command: `/opt/memory-spark-venv/bin/python -m pytest -q tests/test_full_acceptance.py`
+Command: `/Users/bohuihan/.pyenv/versions/3.12.11/bin/python3 -m pytest -q tests/test_full_acceptance.py`
 
 Result: **55/55 acceptance cases passed**.
 

@@ -23,9 +23,9 @@ test('saved public snapshot replays exactly',()=>{
 });
 
 // Exercise the actual client integration, not a parallel renderer implementation.
-import fs from 'node:fs';
+import {readMemoirClientSource} from '../js/helpers/memoir-source.mjs';
 import vm from 'node:vm';
-const source=fs.readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+const source=readMemoirClientSource();
 function install(context,names){
  for(const name of names) vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0],context);
 }
@@ -48,8 +48,10 @@ test('production completed streaming reply carries verified historical context',
  const state={supabase:{accessToken:'fixture'},project:{id:'project'},chat:[]};
  const context=vm.createContext({state,historicalContext,conversationLanguage:()=> 'en-AU',simulatedLoopTrace:()=>[],
   nextAssistantMessageId:()=> 'message',render(){},updateStreamingAssistantMessage(){},refreshPrivateDraft:async()=>{},
+  toast:message=>assert.fail(message),
   streamAgentTurn:async()=>({reply:'Optional clue?',conversation_saved:true,historical_context:{...clue,receipt:{private:'omit'}}})});
- install(context,['captureProjectScope','isCurrentProjectScope','readBrowserValues','mergeChatHistoryCopies','agentTurn']);
+ install(context,['captureProjectScope','isCurrentProjectScope','currentWorkspaceMemoryFocus','workspaceTurnFocus',
+  'markWorkspaceFocusStarted','readBrowserValues','mergeChatHistoryCopies','agentTurn']);
  const reply=await context.agentTurn('My own memory');
  assert.equal(reply.historicalContext.id,clue.id);assert.equal(reply.streamedMessage.historicalContext.id,clue.id);
  assert.equal(reply.historicalContext.receipt,undefined);assert.equal(reply.streamedMessage.streaming,false);
