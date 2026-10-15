@@ -1,0 +1,53 @@
+"""Exact progressive photo dependencies on disposable PostgreSQL."""
+from copy import deepcopy
+
+import pytest
+
+from test_lifetime_composer_capacity import seeded_composer, section_result, service
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_lifetime_review_repairs import add_photo_link
+from test_shared_memory_events_postgres import literal
+
+
+@pytest.mark.parametrize('action', ['update', 'delete'])
+@pytest.mark.parametrize('location', ['bundle', 'proposal'])
+def test_progressive_photo_change_purges_exact_asset_and_preserves_other_writing(sql, action, location):
+    identity, source, lane, first = seeded_composer(sql)
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    changed = add_photo_link(sql, identity, source, first)
+    sibling = add_photo_link(sql, identity, source, first)
+    links = {link: sql(f"select photo_id from public.user_interview_photo_link where id='{link}';").stdout.strip()
+             for link in (changed, sibling)}
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    original = section_result(page)
+    prose = original['sections'][0]
+    prose.update(id='prose', chapter_id='prose')
+    prose['block']['id'] = 'prose'
+    original['sections'] = [prose]
+    for index, (link, asset) in enumerate(links.items()):
+        photo = deepcopy(prose)
+        photo.update(id=f'photo-{index}', chapter_id=f'photo-{index}', content='')
+        photo['block'].update(id=f'photo-{index}', type='photo', text='', asset_id=asset,
+                              asset_version='1', caption='A narrator-selected childhood photo.')
+        original['sections'].append(photo)
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',0,{literal(original)}")
+    assert service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")['status'] == 'saved'
+    if location == 'proposal':
+        # A pending protected proposal can introduce a photo absent from its original.
+        sql(f"update public.user_lifetime_memoir_section set approved=true,proposal=bundle,bundle={literal({'preview':{'text':source['text']},'sections':[prose]})} where partition_key like '%:photo-0';")
+    else:
+        sql('update public.user_lifetime_memoir_section set human_locked=true;')
+    target = sql(f"select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key like '%:photo-0';").stdout
+    assert links[changed] in target and 'progressive:' in target
+    unaffected = sql(f"select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key not like '%:photo-0' order by partition_key;").stdout
+    assert links[sibling] in unaffected and source['text'] in unaffected
+    rounds = sql('select count(*) from public.user_completed_round;').stdout
+    sql(f"update public.user_interview_photo_link set description=description where id='{changed}';")
+    assert sql(f"select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key like '%:photo-0';").stdout == target
+    if action == 'update':
+        sql(f"update public.user_interview_photo_link set description='Corrected attribution' where id='{changed}';")
+    else:
+        sql(f"delete from public.user_interview_photo_link where id='{changed}';")
+    assert sql(f"select count(*) from public.user_lifetime_memoir_section where partition_key like '%:photo-0';").stdout.strip() == '0'
+    assert sql(f"select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key not like '%:photo-0' order by partition_key;").stdout == unaffected
+    assert sql('select count(*) from public.user_completed_round;').stdout == rounds
