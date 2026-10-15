@@ -12,9 +12,8 @@ import os
 from pathlib import Path
 import re
 import sys
-import tempfile
 from uuid import UUID, uuid4
-from scripts.controlled_lifecycle import reconcile_native_directory
+from scripts.controlled_lifecycle import new_native_root, reconcile_native_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE_VERSION = 'memoir-controlled-canonical-state/1'
@@ -41,7 +40,7 @@ def controlled_database(*, directory_root=None):
     if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native') != 'native':
         raise ValueError('Controlled cloud tooling requires the local native PostgreSQL backend')
     owns_root = directory_root is None
-    directory_root = directory_root or tempfile.mkdtemp(prefix='memoir-controlled-pg-')
+    directory_root = directory_root or new_native_root('memoir-controlled-pg-')
     generator = database.__wrapped__(directory_root=directory_root)
     try:
         sql = next(generator)

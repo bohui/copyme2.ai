@@ -42,8 +42,10 @@ def test_nested_concurrent_owners_cancel_and_restore_previous_handler():
         signal.signal(signal.SIGTERM, original)
 
 
-def test_reconciliation_refuses_an_unrelated_pid_without_removing_identity(tmp_path, monkeypatch):
-    data = tmp_path/'memoir-lease-pg-synthetic'/'data'
+@pytest.mark.parametrize('nested', [False, True])
+def test_reconciliation_refuses_an_unrelated_pid_without_removing_identity(tmp_path, monkeypatch, nested):
+    owner = tmp_path/'memoir-case-nested' if nested else tmp_path
+    data = owner/'memoir-lease-pg-synthetic'/'data'
     data.mkdir(parents=True)
     pid_file = data/'postmaster.pid'
     pid_file.write_text(f'{os.getpid()}\n{data}\n')

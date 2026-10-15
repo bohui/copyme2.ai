@@ -6,9 +6,8 @@ import os
 from pathlib import Path
 import signal
 import sys
-import tempfile
 from scripts.controlled_native_state import ROOT, controlled_database, open_case, snapshot_case
-from scripts.controlled_lifecycle import reconcile_native_directory, sigterm_cancellable
+from scripts.controlled_lifecycle import new_native_root, reconcile_native_directory, sigterm_cancellable
 
 
 CHILD_CLEANUP_SECONDS = 20
@@ -43,7 +42,7 @@ async def run_isolated_case(case, expected_payload, case_expected, *, args, run_
         if os.environ.get(key): env[key]=os.environ[key]
     rounds_dir = Path(run_dir)/'cases'/case['id']/'rounds'
     before = {path.name:path.read_bytes() for path in rounds_dir.glob('round-???.json')}
-    database_directory = Path(tempfile.mkdtemp(prefix='memoir-case-'))
+    database_directory = new_native_root('memoir-case-')
     process = creation = None
     value=dict(case=case,expected_payload=expected_payload,case_expected=case_expected,
         args=vars(args),run_dir=str(run_dir),max_rounds=max_rounds,database_directory=str(database_directory))

@@ -7,11 +7,16 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+import sys
+import tempfile
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.controlled_lifecycle import ALLOCATION_ROOT_ENV, reconcile_native_directory
 
 
 def offline_environment(root):
-    keep = {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SHELL'}
+    keep = {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SHELL', ALLOCATION_ROOT_ENV}
     keep.update({'MEMOIR_TEST_POSTGRES_BACKEND', 'MEMOIR_BROWSER_URL', 'MEMOIR_TEST_URL',
                  'MEMOIR_TEST_PUBLICATION_TCP',
                  'MEMORY_SPARK_API_ORIGIN', 'PLAYWRIGHT_BROWSERS_PATH',
@@ -120,9 +125,16 @@ def main():
     handlers = {signum: signal.signal(signum, receive_signal)
                 for signum in (signal.SIGINT, signal.SIGTERM)}
     process = None
+    native_root = None
     code, status = 2, 'launch_failed'
     with logfile.open('w') as stream:
         try:
+            # This runner owns every nested native allocation, including a
+            # detached postmaster outliving its killed command process group.
+            native_root = Path(tempfile.mkdtemp(prefix='memoir-check-pg-', dir='/tmp'))
+            env[ALLOCATION_ROOT_ENV] = str(native_root)
+            receipt['native_allocation_root'] = str(native_root)
+            save_receipt(receipt_path, receipt)
             process = subprocess.Popen(command, cwd=args.root, stdout=stream,
                                        stderr=subprocess.STDOUT, start_new_session=True, env=env)
             deadline = time.monotonic() + args.timeout
@@ -155,6 +167,14 @@ def main():
                                               'group_gone': False,
                                               'failure_class': type(error).__name__,
                                               'errno': error.errno}
+                if native_root is not None:
+                    try:
+                        receipt['native_allocation_cleanup'] = reconcile_native_directory(native_root, env)
+                    except Exception as error:
+                        receipt['native_allocation_cleanup'] = {'verified':False,
+                            'retained_root':str(native_root), 'failure_class':type(error).__name__}
+                        if code == 0:
+                            code, status = 2, 'cleanup_failed'
                 receipt.update(status=status, exit_code=code,
                                child_returncode=process.returncode if process else None,
                                duration_seconds=round(time.monotonic() - started, 2))

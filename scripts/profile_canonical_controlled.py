@@ -25,7 +25,7 @@ from apps.api.turn_stream import turn_events
 from scripts.canonical_turn import canonical_turn, CanonicalTurnFailed
 from scripts.controlled_native_state import ROOT, controlled_database, open_case, snapshot_case
 from scripts.profile_conversation_latency import WorkerStream
-from scripts.controlled_lifecycle import sigterm_cancellable
+from scripts.controlled_lifecycle import ALLOCATION_ROOT_ENV, sigterm_cancellable
 
 
 def digest(value):
@@ -37,7 +37,7 @@ def offline_settings():
     """Exclude inherited service authority for the whole run, including cleanup."""
     previous = dict(os.environ)
     prerequisites = {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL',
-        'SHELL', 'LD_LIBRARY_PATH', 'MEMOIR_TEST_TEMPORAL_CLI'}
+        'SHELL', 'LD_LIBRARY_PATH', 'MEMOIR_TEST_TEMPORAL_CLI', ALLOCATION_ROOT_ENV}
     environment = {key: value for key, value in previous.items() if key in prerequisites}
     environment.update(PYTHONPATH=str(ROOT), MEMOIR_TEST_POSTGRES_BACKEND='native',
         MEMORY_SPARK_HISTORICAL_NEWS='0', MEMORY_SPARK_DISABLE_PRIVDROP='1')
