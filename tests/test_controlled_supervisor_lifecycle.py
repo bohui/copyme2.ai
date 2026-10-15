@@ -71,16 +71,38 @@ raise SystemExit(result.returncode)
     return env, records, stops, real
 
 
+def live_owned_command(pid, started, expected):
+    """Recheck birth/state after command inspection, including a vanished proc."""
+    identity = process_identity(pid)
+    if identity is None:return False
+    assert identity[1] == started, 'Emergency process identity changed'
+    if identity[0] == 'Z':return False
+    try:
+        command = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
+    except FileNotFoundError:
+        identity = process_identity(pid)
+        if identity is None:return False
+        assert identity[1] == started, 'Emergency process identity changed'
+        if identity[0] == 'Z':return False
+        raise  # A live process with unavailable command identity stays unknown.
+    identity = process_identity(pid)
+    if identity is None:return False
+    assert identity[1] == started, 'Emergency process identity changed'
+    if identity[0] == 'Z':return False
+    assert expected in command, 'Emergency process command identity changed'
+    return True
+
+
 def emergency_cleanup(records, real, supervisor_pid, *, held_child=False):
     """Red tests retain identity even if the broken process erased its files."""
     for item in records:
-        if held_child and item['owner'] != supervisor_pid and running(item['owner'], item['owner_started']):
-            command = Path(f"/proc/{item['owner']}/cmdline").read_bytes().split(b'\0')
-            assert b'scripts.controlled_five_case' in command
-            os.kill(item['owner'], signal.SIGKILL)
-        if running(item['pid'], item['started']):
-            command = Path(f"/proc/{item['pid']}/cmdline").read_bytes().split(b'\0')
-            assert item['data'].encode() in command
+        if held_child and item['owner'] != supervisor_pid:
+            if live_owned_command(item['owner'],item['owner_started'],b'scripts.controlled_five_case'):
+                try:
+                    os.kill(item['owner'], signal.SIGKILL)
+                except ProcessLookupError:
+                    assert not live_owned_command(item['owner'],item['owner_started'],b'scripts.controlled_five_case')
+        if live_owned_command(item['pid'],item['started'],item['data'].encode()):
             if Path(item['data']).exists():
                 subprocess.run([real, '-D', item['data'], '-m', 'immediate', '-w', 'stop'],
                     check=True, capture_output=True, timeout=12)

@@ -76,24 +76,35 @@ def _quiesce_command_group(root, environment, stopped):
     group_id = group['group_id']
     if type(group_id) is not int or group_id <= 0:
         raise RuntimeError(f'Controlled command identity invalid; retained {root}')
+    current = _process_start(group_id, environment)
+    if current is not None and current!=group.get('leader_started'):
+        raise RuntimeError(f'Controlled command identity unverified; retained {root}')
     def live_members():
         # Apple's ps has no sid column; its sess column is a kernel pointer.
         # getsid supplies the same numeric session identity on both Unix hosts.
-        result = subprocess.run(['ps','-e','-o','pid=,pgid=,stat='],env=environment,
-            text=True,capture_output=True,timeout=2,check=True)
-        members = []
-        for line in result.stdout.splitlines():
-            row = line.split()
-            if len(row)!=3 or row[1]!=str(group_id) or row[2].startswith('Z'):
-                continue
-            try:
-                session = os.getsid(int(row[0]))
-            except ProcessLookupError:
-                continue  # The snapshotted member has already exited.
-            if session != group_id:
-                raise RuntimeError(f'Controlled command identity unverified; retained {root}')
-            members.append(row)
-        return members
+        snapshot_deadline = time.monotonic()+2
+        while True:
+            result = subprocess.run(['ps','-e','-o','pid=,pgid=,stat='],env=environment,
+                text=True,capture_output=True,timeout=2,check=True)
+            members,vanished = [],False
+            for line in result.stdout.splitlines():
+                row = line.split()
+                if len(row)!=3 or row[1]!=str(group_id) or row[2].startswith('Z'):
+                    continue
+                try:
+                    session = os.getsid(int(row[0]))
+                except ProcessLookupError:
+                    # This process may have forked after the snapshot. A fresh
+                    # enumeration must find and verify its surviving children.
+                    vanished = True
+                    continue
+                if session != group_id:
+                    raise RuntimeError(f'Controlled command identity unverified; retained {root}')
+                members.append(row)
+            if not vanished:
+                return members
+            if time.monotonic()>=snapshot_deadline:
+                raise RuntimeError(f'Controlled command snapshot unstable; retained {root}')
     members = live_members()
     if not members:
         return
