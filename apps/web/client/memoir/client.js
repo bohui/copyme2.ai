@@ -371,6 +371,7 @@ function invalidateProjectNavigation() {
   state.conversationStreams?.clear();
   state.privateDraftStream?.controller.abort();
   state.privateDraftStream = null;
+  state.stageReadinessRefresh?.controller.abort();
   state.privateDraftExpanded = false;
   state.photoRequests?.clear();
   state.pendingConversationTurn = null;
@@ -2287,25 +2288,95 @@ function lifeStageNavigator() {
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div><button type="button" class="button button-secondary button-small workspace-add-memory" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${activeId === "all" ? t("addMemory") : t("addMemoryToStage", {stage: lifeStageText(activeId, "label")})}</button></section>`;
 }
 
-async function refreshStageReadiness({attempt = 0} = {}) {
+async function refreshStageReadiness() {
   const scope = captureProjectScope();
   const projectId = state.project?.id;
   if (!projectId || !state.supabase?.accessToken) return;
-  const requestId = state.stageReadinessRequest = (state.stageReadinessRequest || 0) + 1;
-  const current = () => isCurrentProjectScope(scope) && state.stageReadinessRequest === requestId;
-  try {
-    const result = await storyApi(`/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`);
-    if (current()) {
-      state.stageReadiness = result.stages || {};
-      render();
-      // Canonical stage extraction may finish after conversation_saved. Keep
-      // the reply usable and stop retries on navigation, newer reads or 30s.
-      if (result.pending && attempt < 15) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        if (current()) await refreshStageReadiness({attempt: attempt + 1});
-      }
+  const active = state.stageReadinessRefresh;
+  if (active && !active.controller.signal.aborted && isCurrentProjectScope(active.scope)) {
+    // Streamed/final saves share recovery. A failed later read cannot cancel
+    // the healthy pending poll, and another save gets a full recovery window.
+    active.renew();
+    active.requested = true;
+    active.wake?.();
+    return active.ready;
+  }
+  active?.controller.abort();
+  const job = {scope, controller:new AbortController(), requested:false};
+  state.stageReadinessRefresh = job;
+  const current = () => state.stageReadinessRefresh === job && isCurrentProjectScope(scope)
+    && Boolean(state.supabase?.accessToken) && !job.controller.signal.aborted && Date.now() < job.deadline;
+  job.renew = () => {
+    clearTimeout(job.expiry);
+    // The supported extractor call can take 240s. Allow five minutes after
+    // the latest explicit save/reload, with 2/4/8/16s backoff between reads.
+    job.deadline = Date.now() + 300_000;
+    job.expiry = setTimeout(() => job.controller.abort(), 300_000);
+  };
+  const wait = delay => new Promise(resolve => {
+    const finish = () => {
+      clearTimeout(timer);
+      job.controller.signal.removeEventListener('abort', finish);
+      if (job.wake === finish) job.wake = null;
+      resolve();
+    };
+    const timer = setTimeout(finish, Math.min(delay, job.deadline - Date.now()));
+    job.wake = finish;
+    job.controller.signal.addEventListener('abort', finish, {once:true});
+  });
+  const read = async () => {
+    const request = new AbortController();
+    const cancel = () => request.abort();
+    job.controller.signal.addEventListener('abort', cancel, {once:true});
+    const timer = setTimeout(cancel, 10_000);
+    let rejectRead;
+    const interrupted = new Promise((_resolve, reject) => {
+      rejectRead = () => reject(request.signal.reason);
+      request.signal.addEventListener('abort', rejectRead, {once:true});
+    });
+    try {
+      // Race cancellation as well as aborting fetch: an optional auth/session
+      // operation must not hold the recovery loop after its request deadline.
+      return await Promise.race([interrupted,
+        storyApi(`/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`, {signal:request.signal})]);
+    } finally {
+      clearTimeout(timer);
+      request.signal.removeEventListener('abort', rejectRead);
+      job.controller.signal.removeEventListener('abort', cancel);
     }
-  } catch (_) { /* Readiness is optional; keep the saved conversation usable. */ }
+  };
+  job.renew();
+  job.ready = (async () => {
+    let delay = 2000;
+    try {
+      while (current()) {
+        job.requested = false;
+        try {
+          const result = await read();
+          if (!current()) return;
+          // Coalesce refreshes during a read into the next serialized read.
+          // A snapshot predating that save cannot repaint newer client state.
+          if (!job.requested) {
+            state.stageReadiness = result.stages || {};
+            render();
+            if (!result.pending) return;
+          }
+        } catch (error) {
+          if (!current() || [400,401,403,404,422].includes(error?.status)) return;
+          // Network errors and legitimate 409/503 revision-fence failures
+          // preserve the last good ring and retry within the same budget.
+        }
+        if (!current()) return;
+        if (!job.requested) await wait(delay);
+        delay = Math.min(delay * 2, 16_000);
+      }
+    } finally {
+      clearTimeout(job.expiry);
+      job.wake?.();
+      if (state.stageReadinessRefresh === job) state.stageReadinessRefresh = null;
+    }
+  })();
+  return job.ready;
 }
 
 function selectLifeStage(stageId, focus = false) {

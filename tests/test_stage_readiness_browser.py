@@ -106,7 +106,8 @@ from test_lifetime_memory_postgres import sql, event_database, private_database,
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, locale):
+@pytest.mark.parametrize('recovery', ['ready', 'delayed-fences'])
+def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, locale, recovery):
     """Real source frontend, HTTP readiness route and isolated PostgreSQL.
 
     Only auth and unrelated workspace services are synthetic browser seams.
@@ -135,6 +136,7 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
         'preferred_language':locale,'memory_places':[place]},'workspace_unlocked':False}
     history = StoryHistoryFixture(OWNER, project_id, 'fixture-only')
     reads = []
+    delayed = {'source':None, 'pending_seen':False, 'faults':[], 'sent':[]}
 
     def save(stage, words):
         source = save_stage_source(sql, project_id, '忆' * words)
@@ -159,15 +161,27 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
             data = {'recall_status':{'rounds_completed':1,'free_rounds':20,'payment_required':False,'paid':True},
                     'family_features_enabled':False}
         elif path == '/story/readiness':
+            if delayed['pending_seen'] and delayed['faults']:
+                status = delayed['faults'].pop(0)
+                delayed['sent'].append(status)
+                return route.fulfill(status=status, content_type='application/json',
+                    headers={'X-Error-Code':'LIFETIME_READ_STALE' if status == 409 else 'LIFETIME_READ_UNAVAILABLE'},
+                    body=json.dumps({'detail':'Synthetic revision-fence change'}))
             response = client.get('/v1/story/readiness', params={'project_id':project_id})
             assert response.status_code == 200, response.text
             assert response.headers['cache-control'] == 'no-store'
             reads.append(response.json())
+            if delayed['source'] and response.json().get('pending'):
+                delayed['pending_seen'] = True
             return route.fulfill(status=response.status_code, content_type='application/json', body=response.text)
         elif path == '/agent/place-journey':
             data = {'place_journey':place}
         elif path == '/agent/turn':
-            save('childhood', 57)
+            if recovery == 'delayed-fences':
+                delayed['source'] = save_stage_source(sql, project_id, '忆' * 57)
+                delayed['faults'] = [409,503]
+            else:
+                save('childhood', 57)
             data = {'conversation_saved':True,'reply':'A synthetic saved reply.'}
         elif path == '/user/conversations' or path.startswith('/projects/' + project_id + '/'):
             data = {'items':[]}
@@ -221,16 +235,36 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
                 assert fraction == pytest.approx(percent / 100, abs=.04), (stage, fraction, percent)
 
         check_rings(expected)
+        if recovery == 'delayed-fences':
+            page.clock.install()
         page.locator('#chat-input').fill('A synthetic childhood memory.')
         page.locator('.send-button').click()
         expect(page.locator('.assistant-message').last).to_contain_text('A synthetic saved reply.')
+        if recovery == 'delayed-fences':
+            page.wait_for_load_state('networkidle')
+            assert delayed['pending_seen'] and reads[-1]['pending']
+            with page.expect_response(lambda response: '/story/readiness?' in response.url and response.status == 409) as stale:
+                page.clock.fast_forward(120_000)
+            stale.value.finished()
+            assert delayed['sent'] == [409]
+            expect(ring('childhood')).to_have_attribute('style', '--readiness:10%')
+            with page.expect_response(lambda response: '/story/readiness?' in response.url and response.status == 503) as unavailable:
+                page.clock.fast_forward(120_000)
+            unavailable.value.finished()
+            assert delayed['sent'] == [409,503]
+            expect(ring('childhood')).to_have_attribute('style', '--readiness:10%')
+            link_stage(sql, project_id, delayed['source'], 'childhood')
+            sql("update public.user_narrator_source set processing_status='succeeded';")
+            with page.expect_response(lambda response: '/story/readiness?' in response.url and response.status == 200) as recovered:
+                page.clock.fast_forward(16_000)
+            recovered.value.finished()
         expected['childhood'] = (15.7,'red',(185,72,67))
         check_rings(expected)
         before_reload = reads[-1]['stages']
         page.reload()
         check_rings(expected)
         assert reads[-1]['stages'] == before_reload
-        destination = ROOT / f'output/preview-debug/canonical-stage-rings-{locale}.png'
+        destination = ROOT / f'output/preview-debug/canonical-stage-rings-{locale}-{recovery}.png'
         destination.parent.mkdir(parents=True, exist_ok=True)
         page.locator('.life-stage-navigator').screenshot(path=str(destination))
         browser.close()
