@@ -33,7 +33,7 @@ function harness() {
   }});
   const state = {project: {id: 'a', profile: {}}, supabase: {user: {id: 'owner', is_anonymous: true}, accessToken: 'session'},
     conversationPhase: {ensure() {}}, chat: [], chapters: [], navigationGeneration: 1};
-  const context = vm.createContext({state, document, MEMOIR_ROUTES: {home: '/memoir'},
+  const context = vm.createContext({state, document, AbortController, setTimeout, clearTimeout, MEMOIR_ROUTES: {home: '/memoir'},
     $: selector => selector === '#app' ? app : selector === '[data-profile-menu]' ? menu
       : selector === '[data-profile-trigger]' ? menu?.trigger : selector === '[data-profile-action="login"]' ? menu?.login : null,
     window: {addEventListener: (name, callback) => events.set(name, callback)},

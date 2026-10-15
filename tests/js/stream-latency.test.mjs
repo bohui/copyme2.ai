@@ -53,6 +53,7 @@ test('map preview renders during text streaming without a profile write or photo
     },
   });
   context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   await context.agentTurn('Sydney');
   assert.ok(renders >= 2);
@@ -78,6 +79,7 @@ test(`a failed conversational save restores ${previous ? 'the confirmed workspac
     },
   });
   context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
   for (const name of ['freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
     vm.runInContext(extract(name), context);
   }
@@ -104,6 +106,7 @@ test('buffered response is not paced by one animation frame per delta', async ()
     },
   });
   context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('Hi');
   assert.equal(result.streamedMessage.text.length, 500);
@@ -118,6 +121,7 @@ test('a complete server response is shown without replaying a simulated stream',
     streamAgentTurn: async () => ({reply: 'A complete response', conversation_saved: true}),
   });
   context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('Hi');
   assert.equal(result.streamedMessage?.text, 'A complete response');
@@ -150,6 +154,7 @@ test('place activation and later progress do not wait for photo discovery', asyn
     },
   });
   context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   const result = await context.agentTurn('I remember Chengde');
   assert.equal(result.reply, 'Hello');
@@ -284,6 +289,7 @@ test(`uses backend place stages with ${profileUpdates ? 'a different profile foc
     },
   });
   context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
   vm.runInContext(extract('agentTurn'), context);
   await context.agentTurn('我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院');
   await event({type: 'workspace_update', data: {

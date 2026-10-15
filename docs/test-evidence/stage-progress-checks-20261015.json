@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-15",
+  "base_revision": "d12fac8a2b20cea3922a5994904d1fb8a7f17e21",
+  "code_revision": "0d58b2c0a309fb8cd25da174f0201916e4b7f09f",
+  "environment": {
+    "python": "3.12.14",
+    "node": "24.19.0",
+    "postgresql": "17.11",
+    "chromium": "154.0.8037.57",
+    "next": "16.3.6"
+  },
+  "tdd_before_fix": {
+    "postgres": {
+      "passed": 1,
+      "failed": 10
+    },
+    "client": {
+      "passed": 3,
+      "failed": 2
+    }
+  },
+  "checks": {
+    "ring_backend": {
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0
+    },
+    "javascript_aggregate": {
+      "passed": 508,
+      "failed": 0,
+      "skipped": 0
+    },
+    "production_browser": {
+      "passed": 2,
+      "failed": 0,
+      "deselected": 4,
+      "locales": [
+        "en-AU",
+        "zh-CN"
+      ]
+    },
+    "broader_backend": {
+      "passed": 123,
+      "failed": 27,
+      "baseline_passed": 110,
+      "baseline_failed": 27,
+      "failure_sets_identical": true
+    },
+    "full_python_fail_fast": {
+      "passed": 19,
+      "failed": 1,
+      "skipped": 10,
+      "completed_full_suite": false
+    },
+    "acceptance": {
+      "passed": 55,
+      "failed": 0
+    },
+    "localization": {
+      "messages": 647,
+      "catalogue": "passed",
+      "icu": "passed"
+    },
+    "specification_routes": {
+      "required": 63,
+      "application": 125,
+      "result": "passed"
+    },
+    "build": "passed",
+    "mobile_types": "passed",
+    "eslint_changed_sources": {
+      "findings": 6,
+      "baseline_findings": 6,
+      "new_test_and_other_changed_js": "passed"
+    },
+    "node_syntax": "passed",
+    "git_diff_check": "passed"
+  },
+  "baseline_backend_failures": [
+    "tests/test_lifetime_memory_reads.py::test_flag_on_unmapped_legacy_gets_keep_original_owned_read_contract[/agent/turns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa?project_id=project-a]",
+    "tests/test_lifetime_memory_reads.py::test_flag_on_unmapped_legacy_gets_keep_original_owned_read_contract[/user/projects/project-a/history]",
+    "tests/test_lifetime_memory_reads.py::test_rest_schema_cache_miss_never_proves_unmapped_mixed_cohort[False-True-True]",
+    "tests/test_lifetime_memory_runtime.py::test_accepted_source_survives_provider_failure_then_exact_retry",
+    "tests/test_lifetime_memory_runtime.py::test_active_privacy_byte_overflow_retains_source_without_provider_and_retry_recovers",
+    "tests/test_lifetime_memory_runtime.py::test_clearance_rejection_preserves_accepted_source_and_exact_retry[False-False]",
+    "tests/test_lifetime_memory_runtime.py::test_clearance_rejection_preserves_accepted_source_and_exact_retry[False-True]",
+    "tests/test_lifetime_memory_runtime.py::test_clearance_rejection_preserves_accepted_source_and_exact_retry[True-False]",
+    "tests/test_lifetime_memory_runtime.py::test_clearance_rejection_preserves_accepted_source_and_exact_retry[True-True]",
+    "tests/test_lifetime_memory_runtime.py::test_correction_after_provider_admission_blocks_old_text_and_commit[False]",
+    "tests/test_lifetime_memory_runtime.py::test_correction_after_provider_admission_blocks_old_text_and_commit[True]",
+    "tests/test_lifetime_memory_runtime.py::test_large_single_event_keeps_real_http_turn_bounded_and_resumable",
+    "tests/test_lifetime_memory_runtime.py::test_literal_privacy_variants_persist_before_http_provider[Don\\u2019t discuss my school-excluded_topics]",
+    "tests/test_lifetime_memory_runtime.py::test_literal_privacy_variants_persist_before_http_provider[I don't want to discuss my school-excluded_topics]",
+    "tests/test_lifetime_memory_runtime.py::test_literal_privacy_variants_persist_before_http_provider[Let's set aside my school for now-paused_topics]",
+    "tests/test_lifetime_memory_runtime.py::test_literal_privacy_variants_persist_before_http_provider[\\u6211\\u4e0d\\u60f3\\u518d\\u63d0\\u5b66\\u6821-excluded_topics]",
+    "tests/test_lifetime_memory_runtime.py::test_literal_privacy_variants_persist_before_http_provider[\\u6211\\u4eec\\u5148\\u4e0d\\u804a\\u5b66\\u6821-paused_topics]",
+    "tests/test_lifetime_memory_runtime.py::test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model[False-en-AU]",
+    "tests/test_lifetime_memory_runtime.py::test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model[False-zh-CN]",
+    "tests/test_lifetime_memory_runtime.py::test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model[True-en-AU]",
+    "tests/test_lifetime_memory_runtime.py::test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model[True-zh-CN]",
+    "tests/test_lifetime_memory_runtime.py::test_prior_unreviewed_policy_blocks_fresh_http_turn_with_truthful_metadata",
+    "tests/test_lifetime_memory_runtime.py::test_privacy_limit_rejects_before_acceptance_and_exact_eight_retry_is_atomic[en-AU-narrator_chat]",
+    "tests/test_lifetime_memory_runtime.py::test_privacy_limit_rejects_before_acceptance_and_exact_eight_retry_is_atomic[zh-CN-narrator_transcript]",
+    "tests/test_lifetime_memory_runtime.py::test_real_governed_http_save_cold_replay_preserves_identity_and_lease[False]",
+    "tests/test_lifetime_memory_runtime.py::test_real_governed_http_save_cold_replay_preserves_identity_and_lease[True]",
+    "tests/test_lifetime_memory_runtime.py::test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn"
+  ],
+  "limitations": [
+    "Supplied Library screenshot could not be downloaded; no bytes materialized or inspected.",
+    "Original English stage/private-draft browser scenarios fail on the baseline too; new canonical cases pass.",
+    "Full Python suite stopped at the baseline agent route 503 failure; remaining cases unrun.",
+    "Live extractor output breadth, long-running extraction, large-history performance and non-Chromium devices not evaluated.",
+    "No production database migration, deployment or paid/provider calls performed."
+  ],
+  "acceptance_complete": false,
+  "historical_snapshot": true,
+  "followup_report": "stage-progress-recovery-20261015.md",
+  "current_report": "stage-progress-direct-policy-integration-20261015.md"
+}

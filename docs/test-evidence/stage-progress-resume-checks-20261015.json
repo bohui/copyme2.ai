@@ -1,0 +1,524 @@
+{
+  "verified_source_commit": "4d2602ef9377dffd977bd0a62da686557dd71e24",
+  "base": "46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc",
+  "previous_reviewed_head": "4d475fab4608f7270c2cb64378d21f857a2bf583",
+  "review_head_note": "The following evidence-only commit is recorded with its exact SHA in PR68. Acceptance incomplete; keep draft.",
+  "execution_note": "Author cloud runs on these exact file bytes, finalized as the source commit. The unpublished ee40537 candidate was amended only for deterministic browser test synchronization/capture. Production/client-JS blobs and all other check inputs are unchanged.",
+  "root_cause": "Begin resumes a saved project via navigateTo, aborting its landing recovery job; the resume branch had no replacement refresh.",
+  "production_change": "Three lines after resume navigation: comment and void refreshStageReadiness() before awaiting the greeting. Existing per-project/principal/navigation cancellation, coalescing, request deadline and recovery budget remain.",
+  "tdd": {
+    "unit_red": {
+      "passed": 18,
+      "failed": 4,
+      "new_cases": 5
+    },
+    "browser_red": {
+      "failed": 2
+    },
+    "browser_red_observation": "Both locales remain at 100 words/10% after 60 simulated seconds; reload reads 300 words/30% immediately.",
+    "unit_green": {
+      "passed": 22,
+      "failed": 0
+    },
+    "intermediate_browser_failures": {
+      "first_candidate": {
+        "failed": 2,
+        "passed": 4
+      },
+      "interpretation": "One case stayed stale after a single 60s jump; asynchronous Auth/HTTP timing across the read deadline is an inference, not a captured deadline trace. The other case had no boot readiness read yet. Stepped time and explicit boot synchronization resolve both.",
+      "synchronized_capture": {
+        "failed": 2
+      },
+      "reason": "Functional resume and reload assertions passed; element screenshot detached during hydration."
+    },
+    "final_browser": {
+      "passed": 6
+    }
+  },
+  "scope_tests": [
+    "Queued landing poll replaced before a blocked resume greeting finishes.",
+    "In-flight landing read aborted; late snapshot and old cleanup cannot touch resumed job.",
+    "Duplicate Begin clicks coalesce during hydration; concurrent explicit refresh joins one serialized job.",
+    "Navigation while resume history waits prevents stale restart.",
+    "Navigation after resume aborts new read and rejects late paint.",
+    "Existing project and owner isolation, five-minute deadline, timeouts and backoff retained."
+  ],
+  "results": {
+    "backend": {
+      "passed": 70
+    },
+    "contracts": {
+      "passed": 115
+    },
+    "javascript_aggregate": {
+      "passed": 521,
+      "failed": 0,
+      "skipped": 0
+    },
+    "browser": {
+      "passed": 6
+    },
+    "acceptance": {
+      "passed": 55,
+      "failed": 0,
+      "scope": "MemoryStore deterministic catalogue, not PostgreSQL"
+    },
+    "production_build": "passed, webpack standalone",
+    "mobile_types": "passed",
+    "localization_messages": 647,
+    "required_routes_present": 63,
+    "application_routes": 125,
+    "focused_lint_js_python_syntax_whitespace": "passed",
+    "whole_lint": {
+      "errors": 5,
+      "existing_unused": [
+        "client: isMemoirRoute",
+        "client: memoryTurnFallback",
+        "client: workspaceProgressSummary",
+        "client: beginMemoryConversation",
+        "stream-latency.test: result"
+      ]
+    }
+  },
+  "commands": {
+    "cwd": "/workspace/memoir-stage-progress-ring",
+    "postgres_environment": "MEMOIR_TEST_POSTGRES_BACKEND=native-tcp PATH=/workspace/copyme2.ai/.venv/bin:/workspace/.tools/postgresql/usr/lib/postgresql/17/bin:$PATH LD_LIBRARY_PATH=/workspace/.tools/postgresql/usr/lib/x86_64-linux-gnu",
+    "unit": "node --test tests/js/stage-readiness.test.mjs",
+    "javascript": "PATH=/workspace/copyme2.ai/.venv/bin:$PATH node --test tests/js/*.test.mjs skills/memoir-composer/tests/*.test.mjs tests/historical-news/*.test.mjs",
+    "backend": "MEMOIR_TEST_POSTGRES_BACKEND=native-tcp PATH=/workspace/copyme2.ai/.venv/bin:/workspace/.tools/postgresql/usr/lib/postgresql/17/bin:$PATH LD_LIBRARY_PATH=/workspace/.tools/postgresql/usr/lib/x86_64-linux-gnu /workspace/copyme2.ai/.venv/bin/python -m pytest -q tests/test_stage_readiness.py tests/test_stage_progress_regression.py tests/test_stage_progress_rpc_lifecycle.py tests/test_stage_readiness_provenance.py tests/test_lifetime_memory_read_api.py tests/test_agent_commit_postgres.py --junitxml=/workspace/ring-investigation/resume-backend.xml",
+    "contracts": "MEMOIR_TEST_POSTGRES_BACKEND=native-tcp PATH=/workspace/copyme2.ai/.venv/bin:/workspace/.tools/postgresql/usr/lib/postgresql/17/bin:$PATH LD_LIBRARY_PATH=/workspace/.tools/postgresql/usr/lib/x86_64-linux-gnu /workspace/copyme2.ai/.venv/bin/python -m pytest -q tests/test_lifetime_memory_engine.py tests/test_lifetime_memory_transport.py tests/test_collector_canonical_schema.py tests/test_subscription_stream_diagnostics.py::test_protocol_message_timings_do_not_log_private_text tests/test_subscription_stream_diagnostics.py::test_protocol_progress_is_scoped_counts_queued_items_once_and_records_completion tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save tests/test_lifetime_memory_publication.py tests/test_lifetime_outer_publication.py --junitxml=/workspace/ring-investigation/resume-contracts.xml",
+    "browser": "MEMOIR_TEST_POSTGRES_BACKEND=native-tcp PATH=/workspace/copyme2.ai/.venv/bin:/workspace/.tools/postgresql/usr/lib/postgresql/17/bin:$PATH LD_LIBRARY_PATH=/workspace/.tools/postgresql/usr/lib/x86_64-linux-gnu MEMOIR_BROWSER_URL=http://127.0.0.1:3144 MEMOIR_BROWSER_EXECUTABLE=/usr/bin/chromium /workspace/copyme2.ai/.venv/bin/python -m pytest -q tests/test_stage_readiness_resume_browser.py tests/test_stage_progress_rpc_browser.py --junitxml=/workspace/ring-investigation/resume-browser-final.xml",
+    "browser_red_note": "Only tests/test_stage_readiness_resume_browser.py against prior production server at http://127.0.0.1:3143 before the client patch/build, using original clock flow.",
+    "build": "npm run build -- --webpack (cwd apps/web)",
+    "types": "npm run typecheck:mobile",
+    "acceptance": "PATH=/workspace/copyme2.ai/.venv/bin:$PATH /workspace/copyme2.ai/.venv/bin/python scripts/run_acceptance_evidence.py --output /workspace/ring-investigation/resume-acceptance.md",
+    "other": [
+      "python scripts/check_localization_catalog.py",
+      "python scripts/audit_spec_routes.py",
+      "npx eslint tests/js/stage-readiness.test.mjs",
+      "node --check apps/web/client/memoir/client.js",
+      "python -m py_compile tests/test_stage_readiness_resume_browser.py",
+      "git diff --check"
+    ],
+    "whole_lint": "npx eslint apps/web/client/memoir/client.js tests/js/stage-readiness.test.mjs tests/js/stream-latency.test.mjs"
+  },
+  "file_byte_proofs": [
+    {
+      "path": "apps/web/client/memoir/client.js",
+      "verified_code_blob": "00dcdbe04fb033dcd8e412c2865117ef51ba01a3",
+      "sha256": "9eecfb48f07e6932df921e063122c5e432c04e41cc964c07c89223af9592174c"
+    },
+    {
+      "path": "tests/js/stage-readiness.test.mjs",
+      "verified_code_blob": "27a5434b5e0e6e0bc3e3c2126ac183c784843afe",
+      "sha256": "85b049a71741e572561d6c9d7c7daa3e342b8523e5eebc730170b5d1e3ebc15b"
+    },
+    {
+      "path": "tests/test_stage_readiness_resume_browser.py",
+      "verified_code_blob": "3939b6a52ac85016fe2f4520830f847626adaf61",
+      "sha256": "f6588ae8f58337dd959a5b36aea8e82362cb916712604102b301364ff06afb03"
+    }
+  ],
+  "unchanged_from_previous_pr68": [
+    {
+      "path": "supabase",
+      "code_tree_or_blob": "f39ebea61d690e1d0414e0752bc1b85a65dd8e38",
+      "previous_pr68_tree_or_blob": "f39ebea61d690e1d0414e0752bc1b85a65dd8e38"
+    },
+    {
+      "path": "apps/api",
+      "code_tree_or_blob": "25dbef5a344ab3eac2798a5faff8240fd3998cc7",
+      "previous_pr68_tree_or_blob": "25dbef5a344ab3eac2798a5faff8240fd3998cc7"
+    },
+    {
+      "path": "tests/test_stage_readiness_browser.py",
+      "code_tree_or_blob": "3bea78c68705cd5c14a661884168b312e9b7c443",
+      "previous_pr68_tree_or_blob": "3bea78c68705cd5c14a661884168b312e9b7c443"
+    },
+    {
+      "path": "tests/js/stream-latency.test.mjs",
+      "code_tree_or_blob": "8c547fbe7928793f9c38f747bec08697cad9e366",
+      "previous_pr68_tree_or_blob": "8c547fbe7928793f9c38f747bec08697cad9e366"
+    },
+    {
+      "path": "tests/test_stage_progress_rpc_lifecycle.py",
+      "code_tree_or_blob": "1f65f0d3a192368b3b2393603eedcb14a60e6820",
+      "previous_pr68_tree_or_blob": "1f65f0d3a192368b3b2393603eedcb14a60e6820"
+    },
+    {
+      "path": "tests/test_stage_readiness_provenance.py",
+      "code_tree_or_blob": "feb23424a44c95e1dc4372103c4da23ae45fb333",
+      "previous_pr68_tree_or_blob": "feb23424a44c95e1dc4372103c4da23ae45fb333"
+    }
+  ],
+  "overlap": {
+    "pr69_observed_head": "dccff32bd6e921c2c43a7e8d734535b134ac3097",
+    "client_delta": "Only three added lines in saved-project resume branch; PR69 changes other locations.",
+    "pr69_browser_and_stream_latency_files": "untouched"
+  },
+  "reviewer_report_previous_head": {
+    "source": "User-supplied independent runtime review on prior 4d475fab; reviewer local files unavailable in this executor.",
+    "reported_passes": {
+      "stage_api_commit": 70,
+      "extra_attribution_pages": 4,
+      "transport": 115,
+      "javascript": 516,
+      "production_browser": 4,
+      "catalogue": 55
+    },
+    "reported_scenarios": [
+      "short-cue narration",
+      "correction",
+      "enrichment",
+      "seven turns",
+      "three bounded extraction pages",
+      "historical role ambiguity independently substantiated"
+    ],
+    "reported_failures": [
+      "one new saved-project resume regression",
+      "broader 151 passed / 68 failed / 3 skipped matches pinned main",
+      "four older browser cases fail both heads"
+    ],
+    "new_head_independent_review": "not performed"
+  },
+  "historical_broader_result": {
+    "pr": {
+      "passed": 151,
+      "failed": 68,
+      "skipped": 3
+    },
+    "main": {
+      "passed": 122,
+      "failed": 68,
+      "skipped": 3
+    },
+    "common_statuses_match": 193,
+    "scope": "Prior pinned run, independently reported again. Not rerun for this client-only continuation; not a current full-suite pass."
+  },
+  "remaining_gates": [
+    "Independent final-head runtime review.",
+    "Prior broader failures/skips and four older browser failures; not rerun here.",
+    "Full Python aggregate and complete mobile/platform suites unrun.",
+    "Five existing whole-client/stream-latency lint errors.",
+    "Legacy primary/background overlap remains unknowable from identical old records; unknown roles stay excluded, so historical undercount remains possible.",
+    "Required-check configuration remains unverified after earlier 403.",
+    "Live provider/extractor and real concurrent revision-race checks unrun.",
+    "Five-minute recovery does not guarantee longer queued/retried/multi-page extraction finishes.",
+    "Original supplied Library PNG remains unmaterialized/uninspected after earlier supported download failure."
+  ],
+  "restrictions_observed": [
+    "synthetic data only",
+    "no provider calls",
+    "no production migration",
+    "no deployment",
+    "no merge",
+    "no real memoir access",
+    "no credential export",
+    "no Mac execution"
+  ],
+  "synthetic_images": [
+    {
+      "path": "docs/test-evidence/stage-progress-resume-en-AU.png",
+      "sha256": "b2f5071691c839cd2a6ce33adf8bf86bb0c5566a380e820bd599f766cb74b5aa",
+      "inspected": true,
+      "capture": "After verified resume 30% and reload; synthetic fixture."
+    },
+    {
+      "path": "docs/test-evidence/stage-progress-resume-zh-CN.png",
+      "sha256": "495bd1db6e8bba3e5cc11cb25dc88b23244eb645319670769da70e8eac8c93fc",
+      "inspected": true,
+      "capture": "After verified resume 30% and reload; synthetic fixture."
+    }
+  ],
+  "raw_receipts": [
+    {
+      "executor_path": "/workspace/ring-investigation/resume-readiness-unit-red.log",
+      "sha256": "0b1c47497e7c75e65d1315312a79003458dacd6775cba60a84cc385a26eaf5a7"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-unit-green.log",
+      "sha256": "ad2fa6fb237626d7c1ac0d5411dcc0544fed216dc32ffcf598fbeb58d34a8244"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-red.xml",
+      "sha256": "9bae548aa1b6e4742e31cbea584dffab86ff6b5533834e6e5915c8308820d1e8"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-red.log",
+      "sha256": "2333a22baa947c4551c5fca011e174fd7b54416fb601d86ca9b1e73cbff11fa3"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-green.xml",
+      "sha256": "e451160338bd59024beecefb9f11c029b531f3cbdf8437c8d69b6c3775cc840e"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-green.log",
+      "sha256": "597ebe2ca4ce16ac1b4410e377dcd3b81b0148d11a45b0fdf203c73f42de4b2c"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-synchronized.xml",
+      "sha256": "167d4d01e7d01a16c24b1a09f952d022480fc5d873d2755fe6f1d19e6f23d1d5"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-synchronized.log",
+      "sha256": "fa73d14d9604438e1d81f86a487198de856bbf05cfdcfbb238592b1b65ddf9d6"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-final.xml",
+      "sha256": "142468cf0d84ab84a67c0e70af9ca6150f735ad5c0260e61798e6f1456205959"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-browser-final.log",
+      "sha256": "f303bb730859dd51716aa2bdfcd23ed8c929910bbe66c6fbf82cee061bf4ac12"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-backend.xml",
+      "sha256": "ddb40e26f05e9158ce68291ad846f85cb650fb801bd99d34350c78aa16cb7f69"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-backend.log",
+      "sha256": "29c44ae25274976bfc7effa8e9d63d177e6ccc748fd5cd2d84cbf55bd67c79e9"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-contracts.xml",
+      "sha256": "4000f4785eaee39481a87f4683def389aaa8835abe4218f4ef557cc5069b81b5"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-contracts.log",
+      "sha256": "b8c504df765c1a33f1a4c40c0a7952cda49d818e11c57bb3b84d2422fec2e7fd"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-js-final.log",
+      "sha256": "c42b9ae527eeff097da111dd4ab839c45c95be6deda6947964990c80348e6378"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-build.log",
+      "sha256": "04fc3bd4806efac5ce41a63d97d7555a5001517f9ed1d91485d9a4352f969636"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-types.log",
+      "sha256": "fff340db9d736171953f9d975330b25b250067d4c2d20bc3e6916a2c3cb43aec"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-acceptance.log",
+      "sha256": "264330c57c4a2cc566bdcbc30d89ec005f47d173ea3bcb332c0c08651b39217d"
+    },
+    {
+      "executor_path": "/workspace/ring-investigation/resume-full-lint.log",
+      "sha256": "042b69d6985bbc9ad7b59a639b8a544481196bf35c4c3c0ee4a4fafcddb06ebc"
+    }
+  ],
+  "backend_cases": [
+    {"id": "tests/test_stage_readiness.py::test_requested_boundaries_and_cap", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_stage_readiness.py::test_language_aware_units_ignore_punctuation_emoji_and_instructions", "status": "passed", "seconds": 0.0},
+    {"id": "tests/test_stage_readiness.py::test_retries_edits_deletes_reassignment_and_project_scope", "status": "passed", "seconds": 0.0},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[100]", "status": "passed", "seconds": 4.795},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[157]", "status": "passed", "seconds": 0.395},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[299]", "status": "passed", "seconds": 0.435},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[300]", "status": "passed", "seconds": 0.403},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[650]", "status": "passed", "seconds": 0.463},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[999]", "status": "passed", "seconds": 0.409},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[1000]", "status": "passed", "seconds": 0.395},
+    {"id": "tests/test_stage_progress_regression.py::test_canonical_saved_stage_words_survive_cold_read[1200]", "status": "passed", "seconds": 0.573},
+    {"id": "tests/test_stage_progress_regression.py::test_mixed_stage_spans_do_not_count_other_stages_or_duplicate_evidence", "status": "passed", "seconds": 0.525},
+    {"id": "tests/test_stage_progress_regression.py::test_fresh_unplaced_and_unsaved_sources_are_empty", "status": "passed", "seconds": 0.568},
+    {"id": "tests/test_stage_progress_regression.py::test_stage_reassignment_edit_withdrawal_and_owner_scope", "status": "passed", "seconds": 1.287},
+    {"id": "tests/test_stage_progress_regression.py::test_existing_replies_gain_progress_on_upgrade_without_evidence_rewrites", "status": "passed", "seconds": 1.135},
+    {"id": "tests/test_stage_progress_regression.py::test_legacy_totals_survive_and_canonical_replies_are_not_double_counted", "status": "passed", "seconds": 0.647},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_workspace_correction_moves_all_saved_direct_narration", "status": "passed", "seconds": 3.389},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_multi_turn_enrichment_keeps_prior_primary_narration", "status": "passed", "seconds": 0.752},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_short_placement_cue_does_not_truncate_primary_narration", "status": "passed", "seconds": 0.428},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_author_stage_override_survives_later_enrichment", "status": "passed", "seconds": 0.715},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_dependency_can_become_primary_without_downgrading_earlier_primary_links", "status": "passed", "seconds": 0.985},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_roles_do_not_bypass_owner_revision_version_or_author_exclusion", "status": "passed", "seconds": 0.774},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_edit_requires_new_version_attribution_and_withdrawal_removes_it", "status": "passed", "seconds": 0.707},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_upgrade_restores_provable_stage_and_primary_attribution_without_rewriting_evidence[False]", "status": "passed", "seconds": 0.689},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_upgrade_restores_provable_stage_and_primary_attribution_without_rewriting_evidence[True]", "status": "passed", "seconds": 0.782},
+    {"id": "tests/test_stage_progress_rpc_lifecycle.py::test_legacy_union_records_cannot_distinguish_primary_from_background", "status": "passed", "seconds": 2.986},
+    {"id": "tests/test_stage_readiness_provenance.py::test_birth_and_relation_background_do_not_inflate_direct_childhood_evidence", "status": "passed", "seconds": 10.256},
+    {"id": "tests/test_stage_readiness_provenance.py::test_direct_multi_stage_attribution_is_supported_without_counting_whole_source_context[False]", "status": "passed", "seconds": 1.037},
+    {"id": "tests/test_stage_readiness_provenance.py::test_direct_multi_stage_attribution_is_supported_without_counting_whole_source_context[True]", "status": "passed", "seconds": 0.747},
+    {"id": "tests/test_stage_readiness_provenance.py::test_duplicate_and_overlapping_direct_spans_count_once_per_stage", "status": "passed", "seconds": 0.555},
+    {"id": "tests/test_stage_readiness_provenance.py::test_bounded_large_history_readiness_query_plan[1000]", "status": "passed", "seconds": 7.223},
+    {"id": "tests/test_stage_readiness_provenance.py::test_bounded_large_history_readiness_query_plan[5000]", "status": "passed", "seconds": 45.97},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_story_gets_capture_before_rpc_and_guard_actual_send[/v1/story/private-draft?project_id=read-project-read_lifetime_private_draft_head]", "status": "passed", "seconds": 0.39},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_story_gets_capture_before_rpc_and_guard_actual_send[/v1/story/private-draft/page?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-read_lifetime_private_draft_page]", "status": "passed", "seconds": 0.437},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_story_gets_capture_before_rpc_and_guard_actual_send[/v1/story/private-draft/section?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&partition_id=selected-read_workspace_draft_section]", "status": "passed", "seconds": 0.326},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_story_gets_capture_before_rpc_and_guard_actual_send[/v1/story/events?project_id=read-project-read_lifetime_collection_page]", "status": "passed", "seconds": 0.443},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_story_gets_capture_before_rpc_and_guard_actual_send[/v1/story/sources?project_id=read-project-read_lifetime_collection_page]", "status": "passed", "seconds": 0.319},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_story_gets_capture_before_rpc_and_guard_actual_send[/v1/story/readiness?project_id=read-project-read_lifetime_stage_readiness]", "status": "passed", "seconds": 0.343},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_reads_remain_canonical_when_rollout_is_disabled[/v1/story/private-draft?project_id=read-project]", "status": "passed", "seconds": 0.442},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_reads_remain_canonical_when_rollout_is_disabled[/v1/story/events?project_id=read-project]", "status": "passed", "seconds": 0.452},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_reads_remain_canonical_when_rollout_is_disabled[/v1/story/sources?project_id=read-project]", "status": "passed", "seconds": 0.346},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_reads_remain_canonical_when_rollout_is_disabled[/v1/story/readiness?project_id=read-project]", "status": "passed", "seconds": 0.886},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_mapped_reads_remain_canonical_when_rollout_is_disabled[/v1/agent/collection/read-project]", "status": "passed", "seconds": 0.314},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_retry_uses_existing_lanes_without_creating_composition_eligibility", "status": "passed", "seconds": 0.431},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_family_display_gate_still_precedes_canonical_event_read", "status": "passed", "seconds": 0.41},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_page_parameter_bounds_reject_before_database", "status": "passed", "seconds": 0.91},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_canonical_collection_does_not_keyerror_on_valid_draft_head", "status": "passed", "seconds": 0.283},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_source_pages_cover_more_than_one_page_and_reject_stale_or_cross_owner_cursor", "status": "passed", "seconds": 4.145},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[\\u6211\\u4f4f\\u5728\\u82cf\\u5dde\\u3002I remember mother's well-loved garden. 1960 \\U0001f642]", "status": "passed", "seconds": 0.131},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[\\xe9cole \\u03b1\\u03b2\\u03b3 \\u0967\\u0968\\u0969 \\u16a0\\u16c7\\u16bb foo_bar]", "status": "passed", "seconds": 0.126},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[one]", "status": "passed", "seconds": 0.143},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[]", "status": "passed", "seconds": 0.158},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[hello\\nworld]", "status": "passed", "seconds": 0.144},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[\\U00020000\\U0002fa1f\\u6c49\\u5b57]", "status": "passed", "seconds": 0.136},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_word_count_matches_existing_heuristic[The storyteller said: \\u6211\\u8bb0\\u5f97\\u82b1\\u56ed\\nAcknowledge the storyteller naturally, then ask one gentle open-ended follow-up question.]", "status": "passed", "seconds": 0.114},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_readiness_metadata_tracks_edits_reassignment_and_deletion", "status": "passed", "seconds": 0.351},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_event_pages_preserve_uncertainty_and_page_evidence_and_conflicting_dates", "status": "passed", "seconds": 0.298},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_requested_language_never_silently_returns_or_retries_a_different_edition[en-AU-zh-CN]", "status": "passed", "seconds": 0.27},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_requested_language_never_silently_returns_or_retries_a_different_edition[zh-CN-en-AU]", "status": "passed", "seconds": 0.29},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_explicit_saved_edition_is_passed_to_database_without_profile_mutation[en-AU]", "status": "passed", "seconds": 1.428},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_explicit_saved_edition_is_passed_to_database_without_profile_mutation[zh-CN]", "status": "passed", "seconds": 0.918},
+    {"id": "tests/test_lifetime_memory_read_api.py::test_pg_actual_http_source_body_is_guarded_at_send_and_withdrawal_never_leaks", "status": "passed", "seconds": 1.01},
+    {"id": "tests/test_agent_commit_postgres.py::test_deadline_runner_delivers_large_input_after_polling_timeout[False]", "status": "passed", "seconds": 0.342},
+    {"id": "tests/test_agent_commit_postgres.py::test_deadline_runner_delivers_large_input_after_polling_timeout[True]", "status": "passed", "seconds": 0.351},
+    {"id": "tests/test_agent_commit_postgres.py::test_commit_checks_authenticated_lease_and_writes_both_rows", "status": "passed", "seconds": 0.94},
+    {"id": "tests/test_agent_commit_postgres.py::test_sql_transport_resets_roles_and_stops_at_the_first_error", "status": "passed", "seconds": 0.11},
+    {"id": "tests/test_agent_commit_postgres.py::test_expired_or_replaced_lease_cannot_commit", "status": "passed", "seconds": 0.126},
+    {"id": "tests/test_agent_commit_postgres.py::test_memory_failure_rolls_back_session_write", "status": "passed", "seconds": 0.083},
+    {"id": "tests/test_agent_commit_postgres.py::test_commit_only_publishes_its_own_staged_paths", "status": "passed", "seconds": 0.056},
+    {"id": "tests/test_agent_commit_postgres.py::test_commit_rechecks_expiry_after_waiting_for_row_lock", "status": "passed", "seconds": 1.193}
+  ],
+  "contracts_cases": [
+    {"id": "tests/test_lifetime_memory_engine.py::test_dedicated_same_model_low_alias_retains_the_declared_byte_bound", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_raw_model_deltas_cannot_publish_a_rejected_attempt[False]", "status": "passed", "seconds": 0.044},
+    {"id": "tests/test_lifetime_memory_engine.py::test_raw_model_deltas_cannot_publish_a_rejected_attempt[True]", "status": "passed", "seconds": 0.025},
+    {"id": "tests/test_lifetime_memory_engine.py::test_complete_acknowledgement_arrives_while_private_proposal_is_still_generating", "status": "passed", "seconds": 0.014},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_config_disables_both_memory_paths_without_changing_legacy", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home", "status": "passed", "seconds": 0.012},
+    {"id": "tests/test_lifetime_memory_engine.py::test_each_turn_has_new_home_even_for_same_fence", "status": "passed", "seconds": 0.023},
+    {"id": "tests/test_lifetime_memory_engine.py::test_continuity_validation_diagnostic_names_fixed_reason_without_private_values", "status": "passed", "seconds": 0.035},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes0]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes1]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes2]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes3]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes4]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes5]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes6]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes7]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes8]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_mixed_legacy_or_foreign_governed_payload[changes9]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_requires_governed_context_and_exact_source", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_packet_rejects_incompatible_or_false_metadata[model-unknown-model]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_packet_rejects_incompatible_or_false_metadata[prompt_version-stale-prompt]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_packet_rejects_incompatible_or_false_metadata[policy_epoch-2]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_packet_rejects_incompatible_or_false_metadata[input_tokens_upper_bound-1]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_packet_rejects_mismatched_fence_and_duplicate_narrator", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_packet_rejects_unsupported_tokenizer_model", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_actual_schema_prompt_and_framing_are_in_budget", "status": "passed", "seconds": 0.027},
+    {"id": "tests/test_lifetime_memory_engine.py::test_side_context_never_adds_unbudgeted_or_foreign_evidence", "status": "passed", "seconds": 0.003},
+    {"id": "tests/test_lifetime_memory_engine.py::test_provider_errors_never_become_missing_state_or_trigger_retry[error0]", "status": "passed", "seconds": 0.013},
+    {"id": "tests/test_lifetime_memory_engine.py::test_provider_errors_never_become_missing_state_or_trigger_retry[error1]", "status": "passed", "seconds": 0.014},
+    {"id": "tests/test_lifetime_memory_engine.py::test_provider_errors_never_become_missing_state_or_trigger_retry[error2]", "status": "passed", "seconds": 0.011},
+    {"id": "tests/test_lifetime_memory_engine.py::test_invalid_structured_response_is_retried_only_in_fresh_bounded_homes", "status": "passed", "seconds": 0.03},
+    {"id": "tests/test_lifetime_memory_engine.py::test_valid_second_response_uses_the_same_packet_in_a_new_home", "status": "passed", "seconds": 0.022},
+    {"id": "tests/test_lifetime_memory_engine.py::test_invalid_private_continuity_retries_without_repeating_streamed_acknowledgement", "status": "passed", "seconds": 0.03},
+    {"id": "tests/test_lifetime_memory_engine.py::test_invalid_acknowledgements_stay_hidden_during_bounded_retry[question]", "status": "passed", "seconds": 0.027},
+    {"id": "tests/test_lifetime_memory_engine.py::test_invalid_acknowledgements_stay_hidden_during_bounded_retry[empty]", "status": "passed", "seconds": 0.03},
+    {"id": "tests/test_lifetime_memory_engine.py::test_invalid_acknowledgements_stay_hidden_during_bounded_retry[oversized]", "status": "passed", "seconds": 0.026},
+    {"id": "tests/test_lifetime_memory_engine.py::test_fresh_repairs_cannot_change_an_already_streamed_acknowledgement", "status": "passed", "seconds": 0.045},
+    {"id": "tests/test_lifetime_memory_engine.py::test_frozen_acknowledgement_schema_cannot_exceed_the_retry_input_budget", "status": "passed", "seconds": 0.037},
+    {"id": "tests/test_lifetime_memory_engine.py::test_invalid_hidden_stream_exhausts_only_three_fresh_attempts", "status": "passed", "seconds": 0.04},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_uses_same_governed_engine_and_no_artifact_export", "status": "passed", "seconds": 0.033},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_config_excludes_inherited_project_docs", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rechecks_mutated_payload_before_dispatch", "status": "passed", "seconds": 0.007},
+    {"id": "tests/test_lifetime_memory_engine.py::test_worker_rejects_unknown_prior_context_in_governed_request", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_side_context_cannot_override_pinned_language_or_phase", "status": "passed", "seconds": 0.003},
+    {"id": "tests/test_lifetime_memory_engine.py::test_unknown_model_fails_before_creating_any_home", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_duplicate_json_keys_cannot_hide_extra_narrator_context", "status": "passed", "seconds": 0.003},
+    {"id": "tests/test_lifetime_memory_engine.py::test_corrupt_fresh_start_is_explicit_and_never_retried", "status": "passed", "seconds": 0.018},
+    {"id": "tests/test_lifetime_memory_engine.py::test_output_schema_context_is_used_but_not_serialized_twice", "status": "passed", "seconds": 0.018},
+    {"id": "tests/test_lifetime_memory_engine.py::test_stale_correction_before_protocol_write_rejects_all_bytes[thread/start]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_stale_correction_before_protocol_write_rejects_all_bytes[turn/start]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_admission_covers_drain_but_releases_before_waiting_for_response", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_admission_timeout_releases_guard_without_awaiting_response", "status": "passed", "seconds": 0.011},
+    {"id": "tests/test_lifetime_memory_engine.py::test_protocol_control_messages_do_not_acquire_personal_admission", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_worker_fails_closed_without_server_publication_database", "status": "passed", "seconds": 0.034},
+    {"id": "tests/test_lifetime_memory_engine.py::test_engine_passes_exact_fence_snapshot_to_actual_request_admission", "status": "passed", "seconds": 0.025},
+    {"id": "tests/test_lifetime_memory_engine.py::test_governed_continuity_schema_is_budgeted_and_current_proposal_is_validated", "status": "passed", "seconds": 0.024},
+    {"id": "tests/test_lifetime_memory_engine.py::test_historical_personal_acknowledgement_is_hidden_until_a_safe_reply", "status": "passed", "seconds": 0.017},
+    {"id": "tests/test_lifetime_memory_engine.py::test_collector_transport_cannot_expand_reviewed_input_bound[changes0]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_collector_transport_cannot_expand_reviewed_input_bound[changes1]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_production_collector_transport_cannot_shrink_protocol_framing", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_engine.py::test_generation_pause_blocks_governed_collector_before_home", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_engine.py::test_collector_pause_rechecked_inside_actual_pipe_admission", "status": "passed", "seconds": 0.011},
+    {"id": "tests/test_lifetime_memory_transport.py::test_personal_bodies_sent_under_guard_and_cleanup_after_final_send", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_database_connection_timeout_ends_stream_with_retry_message", "status": "passed", "seconds": 0.121},
+    {"id": "tests/test_lifetime_memory_transport.py::test_producer_failure_records_safe_stage_and_database_code[22023-22023]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_producer_failure_records_safe_stage_and_database_code[private-credential-HTTPStatusError]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_producer_failure_records_safe_stage_and_database_code[None-HTTPStatusError]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_publication_failure_is_logged_without_private_exception", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_queued_old_payload_is_not_blessed_by_later_fence[text_delta]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_queued_old_payload_is_not_blessed_by_later_fence[conversation_saved]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_queued_old_payload_is_not_blessed_by_later_fence[result]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_event_and_fence_are_frozen_when_enqueued", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_flush_waits_for_send_and_allows_mutation_without_lock_deadlock", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_correction_waits_for_actual_send_and_stale_remaining_output_is_blocked", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_send_failure_releases_guard_cancels_producer_and_cleans_up[cancel]", "status": "passed", "seconds": 0.003},
+    {"id": "tests/test_lifetime_memory_transport.py::test_send_failure_releases_guard_cancels_producer_and_cleans_up[disconnect]", "status": "passed", "seconds": 0.007},
+    {"id": "tests/test_lifetime_memory_transport.py::test_send_failure_releases_guard_cancels_producer_and_cleans_up[timeout]", "status": "passed", "seconds": 0.022},
+    {"id": "tests/test_lifetime_memory_transport.py::test_legacy_asgi_disconnect_settles_producer_and_cleanup", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_personal_events_without_fence_rejected_before_enqueue[event0]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_personal_events_without_fence_rejected_before_enqueue[event1]", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_personal_events_without_fence_rejected_before_enqueue[event2]", "status": "passed", "seconds": 0.126},
+    {"id": "tests/test_lifetime_memory_transport.py::test_personal_events_without_fence_rejected_before_enqueue[event3]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_lifetime_memory_transport.py::test_generic_events_are_allowed_without_a_fence", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_queue_backpressure_is_bounded_and_cancellation_unblocks_put", "status": "passed", "seconds": 0.003},
+    {"id": "tests/test_lifetime_memory_transport.py::test_json_snapshot_is_immutable_guarded_and_cleanup_after_completed_send", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_json_rejects_stale_snapshot_and_still_releases_caller_cleanup", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_plain_result_snapshot_precedes_blocked_queue_and_later_setter", "status": "passed", "seconds": 0.004},
+    {"id": "tests/test_lifetime_memory_transport.py::test_stale_guard_cancels_producer_waiting_at_flush", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_final_empty_send_finishes_before_cleanup_releases_lease", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_repeated_cancellation_waits_for_single_cleanup", "status": "passed", "seconds": 0.001},
+    {"id": "tests/test_lifetime_memory_transport.py::test_json_blocked_send_holds_correction_and_cancellation_releases_cleanup", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_collector_canonical_schema.py::test_model_schema_rejects_questions_inside_acknowledgements[Did that feel like home?]", "status": "passed", "seconds": 0.006},
+    {"id": "tests/test_collector_canonical_schema.py::test_model_schema_rejects_questions_inside_acknowledgements[\\u90a3\\u65f6\\u5019\\u5f00\\u5fc3\\u5417\\uff1f]", "status": "passed", "seconds": 0.004},
+    {"id": "tests/test_collector_canonical_schema.py::test_model_schema_rejects_questions_inside_acknowledgements[You wondered, \\u201cWas I ready?\\u201d]", "status": "passed", "seconds": 0.006},
+    {"id": "tests/test_collector_canonical_schema.py::test_schema_prevents_pointers_without_current_canonical_evidence[life_stage-childhood]", "status": "passed", "seconds": 0.029},
+    {"id": "tests/test_collector_canonical_schema.py::test_schema_prevents_pointers_without_current_canonical_evidence[year-1984]", "status": "passed", "seconds": 0.033},
+    {"id": "tests/test_collector_canonical_schema.py::test_schema_prevents_pointers_without_current_canonical_evidence[event_id-missing-event]", "status": "passed", "seconds": 0.045},
+    {"id": "tests/test_collector_canonical_schema.py::test_schema_and_runtime_accept_current_canonical_metadata_and_nulls", "status": "passed", "seconds": 0.104},
+    {"id": "tests/test_subscription_stream_diagnostics.py::test_protocol_message_timings_do_not_log_private_text[True]", "status": "passed", "seconds": 0.002},
+    {"id": "tests/test_subscription_stream_diagnostics.py::test_protocol_message_timings_do_not_log_private_text[False]", "status": "passed", "seconds": 0.007},
+    {"id": "tests/test_subscription_stream_diagnostics.py::test_protocol_progress_is_scoped_counts_queued_items_once_and_records_completion", "status": "passed", "seconds": 0.009},
+    {"id": "tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save[worker]", "status": "passed", "seconds": 5.18},
+    {"id": "tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save[inprocess]", "status": "passed", "seconds": 1.681},
+    {"id": "tests/test_lifetime_memory_publication.py::test_send_completes_before_correction_fence_and_later_output_is_blocked", "status": "passed", "seconds": 4.402},
+    {"id": "tests/test_lifetime_memory_publication.py::test_disconnect_and_send_timeout_release_locks_for_withdrawal", "status": "passed", "seconds": 0.44},
+    {"id": "tests/test_lifetime_memory_publication.py::test_owner_and_snapshot_are_not_supplied_by_the_client", "status": "passed", "seconds": 0.33},
+    {"id": "tests/test_lifetime_memory_publication.py::test_direct_preference_write_and_project_first_acceptance_do_not_deadlock", "status": "passed", "seconds": 0.335},
+    {"id": "tests/test_lifetime_memory_publication.py::test_actual_asgi_send_await_is_inside_the_guard_and_preference_changes_revoke", "status": "passed", "seconds": 0.332},
+    {"id": "tests/test_lifetime_memory_publication.py::test_brief_background_project_lock_does_not_abort_valid_stream", "status": "passed", "seconds": 2.606},
+    {"id": "tests/test_lifetime_outer_publication.py::test_outer_server_send_holds_policy_fence_and_cancellation_releases[False-stream]", "status": "passed", "seconds": 3.768},
+    {"id": "tests/test_lifetime_outer_publication.py::test_outer_server_send_holds_policy_fence_and_cancellation_releases[False-json]", "status": "passed", "seconds": 0.944},
+    {"id": "tests/test_lifetime_outer_publication.py::test_outer_server_send_holds_policy_fence_and_cancellation_releases[False-read]", "status": "passed", "seconds": 1.099},
+    {"id": "tests/test_lifetime_outer_publication.py::test_outer_server_send_holds_policy_fence_and_cancellation_releases[True-stream]", "status": "passed", "seconds": 2.267},
+    {"id": "tests/test_lifetime_outer_publication.py::test_outer_server_send_holds_policy_fence_and_cancellation_releases[True-json]", "status": "passed", "seconds": 2.712},
+    {"id": "tests/test_lifetime_outer_publication.py::test_outer_server_send_holds_policy_fence_and_cancellation_releases[True-read]", "status": "passed", "seconds": 2.647}
+  ],
+  "browser_cases": [
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[en-AU]", "status": "passed", "seconds": 10.817},
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[zh-CN]", "status": "passed", "seconds": 6.355},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[ready-en-AU]", "status": "passed", "seconds": 11.104},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[ready-zh-CN]", "status": "passed", "seconds": 7.72},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[delayed-fences-en-AU]", "status": "passed", "seconds": 7.547},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[delayed-fences-zh-CN]", "status": "passed", "seconds": 18.193}
+  ],
+  "browser_red_cases": [
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[en-AU]", "status": "failed", "seconds": 9.898, "message": "AssertionError: Resume stayed at --readiness:10%; reload recovered 30%"},
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[zh-CN]", "status": "failed", "seconds": 8.162, "message": "AssertionError: Resume stayed at --readiness:10%; reload recovered 30%"}
+  ],
+  "browser_first_candidate_cases": [
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[en-AU]", "status": "failed", "seconds": 12.34, "message": "AssertionError: Resume stayed at --readiness:10%; reload recovered 30%"},
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[zh-CN]", "status": "failed", "seconds": 4.594, "message": "assert ([])"},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[ready-en-AU]", "status": "passed", "seconds": 14.298},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[ready-zh-CN]", "status": "passed", "seconds": 9.418},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[delayed-fences-en-AU]", "status": "passed", "seconds": 9.992},
+    {"id": "tests/test_stage_progress_rpc_browser.py::test_primary_narration_rings_with_short_cues_and_persisted_reload[delayed-fences-zh-CN]", "status": "passed", "seconds": 8.977}
+  ],
+  "browser_synchronized_capture_failure_cases": [
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[en-AU]", "status": "failed", "seconds": 9.88, "message": "playwright._impl._errors.Error: Locator.screenshot: Element is not attached to the DOM"},
+    {"id": "tests/test_stage_readiness_resume_browser.py::test_saved_project_begin_keeps_pending_stage_recovery_alive[zh-CN]", "status": "failed", "seconds": 4.99, "message": "playwright._impl._errors.Error: Locator.screenshot: Element is not attached to the DOM"}
+  ]
+}

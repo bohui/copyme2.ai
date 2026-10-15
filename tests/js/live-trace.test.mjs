@@ -28,6 +28,7 @@ test('fast saved response retains live trace and later triggered skills', async 
    return {reply:'Hello',conversation_saved:true};
  }});
  context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
  vm.runInContext(extract('agentTurn'),context);
  const result=await context.agentTurn('Hi');
  assert.equal(result.streamedMessage.progressText,undefined);
@@ -96,6 +97,7 @@ test('finished workspace checks appear last inside the collapsed thinking steps'
    return {reply:'Hello',conversation_saved:true};
  }});
  context.refreshPrivateDraft = async () => {};
+  context.refreshStageReadiness = async () => {};
  for (const name of ['agentTurn','renderAgentTrace','renderMessage']) vm.runInContext(extract(name),context);
  const result=await context.agentTurn('Hi');
  await emitEvent({type:'progress',data:{id:'workspace',detail:'Workspace checks completed',status:'completed'}});

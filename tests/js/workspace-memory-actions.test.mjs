@@ -91,7 +91,7 @@ test('a workspace task finalizes its reply, round status, cards and receipt with
   const context=vm.createContext({state,AbortController,captureProjectScope:()=>scope,isCurrentProjectScope:()=>true,
     workspaceTurnFocus:()=>({kind:'add_memory',life_stage:'childhood'}), markWorkspaceFocusStarted:()=>{},
     conversationLanguage:()=> 'en-AU',simulatedLoopTrace:()=>[],render,updateStreamingAssistantMessage(){},nextAssistantMessageId:()=> 'reply',
-    applyCommittedConversationLocale:async()=>{},refreshPrivateDraft:()=>{draftReads++;},
+    applyCommittedConversationLocale:async()=>{},refreshStageReadiness:async()=>{},refreshPrivateDraft:()=>{draftReads++;},
     streamAgentTurn:async(_,onDelta,onEvent,language,first,original,id,action,kind,request)=>{
       controller=request.controller;state.conversationStreams.add(controller);
       await onDelta('We can review');await onEvent({type:'conversation_saved',data:saved});return saved;

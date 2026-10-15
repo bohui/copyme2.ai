@@ -47,7 +47,7 @@ test('production local history retains only the public historical snapshot',()=>
 test('production completed streaming reply carries verified historical context',async()=>{
  const state={supabase:{accessToken:'fixture'},project:{id:'project'},chat:[]};
  const context=vm.createContext({state,historicalContext,conversationLanguage:()=> 'en-AU',simulatedLoopTrace:()=>[],
-  nextAssistantMessageId:()=> 'message',render(){},updateStreamingAssistantMessage(){},refreshPrivateDraft:async()=>{},
+  nextAssistantMessageId:()=> 'message',render(){},updateStreamingAssistantMessage(){},refreshPrivateDraft:async()=>{},refreshStageReadiness:async()=>{},
   toast:message=>assert.fail(message),
   streamAgentTurn:async()=>({reply:'Optional clue?',conversation_saved:true,historical_context:{...clue,receipt:{private:'omit'}}})});
  install(context,['captureProjectScope','isCurrentProjectScope','currentWorkspaceMemoryFocus','workspaceTurnFocus',
