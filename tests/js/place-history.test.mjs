@@ -77,6 +77,32 @@ test('uses source sequence only for places without a distinct stage', () => {
  ]);
  assert.deepEqual(places.map(place => place.place), ['Early place','Later place','Unstaged place']);
 });
+test('uses the saved birthplace and current residence to order unstaged places', () => {
+ const places = mergePlaces([
+  {...city, place:'悉尼', hierarchy:['Earth','澳大利亚','悉尼'], source_sequence:1},
+  {...city, place:'承德市', hierarchy:['Earth','中国','河北省','承德市'], source_sequence:1},
+ ], {birth_place:'河北省承德市附属医院（出生地）；现居悉尼'});
+ assert.deepEqual(places.map(place => place.place), ['承德市','悉尼']);
+});
+
+test('restored narrator wording attaches birth dates only to the matching place', () => {
+ const sydney = {...city, place:'悉尼', hierarchy:['Earth','澳大利亚','悉尼'], period:''};
+ const chengde = {...city, place:'承德市', hierarchy:['Earth','中国','河北省','承德市'], period:''};
+ const messages = [
+  {role:'user', text:'我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'},
+  {role:'assistant', text:'Sydney in 2000'},
+  {role:'user', text:'小时候我们经常爬山趟河捉各种昆虫'},
+ ];
+ const places = mergePlaces([sydney, chengde], {}, messages);
+ assert.deepEqual(places.map(place => place.place), ['承德市','悉尼']);
+ assert.equal(places[0].period, '1983年4月');
+ assert.equal(places[0].life_stage, 'baby');
+ assert.equal(places[1].period, '');
+ const corrected = mergePlaces(places, {}, [...messages, {role:'user',text:'1980s in 承德市'}]);
+ assert.equal(corrected[0].period, '1980s');
+ const current = mergePlaces(corrected, {}, [{role:'user',text:'现在生活在承德市'}]);
+ assert.equal(current.find(place => place.place === '承德市').period, '');
+});
 
 test('renders the place history navigation in chronological order', async () => {
  const fs = await import('node:fs');

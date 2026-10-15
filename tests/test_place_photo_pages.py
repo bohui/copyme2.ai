@@ -62,9 +62,11 @@ def test_deduplication_matches_flickr_sizes_commons_thumbnails_and_hashes():
     larger = picture(2, 'other.example', image_url='https://farm4.staticflickr.com/12/123_secret_b.jpg?utm_source=google')
     commons = picture(3, image_url='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Street.jpg/640px-Street.jpg')
     commons_original = picture(4, 'other.example', image_url='https://upload.wikimedia.org/wikipedia/commons/a/ab/Street.jpg')
+    thumb_host = picture(9, 'other.example', memory_reference_only=True,
+        image_url='https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Street.jpg/120px-Street.jpg')
     hashed = picture(5, content_hash='verified-hash')
     rehosted = picture(6, 'rehost.example', content_hash='verified-hash')
-    assert photos._deduplicate([original, larger, commons, commons_original, hashed, rehosted]) == [original, commons, hashed]
+    assert photos._deduplicate([original, larger, commons, commons_original, thumb_host, hashed, rehosted]) == [original, commons, hashed]
     flickr_api = picture(7, source_url='https://www.flickr.com/photos/123@N01/456/',
                          image_url='https://live.staticflickr.com/12/456_thumbnailsecret_z.jpg')
     flickr_browser = picture(8, memory_reference_only=True, source_url='https://www.flickr.com/photos/author/456/',
@@ -98,6 +100,26 @@ def test_stable_pages_reuse_one_search_and_reject_other_queries(monkeypatch):
     with pytest.raises(Exception) as error:
         cache.page('owner', 'Chengde', '1980s', first['next_cursor'])
     assert error.value.status_code == 410
+
+
+def test_same_decade_photos_prevent_modern_fallback_for_a_birth_month(monkeypatch):
+    queries = []
+    historical = picture('historical', date_expression='1986')
+    def search(place, period, **kwargs):
+        queries.append(period)
+        return [historical] if period == '1980s' else []
+    monkeypatch.setattr(photos, '_search_period', search)
+    cache = pages.PhotoPages()
+    try:
+        result = cache.page('owner', 'Chengde', '1983年4月', None,
+            latitude=40.98, longitude=117.94)
+        assert queries == ['1983年4月', '1980s']
+        assert [item['asset_id'] for item in result['items']] == [historical['asset_id']]
+        assert result['items'][0]['period_match'] == 'decade'
+        assert result['items'][0]['requested_period'] == '1983年4月'
+        assert result['items'][0]['search_fallback'] == 'none'
+    finally:
+        cache.close()
 
 
 def test_endpoint_pages_retain_authorization_and_do_not_repeat_discovery(monkeypatch):

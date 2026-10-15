@@ -44,6 +44,16 @@ test('time fallbacks show other capture periods and unknown dates with honest ca
   }
 });
 
+test('labelled same-decade photos remain historical references for a birth month', () => {
+  const context = harness();
+  const place = {...entry,period:'1983年4月'};
+  const item = picture({date_expression:'1980-1989', requested_period:place.period,
+    matched_period:'1980s', period_match:'decade'});
+  assert.ok(context.photoMatchesScope(item, place));
+  assert.equal(context.photoMatchesScope({...item,requested_period:'1993年4月'}, place), false);
+  assert.equal(context.photoMatchesScope({...item,date_expression:'1990'}, place), false);
+});
+
 test('fallbacks cannot bypass a changed place, period, future date or publication-date evidence', () => {
   const context = harness();
   for (const fields of [

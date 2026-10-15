@@ -25,7 +25,16 @@ test('Wikimedia file redirects and thumbnails merge across source revisions', ()
   const original = picture('original', {image_url: `https://upload.wikimedia.org/wikipedia/commons/a/ab/${filename}`});
   const redirect = picture('redirect', {image_url: `https://commons.wikimedia.org/wiki/Special:FilePath/${filename}?width=300`});
   const thumbnail = picture('thumbnail', {image_url: `https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/${filename}/120px-${filename}`});
-  assert.equal(context.mergePlacePictures([original], [redirect, thumbnail]).length, 1);
+  const thumbHost = picture('thumb-host', {image_url: `https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/${filename}/960px-${filename}`});
+  assert.equal(context.mergePlacePictures([original], [redirect, thumbnail, thumbHost]).length, 1);
+});
+
+test('historical results replace modern fallbacks for the same search', () => {
+  const context = harness();
+  const scope = {requested_period:'1980s',search_place:'Chengde'};
+  const modern = picture('modern', {...scope, date_expression:'2025', search_fallback:'gps_time'});
+  const historical = picture('historical', {...scope, date_expression:'1983', search_fallback:'gps'});
+  assert.deepEqual(Array.from(context.mergePlacePictures([modern], [historical]), item => item.asset_id), ['historical']);
 });
 
 test('saved and grouped galleries hide distant, undated and wrong-period photos', () => {

@@ -38,6 +38,8 @@ test('explicit calendar period takes priority and remains grounded', () => {
   assert.equal(context.photoSearchPeriod({}, {when: '1980–1989'}), '1980–1989');
   assert.equal(context.photoSearchPeriod({place: '悉尼', period: ''}, {when: '1983年4月'}), '');
   assert.equal(context.photoSearchPeriod({place: '承德市', period: '1983年4月'}, {when: '小时候'}), '1983年4月');
+  assert.equal(context.photoSearchPeriod({place: '承德市', period: ''}, {where: '河北省承德市', when: '1980s'}), '1980s');
+  assert.equal(context.photoSearchPeriod({place: '悉尼', period: ''}, {where: '承德市', when: '1980s'}), '');
 });
 
 test('photo research reports real request progress and an unavailable provider fails the step', async () => {

@@ -18,7 +18,7 @@ DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
 PHOTO_RADIUS_KM = 20
 PHOTO_YEAR_TOLERANCE = 10
-PHOTO_SEARCH_POLICY = 'place-fallback-gps-time-v8'
+PHOTO_SEARCH_POLICY = 'place-fallback-gps-time-v9'
 ANY_PHOTO_DATE = 'any-date'
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
@@ -185,7 +185,10 @@ def filter_place_photos(items: list[dict], period: str, center: dict | None = No
     for item in items:
         if not isinstance(item, dict):
             continue
-        if not _date_matches(item.get('date_expression', ''), period):
+        same_decade = (item.get('period_match') == 'decade' and item.get('requested_period') == period
+            and item.get('matched_period') == _decade_fallback(period)
+            and _date_matches(item.get('date_expression', ''), item['matched_period'], tolerance=0))
+        if not _date_matches(item.get('date_expression', ''), period) and not same_decade:
             continue
         if re.search(r'upload|publication|published|modified|visual_guess', item.get('date_basis', ''), re.I):
             continue
@@ -648,7 +651,8 @@ def _canonical_image(url: str) -> str:
     parsed = urlparse(unquote(url))
     host = (parsed.hostname or '').lower()
     path = parsed.path
-    if host == 'upload.wikimedia.org' and '/thumb/' in path:
+    if host in {'upload.wikimedia.org', 'thumb.wikimedia.org'} and '/thumb/' in path:
+        host = 'upload.wikimedia.org'
         path = path.replace('/thumb/', '/', 1).rsplit('/', 1)[0]
     if re.fullmatch(r'(?:live|farm\d+)\.staticflickr\.com', host):
         host = 'staticflickr.com'
@@ -661,7 +665,7 @@ def _canonical_image(url: str) -> str:
 def _wikimedia_file(url: str) -> str | None:
     parsed = urlparse(unquote(url))
     host = parsed.hostname or ''
-    if host == 'upload.wikimedia.org':
+    if host in {'upload.wikimedia.org', 'thumb.wikimedia.org'}:
         path = parsed.path.replace('/thumb/', '/', 1)
         if '/thumb/' in parsed.path:
             path = path.rsplit('/', 1)[0]
@@ -804,7 +808,8 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
                  'matched_period': period if _date_matches(item.get('date_expression', ''), period, tolerance=0) else fallback,
                  'period_match': 'requested' if _date_matches(item.get('date_expression', ''), period, tolerance=0) else
                     'decade' if fallback and _date_matches(item.get('date_expression', ''), fallback, tolerance=0) else 'nearby'}
-                for item in items if _date_matches(item.get('date_expression', ''), period)]
+                for item in items if _date_matches(item.get('date_expression', ''), period)
+                or (fallback and _date_matches(item.get('date_expression', ''), fallback, tolerance=0))]
 
     def run(search_period, search_limit):
         progress = {'on_items': lambda items: on_items(label(items))} if on_items else {}
