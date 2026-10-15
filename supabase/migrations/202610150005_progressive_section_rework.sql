@@ -264,6 +264,14 @@ begin
  page:=public.read_lifetime_memoir_lane_page_before_progressive_rework(p_lane_id,p_token);
  if not(page ? 'batch') then return page;end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+ -- Recover tasks stranded before an invalidation trigger was installed. An
+ -- old instruction is never rebound to a newer privacy/preference authority.
+ delete from public.user_workspace_section_rework obsolete where obsolete.user_id=snap.user_id
+   and obsolete.project_id=snap.project_id and obsolete.locale=snap.locale and obsolete.status='pending'
+   and obsolete.partition_key like 'progressive:%' and (not public.workspace_rework_partition_current(
+     obsolete.user_id,obsolete.project_id,obsolete.event_id,obsolete.partition_key) or not exists(
+       select 1 from public.user_lifetime_lane_snapshot original where original.id=obsolete.snapshot_id
+        and original.policy_epoch=snap.policy_epoch and original.preference_revision=snap.preference_revision));
  select * into request from public.user_workspace_section_rework where user_id=snap.user_id and project_id=snap.project_id
    and locale=snap.locale and status='pending' and partition_key like 'progressive:%'
    and composed_snapshot_id is distinct from snap.id

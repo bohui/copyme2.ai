@@ -688,3 +688,31 @@ def test_photo_attachment_policy_change_refuses_stale_rework_without_rewriting_p
     assert sql('select text from public.user_narrator_source;').stdout.strip()==source['text']
     assert sql('select count(*) from public.user_completed_round;').stdout==rounds
     assert sql('select event_sequence from public.user_memoir_project;').stdout==sequence
+
+
+def test_stranded_progressive_rework_is_retired_after_policy_change_before_dispatch(sql):
+    identity,source,lane,first=seeded_composer(sql)
+    head=finish(sql,lane,first)
+    request_id=str(uuid4())
+    rpc(sql,'request_workspace_section_rework',rework_args(head,request_id))
+    original=sql(f"select row_to_json(s) from public.user_lifetime_memoir_section s where snapshot_id='{head['snapshot_id']}';").stdout
+    rounds=sql('select count(*) from public.user_completed_round;').stdout
+    sql('alter table public.user_interview_photo_link disable trigger workspace_rework_photo_invalidation;')
+    try:
+        attach_first_photo(sql,identity,source,first['partition']['id'])
+    finally:
+        sql('alter table public.user_interview_photo_link enable trigger workspace_rework_photo_invalidation;')
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{request_id}';").stdout.strip()=='1'
+    page=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    assert page['editorial_request'] is None
+    assert sql(f"select count(*) from public.user_workspace_section_rework where request_id='{request_id}';").stdout.strip()=='0'
+    for _ in range(4):
+        if page['complete']:break
+        assert page['editorial_request'] is None
+        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{page['token']}',{page['page_number']},{literal(section_result(page))}")
+        page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane}','{page['token']}'")
+    assert page['complete']
+    service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{page['token']}'")
+    assert service(sql,'claim_memoir_lane',f"'{lane}',900") is None
+    assert sql(f"select row_to_json(s) from public.user_lifetime_memoir_section s where snapshot_id='{head['snapshot_id']}';").stdout==original
+    assert sql('select count(*) from public.user_completed_round;').stdout==rounds
