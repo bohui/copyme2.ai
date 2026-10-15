@@ -51,3 +51,21 @@ def test_progressive_photo_change_purges_exact_asset_and_preserves_other_writing
     assert sql(f"select count(*) from public.user_lifetime_memoir_section where partition_key like '%:photo-0';").stdout.strip() == '0'
     assert sql(f"select row_to_json(s)::text from public.user_lifetime_memoir_section s where partition_key not like '%:photo-0' order by partition_key;").stdout == unaffected
     assert sql('select count(*) from public.user_completed_round;').stdout == rounds
+
+
+@pytest.mark.parametrize('action', ['update', 'delete'])
+def test_photo_change_rejects_inflight_progressive_commit(sql, action):
+    identity, source, lane, first = seeded_composer(sql)
+    service(sql, 'yield_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    link = add_photo_link(sql, identity, source, first)
+    page = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    proposed = section_result(page)
+    for phase in ('prepare', 'draft', 'review'):
+        sql(f"set role service_role;select public.record_lifetime_lane_output('{lane}','{page['token']}',{page['page_number']},'{phase}','{'a'*64}','{page['page_digest']}');")
+    if action == 'update':
+        sql(f"update public.user_interview_photo_link set description='Corrected attribution' where id='{link}';")
+    else:
+        sql(f"delete from public.user_interview_photo_link where id='{link}';")
+    result = sql(f"set role service_role;select public.commit_lifetime_memoir_lane_page('{lane}','{page['token']}',{page['page_number']},{literal(proposed)},'{page['page_digest']}');", check=False)
+    assert result.returncode != 0 and 'stale progressive batch' in result.stderr
+    assert sql('select count(*) from public.user_lifetime_memoir_section;').stdout.strip() == '0'
