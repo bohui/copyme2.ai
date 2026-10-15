@@ -50,14 +50,14 @@ class LifetimePublicationContext:
     async def flush(self):
         if self.emitter:await self.emitter.flush()
 
-    async def close(self):
+    async def close(self, *, delivered=False):
         if self.scope is not None:
             scope,self.scope=self.scope,None
             await scope.aclose()
-        if self.historical_research is not None:
+        research,self.historical_research=self.historical_research,None
+        if delivered and research is not None:
             from .historical_news import enrich
-            storage,project_id,engine=self.historical_research
-            self.historical_research=None
+            storage,project_id,engine=research
             try:
                 await enrich(storage,project_id,engine)
             except Exception as error:
@@ -201,9 +201,24 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     # must not prevent this source or a lost reply from completing.
                     focus = None
                 apply_workspace_focus(context, focus)
-            from .historical_news import ready_projection
+            from .historical_news import accepted_hypothesis,ready_projection
             import os
             context['historical_news']=ready_projection(context['historical_news'],enabled=os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() in {'1','true','yes'})
+            news=context['historical_news']
+            needs_revalidation=news.pop('needs_revalidation',False)
+            if news.get('enabled') and needs_revalidation:
+                # Reuse inspected evidence only after checking the latest accepted basis.
+                # This local preparation never starts or awaits external research.
+                try:
+                    basis=await lease.io(storage.historical_news_basis,project_id)
+                    hypothesis=accepted_hypothesis(basis) if basis else None
+                    if hypothesis:
+                        refreshed=await lease.io(storage.revalidate_historical_news,project_id,hypothesis,basis['news_snapshot'])
+                        if refreshed:
+                            refreshed.pop('needs_revalidation',None)
+                            context['historical_news']=refreshed
+                except Exception:
+                    pass  # Optional stale clues remain excluded on read/validation failure.
             phase=context['conversation_phase'];baseline=accepted.get('phase_revision',phase['revision'])
             action=explicit_action(text) if baseline==phase['revision'] else None
             context.update(source=source,sources=[source],photo_context=accepted.get('photo_context',[]),
@@ -326,8 +341,9 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
     from .lifetime_memory_activation import CanonicalActivationUnavailable
     from .lifetime_memory_transport import governed_turn_events,GovernedStreamingResponse,GovernedJSONResponse
     publication=LifetimePublicationContext()
+    response=None
     async def cleanup():
-        try:await publication.close()
+        try:await publication.close(delivered=response is not None and response.delivered)
         finally:await asyncio.to_thread(storage.client.close)
     try:
         publisher=TransactionalPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=storage.user_id)
@@ -335,9 +351,11 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
             async def run(emit):
                 publication.emitter=emit
                 return await runtime.turn(storage,text,**options,lifetime_context=publication,on_delta=emit,on_event=emit.event)
-            return GovernedStreamingResponse(governed_turn_events(run,cleanup=cleanup),publisher=publisher)
+            response=GovernedStreamingResponse(governed_turn_events(run,cleanup=cleanup),publisher=publisher)
+            return response
         result=await runtime.turn(storage,text,**options,lifetime_context=publication)
-        return GovernedJSONResponse(result,publisher=publisher,fence=publication.fence,cleanup=cleanup)
+        response=GovernedJSONResponse(result,publisher=publisher,fence=publication.fence,cleanup=cleanup)
+        return response
     except BaseException as error:
         await cleanup()
         if isinstance(error,CanonicalActivationUnavailable):

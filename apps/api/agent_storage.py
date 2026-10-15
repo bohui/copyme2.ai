@@ -485,6 +485,10 @@ class UserStorage:
         return self.request('POST', '/rest/v1/rpc/begin_user_historical_news', json={
             'p_project_id':project_id, 'p_hypothesis':hypothesis, 'p_snapshot':snapshot}).json()
 
+    def revalidate_historical_news(self, project_id, hypothesis, snapshot):
+        return self.request('POST', '/rest/v1/rpc/revalidate_user_historical_news', json={
+            'p_project_id':project_id, 'p_hypothesis':hypothesis, 'p_snapshot':snapshot}).json()
+
     def finish_historical_news(self, project_id, job_id, result):
         return self.request('POST', '/rest/v1/rpc/finish_user_historical_news', json={
             'p_project_id':project_id, 'p_job_id':str(UUID(job_id)), 'p_result':result}).json()

@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from starlette.requests import ClientDisconnect
 
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.historical_news import HistoricalResearch, public_clue
@@ -95,12 +96,16 @@ def interview(monkeypatch, tmp_path):
     monkeypatch.setattr(runtime, '_storage_lease', lease)
     monkeypatch.setattr(runtime, '_worker_turn', collector)
 
-    async def respond(streaming):
+    async def respond(streaming, *, fail=None):
         messages = []
         response = await lifetime_http_turn(runtime, storage, storage.source['text'],
             accept='application/x-ndjson' if streaming else 'application/json', options={'project_id': 'p'})
 
         async def send(message):
+            if message['type'] == 'http.response.body' and (
+                fail == 'terminal' and (not streaming or b'"type":"result"' in message.get('body', b''))
+                or fail == 'final' and not message.get('more_body', False)):
+                raise OSError('controlled response delivery failure')
             messages.append(message)
             if message['type'] == 'http.response.body' and not message.get('more_body', False):
                 state.final_sent = True
@@ -183,3 +188,22 @@ def test_optional_research_never_breaks_a_saved_reply(interview, monkeypatch, si
     assert result['conversation_saved'] and result['reply']
     assert not state.leased and storage.closed == 1
     assert len(calls) == (2 if situation == 'provider_failure' else 0)
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+@pytest.mark.parametrize('failure', ['terminal', 'final'])
+def test_failed_delivery_releases_resources_without_external_research(interview, streaming, failure):
+    runtime, storage, state, respond = interview
+    calls = []
+
+    class Provider:
+        async def discover(self, *args, **kwargs):
+            calls.append(True)
+            raise OSError('must not perform external research')
+
+    runtime._news_engine = HistoricalResearch(Provider())
+    with pytest.raises(ClientDisconnect if streaming else OSError):
+        asyncio.run(respond(streaming, fail=failure))
+    assert storage.saved == 1
+    assert not state.leased and storage.closed == 1
+    assert calls == []

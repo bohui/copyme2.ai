@@ -153,8 +153,48 @@ def test_next_source_and_project_deletion_fence_work(sql):
     job=begin(sql)
     accept(sql,'A new memory.',turn=str(uuid4()))
     assert finish(sql,job) is False
+    hypothesis=ready_context()['historical_news']['clues'][0]['relevance']
+    snapshot=rpc(sql,'read_user_historical_news_basis',"'project'")['news_snapshot']
+    replacement=rpc(sql,'begin_user_historical_news',f"'project',{literal(hypothesis)}::jsonb,{literal(snapshot)}::jsonb")
+    assert replacement and replacement['id'] != job['id']
+    assert finish(sql,replacement) is True
     sql('delete from public.user_memoir_project;')
     assert sql('select count(*) from public.user_historical_news_job;').stdout.strip()=='0'
+
+
+def test_source_only_changes_hide_ready_clues_until_current_basis_is_revalidated(sql):
+    job=begin(sql);assert finish(sql,job)
+    before=rpc(sql,'read_user_historical_news',"'project'")
+    accept(sql,'I moved to Sydney, Australia in 1965.',turn=str(uuid4()))
+    state=rpc(sql,'read_user_historical_news',"'project'")
+    assert state['context_revision'] != before['context_revision']
+    assert state['clues'] == []
+
+
+@pytest.mark.parametrize('change', ['same_basis', 'move', 'stale_snapshot', 'preference', 'other_owner'])
+def test_ready_evidence_revalidation_requires_current_owned_unchanged_hypothesis(sql, change):
+    job=begin(sql);assert finish(sql,job)
+    old_snapshot=rpc(sql,'read_user_historical_news_basis',"'project'")['news_snapshot']
+    accept(sql,'Another ordinary memory.',turn=str(uuid4()))
+    hypothesis=ready_context()['historical_news']['clues'][0]['relevance']
+    snapshot=rpc(sql,'read_user_historical_news_basis',"'project'")['news_snapshot']
+    if change == 'move':
+        hypothesis={**hypothesis,'place':'Sydney, Australia','country':'Australia'}
+    elif change == 'stale_snapshot':
+        snapshot=old_snapshot
+    elif change == 'preference':
+        rpc(sql,'set_user_historical_news',"'project',false")
+        rpc(sql,'set_user_historical_news',"'project',true")
+        snapshot=rpc(sql,'read_user_historical_news_basis',"'project'")['news_snapshot']
+    state=rpc(sql,'revalidate_user_historical_news',f"'project',{literal(hypothesis)}::jsonb,{literal(snapshot)}::jsonb",
+        owner=OTHER if change == 'other_owner' else OWNER)
+    if change in {'stale_snapshot','other_owner'}:
+        assert state is None
+    elif change == 'same_basis':
+        assert len(state['clues']) == 1
+        assert state['clues'][0]['context_revision'] == snapshot['context_revision']
+    else:
+        assert state['clues'] == []
 
 
 def test_durable_plan_rejects_forged_and_accepts_ready_reference(sql):

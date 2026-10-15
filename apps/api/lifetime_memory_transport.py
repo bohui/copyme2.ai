@@ -252,11 +252,13 @@ class GovernedStreamingResponse(StreamingResponse):
             raise TypeError('GovernedStreamingResponse requires governed_turn_events')
         self.publisher = publisher
         self.governed_stream = content
+        self.delivered = False
         super().__init__(content, status_code=status_code,
                          headers={**STREAM_HEADERS, **(headers or {})},
                          media_type=media_type, background=background)
 
     async def stream_response(self, send):
+        terminal_delivered = False
         try:
             await _send_generic(send, {'type': 'http.response.start',
                 'status': self.status_code, 'headers': self.raw_headers}, self.publisher)
@@ -269,6 +271,8 @@ class GovernedStreamingResponse(StreamingResponse):
                     try:
                         await send_governed(send, message, publisher=self.publisher,
                                             fence=envelope.fence)
+                        if envelope.terminal:
+                            terminal_delivered = json.loads(envelope.body).get('type') == 'result'
                     except Exception as error:
                         self.governed_stream.log_failure(error, stage='publication')
                         # A failed database guard drops this and all queued private
@@ -282,6 +286,7 @@ class GovernedStreamingResponse(StreamingResponse):
                         break
             await _send_generic(send, {'type': 'http.response.body', 'body': b'',
                                       'more_body': False}, self.publisher)
+            self.delivered = terminal_delivered
         finally:
             await self.governed_stream.aclose()
 
@@ -302,6 +307,7 @@ class GovernedJSONResponse(JSONResponse):
         self.fence = _copy_fence(fence)
         self._cleanup = cleanup
         self._closing = None
+        self.delivered = False
         super().__init__(content, status_code=status_code, headers=headers,
                          media_type=media_type, background=background)
 
@@ -318,6 +324,8 @@ class GovernedJSONResponse(JSONResponse):
         async def guarded_send(message):
             if message['type'] == 'http.response.body':
                 await send_governed(send, message, publisher=self.publisher, fence=self.fence)
+                if not message.get('more_body', False):
+                    self.delivered = True
             else:
                 await _send_generic(send, message, self.publisher)
         try:

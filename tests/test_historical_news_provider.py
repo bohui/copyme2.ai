@@ -18,9 +18,9 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
         captured.append(json.loads(request.content))
         if 'max_tool_calls' in captured[-1]:
             return httpx.Response(400,json={'error':{'message':'Unsupported parameter: max_tool_calls'}})
-        return httpx.Response(200,json={'id':'resp_'+'a'*452,'output':[
+        return httpx.Response(200,json={'id':'resp_'+'a'*452,'status':'completed','output':[
             {'type':'web_search_call','id':'ws_test','status':'completed','action':{'sources':[{'url':evidence()['source_url']}]}},
-            {'type':'message','content':[{'type':'output_text','text':json.dumps({'events':[evidence()]})}]}]})
+            {'type':'message','status':'completed','content':[{'type':'output_text','text':json.dumps({'events':[evidence()]})}]}]})
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
             provider=GatewayHistoricalProvider(client=client)
@@ -41,7 +41,25 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
     [{'type':'web_search_call','id':'ws_x','status':'completed','action':{'sources':[]}}]])
 def test_missing_search_evidence_fails_closed(monkeypatch,output):
     from apps.api.historical_news_provider import decode_discovery
-    with pytest.raises(ValueError):decode_discovery({'id':'resp_test','output':output})
+    with pytest.raises(ValueError):decode_discovery({'id':'resp_test','status':'completed','output':output})
+
+
+@pytest.mark.parametrize('part', ['response', 'message'])
+@pytest.mark.parametrize('status', [None, 'incomplete', 'failed', 'in_progress'])
+def test_partial_search_output_is_never_a_completed_receipt(part, status):
+    from apps.api.historical_news_provider import decode_discovery
+    data = {'id':'resp_test','status':'completed','output':[
+        {'type':'web_search_call','id':'ws_test','status':'completed',
+         'action':{'sources':[{'url':evidence()['source_url']}]}},
+        {'type':'message','status':'completed',
+         'content':[{'type':'output_text','text':json.dumps({'events':[evidence()]})}]}]}
+    target = data if part == 'response' else data['output'][1]
+    if status is None:
+        target.pop('status')
+    else:
+        target['status'] = status
+    with pytest.raises(ValueError):
+        decode_discovery(data)
 
 
 def test_source_inspection_cancellation_kills_and_reaps_task_process(monkeypatch):

@@ -21,7 +21,8 @@ MAX_BYTES=512_000
 def decode_discovery(data):
     # The gateway wraps response IDs in a longer opaque routing token.
     valid=lambda value:isinstance(value,str) and re.fullmatch(r'[A-Za-z0-9_-]{1,1024}',value)
-    if not isinstance(data,dict) or not valid(data.get('id')) or not isinstance(data.get('output'),list):
+    if (not isinstance(data,dict) or data.get('status')!='completed'
+        or not valid(data.get('id')) or not isinstance(data.get('output'),list)):
         raise ValueError('Malformed search response')
     calls=[row for row in data['output'] if isinstance(row,dict) and row.get('type')=='web_search_call'
            and row.get('status')=='completed' and valid(row.get('id'))]
@@ -33,7 +34,10 @@ def decode_discovery(data):
         except (ValueError,TypeError):continue
         if url not in urls:urls.append(url)
     if not urls:raise ValueError('Missing returned source URLs')
-    chunks=[c.get('text','') for row in data['output'] if isinstance(row,dict) and row.get('type')=='message'
+    messages=[row for row in data['output'] if isinstance(row,dict) and row.get('type')=='message']
+    if any(row.get('status')!='completed' for row in messages):
+        raise ValueError('Incomplete historical leads')
+    chunks=[c.get('text','') for row in messages
         for c in row.get('content',[]) if isinstance(c,dict) and c.get('type')=='output_text']
     try:
         output=json.loads(''.join(chunks))
