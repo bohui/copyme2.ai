@@ -1,4 +1,5 @@
 {
+  "historical_status": "Receipt for prior head 56ca6d1, superseded by stage-progress-durable-attribution-checks-20261015.json; the stage_evidence-only filter was incorrect for real persistence lifecycle.",
   "previous_reviewed_head": "2508022616fc0235d7742704e4db290d62bc5b45",
   "verified_main_base": "e190885a21dc422faa7d17f34daaa3e943f30a39",
   "final_tested_code_head": "933e3611072d0e3735c342860f784078dc80aa2a",

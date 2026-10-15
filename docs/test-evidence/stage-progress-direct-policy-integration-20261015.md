@@ -1,5 +1,10 @@
 # PR68: current-main integration and approved direct-only counting
 
+> Historical receipt for head `56ca6d1`. The literal `stage_evidence` filter below
+> was subsequently found to discard primary narration on real correction and
+> enrichment RPCs. See [the durable-attribution report](stage-progress-durable-attribution-20261015.md)
+> for the correction, current main, exact code head and remaining gates.
+
 Current main/base: `e190885a21dc422faa7d17f34daaa3e943f30a39`.
 Final tested code: `933e3611072d0e3735c342860f784078dc80aa2a`.
 Previously reviewed PR head: `2508022616fc0235d7742704e4db290d62bc5b45`.
