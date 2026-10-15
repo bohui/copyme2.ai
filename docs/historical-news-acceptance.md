@@ -87,3 +87,58 @@ copy (Turbopack disallows an external node_modules symlink). No source/config
 workaround was needed. Final published-head/tree verification remains pending. The feature
 must remain disabled and unmerged until required acceptance/review gates, including
 the rendered browser gate, are satisfied or explicitly revised by the owner.
+
+## Interview activation repair — 15 October 2026
+
+The owner explicitly requested repairing and enabling historical research during
+Memoir interviews. The canonical runtime now queues research only after a saved
+narrator reply. Response cleanup sends the reply, releases the conversation lease
+and local lock, then runs research before closing its authenticated storage
+client. Failed optional research cannot replace or invalidate the saved reply.
+Replay and disabled/opted-out projects do not queue new work.
+
+The updated regression uses the current canonical JSON and streaming transports,
+not the removed legacy runtime methods. It blocks research while another reply
+completes, verifies later clue consumption, and covers missing context and
+provider/storage failures. Real disposable PostgreSQL tests verify a saved reply
+precedes the research claim, no interview lease remains during discovery, a
+completed replay makes no new model request/job, a later question cites the
+persisted clue, and public history creates no personal MemoryEvent.
+
+The focused Python set passed **141 tests**; the two canonical PostgreSQL tests
+were also rerun successfully after adding replay assertions. All **44 existing
+historical-news PostgreSQL checks** and the real Chromium citation/skip/replay
+smoke passed. A separately attempted older
+`test_lifetime_memory_runtime.py` fixture failed while constructing its local
+socket DSN (`'-p' is not in list`), before interview execution. The new
+PostgreSQL regression explicitly requests the supported TCP publication fixture.
+This repair changes no browser code.
+
+Live calls through the configured gateway reproduced HTTP 400 for
+`max_tool_calls`; the adapter no longer sends it. A real completed response
+contained a 457-character opaque response ID, so receipt validation now accepts
+bounded IDs up to 1,024 characters. The main `gpt-5.6-luna-pooled` gateway alias
+reported maximum reasoning effort despite a low-effort request. Historical
+research therefore uses the existing same-model `memoir-luna-low` alias via
+`MEMORY_SPARK_HISTORICAL_NEWS_MODEL`; blank retains the normal LLM model.
+
+The repaired adapter completed native search with returned source URLs and
+structured historical leads. Live Sydney 1973 and 2000 samples each returned
+completed discovery receipts and up to 24 returned URLs. Their complete bounded
+research runs produced **zero eligible clues** because source access or exact
+evidence validation failed; both stopped at the existing 45-second deadline.
+This proves gateway discovery interoperability, not a successful live citation
+or real-person memory benefit. Independent source inspection, provenance,
+sensitivity, privacy and opt-out checks remain enforced.
+
+Local `.env` enables research and selects `memoir-luna-low`. Compose now forwards
+both settings to the API; repository defaults remain opt-in. After the existing
+stack operation released its lock, the API was recreated and service aliases
+refreshed. Running-container readback confirmed `MEMORY_SPARK_HISTORICAL_NEWS=1`
+and research model `memoir-luna-low`, while the collector retained
+`gpt-5.6-luna-pooled`. The stack health check passed, and API connections to both
+Codex and photo workers returned HTTP 200. A final discovery call from the
+restarted container, using its saved configuration without overrides, completed
+in **24.81 seconds**, returning a completed native receipt, **24 source URLs** and
+**two leads**. This final call verifies discovery, not independent inspection or
+publication of those leads. The full repository test suite was not rerun.

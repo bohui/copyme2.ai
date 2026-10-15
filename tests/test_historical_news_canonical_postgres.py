@@ -1,5 +1,6 @@
 """Saved canonical interviews create and consume historical clues through real SQL."""
 import json
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -69,12 +70,16 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
         return response.json()
 
     with TestClient(create_app(MemoryStore())) as client:
-        first = result(client.post('/v1/agent/turn', headers=headers, json={
-            'text': 'I was born in Boston, USA, in 1960. I carried a blue umbrella.', 'language': 'en-AU'}))
+        payload = {'client_turn_id': str(uuid4()),
+            'text': 'I was born in Boston, USA, in 1960. I carried a blue umbrella.', 'language': 'en-AU'}
+        first = result(client.post('/v1/agent/turn', headers=headers, json=payload))
         assert first['conversation_saved'] and 'historical_context' not in first
         project = first['project_id']
         state = rpc(sql, 'read_user_historical_news', literal(project))
         assert len(state['clues']) == 1
+        replay = result(client.post('/v1/agent/turn', headers=headers, json={**payload, 'project_id': project}))
+        assert replay['cached'] and len(calls) == 1
+        assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '1'
         later = result(client.post('/v1/agent/turn', headers=headers, json={
             'project_id': project, 'text': 'What else could we explore?', 'language': 'en-AU'}))
         assert later['historical_context']['source_url'] == evidence()['source_url']
