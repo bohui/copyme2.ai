@@ -372,7 +372,8 @@ container-up: ## Recreate all local services and build changed images; CONTAINER
 _container-up: runtime-start _validate-skills
 	@mkdir -p var/memory-spark
 	@set -e; \
-	set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
+	memoir_env_file="$(ENV_FILE)"; case "$$memoir_env_file" in /*) ;; *) memoir_env_file="./$$memoir_env_file" ;; esac; \
+	set -a; if test -f "$$memoir_env_file"; then . "$$memoir_env_file"; fi; set +a; \
 	export MEMOIR_PUBLICATION_DATABASE_URL="$${MEMOIR_PUBLICATION_DATABASE_URL:-$${SUPABASE_DB_URL:-}}"; \
 	python3 scripts/start_container_stack.py --mocker "$(MOCKER)" --apple-container "$(APPLE_CONTAINER_BIN)" \
 		--compose-file "$(COMPOSE_FILE)" $(if $(filter 1,$(CONTAINER_REBUILD)),--force-build,) \

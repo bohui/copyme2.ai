@@ -26,6 +26,14 @@ from types import CellType, FunctionType
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi import routing as fastapi_routing
+
+
+def _route_contexts(routes):
+    # New FastAPI releases defer include_router and expose effective paths
+    # through RouteContext. Older supported releases eagerly flatten includes.
+    iterator = getattr(fastapi_routing, 'iter_route_contexts', None)
+    return iterator(routes) if iterator is not None else iter(routes)
 
 _READ_TABLES = frozenset({'user_profile', 'user_memory', 'user_recall_usage',
     'user_completed_round', 'user_place_journey', 'user_family_context',
@@ -313,7 +321,7 @@ class OwnedFiftyBrowserAPI:
                 if isinstance(function, FunctionType) and function.__module__ == main.__name__:
                     private_globals[name] = _function(function, private_globals)
             restore = None
-            for route in main.app.routes:
+            for route in _route_contexts(main.app.routes):
                 if getattr(route, 'path', None) not in (_PROJECT_READS | {'/v1/projects'}):
                     continue
                 if route.path == '/v1/projects' and route.methods == {'POST'}:
@@ -334,7 +342,7 @@ class OwnedFiftyBrowserAPI:
                 (story_routes.build_router(factory, entitlement_store=_Entitlements(self, case),
                                           stripe_client=object(), speech_service=object()), _STORY_READS, {})]
             for router, paths, changes in routers:
-                for route in router.routes:
+                for route in _route_contexts(router.routes):
                     if route.path not in paths or route.methods != {'GET'}:
                         continue
                     endpoint = _bind(route.endpoint, **changes) if changes else route.endpoint

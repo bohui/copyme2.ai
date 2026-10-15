@@ -13,6 +13,27 @@ from scripts import memoir_fifty_browser as browser
 from scripts.memoir_fifty_readback import case_plans_for_run
 
 
+def test_route_contexts_preserve_nested_prefix_and_response_contract():
+    from fastapi import APIRouter, FastAPI
+    from pydantic import BaseModel
+
+    class Readback(BaseModel):
+        ready: bool
+
+    child = APIRouter()
+    def readback():
+        return {'ready': True}
+    child.add_api_route('/saved', readback, methods=['GET'], response_model=Readback, status_code=202)
+    parent = APIRouter()
+    parent.include_router(child, prefix='/owned')
+    app = FastAPI()
+    app.include_router(parent, prefix='/v1')
+    route, = [route for route in browser._route_contexts(app.routes)
+              if getattr(route, 'path', None) == '/v1/owned/saved']
+    assert route.methods == {'GET'} and route.endpoint is readback
+    assert route.response_model is Readback and route.status_code == 202
+
+
 @pytest.fixture
 def owned(monkeypatch):
     run = SimpleNamespace(run_id=str(uuid4()), source_revision='a' * 40, remaining_seconds=lambda: 100)
