@@ -64,15 +64,38 @@ run.
 
 New/updated fixtures build actual schema-valid drafts and execute the real
 JavaScript plan/validator/renderer. Their per-chapter revisions distinguish a new
-chapter from the manuscript revision. Nine older photo-layout regressions remain
-failing and preserved: they enumerate legacy evidence/photo partitions while the
-current producer stores progressive passages and declares `assets=[]`. The
+chapter from the manuscript revision. At `cd73917`, nine older photo/rework regressions remained failing and
+preserved: seven enumerate legacy partitions, one strands an invalidated request,
+and one expects an instruction bound to an old policy root to survive a global
+photo-plan policy change. The current producer stores progressive passages and
+declares `assets=[]`. The stranded-request recovery is now repaired independently;
+its new native test keeps originals/rounds unchanged and finishes the current
+lane without rebinding the old instruction. The other eight failures remain;
+the old epoch-retention expectation needs a policy decision. The
 separate corrected 16-case stored-image matrix remains narrower evidence about
 validated synthetic catalogs, exact dependencies and preservation. It does not
 establish a production upload-to-composer asset mapping or live rendered-image
 acceptance. An authenticated photo-plan change can also advance policy authority;
 the new regression preserves stored original bytes while rejecting the stale
 root/request rather than bypassing that policy fence.
+
+## Pending proposals across later editorial roots
+
+A further native SQL reproduction uses actual schema-validated synthetic drafts
+and controlled phase receipts. A completely processed root has a pending proposal
+for A; the application then admits rework for B. Saving B leaves A's stored bytes
+unchanged at that point, but the next page queues A again. This does not establish
+an actual overwrite or exposure. The [retained failing regression](../../tests/test_progressive_rework_proposal_overlap.py)
+records the gap and is part of the next complete suite.
+
+The predecessor lookup currently uses completed roots, while
+`set_lifetime_private_draft_proposal` accepts only the latest proposed root and a
+section in that same snapshot. Carrying pending proposals into later roots also
+needs a review-CAS inheritance contract; changing only the cursor would strand
+review of the older proposal. Decision: inherit pending proposals unchanged and
+review them against the latest root digest, or wait for existing decisions before
+admitting another rework. The published patch does not relax any review guard or
+claim this interaction repaired.
 
 ## Benchmark and dataset decisions still needed
 
@@ -107,3 +130,18 @@ No real user data, external model/geocoding/photo calls, production migrations,
 Mac execution, merges or deployments were used. Full 250-round/live/provider,
 real-Auth, device/native-binary and independent cloud runtime acceptance remain
 separate checks unless explicitly evidenced in the final ledger.
+
+
+## Complete continuation checkpoint and follow-ups
+
+The complete `cd739174823a1fc907b2ee845f7a86c8c059e9c4` aggregate records 5,429
+passes, 576 failures, 21 setup errors, 249 skips and three warnings in 1,379.35
+seconds wall time. All seven larger-budget correctness cases pass. Every outcome
+and disposition is preserved in `memoir-baseline-checkpoint-cd73917-20261015.json`.
+Two pure orchestration fixtures and one unrealistic migration-order fixture were
+newly failing at that checkpoint. The corrected pure boundaries retain the
+original 15/50-round, checkpoint, correlation and 180-reservation assertions and
+make no native claim. Upgrade tests now stage a real prefix and verify data
+preservation before forward migrations. Seven focused follow-up checks pass.
+The next aggregate uses one fixed commit after these repairs; this checkpoint
+is complete evidence for its own source and is not final acceptance.

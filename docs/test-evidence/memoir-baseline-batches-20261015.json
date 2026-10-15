@@ -287,6 +287,187 @@
       "command": "python -m pytest -q tests/test_postgrest_application_conflicts.py tests/test_progressive_photo_invalidation.py tests/test_lifetime_memory_reads.py --timeout=60 --timeout-method=signal --tb=short",
       "root_cause": "The copied older reader preceded 202610140007, which converts deliberate application conflicts to PT409 to avoid PostgREST serialization retry loops. Its one stale-root exception now retains PT409; no retry/admission policy is changed.",
       "evidence_sha256": "1d86c5d5bb6d903cb6dcd641e5c5cbd49a96d5ee09157fa9794fd62a25abc42e"
+    },
+    {
+      "batch": 9,
+      "code_revision": "61cc9e19ef0e727df82339d5f0f87f3b271281f5",
+      "scope": "Canonical SQL/ASGI controlled delivery, worker correlation, canary coverage and resumable synthetic state",
+      "root_causes": [
+        "Drivers invoked runtime.turn without canonical publication context; native fixtures lacked explicit fresh identity mappings and private NDJSON framing.",
+        "Canonical checkpoint delivery used the legacy saved-draft reader. It now consumes actual canonical read responses under SQL publication.",
+        "The scoped canary broker omitted the required canonical receipt coverage scan before queuing. Controlled canary model names must use reviewed bounds; the live pinned name stays blocked.",
+        "The resumed fixture CLI used an in-memory legacy storage adapter. Each controlled case now owns a separate native SQL subprocess and retains original identity/source/round/place state; legacy display places are never imported as testimony.",
+        "Parent-owned minimized telemetry receipts remain outside the native child. Pure orchestration fixtures are separately adjusted in batch eleven; they do not establish SQL durability."
+      ],
+      "checkpoint_proof": {
+        "tested_revision": "cd739174823a1fc907b2ee845f7a86c8c059e9c4",
+        "ledger": "memoir-baseline-checkpoint-cd73917-20261015.json",
+        "canonical_turn_tests_passed": 3,
+        "canonical_evaluation_tests_passed": 17,
+        "controlled_native_canary": "passed ten originals/two drafts/single-attempt jobs",
+        "resumed_place_variants_passed": 2,
+        "native_snapshot_roundtrip": "passed"
+      },
+      "preliminary_runs": {
+        "canonical_driver_red": {
+          "failed": 4,
+          "passed": 36,
+          "source": "uncommitted transition before fixture/reader corrections; not pinned acceptance"
+        },
+        "driver_selection": {
+          "passed": 81,
+          "failed": 1,
+          "seconds": 124.58,
+          "source": "uncommitted transition; parent telemetry drop exposed and subsequently fixed"
+        },
+        "parent_telemetry_and_replay_followup": {
+          "passed": 2,
+          "failed": 0,
+          "seconds": 15.41
+        }
+      },
+      "evidence_sha256": {
+        "memoir-canonical-driver-red.xml": "820cea0db66f1791edb7c4f9ec5e1e94331b66fe1c4c0fb75ec2034a8dc0d158",
+        "memoir-driver-batch-unpinned.xml": "88bed5ce2a24c5516d2618b5002711526eb6a98194d9e2241d519695ea571709",
+        "memoir-parent-receipt-replay-progress.xml": "e715a509325dba3fb008a3ba2c827a53b47ceabcbb5e3985cccea655d2fd02d7",
+        "memoir-native-state-progress3.xml": "60d1424be3b3b3734b550af832cf0d349bba899986664fc774a5d8e5856829fe",
+        "memoir-canary-checkpoint-progress.xml": "ebc33d2f31045fff335aa52e0096df4c017d067b12761384de06869e5dd7af8e"
+      }
+    },
+    {
+      "batch": 10,
+      "code_revision": "cd739174823a1fc907b2ee845f7a86c8c059e9c4",
+      "scope": "Bounded progressive editorial request/page/commit integration and separately labelled canonical comparison candidate",
+      "root_causes": [
+        "Admission recognized only retired evidence/photo partition keys, rejecting real progressive saved writing.",
+        "Editorial tasks must use exact selected original spans and stored writing identity without advancing canonical event/message cursors. The composer must not restore selected prose as unchanged carry-forward writing.",
+        "A predecessor from another locale can reset edition cursors; lookup now selects the requested edition. Model presentation IDs cannot route into siblings.",
+        "The old profiler compares legacy prompts and resumed homes; canonical execution uses lifetime-v1 and fresh ephemeral homes. The separate candidate compares matching actual SQL prestate and labels requested/effective policy without claiming the old benchmark or semantic/latency acceptance."
+      ],
+      "targeted_preliminary_results": {
+        "focused_rework": {
+          "passed": 8,
+          "failed": 0,
+          "seconds": 24.85
+        },
+        "rework_image_provenance_selection": {
+          "passed": 111,
+          "failed": 9,
+          "seconds": 125.81
+        },
+        "canonical_candidate": {
+          "passed": 2,
+          "failed": 0,
+          "seconds": 32.74
+        }
+      },
+      "complete_checkpoint": {
+        "tested_revision": "cd739174823a1fc907b2ee845f7a86c8c059e9c4",
+        "collected_records": 6275,
+        "passed": 5429,
+        "failed": 576,
+        "errors": 21,
+        "skipped": 249,
+        "warnings": 3,
+        "wall_seconds": 1379.35,
+        "junit_seconds": 1369.057,
+        "ledger": "memoir-baseline-checkpoint-cd73917-20261015.json",
+        "larger_seven_correctness_checks": {
+          "passed": 7,
+          "failed": 0,
+          "seconds": 703.96
+        },
+        "newly_failing_ids": [
+          {
+            "nodeid": "tests/test_issue14_progressive_readback.py::test_existing_driver_hook_abi_with_controlled_storage_no_dispatch",
+            "summary": "scripts.canonical_turn.CanonicalTurnFailed: Canonical evaluation turn was not delivered"
+          },
+          {
+            "nodeid": "tests/test_fifty_round_campaign_adapter.py::test_fifty_round_real_canonical_driver_with_synthetic_dependencies",
+            "summary": "scripts.canonical_turn.CanonicalTurnFailed: Canonical evaluation turn was not delivered"
+          },
+          {
+            "nodeid": "tests/test_lifetime_composer_capacity.py::test_pg_composer_10000_dispositions_have_bounded_complete_root",
+            "summary": "Failed: Timeout (>60.0s) from pytest-timeout."
+          },
+          {
+            "nodeid": "tests/test_consolidated_migration_upgrade.py::test_main_migration_history_accepts_the_unapplied_workspace_upgrade[main-upgrade-history]",
+            "summary": "AssertionError: ERROR:  relation \"public.user_workspace_section_rework\" does not exist"
+          }
+        ]
+      },
+      "evidence_sha256": {
+        "memoir-progressive-rework-red.xml": "20ecad0bb3aea7d66399ab35b69925695328c6aebe2d0f98ca05544b56f049cc",
+        "memoir-rework-current-config-red.xml": "04f3e454206b04cddaa25fb1bd469eac9c77de169f7c33410d87e4d1fd92ef6b",
+        "memoir-rework-functional-green2.xml": "556b77a681f196ac2a1260266c2a488ef3ab6daf1c9e8c526ebf46c321ed352d",
+        "memoir-canonical-profile-green.xml": "34cab15d1be3d0526035ead8b52c34e0ecc4f52c766f8f153a9c76c886ce2973",
+        "memoir-final4-full.xml": "735af6951d5598c39017544e4b2cae96c80cce1a9244f60d744b6b71d616e277",
+        "memoir-final4-capacity.xml": "3726cd023353aea56fc136f59584b115e3ed769ca85ca786185bfc5340cf6c26"
+      }
+    },
+    {
+      "batch": 11,
+      "code_revisions": [
+        "a61ed759d8f979173a393875697c16ae4d3b0bdf",
+        "75bc1fb2ef620440d9015f7ce3d031c92d845a05"
+      ],
+      "scope": "Retire stranded stale requests and repair newly exposed pure-boundary/upgrade fixtures; retain unresolved pending-proposal regression",
+      "root_causes": [
+        "A pending editorial request stranded before invalidation could make every lane claim raise selected writing evidence changed. Only stale pending requests are retired under the current owner/project lane lock; instructions are not rebound to new policy authority.",
+        "Two pure orchestration tests replaced Runtime.turn while the driver now uses delivery/read adapters. Their explicit closed boundaries preserve all literal-input, 15/50-round, checkpoint, correlation, 180-reservation and no-native-evidence assertions. Actual SQL/ASGI authority remains tested separately.",
+        "An old upgrade fixture moved workspace after all later dependent migrations. It now stages real pre-workspace and current-main history prefixes, preserves profile bytes and applies every forward migration in numeric version order.",
+        "A new validated native regression demonstrates that a later rework requeues another section with an already pending proposal. Latest-root/same-snapshot proposal CAS has no inherited-proposal contract. The regression stays failing while inheritance versus waiting for decisions is unresolved."
+      ],
+      "red": {
+        "stranded_native": {
+          "failed": 1,
+          "passed": 0,
+          "seconds": 6.82
+        },
+        "first_uncommitted_sql_draft": {
+          "failed": 9,
+          "cause": "PL/pgSQL alias collided with its request record; corrected before commit"
+        }
+      },
+      "targeted_results": {
+        "nine_native_rework": {
+          "passed": 9,
+          "failed": 0,
+          "seconds": 28.25
+        },
+        "whole_workspace_selection": {
+          "passed": 24,
+          "failed": 8,
+          "seconds": 50.12
+        },
+        "pure_boundary_and_upgrade_regressions": {
+          "passed": 7,
+          "failed": 0,
+          "seconds": 21.37
+        },
+        "larger_boundary_module_selection": {
+          "passed": 147,
+          "failed": 1,
+          "seconds": 24.89,
+          "remaining": "unchanged raw legacy worker input without canonical envelope"
+        }
+      },
+      "retained_failing_regression": {
+        "path": "tests/test_progressive_rework_proposal_overlap.py",
+        "outcome": "failed",
+        "validated_diagnostic_seconds": 11.68,
+        "scope": "native SQL with schema-validated synthetic drafts and explicit controlled phase receipts; not model/ASGI acceptance",
+        "observed": "B saves; A storage is unchanged at that point, but its event is queued for another page. No overwrite/exposure is claimed.",
+        "decision": "Inherit pending proposals under the latest root digest, or wait for existing decisions before another rework. Preserve ownership/source/policy/review guards either way."
+      },
+      "evidence_sha256": {
+        "memoir-stale-rework-red.xml": "7edd4e8ec00347abe2563c8bd24377828f7e772da80d9799c708080d27e0e939",
+        "memoir-stale-rework-green.xml": "bceeef4f4993eefc94c4cd8dd3e900a8723f08c46a560b8b78f397484f07669c",
+        "memoir-stale-rework-green2.xml": "95e30a061f8d61efe64c0da8caae02d1c5fbcb98d793884a08baf42411b9babc",
+        "memoir-stale-rework-all.xml": "3d7105d622c769fc6de352fd2f175ccbadc7fe545bbbafce976e9748f33d1a3d",
+        "memoir-new-regressions-green.xml": "f77336349df8ff24f502e7a7582ab0f61a236a2806a3f13ef708286a23bf5f56",
+        "memoir-proposed-predecessor-validated.xml": "6f1112ac8ab570f5d1b168282f69cb72dd7fe3e09c06fb40c3150fa3c78cfca2"
+      }
     }
   ],
   "current_disposition": {
@@ -391,6 +572,26 @@
         "tests/test_postgrest_application_conflicts.py::test_public_application_functions_never_raise_serialization_failure"
       ],
       "disposition": "Conflict-code regression fixed in batch eight. Appended 10,000-prefix case passes its larger-budget diagnostic; aggregate timeout is retained. Continue newly authorized evaluation-driver and rework repairs before a final aggregate."
-    }
+    },
+    "as_of_revision": "5e55d70c9e48a2fa91c3641c42822b149d772dab"
+  },
+  "latest_disposition": {
+    "source_test_revision": "75bc1fb2ef620440d9015f7ce3d031c92d845a05",
+    "acceptance_complete": false,
+    "final_fixed_head_aggregate": "pending after the retained complete cd73917 checkpoint and batch eleven repairs",
+    "latest_complete_checkpoint": "memoir-baseline-checkpoint-cd73917-20261015.json",
+    "historical_23_functional_outcomes_at_cd73917": {
+      "failed": 18,
+      "passed": 5
+    },
+    "independent_runtime_acceptance": "outstanding",
+    "old_fields": "current_disposition above is preserved as the batch-eight historical disposition; this latest_disposition and later final ledger take precedence for current status",
+    "decisions": [
+      "Canonical configuration benchmark versus blocked legacy prompt/resume comparison",
+      "Separately versioned canonical generic evaluation dataset; no forged original provenance or retired inline markers",
+      "Approved live canary model binding with reviewed canonical token bounds",
+      "Pending proposals inherited into the latest review root versus waiting for decisions before another rework",
+      "Unrelated photo-policy epoch changes: retire old bound editorial tasks versus explicitly revalidate under new authority"
+    ]
   }
 }
