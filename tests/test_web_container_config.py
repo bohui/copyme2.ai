@@ -29,6 +29,8 @@ def test_container_up_refreshes_web_image_with_internal_api_origin() -> None:
 
 def test_frontend_caches_compilation_and_ships_only_standalone_runtime():
     containerfile = (ROOT / 'apps/web/Containerfile').read_text()
+    node_majors = [int(major) for major in re.findall(r'FROM node:(\d+)', containerfile)]
+    assert node_majors and min(node_majors) >= 22
     runner = containerfile.split(' AS runner', 1)[1]
     assert 'target=/app/.next/cache' in containerfile
     assert 'sharing=locked' in containerfile

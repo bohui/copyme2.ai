@@ -1,0 +1,1496 @@
+{
+  "issue": "https://github.com/bohui/copyme2.ai/issues/53",
+  "date": "2026-10-15",
+  "status": "diagnosis; tested preamble candidates rejected for slower completion; remaining upstream first-token latency unresolved",
+  "findings": [
+    "Foreground requests exposed zero tools. The original 26.628-second first raw delta preceded UI delivery.",
+    "Maximum-effort generation reasons before first visible text. A preamble separates acknowledgement from later private planning.",
+    "Native structured output also constrained commentary in observed model responses.",
+    "Commentary and final JSON must be kept separate in the Codex client; the phase separation fix is in commit 46caa5f.",
+    "First-token and save latency must both be reported. Faster acknowledgement alone is insufficient acceptance."
+  ],
+  "paired_input_comparison": {
+    "freeze": {
+      "revision": "46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc",
+      "source_hashes": {
+        "apps/api/lifetime_memory_engine.py": "99ec1c44f8e403f9c6ae3989977789d62765376b0b36b3ef94c75159897d71c8",
+        "apps/api/codex_agent.py": "4d9cad35f2ce5284981027f9a02b3405b2c04922abb13e4e95f5f37ee5ea2563",
+        "apps/api/interview_plan.py": "1e6509e119d88bd116954d1138d1801f0ae62410e930f57a5fd9660f1dc007f1",
+        "apps/api/lifetime_memory_continuity.py": "7a850bd876e797b93990036ae1b2535c596f61be3f666e5b36421ce54d4f7d0a"
+      },
+      "foreground_generations": 12,
+      "max_appserver_attempts": 36,
+      "baseline_zh_reference": "Four baseline cases from the file-logged v3 cohort; report the different measurement window as a confound.",
+      "timeout_per_turn_s": 130,
+      "deadline_s": 1800,
+      "model": "gpt-5.6-luna-pooled",
+      "effort": "max",
+      "stop_rule": "Stop on candidate failure; record baseline failure and stop only its dependent history. Independent histories continue within the same 16-generation cap.",
+      "codex_version": "0.155.1",
+      "storage": "real Supabase",
+      "execution": "isolated host API and private worker",
+      "cases": "both languages: first, later story, resumed correction, pause; matched inputs and separate histories",
+      "semantic_review": "public synthetic replies included; no narrator production data or credentials"
+    },
+    "results": [
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "first",
+        "project_id": "lifetime-88631572-9b3a-43bd-a9ac-0485cca8c31b",
+        "submitted_at_epoch_s": 1792065865.404285,
+        "client_turn_id": "5f04c682-d018-466e-978c-a2ee91adc1af",
+        "source_id": "d74631fc-bc8b-4d30-81ad-ae632f7fcb48",
+        "timings": {
+          "first_text_s": 15.897,
+          "collector_completed_s": 20.709,
+          "saved_s": 22.919
+        },
+        "public_synthetic_reply": "您好，韩凤江。\n\n您想从哪一段经历开始聊？",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "story",
+        "project_id": "lifetime-88631572-9b3a-43bd-a9ac-0485cca8c31b",
+        "submitted_at_epoch_s": 1792065889.2382028,
+        "client_turn_id": "8f03ccc0-f0bb-4fdd-b7bf-19a041134190",
+        "source_id": "be9b5428-4ff4-4f42-930f-ba79ab94e366",
+        "timings": {
+          "first_text_s": 14.18,
+          "collector_completed_s": 43.139,
+          "saved_s": 44.458
+        },
+        "public_synthetic_reply": "谢谢您讲起这段小时候的经历。\n\n那次掉进浅水里时，您还记得姐姐是怎样把您拉上来的吗？",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "correction",
+        "project_id": "lifetime-88631572-9b3a-43bd-a9ac-0485cca8c31b",
+        "submitted_at_epoch_s": 1792065934.908965,
+        "client_turn_id": "1f30769f-7717-480b-a467-0c5e2e8f64be",
+        "source_id": "3e31b058-b15c-47d7-880d-6d3295ddd10f",
+        "timings": {
+          "first_text_s": 10.517,
+          "collector_completed_s": 57.629,
+          "saved_s": 60.247
+        },
+        "public_synthetic_reply": "明白了，谢谢您及时更正。\n\n那次之后，您和母亲有没有再提起过这件事？",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "pause",
+        "project_id": "lifetime-88631572-9b3a-43bd-a9ac-0485cca8c31b",
+        "submitted_at_epoch_s": 1792065997.711205,
+        "client_turn_id": "fbf834b2-64fa-4695-ab72-ad4930fbdd32",
+        "source_id": "354b3ec9-7b4f-4ad0-87af-fa029f768da5",
+        "timings": {
+          "first_text_s": 16.635,
+          "collector_completed_s": 28.827,
+          "saved_s": 30.294
+        },
+        "public_synthetic_reply": "好的，我们先停在这里，不再继续提问。",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 0,
+        "checks_passed": true
+      },
+      {
+        "variant": "baseline",
+        "language": "en-AU",
+        "case": "first",
+        "project_id": "lifetime-16a1a1f3-a5b2-499b-a7e8-adf12b42672e",
+        "submitted_at_epoch_s": 1792066029.222322,
+        "client_turn_id": "26ac2983-6d81-4673-8bb9-6ab278f2e48b",
+        "source_id": "8fedf261-5fe1-49e7-92fe-4ec1bb9bb5b8",
+        "timings": {
+          "first_text_s": 11.529,
+          "collector_completed_s": 12.342,
+          "saved_s": 13.579
+        },
+        "public_synthetic_reply": "Hello, Avery.\n\nWhat would you like to talk about today?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "en-AU",
+        "case": "first",
+        "project_id": "lifetime-e92af9c6-431a-47a5-a31d-f2fc95fb008b",
+        "submitted_at_epoch_s": 1792066043.707752,
+        "client_turn_id": "693d3659-ec12-4b4d-92d2-b92b249f181a",
+        "source_id": "66fd76c0-b745-42e2-890d-1f5020ea403b",
+        "timings": {
+          "first_text_s": 6.993,
+          "collector_completed_s": 11.63,
+          "saved_s": 12.622
+        },
+        "public_synthetic_reply": "Nice to meet you, Avery.\n\nWhat would you like to talk about today?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "en-AU",
+        "case": "story",
+        "project_id": "lifetime-e92af9c6-431a-47a5-a31d-f2fc95fb008b",
+        "submitted_at_epoch_s": 1792066057.4491441,
+        "client_turn_id": "4fe153af-2b90-4a36-9281-660a8ee97ab1",
+        "source_id": "04f5f44f-0a67-4def-bf30-a84f9d9bbece",
+        "timings": {
+          "first_text_s": 8.064,
+          "collector_completed_s": 72.161,
+          "saved_s": 73.049
+        },
+        "public_synthetic_reply": "I’m listening.\n\nWhat do you remember most about catching little fish with your sister by the river after school?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "baseline",
+        "language": "en-AU",
+        "case": "story",
+        "project_id": "lifetime-16a1a1f3-a5b2-499b-a7e8-adf12b42672e",
+        "submitted_at_epoch_s": 1792066131.637525,
+        "client_turn_id": "763c6bb1-eb77-4ac5-98a8-034d6be2482d",
+        "source_id": "c3164892-238d-4441-b15e-f50df2dde6e6",
+        "timings": {
+          "first_text_s": 73.369,
+          "collector_completed_s": 76.942,
+          "saved_s": 78.026
+        },
+        "public_synthetic_reply": "Thank you for sharing it. The exact year can stay uncertain.\n\nWhat do you remember most about those after-school fishing trips by the river?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "baseline",
+        "language": "en-AU",
+        "case": "correction",
+        "project_id": "lifetime-16a1a1f3-a5b2-499b-a7e8-adf12b42672e",
+        "submitted_at_epoch_s": 1792066211.063217,
+        "client_turn_id": "bc3482d0-689d-45d2-9025-014660de7881",
+        "source_id": "1b9f930a-a089-48f1-b5bb-e171b354111d",
+        "timings": {
+          "first_text_s": 27.516,
+          "collector_completed_s": 29.44,
+          "saved_s": 30.366
+        },
+        "public_synthetic_reply": "Thank you for correcting that. I hear that your mother pulled you out and held your hand.\n\nWhat do you remember about what came next, once your mother had pulled you out?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "en-AU",
+        "case": "correction",
+        "project_id": "lifetime-e92af9c6-431a-47a5-a31d-f2fc95fb008b",
+        "submitted_at_epoch_s": 1792066242.353555,
+        "client_turn_id": "f2c922eb-9469-453e-a177-e54444281fe6",
+        "source_id": "2a3439b6-6b1c-4bd6-922b-0175c1fe962f",
+        "timings": {
+          "first_text_s": 9.867,
+          "collector_completed_s": 47.647,
+          "saved_s": 49.613
+        },
+        "public_synthetic_reply": "Thank you for correcting me. I understand that your mother pulled you out and held your hand.\n\nWhat has stayed with you about your mother holding your hand?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "en-AU",
+        "case": "pause",
+        "project_id": "lifetime-e92af9c6-431a-47a5-a31d-f2fc95fb008b",
+        "submitted_at_epoch_s": 1792066292.927022,
+        "client_turn_id": "3e35650e-2cea-411c-b73b-e312e89d32a2",
+        "source_id": "6f29e5af-999f-4c86-ba80-c77b537c3045",
+        "timings": {
+          "first_text_s": 9.681,
+          "collector_completed_s": 20.358,
+          "saved_s": 21.098
+        },
+        "public_synthetic_reply": "Of course. We can pause here.",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 0,
+        "checks_passed": true
+      },
+      {
+        "variant": "baseline",
+        "language": "en-AU",
+        "case": "pause",
+        "project_id": "lifetime-16a1a1f3-a5b2-499b-a7e8-adf12b42672e",
+        "submitted_at_epoch_s": 1792066314.9234948,
+        "client_turn_id": "3d31b20a-566d-4625-818d-11d2fc45de2d",
+        "source_id": "c4dbb6cc-5ba6-4148-9096-f78be1f9bdb1",
+        "timings": {
+          "first_text_s": 17.914,
+          "collector_completed_s": 20.107,
+          "saved_s": 21.277
+        },
+        "public_synthetic_reply": "Of course. We can pause here.",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 0,
+        "checks_passed": true
+      }
+    ]
+  },
+  "zh_baseline_reference": [
+    {
+      "variant": "baseline",
+      "language": "zh-CN",
+      "case": "first",
+      "project_id": "lifetime-8708e7c5-7989-4a16-ac00-4cf3b59fe7c2",
+      "submitted_at_epoch_s": 1792064749.631511,
+      "client_turn_id": "4e3795cc-4270-4d1b-8aad-1e7f4c8edd6c",
+      "source_id": "3774a1a3-a729-48ba-9f3d-11d72b08b358",
+      "timings": {
+        "first_text_s": 14.787,
+        "collector_completed_s": 14.928,
+        "saved_s": 15.854
+      },
+      "public_synthetic_reply": "韩凤江，您好。\n\n您现在最想从哪段经历聊起？",
+      "source_exact": true,
+      "replay_cached": true,
+      "question_count": 1,
+      "checks_passed": true
+    },
+    {
+      "variant": "baseline",
+      "language": "zh-CN",
+      "case": "story",
+      "project_id": "lifetime-8708e7c5-7989-4a16-ac00-4cf3b59fe7c2",
+      "submitted_at_epoch_s": 1792064849.49773,
+      "client_turn_id": "f3c0ae94-e9dd-43f6-95d3-4d2130a43195",
+      "source_id": "ce45f5d2-b522-4928-ba41-2df68efd88ae",
+      "timings": {
+        "first_text_s": 27.949,
+        "collector_completed_s": 31.026,
+        "saved_s": 34.624
+      },
+      "public_synthetic_reply": "年份记不清也没关系。\n\n回家后，您还记得当时为什么不敢告诉父母吗？",
+      "source_exact": true,
+      "replay_cached": true,
+      "question_count": 1,
+      "checks_passed": true
+    },
+    {
+      "variant": "baseline",
+      "language": "zh-CN",
+      "case": "correction",
+      "project_id": "lifetime-8708e7c5-7989-4a16-ac00-4cf3b59fe7c2",
+      "submitted_at_epoch_s": 1792064885.644027,
+      "client_turn_id": "592c5a8b-9890-4b4a-b31d-734bc1333e8d",
+      "source_id": "fc597a0f-7589-43b3-9e77-98625f640ee9",
+      "timings": {
+        "first_text_s": 26.749,
+        "collector_completed_s": 29.05,
+        "saved_s": 30.068
+      },
+      "public_synthetic_reply": "明白了，刚才那处改为母亲把您拉了上来。您记得她没有责备，只是握着您的手。\n\n母亲握着您的手时，您当时心里有什么感觉？",
+      "source_exact": true,
+      "replay_cached": true,
+      "question_count": 1,
+      "checks_passed": true
+    },
+    {
+      "variant": "baseline",
+      "language": "zh-CN",
+      "case": "pause",
+      "project_id": "lifetime-8708e7c5-7989-4a16-ac00-4cf3b59fe7c2",
+      "submitted_at_epoch_s": 1792064978.675358,
+      "client_turn_id": "d4c6b11e-2a59-4128-a122-725f4540e734",
+      "source_id": "e8ee9a0a-136f-457c-a13c-3cab51df3171",
+      "timings": {
+        "first_text_s": 11.145,
+        "collector_completed_s": 11.64,
+        "saved_s": 12.955
+      },
+      "public_synthetic_reply": "好的，我先停在这里，不再继续提问。",
+      "source_exact": true,
+      "replay_cached": true,
+      "question_count": 0,
+      "checks_passed": true
+    }
+  ],
+  "aggregate": {
+    "baseline": {
+      "n": 8,
+      "failures": 0,
+      "median_first_text_s": 22.331,
+      "median_saved_s": 25.672
+    },
+    "candidate": {
+      "n": 8,
+      "failures": 0,
+      "median_first_text_s": 10.192,
+      "median_saved_s": 37.376
+    }
+  },
+  "unconstrained_commentary_prototype": {
+    "freeze": {
+      "revision": "46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc",
+      "source_hashes": {
+        "apps/api/lifetime_memory_engine.py": "99ec1c44f8e403f9c6ae3989977789d62765376b0b36b3ef94c75159897d71c8",
+        "apps/api/codex_agent.py": "4d9cad35f2ce5284981027f9a02b3405b2c04922abb13e4e95f5f37ee5ea2563",
+        "apps/api/interview_plan.py": "1e6509e119d88bd116954d1138d1801f0ae62410e930f57a5fd9660f1dc007f1",
+        "apps/api/lifetime_memory_continuity.py": "7a850bd876e797b93990036ae1b2535c596f61be3f666e5b36421ce54d4f7d0a"
+      },
+      "foreground_generations": 2,
+      "max_appserver_attempts": 6,
+      "baseline_zh_reference": "Four baseline cases from the file-logged v3 cohort; report the different measurement window as a confound.",
+      "timeout_per_turn_s": 130,
+      "deadline_s": 1800,
+      "model": "gpt-5.6-luna-pooled",
+      "effort": "max",
+      "stop_rule": "Stop on candidate failure; 2 generations, maximum 6 attempts; prototype only, no production activation.",
+      "codex_version": "0.155.1",
+      "storage": "real Supabase",
+      "execution": "isolated host API and private worker",
+      "cases": "two rich first turns, one per language; unpaired prototype, not acceptance",
+      "prototype": "Schema described as text; native grammar absent. Exact final schema/domain validator remains authoritative.",
+      "semantic_review": "public synthetic replies included; no narrator production data or credentials"
+    },
+    "results": [
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "story",
+        "project_id": "lifetime-653d5f20-0401-4a9a-9fce-e8e04f7d056b",
+        "submitted_at_epoch_s": 1792066825.0004008,
+        "client_turn_id": "165c1f71-81ab-47b1-b98a-2a2425d6c945",
+        "source_id": "572231cf-4865-4e0a-b9c7-16a4b2ab2367",
+        "timings": {
+          "first_text_s": 11.283,
+          "collector_completed_s": 52.963,
+          "saved_s": 54.247
+        },
+        "public_synthetic_reply": "那次掉进浅水里、姐姐把您拉上来的经历，我听到了。\n\n姐姐把您拉上来以后，您和姐姐是怎么回家的？",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "en-AU",
+        "case": "story",
+        "project_id": "lifetime-5e9f7108-664b-4f6c-8cd9-06c31a5cff85",
+        "submitted_at_epoch_s": 1792066880.521056,
+        "client_turn_id": "9bac0738-0966-4c97-b653-9cf6a26489c8",
+        "source_id": "d1348d55-eb6c-4723-8440-a021f82fe16c",
+        "timings": {
+          "first_text_s": 6.914,
+          "collector_completed_s": 69.734,
+          "saved_s": 70.747
+        },
+        "public_synthetic_reply": "Your sister pulling you from the shallow water is a clear detail.\n\nWhat do you remember about the moment your sister pulled you from the shallow water?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      }
+    ]
+  },
+  "limitations": [
+    "Eight cases per variant, no production percentiles or comprehensive semantic-quality score.",
+    "Chinese baseline measured in a preceding time window; English comparison alternated variant order. Distinct generated histories and provider load/cache differ.",
+    "Host Codex 0.155.1, deployed Linux uses 0.156.1. Real API/private-worker and real SQL, no customer projects.",
+    "All saved cases checked exact original narration, replay, language, question count and unsupported years; public synthetic replies retained for manual review.",
+    "Earlier console-logged probes were potentially blocked by undrained stdout, excluded from the comparison. No provider stall recovery is shipped.",
+    "A separate unconstrained-commentary prototype passed two rich-turn safety checks but still had slow completion; it is not a release candidate.",
+    "v4 freeze stop_rule mentions a stale 16-generation cap; actual configured/observed campaign was 12 foreground generations and completed exactly 12."
+  ],
+  "verification_observed": [
+    "222 targeted tests passed; final-placeholder proposals rejected while early acknowledgement could stream.",
+    "2 real-SQL streaming tests passed (worker and inprocess): early acknowledgement before final generation or saving.",
+    "Final source: 220 targeted tests passed in 1.79s; 2 real-SQL streaming tests passed in 9.04s with the real Codex protocol reader.",
+    "Retained prototype regression passed in 0.51s. Total latest targeted checks: 220 unit/contract + 2 actual-SQL + 1 isolated prototype; no full-suite green claim."
+  ],
+  "candidate_decision": "Do not activate tested preamble candidates as a completed fix. Preserve model and maximum effort; do not change shared provider routing.",
+  "normal_linux_smoke": {
+    "freeze": {
+      "revision": "46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc",
+      "source_hashes": {
+        "apps/api/lifetime_memory_engine.py": "9e7229d2275ab2656fe391fdc86613b821f211a240a053ebd99bc7df4466741b",
+        "apps/api/codex_agent.py": "4d9cad35f2ce5284981027f9a02b3405b2c04922abb13e4e95f5f37ee5ea2563",
+        "apps/api/interview_plan.py": "1e6509e119d88bd116954d1138d1801f0ae62410e930f57a5fd9660f1dc007f1",
+        "apps/api/lifetime_memory_continuity.py": "b619de23662a445ea3c10c264396370ab44fa78b64d5251c4c70e5008e184d1e"
+      },
+      "foreground_generations": 1,
+      "max_appserver_attempts": 3,
+      "baseline_zh_reference": "Four baseline cases from the file-logged v3 cohort; report the different measurement window as a confound.",
+      "timeout_per_turn_s": 130,
+      "deadline_s": 1800,
+      "model": "gpt-5.6-luna-pooled",
+      "effort": "max",
+      "stop_rule": "One rich Chinese first turn through the normal web proxy, maximum 3 bounded attempts, stop on failure.",
+      "codex_version": "0.156.1",
+      "storage": "real Supabase",
+      "execution": "normal Linux API/private-worker via web proxy, new synthetic identity",
+      "cases": "One rich first-turn smoke; no general latency acceptance claim",
+      "candidate": "Strict native schema, no forced preamble. Server locates unique exact quote spans; full max-effort collector unchanged.",
+      "semantic_review": "public synthetic replies included; no narrator production data or credentials"
+    },
+    "results": [
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "story",
+        "project_id": "lifetime-8a5e7bb9-5912-4553-ab8a-34a021b76f46",
+        "submitted_at_epoch_s": 1792067395.355107,
+        "client_turn_id": "393b1e71-13a3-4b4c-8fda-992b16e506a6",
+        "source_id": "7e39dc98-346b-42c8-97a8-14e538e2f37c",
+        "timings": {
+          "first_text_s": 52.985,
+          "collector_completed_s": 58.434,
+          "saved_s": 59.819
+        },
+        "public_synthetic_reply": "谢谢您讲起这段小时候的经历。\n\n您还记得自己是怎么掉进浅水里的吗？",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      }
+    ]
+  },
+  "parallel_ack_prototype_failed_v1": {
+    "freeze": {
+      "revision": "46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc",
+      "source_hashes": {
+        "apps/api/lifetime_memory_engine.py": "9e7229d2275ab2656fe391fdc86613b821f211a240a053ebd99bc7df4466741b",
+        "apps/api/codex_agent.py": "4d9cad35f2ce5284981027f9a02b3405b2c04922abb13e4e95f5f37ee5ea2563",
+        "apps/api/interview_plan.py": "1e6509e119d88bd116954d1138d1801f0ae62410e930f57a5fd9660f1dc007f1",
+        "apps/api/lifetime_memory_continuity.py": "b619de23662a445ea3c10c264396370ab44fa78b64d5251c4c70e5008e184d1e"
+      },
+      "foreground_product_turns": 2,
+      "max_appserver_attempts": 8,
+      "parallel_ack_calls_max": 2,
+      "baseline_zh_reference": "Four baseline cases from the file-logged v3 cohort; report the different measurement window as a confound.",
+      "timeout_per_turn_s": 130,
+      "deadline_s": 1800,
+      "model": "gpt-5.6-luna-pooled",
+      "effort": "max",
+      "stop_rule": "Two product turns, one per language, each one normal max-effort collector plus one max-effort acknowledgement-only call. At most 8 appserver attempts; ack timeout25s, no ack retry. Stop on any failed saved turn; isolated prototype only.",
+      "codex_version": "0.155.1",
+      "storage": "real Supabase",
+      "execution": "isolated host API and private worker",
+      "cases": "two rich first turns, one per language; unpaired prototype, not acceptance",
+      "prototype": "Parallel max-effort acknowledgement with full packet; normal full collector and native strict schema unchanged. First safe ack wins; revalidate entire final proposal with chosen ack. Normal services unchanged.",
+      "semantic_review": "public synthetic replies included; no narrator production data or credentials"
+    },
+    "results": [],
+    "failure": {
+      "failure_type": "AssertionError",
+      "completed_generations": 0
+    },
+    "observed_failure": {
+      "product_turns_attempted": 1,
+      "result": "Saved response differed from streamed acknowledgement; source/replay assertions were not reached.",
+      "cause": "The private-worker provider_complete event was emitted before the prototype replaced its acknowledgement.",
+      "repair": "Hold that completion event until final proposal revalidation, then publish the exact merged reply in both completion and return value.",
+      "deterministic_regression": "One test fails before the event fix and passes after it."
+    }
+  },
+  "current_code": {
+    "forced_preamble": "Removed; it regressed saved-answer latency in the measured cohorts.",
+    "model": "gpt-5.6-luna-pooled",
+    "effective_effort": "max",
+    "normal_requests": "One normal collector turn per attempt, bounded retries unchanged.",
+    "streaming": "Only complete validated acknowledgement is emitted early; full proposal and durable save still gate the chosen question."
+  },
+  "runtime_recovery": {
+    "normal_api_health": 200,
+    "normal_web_proxy_config": 200,
+    "service_aliases": "Refreshed after API/worker recreation",
+    "host_probes": "All owned host API/worker probe listeners stopped; 21 disposable host homes removed.",
+    "disposed_host_homes": 21
+  },
+  "parallel_ack_prototype_v2": {
+    "freeze": {
+      "revision": "46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc",
+      "source_hashes": {
+        "apps/api/lifetime_memory_engine.py": "9e7229d2275ab2656fe391fdc86613b821f211a240a053ebd99bc7df4466741b",
+        "apps/api/codex_agent.py": "4d9cad35f2ce5284981027f9a02b3405b2c04922abb13e4e95f5f37ee5ea2563",
+        "apps/api/interview_plan.py": "1e6509e119d88bd116954d1138d1801f0ae62410e930f57a5fd9660f1dc007f1",
+        "apps/api/lifetime_memory_continuity.py": "b619de23662a445ea3c10c264396370ab44fa78b64d5251c4c70e5008e184d1e"
+      },
+      "foreground_product_turns": 2,
+      "max_appserver_attempts": 8,
+      "parallel_ack_calls_max": 2,
+      "baseline_zh_reference": "Four baseline cases from the file-logged v3 cohort; report the different measurement window as a confound.",
+      "timeout_per_turn_s": 130,
+      "deadline_s": 1800,
+      "model": "gpt-5.6-luna-pooled",
+      "effort": "max",
+      "stop_rule": "Two product turns, one per language, each one normal max-effort collector plus one max-effort acknowledgement-only call. At most 8 appserver attempts; ack timeout25s, no ack retry. Stop on any failed saved turn; isolated prototype only.",
+      "codex_version": "0.155.1",
+      "storage": "real Supabase",
+      "execution": "isolated host API and private worker",
+      "cases": "two rich first turns, one per language; unpaired prototype, not acceptance",
+      "prototype": "Parallel max-effort acknowledgement with full packet; normal full collector and native strict schema unchanged. First safe ack wins; revalidate entire final proposal with chosen ack. Normal services unchanged.",
+      "semantic_review": "public synthetic replies included; no narrator production data or credentials"
+    },
+    "results": [
+      {
+        "variant": "candidate",
+        "language": "zh-CN",
+        "case": "story",
+        "project_id": "lifetime-bf092cf5-f85d-4268-9a4f-54a3b1e5fd0d",
+        "submitted_at_epoch_s": 1792067830.53686,
+        "client_turn_id": "5ced934b-048d-4df2-8a07-b94ca1758494",
+        "source_id": "9aaba3a9-b184-4c19-9f9e-36dba2509842",
+        "timings": {
+          "first_text_s": 13.336,
+          "collector_completed_s": 35.501,
+          "saved_s": 36.375
+        },
+        "public_synthetic_reply": "谢谢您讲起这段小时候的经历。\n\n姐姐把您拉上来后，您和姐姐后来是怎么回到家的？",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      },
+      {
+        "variant": "candidate",
+        "language": "en-AU",
+        "case": "story",
+        "project_id": "lifetime-9003825b-79d7-4e80-92f4-27c4124d6333",
+        "submitted_at_epoch_s": 1792067868.016702,
+        "client_turn_id": "8f961448-bbbc-44aa-b1ee-a20826f6439f",
+        "source_id": "2c893a2b-ad92-4615-8568-c19b5112c94d",
+        "timings": {
+          "first_text_s": 7.076,
+          "collector_completed_s": 62.676,
+          "saved_s": 64.488
+        },
+        "public_synthetic_reply": "That childhood memory comes through clearly, especially your sister pulling you from the water.\n\nWhat made you and your sister decide not to tell your parents?",
+        "source_exact": true,
+        "replay_cached": true,
+        "question_count": 1,
+        "checks_passed": true
+      }
+    ]
+  },
+  "parallel_ack_prototype_status": {
+    "activation": "Not installed in normal services. Awaiting the user's decision about an additional generation per streamed turn.",
+    "scope": "Two rich first turns only; later/resumed/correction/pause and load effects remain unverified for the parallel design.",
+    "regression": "Deterministic completion-event test failed before the fix and passed after.",
+    "prototype_path": "docs/test-evidence/issue53-parallel-ack-prototype.py",
+    "test_path": "docs/test-evidence/test_issue53_parallel_ack_prototype.py",
+    "limitations": [
+      "Does not establish unchanged save latency under load; consumes an additional max-effort request.",
+      "Does not establish comprehensive semantic-quality parity. The full collector model, max effort and final proposal validator were retained.",
+      "Same host CLI/version confound as the other isolated probes."
+    ]
+  },
+  "remaining_decision": {
+    "source": "https://github.com/bohui/copyme2.ai/issues/53",
+    "quoted_constraint": "retain a single normal collector pass",
+    "interpretation": "An additional acknowledgement-only generation changes the per-turn request count. It is not a classifier; the single full collector still selects extraction and the question. Obtain the user's choice before implementing this as the normal path."
+  },
+  "relay_metadata": {
+    "memoir-candidate-v4.log": [
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "request_received",
+        "elapsed_ms": 10,
+        "input_bytes": 45112,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "headers",
+        "elapsed_ms": 6347,
+        "status": 200
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "first_byte",
+        "elapsed_ms": 6354
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 10113
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "message_done",
+        "elapsed_ms": 10384,
+        "characters": 150,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "message_done",
+        "elapsed_ms": 14826,
+        "characters": 639,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 1,
+        "null_span_count": 1
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "usage",
+        "elapsed_ms": 14914,
+        "input_tokens": 8999,
+        "output_tokens": 1385,
+        "reasoning_tokens": 1104
+      },
+      {
+        "probe": "37679038-62bb-4bd9-af81-c7837c08bb25",
+        "event": "closed",
+        "elapsed_ms": 14916
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "request_received",
+        "elapsed_ms": 1,
+        "input_bytes": 46773,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "headers",
+        "elapsed_ms": 2541,
+        "status": 200
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "first_byte",
+        "elapsed_ms": 2544
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 11889
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "message_done",
+        "elapsed_ms": 12142,
+        "characters": 157,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "message_done",
+        "elapsed_ms": 38933,
+        "characters": 1563,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 3,
+        "null_span_count": 3
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "usage",
+        "elapsed_ms": 40263,
+        "input_tokens": 9460,
+        "output_tokens": 4409,
+        "reasoning_tokens": 3778
+      },
+      {
+        "probe": "7ed10384-643b-4f41-ae7c-7ae8ae7a59d9",
+        "event": "closed",
+        "elapsed_ms": 40329
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 49580,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "headers",
+        "elapsed_ms": 3252,
+        "status": 200
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "first_byte",
+        "elapsed_ms": 3256
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 7467
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "message_done",
+        "elapsed_ms": 7800,
+        "characters": 155,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "message_done",
+        "elapsed_ms": 53649,
+        "characters": 1071,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 1,
+        "null_span_count": 1
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "usage",
+        "elapsed_ms": 54457,
+        "input_tokens": 10291,
+        "output_tokens": 7147,
+        "reasoning_tokens": 6695
+      },
+      {
+        "probe": "0beeba92-fdf5-4314-827b-1f529b9c1281",
+        "event": "closed",
+        "elapsed_ms": 54489
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 50775,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "headers",
+        "elapsed_ms": 1830,
+        "status": 200
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "first_byte",
+        "elapsed_ms": 1833
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 12951
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "message_done",
+        "elapsed_ms": 13310,
+        "characters": 161,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "message_done",
+        "elapsed_ms": 25222,
+        "characters": 270,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 0,
+        "null_span_count": 0
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "usage",
+        "elapsed_ms": 25354,
+        "input_tokens": 10644,
+        "output_tokens": 2816,
+        "reasoning_tokens": 2663
+      },
+      {
+        "probe": "a352cacb-bf31-4745-94ad-7431ff7adf90",
+        "event": "closed",
+        "elapsed_ms": 25362
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "request_received",
+        "elapsed_ms": 1,
+        "input_bytes": 45086,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "headers",
+        "elapsed_ms": 1929,
+        "status": 200
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "first_byte",
+        "elapsed_ms": 1933
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 4655
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "message_done",
+        "elapsed_ms": 4693,
+        "characters": 167,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "message_done",
+        "elapsed_ms": 8714,
+        "characters": 496,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 0,
+        "null_span_count": 0
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "usage",
+        "elapsed_ms": 8774,
+        "input_tokens": 8967,
+        "output_tokens": 958,
+        "reasoning_tokens": 756
+      },
+      {
+        "probe": "d2313474-c118-4570-91f1-0219eccb20ec",
+        "event": "closed",
+        "elapsed_ms": 8787
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "request_received",
+        "elapsed_ms": 1,
+        "input_bytes": 46379,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "headers",
+        "elapsed_ms": 1563,
+        "status": 200
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "first_byte",
+        "elapsed_ms": 1565
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 5761
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "message_done",
+        "elapsed_ms": 5995,
+        "characters": 157,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "message_done",
+        "elapsed_ms": 63216,
+        "characters": 2661,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 6,
+        "null_span_count": 6
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "usage",
+        "elapsed_ms": 67110,
+        "input_tokens": 9296,
+        "output_tokens": 8959,
+        "reasoning_tokens": 8114
+      },
+      {
+        "probe": "e13cf754-ac75-4cd9-a47e-c9cf075eb355",
+        "event": "closed",
+        "elapsed_ms": 67144
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 50603,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "headers",
+        "elapsed_ms": 2052,
+        "status": 200
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "first_byte",
+        "elapsed_ms": 2055
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 7129
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "message_done",
+        "elapsed_ms": 7156,
+        "characters": 236,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "message_done",
+        "elapsed_ms": 44412,
+        "characters": 1453,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 1,
+        "null_span_count": 1
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "usage",
+        "elapsed_ms": 44806,
+        "input_tokens": 10521,
+        "output_tokens": 5329,
+        "reasoning_tokens": 4853
+      },
+      {
+        "probe": "5fcaeb2e-1126-40f8-a31c-942f067f0d9d",
+        "event": "closed",
+        "elapsed_ms": 44810
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 51892,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "headers",
+        "elapsed_ms": 1917,
+        "status": 200
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "first_byte",
+        "elapsed_ms": 1925
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 7176
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "message_done",
+        "elapsed_ms": 7444,
+        "characters": 172,
+        "acknowledgement_only": false,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "message_done",
+        "elapsed_ms": 15222,
+        "characters": 281,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 0,
+        "null_span_count": 0
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "usage",
+        "elapsed_ms": 15647,
+        "input_tokens": 10871,
+        "output_tokens": 1548,
+        "reasoning_tokens": 1405
+      },
+      {
+        "probe": "2a31ac24-d98f-42c0-ab91-b155bbdceadc",
+        "event": "closed",
+        "elapsed_ms": 15664
+      }
+    ],
+    "memoir-free-commentary-worker.log": [
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "request_received",
+        "elapsed_ms": 1,
+        "input_bytes": 45901,
+        "effort": "max",
+        "schema": false,
+        "tool_count": 0
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "headers",
+        "elapsed_ms": 5362,
+        "status": 200
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "first_byte",
+        "elapsed_ms": 5364
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 6948
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "message_done",
+        "elapsed_ms": 7062,
+        "characters": 46,
+        "acknowledgement_only": true,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "message_done",
+        "elapsed_ms": 47383,
+        "characters": 1750,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 3,
+        "null_span_count": 3
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "usage",
+        "elapsed_ms": 48009,
+        "input_tokens": 9453,
+        "output_tokens": 6619,
+        "reasoning_tokens": 5958
+      },
+      {
+        "probe": "665e249e-f19a-4985-b963-c7f05f5d8188",
+        "event": "closed",
+        "elapsed_ms": 48081
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 45912,
+        "effort": "max",
+        "schema": false,
+        "tool_count": 0
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "headers",
+        "elapsed_ms": 2577,
+        "status": 200
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "first_byte",
+        "elapsed_ms": 2581
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 4288
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "message_done",
+        "elapsed_ms": 4408,
+        "characters": 87,
+        "acknowledgement_only": true,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "message_done",
+        "elapsed_ms": 66408,
+        "characters": 2652,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 5,
+        "null_span_count": 5
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "usage",
+        "elapsed_ms": 66658,
+        "input_tokens": 9382,
+        "output_tokens": 10537,
+        "reasoning_tokens": 9763
+      },
+      {
+        "probe": "328b15a6-5a7b-4474-be10-0577ae3f5d5c",
+        "event": "closed",
+        "elapsed_ms": 66681
+      }
+    ],
+    "memoir-parallel-ack-worker-v2.log": [
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "request_received",
+        "elapsed_ms": 1,
+        "input_bytes": 44249,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 39346,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "headers",
+        "elapsed_ms": 5128,
+        "status": 200
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "first_byte",
+        "elapsed_ms": 5133
+      },
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "headers",
+        "elapsed_ms": 5209,
+        "status": 200
+      },
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "first_byte",
+        "elapsed_ms": 5210
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 9455
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "message_done",
+        "elapsed_ms": 9558,
+        "characters": 36,
+        "acknowledgement_only": true,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "usage",
+        "elapsed_ms": 9714,
+        "input_tokens": 7812,
+        "output_tokens": 491,
+        "reasoning_tokens": 461
+      },
+      {
+        "probe": "fde63bcd-abdc-46d5-9aab-58f1d6b90e0e",
+        "event": "closed",
+        "elapsed_ms": 9716
+      },
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 28285
+      },
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "message_done",
+        "elapsed_ms": 30595,
+        "characters": 1620,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 3,
+        "null_span_count": 3
+      },
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "usage",
+        "elapsed_ms": 31246,
+        "input_tokens": 8851,
+        "output_tokens": 3706,
+        "reasoning_tokens": 3106
+      },
+      {
+        "probe": "b5d95a91-e5a1-4fce-ac08-e6f95f3746d6",
+        "event": "closed",
+        "elapsed_ms": 31335
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "request_received",
+        "elapsed_ms": 1,
+        "input_bytes": 39357,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "request_received",
+        "elapsed_ms": 0,
+        "input_bytes": 44260,
+        "effort": "max",
+        "schema": true,
+        "tool_count": 0
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "headers",
+        "elapsed_ms": 1803,
+        "status": 200
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "first_byte",
+        "elapsed_ms": 1803
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "headers",
+        "elapsed_ms": 1876,
+        "status": 200
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "first_byte",
+        "elapsed_ms": 1876
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 4967
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "message_done",
+        "elapsed_ms": 5071,
+        "characters": 117,
+        "acknowledgement_only": true,
+        "private_plan_null": true,
+        "continuity_count": null,
+        "null_span_count": null
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "usage",
+        "elapsed_ms": 5157,
+        "input_tokens": 7763,
+        "output_tokens": 418,
+        "reasoning_tokens": 383
+      },
+      {
+        "probe": "7e13b41c-7b79-430e-89fc-c9327ec576aa",
+        "event": "closed",
+        "elapsed_ms": 5158
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "response.output_text.delta",
+        "elapsed_ms": 55354
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "message_done",
+        "elapsed_ms": 59474,
+        "characters": 2602,
+        "acknowledgement_only": false,
+        "private_plan_null": false,
+        "continuity_count": 5,
+        "null_span_count": 5
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "usage",
+        "elapsed_ms": 60102,
+        "input_tokens": 8794,
+        "output_tokens": 7041,
+        "reasoning_tokens": 6267
+      },
+      {
+        "probe": "496229d3-8ffb-4000-950e-7580fe3aba76",
+        "event": "closed",
+        "elapsed_ms": 60112
+      }
+    ]
+  },
+  "provider_receipts_read_only": [
+    {
+      "probe": "parallel_v2_zh_full",
+      "matching_receipts": 1,
+      "match_basis": "Unique exact input/output/reasoning token totals in the bounded probe window; independent request IDs, not direct trace correlation.",
+      "receipts": [
+        {
+          "request_id": "resp_03be9dc807737721016ad0c8ff024c81918e02c63cca468fac",
+          "requested_at": "2026-10-15 12:37:44.582112",
+          "reasoning_effort": "max",
+          "latency_ms": 27298,
+          "latency_first_token_ms": 24766,
+          "latency_response_created_ms": 1671,
+          "latency_first_upstream_event_ms": 1446,
+          "input_tokens": 8851,
+          "output_tokens": 3706,
+          "reasoning_tokens": 3106,
+          "latency_response_create_gate_wait_ms": 0,
+          "latency_bridge_queue_wait_ms": 0,
+          "latency_queue_ms": null
+        }
+      ]
+    },
+    {
+      "probe": "parallel_v2_zh_ack",
+      "matching_receipts": 1,
+      "match_basis": "Unique exact input/output/reasoning token totals in the bounded probe window; independent request IDs, not direct trace correlation.",
+      "receipts": [
+        {
+          "request_id": "resp_000c0266b9100b35016ad0c8fee8008191a9327d5cad44df7f",
+          "requested_at": "2026-10-15 12:37:23.741882",
+          "reasoning_effort": "max",
+          "latency_ms": 6118,
+          "latency_first_token_ms": 5954,
+          "latency_response_created_ms": 1543,
+          "latency_first_upstream_event_ms": 1315,
+          "input_tokens": 7812,
+          "output_tokens": 491,
+          "reasoning_tokens": 461,
+          "latency_response_create_gate_wait_ms": 0,
+          "latency_bridge_queue_wait_ms": 0,
+          "latency_queue_ms": null
+        }
+      ]
+    },
+    {
+      "probe": "parallel_v2_en_full",
+      "matching_receipts": 1,
+      "match_basis": "Unique exact input/output/reasoning token totals in the bounded probe window; independent request IDs, not direct trace correlation.",
+      "receipts": [
+        {
+          "request_id": "resp_097f429e7d041701016ad0c91f78e48191ad516d3688484ea4",
+          "requested_at": "2026-10-15 12:38:49.563782",
+          "reasoning_effort": "max",
+          "latency_ms": 59344,
+          "latency_first_token_ms": 55029,
+          "latency_response_created_ms": 1551,
+          "latency_first_upstream_event_ms": 1205,
+          "input_tokens": 8794,
+          "output_tokens": 7041,
+          "reasoning_tokens": 6267,
+          "latency_response_create_gate_wait_ms": 0,
+          "latency_bridge_queue_wait_ms": 0,
+          "latency_queue_ms": null
+        }
+      ]
+    },
+    {
+      "probe": "parallel_v2_en_ack",
+      "matching_receipts": 1,
+      "match_basis": "Unique exact input/output/reasoning token totals in the bounded probe window; independent request IDs, not direct trace correlation.",
+      "receipts": [
+        {
+          "request_id": "resp_05a4205d3e28ec43016ad0c91f5c2881919c4455c539778e7f",
+          "requested_at": "2026-10-15 12:37:54.644243",
+          "reasoning_effort": "max",
+          "latency_ms": 4764,
+          "latency_first_token_ms": 4596,
+          "latency_response_created_ms": 1417,
+          "latency_first_upstream_event_ms": 1119,
+          "input_tokens": 7763,
+          "output_tokens": 418,
+          "reasoning_tokens": 383,
+          "latency_response_create_gate_wait_ms": 0,
+          "latency_bridge_queue_wait_ms": 0,
+          "latency_queue_ms": null
+        }
+      ]
+    }
+  ],
+  "provider_receipt_interpretation": "For matched English full collector: 6267 reasoning tokens and 55.029s until first token; acknowledgement-only request: 383 reasoning tokens and 4.596s until first token. Both effective max. Matched bridge/create-gate waits were zero; unreported queue latency remains null. This confirms substantial reasoning before text in these calls; it does not attribute every millisecond of the original 26.628s sample.",
+  "final_runtime_checks": {
+    "api": 200,
+    "web_proxy": 200,
+    "probe_ports_still_listening": []
+  }
+}

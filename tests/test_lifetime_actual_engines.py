@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from apps.api import agent_routes,codex_worker_service as worker_module,lifetime_memory_engine as engine_module
 from apps.api.codex_runtime import CodexRuntime
+from apps.api.codex_agent import CodexConnection
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
 from memoir_postgres_workflow import PostgresRest
@@ -37,23 +38,43 @@ def test_first_visible_ack_precedes_proposal_completion_and_durable_save(sql, tm
         expected['acknowledgement'] = 'It is good to meet you, Joan.'
         expected['plan']['conversation_phase'] = 'comfort'
         expected['continuity_updates'] = []
+        expected['place_journeys'] = []
+        expected['plan']['candidates'][0]['context']['historical_clue_id'] = None
         raw = json.dumps(expected)
 
-        class ControlledAppServer:
-            def __init__(self, command, home, **options): self.options = options
+        class ControlledAppServer(CodexConnection):
+            def __init__(self, command, home, **options):
+                super().__init__(command, home, **options)
+                self.options = options
             async def __aenter__(self): return self
             async def __aexit__(self, *args): pass
             async def request(self, method, params):
                 async with self.options['request_admission'](): pass
-                return {'thread': {'id': 'synthetic-streaming-thread'}}
-            async def turn(self, thread, prompt, **options):
-                async with self.options['request_admission'](): pass
+                if method == 'thread/start':
+                    return {'thread': {'id': 'synthetic-streaming-thread'}}
+                thread, turn = params['threadId'], 'synthetic-turn'
                 calls.append(thread)
-                if options.get('on_delta'):
-                    for char in raw[:raw.index(', "plan"')]:
-                        await options['on_delta'](char)
+                # Stream the final JSON through its acknowledgement, then
+                # withhold all private planning bytes behind the barrier.
+                split = raw.index(', "plan"')
+                early = raw[:split]
+                from jsonschema import validate
+                validate(json.loads(raw), params['outputSchema'])
+                self.early = [{'method': 'item/agentMessage/delta', 'params': {
+                    'threadId': thread, 'turnId': turn, 'itemId': 'early', 'delta': char}} for char in early]
+                self.final = [
+                    {'method': 'item/agentMessage/delta', 'params': {'threadId': thread,
+                        'turnId': turn, 'itemId': 'early', 'delta': raw[split:]}},
+                    {'method': 'item/completed', 'params': {'threadId': thread, 'turnId': turn,
+                        'item': {'id': 'early', 'type': 'agentMessage', 'phase': 'final_answer', 'text': raw}}},
+                    {'method': 'turn/completed', 'params': {'threadId': thread,
+                        'turn': {'id': turn, 'status': 'completed'}}},
+                ]
+                return {'turn': {'id': turn}}
+            async def receive(self):
+                if self.early: return self.early.pop(0)
                 await finish.wait()
-                return raw
+                return self.final.pop(0)
 
         # HTTPX's standard ASGI transport buffers the whole response. This
         # bridge preserves real worker ASGI sends and transport backpressure.

@@ -31,16 +31,12 @@ from .lifetime_memory_execution import open_execution
 from .lifetime_memory_publication import ProviderPublication
 
 
+# Native outputSchema also constrains commentary. Forcing a preamble required
+# extra schema-shaped messages and slowed final replies in the issue 53 probes.
+# Stream the acknowledgement from this single final document instead.
 GOVERNED_TURN_PROMPT = (
     'Respond to the current narrator evidence in the governed packet. '
-    'Read the entire current source and the pinned privacy, language and safety constraints first. '
-    'Then immediately send a brief, genuine acknowledgement in the commentary channel as a JSON '
-    'object containing only acknowledgement. Follow the acknowledgement rules, including the '
-    'historical-context restriction. Do not ask a question, invent a detail, announce processing, '
-    'or claim a save. Send this before working out question candidates, continuity spans, '
-    'place coordinates or tool work. Continue with all reasoning needed for a high-quality '
-    'complete proposal. In the final_answer channel return the supplied structured collector '
-    'schema, copying the early acknowledgement exactly.'
+    'Return the supplied structured collector schema.'
 )
 # The installed pooled and dedicated low aliases route to the same byte-BPE
 # model. No wildcard or arbitrary operator-defined alias is admitted.

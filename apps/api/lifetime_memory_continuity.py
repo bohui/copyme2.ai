@@ -39,9 +39,12 @@ For every update, text must equal quote verbatim in the original source language
 with at most 500 characters. Preserve narrator uncertainty and remembered speech;
 never turn another speaker's words into the narrator's preference or commitment.
 assertion is asserted or inferred; inferred requires a nonempty uncertainty.
-Cite only the CURRENT active narrator source_id and source_version. char_start
-and char_end are zero-based Unicode character offsets, with an exclusive end,
-and must identify quote exactly in that original source. Public news, photo
+Cite only the CURRENT active narrator source_id and source_version. Prefer null
+for BOTH char_start and char_end when quote occurs exactly once in the current
+source: the application finds and verifies its exact Unicode positions. Do not
+spend reasoning counting characters for unique quotes. For a repeated quote,
+choose a longer unique exact quotation or supply its precise zero-based Unicode
+character offsets, with an exclusive end. Public news, photo
 metadata, old sources and generated assistant text cannot supply these updates.
 Do not translate quotes or invent a paraphrase, person, relationship, promise or
 restriction. No owner, epoch, record ID or revision belongs in a proposal.
@@ -121,6 +124,8 @@ def governed_collector_schema(context=None):
     extension = _Updates.model_json_schema()
     schema.setdefault('$defs', {}).update(extension['$defs'])
     item = schema['$defs']['_ContinuityUpdate']['properties']
+    for field in ('char_start', 'char_end'):
+        item[field] = {'anyOf': [item[field], {'type': 'null'}]}
     source = (context or {}).get('source')
     if source:
         item['source_id']['const'] = source['id']
@@ -267,12 +272,14 @@ def validate_governed_collector_result(raw, context):
             if not source or not isinstance(item, dict):
                 continue
             start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
-            if (type(start) is not int or start < 0 or type(end) is not int or end < 1
+            locate = ('char_start' in item and 'char_end' in item and start is None and end is None)
+            explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
+            if (not (locate or explicit)
                     or not isinstance(quote, str) or not 0 < len(quote) <= 500
                     or item.get('source_id') != source['id']
                     or type(item.get('source_version')) is not int or item['source_version'] != source['version']):
                 continue
-            if source['text'][start:end] != quote:
+            if locate or source['text'][start:end] != quote:
                 original_start = source['text'].find(quote)
                 if original_start >= 0 and source['text'].find(quote, original_start + 1) < 0:
                     # Resolve a unique exact quote before typed span validation.
