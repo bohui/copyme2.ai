@@ -45,3 +45,60 @@ def test_canonical_comparison_stops_on_first_failed_delivery_without_raw_error(m
     assert receipt['results'][0]['appserver_turns'] is None
     assert receipt['provider_requests_started']==0
     assert 'private-fixture-key' not in json.dumps(receipt)
+
+
+def test_controlled_comparison_isolates_hostile_inherited_research_and_gateway_config(monkeypatch):
+    from contextlib import contextmanager
+    import httpx
+    from apps.api.historical_news import accepted_hypothesis
+    from apps.api.historical_news_provider import GatewayHistoricalProvider
+    from scripts import profile_canonical_controlled as profile
+
+    text = 'I was born in Perth, Australia in 1950.'
+    assert accepted_hypothesis({'sources': [{'id': 'synthetic', 'version': 1,
+        'status': 'active', 'text': text}]}) is not None
+    inherited = {'MEMORY_SPARK_HISTORICAL_NEWS': 'true',
+        'MEMORY_SPARK_HISTORICAL_NEWS_MODEL': 'synthetic-history',
+        'MEMORY_SPARK_LLM_BASE_URL': 'https://provider.invalid/v1',
+        'MEMORY_SPARK_LLM_API_KEY': 'synthetic-inherited-key',
+        'MEMORY_SPARK_LLM_MODEL': 'synthetic-general',
+        'MEMORY_SPARK_CODEX_WORKER_URL': 'https://worker.invalid',
+        'OPENAI_API_KEY': 'synthetic-openai-key',
+        'HTTPS_PROXY': 'http://proxy.invalid:8080'}
+    for key, value in inherited.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native')
+    contacts, database_environments = [], []
+    async def blocked_discovery(self, query, **options):
+        contacts.append('historical-discovery')
+        raise RuntimeError('Synthetic network sentinel; no request sent')
+    async def blocked_inspection(self, url, **options):
+        contacts.append('historical-source')
+        raise RuntimeError('Synthetic network sentinel; no source fetched')
+    monkeypatch.setattr(GatewayHistoricalProvider, 'discover', blocked_discovery)
+    monkeypatch.setattr(GatewayHistoricalProvider, 'inspect', blocked_inspection)
+    real_send = httpx.AsyncClient.send
+    async def only_mock_transport(client, *args, **kwargs):
+        assert isinstance(client._transport, httpx.MockTransport), 'External HTTP transport forbidden'
+        return await real_send(client, *args, **kwargs)
+    monkeypatch.setattr(httpx.AsyncClient, 'send', only_mock_transport)
+    real_database = profile.controlled_database
+    @contextmanager
+    def observed_database():
+        try:
+            with real_database() as sql:
+                yield sql
+        finally:
+            # Isolation must also cover cleanup after publication delivery.
+            database_environments.append({key: os.environ.get(key) for key in inherited})
+    monkeypatch.setattr(profile, 'controlled_database', observed_database)
+
+    receipt = asyncio.run(profile.canonical_campaign([text], candidate_model='synthetic-byte-bpe'))
+    assert receipt['status'] == 'completed' and receipt['temporary_homes_removed']
+    assert receipt['provider_requests_started'] == 0
+    assert contacts == []
+    assert len(database_environments) == 2
+    assert all(env['MEMORY_SPARK_HISTORICAL_NEWS'] == '0' for env in database_environments)
+    assert all(all(env[key] is None for key in inherited if key != 'MEMORY_SPARK_HISTORICAL_NEWS')
+        for env in database_environments)
+    assert all(os.environ[key] == value for key, value in inherited.items())

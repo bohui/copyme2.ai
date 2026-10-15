@@ -32,6 +32,24 @@ def digest(value):
 
 
 @contextmanager
+def offline_settings():
+    """Exclude inherited service authority for the whole run, including cleanup."""
+    previous = dict(os.environ)
+    prerequisites = {'PATH', 'HOME', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL',
+        'SHELL', 'LD_LIBRARY_PATH', 'MEMOIR_TEST_TEMPORAL_CLI'}
+    environment = {key: value for key, value in previous.items() if key in prerequisites}
+    environment.update(PYTHONPATH=str(ROOT), MEMOIR_TEST_POSTGRES_BACKEND='native',
+        MEMORY_SPARK_HISTORICAL_NEWS='0', MEMORY_SPARK_DISABLE_PRIVDROP='1')
+    os.environ.clear()
+    os.environ.update(environment)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(previous)
+
+
+@contextmanager
 def settings(dsn, variant):
     values={'MEMOIR_PUBLICATION_DATABASE_URL':dsn,'MEMORY_SPARK_DISABLE_PRIVDROP':'1',
         'MEMORY_SPARK_COLLECTOR_MODEL':variant['model'],
@@ -47,6 +65,11 @@ def settings(dsn, variant):
 
 
 async def canonical_campaign(rounds, *, timeout=20, candidate_model='gpt-5.6-luna-memoir-low'):
+    with offline_settings():
+        return await _canonical_campaign(rounds, timeout=timeout, candidate_model=candidate_model)
+
+
+async def _canonical_campaign(rounds, *, timeout, candidate_model):
     if (not isinstance(rounds,list) or not 1<=len(rounds)<=50
         or any(not isinstance(text,str) or not text.strip() for text in rounds)
         or candidate_model not in SUPPORTED_BYTE_BOUND_MODELS):
