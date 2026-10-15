@@ -1,9 +1,7 @@
-"""Characterize real event-source dependency attribution, not product approval.
+"""Approved direct stage attribution across real canonical dependency graphs.
 
-The original ring tests used direct stage links. These fixtures instead use the
-canonical event persistence function, whose evidence links include primary,
-temporal, stage and relation dependencies. The observed inclusion of shared
-birth evidence in two stage totals is an explicit remaining acceptance question.
+Temporal, relation and other contextual dependencies remain available to the
+event service but must not inflate a stage's directly assigned narrator volume.
 """
 from apps.api.stage_readiness import readiness, word_equivalents
 from stage_progress_fixture import save_stage_source
@@ -12,7 +10,7 @@ from test_shared_memory_events_postgres import rpc, literal
 import pytest
 
 
-def test_characterize_mixed_stage_primary_temporal_stage_and_relation_provenance(sql):
+def test_birth_and_relation_background_do_not_inflate_direct_childhood_evidence(sql):
     project = resolve(sql)['project_id']
     sources = [save_stage_source(sql, project, text) for text in [
         'I was born in 1950.', 'At age 6 I started school.',
@@ -32,7 +30,7 @@ def test_characterize_mixed_stage_primary_temporal_stage_and_relation_provenance
               'source_refs':[refs[4]], 'stage_evidence':[refs[4]]}], [manifest[0],manifest[4]])
     event = sql("select id from public.user_memory_event where data->>'title'='Bakery';").stdout.strip()
     persist([{'kind':'event', 'title':'School', 'life_stage':'childhood',
-              'source_refs':[refs[1]], 'stage_evidence':[refs[2]],
+              'source_refs':[refs[1]], 'stage_evidence':[refs[1],refs[2]],
               'temporal':{'expression':'age 6', 'precision':'age', 'year_start':1956,
                           'year_end':1956, 'basis':[refs[0],refs[1]]},
               'relations':[{'kind':'before', 'event_id':event, 'source_refs':[refs[3]]}]}])
@@ -40,19 +38,59 @@ def test_characterize_mixed_stage_primary_temporal_stage_and_relation_provenance
     linked = sql(f"select count(*) from public.user_memory_event_source where event_id='{school}';")
     assert int(linked.stdout) == 4
     view = rpc(sql, 'read_lifetime_stage_readiness', literal(project))['stages']
-    # This records present behavior, rather than asserting that dependency
-    # words should be treated as primary stage narration by product policy.
     assert view['baby'] == readiness(word_equivalents(sources[0]['text']))
-    assert view['childhood'] == readiness(sum(word_equivalents(source['text']) for source in sources[:4]))
+    expected = readiness(sum(word_equivalents(source['text']) for source in sources[1:3]))
+    assert view['childhood'] == expected
     assert view['midlife'] == readiness(word_equivalents(sources[4]['text']))
     assert view['adolescence'] == readiness(0)
-    # Excluding the shared dependency removes its contribution to school only.
+    # Removing background changes neither direct stage total.
     from test_agent_commit_postgres import OWNER
     sql(f"insert into public.user_memory_event_source_exclusion values('{OWNER}',{literal(project)},"
         f"'{school}','{sources[0]['id']}','{OWNER}','Synthetic exclusion',1);")
     fresh = rpc(sql, 'read_lifetime_stage_readiness', literal(project))['stages']
     assert fresh['baby'] == view['baby']
-    assert fresh['childhood'] == readiness(sum(word_equivalents(source['text']) for source in sources[1:4]))
+    assert fresh['childhood'] == expected
+
+
+@pytest.mark.parametrize('shared', [False,True])
+def test_direct_multi_stage_attribution_is_supported_without_counting_whole_source_context(sql, shared):
+    project = resolve(sql)['project_id']
+    if shared:
+        text = 'Our family custom continued from childhood into midlife.'
+        pieces = [text,text]
+    else:
+        pieces = ['During childhood I cycled to school.', 'During midlife I opened a bakery.']
+        text = ' '.join(pieces)
+    source = save_stage_source(sql, project, text)
+    background = save_stage_source(sql, project, 'I was born in 1950.')
+    def ref(item, quote):
+        start = item['text'].index(quote)
+        return {'source_id':item['id'], 'version':item['version'], 'quote':quote,
+                'char_start':start, 'char_end':start+len(quote)}
+    original = ref(source,text)
+    birth = ref(background,background['text'])
+    proposals = [{'kind':'event','title':stage,'life_stage':stage,
+                  'source_refs':[original], 'stage_evidence':[ref(source,piece)],
+                  'temporal':{'expression':'unknown','precision':'unknown','basis':[birth]}}
+                 for stage,piece in zip(['childhood','midlife'],pieces)]
+    manifest = [{'id':item['id'],'version':item['version']} for item in [source,background]]
+    rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal(manifest)}::jsonb,{literal(proposals)}::jsonb")
+    stages = rpc(sql,'read_lifetime_stage_readiness',literal(project))['stages']
+    assert stages['childhood'] == readiness(word_equivalents(pieces[0]))
+    assert stages['midlife'] == readiness(word_equivalents(pieces[1]))
+    assert stages['baby'] == readiness(0)
+
+
+def test_duplicate_and_overlapping_direct_spans_count_once_per_stage(sql):
+    from stage_progress_fixture import link_stage
+    project = resolve(sql)['project_id']
+    source = save_stage_source(sql,project,'童'*200)
+    event = link_stage(sql,project,source,'childhood',0,150)
+    link_stage(sql,project,source,'childhood',50,200,event)
+    link_stage(sql,project,source,'childhood',0,150)
+    stages = rpc(sql,'read_lifetime_stage_readiness',literal(project))['stages']
+    assert stages['childhood'] == readiness(200)
+    assert stages['midlife'] == readiness(0)
 
 
 @pytest.mark.parametrize('size', [1000,5000])
@@ -82,7 +120,10 @@ def test_bounded_large_history_readiness_query_plan(sql, tmp_path, monkeypatch, 
       insert into public.user_memory_event(user_id,project_id,id,kind,life_stage,status,data,change_sequence)
       select user_id,project_id,'cost-event-'||sequence,'event',
         (array['baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life'])[1+(sequence%7)::int],
-        'active',jsonb_build_object('title','Synthetic cost event'),sequence from public.user_narrator_source;
+        'active',jsonb_build_object('title','Synthetic cost event','stage_evidence',
+          (select jsonb_agg(jsonb_build_object('source_id',s.id,'version',s.version,'char_start',offset_value,
+             'char_end',offset_value+600,'quote',substring(s.text from offset_value+1 for 600)))
+           from unnest(array[0,300,600]) offset_value)),sequence from public.user_narrator_source s;
       insert into public.user_memory_event_source
       select s.user_id,s.project_id,'cost-event-'||s.sequence,s.id,s.version,md5(offset_value::text),
         jsonb_build_object('source_id',s.id,'version',s.version,'char_start',offset_value,'char_end',offset_value+600,

@@ -28,8 +28,10 @@ def link_stage(sql, project, source, stage, start=0, end=None, event=None):
            'quote': source['text'][start:end], 'char_start': start, 'char_end': end}
     data = {'title': 'Synthetic stage memory', 'stage_evidence': [ref],
             'temporal': {'expression': 'unknown', 'precision': 'unknown'}}
-    sql(f"insert into public.user_memory_event(user_id,project_id,id,kind,life_stage,status,data,change_sequence) "
-        f"values('{OWNER}',{literal(project)},'{event}','event','{stage}','active',{literal(data)}::jsonb,1) on conflict do nothing;")
+    sql(f"insert into public.user_memory_event as saved_event(user_id,project_id,id,kind,life_stage,status,data,change_sequence) "
+        f"values('{OWNER}',{literal(project)},'{event}','event','{stage}','active',{literal(data)}::jsonb,1) "
+        "on conflict(user_id,project_id,id) do update set data=jsonb_set(saved_event.data,'{stage_evidence}',"
+        "coalesce(saved_event.data->'stage_evidence','[]') || (excluded.data->'stage_evidence'));")
     sql(f"insert into public.user_memory_event_source values('{OWNER}',{literal(project)},'{event}',"
         f"'{source['id']}',{source['version']},md5({literal(ref)}),{literal(ref)}::jsonb) on conflict do nothing;")
     return event

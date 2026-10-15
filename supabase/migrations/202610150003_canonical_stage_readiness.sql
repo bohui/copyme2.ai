@@ -1,6 +1,7 @@
 -- Canonical replies deliberately keep user_memory.life_stage = 'unplaced'.
--- Read the stage placement from current canonical evidence instead. Keep the
--- narrator_context_volume_v1 counter, thresholds and legacy response totals.
+-- Count only spans explicitly assigned in stage_evidence. Shared temporal,
+-- relation and other background dependencies do not inflate another stage.
+-- Keep the narrator_context_volume_v1 counter, thresholds and legacy totals.
 begin;
 create or replace function public.read_lifetime_stage_readiness(p_project_id text) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -23,11 +24,12 @@ begin
      on s.user_id=n.user_id and s.project_id=n.project_id and s.source_id=n.id and s.source_version=n.version
    join public.user_memory_event e on e.user_id=s.user_id and e.project_id=s.project_id and e.id=s.event_id
    where e.status='active' and e.life_stage<>'unplaced'
+     and coalesce(e.data->'stage_evidence','[]'::jsonb) @> jsonb_build_array(s.evidence)
      and not exists(select 1 from public.user_memory_event_source_exclusion x
        where x.user_id=s.user_id and x.project_id=s.project_id and x.event_id=s.event_id and x.source_id=s.source_id)
  ), merged as (
-   -- Several events/dependencies may cite the same narrator words. Count their
-   -- union within each stage, never the full mixed-stage source or assistant.
+   -- Several direct assignments may cite the same narrator words. Count their
+   -- union within each stage, never mixed-stage context or assistant prose.
    select id,life_stage,range_agg(int4range(lo,hi)) ranges from spans
    where lo>=0 and hi>lo and hi<=length(text) and substring(text from lo+1 for hi-lo)=quote
      and (explicit_span or strpos(substring(text from lo+2),quote)=0)
