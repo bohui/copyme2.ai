@@ -236,7 +236,12 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
     publication_dsn = None
     if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
-    with tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir=directory_root or '/tmp') as directory:
+    # A supplied root belongs to the supervising case process. It alone removes
+    # these allocations after verified shutdown, retaining postmaster.pid/data
+    # for its immediate-stop fallback if this child's bounded fast stop fails.
+    directory_context = (nullcontext(tempfile.mkdtemp(prefix='memoir-lease-pg-', dir=directory_root))
+        if directory_root is not None else tempfile.TemporaryDirectory(prefix='memoir-lease-pg-', dir='/tmp'))
+    with directory_context as directory:
         data = str(Path(directory) / 'data')
         if container_backend:
             pg_container_name = os.getenv('MEMOIR_TEST_POSTGRES_CONTAINER_NAME') or 'memoir-issue6-pg-' + uuid4().hex[:12]

@@ -28,7 +28,11 @@ def _test_adapter():
 
 @contextmanager
 def controlled_database(*, directory_root=None):
-    """A new local Unix-socket database, never an inherited service or Mac."""
+    """Owned Unix-socket database; a supplied root delegates deletion to its caller.
+
+    The supervising caller must reconcile shutdown before removing that root,
+    including when this generator's bounded stop raises or times out.
+    """
     _test_adapter()
     from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database
     if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native') != 'native':
