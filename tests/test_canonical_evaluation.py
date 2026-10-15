@@ -4,7 +4,9 @@ import sys
 
 import pytest
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+from apps.api.turn_stream import turn_events
 from temporalio import activity
 from temporalio.testing import WorkflowEnvironment
 from temporal_test_server import local_options
@@ -14,7 +16,7 @@ from temporalio.worker import Worker
 from test_shared_memory_events_postgres import (
     database, attachment_database, private_database, event_database, sql, OWNER, ROOT,
 )
-from memoir_postgres_workflow import PostgresRest
+from memoir_postgres_workflow import PostgresRest, seed_fresh_canonical_project
 
 
 @pytest.mark.parametrize('timeout', [None, True, 0, -1, float('nan'), float('inf')])
@@ -99,6 +101,8 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
         {'locale': 'en-AU', 'source': 'explicit', 'revision': 1}})
     rounds = ['I started school around 1964.', 'Thanks.', 'Tell me more.', 'Yes.', 'Thank you.'][:cadence]
     project = 'synthetic-canonical-case'
+    seed_fresh_canonical_project(sql, OWNER, project)
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     app = FastAPI()
     worker_roles = []
 
@@ -110,13 +114,13 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
         base_url = f'http://127.0.0.1:{readiness.sockets[0].getsockname()[1]}/v1'
         try:
             @app.post('/internal/codex/turn')
-            async def turn(payload: WorkerTurnInput):
+            async def turn(payload: WorkerTurnInput, request: Request):
                 # Only the external provider protocol is controlled. Every
                 # application worker/runtime/storage/workflow executes normally.
                 worker_roles.append(payload.agent_role)
                 control = tmp_path / f'provider-{len(worker_roles)}.json'
                 if payload.agent_role == 'author_timeline':
-                    packet = json.loads(payload.text)
+                    packet = json.loads(payload.bounded_lane.packet)['payload']
                     sources = [s for s in packet['sources'] if s['text'] == rounds[0]]
                     events = [{'kind': 'event', 'title': 'Started school', 'source_refs':
                         [{'source_id': s['id'], 'version': s['version'], 'quote': s['text']}]} for s in sources]
@@ -130,6 +134,9 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                 control.write_text(json.dumps(options))
                 provider = CodexWorker(home_root=tmp_path / 'worker-homes', base_url=base_url,
                     command=[sys.executable, str(ROOT / 'tests/fixtures/issue6_controlled_app_server.py'), str(control)])
+                if 'application/x-ndjson' in request.headers.get('accept', ''):
+                    return StreamingResponse(turn_events(lambda emit: provider.turn(payload,
+                        on_delta=emit, on_event=emit.event)), media_type='application/x-ndjson')
                 return await provider.turn(payload)
 
             transport = RequestLimitedTransport(httpx.ASGITransport(app=app), max_requests=40)
@@ -165,8 +172,9 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                         assert len(view['events']) == 1
                         assert view['events'][0]['title'] == 'Started school'
                         assert view['events'][0]['source_refs'][0]['quote'] == rounds[0]
-                        draft = storage.saved_memoir_draft(project)
-                        assert draft['milestone'] == draft['covered_round'] == cadence
+                        draft = result['checkpoints'][0]['draft']
+                        assert draft['coverage_round'] == cadence
+                        assert draft['page_complete'] is True
                         assert rounds[0] in json.dumps(draft)
                         assert 'author_timeline' in worker_roles and 'composer' in worker_roles
                         assert transport.requests_started == len(worker_roles)

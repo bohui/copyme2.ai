@@ -147,7 +147,7 @@ def test_manifest_rejects_unjoined_gateway_calls_and_keeps_durable_gates_open():
     assert result['evidence']['langfuse_database'] == 'not_run'
 
 
-def test_canonical_driver_preserves_failed_round_and_trajectory_before_raise():
+def test_canonical_driver_preserves_failed_round_and_trajectory_before_raise(monkeypatch):
     from apps.api.agent_storage import UserStorage
     from scripts.canonical_evaluation import CanonicalEvaluationDriver
     class Storage(UserStorage):
@@ -157,6 +157,11 @@ def test_canonical_driver_preserves_failed_round_and_trajectory_before_raise():
         trajectory = {'final': {'status': 'failed'}, 'steps': [{'action': 'provider.failed'}]}
     class Runtime:
         async def turn(self, *args, **kwargs): raise Failure('Do not persist raw external failure text')
+    # Unit-test the driver's progress boundary; actual SQL/worker delivery is
+    # exercised in test_canonical_turn_publication and the native canary test.
+    async def failed_delivery(*args, **kwargs):
+        raise Failure('Do not persist raw external failure text')
+    monkeypatch.setattr('scripts.canonical_evaluation.canonical_turn', failed_delivery)
     driver = CanonicalEvaluationDriver(storage=Storage(), runtime=Runtime(), broker=None,
                                        temporal_client=None, task_queue='mock')
     receipts = []

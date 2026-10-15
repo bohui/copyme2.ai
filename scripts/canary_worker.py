@@ -16,9 +16,11 @@ from scripts.run_codexlb_canary import APPROVED_ACCOUNT_BINDING
 
 
 class CanaryWorker(CodexWorker):
-    def __init__(self, *, home_root, base_url, evidence_mode, command_prefix=None):
+    def __init__(self, *, home_root, base_url, evidence_mode, command_prefix=None, canonical_model=None):
         if evidence_mode != 'controlled_provider':
             raise ValueError('Live mode requires a reviewed installed gateway dispatch binding')
+        if canonical_model not in {None, 'synthetic-byte-bpe'}:
+            raise ValueError('Only the reviewed synthetic canonical model is available in controlled mode')
         self._validate_endpoint(base_url)
         fixtures = Path(__file__).resolve().parents[1] / 'tests/fixtures'
         if (not isinstance(command_prefix, (list, tuple)) or len(command_prefix) != 3
@@ -28,6 +30,8 @@ class CanaryWorker(CodexWorker):
                     fixtures / 'canary_audited_app_server.py'}):
             raise ValueError('Only an explicit checked-in controlled app-server fixture is allowed')
         self._configure(home_root, base_url, command_prefix, 'synthetic-only', evidence_mode)
+        if canonical_model is not None:
+            self.model = canonical_model
 
     @classmethod
     def for_gateway_lease(cls, *, home_root, lease, codex_binary, expected_sha256):
@@ -92,9 +96,9 @@ class CanaryWorker(CodexWorker):
     async def turn(self, payload, on_delta=None, on_event=None):
         if payload.agent_role not in {'collector', 'workspace', 'memory_context', 'author_timeline', 'composer'}:
             raise ValueError('Worker role is outside the approved canary')
-        if payload.model not in {None, 'gpt-5.6-luna'}:
+        if payload.model not in {None, self.model}:
             raise ValueError('The canary role model differs from the pinned model')
-        payload = payload.model_copy(update={'model': 'gpt-5.6-luna'})
+        payload = payload.model_copy(update={'model': self.model})
         async with self._serial:
             if self._stopped:
                 raise RuntimeError('Canary worker stopped after an earlier failure')

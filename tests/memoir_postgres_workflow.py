@@ -141,6 +141,20 @@ def quoted(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def seed_fresh_canonical_project(sql, owner, project):
+    """Explicit task-fixture mapping; INSERT refuses to adopt existing data.
+
+    Only callers that have just allocated the disposable database may use this.
+    Authenticated resolution remains unable to choose historical projects.
+    """
+    sql(f"""begin;
+        insert into public.user_memoir_project(user_id,project_id)
+            values({quoted(owner)},{quoted(project)});
+        insert into public.user_lifetime_conversation(user_id,project_id)
+            values({quoted(owner)},{quoted(project)});
+        commit;""")
+
+
 def read_filter(key, value):
     """Only the product recovery reader's structured filters, never raw SQL."""
     if key == 'or':

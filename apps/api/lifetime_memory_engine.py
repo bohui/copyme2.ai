@@ -402,6 +402,10 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
+    if trajectory is not None:
+        trajectory.finish(result,status='completed',stop_reason='canonical.collector.completed')
+        result['trajectory']=trajectory.payload()
     if on_event:
-        await on_event({'type':'provider_complete', 'data':{'thread_id':candidate, 'reply':reply, 'trajectory':None}})
+        await on_event({'type':'provider_complete', 'data':{'thread_id':candidate, 'reply':reply,
+            'trajectory':result.get('trajectory')}})
     return result

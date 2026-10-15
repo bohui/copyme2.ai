@@ -397,19 +397,32 @@ class CodexWorker:
         if payload.governed is not None:
             # Do not visit or migrate any legacy home. Both transports use the
             # identical packet and fresh-home execution/budget validation seam.
-            return await run_governed_collector(
-                command=self._run_command(uid), home_root=self.home_root,
-                base_url=self.base_url, api_key=self.api_key, model=model,
-                governed=payload.governed, interview_context=payload.interview_context,
-                thread_id=payload.thread_id, timeout=self._execution_timeout('collector'),
-                on_delta=on_delta, on_event=on_event,
-                effort=collector.effort or self.reasoning_effort,
-                responsesapi_client_metadata={**execution_correlation(payload.evaluation, model),
-                    'request_id':new_request_id(payload.diagnostic_request_id)},
-                connection_factory=CodexConnection, issue14_admission=self._issue14_admission,
-                progress=self._progress_context.get()[1] if self._progress_context.get() else None,
-                uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
-            )
+            from .trajectory_evaluation import TrajectoryRecorder
+            recorder = TrajectoryRecorder(payload.evaluation) if payload.evaluation else None
+            if recorder is not None:
+                recorder.set_context(agent_role='collector',model=model,language=payload.language,
+                    execution_contract='canonical')
+            try:
+                return await run_governed_collector(
+                    command=self._run_command(uid), home_root=self.home_root,
+                    base_url=self.base_url, api_key=self.api_key, model=model,
+                    governed=payload.governed, interview_context=payload.interview_context,
+                    thread_id=payload.thread_id, timeout=self._execution_timeout('collector'),
+                    on_delta=on_delta, on_event=on_event,
+                    effort=collector.effort or self.reasoning_effort,
+                    responsesapi_client_metadata={**execution_correlation(payload.evaluation, model),
+                        'request_id':new_request_id(payload.diagnostic_request_id)},
+                    connection_factory=CodexConnection, issue14_admission=self._issue14_admission,
+                    progress=self._progress_context.get()[1] if self._progress_context.get() else None,
+                    uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
+                    trajectory=recorder,
+                )
+            except BaseException as error:
+                if recorder is not None:
+                    recorder.finish(status='failed',stop_reason='canonical.worker.failed',
+                        error={'error_type':type(error).__name__})
+                    error.trajectory=recorder.payload()
+                raise
         raise ValueError('A canonical execution contract is required')
 
 

@@ -86,7 +86,7 @@ def lifetime_generation_paused():
 
 async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,language='en-AU',
         client_turn_id=None,source_kind='narrator_chat',uploaded_photo_ids=None,photo_selection=None,
-        user_response=True,on_delta=None,on_event=None,workspace_focus=None,**unused):
+        user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     from .collector_configuration import collector_configuration
     from .conversation_locale import detect_reply_locale,explicit_request
     from .conversation_phase import explicit_action,resolve_phase
@@ -279,12 +279,15 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
                         family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
                         interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None,
-                        on_event=progress.harness_event)
+                        on_event=progress.harness_event,evaluation=evaluation,trajectory=trajectory)
+                    if trajectory is not None:
+                        trajectory.append_trajectory(result.get('trajectory'),source='canonical-worker')
                 else:
                     result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
                         api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
                         timeout=runtime.timeout,on_delta=delta if on_delta else None,on_event=progress.harness_event,
-                        effort=collector.effort,issue14_admission=runtime._issue14_admission)
+                        effort=collector.effort,issue14_admission=runtime._issue14_admission,trajectory=trajectory,
+                        responsesapi_client_metadata=evaluation)
             except PolicyUnavailable:
                 raise await policy_pending() from None
             except CanonicalActivationUnavailable as error:
@@ -346,7 +349,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         if scope is not None:await scope.aclose()
 
 
-async def lifetime_http_turn(runtime,storage,text,*,accept,options):
+async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage=True):
     import os
     from fastapi import HTTPException
     from .lifetime_memory_publication import TransactionalPublication,PublicationUnavailable
@@ -356,7 +359,8 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options):
     response=None
     async def cleanup():
         try:await publication.close(delivered=response is not None and response.delivered)
-        finally:await asyncio.to_thread(storage.client.close)
+        finally:
+            if close_storage:await asyncio.to_thread(storage.client.close)
     try:
         publisher=TransactionalPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=storage.user_id)
         if 'application/x-ndjson' in accept:

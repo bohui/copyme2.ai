@@ -24,21 +24,22 @@ from apps.api.temporal_workflows import MemoirSkillLane
 MODEL = 'gpt-5.6-luna'
 
 
-def task_environment():
+def task_environment(model=MODEL):
     return {'MEMORY_SPARK_MEMOIR_PREPARATION_CONCURRENCY': '1',
             'MEMORY_SPARK_DISABLE_PRIVDROP': '1',
             'MEMORY_SPARK_LEGACY_CODEX_HOME': '',
             'MEMORY_SPARK_PRIVATE_DRAFT_CADENCE': '5',
             'MEMORY_SPARK_MEMOIR_RUN_SECONDS': '300',
-            'MEMORY_SPARK_LLM_MODEL': MODEL,
-            'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL': MODEL}
+            'MEMORY_SPARK_LLM_MODEL': model,
+            'MEMORY_SPARK_COLLECTOR_MODEL': model,
+            'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL': model}
 
 
 @contextmanager
-def pinned_environment():
+def pinned_environment(model=MODEL):
     """Only for the new, isolated task process; no persistent configuration."""
-    previous = {key: os.environ.get(key) for key in task_environment()}
-    os.environ.update(task_environment())
+    previous = {key: os.environ.get(key) for key in task_environment(model)}
+    os.environ.update(task_environment(model))
     try:
         yield
     finally:
@@ -186,7 +187,7 @@ class CanaryRunEvidence:
         for checkpoint in value.get('checkpoints', []):
             target = next(c for c in self.plan['checkpoints'] if c['case_id'] == self.active['case_id'])
             draft = checkpoint['draft']
-            target.update(draft_saved=bool(draft.get('revision', 0) > 0 and draft.get('covered_round') == 5),
+            target.update(draft_saved=bool(draft.get('revision', 0) > 0 and draft.get('coverage_round', draft.get('covered_round')) == 5),
                           draft=deepcopy(draft), background_job_ids=list(self.active['background_job_ids']))
 
     def _observation_joins(self, result, workers):
@@ -333,7 +334,7 @@ async def run_application_canary(plan, *, storages, broker, temporal_client, wor
     for regression tests; those outputs stay mock_only. No provider readiness
     file or command-line Boolean can grant live access.
     """
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     import httpx
     from temporalio import activity
     from temporalio.worker import Worker
@@ -356,6 +357,11 @@ async def run_application_canary(plan, *, storages, broker, temporal_client, wor
         if (head != plan['source_revision'] or tree != plan['source_tree']
                 or subprocess.check_output(['git', 'status', '--porcelain=v1'], cwd=root)):
             raise ValueError('Live canary requires its exact clean reviewed source head')
+    effective_model = MODEL if live else worker.model
+    from apps.api.lifetime_memory_engine import SUPPORTED_BYTE_BOUND_MODELS
+    from apps.api.lifetime_memory_lane_engine import SUPPORTED_LANE_MODELS
+    if effective_model not in SUPPORTED_BYTE_BOUND_MODELS & SUPPORTED_LANE_MODELS:
+        raise ValueError('Pinned canary model has no reviewed canonical token bound; an approved model binding is required')
     expected_projects = {case['project_id'] for case in plan['cases']}
     if set(storages) != expected_projects:
         raise ValueError('Only both planned synthetic projects may enter the canary')
@@ -384,6 +390,7 @@ async def run_application_canary(plan, *, storages, broker, temporal_client, wor
     receipt = {'run_id': plan['run_id'], 'evidence_mode': 'guarded_live_canary' if live else 'mock_only',
                'status': 'started', 'cases': [], 'worker_requests': [],
                'provider_requests_started': 0, 'cleanup': {}, 'live_acceptance': 'not_run',
+               'requested_model': MODEL, 'effective_model': effective_model,
                'model_output_quality': 'ungraded', 'judge': 'not_run', 'photo': 'not_run',
                'geocoding': 'not_run', 'all_seven_skills': 'not_run', '250_rounds': 'not_run'}
     queue = 'canary-' + plan['run_id']
@@ -393,39 +400,46 @@ async def run_application_canary(plan, *, storages, broker, temporal_client, wor
     save()
 
     @app.post('/internal/codex/turn')
-    async def private_turn(payload: WorkerTurnInput):
-        if payload.model not in {None, MODEL}:
+    async def private_turn(payload: WorkerTurnInput, request: Request):
+        if payload.model not in {None, effective_model}:
             raise ValueError('A worker attempted an unsupported role model')
         correlation = evidence.worker_correlation(payload.model_dump())
         correlation['observation_id'] = uuid4().hex[:16]
         # Background composer/extraction currently do not carry evaluation
         # metadata themselves. Inject IDs at the real private-worker seam;
         # content, model behavior and canonical validators remain unchanged.
-        payload = payload.model_copy(update={'evaluation': correlation, 'model': MODEL,
+        payload = payload.model_copy(update={'evaluation': correlation, 'model': effective_model,
                                               'diagnostic_request_id': str(uuid4())})
         record = {'correlation': correlation, 'role': payload.agent_role,
                   'phase': payload.composer_phase, 'status': 'started',
                   'worker_request_id': payload.diagnostic_request_id}
         receipt['worker_requests'].append(record)
         save()
-        try:
-            result = await worker.turn(payload)
-            record.update(status='completed', trajectory=result.get('trajectory'))
-            return result
-        except BaseException as error:
-            record.update(status='failed', error_class=type(error).__name__,
-                          trajectory=getattr(error, 'trajectory', None))
-            raise
-        finally:
-            save()
+        async def execute(on_delta=None, on_event=None):
+            try:
+                result = await worker.turn(payload,on_delta=on_delta,on_event=on_event)
+                record.update(status='completed', trajectory=result.get('trajectory'))
+                return result
+            except BaseException as error:
+                record.update(status='failed', error_class=type(error).__name__,
+                              trajectory=getattr(error, 'trajectory', None))
+                raise
+            finally:
+                save()
+        if 'application/x-ndjson' in request.headers.get('accept',''):
+            from fastapi.responses import StreamingResponse
+            from apps.api.turn_stream import turn_events
+            return StreamingResponse(turn_events(lambda emit: execute(emit,emit.event)),
+                media_type='application/x-ndjson')
+        return await execute()
 
     transport = RequestLimitedTransport(httpx.ASGITransport(app=app), max_requests=80,
                                          max_elapsed_seconds=deadline - time.monotonic())
     runtime = CodexRuntime(home_root=run_dir / 'api-homes', base_url=worker.base_url,
-                          model=MODEL, worker_url='http://canary-worker.invalid',
+                          model=effective_model, worker_url='http://canary-worker.invalid',
                           worker_secret='task-in-process-only', worker_transport=transport,
                           task_publisher_enabled=False)
-    runtime.composer_model = MODEL
+    runtime.composer_model = effective_model
     lane_worker = MemoryEventWorker(broker, worker_url=runtime.worker_url,
                                    worker_secret=runtime.worker_secret, worker_transport=transport)
 
@@ -443,7 +457,7 @@ async def run_application_canary(plan, *, storages, broker, temporal_client, wor
             return {'status': result['status'], 'pending': bool(state and state['pending'])}
 
     try:
-        with pinned_environment():
+        with pinned_environment(effective_model):
             async with asyncio.timeout_at(deadline):
                 async with Worker(temporal_client, **temporal_worker_options(queue, execute)):
                     for case in plan['cases']:
@@ -541,12 +555,20 @@ class ScopedCanaryBroker:
             raise ValueError('Canary background work requires an active root')
         receipts = await self.broker.rpc('pending_memoir_receipts', p_limit=50)
         timeline, composer = [], []
+        page_budget = 8
         for receipt in receipts:
             scope = await self.broker.rpc('read_memoir_receipt_scope', p_receipt_id=receipt)
             if (not scope or scope['user_id'] != active['owner_id']
                     or scope['project_id'] != active['project_id']
                     or scope['change_kind'] not in {'round', 'accepted', 'events'}):
                 raise ValueError('Receipt is outside the approved canary scope')
+            if scope.get('conversation_id'):
+                if page_budget <= 0:
+                    break
+                complete, used = await self.broker._checkpoint_lifetime_receipt(receipt, page_budget)
+                page_budget -= used
+                if not complete:
+                    break
             queued = await self.broker.rpc('queue_memoir_receipt', p_receipt_id=receipt, p_cadence=5)
             if queued:
                 if queued.get('timeline_lane_id'): timeline.append(queued['timeline_lane_id'])

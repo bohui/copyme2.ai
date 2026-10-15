@@ -15,7 +15,7 @@ from temporal_test_server import local_options
 from controlled_collector import extraction_proposal
 
 from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database, sql
-from memoir_postgres_workflow import PostgresRest, quoted
+from memoir_postgres_workflow import PostgresRest, quoted, seed_fresh_canonical_project
 
 
 def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, tmp_path, monkeypatch):
@@ -27,9 +27,12 @@ def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, 
     plan = build_manifest(run_id=str(uuid4()), source_revision='a' * 40)
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'tasks.sqlite'))
     monkeypatch.setenv('STRIPE_PRICE_FAMILY', 'synthetic-price')
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
     storages = {}
     for case in plan['cases']:
         sql(f"insert into auth.users(id,is_anonymous) values ({quoted(case['owner_id'])},false);")
+        seed_fresh_canonical_project(sql, case['owner_id'], case['project_id'])
         entitlement = {'status': 'paid', 'plan_key': 'family_memoir_v1',
                        'family_tree': case['family_enabled'], 'timeline': case['family_enabled'],
                        'stripe_price_id': 'synthetic-price'}
@@ -46,7 +49,7 @@ def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, 
             # worker, canonical source validators, PostgreSQL and Temporal run.
             async with self.control_lock:
                 if payload.agent_role == 'author_timeline':
-                    packet = json.loads(payload.text)
+                    packet = json.loads(payload.bounded_lane.packet)['payload']
                     events = [] if packet['events'] else [{'kind': 'event', 'title': originals[payload.project_id],
                         'source_refs': [{'source_id': s['id'], 'version': s['version'], 'quote': originals[payload.project_id]}]}
                         for s in packet['sources'] if s['sequence'] == 1]
@@ -70,7 +73,7 @@ def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, 
         try:
             worker = ControlledWorker(home_root=tmp_path / 'worker-homes',
                 base_url=f'http://127.0.0.1:{server.sockets[0].getsockname()[1]}/v1',
-                evidence_mode='controlled_provider', command_prefix=[sys.executable,
+                evidence_mode='controlled_provider', canonical_model='synthetic-byte-bpe', command_prefix=[sys.executable,
                     str(root / 'tests/fixtures/issue6_controlled_app_server.py'), str(control_path)])
             if os.getenv('MEMOIR_NATIVE_RESOURCE_GATE') == '1':
                 from scripts.native_canary_launcher import resource_gate
@@ -84,9 +87,11 @@ def test_ten_original_app_rounds_two_drafts_and_joined_single_attempt_jobs(sql, 
                     assert result['status'] == 'app_completed_evidence_pending', result
                     assert result['provider_requests_started'] == 0
                     assert result['app_receipt']['evidence_mode'] == 'mock_only'
+                    assert result['app_receipt']['requested_model'] == 'gpt-5.6-luna'
+                    assert result['app_receipt']['effective_model'] == 'synthetic-byte-bpe'
                     assert len(result['round_roots']) == 10
                     assert all(r['status'] == 'completed' and r['background_job_ids'] for r in result['round_roots'])
-                    assert all(c['draft_saved'] and c['draft']['covered_round'] == 5 for c in result['checkpoints'])
+                    assert all(c['draft_saved'] and c['draft']['coverage_round'] == 5 for c in result['checkpoints'])
                     assert result['app_receipt']['private_worker_requests_started'] <= 80
                     assert all(job['status'] == 'completed' for job in result['background_jobs'])
                     assert all(request['correlation']['trace_id'] for request in result['app_receipt']['worker_requests'])

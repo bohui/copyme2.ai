@@ -314,5 +314,9 @@ def test_five_case_round_runner_publishes_minimized_trajectory_receipt(tmp_path)
     round_trace = json.loads((tmp_path / "cases" / case["id"] / "rounds" / "round-001.json").read_text())
     assert round_trace["langfuse"]["status"] == "submitted"
     assert round_trace["langfuse"]["durable_readback"] == "not_verified"
-    assert client.observation.updated[0]["metadata"]["evaluation_round_status"] == "mock_only"
+    # Publishing preserves the actual grader result. Legacy dataset fields
+    # cannot make a successful canonical delivery claim old skill acceptance.
+    assert round_trace['error'] is None
+    assert round_trace['response']['conversation_saved'] is True
+    assert client.observation.updated[0]["metadata"]["evaluation_round_status"] == round_trace['grade']['overall']
     assert client.flushed

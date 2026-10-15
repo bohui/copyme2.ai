@@ -1606,7 +1606,8 @@ class CodexRuntime:
             conversation_text if conversation_text is not None else original_conversation_text(text),
             publication=lifetime_context, project_id=project_id, language=language, client_turn_id=client_turn_id,
             source_kind=source_kind, uploaded_photo_ids=uploaded_photo_ids, photo_selection=photo_selection,
-            workspace_focus=workspace_focus, user_response=user_response, on_delta=on_delta, on_event=on_event)
+            workspace_focus=workspace_focus, user_response=user_response, on_delta=on_delta, on_event=on_event,
+            evaluation=evaluation,trajectory=trajectory)
 
 
 
