@@ -56,6 +56,8 @@ if result.returncode == 0 and sys.argv[-1] == 'start':
     owner = os.getppid()
     item = dict(data=str(data), pid=pid, started=pathlib.Path('/proc/'+str(pid)+'/stat').read_text().split()[21],
         owner=owner, owner_started=pathlib.Path('/proc/'+str(owner)+'/stat').read_text().split()[21])
+    root=data.parent.parent
+    item['allocation_root_identity']=dict(root=str(root),device=root.stat().st_dev,inode=root.stat().st_ino)
     with pathlib.Path({str(records)!r}).open('a') as log:
         log.write(json.dumps(item)+'\\n'); log.flush(); os.fsync(log.fileno())
     if {fault!r} == 'hold_case': os.kill(owner, signal.SIGSTOP)

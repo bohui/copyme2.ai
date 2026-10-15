@@ -3,6 +3,7 @@ import asyncio
 from collections import Counter
 from contextlib import contextmanager
 from functools import wraps
+import json
 from pathlib import Path
 import os
 import shlex
@@ -11,6 +12,7 @@ import signal
 import subprocess
 import threading
 import tempfile
+import time
 
 
 _signal_scopes = {}
@@ -18,8 +20,84 @@ ALLOCATION_ROOT_ENV = 'MEMOIR_CONTROLLED_ALLOCATION_ROOT'
 
 
 def new_native_root(prefix):
-    """Keep socket paths short and allocations under an optional outer owner."""
-    return Path(tempfile.mkdtemp(prefix=prefix, dir=os.getenv(ALLOCATION_ROOT_ENV) or '/tmp'))
+    """Register a short physical root with an optional transitive outer owner."""
+    root = Path(tempfile.mkdtemp(prefix=prefix, dir='/tmp'))
+    try:
+        parent = os.getenv(ALLOCATION_ROOT_ENV)
+        if parent:
+            parent = Path(parent)
+            if parent.is_symlink() or parent.stat().st_uid != os.getuid():
+                raise RuntimeError('Controlled parent ownership is unverified')
+            registrations = parent/'owned-roots'
+            registrations.mkdir(mode=0o700, exist_ok=True)
+            _save(registrations/(root.name+'.json'), _root_identity(root))
+        return root
+    except BaseException:
+        shutil.rmtree(root)
+        raise
+
+
+def _save(path, value):
+    temporary = path.with_suffix('.tmp')
+    with temporary.open('w') as stream:
+        json.dump(value, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary.replace(path)
+
+
+def _root_identity(root):
+    stat = root.stat()
+    return {'root':str(root), 'device':stat.st_dev, 'inode':stat.st_ino}
+
+
+def _process_start(pid, environment):
+    result = subprocess.run(['ps','-p',str(pid),'-o','lstart='], env=environment,
+        text=True,capture_output=True,timeout=2)
+    return ' '.join(result.stdout.split()) if result.returncode == 0 else None
+
+
+def register_command_group(root, pid, environment):
+    """Retain the Popen session identity, including an unfinished birth lookup."""
+    record = {'group_id':pid, 'leader_started':None}
+    _save(Path(root)/'command-group.json', record)
+    record['leader_started'] = _process_start(pid, environment)
+    _save(Path(root)/'command-group.json', record)
+    return record
+
+
+def _quiesce_command_group(root, environment, stopped):
+    record = root/'command-group.json'
+    if not record.exists():
+        if root.name.startswith('memoir-check-pg-'):
+            raise RuntimeError(f'Controlled command identity unavailable; retained {root}')
+        return
+    group = json.loads(record.read_text())
+    group_id = group['group_id']
+    if type(group_id) is not int or group_id <= 0:
+        raise RuntimeError(f'Controlled command identity invalid; retained {root}')
+    def live_members():
+        result = subprocess.run(['ps','-e','-o','pid=,pgid=,sid=,stat='],env=environment,
+            text=True,capture_output=True,timeout=2,check=True)
+        return [row for line in result.stdout.splitlines() if len(row:=line.split())==4
+            and row[1]==str(group_id) and not row[3].startswith('Z')]
+    members = live_members()
+    if not members:
+        return
+    current = _process_start(group_id, environment)
+    if (not group.get('leader_started') or (current is not None and current!=group['leader_started'])
+        or any(row[2]!=str(group_id) for row in members)):
+        raise RuntimeError(f'Controlled command identity unverified; retained {root}')
+    try:
+        os.killpg(group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic()+5
+    while live_members():
+        if time.monotonic()>=deadline:
+            raise RuntimeError(f'Controlled command still running; retained {root}')
+        time.sleep(.02)
+    stopped.append(group)
 
 
 @contextmanager
@@ -64,16 +142,35 @@ def sigterm_cancellable(function):
     return run
 
 
-def reconcile_native_directory(directory, environment):
+def _reconcile(directory, environment, result, expected=None, visited=None):
     """Stop only postmasters identifying this private root, then remove it.
 
     A failed command or uncertain identity leaves allocation metadata intact.
     This also runs synchronously while an async owner's cancellation unwinds.
     """
     directory = Path(directory)
-    stopped = []
+    visited = set() if visited is None else visited
+    if str(directory) in visited:
+        raise RuntimeError(f'Controlled ownership cycle; retained {directory}')
+    visited.add(str(directory))
     if directory.is_symlink():
         raise RuntimeError(f'Controlled allocation identity changed; retained {directory}')
+    if expected is not None and not directory.exists():
+        result['registered_roots'].append(expected)
+        return
+    if directory.stat().st_uid!=os.getuid():
+        raise RuntimeError(f'Controlled allocation identity changed; retained {directory}')
+    identity = _root_identity(directory)
+    if expected is not None and identity!=expected:
+        raise RuntimeError(f'Controlled allocation identity changed; retained {directory}')
+    result['registered_roots'].append(identity)
+    _quiesce_command_group(directory, environment, result['command_groups_stopped'])
+    for registration in sorted((directory/'owned-roots').glob('*.json')):
+        child = json.loads(registration.read_text())
+        path = Path(child['root'])
+        if path.parent!=Path('/tmp') or not path.name.startswith(('memoir-case-','memoir-controlled-pg-','memoir-check-pg-')):
+            raise RuntimeError(f'Controlled child root is unverified; retained {directory}')
+        _reconcile(path,environment,result,expected=child,visited=visited)
     for data in directory.glob('**/memoir-lease-pg-*/data'):
         if not data.resolve().is_relative_to(directory.resolve()):
             raise RuntimeError(f'Controlled allocation identity changed; retained {directory}')
@@ -98,6 +195,13 @@ def reconcile_native_directory(directory, environment):
             env=environment, capture_output=True, timeout=12, check=True)
         if pid_file.exists():
             raise RuntimeError(f'Controlled shutdown unverified; retained {directory}')
-        stopped.append({'pid':int(fields[0]), 'data':str(data)})
+        result['postmasters_stopped'].append({'pid':int(fields[0]), 'data':str(data)})
     shutil.rmtree(directory)
-    return {'verified':True, 'root_removed':True, 'postmasters_stopped':stopped}
+
+
+def reconcile_native_directory(directory, environment):
+    """Reconcile only identity-checked roots/sessions registered to this owner."""
+    result = {'verified':True,'root_removed':True,'postmasters_stopped':[],
+        'registered_roots':[],'command_groups_stopped':[]}
+    _reconcile(directory,environment,result)
+    return result

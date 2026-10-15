@@ -8,11 +8,10 @@ import re
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.controlled_lifecycle import ALLOCATION_ROOT_ENV, reconcile_native_directory
+from scripts.controlled_lifecycle import ALLOCATION_ROOT_ENV, new_native_root, reconcile_native_directory, register_command_group
 
 
 def offline_environment(root):
@@ -131,12 +130,14 @@ def main():
         try:
             # This runner owns every nested native allocation, including a
             # detached postmaster outliving its killed command process group.
-            native_root = Path(tempfile.mkdtemp(prefix='memoir-check-pg-', dir='/tmp'))
+            native_root = new_native_root('memoir-check-pg-')
             env[ALLOCATION_ROOT_ENV] = str(native_root)
             receipt['native_allocation_root'] = str(native_root)
             save_receipt(receipt_path, receipt)
             process = subprocess.Popen(command, cwd=args.root, stdout=stream,
                                        stderr=subprocess.STDOUT, start_new_session=True, env=env)
+            receipt['command_group'] = register_command_group(native_root, process.pid, env)
+            save_receipt(receipt_path, receipt)
             deadline = time.monotonic() + args.timeout
             while termination is None:
                 remaining = deadline - time.monotonic()

@@ -14,7 +14,8 @@ from test_controlled_supervisor_lifecycle import allocations, emergency_cleanup,
 
 
 @pytest.mark.parametrize('kind', ['frozen_case', 'profiler_closer'])
-def test_default_outer_kill_boundary_reconciles_detached_postmasters(tmp_path, kind):
+@pytest.mark.parametrize('nested', [False, True])
+def test_default_outer_kill_boundary_reconciles_detached_postmasters(tmp_path, kind, nested):
     env, record_path, stops, real = native_fault_environment(tmp_path, 'hold_case' if kind=='frozen_case' else 'fast_times_out')
     group_marker=tmp_path/'command-owner.json'
     code=f'''import os,json
@@ -36,10 +37,18 @@ asyncio.run(driver.run_isolated_case(dict(id='outer-defaults',project_id='outer-
 sys.argv=['profile','--inputs',{str(source)!r},'--output',{str(tmp_path/'profile.json')!r}]
 runpy.run_module('scripts.profile_canonical_controlled',run_name='__main__')
 '''
+    command=[sys.executable,'-c',code]
+    if nested:
+        inner=[sys.executable,str(ROOT/'scripts/run_isolated_check.py'),'--root',str(ROOT),
+            '--output-dir',str(tmp_path/'inner-receipts'),'--name','inner-boundary','--timeout','90','--',*command]
+        helper=tmp_path/'test_nested_helper.py'
+        helper.write_text('import subprocess\ndef test_nested_check():\n'
+            f'    subprocess.run({inner!r},cwd={str(ROOT)!r},check=False,timeout=80)\n')
+        command=[sys.executable,'-m','pytest','-q',str(helper),'--basetemp',str(tmp_path/'helper-pytest')]
     with (tmp_path/'outer.log').open('w') as log:
         outer=subprocess.Popen([sys.executable,'scripts/run_isolated_check.py','--root',str(ROOT),
             '--output-dir',str(tmp_path/'receipts'),'--name','default-boundary','--timeout','90',
-            '--',sys.executable,'-c',code],cwd=ROOT,env=env,stdout=log,stderr=log)
+            '--',*command],cwd=ROOT,env=env,stdout=log,stderr=log)
         try:
             until=time.monotonic()+45
             while True:
@@ -56,16 +65,24 @@ runpy.run_module('scripts.profile_canonical_controlled',run_name='__main__')
             assert outer.wait(timeout=40)==143
             assert time.monotonic()-sent>=4.5, 'Regression must exercise the shipped five-second escalation'
             records=allocations(record_path)
-            assert all(not running(item['pid'],item['started']) for item in records), 'Outer deadline left detached PostgreSQL alive'
             receipt=json.loads((tmp_path/'receipts/default-boundary.json').read_text())
+            owner=json.loads(group_marker.read_text())
+            (tmp_path/'observed-after-return.json').write_text(json.dumps(dict(receipt=receipt,
+                command=owner,command_running=running(owner['pid'],owner['started']),
+                databases=[dict(**item,running=running(item['pid'],item['started']),
+                    owner_running=running(item['owner'],item['owner_started'])) for item in records]),indent=2))
+            assert all(not running(item['pid'],item['started']) for item in records), 'Outer deadline left detached PostgreSQL alive'
+            assert not running(owner['pid'],owner['started']), 'Nested command survived outer reconciliation'
+            assert all(not running(item['owner'],item['owner_started']) for item in records), 'Case child survived outer reconciliation'
             assert receipt['status']=='terminated' and receipt['termination_signal']==signal.SIGTERM
             native=receipt['native_allocation_cleanup']
             assert native['verified'] and native['root_removed']
             root=Path(receipt['native_allocation_root'])
             assert not root.exists()
             for item in records:
-                assert Path(item['data']).is_relative_to(root)
+                assert item['allocation_root_identity'] in native['registered_roots'], 'Original allocation identity was not owned transitively'
                 assert not Path(item['data']).parent.exists()
+                assert not Path(item['data']).parent.parent.exists()
                 assert any(stop['mode']=='immediate' and stop['pid']==item['pid'] and stop['data']==item['data'] for stop in allocations(stops))
         finally:
             if outer.poll() is None:outer.kill();outer.wait(timeout=5)
@@ -74,6 +91,13 @@ runpy.run_module('scripts.profile_canonical_controlled',run_name='__main__')
                 if running(owner['pid'],owner['started']) and os.getpgid(owner['pid'])==owner['pid']:
                     os.killpg(owner['pid'],signal.SIGKILL)
             emergency_cleanup(allocations(record_path),real,outer.pid,held_child=kind=='frozen_case')
+            inner_receipt=tmp_path/'inner-receipts/inner-boundary.json'
+            if inner_receipt.exists():
+                recorded=json.loads(inner_receipt.read_text()).get('native_allocation_root')
+                if recorded and Path(recorded).exists():
+                    assert Path(recorded).name.startswith('memoir-check-pg-')
+                    import shutil
+                    shutil.rmtree(recorded)
 
 
 def test_long_tmpdir_keeps_owned_native_socket_paths_short(tmp_path):
