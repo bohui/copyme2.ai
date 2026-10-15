@@ -19,6 +19,8 @@ class StoryTransport(BrowserTransport):
     def request(self, path, **options):
         route = Route(path, **options)
         route.request.post_data_json = options.get('payload')
+        if path == '/agent/turn':
+            route.request.headers['accept'] = 'application/x-ndjson'
         self.handlers['**/api/v1/memoir/**'](route)
         assert route.response is not None
         return route
@@ -85,17 +87,28 @@ def test_stage_runtime_keeps_place_evidence_and_uses_only_the_eligible_draft_sta
     def visit(transport):
         config = transport.request('/agent/config', token='fixture-only').body
         assert not config.get('show_thinking_steps')
+        assert not config.get('show_draft_updates'), 'Eligible saved-draft access must work without debugging'
         status = transport.request('/story/state', token='fixture-only').body['recall_status']
         assert status['rounds_completed'] == (20 if mapped else 5)
         assert status['paid'] is mapped and status['payment_required'] is False
         project = transport.request('/projects/stage-project', token='fixture-only').body
-        place = transport.request('/agent/turn', method='POST', token='fixture-only', payload={}).body['place_journey']
+        history_path = '/user/projects/stage-project/history?limit=100'
+        history = ConversationHistory.model_validate(transport.request(history_path, token='fixture-only').body)
+        assert history.project_id == 'stage-project' and history.items == []
+        packet = {'project_id':'stage-project','client_turn_id':'60c00000-0000-4000-8000-000000000010',
+                  'text':'The storyteller said: I grew up in Chengde.', 'conversation_text':'I grew up in Chengde.'}
+        streamed = transport.request('/agent/turn', method='POST', token='fixture-only', payload=packet)
+        events = [json.loads(line) for line in streamed.response['body'].splitlines()]
+        assert [event['type'] for event in events] == ['conversation_saved','workspace_update','result']
+        place = events[1]['data']['place_journey']
         assert place['place'] == 'Chengde'  # Never erase the unmapped cue to hide its workspace.
         assert ('latitude' in place) is mapped
         assert bool(project['profile'].get('memory_places')) is mapped
-        history = ConversationHistory.model_validate(transport.request(
-            '/user/projects/stage-project/history?limit=100', token='fixture-only').body)
-        assert history.project_id == 'stage-project' and history.items == []
+        history = ConversationHistory.model_validate(transport.request(history_path, token='fixture-only').body)
+        assert len(history.items) == 1
+        assert history.items[0].client_turn_id == packet['client_turn_id']
+        assert history.items[0].narrator_text == packet['conversation_text']
+        assert history.items[0].reply == events[0]['data']['reply']
     transport = StoryTransport(visit)
     replace_playwright(monkeypatch, stage_browser, transport)
     with pytest.raises(CapturedBrowserBoot):
