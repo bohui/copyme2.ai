@@ -95,7 +95,8 @@ Memoir interviews. The canonical runtime now queues research only after a saved
 narrator reply. Response cleanup sends the reply, releases the conversation lease
 and local lock, then runs research before closing its authenticated storage
 client. Failed optional research cannot replace or invalidate the saved reply.
-Replay and disabled/opted-out projects do not queue new work.
+Completed research is deduplicated on replay; disabled/opted-out projects create
+no new durable research job.
 
 The updated regression uses the current canonical JSON and streaming transports,
 not the removed legacy runtime methods. It blocks research while another reply
@@ -198,3 +199,17 @@ It now supplies input through an automatically closed temporary file while
 retaining deadline/cancellation polling and child cleanup. Text and binary
 regressions cover this case. The upgrade/runner/historical SQL/canonical set
 passed **58 checks** after the repair.
+
+The next review identified recovery after failed initial delivery. An eligible
+saved replay now queues post-delivery enrichment too; the current owned durable
+claim prevents duplicate research after a successful original delivery. Real
+SQL JSON/stream regressions cover a failed initial terminal send, successful
+cached delivery without another collector call, one recovered research job,
+another deduplicated replay and later clue selection or move-based rejection.
+An additional regression exposed a missing citation in canonical cached replies;
+replay now restores the saved public historical projection without private
+research metadata or another collector call. Only the latest accepted source's
+eligible saved replay can recover research, so older replies cannot restart it
+after a newer exchange.
+Stopped exchanges, unavailable saved replies and disabled research remain
+ineligible, while current project opt-out is enforced by the durable claim.

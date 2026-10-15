@@ -1,19 +1,23 @@
 """Saved canonical interviews create and consume historical clues through real SQL."""
+import asyncio
 import json
 from uuid import uuid4
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import ClientDisconnect
 
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.historical_news import HistoricalResearch
+from apps.api.lifetime_memory_runtime import lifetime_http_turn
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
 from memoir_postgres_workflow import PostgresRest
 from test_agent_commit_postgres import OWNER, database as base_database
 from test_historical_news import evidence, receipt, news_proposal
 from test_lifetime_memory_engine import valid_reply
+from test_lifetime_memory_transport import SCOPE, no_disconnect
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
 from test_shared_memory_events_postgres import rpc, literal
 
@@ -25,7 +29,8 @@ def database():
 
 @pytest.mark.parametrize('streaming', [False, True])
 @pytest.mark.parametrize('moved', [False, True])
-def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, streaming, moved):
+@pytest.mark.parametrize('initial_send_failure', [False, True])
+def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, streaming, moved, initial_send_failure):
     from apps.api import agent_routes
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
@@ -75,7 +80,21 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
     with TestClient(create_app(MemoryStore())) as client:
         payload = {'client_turn_id': str(uuid4()),
             'text': 'I was born in Boston, USA, in 1960. I carried a blue umbrella.', 'language': 'en-AU'}
+        if initial_send_failure:
+            async def failed_request():
+                response=await lifetime_http_turn(runtime,PostgresRest(sql,OWNER).storage(),payload['text'],
+                    accept=headers['Accept'],options={'client_turn_id':payload['client_turn_id'],'language':'en-AU'})
+                async def send(message):
+                    if message['type']=='http.response.body' and (not streaming or b'"type":"result"' in message.get('body',b'')):
+                        raise OSError('controlled failed initial delivery')
+                with pytest.raises(ClientDisconnect if streaming else OSError):
+                    await response(SCOPE,no_disconnect,send)
+            asyncio.run(failed_request())
+            assert sql('select count(*) from public.user_lifetime_reply;').stdout.strip() == '1'
+            assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '0'
         first = result(client.post('/v1/agent/turn', headers=headers, json=payload))
+        if initial_send_failure:
+            assert first['cached'] and len(calls) == 1
         assert first['conversation_saved'] and 'historical_context' not in first
         project = first['project_id']
         state = rpc(sql, 'read_user_historical_news', literal(project))
@@ -91,5 +110,10 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
         else:
             assert later['historical_context']['source_url'] == evidence()['source_url']
             assert len(calls[1]['historical_news']['clues']) == 1
+            cited_replay=result(client.post('/v1/agent/turn',headers=headers,json={
+                'project_id':project,'client_turn_id':later['client_turn_id'],
+                'text':'What else could we explore?','language':'en-AU'}))
+            assert cited_replay['cached'] and len(calls) == 2
+            assert cited_replay['historical_context'] == later['historical_context']
         assert rpc(sql, 'read_user_historical_news', literal(project))['clues'] == []
     assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'

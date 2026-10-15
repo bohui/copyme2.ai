@@ -50,6 +50,15 @@ class LifetimePublicationContext:
     async def flush(self):
         if self.emitter:await self.emitter.flush()
 
+    def queue_historical_research(self,runtime,storage,project_id):
+        import os
+        if os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() not in {'1','true','yes'}:return
+        from .historical_news import HistoricalResearch
+        from .historical_news_provider import GatewayHistoricalProvider
+        if runtime._news_engine is None:
+            runtime._news_engine=HistoricalResearch(GatewayHistoricalProvider())
+        self.historical_research=(storage,project_id,runtime._news_engine)
+
     async def close(self, *, delivered=False):
         if self.scope is not None:
             scope,self.scope=self.scope,None
@@ -154,8 +163,15 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     response.update(workspace)
                     if on_event:await on_event({'type':'workspace_update','data':workspace})
                 interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
+                if isinstance((interview or {}).get('historical_context'),dict):
+                    response['historical_context']=public_interview_fields(interview)['historical_context']
                 if (interview or {}).get('plan'):
                     await progress.record_question_pool(interview['plan'])
+                    if (interview['plan'].get('candidates')
+                        and (interview.get('source') or {}).get('sequence')==fence['source_revision']):
+                        # A successful retry can recover work skipped after failed delivery.
+                        # The current owned durable claim deduplicates completed/running jobs.
+                        publication.queue_historical_research(runtime,storage,project_id)
                 response.update(trace=list(progress.steps),trace_mode='live')
         elif access and access['payment_required']:
             response={'project_id':project_id,'recall_status':access,'reply':None,'conversation_saved':False}
@@ -320,12 +336,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if on_event:await on_event({'type':'workspace_update','data':workspace})
             response['required_memory_work']=await lease.io(LifetimeMemoryOutbox(storage.lifetime_rpc).drain,fence,limit=4)
             if context['historical_news'].get('enabled') is True and not validated['stopped']:
-                from .historical_news import HistoricalResearch
-                from .historical_news_provider import GatewayHistoricalProvider
-                if runtime._news_engine is None:
-                    runtime._news_engine=HistoricalResearch(GatewayHistoricalProvider())
                 # Response cleanup runs after final publication and lease release.
-                publication.historical_research=(storage,project_id,runtime._news_engine)
+                publication.queue_historical_research(runtime,storage,project_id)
         # Keep both cross-replica renewal and the local lock alive through actual
         # final ASGI send. The response cleanup is their sole release owner.
         publication.scope=scope;scope=None
