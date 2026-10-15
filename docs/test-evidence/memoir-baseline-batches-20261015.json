@@ -35,7 +35,81 @@
         "red_junit": "47e957d9816bae83be8f59687ece7388042b86304c79abacb37a7256ed1611ff",
         "pinned_junit": "006a3bf6db11277bbe899933c2ac6b391e52c8e53229346c1df758b643881a65"
       },
-      "remaining": "Compatibility defects and the 23 earlier unresolved functional cases are pending later batches; the historical complete aggregate is not relabeled green."
+      "remaining": "Two of the historical 23 unresolved functional cases are repaired by batch one; 21 remain pending. Historical aggregate is unchanged. See current_disposition."
+    },
+    {
+      "batch": 2,
+      "code_revision": "1b491f7c7246eaba24b976db4b24de5bf2ca2b34",
+      "scope": "Deferred FastAPI route traversal and portable container-up ENV_FILE sourcing",
+      "red": {
+        "failed": 45,
+        "passed": 33,
+        "head": "c489139ed5e16237813ff4aff6d4cb1e232e09dd"
+      },
+      "pinned_result": {
+        "tests": 83,
+        "failures": 8,
+        "errors": 0,
+        "skipped": 0
+      },
+      "pinned_seconds": "39.282",
+      "commands": [
+        "python -m pytest -q tests/test_memoir_fifty_browser.py tests/test_container_startup.py --tb=short"
+      ],
+      "root_causes": [
+        "FastAPI defers included routers; raw .routes contains _IncludedRouter objects without path. Official iter_route_contexts preserves effective prefixes and response metadata; older eagerly flattened releases use the previous traversal. A nested-prefix/response-contract regression is added.",
+        "POSIX dot sourcing a bare .env searches PATH under dash. Relative ENV_FILE values now receive ./; absolute values are preserved. All original startup assertions remain, with relative/absolute filenames containing spaces also checked."
+      ],
+      "remaining_failures": [
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_actual_history_source_and_receipt_read_contract",
+          "summary": "AssertionError: {\"detail\":\"Project history temporarily unavailable\"}\nassert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_armed_turn_calls_actual_owned_runtime_once_and_keeps_diagnostics_private",
+          "summary": "AssertionError: {\"detail\":\"Governed publication is not configured\"}\nassert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_production_browser_wrapper_is_exact_and_stream_is_real",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_runtime_failure_is_sanitized_and_cannot_be_retried",
+          "summary": "assert (503 == 502)\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_concurrent_duplicate_never_dispatches_second_runtime",
+          "summary": "TimeoutError"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_original_english_chinese_wrappers_reject_forged_suffix_and_other_case[0]",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_original_english_chinese_wrappers_reject_forged_suffix_and_other_case[1]",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        },
+        {
+          "nodeid": "tests/test_memoir_fifty_browser.py::test_turn_client_cannot_write_after_runtime_completes",
+          "summary": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code"
+        }
+      ],
+      "evidence_sha256": {
+        "red_junit": "7bb9f4de6405a366dfacd436efd2957572d6d979d948c6ec0adb2188758b6177",
+        "pinned_junit": "bd4087f5a5950395d33adf78734d84930cd0548a462298dc33d6b3b451accd63"
+      },
+      "limits": "Eight evaluation fixture cases now reach later canonical history/publication failures. No authority checks bypassed; they remain failures and need a separate batch. Only disposable/fake local startup tools ran; no actual container stack or Mac run."
     }
-  ]
+  ],
+  "current_disposition": {
+    "historical_unresolved_functional": 23,
+    "repaired_by_batch_one": [
+      "tests/test_lifetime_composer_policy.py::test_actual_canonical_worker_keeps_prepared_context_across_policy_rejection",
+      "tests/test_lifetime_composer_clearance.py::test_actual_canonical_worker_reuses_prepared_context_after_authority_recovery"
+    ],
+    "historical_unresolved_still_pending": 21,
+    "withdrawal_concern": "Additional open concern, not included in the historical 23. A deterministic reproduction is in progress.",
+    "complete_continuation_aggregate": "pending",
+    "independent_runtime_acceptance": "outstanding"
+  }
 }
