@@ -1,5 +1,9 @@
 # PR69: supervisor termination and self-owned profiler databases
 
+Historical ten-module checkpoint; see the later
+[transitive cleanup report](memoir-baseline-transitive-cleanup-20261015.md)
+for corrected creation-phase attribution and subsequent default/nested repairs.
+
 Both independently reproduced P2 paths are repaired at fixed source/test commit
 `a294f8b6cc47952d1e85b2003352f36dec69a347`. The complete affected selection records **66 passed,
 zero failures/errors/skips across ten modules** in **226.86 seconds wall time**
@@ -47,8 +51,8 @@ callers no longer use that unprotected default allocation path.
 | `tests/test_controlled_lifecycle.py` | 2 |
 | `tests/test_canonical_evaluation_cli.py` | 9 |
 
-The six new native scenarios cover direct calls, cancellation during process
-creation, the actual CLI, two concurrent CLI cases, and profiler fast-stop
+The six new native scenarios cover direct calls, a delayed wrapper after its
+handle has returned, the actual CLI, two concurrent CLI cases, and profiler fast-stop
 failure/timeout. They verify shutdown for **nine original postmasters**, exact
 stop PID/data identities, no surviving case child and absent owned directories.
 Two unit checks cover nested/concurrent signal-handler restoration and refusal
@@ -57,8 +61,15 @@ shutdown assertion was deleted, skipped, xfailed or relaxed.
 
 The first four red cases fail, the corresponding first four green cases pass,
 and the expanded eight-case selection passes before the complete fixed-commit
-run. An exploratory in-flight-spawn probe also passed before explicit shielding;
-it is preserved as a passing probe, not claimed as another red reproduction.
+run. The exploratory probe also signalled after handle return and passed before
+explicit shielding; it is preserved as a passing probe, not a red reproduction.
+The original `direct_during_spawn` IDs in the JSON are historical raw IDs and do
+not establish pre-handle cancellation coverage. A coverage guard subsequently
+failed on that harness; `56344c045bdc74fafb6c2a3b90342b8510f2a322`
+adds a genuinely held handle, observes cleanup before return, and then verifies
+that the exact created child is reaped. JSON input is never delivered in that
+phase, so it allocates no PostgreSQL. The post-start cases retain their database
+assertions. This corrects a coverage claim; it does not invent a runtime defect.
 Seven changed Python files parse and whitespace checks pass. All selected
 native observations ran on Linux/proc; unsupported hosts are explicitly gated
 before allocation, and no Mac/native non-Linux coverage is claimed. Cloud PID 1

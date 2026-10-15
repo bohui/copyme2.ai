@@ -674,6 +674,55 @@
       },
       "full_repository_at_this_source": false,
       "policy_decisions": "unchanged"
+    },
+    {
+      "batch": 15,
+      "code_revision": "7884af336740044f7e4f7829092a1a174e37dd88",
+      "scope": "Correct creation-phase attribution; actual default/long-TMPDIR and nested wrapper ownership repairs",
+      "red": {
+        "default_native": 3,
+        "nested_native": 2,
+        "creation_coverage_guard": 1
+      },
+      "pinned_result": {
+        "passed": 82,
+        "failed": 1,
+        "error": 0,
+        "skipped": 0,
+        "modules": 12,
+        "seconds": 270.78
+      },
+      "remaining_failure": {
+        "nodeid": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+        "classification": "environment_zombie_process",
+        "current_process": {
+          "pid": 769102,
+          "state": "Z",
+          "ppid": 1,
+          "group": 769100,
+          "started": "2720457",
+          "original_identity_matches": true
+        },
+        "parent_comparison": {
+          "source": "56344c045bdc74fafb6c2a3b90342b8510f2a322",
+          "pid": 732924,
+          "state": "Z",
+          "ppid": 1,
+          "group": 732923,
+          "started": "2544237",
+          "fixture": "/tmp/pytest-of-agent/pytest-92/test_timeout_stops_a_term_resi0"
+        },
+        "stop_owned_ast_unchanged": true,
+        "evidence": "Exact original descendant-absence assertion fails at both detached parent 56344 and final source. Both descendants are exited Z processes owned by PID 1. No live descendant is observed. The failed assertion is unchanged and remains failed."
+      },
+      "ledger": "memoir-baseline-transitive-cleanup-20261015.json",
+      "root_causes": [
+        "Old creation harness signalled after handle return; test coverage correction only",
+        "Outer five-second escalation can kill the controlled owner before its longer database shutdown finishes",
+        "Long TMPDIR pushed Unix sockets beyond native path limits",
+        "Nested wrappers replaced inherited allocation ownership and lost inner command-session/native roots"
+      ],
+      "policy": "No pending-proposal inheritance or PR68-owned policy change"
     }
   ],
   "current_disposition": {
@@ -1028,6 +1077,17 @@
     "error": 0,
     "skipped": 0,
     "ledger": "memoir-baseline-supervision-20261015.json",
+    "whole_repository_aggregate_rerun": false
+  },
+  "latest_transitive_followup": {
+    "tested_revision": "7884af336740044f7e4f7829092a1a174e37dd88",
+    "acceptance_complete": false,
+    "modules": 12,
+    "passed": 82,
+    "failed": 1,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-transitive-cleanup-20261015.json",
     "whole_repository_aggregate_rerun": false
   }
 }

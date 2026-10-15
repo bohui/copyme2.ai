@@ -160,7 +160,7 @@
     ]
   },
   "before_shield_probe": {
-    "note": "This exploratory native probe passed before explicit launch shielding; it is not a failing reproduction or claimed regression fix.",
+    "note": "This exploratory delayed-wrapper probe signalled after handle return and passed before explicit launch shielding. It establishes neither a red runtime reproduction nor pre-handle cancellation coverage. Historical IDs/results/hashes are retained.",
     "counts": {
       "passed": 1
     },
@@ -875,5 +875,14 @@
     "scripts/run_memoir_five_case_evaluation.py": "6620e8e1d7f9553fda8043bad1891483bff125b8b9423f6f1760f1c73842dc00",
     "tests/test_controlled_lifecycle.py": "4129004dc6d188adb9b881c7d31d5a6fb6535bb3984ed3e7850c2f3104024a9b",
     "tests/test_controlled_supervisor_lifecycle.py": "35de8fc9a752f1b09e3985efd1c49dfb589c82b0c19e15f61ec049b03ca8f6b5"
+  },
+  "coverage_correction": {
+    "original_case_id": "direct_during_spawn",
+    "actual_phase": "After the delayed subprocess wrapper returned its handle; SIGTERM followed observed database startup.",
+    "claim_withdrawn": "This historical case does not establish cancellation while the handle is unavailable.",
+    "correction_commit": "56344c045bdc74fafb6c2a3b90342b8510f2a322",
+    "new_coverage": "A real child-created marker is observed while handle return is held. Cleanup starts before the handle-return marker, repeated SIGTERM arrives, then the exact handle is released and reaped. No JSON input or PostgreSQL allocation occurs in this phase.",
+    "historical_counts_ids_and_hashes_preserved": true,
+    "classification": "Test coverage gap; not a failing runtime reproduction."
   }
 }

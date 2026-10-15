@@ -211,7 +211,9 @@ reproduce those two paths. `a294f8b6cc47952d1e85b2003352f36dec69a347` adds share
 SIGTERM-to-owner cancellation with shielded cleanup, retained in-flight child
 creation, and reconciled private roots for default controlled_database calls.
 The native scenarios stop nine original postmasters across direct/CLI,
-concurrent, creation and profiler fast-stop fault paths. Unknown ownership or
+concurrent, delayed post-return wrapper and profiler fast-stop fault paths.
+The original creation-phase attribution is corrected in the supervision report;
+56344 adds genuine pre-handle coverage with no database input/allocation. Unknown ownership or
 reconciliation failure remains visible and retains metadata. The original
 profiler closer failure is not silently converted into success.
 
@@ -222,3 +224,28 @@ and focused results remain pinned to their own sources. The
 [per-case/process evidence](memoir-baseline-supervision-20261015.json) record red/
 green results, allocation identities, hashes, platform limits and remaining
 gates. No pending-proposal inheritance or other product-policy choice changes.
+
+
+## Default deadlines, short sockets and transitive wrapper ownership
+
+The earlier 66-pass checkpoint's creation-phase claim is corrected: its delayed
+wrapper had returned before SIGTERM. 56344 adds actual pre-handle coverage and
+passes 67 complete affected cases. a196 fixes single-wrapper default deadlines
+and long-TMPDIR sockets, but its 76-pass/one-failure checkpoint still leaks under
+nested wrappers. Two actual nested red cases record false verified cleanup with
+a live inner command and postmaster. None is treated as full acceptance.
+
+`7884af336740044f7e4f7829092a1a174e37dd88` registers identity-checked short physical sibling
+roots transitively and reconciles their command sessions and databases before
+verification. Shipped 5/20/10-second deadlines stay unchanged. All twelve complete
+affected modules record 82 passes, one failure, no errors/skips. The unchanged
+descendant-absence assertion fails on parent and final source because cloud PID 1
+retains an exited zombie; it remains visibly failed. Seventeen original native
+postmasters across eleven scenarios are verified stopped, and the genuine
+pre-handle case verifies its exact child without delivering database input.
+The [transitive report](memoir-baseline-transitive-cleanup-20261015.md) and
+[complete ledger](memoir-baseline-transitive-cleanup-20261015.json) preserve all
+checkpoint outcomes, original identities, refusal guards, corrections and unrun
+gates. Whole-repository/current-head independent acceptance and consequential
+product decisions remain open. No shutdown assertion or PR68-owned policy is
+weakened.
