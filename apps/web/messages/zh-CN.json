@@ -198,6 +198,7 @@
       },
       "title": "思考步骤",
       "selectedQuestion": "已选",
+      "placeJourneyRestored": "已恢复保存的地点线索",
       "stepCount": "{count} 个步骤",
       "note": "这里显示主要操作和工具结果，不显示模型内部的推理过程。",
       "analysisLabel": "分析",
@@ -212,7 +213,12 @@
       "backgroundDraft": "正在逐步更新已有回忆录",
       "backgroundReview": "正在核对写作内容与原始记录",
       "backgroundSave": "正在保存回忆录进度",
-      "backgroundSaved": "回忆录进度已保存"
+      "backgroundSaved": "回忆录进度已保存",
+      "placeGroups": {
+        "running": "正在检查地点所属的城市地图",
+        "completed": "已检查地点所属的城市地图",
+        "failed": "未能检查地点所属的城市地图"
+      }
     },
     "story": {
       "mainLabel": "与 Mira 的对话",
@@ -379,6 +385,7 @@
       "picturesMore": "加载更多照片",
       "picturesLoading": "正在查找更多照片…",
       "picturesSearching": "正在查找参考照片…",
+      "picturesCached": "已复用保存的参考照片",
       "picturesUnavailable": "照片查找暂时未能完成，您可以重试。",
       "picturesSourceBlocked": "照片来源暂时无法自动访问，您可以稍后重试。",
       "picturesSearchRetry": "重新查找照片",

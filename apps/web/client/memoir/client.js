@@ -989,7 +989,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         state.selectedPlace = placeHistoryKey(previewJourney);
         state.lifeStage = "all";
         state.workspaceCollapsed = false;
-        resolvePlaceMap(previewJourney);
+        resolvePlaceMap(previewJourney, {onProgress: recordProgress});
         render();
         return;
       }
@@ -1029,7 +1029,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           // Discovery can take much longer than the saved place update.
           // Render the map and loading panel while it runs independently.
           for (const place of entries) {
-            resolvePlaceMap(place);
+            resolvePlaceMap(place, {onProgress: recordProgress});
             void loadPlacePictures(place, streamProjectId, {onProgress: recordProgress});
           }
         }
@@ -1329,6 +1329,20 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
   }
 }
 
+function recordWorkspaceSkillProgress(step, onProgress = null) {
+  if (onProgress) onProgress(step);
+  else {
+    const message = (state.chat || []).findLast(item => item.role === "assistant"
+      && item.trace?.some(previous => previous.id === step.id));
+    if (!message) return;
+    message.trace[message.trace.findIndex(previous => previous.id === step.id)] = step;
+    message.traceMode = "live";
+    updateStreamingAssistantMessage(message);
+  }
+  // Background work often finishes after the reply's normal history save.
+  persistChatHistory();
+}
+
 async function loadPlacePictures(entry, projectId, { more = false, force = false, onProgress = null } = {}) {
   const requestScope = captureProjectScope();
   if (!projectId || !entry?.place) return;
@@ -1344,20 +1358,28 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
     && entry.photo_search_policy === "place-fallback-gps-time-v9";
+  const requestKey = photoRequestKey(entry, projectId);
+  const reportProgress = (status, label, failures = []) => {
+    const safeFailures = (Array.isArray(failures) ? failures : []).filter(item => item
+      && ["flickr", "google", "loc", "commons", "llm"].includes(item.provider)
+      && /^(?:robots_denied|verification_required|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
+      .map(({provider, reason}) => ({provider, reason}));
+    recordWorkspaceSkillProgress({id: `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
+      label: "place-photo-research", status, place: entry.place, period, failures: safeFailures,
+      detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`
+        + (safeFailures.length ? ` · ${safeFailures.map(item => `${item.provider}: ${item.reason}`).join("; ")}` : "")}, onProgress);
+  };
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
-        && entry.photo_search_policy === "place-fallback-gps-time-v9" && entry.photo_search_at > 0))) return;
+        && entry.photo_search_policy === "place-fallback-gps-time-v9" && entry.photo_search_at > 0))) {
+    reportProgress("completed", (entry.pictures || []).length ? "picturesCached" : "picturesNoMatch");
+    return;
+  }
   state.photoRequests ||= new Map();
-  const requestKey = photoRequestKey(entry, projectId);
   if (state.photoRequests.get(requestKey)?.loading) return;
   state.photoRequests.set(requestKey, { loading: true });
   let photoStatus = "SEARCHING";
-  const reportProgress = (status, label) => {
-    if (onProgress) onProgress({id: `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
-      label: "place-photo-research", status,
-      detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`});
-  };
   reportProgress("running", "picturesSearching");
   render();
   const control = document.querySelector("[data-photo-more]");
@@ -1439,7 +1461,8 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
     state.photoRequests.set(requestKey, {...state.photoRequests.get(requestKey), loading: false});
     const failed = state.photoRequests.get(requestKey)?.error;
     reportProgress(failed ? "failed" : "completed",
-      failed ? "picturesUnavailable" : photoStatus === "NO_MATCH" ? "picturesNoMatch" : "pictures");
+      failed ? "picturesUnavailable" : photoStatus === "NO_MATCH" ? "picturesNoMatch" : "pictures",
+      state.photoRequests.get(requestKey)?.failures || []);
     if (state.project?.id === projectId) render();
   }
 }
@@ -1834,6 +1857,20 @@ async function hydratePlaceJourney() {
     if (!isCurrentProjectScope(scope)) return;
   }
   if (Array.isArray(savedPlaces) && savedPlaces.length) {
+    let restoredProgress = false;
+    for (const message of state.chat || []) {
+      if (message.role !== "assistant" || !message.sourceSequence
+          || message.trace?.some(step => step.skill === "memoir-place-journey")) continue;
+      const places = savedPlaces.filter(place => String(place.source_sequence) === String(message.sourceSequence));
+      if (!places.length) continue;
+      // Old turns have no execution log; describe this restoration, not an invented past call.
+      (message.trace ||= []).push({id:"place-journey", kind:"skill", skill:"memoir-place-journey",
+        label:"memoir-place-journey", status:"completed",
+        detail:`${translate("Memoir.trace.placeJourneyRestored")} · ${places.map(place => place.place).join(" · ")}`});
+      message.traceMode = "live";
+      restoredProgress = true;
+    }
+    if (restoredProgress) persistChatHistory();
     // History is ordered by life stage, while the current place follows the
     // most recent explicit mention. Server sequence/revision records recency.
     state.placeJourney = savedPlaces.reduce((current, place) =>
@@ -3200,7 +3237,7 @@ async function hydrateAccountHistory(history = null) {
   const maskedEvidence = exchanges.some(item => item.source_status === "withdrawn" || Number(item.source_version || 1) > 1);
   const messages = exchanges.flatMap(item => {
     const clientTurnId = item.client_turn_id || item.server_turn_id;
-    const shared = {clientTurnId};
+    const shared = {clientTurnId, sourceSequence:item.source_sequence};
     return [
       ...(typeof item.narrator_text === "string" && item.narrator_text ? [{...shared,
         id:`history-${item.server_turn_id}-user`, role:"user", text:item.narrator_text}] : []),
@@ -4418,7 +4455,7 @@ function groupChoices(groups) {
     life_stages: [...new Set(group.members.flatMap(member => member.life_stages || [member.life_stage]).filter(Boolean))]})));
 }
 
-function resolvePlaceGroups(journey) {
+function resolvePlaceGroups(journey, {onProgress = null} = {}) {
   const projectId = state.project?.id;
   if (!projectId || !journey) return;
   const merged = mergePlaces([...(profile().memory_places || []), journey], profile());
@@ -4431,10 +4468,19 @@ function resolvePlaceGroups(journey) {
   const publicPlaces = places.map(publicPlaceFields);
   const signature = JSON.stringify([projectId, publicPlaces]);
   if (placeGroupRequests.has(signature)) return;
+  const scope = captureProjectScope();
+  const report = (status) => {
+    if (!isCurrentProjectScope(scope)) return;
+    recordWorkspaceSkillProgress({id:`place-groups:${signature}`, kind:"skill", skill:"memoir-place-groups",
+      label:"memoir-place-groups", status,
+      detail:`${translate(`Memoir.trace.placeGroups.${status}`)} · ${journey.place}`}, onProgress);
+  };
+  report("running");
   placeGroupLatest.set(projectId, signature);
   const request = api(`/v1/projects/${projectId}/place-groups`, {
     method: "POST", body: JSON.stringify({places: publicPlaces}),
   }).then(result => {
+    report("completed");
     if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
     for (const record of result.places || []) {
       const place = places[record.index];
@@ -4442,7 +4488,7 @@ function resolvePlaceGroups(journey) {
         {...record, input: JSON.stringify(publicPlaces[record.index])});
     }
     render();
-  }).catch(() => {}).finally(() => {
+  }).catch(() => { report("failed"); }).finally(() => {
     // Keep a completed signature briefly; renders must not repeat failed lookups.
     setTimeout(() => {
       if (placeGroupRequests.get(signature) === request) placeGroupRequests.delete(signature);
@@ -4452,9 +4498,9 @@ function resolvePlaceGroups(journey) {
   while (placeGroupRequests.size > 32) placeGroupRequests.delete(placeGroupRequests.keys().next().value);
 }
 
-function resolvePlaceMap(journey) {
+function resolvePlaceMap(journey, {onProgress = null} = {}) {
   if (!journey || !state.project?.id) return;
-  void resolvePlaceGroups(journey);
+  void resolvePlaceGroups(journey, {onProgress});
   const key = placeHistoryKey(journey);
   if (mapTarget(journey, []) || resolvedPlaceTargets.has(key) || pendingPlaceTargets.has(key)) return;
   const projectId = state.project.id;
@@ -4839,8 +4885,8 @@ function renderMessage(message) {
 function renderAgentTrace(trace, mode = "simulated", expanded = false) {
   if (!state.showThinkingSteps || mode === "simulated") return "";
   // Routine transport and persistence events are not useful conversation steps.
-  const visibleSteps = trace.filter(step => !["context", "reply"].includes(step.id)
-    && (step.id !== "workspace" || ["completed", "failed"].includes(step.status)));
+  const visibleSteps = trace.filter(step => step.skill || (!["context", "reply"].includes(step.id)
+    && (step.id !== "workspace" || ["completed", "failed"].includes(step.status))));
   if (!visibleSteps.length) return "";
   const title = escapeHtml(translate("Memoir.trace.title"));
   const steps = visibleSteps.map((step) => {

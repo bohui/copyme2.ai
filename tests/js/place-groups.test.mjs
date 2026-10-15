@@ -44,7 +44,8 @@ test('provider-confirmed city membership works without a city ancestor', () => {
 });
 
 const source = fs.readFileSync(new URL('../../apps/web/client/memoir/client.js', import.meta.url), 'utf8');
-const extract = name => source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0];
+const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', name]
+  .map(helper => source.match(new RegExp(`function ${helper}\\([^]*?\\n\\}`))[0]).join('\n');
 
 test('city choices omit a containing province while preserving source history', () => {
   const chengde = {...city, place: '承德市', hierarchy: ['Earth', '中国', '河北省', '承德市'], life_stage: 'baby'};
@@ -87,7 +88,7 @@ test('background checks prioritise each new mention and ignore superseded correc
     state: {project: {id: 'p'}, placeJourney: district},
     profile: () => ({memory_places: [city, district]}), mergePlaces, placeHistoryKey, groupPlaces,
     placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(),
-    setTimeout: () => {}, render: () => {renders++;},
+    setTimeout: () => {}, translate: key => key, render: () => {renders++;},
     api: (url, options) => new Promise(resolve => calls.push({url, body: JSON.parse(options.body), resolve})),
   });
   for (const name of ['publicPlaceFields', 'resolvePlaceGroups', 'workspacePlaceGroups']) vm.runInContext(extract(name), context);
@@ -111,6 +112,27 @@ test('background checks prioritise each new mention and ignore superseded correc
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(renders, 1, 'result for previous project reached current workspace');
 });
+
+for (const failed of [false,true]) {
+test(`city grouping reports its actual ${failed?'failed':'completed'} skill call`, async () => {
+  const steps=[];
+  let finish;
+  const context=vm.createContext({state:{project:{id:'p'},chat:[]},profile:()=>({memory_places:[city]}),
+    mergePlaces,placeHistoryKey,placeGroupRecords:new Map(),placeGroupRequests:new Map(),placeGroupLatest:new Map(),
+    translate:key=>key,persistChatHistory:()=>{},render:()=>{},setTimeout:()=>{},
+    api:()=>new Promise((resolve,reject)=>{finish=()=>failed?reject(Error('private URL')):resolve({places:[]});}),
+  });
+  for(const name of ['publicPlaceFields','resolvePlaceGroups']) vm.runInContext(extract(name),context);
+  context.resolvePlaceGroups(city,{onProgress:step=>steps.push(step)});
+  assert.equal(steps[0].skill,'memoir-place-groups');
+  assert.equal(steps[0].status,'running');
+  finish();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(steps.map(step=>step.status),['running',failed?'failed':'completed']);
+  assert.equal(steps[0].id,steps[1].id);
+  assert.doesNotMatch(JSON.stringify(steps),/private/);
+});
+}
 
 test('map markup shows city choices and independent pending pin labels', () => {
   const pending = {...town, latitude: undefined, longitude: undefined};

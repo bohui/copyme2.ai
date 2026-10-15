@@ -167,7 +167,8 @@ class ReadJSONResponse(JSONResponse):
 def find_lifetime_read_identity(service, project_id):
     """Read an existing mapping; never create identity or select a legacy project."""
     rpc = getattr(service, 'lifetime_rpc', None)
-    if not callable(rpc) or getattr(service, 'is_anonymous', False) is True:
+    # Guests may reload an explicit owned conversation, never choose one implicitly.
+    if not callable(rpc) or (project_id is None and getattr(service, 'is_anonymous', False) is True):
         return None
     value = rpc('read_lifetime_project_identity', p_project_id=project_id)
     if value is None:

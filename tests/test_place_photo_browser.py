@@ -196,6 +196,25 @@ def test_keys_keep_existing_api_providers(monkeypatch):
     assert set(calls) == {'_google_cse', '_flickr', '_commons', '_loc'}
 
 
+def test_configured_google_images_key_reaches_the_app_provider(monkeypatch):
+    monkeypatch.setenv('SERPAPI_KEY', 'private-key')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', raising=False)
+    calls = []
+    def search(place, period):
+        calls.append((place, period))
+        return browser._source_items(photo_html(), 'https://archive.example/photo', place, period)
+    monkeypatch.setattr(photos, '_google_serpapi', search, raising=False)
+    monkeypatch.setattr(photos, '_google_browser', lambda *args: pytest.fail('configured image API was ignored'))
+    for name in ('_flickr_browser', '_flickr', '_commons', '_loc'):
+        monkeypatch.setattr(photos, name, lambda *args: [])
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    found = photos.search_place_photos('Chengde', '1980s')
+    assert len(found) == 1
+    assert calls == [('Chengde', '1980s')]
+
+
 def test_cse_url_and_id_have_same_query_without_page_date_filter(monkeypatch):
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)

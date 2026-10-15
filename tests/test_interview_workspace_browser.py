@@ -94,6 +94,57 @@ def test_narrow_conversation_heading_leaves_room_for_history(interview):
     expect(heading).to_have_css('font-size', re.compile(r'(?:[12]?\d(?:\.\d+)?|30(?:\.0+)?)px'))
 
 
+def test_birthplace_photos_restore_the_historical_period_without_thumbnail_duplicates(interview):
+    page = interview
+    requests = []
+    historical = {
+        'asset_id': 'historical-original', 'title': 'Chengde in the 1980s',
+        'date_expression': '1980-1989', 'period_match': 'decade', 'matched_period': '1980s',
+        'requested_period': '1983年4月', 'search_place': 'Chengde', 'search_fallback': 'gps',
+        'source_url': 'https://commons.wikimedia.org/wiki/File:Chengde_1980s.jpg',
+        'image_url': 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Chengde_1980s.jpg',
+        'allowed_actions': {'embed': True},
+    }
+    duplicate = {**historical, 'asset_id': 'historical-thumbnail',
+        'image_url': 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Chengde_1980s.jpg/120px-Chengde_1980s.jpg'}
+    def photos(route):
+        from urllib.parse import parse_qs, urlsplit
+        query = parse_qs(urlsplit(route.request.url).query, keep_blank_values=True)
+        requests.append(query)
+        items = [historical, duplicate] if query['place'] == ['Chengde'] and query['period'] == ['1983年4月'] else []
+        route.fulfill(json={'items': items, 'status': 'PARTIAL', 'searching': False})
+    page.route('**/place-photos?**', photos)
+    sydney = {'place': 'Sydney', 'hierarchy': ['Earth', 'Australia', 'Sydney'],
+        'granularity': 'city', 'latitude': -33.8688, 'longitude': 151.2093, 'source_sequence': 2}
+    chengde = {'place': 'Chengde', 'hierarchy': ['Earth', 'China', 'Hebei', 'Chengde'],
+        'granularity': 'city', 'latitude': 40.9515, 'longitude': 117.9634, 'source_sequence': 2}
+    mock_workspace_turn(page, lambda route: route.fulfill(json={
+        'reply': 'What do you remember about Chengde?', 'place_journey': chengde,
+        'place_journeys': [sydney, chengde], 'place_journey_change': {'changed': True},
+    }))
+    page.get_by_role('textbox', name='Your message').fill(
+        '现在生活在Sydney，但是我于1983年4月出生在Chengde')
+    page.get_by_role('button', name='Send message').click()
+    gallery = page.locator('.workspace-media-gallery .place-pictures figure')
+    expect(gallery).to_have_count(1, timeout=20000)
+    expect(gallery).to_contain_text('1980-1989')
+    assert any(query['place'] == ['Chengde'] and query['period'] == ['1983年4月'] for query in requests)
+    assert any(query['place'] == ['Sydney'] and query['period'] == [''] for query in requests)
+    expect(page.locator('.place-choices button span')).to_have_text(['Chengde', 'Sydney'])
+    requests.clear()
+    page.route('**/api/v1/memoir/agent/config', lambda route: route.fulfill(json={
+        'auth_mode': 'test', 'show_thinking_steps': True}))
+    page.reload(wait_until='networkidle')
+    page.locator('.place-choices button').filter(has_text='Chengde').click()
+    expect(gallery).to_have_count(1, timeout=20000)
+    expect(gallery).to_contain_text('1980-1989')
+    assert not any(query['place'] == ['Chengde'] and query['period'] == [''] for query in requests)
+    page.get_by_role('button', name='Show all history', exact=True).click()
+    restored = page.locator('.assistant-message').last.locator('[data-step-id="place-journey"]')
+    expect(restored).to_contain_text('Restored saved place cues')
+    expect(restored).to_contain_text('Chengde')
+
+
 def test_refresh_collapses_chat_history_until_expanded(interview):
     page = interview
     expect(page.get_by_role("button", name="Hide history", exact=True)).to_be_visible()
@@ -112,6 +163,60 @@ def test_refresh_collapses_chat_history_until_expanded(interview):
     expect(page.locator("#chat-history")).not_to_have_attribute("hidden", "")
     expect(page.locator("#chat-history .chat-row").first).to_be_visible()
     expect(page.locator("#chat-history .user-message").first).to_be_visible()
+
+
+def test_thinking_steps_include_place_skills_and_photo_retry_outcomes(interview):
+    page = interview
+    page.route('**/api/v1/memoir/agent/config', lambda route: route.fulfill(json={
+        'auth_mode': 'test', 'show_thinking_steps': True}))
+    page.reload(wait_until='networkidle')
+    page.get_by_role('button', name='Show all history', exact=True).click()
+    chengde = {'place': 'Chengde', 'hierarchy': ['Earth', 'China', 'Hebei', 'Chengde'],
+        'granularity': 'city', 'latitude': 40.9515, 'longitude': 117.9634}
+    sydney = {'place': 'Sydney', 'hierarchy': ['Earth', 'Australia', 'Sydney'],
+        'granularity': 'city', 'latitude': -33.8688, 'longitude': 151.2093}
+    def turn(route):
+        events = page.workspace_history.turn_events(route.request, {
+            'reply': 'What do you remember about Chengde?', 'place_journey': chengde,
+            'place_journeys': [sydney, chengde], 'place_journey_change': {'changed': True}})
+        events.insert(1, {'type': 'progress', 'data': {'id': 'place-journey', 'kind': 'skill',
+            'skill': 'memoir-place-journey', 'status': 'completed',
+            'detail': 'Validated and saved place cues · Sydney · Chengde'}})
+        route.fulfill(content_type='application/x-ndjson',
+            body=''.join(json.dumps(event) + '\n' for event in events))
+    page.route('**/api/v1/memoir/agent/turn', turn)
+    retried = False
+    def photos(route):
+        from urllib.parse import parse_qs, urlsplit
+        query = parse_qs(urlsplit(route.request.url).query)
+        if query['place'] == ['Chengde'] and not retried:
+            return route.fulfill(json={'status': 'UNAVAILABLE', 'searching': False, 'items': [],
+                'failures': [{'provider': 'flickr', 'reason': 'robots_denied'},
+                             {'provider': 'loc', 'reason': 'http_403'}]})
+        items = [{'asset_id': 'old-street', 'image_url': 'https://images.example/chengde-1983.jpg',
+            'date_expression': '1983', 'latitude': chengde['latitude'], 'longitude': chengde['longitude'],
+            'allowed_actions': {'embed': True}}] if query['place'] == ['Chengde'] else []
+        route.fulfill(json={'status': 'READY', 'searching': False, 'items': items})
+    page.route('**/place-photos?**', photos)
+    page.get_by_role('textbox', name='Your message').fill(
+        '现在生活在Sydney，但是我于1983年4月出生在Chengde')
+    page.get_by_role('button', name='Send message').click()
+    trace = page.locator('.assistant-message').last.locator('.agent-loop')
+    expect(trace.locator('[data-step-id="place-journey"]')).to_have_count(1)
+    expect(trace.locator('[data-step-id^="place-groups:"][data-step-status="completed"]')).not_to_have_count(0)
+    failed = trace.locator('[data-step-id^="photos:"][data-step-status="failed"]')
+    expect(failed).to_have_count(1)
+    expect(failed).to_contain_text('Chengde · 1983年4月')
+    expect(failed).to_contain_text('flickr: robots_denied; loc: http_403')
+    expect(trace.locator('[data-step-id^="photos:"][data-step-status="completed"]')).to_contain_text('Sydney')
+    retried = True
+    page.locator('[data-photo-retry]').click()
+    expect(trace.locator('[data-step-id^="photos:"][data-step-status="failed"]')).to_have_count(0)
+    expect(trace.locator('[data-step-id^="photos:"][data-step-status="completed"]')).to_have_count(2)
+    page.reload(wait_until='networkidle')
+    page.get_by_role('button', name='Show all history', exact=True).click()
+    expect(trace.locator('[data-step-id="place-journey"]')).to_have_count(1)
+    expect(trace.locator('[data-step-id^="photos:"][data-step-status="completed"]')).to_have_count(2)
 
 
 def test_workspace_navigation_preserves_chat_reading_position(interview):

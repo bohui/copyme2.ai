@@ -11,11 +11,11 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-def search_key(place, period):
+def search_key(place, period, *, policy=None):
     from .place_photos import PHOTO_SEARCH_POLICY
     normalized = [' '.join(unicodedata.normalize('NFKC', value).casefold().split())
                   for value in (place, period)]
-    return hashlib.sha256(json.dumps([PHOTO_SEARCH_POLICY, *normalized], ensure_ascii=False).encode()).hexdigest()
+    return hashlib.sha256(json.dumps([policy or PHOTO_SEARCH_POLICY, *normalized], ensure_ascii=False).encode()).hexdigest()
 
 
 class PhotoRepository:
@@ -27,12 +27,17 @@ class PhotoRepository:
     def load(self, place, period):
         try:
             with httpx.Client(timeout=10, transport=self.transport) as client:
-                response = client.get(self.url, headers=self.headers, params={
-                    'search_key': 'eq.' + search_key(place, period), 'select': 'result', 'limit': '1'})
-                response.raise_for_status()
-                rows = response.json()
-                result = rows[0]['result'] if rows else None
-                return result if isinstance(result, dict) and isinstance(result.get('items'), list) else None
+                # Revalidate previous public research under the current filters
+                # so source outages do not discard already found photographs.
+                for policy in (None, 'place-fallback-gps-time-v8'):
+                    response = client.get(self.url, headers=self.headers, params={
+                        'search_key': 'eq.' + search_key(place, period, policy=policy), 'select': 'result', 'limit': '1'})
+                    response.raise_for_status()
+                    rows = response.json()
+                    if rows:
+                        result = rows[0]['result']
+                        return result if isinstance(result, dict) and isinstance(result.get('items'), list) else None
+                return None
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             logger.warning('Shared photo cache read unavailable')
             return None

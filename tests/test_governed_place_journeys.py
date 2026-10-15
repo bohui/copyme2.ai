@@ -88,7 +88,8 @@ def test_place_storage_requires_owner_current_source_and_grounded_label(sql):
 
 @pytest.mark.parametrize('streaming', [False, True])
 @pytest.mark.parametrize('change', ['withdraw', 'edit'])
-def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, monkeypatch, streaming, change):
+@pytest.mark.parametrize('anonymous', [False, True])
+def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, monkeypatch, streaming, change, anonymous):
     from apps.api import agent_routes
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.main import create_app
@@ -98,6 +99,9 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
 
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', 'true')
+    if anonymous:
+        sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
     calls = []
 
     def provider(request):
@@ -132,14 +136,21 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
         assert workspace['place_journeys'] == result['place_journeys']
         assert workspace['project_id'] == result['project_id'] and workspace['source_sequence'] == 1
         assert workspace['place_journey_change']['mentioned']
+        assert [event['data']['status'] for event in events if event['type'] == 'progress'
+            and event['data'].get('skill') == 'memoir-place-journey'] == ['running', 'completed']
     else:
         result = response.json()
     assert result['conversation_saved']
+    assert any(step.get('skill') == 'memoir-place-journey' and step['status'] == 'completed'
+        for step in result['trace'])
     assert [place['place'] for place in result['place_journeys']] == ['悉尼', '承德市']
     assert result['place_journey']['place'] == '承德市'
     replay = next(json.loads(line)['data'] for line in retry.text.splitlines()
         if json.loads(line)['type'] == 'result') if streaming else retry.json()
     assert replay['cached'] and replay['place_journeys'] == result['place_journeys']
+    restored = next(step for step in replay['trace'] if step.get('skill') == 'memoir-place-journey')
+    assert restored['status'] == 'completed'
+    assert 'Restored' in restored['detail'] or '恢复' in restored['detail']
     assert len(calls) == 1
     from apps.api import main
     from test_lifetime_home_recovery import HomeRest
@@ -150,7 +161,8 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
         assert saved == result['place_journeys']
         with TestClient(create_app(MemoryStore())) as client:
             auth = {'Authorization': 'Bearer synthetic'}
-            home = client.post('/v1/projects', headers=auth, json={})
+            home = client.post('/v1/projects', headers=auth,
+                json={'restore_project_id': result['project_id']} if anonymous else {})
             assert home.status_code == 201, home.text
             assert home.json()['profile']['memory_places'] == saved
             decorated = deepcopy(saved)
@@ -159,8 +171,9 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
                 json={'profile': {'memory_places': decorated}})
             assert patched.status_code == 200, patched.text
             assert patched.json()['profile']['memory_places'] == decorated
-            restored = client.get('/v1/agent/place-journey', headers=auth)
-            assert restored.json()['place_journey']['place'] == '承德市'
+            if not anonymous:
+                restored = client.get('/v1/agent/place-journey', headers=auth)
+                assert restored.json()['place_journey']['place'] == '承德市'
             storage.change_narrator_source(result['project_id'], result['accepted_source_id'], 1,
                 action=change, text='小时候在爸爸工作的学校的家属院里玩。' if change == 'edit' else None)
             assert storage.lifetime_rpc('read_lifetime_place_journeys', p_project_id=result['project_id']) == []

@@ -268,6 +268,27 @@ def test_cache_key_normalizes_public_place_and_period_without_combining_periods(
     assert search_key('承德', '1980s') != search_key('承德', '1990s')
 
 
+def test_previous_cache_reuses_historical_photos_before_any_modern_alternatives(monkeypatch):
+    historical = {'asset_id':'saved-history', 'image_url':'https://images.example/1980.jpg',
+        'source_url':'https://archive.example/1980', 'date_expression':'1980-1989'}
+    modern = {**historical, 'asset_id':'modern', 'image_url':'https://images.example/modern.jpg',
+        'date_expression':'2025'}
+    legacy = search_key('承德市', '1983年4月', policy='place-fallback-gps-time-v8')
+    def server(request):
+        return httpx.Response(200, json=[{'result': {'complete':True, 'time_relaxed':True,
+            'items':[modern, historical]}}] if request.url.params['search_key'] == 'eq.' + legacy else [])
+    repository = PhotoRepository('https://example.supabase.co', 'server-secret', transport=httpx.MockTransport(server))
+    monkeypatch.setattr(pages, 'search_place_photos', lambda *args, **kwargs: pytest.fail('saved historical research repeated'))
+    worker = pages.PhotoPages(repository=repository)
+    try:
+        result = worker.page('owner', '承德市', '1983年4月', None)
+        assert [item['asset_id'] for item in result['items']] == ['saved-history']
+        assert result['items'][0]['period_match'] == 'decade'
+        assert result['items'][0]['search_fallback'] == 'gps'
+    finally:
+        worker.close()
+
+
 def test_saved_containing_decade_references_are_reused_for_a_narrow_period(monkeypatch):
     class Repository:
         def load(self, place, period):

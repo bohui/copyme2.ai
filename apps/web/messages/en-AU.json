@@ -198,6 +198,7 @@
       },
       "title": "Thinking steps",
       "selectedQuestion": "Selected",
+      "placeJourneyRestored": "Restored saved place cues",
       "stepCount": "{count} steps",
       "note": "High-level actions and tool results are shown here. Private model reasoning stays hidden.",
       "analysisLabel": "Analyze",
@@ -212,7 +213,12 @@
       "backgroundDraft": "Updating the existing memoir",
       "backgroundReview": "Checking writing against original evidence",
       "backgroundSave": "Saving the memoir checkpoint",
-      "backgroundSaved": "Memoir checkpoint saved"
+      "backgroundSaved": "Memoir checkpoint saved",
+      "placeGroups": {
+        "running": "Checking city map membership",
+        "completed": "City map membership checked",
+        "failed": "City map membership could not be checked"
+      }
     },
     "story": {
       "mainLabel": "Mira conversation",
@@ -379,6 +385,7 @@
       "picturesMore": "Load more photos",
       "picturesLoading": "Finding more photos…",
       "picturesSearching": "Finding reference photos…",
+      "picturesCached": "Reused saved reference photos",
       "picturesUnavailable": "Photo search could not finish. You can try again.",
       "picturesSourceBlocked": "Photo sources blocked automated access. You can try again later.",
       "picturesSearchRetry": "Try photo search again",

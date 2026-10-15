@@ -17,11 +17,11 @@ function harness(entry, api, dependencies = {}) {
   const state = {project: {id: 'project'}, placeJourney: entry};
   const context = vm.createContext({state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
     window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
-    profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {},
+    profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {}, translate: key => key,
     saveProfileUpdates: async updates => { saved = {...saved, ...updates}; },
     ...dependencies,
   });
-  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   return {context, state, entry: () => saved.memory_places[0]};
@@ -291,6 +291,37 @@ test('old cached empty results are rechecked and blocked sources remain retryabl
   assert.equal(Array.from(h.state.photoRequests.values())[0].failures[0].reason, 'verification_required');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 2, 'failed search was cached as a completed no-match');
+});
+
+test('retry updates the original photo trace, preserves Sydney, and saves late completion', async () => {
+  let calls = 0, saves = 0;
+  const h = harness({place:'Chengde'}, async () => ++calls === 1
+    ? {status:'UNAVAILABLE', items:[], failures:[{provider:'flickr',reason:'robots_denied'}]}
+    : {status:'READY', items:[picture('recovered')], searching:false}, {
+      persistChatHistory: () => {saves++;}, updateStreamingAssistantMessage: () => {},
+    });
+  const sydney = {id:'photos:sydney',skill:'place-photo-research',status:'completed',detail:'Sydney'};
+  const message = {role:'assistant',text:'What do you remember?',trace:[sydney]};
+  h.state.chat = [message];
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress: step => {
+    const index=message.trace.findIndex(previous=>previous.id===step.id);
+    if(index<0) message.trace.push(step); else message.trace[index]=step;
+  }});
+  assert.equal(message.trace[1].status,'failed');
+  assert.match(message.trace[1].detail,/flickr: robots_denied/);
+  await h.context.loadPlacePictures(h.entry(),'project');
+  assert.equal(message.trace.length,2);
+  assert.equal(message.trace[0],sydney);
+  assert.equal(message.trace[1].status,'completed');
+  assert.equal(message.trace[1].place,'Chengde');
+  assert.equal(message.trace[1].period,'1980s');
+  assert.deepEqual(Array.from(message.trace[1].failures),[]);
+  assert.equal(saves,4);
+  message.trace[1].status='failed';
+  await h.context.loadPlacePictures(h.entry(),'project');
+  assert.equal(calls,2,'reusing saved photos initiated another discovery');
+  assert.equal(message.trace[1].status,'completed');
+  assert.match(message.trace[1].detail,/picturesCached/);
 });
 
 test('a changed coordinate starts a separate request and rejects the older response', async () => {

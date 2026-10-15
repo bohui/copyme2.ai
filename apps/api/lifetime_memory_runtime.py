@@ -134,15 +134,19 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             response={**replay,'cached':True,'recall_status':access}
             if replay.get('reply'):
                 journeys=await call('read_lifetime_place_journeys',p_project_id=project_id,p_source_id=replay['accepted_source_id'])
+                progress=TurnProgress(on_event,client_turn_id,project_id,language,enabled=thinking_steps_enabled())
                 if journeys:
+                    await progress.update('place-journey',
+                        'Restored saved place cues · ' + ' · '.join(place['place'] for place in journeys),
+                        '已恢复保存的地点线索 · ' + ' · '.join(place['place'] for place in journeys),
+                        status='completed',skill='memoir-place-journey')
                     workspace=place_workspace_update(project_id,journeys)
                     response.update(workspace)
                     if on_event:await on_event({'type':'workspace_update','data':workspace})
                 interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
                 if (interview or {}).get('plan'):
-                    progress=TurnProgress(on_event,client_turn_id,project_id,language,enabled=thinking_steps_enabled())
                     await progress.record_question_pool(interview['plan'])
-                    response.update(trace=list(progress.steps),trace_mode='live')
+                response.update(trace=list(progress.steps),trace_mode='live')
         elif access and access['payment_required']:
             response={'project_id':project_id,'recall_status':access,'reply':None,'conversation_saved':False}
         elif not user_response:
@@ -256,8 +260,18 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             journeys=[{**place,'source_sequence':source['sequence'],'status':'active',
                 'revision':source['version'],'updated_at':source['created_at']} for place in validated['place_journeys']]
             if journeys:
-                await call('persist_lifetime_place_journeys',p_fence=fence,p_source_id=source['id'],p_source_version=source['version'],
-                    p_journeys=validated['place_journeys'])
+                places=' · '.join(place['place'] for place in journeys)
+                await progress.update('place-journey','Validating and saving place cues · '+places,
+                    '正在核实并保存地点线索 · '+places,skill='memoir-place-journey')
+                try:
+                    await call('persist_lifetime_place_journeys',p_fence=fence,p_source_id=source['id'],p_source_version=source['version'],
+                        p_journeys=validated['place_journeys'])
+                except Exception:
+                    await progress.update('place-journey','Place cues could not be saved','地点线索未能保存',
+                        status='failed',skill='memoir-place-journey')
+                    raise
+                await progress.update('place-journey','Validated and saved place cues · '+places,
+                    '已核实并保存地点线索 · '+places,status='completed',skill='memoir-place-journey')
             await progress.update('collector-call','LLM call · Reply and question pool generated','LLM 调用 · 回复和问题池已生成',status='completed')
             await progress.update('save','Saving conversation memory','正在保存对话记忆')
             await publication.flush()  # no old queued chunk can be relabeled by our phase commit

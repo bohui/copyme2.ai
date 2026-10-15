@@ -171,6 +171,14 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(result["error"], "http_401")
         self.assertNotIn("fake-private-key", json.dumps(result))
 
+    def test_forced_search_disables_provider_cache(self):
+        response = SimpleNamespace(read=lambda limit: b'{"images_results":[],"search_metadata":{"status":"Success"}}')
+        with patch.object(s, "urlopen", return_value=contextlib.nullcontext(response)) as opened:
+            result = s.serpapi("Chengde 1980s", refresh=True)
+        self.assertEqual(result['status'], 'success')
+        options = parse_qs(urlsplit(opened.call_args.args[0].full_url).query)
+        self.assertEqual(options['no_cache'], ['true'])
+
     def test_worker_hard_timeout_kills_and_reaps(self):
         class Process:
             pid = 12345

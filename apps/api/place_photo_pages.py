@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException
 
-from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _location_matches, filter_place_photos, search_place_photos
+from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _decade_fallback, _location_matches, filter_place_photos, search_place_photos
 
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
@@ -58,10 +58,15 @@ class PhotoPages:
         try:
             cached = self.repository.load(place, period) if self.repository and not refresh else None
             if cached is not None:
+                historical = accepted(cached['items'], period)
+                decade = _decade_fallback(period)
+                if not historical and decade:
+                    historical = [{**item, 'requested_period': period, 'matched_period': decade,
+                        'period_match': 'decade'} for item in accepted(cached['items'], decade)]
+                time_relaxed = bool(cached.get('time_relaxed')) and not historical
                 with self.lock:
-                    job.update(time_relaxed=bool(cached.get('time_relaxed')),
-                               items=accepted(cached['items'], ANY_PHOTO_DATE
-                                   if cached.get('time_relaxed') else period),
+                    job.update(time_relaxed=time_relaxed,
+                               items=historical or (accepted(cached['items'], ANY_PHOTO_DATE) if time_relaxed else []),
                                failures=cached.get('failures', []))
                     job['revision'] += 1
                 cached_complete = bool(cached.get('complete'))

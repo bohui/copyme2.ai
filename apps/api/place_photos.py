@@ -803,16 +803,16 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
 
 def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX_RESULTS, on_items=None) -> list[dict]:
     fallback = _decade_fallback(period)
-    def label(items):
+    def label(items, *, allow_decade=False):
         return [{**item, 'requested_period': period,
                  'matched_period': period if _date_matches(item.get('date_expression', ''), period, tolerance=0) else fallback,
                  'period_match': 'requested' if _date_matches(item.get('date_expression', ''), period, tolerance=0) else
                     'decade' if fallback and _date_matches(item.get('date_expression', ''), fallback, tolerance=0) else 'nearby'}
                 for item in items if _date_matches(item.get('date_expression', ''), period)
-                or (fallback and _date_matches(item.get('date_expression', ''), fallback, tolerance=0))]
+                or (allow_decade and fallback and _date_matches(item.get('date_expression', ''), fallback, tolerance=0))]
 
-    def run(search_period, search_limit):
-        progress = {'on_items': lambda items: on_items(label(items))} if on_items else {}
+    def run(search_period, search_limit, *, allow_decade=False):
+        progress = {'on_items': lambda items: on_items(label(items, allow_decade=allow_decade))} if on_items else {}
         # Google browser has already searched both scopes, including when blocked.
         if search_period != period:
             progress['skip_google_browser'] = True
@@ -827,13 +827,13 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
     broader = []
     if fallback and sum(_date_matches(item.get('date_expression', ''), period, tolerance=0) for item in requested) < MAX_RESULTS:
         try:
-            broader = run(fallback, None)
+            broader = run(fallback, None, allow_decade=not requested)
         except PhotoResearchUnavailable as error:
             failures.extend(error.failures)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             pass  # A wider search must not erase exact-year results.
     exact, decade = [], []
-    for labelled in label(requested + broader):
+    for labelled in label(requested + broader, allow_decade=not requested):
         matches_requested = labelled['period_match'] == 'requested'
         (exact if matches_requested else decade).append(labelled)
     mixed = _deduplicate(_mix_sources(exact) + _mix_sources(decade))

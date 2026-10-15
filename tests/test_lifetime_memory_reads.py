@@ -70,7 +70,8 @@ def test_read_fence_has_strict_types_and_rejects_writer_lease(override):
         ReadFence.model_validate({**FENCE, **override})
 
 
-def test_capture_precedes_reads_and_pins_identity_without_resolving_or_leasing():
+@pytest.mark.parametrize('anonymous', [False, True])
+def test_capture_precedes_reads_and_pins_identity_without_resolving_or_leasing(anonymous):
     calls = []
     publisher = Publisher()
     payload = {'reply': 'original'}
@@ -82,7 +83,7 @@ def test_capture_precedes_reads_and_pins_identity_without_resolving_or_leasing()
         assert name == 'capture_lifetime_read_fence'
         assert kwargs == {'p_project_id': 'read-project'}
         return original
-    service = SimpleNamespace(user_id=OWNER, lifetime_rpc=rpc)
+    service = SimpleNamespace(user_id=OWNER, is_anonymous=anonymous, lifetime_rpc=rpc)
     def reader(fence):
         assert calls == ['read_lifetime_project_identity', 'capture_lifetime_read_fence']
         assert service.lifetime_read_identity == fence.identity.model_dump(mode='json')
@@ -95,6 +96,12 @@ def test_capture_precedes_reads_and_pins_identity_without_resolving_or_leasing()
     assert response.snapshot.fence.identity.project_id == 'read-project'
     assert not hasattr(service, 'lifetime_read_identity')
     assert calls == ['read_lifetime_project_identity', 'capture_lifetime_read_fence', 'read']
+
+
+def test_unscoped_guest_read_does_not_select_another_project():
+    service = SimpleNamespace(user_id=OWNER, is_anonymous=True,
+        lifetime_rpc=lambda *a, **kw: pytest.fail('unscoped guest project lookup'))
+    assert snapshot_lifetime_read(service, None, lambda fence: fence) is None
 
 
 @pytest.mark.parametrize('change', [dict(user_id=OTHER), dict(project='other')])

@@ -190,6 +190,26 @@ test('reload restores the latest mentioned place while preserving chronological 
   assert.equal(mergePlaces(places).at(-1).place, 'Sydney');
 });
 
+test('old canonical turns show saved place restoration without inventing an execution log', async () => {
+  const place = {place:'Chengde', hierarchy:['Earth','China','Chengde'], granularity:'city', source_sequence:1};
+  const old = {role:'assistant',text:'What do you remember?',sourceSequence:'1'};
+  const unrelated = {role:'assistant',text:'Another turn',sourceSequence:'2'};
+  let saves=0;
+  const context=vm.createContext({state:{project:{id:'p'},chat:[old,unrelated]},
+    profile:()=>({memory_places:[place]}),mergePlaces,placeHistoryKey:item=>item.place,
+    translate:key=>key,persistChatHistory:()=>{saves++;},
+    saveProfileUpdates:async()=>{},rememberPlaceJourneyProject:()=>{},loadPlacePictures:()=>{},resolvePlaceMap:()=>{},
+  });
+  vm.runInContext(extract('hydratePlaceJourney'),context);
+  await context.hydratePlaceJourney();
+  assert.equal(old.trace[0].skill,'memoir-place-journey');
+  assert.match(old.trace[0].detail,/placeJourneyRestored · Chengde/);
+  assert.equal(unrelated.trace,undefined);
+  await context.hydratePlaceJourney();
+  assert.equal(old.trace.length,1);
+  assert.equal(saves,1);
+});
+
 test('one turn saves and groups every place while retaining existing photographs', async () => {
   const town = {place: '大石庙镇', hierarchy: ['Earth', '中国', '河北', '承德', '大石庙镇'], granularity: 'suburb'};
   const district = {place: '双桥区', hierarchy: ['Earth', '中国', '河北', '承德', '双桥区'], granularity: 'suburb'};
@@ -200,7 +220,7 @@ test('one turn saves and groups every place while retaining existing photographs
     state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: []},
     LIFE_STAGES: [{id: 'childhood'}], appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
     placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(),
-    setTimeout: () => {},
+    setTimeout: () => {}, translate: key => key,
     conversationLanguage: () => 'zh-CN', simulatedLoopTrace: () => [],
     nextAssistantMessageId: () => 'm', render: () => {}, toast: () => {},
     profile: () => currentProfile, mergePlaces, placeHistoryKey: entry => entry.place,
@@ -217,7 +237,7 @@ test('one turn saves and groups every place while retaining existing photographs
       return {reply: '童年的两个地方。', conversation_saved: true};
     },
   });
-  for (const name of ['publicPlaceFields', 'resolvePlaceGroups', 'agentTurn']) vm.runInContext(extract(name), context);
+  for (const name of ['recordWorkspaceSkillProgress', 'publicPlaceFields', 'resolvePlaceGroups', 'agentTurn']) vm.runInContext(extract(name), context);
   await context.agentTurn('从大石庙镇搬到双桥区');
   await event({type: 'workspace_update', data: {
     source_sequence: 10, place_journey: district, place_journey_change: {changed: false, mentioned: true},

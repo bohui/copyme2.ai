@@ -173,6 +173,15 @@ test('completed skill progress survives saving and restoring the local chat', ()
  assert.equal(restored[0].traceMode,'live');
 });
 
+test('skill calls are visible even when their IDs overlap routine progress', () => {
+ const context=vm.createContext({state:{showThinkingSteps:true},escapeHtml:String,translate:key=>key});
+ vm.runInContext(extract('renderAgentTrace'),context);
+ for(const id of ['context','reply','workspace']) {
+  assert.match(context.renderAgentTrace([{id,skill:'memoir-place-journey',status:'running'}],'live'),
+    /memoir-place-journey/);
+ }
+});
+
 test('generated question pool stays inside thinking steps and marks the chosen question', () => {
  const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',translate:key=>key==='Memoir.trace.selectedQuestion'?'Selected':key,formatText:String,cleanAssistantText:String});
  vm.runInContext(source.match(/^const escapeHtml = .*$/m)[0],context);

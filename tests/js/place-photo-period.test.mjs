@@ -19,9 +19,9 @@ test('life-stage labels do not suppress the automatic photo request', async () =
       profile: () => ({story_focus: {when}, memory_places: [entry]}),
       api: async url => { requests.push(url); return {items: [item], status: 'PARTIAL'}; },
       placeHistoryKey: place => place.place,
-      saveProfileUpdates: async updates => saved.push(updates), render: () => {},
+      saveProfileUpdates: async updates => saved.push(updates), render: () => {}, translate: key => key,
     });
-    for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
+    for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope', 'mergePlacePictures', 'loadPlacePictures']) {
       vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
     }
     await context.loadPlacePictures(entry, 'project');
@@ -49,10 +49,13 @@ test('photo research reports real request progress and an unavailable provider f
   const context = vm.createContext({
     state: {project: {id: 'project'}}, URLSearchParams, workspaceUpdateQueue: Promise.resolve(),
     document: {querySelector: () => null}, profile: () => ({memory_places: [entry]}),
-    api: async () => { calls++; return {items: [], status: 'UNAVAILABLE'}; },
+    api: async () => { calls++; return {items: [], status: 'UNAVAILABLE', failures: [
+      {provider:'flickr', reason:'robots_denied', private:'secret'}, {provider:'loc', reason:'http_403'},
+      {provider:'google', reason:'https://secret.example/key'}]}; },
     placeHistoryKey: place => place.place, translate: key => key, render: () => {},
+    persistChatHistory: () => {},
   });
-  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'loadPlacePictures']) {
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'loadPlacePictures']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   await context.loadPlacePictures(entry, 'project', {onProgress: step => events.push(step)});
@@ -60,6 +63,8 @@ test('photo research reports real request progress and an unavailable provider f
   assert.deepEqual(events.map(step => [step.skill, step.status]),
     [['place-photo-research', 'running'], ['place-photo-research', 'failed']]);
   assert.match(events[0].detail, /承德市 · 1983年4月/);
+  assert.match(events[1].detail, /flickr: robots_denied; loc: http_403/);
+  assert.doesNotMatch(JSON.stringify(events), /secret/);
 });
 
 test('photo batches persist after being painted optimistically', async () => {
@@ -73,7 +78,7 @@ test('photo batches persist after being painted optimistically', async () => {
     state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
     window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
     profile: () => state.project.profile, placeHistoryKey: place => place.place,
-    render: () => {}, toast: message => { throw new Error(message); },
+    render: () => {}, translate: key => key, toast: message => { throw new Error(message); },
     api: async (url, options = {}) => {
       if (options.method !== 'PATCH') return {items: [picture], status: 'PARTIAL', searching: false};
       const body = JSON.parse(options.body);
@@ -81,7 +86,7 @@ test('photo batches persist after being painted optimistically', async () => {
       return {...state.project, profile: body.profile, revision: 8};
     },
   });
-  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope',
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope',
     'mergePlacePictures', 'loadPlacePictures', 'mergeProfileUpdates', 'saveProfileUpdates']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
