@@ -4,6 +4,7 @@ from browser_supabase_fixture import install_supabase_fixture
 from browser_story_history_fixture import StoryHistoryFixture, STAGE_OWNER
 import json
 import os
+import re
 from pathlib import Path
 import pytest
 from playwright.sync_api import expect,sync_playwright
@@ -54,7 +55,7 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         elif path=='/user/conversations' or path.startswith('/projects/stage-project/'): data={'items':[]}
         return route.fulfill(content_type='application/json',body=json.dumps(data))
     with sync_playwright() as pw:
-        browser=pw.chromium.launch()
+        browser=pw.chromium.launch(executable_path=os.getenv('MEMOIR_BROWSER_EXECUTABLE'))
         base=os.environ['MEMOIR_BROWSER_URL']
         context=browser.new_context(viewport={'width':1440,'height':1000})
         context.add_cookies([{'name':'copyme2_ui_locale','value':locale,'url':base},
@@ -99,3 +100,138 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         destination.parent.mkdir(parents=True,exist_ok=True)
         page.locator('#workspace-detail').screenshot(path=str(destination))
         browser.close()
+
+
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database, resolve
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, locale):
+    """Real source frontend, HTTP readiness route and isolated PostgreSQL.
+
+    Only auth and unrelated workspace services are synthetic browser seams.
+    Stage totals are never mocked: replies use the canonical commit RPC and
+    exact stage evidence is persisted at the extraction boundary.
+    """
+    from io import BytesIO
+    import math
+    from PIL import Image
+    from fastapi.testclient import TestClient
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+    from memoir_postgres_workflow import PostgresRest
+    from stage_progress_fixture import save_stage_source, link_stage
+    from test_agent_commit_postgres import OWNER
+
+    project_id = resolve(sql)['project_id']
+    command = sql.command
+    port = f" port={command[command.index('-p')+1]}" if '-p' in command else ''
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',
+        f"host={command[command.index('-h')+1]}{port} user=postgres dbname=postgres")
+    client = TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage()))
+    place = {'place':'Synthetic Garden','hierarchy':['Earth','Australia','Synthetic Garden'],
+             'granularity':'city','life_stage':'childhood','latitude':-33.8,'longitude':151.2}
+    project = {'id':project_id,'revision':1,'mode':'self','profile':{
+        'preferred_language':locale,'memory_places':[place]},'workspace_unlocked':False}
+    history = StoryHistoryFixture(OWNER, project_id, 'fixture-only')
+    reads = []
+
+    def save(stage, words):
+        source = save_stage_source(sql, project_id, '忆' * words)
+        link_stage(sql, project_id, source, stage)
+        # A completed synthetic extractor; no worker/provider is invoked.
+        sql("update public.user_narrator_source set processing_status='succeeded';")
+
+    def api(route):
+        if history.serve(route):
+            return
+        path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+        data = {}
+        if path == '/agent/config':
+            data = {'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase'}
+        elif path in ('/agent/profile','/user/profile'):
+            data = project['profile']
+        elif path == '/projects/' + project_id:
+            data = project
+        elif path.endswith('/journey'):
+            data = {'active_session':None}
+        elif path == '/story/state':
+            data = {'recall_status':{'rounds_completed':1,'free_rounds':20,'payment_required':False,'paid':True},
+                    'family_features_enabled':False}
+        elif path == '/story/readiness':
+            response = client.get('/v1/story/readiness', params={'project_id':project_id})
+            assert response.status_code == 200, response.text
+            assert response.headers['cache-control'] == 'no-store'
+            reads.append(response.json())
+            return route.fulfill(status=response.status_code, content_type='application/json', body=response.text)
+        elif path == '/agent/place-journey':
+            data = {'place_journey':place}
+        elif path == '/agent/turn':
+            save('childhood', 57)
+            data = {'conversation_saved':True,'reply':'A synthetic saved reply.'}
+        elif path == '/user/conversations' or path.startswith('/projects/' + project_id + '/'):
+            data = {'items':[]}
+        route.fulfill(content_type='application/json', body=json.dumps(data))
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(executable_path=os.getenv('MEMOIR_BROWSER_EXECUTABLE'))
+        base = os.environ['MEMOIR_BROWSER_URL']
+        context = browser.new_context(viewport={'width':1440,'height':1000})
+        page = context.new_page()
+        # All nonlocal requests are blocked except the synthetic SDK auth seam.
+        page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base + '/') else route.abort())
+        page.add_init_script("localStorage.setItem('memory-spark-project'," + json.dumps(project_id) + ");")
+        user = {'id':OWNER,'is_anonymous':False,'user_metadata':{'ui_locale':locale}}
+        install_supabase_fixture(page, "window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:"
+            + json.dumps({'access_token':'fixture-only','user':user})
+            + "}}),getUser:async()=>({data:{user:" + json.dumps(user) + "}}),onAuthStateChange:()=>({})}})};")
+        page.route('**/api/v1/memoir/**', api)
+        page.goto(base + '/memoir/interview/' + project_id)
+        ring = lambda stage: page.locator(f'[data-life-stage-tab="{stage}"] .life-stage-readiness')
+        expect(ring('childhood')).to_be_visible(timeout=30000)
+        expect(ring('childhood')).to_have_attribute('style', '--readiness:0%')
+        assert reads and all(item['percent'] == 0 for item in reads[-1]['stages'].values())
+
+        for stage, words in [('childhood',100),('midlife',300),('later_life',1000),('adolescence',157)]:
+            save(stage, words)
+        page.reload()
+        expected = {'childhood':(10,'red',(185,72,67)), 'midlife':(30,'amber',(183,122,24)),
+                    'later_life':(50,'green',(57,118,80)), 'adolescence':(15.7,'red',(185,72,67)),
+                    'baby':(0,'red',(185,72,67))}
+
+        def check_rings(values):
+            page.wait_for_load_state('networkidle')
+            boxes = {}
+            for stage, (percent, color, rgb) in values.items():
+                node = ring(stage)
+                expect(node).to_have_attribute('style', f'--readiness:{percent}%')
+                expect(node).to_have_class('life-stage-readiness readiness-' + color)
+                expect(node).to_have_css('background-image', re.compile(r'conic-gradient\(.+'))
+                boxes[stage] = node.bounding_box()
+            # Take one viewport snapshot: hydration can replace individual DOM
+            # nodes between Playwright's element screenshot/scroll operations.
+            image = Image.open(BytesIO(page.screenshot())).convert('RGB')
+            for stage, (percent, color, rgb) in values.items():
+                box = boxes[stage]
+                center = (box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                radius = min(box['width'], box['height']) / 2 - 2
+                pixels = [image.getpixel((int(center[0] + radius * math.sin(i * math.tau / 720)),
+                                         int(center[1] - radius * math.cos(i * math.tau / 720)))) for i in range(720)]
+                fraction = sum(max(abs(a-b) for a,b in zip(pixel,rgb)) < 25 for pixel in pixels) / len(pixels)
+                assert fraction == pytest.approx(percent / 100, abs=.04), (stage, fraction, percent)
+
+        check_rings(expected)
+        page.locator('#chat-input').fill('A synthetic childhood memory.')
+        page.locator('.send-button').click()
+        expect(page.locator('.assistant-message').last).to_contain_text('A synthetic saved reply.')
+        expected['childhood'] = (15.7,'red',(185,72,67))
+        check_rings(expected)
+        before_reload = reads[-1]['stages']
+        page.reload()
+        check_rings(expected)
+        assert reads[-1]['stages'] == before_reload
+        destination = ROOT / f'output/preview-debug/canonical-stage-rings-{locale}.png'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        page.locator('.life-stage-navigator').screenshot(path=str(destination))
+        browser.close()
+    client.close()

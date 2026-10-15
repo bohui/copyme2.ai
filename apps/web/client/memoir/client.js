@@ -784,6 +784,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         markWorkspaceFocusStarted(requestTurn);
       } else if (event.type === "conversation_saved") {
         state.photoTurns?.accept(requestTurn, {...event.data, state:"conversation_saved"});
+        void refreshStageReadiness();
         if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
           await applyCommittedConversationLocale(event.data?.profile_updates);
         }
@@ -819,6 +820,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     if (body.reply && state.pendingConversationTurn === requestTurn) state.pendingConversationTurn = null;
     if (body.conversation_saved) {
       state.backgroundDraftTurn = requestTurn.id;
+      void refreshStageReadiness();
       void refreshPrivateDraft();
     }
     if (state.recallStatus?.payment_required) void ensureRecallPreview();
@@ -2285,15 +2287,23 @@ function lifeStageNavigator() {
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div><button type="button" class="button button-secondary button-small workspace-add-memory" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${activeId === "all" ? t("addMemory") : t("addMemoryToStage", {stage: lifeStageText(activeId, "label")})}</button></section>`;
 }
 
-async function refreshStageReadiness() {
+async function refreshStageReadiness({attempt = 0} = {}) {
   const scope = captureProjectScope();
   const projectId = state.project?.id;
   if (!projectId || !state.supabase?.accessToken) return;
+  const requestId = state.stageReadinessRequest = (state.stageReadinessRequest || 0) + 1;
+  const current = () => isCurrentProjectScope(scope) && state.stageReadinessRequest === requestId;
   try {
     const result = await storyApi(`/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`);
-    if (isCurrentProjectScope(scope)) {
+    if (current()) {
       state.stageReadiness = result.stages || {};
       render();
+      // Canonical stage extraction may finish after conversation_saved. Keep
+      // the reply usable and stop retries on navigation, newer reads or 30s.
+      if (result.pending && attempt < 15) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        if (current()) await refreshStageReadiness({attempt: attempt + 1});
+      }
     }
   } catch (_) { /* Readiness is optional; keep the saved conversation usable. */ }
 }
