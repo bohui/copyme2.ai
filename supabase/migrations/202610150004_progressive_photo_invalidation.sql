@@ -63,7 +63,7 @@ begin
  select s.* into root from public.user_lifetime_lane_snapshot s join public.user_memoir_lane l on l.id=s.lane_id
    where s.id=p_snapshot_id and s.user_id=owner and s.project_id=p_project_id and s.conversation_id=identity.conversation_id
      and s.state in ('completed','proposed') and l.skill='composer' and s.policy_epoch=project.policy_epoch and s.preference_revision=identity.preference_revision;
- if not found then raise exception 'stale memoir root' using errcode='40001';end if;
+ if not found then raise exception 'stale memoir root' using errcode='PT409';end if;
  if p_after is not null then
    select last_partition into after_key from public.user_lifetime_memoir_cursor where id=p_after::uuid
      and snapshot_id=root.id and user_id=owner and project_id=p_project_id and root_digest=root.root_digest;
