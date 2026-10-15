@@ -1,5 +1,9 @@
 # Memoir stage-progress ring repair
 
+This is the initial PR68 review snapshot. The [recovery follow-up](stage-progress-recovery-20261015.md)
+supersedes the original thirty-second retry behavior and records the current
+checks, realistic dependency characterization and bounded query-cost evidence.
+
 The canonical interview path lost stage progress at the persistence/read boundary,
 and the client stopped refreshing it after saved turns. The existing CSS paints
 the correct arcs when it receives nonzero percentages.

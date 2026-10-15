@@ -112,5 +112,7 @@
     "Live extractor output breadth, long-running extraction, large-history performance and non-Chromium devices not evaluated.",
     "No production database migration, deployment or paid/provider calls performed."
   ],
-  "acceptance_complete": false
+  "acceptance_complete": false,
+  "historical_snapshot": true,
+  "followup_report": "stage-progress-recovery-20261015.md"
 }
