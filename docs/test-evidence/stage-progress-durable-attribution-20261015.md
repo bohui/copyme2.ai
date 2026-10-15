@@ -1,5 +1,10 @@
 # PR68: durable stage attribution through real persistence RPCs
 
+> This is the attribution receipt for the prior PR68 head. The reviewer later
+> confirmed that repair and found a separate saved-project resume cancellation.
+> See [the resume continuation](stage-progress-resume-20261015.md) for that fix,
+> latest verification and the remaining acceptance gates.
+
 Tested code: `98b112bfdf0a8e3c769f9911239c949b2483a136`.
 Main/base: `46caa5fc2c2c5af2d4f7280bea74cc75184c9cbc`.
 The following commit contains evidence only; PR68 records its exact review head.
