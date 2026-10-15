@@ -13,12 +13,17 @@ const fenceError = (status = 409) => Object.assign(new Error('Read revision chan
 
 function harness() {
   let now = 0, sequence = 0;
+  let path = '/memoir';
   const requests = [], timers = new Map(), renders = [];
-  const state = {project:{id:'p'}, supabase:{accessToken:'synthetic',user:{id:'owner'}},
+  const state = {project:{id:'p',mode:'self'}, projectPrincipalId:'owner', supabase:{accessToken:'synthetic',user:{id:'owner'}},
     stageReadiness:{}, chat:[]};
   const context = vm.createContext({state, AbortController, Date:{now:() => now},
     setTimeout:(callback, delay) => {const id = ++sequence; timers.set(id, {callback, at:now + delay}); return id;},
     clearTimeout:id => timers.delete(id), workspaceTurnFocus:() => null,
+    MEMOIR_ROUTES:{interview:'/memoir/interview'}, currentPath:() => path,
+    window:{history:{pushState:(_state, _title, next) => {path = next;}}},
+    stopVoiceMode() {}, restoreChatHistory:() => [], hydrateAccountHistory:async () => {},
+    startCodexConversation:async () => {},
     markWorkspaceFocusStarted() {}, conversationLanguage:() => 'en-AU', simulatedLoopTrace:() => [],
     refreshPrivateDraft() {}, applyCommittedConversationLocale:async () => {}, persistChatHistory() {},
     render:() => renders.push(JSON.parse(JSON.stringify(state.stageReadiness))),
@@ -32,7 +37,7 @@ function harness() {
     }),
     streamAgentTurn:async () => ({conversation_saved:true, reply:'Saved reply.'})});
   for (const name of ['captureProjectScope','isCurrentProjectScope','invalidateProjectNavigation',
-    'refreshStageReadiness','agentTurn']) vm.runInContext(extract(name), context);
+    'navigateTo','refreshStageReadiness','agentTurn','startMemoirStory','startStory']) vm.runInContext(extract(name), context);
   async function nextTimer() {
     const next = [...timers].sort((a,b) => a[1].at - b[1].at)[0];
     assert.ok(next, 'Recovery must schedule another bounded read');
@@ -40,6 +45,85 @@ function harness() {
   }
   return {context,state,requests,timers,renders,nextTimer,now:() => now};
 }
+
+test('saved-project Begin replaces the cancelled poll before its resume greeting finishes', async () => {
+  const h = harness();
+  const old = h.context.refreshStageReadiness();
+  h.requests[0](stage(10,true)); await settle();
+  const previousJob = h.state.stageReadinessRefresh;
+  let finishGreeting;
+  h.context.startCodexConversation = () => new Promise(resolve => {finishGreeting = resolve;});
+  const resume = h.context.startStory(); await settle();
+  assert.equal(previousJob.controller.signal.aborted, true);
+  assert.equal(h.requests.length, 2, 'Resume must restart recovery without waiting for the greeting');
+  assert.equal(h.state.stageReadinessRefresh.scope.generation, h.state.navigationGeneration);
+  h.requests[1](stage(10,true)); await settle();
+  await h.nextTimer();
+  h.requests[2](stage(30)); await settle();
+  assert.equal(h.state.stageReadiness.childhood.percent, 30);
+  finishGreeting(); await Promise.all([old,resume]);
+  assert.equal(h.timers.size, 0);
+});
+
+test('resume aborts an in-flight landing read and rejects its late snapshot', async () => {
+  const h = harness();
+  const old = h.context.refreshStageReadiness();
+  await h.context.startStory();
+  assert.equal(h.requests[0].signal.aborted, true);
+  assert.equal(h.requests.length, 2);
+  const resumedJob = h.state.stageReadinessRefresh;
+  h.requests[0](stage(50)); await old;
+  assert.equal(h.state.stageReadinessRefresh, resumedJob, 'Old cleanup cannot detach the resumed job');
+  h.requests[1](stage(30)); await settle();
+  assert.equal(h.state.stageReadiness.childhood.percent, 30);
+  assert.ok(h.renders.every(value => value.childhood?.percent !== 50));
+  assert.equal(h.timers.size, 0);
+});
+
+test('duplicate Begin clicks and a concurrent explicit refresh share the resumed job', async () => {
+  const h = harness();
+  let releaseHistory, hydrations = 0;
+  h.context.hydrateAccountHistory = () => {hydrations++; return new Promise(resolve => {releaseHistory = resolve;});};
+  const first = h.context.startStory();
+  const duplicate = h.context.startStory(); await settle();
+  assert.equal(hydrations, 1);
+  releaseHistory(); await Promise.all([first,duplicate]);
+  assert.equal(h.requests.length, 1);
+  const job = h.state.stageReadinessRefresh;
+  const explicit = h.context.refreshStageReadiness();
+  assert.equal(h.state.stageReadinessRefresh, job);
+  assert.equal(h.requests.length, 1);
+  h.requests[0](stage(10,true)); await settle();
+  assert.equal(h.requests.length, 2, 'Coalesce into one serialized follow-up');
+  h.requests[1](stage(30)); await explicit;
+  assert.equal(h.state.stageReadiness.childhood.percent, 30);
+  assert.equal(h.timers.size, 0);
+});
+
+test('navigation while resume history is loading cannot restart recovery in the stale scope', async () => {
+  const h = harness();
+  let releaseHistory;
+  h.context.hydrateAccountHistory = () => new Promise(resolve => {releaseHistory = resolve;});
+  const resume = h.context.startStory(); await settle();
+  h.context.navigateTo('/memoir/interview/other');
+  h.state.project = {id:'other',mode:'self'};
+  releaseHistory(); await resume;
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.timers.size, 0);
+});
+
+test('navigation after resume cancels its new read and prevents late painting', async () => {
+  const h = harness();
+  await h.context.startStory();
+  assert.equal(h.requests.length, 1);
+  h.context.navigateTo('/memoir');
+  assert.equal(h.requests[0].signal.aborted, true);
+  const renders = h.renders.length;
+  h.requests[0](stage(50)); await settle();
+  assert.equal(h.renders.length, renders);
+  assert.deepEqual(h.state.stageReadiness, {});
+  assert.equal(h.timers.size, 0);
+});
 
 test('a canonical saved reply refreshes rings without a workspace update or private draft', async () => {
   const h = harness();

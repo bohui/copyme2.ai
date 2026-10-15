@@ -1802,6 +1802,9 @@ async function startMemoirStory(mode = "self") {
       state.freshAnonymousSession = false;
       state.chatHistoryCollapsed = false;
       navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`);
+      // Navigation cancels the landing poll. Resume in the new scope without
+      // coupling extraction recovery to the optional greeting.
+      void refreshStageReadiness();
       await startCodexConversation({ resume: true });
       return;
     }
