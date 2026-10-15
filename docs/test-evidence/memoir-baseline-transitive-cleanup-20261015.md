@@ -1,5 +1,7 @@
 # PR69: default deadlines, creation coverage and transitive wrapper cleanup
 
+Historical 7884 checkpoint. The [later process-portability report](memoir-baseline-process-portability-20261015.md) records the current source and scope.
+
 Fixed source/test commit: `7884af336740044f7e4f7829092a1a174e37dd88`.
 All **twelve complete affected modules** record **82 passed, one failed, zero
 errors/skips** in **270.78 seconds** wall time
@@ -14,8 +16,9 @@ case/profiler. The outer returns 143 and records `verified=true` while the inner
 command and original postmaster(s) still run. Both tests use the shipped outer
 five-second SIGKILL grace, case-child twenty-second grace and profiler fixture
 ten-second fast-stop timeout. Snapshots preserve that false success before
-identity-checked test emergency teardown; the leak is not inferred from a
-directory scan. Single-wrapper success did not establish this transitive path.
+an attempted test emergency teardown; the leak is not inferred from a
+directory scan. The frozen-case teardown failed its identity assertion and did
+not stop that database; the earlier successful-teardown claim is withdrawn. Single-wrapper success did not establish this transitive path.
 
 Each new short physical `/tmp` root now atomically registers its device/inode
 identity with its inherited owner. An inner wrapper registers with the outer
@@ -88,8 +91,8 @@ preserves the coverage guard, original/default red and green runs, 56344's
 **67 passes across ten complete modules**, a196's **76 passes and one failure
 across twelve complete modules**, both nested red snapshots, and current native
 observers. Those checkpoints apply only to their recorded sources; a196 still
-had the nested defect. The ledger includes 49
-current raw-file hashes, the intermediate checkpoint's own hashes, and hashes
+had the nested defect. The ledger preserves its 49 original raw-file hashes plus three separate audit/
+cleanup hashes, the intermediate checkpoint's own hashes, and hashes
 of all six changed source/test files. An evidence-only child leaves those files
 identical to the tested source.
 
@@ -108,3 +111,28 @@ independent current-head runtime review; live provider/judge, semantic/latency
 and real Auth checks; full opt-in UI/artifact/complete-round and 250-round
 acceptance; native Mac/device/binary and production execution. No full acceptance
 is claimed.
+
+
+## Audit correction: failed red teardown and verified later cleanup
+
+The nested frozen-case red trace includes an assertion failure in
+`emergency_cleanup`: its owner changed state before command inspection returned
+an empty command line. This guard failure aborted teardown before PostgreSQL
+stop. The red leak snapshots remain valid; that failed teardown does not prove
+successful cleanup, and the earlier classification claiming it did is corrected.
+
+Separate inspection at 2026-10-15 18:25 UTC found original postmaster **747268**
+still running with `/proc` start **2649474** and its original data/pid file.
+At **18:26:01 UTC**, a separate cleanup checked PID/start, exact `postgres -D`
+command, matching `postmaster.pid`, owner UID and allocation device/inode before
+`pg_ctl -m immediate -w stop` returned zero. Only that matched synthetic
+allocation was removed. Subsequent independent inspection of all three recorded
+red postmasters, both commands and their owners found no original process
+running and all original data/pid files absent. Exited PID-1 zombies remain;
+process reaping is not claimed. The JSON embeds before, action and after records
+with separate raw hashes. This later verification does not rewrite the failed
+historical teardown as successful.
+
+The separate proposal-overlap regression is excluded from this twelve-module
+selection and remains an unresolved product-policy blocker, as recorded in the
+historical complete ledger.

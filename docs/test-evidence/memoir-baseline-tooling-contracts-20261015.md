@@ -249,3 +249,31 @@ checkpoint outcomes, original identities, refusal guards, corrections and unrun
 gates. Whole-repository/current-head independent acceptance and consequential
 product decisions remain open. No shutdown assertion or PR68-owned policy is
 weakened.
+
+
+## Portable generic process inspection and evidence audit
+
+`d373e7435b6f1dc702e80cf02c567331eff7c4eb` removes the unsupported Apple ps sid column while
+preserving numeric session ownership through os.getsid, group/birth checks,
+bounded cleanup and metadata retention on inspection failure. Generic child
+success previously became cleanup_failed/2 under Apple-compatible keyword
+rejection. Six new portability cases pass on Linux with a restrictive ps shim,
+including real owned sessions and non-signalling identity/permission refusal.
+Native Mac runtime coverage remains unrun.
+
+All thirteen complete affected modules record 88 passes, one ordinary failure,
+no errors/skips. The unchanged descendant-absence assertion fails on an exited
+PID-1 zombie. The separate proposal-overlap regression is excluded and remains
+an unresolved product-policy blocker. The new [report](memoir-baseline-process-portability-20261015.md)
+and [ledger](memoir-baseline-process-portability-20261015.json) preserve exact
+source, commands, identities and scope. Current pointers now identify this
+targeted checkpoint while b1 aggregate fields remain historical.
+
+The historical nested frozen-case red teardown failed its identity assertion;
+the successful-cleanup claim is withdrawn with the original trace retained.
+Separate identity checks found its original postmaster still live. A bounded
+exact-cluster stop at 18:26 UTC and separate 18:27 verification establish that
+all three original red postmasters and their recorded owners are no longer
+running, and all original data/PID files are absent. Exited zombies are not
+claimed reaped. Before/action/after evidence is embedded separately, rather than
+using the failed teardown as proof. No product or PR68-owned policy changes.

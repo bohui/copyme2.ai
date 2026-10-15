@@ -3600,7 +3600,257 @@
         ]
       }
     },
-    "classification": "Product/tooling lifecycle defect: actual nested wrappers return 143 with verified=true while the inner command and at least one original PostgreSQL remain running. Test-only emergency teardown removes exactly recorded owned resources."
+    "classification": "Product/tooling lifecycle defect: actual nested wrappers return 143 with verified=true while the inner command and at least one original PostgreSQL remain running. The frozen-case emergency teardown then failed its process-identity assertion; successful cleanup is not established by that failed teardown. Subsequent separately recorded exact-identity inspection found its original postmaster still running and stopped it on 2026-10-15 at 18:26 UTC.",
+    "teardown_correction": {
+      "historical_teardown_status": "Failed in emergency_cleanup before stopping the frozen-case database. Preserve the original failure trace and valid before-teardown leak snapshots.",
+      "earlier_successful_cleanup_claim_withdrawn": true,
+      "subsequent_inspection": {
+        "observed_at_utc": "2026-10-15T18:25:29.946381+00:00",
+        "method": "Read /proc PID/start/state and original data paths; no signals or service calls",
+        "observations": [
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "command",
+            "pid": 747280,
+            "original_started": "2650198",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650198",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "postmaster",
+            "pid": 747298,
+            "original_started": "2650427",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650427",
+            "original_identity_matches": true,
+            "data": "/tmp/memoir-check-pg-2l5r_adm/memoir-controlled-pg-vbnmgy3k/memoir-lease-pg-cwp22s63/data",
+            "data_exists": false,
+            "pid_file_exists": false
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "case_owner",
+            "pid": 747280,
+            "original_started": "2650198",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650198",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "postmaster",
+            "pid": 747640,
+            "original_started": "2650853",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650853",
+            "original_identity_matches": true,
+            "data": "/tmp/memoir-check-pg-2l5r_adm/memoir-controlled-pg-xcw3wdk5/memoir-lease-pg-pq38iy0g/data",
+            "data_exists": false,
+            "pid_file_exists": false
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "case_owner",
+            "pid": 747280,
+            "original_started": "2650198",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650198",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "role": "command",
+            "pid": 747249,
+            "original_started": "2649184",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2649184",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "role": "postmaster",
+            "pid": 747268,
+            "original_started": "2649474",
+            "state": "S",
+            "ppid": 1,
+            "current_started": "2649474",
+            "original_identity_matches": true,
+            "data": "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy/memoir-lease-pg-ct5p5j_w/data",
+            "data_exists": true,
+            "pid_file_exists": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "role": "case_owner",
+            "pid": 747250,
+            "original_started": "2649224",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2649224",
+            "original_identity_matches": true
+          }
+        ]
+      },
+      "subsequent_guarded_cleanup": {
+        "observed_at_utc": "2026-10-15T18:26:01.683193+00:00",
+        "scope": "Subsequent cleanup of exactly matched synthetic red allocation; historical failed teardown is not claimed successful",
+        "actions": [
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "pid": 747268,
+            "original_started": "2649474",
+            "data": "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy/memoir-lease-pg-ct5p5j_w/data",
+            "allocation_identity": {
+              "root": "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy",
+              "device": 33,
+              "inode": 5374306
+            },
+            "before": {
+              "state": "S",
+              "ppid": 1,
+              "started": "2649474",
+              "pid_file_matches": true,
+              "command": [
+                "/workspace/.tools/postgresql/usr/lib/postgresql/17/bin/postgres",
+                "-D",
+                "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy/memoir-lease-pg-ct5p5j_w/data",
+                "-k",
+                "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy/memoir-lease-pg-ct5p5j_w",
+                "-h"
+              ],
+              "root_identity_matches": true
+            },
+            "action": [
+              "pg_ctl",
+              "-D",
+              "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy/memoir-lease-pg-ct5p5j_w/data",
+              "-m",
+              "immediate",
+              "-w",
+              "stop"
+            ],
+            "action_at_utc": "2026-10-15T18:26:01.567921+00:00",
+            "stop_returncode": 0,
+            "stop_stdout": "waiting for server to shut down.... done\nserver stopped\n",
+            "stop_stderr": "",
+            "after": {
+              "state": "Z",
+              "original_identity_matches": true,
+              "running": false,
+              "pid_file_exists": false,
+              "data_exists": false,
+              "allocation_root_exists": false
+            }
+          }
+        ]
+      },
+      "subsequent_verification": {
+        "observed_at_utc": "2026-10-15T18:27:18.619285+00:00",
+        "method": "Separate current /proc PID/start/state and original data/pid-file inspection after exactly guarded stop; zombies are exited, not reaped",
+        "all_original_processes_not_running": true,
+        "all_original_data_and_pid_files_absent": true,
+        "observations": [
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "command",
+            "pid": 747280,
+            "original_started": "2650198",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650198",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "postmaster",
+            "pid": 747298,
+            "original_started": "2650427",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650427",
+            "original_identity_matches": true,
+            "data": "/tmp/memoir-check-pg-2l5r_adm/memoir-controlled-pg-vbnmgy3k/memoir-lease-pg-cwp22s63/data",
+            "data_exists": false,
+            "pid_file_exists": false
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "case_owner",
+            "pid": 747280,
+            "original_started": "2650198",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650198",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "postmaster",
+            "pid": 747640,
+            "original_started": "2650853",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650853",
+            "original_identity_matches": true,
+            "data": "/tmp/memoir-check-pg-2l5r_adm/memoir-controlled-pg-xcw3wdk5/memoir-lease-pg-pq38iy0g/data",
+            "data_exists": false,
+            "pid_file_exists": false
+          },
+          {
+            "case": "test_default_outer_kill_bounda1",
+            "role": "case_owner",
+            "pid": 747280,
+            "original_started": "2650198",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2650198",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "role": "command",
+            "pid": 747249,
+            "original_started": "2649184",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2649184",
+            "original_identity_matches": true
+          },
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "role": "postmaster",
+            "pid": 747268,
+            "original_started": "2649474",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2649474",
+            "original_identity_matches": true,
+            "data": "/tmp/memoir-check-pg-p8oancx5/memoir-case-ao7cvgzy/memoir-lease-pg-ct5p5j_w/data",
+            "data_exists": false,
+            "pid_file_exists": false
+          },
+          {
+            "case": "test_default_outer_kill_bounda0",
+            "role": "case_owner",
+            "pid": 747250,
+            "original_started": "2649224",
+            "state": "Z",
+            "ppid": 1,
+            "current_started": "2649224",
+            "original_identity_matches": true
+          }
+        ]
+      },
+      "limits": "The failed historical teardown is not reclassified as successful. Later PID/start/state and data checks establish no original recorded process remains running and no original data/pid file remains; PID-1-owned exited zombies remain unreaped."
+    }
   },
   "nested_green": {
     "counts": {
@@ -3853,6 +4103,9 @@
     "/tmp/memoir-transitive-final.log": "011e41242362bb877d916359de87ceb5870cc78f4d0a9082cf19f5c4e7a86341",
     "/tmp/memoir-default-evidence.json": "f4ad5c5d723226a4ae89cf8f3ac263dd98df9c4c3cd3c36d8cdcbba4d344ce89",
     "/tmp/memoir-nested-red-snapshots.json": "adea08a337b9c8753233f454408597e64f41a72bafc5578d9a04fde134f7e1e6",
-    "/tmp/pytest-of-agent/pytest-98/test_timeout_stops_a_term_resi0/descendant-pid": "ac7e517d7a8d2631bc2eb4eada0a8d31ca82b6e7fe692d6af33da0439738e8bf"
+    "/tmp/pytest-of-agent/pytest-98/test_timeout_stops_a_term_resi0/descendant-pid": "ac7e517d7a8d2631bc2eb4eada0a8d31ca82b6e7fe692d6af33da0439738e8bf",
+    "/tmp/memoir-nested-red-current-inspection.json": "cbe08ca610b07ab7b7a85c89a45417d1b1939139cb18411abea1309eee4fdb9c",
+    "/tmp/memoir-nested-red-subsequent-cleanup.json": "589ae5543115b5f4c27a0beb1046d389f54d9147e44a96c9930fdbb9848d7c89",
+    "/tmp/memoir-nested-red-subsequent-verification.json": "8dd3e19539dd927ceae80dcda812dfb483145383a5933c88b007e68ba623729d"
   }
 }

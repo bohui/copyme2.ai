@@ -723,6 +723,32 @@
         "Nested wrappers replaced inherited allocation ownership and lost inner command-session/native roots"
       ],
       "policy": "No pending-proposal inheritance or PR68-owned policy change"
+    },
+    {
+      "batch": 16,
+      "code_revision": "d373e7435b6f1dc702e80cf02c567331eff7c4eb",
+      "scope": "Portable session inspection with generic command and Apple-compatible ps regressions; current-pointer and historical red-teardown corrections",
+      "red": {
+        "passed": 1,
+        "failed": 4,
+        "source": "d2f6ffa19a77c0ab7357219d08f4fa8fac622a8f"
+      },
+      "pinned_result": {
+        "passed": 88,
+        "failed": 1,
+        "error": 0,
+        "skipped": 0,
+        "modules": 13,
+        "seconds": 273.44
+      },
+      "ledger": "memoir-baseline-process-portability-20261015.json",
+      "ordinary_failure": "tests/test_isolated_check_runner.py::test_timeout_stops_a_term_resistant_descendant_after_its_parent_exits",
+      "excluded_policy_failure": {
+        "nodeid": "tests/test_progressive_rework_proposal_overlap.py::test_rework_does_not_revisit_a_completed_proposal_on_another_section",
+        "status": "Previously failing ordinary regression; excluded and not rerun by this selection. Pending-proposal inheritance contract remains unresolved; no policy/guard change."
+      },
+      "native_mac_runtime_coverage": "not run; Apple-column shim and actual Linux process sessions only",
+      "historical_red_teardown": "Failed identity assertion remains recorded; previously running exact synthetic postmaster stopped separately at 18:26 UTC, separately verified at 18:27 UTC"
     }
   ],
   "current_disposition": {
@@ -857,9 +883,10 @@
       "environment_or_aggregate_budget": 7,
       "unresolved_functional": 9
     },
-    "current_source_test_revision": "a294f8b6cc47952d1e85b2003352f36dec69a347",
-    "latest_targeted_followup": "memoir-baseline-supervision-20261015.json",
-    "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788"
+    "current_source_test_revision": "d373e7435b6f1dc702e80cf02c567331eff7c4eb",
+    "latest_targeted_followup": "memoir-baseline-process-portability-20261015.json",
+    "latest_complete_repository_run_still_at": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
+    "aggregate_fields_scope": "source_test_revision/tested_revision/current_ledger, aggregate counts and classifications identify the preserved b1e54e8 whole-repository checkpoint. current_source_test_revision/latest_targeted_followup identify the newer targeted scope; no whole-repository acceptance is implied."
   },
   "final_fixed_head_checks": {
     "tested_revision": "b1e54e8e65bbb0facc1edeb2d2bb90db99212788",
@@ -1089,5 +1116,17 @@
     "skipped": 0,
     "ledger": "memoir-baseline-transitive-cleanup-20261015.json",
     "whole_repository_aggregate_rerun": false
+  },
+  "latest_process_portability_followup": {
+    "tested_revision": "d373e7435b6f1dc702e80cf02c567331eff7c4eb",
+    "acceptance_complete": false,
+    "modules": 13,
+    "passed": 88,
+    "failed": 1,
+    "error": 0,
+    "skipped": 0,
+    "ledger": "memoir-baseline-process-portability-20261015.json",
+    "whole_repository_aggregate_rerun": false,
+    "native_mac_runtime_coverage": false
   }
 }
