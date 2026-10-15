@@ -77,16 +77,28 @@ def _quiesce_command_group(root, environment, stopped):
     if type(group_id) is not int or group_id <= 0:
         raise RuntimeError(f'Controlled command identity invalid; retained {root}')
     def live_members():
-        result = subprocess.run(['ps','-e','-o','pid=,pgid=,sid=,stat='],env=environment,
+        # Apple's ps has no sid column; its sess column is a kernel pointer.
+        # getsid supplies the same numeric session identity on both Unix hosts.
+        result = subprocess.run(['ps','-e','-o','pid=,pgid=,stat='],env=environment,
             text=True,capture_output=True,timeout=2,check=True)
-        return [row for line in result.stdout.splitlines() if len(row:=line.split())==4
-            and row[1]==str(group_id) and not row[3].startswith('Z')]
+        members = []
+        for line in result.stdout.splitlines():
+            row = line.split()
+            if len(row)!=3 or row[1]!=str(group_id) or row[2].startswith('Z'):
+                continue
+            try:
+                session = os.getsid(int(row[0]))
+            except ProcessLookupError:
+                continue  # The snapshotted member has already exited.
+            if session != group_id:
+                raise RuntimeError(f'Controlled command identity unverified; retained {root}')
+            members.append(row)
+        return members
     members = live_members()
     if not members:
         return
     current = _process_start(group_id, environment)
-    if (not group.get('leader_started') or (current is not None and current!=group['leader_started'])
-        or any(row[2]!=str(group_id) for row in members)):
+    if not group.get('leader_started') or (current is not None and current!=group['leader_started']):
         raise RuntimeError(f'Controlled command identity unverified; retained {root}')
     try:
         os.killpg(group_id, signal.SIGKILL)
