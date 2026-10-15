@@ -118,6 +118,52 @@ def test_raw_model_deltas_cannot_publish_a_rejected_attempt(tmp_path, visible):
     assert FakeConnection.instances[0].home != FakeConnection.instances[1].home
 
 
+def test_complete_acknowledgement_arrives_while_private_proposal_is_still_generating(tmp_path):
+    from apps.api.interview_plan import CollectorVisibleStream
+
+    async def scenario():
+        prefix_sent, finish = asyncio.Event(), asyncio.Event()
+        visible, raw_deltas = [], []
+        parser = CollectorVisibleStream()
+        raw = valid_reply()
+        prefix = raw[:raw.index(', "plan"')]
+
+        class Streaming(FakeConnection):
+            async def turn(self, thread_id, prompt, **options):
+                self.turns.append((thread_id, prompt, options))
+                if options.get('on_delta'):
+                    for char in prefix:
+                        await options['on_delta'](char)
+                prefix_sent.set()
+                await finish.wait()
+                return raw
+
+        async def delta(chunk):
+            raw_deltas.append(chunk)
+            text = parser.feed(chunk)
+            if text:
+                visible.append(text)
+
+        governed, context = fixture()
+        task = asyncio.create_task(run_governed_collector(command=['fake'], home_root=tmp_path,
+            base_url='http://provider.invalid', api_key='synthetic', model=BUDGET.model,
+            governed=governed, interview_context=context, connection_factory=Streaming,
+            publisher=FakePublisher(), on_delta=delta))
+        try:
+            await asyncio.wait_for(prefix_sent.wait(), 1)
+            assert visible == [json.loads(raw)['acknowledgement']], 'First text waits for the entire proposal'
+            assert not task.done() and not finish.is_set()
+            assert all('plan' not in chunk and 'Where did you carry it?' not in chunk for chunk in raw_deltas)
+            finish.set()
+            result = await task
+            assert result['reply'] == raw and len(visible) == 1
+        finally:
+            finish.set()
+            await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
 @pytest.fixture(autouse=True)
 def reset_fake(monkeypatch):
     monkeypatch.setenv("MEMOIR_LIFETIME_MEMORY","true")
@@ -300,7 +346,7 @@ def test_valid_second_response_uses_the_same_packet_in_a_new_home(tmp_path):
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances})==1
 
 
-def test_invalid_streamed_continuity_retries_before_publishing_acknowledgement(tmp_path):
+def test_invalid_private_continuity_retries_without_repeating_streamed_acknowledgement(tmp_path):
     invalid = json.loads(valid_reply())
     invalid['continuity_updates'] = [{
         'kind': 'person', 'text': 'Ming', 'quote': 'Ming',
@@ -321,8 +367,89 @@ def test_invalid_streamed_continuity_retries_before_publishing_acknowledgement(t
     result = run(tmp_path, connection_factory=RecoveringStream, on_delta=delta)
     assert result['reply'] == valid_reply()
     assert len(FakeConnection.instances) == 2
-    assert seen == [valid_reply()]
+    assert [json.loads(chunk) for chunk in seen] == [
+        {'acknowledgement': json.loads(valid_reply())['acknowledgement']}]
+    assert 'Ming' not in ''.join(seen) and 'Where did you carry it?' not in ''.join(seen)
+    assert FakeConnection.instances[1].turns[0][2]['output_schema']['properties']['acknowledgement']['enum'] == [
+        json.loads(valid_reply())['acknowledgement']]
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances}) == 1
+
+
+@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001],
+                         ids=['question', 'empty', 'oversized'])
+def test_invalid_acknowledgements_stay_hidden_during_bounded_retry(tmp_path, invalid_ack):
+    from apps.api.interview_plan import CollectorVisibleStream
+    invalid = json.loads(valid_reply())
+    invalid['acknowledgement'] = invalid_ack
+
+    class Repair(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            await super().turn(thread_id, prompt, **options)
+            raw = json.dumps(invalid) if len(self.instances) == 1 else valid_reply()
+            await options['on_delta'](raw)
+            return raw
+
+    seen, parser = [], CollectorVisibleStream()
+    async def delta(chunk):
+        value = parser.feed(chunk)
+        if value:
+            seen.append(value)
+
+    result = run(tmp_path, connection_factory=Repair, on_delta=delta)
+    assert result['reply'] == valid_reply() and len(FakeConnection.instances) == 2
+    assert seen == [json.loads(valid_reply())['acknowledgement']]
+
+
+def test_fresh_repairs_cannot_change_an_already_streamed_acknowledgement(tmp_path):
+    from apps.api.interview_plan import CollectorVisibleStream
+    original = json.loads(valid_reply())['acknowledgement']
+    changed = json.loads(valid_reply())
+    changed['acknowledgement'] = 'A different acknowledgement.'
+
+    class Repair(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            await super().turn(thread_id, prompt, **options)
+            attempt = len(self.instances)
+            if attempt == 1:
+                await options['on_delta'](json.dumps({'acknowledgement': original}))
+                return json.dumps(changed)
+            assert options['output_schema']['properties']['acknowledgement']['enum'] == [original]
+            raw = json.dumps(changed) if attempt == 2 else valid_reply()
+            await options['on_delta'](raw)
+            return raw
+
+    seen, parser = [], CollectorVisibleStream()
+    async def delta(chunk):
+        value = parser.feed(chunk)
+        if value:
+            seen.append(value)
+
+    result = run(tmp_path, connection_factory=Repair, on_delta=delta)
+    assert result['reply'] == valid_reply() and seen == [original]
+    assert len(FakeConnection.instances) == 3
+    assert len({instance.home for instance in FakeConnection.instances}) == 3
+
+
+def test_frozen_acknowledgement_schema_cannot_exceed_the_retry_input_budget(tmp_path):
+    from apps.api.lifetime_memory_engine import CollectorResponseUnavailable
+    governed, context = fixture()
+    exact_budget = BUDGET.model_copy(update={
+        'input_budget': governed_request_tokens(governed.packet, context, BUDGET)})
+    governed = governed.model_copy(update={'budget': exact_budget})
+
+    class Repair(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            await super().turn(thread_id, prompt, **options)
+            await options['on_delta'](json.dumps({'acknowledgement': json.loads(valid_reply())['acknowledgement']}))
+            return 'invalid private proposal'
+
+    seen = []
+    async def delta(chunk):
+        seen.append(chunk)
+
+    with pytest.raises(CollectorResponseUnavailable, match='budget'):
+        run(tmp_path, governed, context, connection_factory=Repair, on_delta=delta)
+    assert len(FakeConnection.instances) == len(seen) == 1
 
 
 def test_invalid_hidden_stream_exhausts_only_three_fresh_attempts(tmp_path):
@@ -605,6 +732,32 @@ def test_governed_continuity_schema_is_budgeted_and_current_proposal_is_validate
     assert governed_request_overhead(context,BUDGET) == (
         BUDGET.count(GOVERNED_TURN_PROMPT) + BUDGET.count(serialize_packet(schema))
         + BUDGET.framing_headroom)
+
+
+def test_historical_personal_acknowledgement_is_hidden_until_a_safe_reply(tmp_path):
+    from apps.api.interview_plan import CollectorVisibleStream
+    governed, context = fixture()
+    packet = json.loads(governed.packet)
+    context['historical_news'] = {'enabled': True, 'clues': [{'id': 'public'}]}
+    packet['interview_context']['historical_news'] = context['historical_news']
+    governed = encode(packet)
+    safe = 'We can keep following your memories at your pace.'
+    seen, parser = [], CollectorVisibleStream()
+
+    class Historical(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            await super().turn(thread_id, prompt, **options)
+            await options['on_delta'](json.dumps({'acknowledgement': 'You witnessed the public event.'}))
+            assert seen == []
+            return valid_reply().replace('You remember that blue umbrella.', safe)
+
+    async def delta(chunk):
+        value = parser.feed(chunk)
+        if value:
+            seen.append(value)
+
+    run(tmp_path, governed, context, connection_factory=Historical, on_delta=delta)
+    assert seen == [safe] and len(FakeConnection.instances) == 1
 
 
 @pytest.mark.parametrize('changes',[{'context_window':131073},{'input_budget':65537,'context_window':131072}])

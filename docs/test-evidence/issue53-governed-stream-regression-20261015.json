@@ -1,0 +1,83 @@
+{
+  "issue": "https://github.com/bohui/copyme2.ai/issues/53",
+  "date": "2026-10-15",
+  "scope": "Fix the recurring acknowledgement buffering regression in the governed collector; not acceptance of a lower-effort default or closure of issue 53.",
+  "verified_working_tree_base": "d12fac8a2b20cea3922a5994904d1fb8a7f17e21",
+  "cause": {
+    "introduced_by": "3048e86",
+    "boundary": "apps/api/lifetime_memory_engine.py:_run_governed_collector_once",
+    "behavior": "No on_delta callback reached CodexConnection.turn. The only callback ran after full proposal validation and app-server cleanup, withholding the complete safe acknowledgement.",
+    "red_regression_test": "tests/test_lifetime_memory_engine.py::test_complete_acknowledgement_arrives_while_private_proposal_is_still_generating",
+    "observed_before_fix": "Assertion failed: visible acknowledgement was empty while the provider had delivered its complete acknowledgement and remained blocked generating the private proposal."
+  },
+  "fix": [
+    "Parse raw deltas with the existing complete-acknowledgement validator; also enforce the historical-context acknowledgement restriction before publication.",
+    "Keep private plans and questions hidden until complete validation and required persistence.",
+    "Preserve the three-attempt fresh-home retry bound and original overall timeout. Freeze an acknowledgement already shown into the retry schema and verify exact agreement in the validated result.",
+    "Count the frozen acknowledgement schema against the existing input budget before another dispatch.",
+    "Emit privacy-safe app-server admission, first nonempty delta, and message-completion timings."
+  ],
+  "live_configuration": {
+    "collector_model": "gpt-5.6-luna-pooled",
+    "requested_effort": "max",
+    "collector_overrides": "empty",
+    "codex_version": "0.156.1",
+    "activation": "Restarted the idle local private worker, then refreshed existing Compose host aliases for its new address.",
+    "measurement": "HTTP events from the existing web proxy using fresh synthetic identities, not browser paint. These are unpaired observations, not a latency distribution or evidence of end-to-end speed improvement."
+  },
+  "live_observations": [
+    {
+      "phase": "before_fix",
+      "project_id": "lifetime-cb76af39-0fdd-4fbb-8444-c7bea28ac1db",
+      "first_text_s": 22.657,
+      "collector_completed_s": 22.887,
+      "conversation_saved_s": 24.657
+    },
+    {
+      "phase": "after_restart_before_alias_refresh",
+      "project_id": "lifetime-3b752f09-4062-4c2a-83c1-109ffd4f1fba",
+      "outcome": "Worker connection failed before model dispatch because API's static host alias retained the old worker address. Existing refresh_mocker_compose_hosts.py repaired it. Not a passing generation."
+    },
+    {
+      "phase": "patched_worker",
+      "project_id": "lifetime-6b01c0f0-220a-4b01-9416-72f725556bb5",
+      "first_text_s": 18.710,
+      "collector_completed_s": 18.711,
+      "conversation_saved_s": 19.884
+    },
+    {
+      "phase": "patched_worker_with_protocol_timings",
+      "project_id": "lifetime-2c5ffbde-b975-44de-a644-7f4c6b1562d2",
+      "collector_request_id": "b7fb4d7d-c024-422c-ad6c-959b06a5c70e",
+      "first_text_s": 32.531,
+      "collector_completed_s": 36.197,
+      "conversation_saved_s": 37.608,
+      "appserver_relative_timings_ms": {
+        "turn_admitted": 189,
+        "first_raw_delta": 26628,
+        "agent_message_completed": 27776,
+        "turn_completed": 28631
+      },
+      "streamed_agent_message": true,
+      "interpretation": "The acknowledgement arrived 3.666s before collector completion. The app-server waited 26.628s for its first raw text delta; removing application buffering cannot remove that upstream generation delay."
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest -q tests/test_lifetime_memory_engine.py tests/test_lifetime_memory_transport.py tests/test_collector_canonical_schema.py tests/test_subscription_stream_diagnostics.py::test_protocol_message_timings_do_not_log_private_text tests/test_subscription_stream_diagnostics.py::test_protocol_progress_is_scoped_counts_queued_items_once_and_records_completion --disable-warnings --tb=short",
+      "result": "101 passed in 3.33s"
+    },
+    {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=native-tcp python3 -m pytest -q tests/test_lifetime_actual_engines.py::test_first_visible_ack_precedes_proposal_completion_and_durable_save tests/test_lifetime_memory_publication.py tests/test_lifetime_outer_publication.py --disable-warnings --tb=short",
+      "result": "14 passed in 62.79s",
+      "coverage": "Actual API and private worker ASGI with real disposable PostgreSQL, only model I/O substituted. Early acknowledgement in both execution modes, zero completed rounds before release, one durable save, idempotent replay, publication and cancellation fences."
+    },
+    {"command": "git diff --check", "result": "passed"}
+  ],
+  "broader_verification_limitations": [
+    "test_codex_worker.py and test_turn_stream.py: 34 failures and 17 passes; the same 34 failures were reproduced with the unmodified HEAD engine. Fixtures call retired legacy paths or omit the required canonical execution contract.",
+    "A broader four-file native PostgreSQL run was interrupted after 236s with 20 failures and 10 passes. Observed failures included retired iter_artifacts hooks and non-NDJSON worker fixtures. This was not a complete green run and its failures were not all independently baseline-verified.",
+    "The broader test_diagnostics.py selection had three failures from the removed legacy worker contract/workspace methods, alongside 20 passes including the new protocol tests."
+  ],
+  "remaining": "Current max-effort upstream first-delta latency remains substantial and variable. The opt-in low route has not passed the documented representative quality/latency release gate. No route rollout, production latency claim, or issue closure follows from this fix."
+}

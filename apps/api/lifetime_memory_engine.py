@@ -197,10 +197,11 @@ class GovernedCollectorInput(Contract):
         return self
 
 
-def governed_request_overhead(interview_context, budget: ContextBudget) -> int:
+def governed_request_overhead(interview_context, budget: ContextBudget, *, output_schema=None) -> int:
     """Reserve the actual schema, fixed input and conservative protocol framing."""
     return (budget.count(GOVERNED_TURN_PROMPT)
-        + budget.count(serialize_packet(governed_collector_schema(interview_context))) + budget.framing_headroom)
+        + budget.count(serialize_packet(output_schema if output_schema is not None
+            else governed_collector_schema(interview_context))) + budget.framing_headroom)
 
 
 def governed_request_tokens(packet: str, interview_context, budget: ContextBudget) -> int:
@@ -260,24 +261,24 @@ async def run_governed_collector(**options):
     """Retry rejected output in fresh bounded homes within the original timeout."""
     options={**options,'interview_context':deepcopy(options['interview_context']),
         'governed':GovernedCollectorInput.model_validate(options['governed'].model_dump(mode='json'))}
-    # The presence of a callback does not mean any public text was delivered.
-    # A rejected, still-hidden answer can use the same bounded fresh-home retry.
-    published = False
+    acknowledgement = None
     original_delta = options.get('on_delta')
     if original_delta:
         async def observed_delta(text):
-            nonlocal published
+            nonlocal acknowledgement
             if text:
-                published = True
-            await original_delta(text)
+                value = json.loads(text)['acknowledgement']
+                if acknowledgement is None:
+                    acknowledgement = value
+                    await original_delta(text)
         options['on_delta'] = observed_delta
     attempts=3
     async with asyncio.timeout(options.get('timeout',120)):
         for attempt in range(attempts):
             try:
-                return await _run_governed_collector_once(**options)
+                return await _run_governed_collector_once(**options, acknowledgement=acknowledgement)
             except CollectorOutputInvalid:
-                if published or attempt==attempts-1:
+                if attempt==attempts-1:
                     raise
 
 
@@ -285,7 +286,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         governed: GovernedCollectorInput, interview_context, thread_id=None,
         timeout=120, on_delta=None, on_event=None, effort=None,
         responsesapi_client_metadata=None, connection_factory=None,
-        issue14_admission=None, trajectory=None, progress=None, uid=None, apply_owner=False, publisher=None):
+        issue14_admission=None, trajectory=None, progress=None, uid=None, apply_owner=False, publisher=None,
+        acknowledgement=None):
     """Generate once from canonical evidence, returning an uncommitted pointer.
 
     No resume is currently admitted because harness transcript size is not
@@ -299,6 +301,13 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     from .lifetime_memory_lane_engine import check_lane_generation, _admission
     check_lane_generation()
     packet = validate_governed_context(governed, interview_context, model=model)
+    output_schema = governed_collector_schema(interview_context)
+    if acknowledgement is not None:
+        # A fresh-home repair must preserve the acknowledgement already shown.
+        output_schema['properties']['acknowledgement']['enum'] = [acknowledgement]
+        if (governed.budget.count(governed.packet) + governed_request_overhead(
+                interview_context, governed.budget, output_schema=output_schema) > governed.budget.input_budget):
+            raise CollectorResponseUnavailable('The acknowledged reply exceeds the request budget')
     check_issue14_dispatch(issue14_admission, role='collector', correlation=responsesapi_client_metadata)
     if publisher is None:
         # Server-only configuration, never accepted in WorkerTurnInput. No
@@ -314,6 +323,18 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
+    from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
+    visible = CollectorVisibleStream()
+    streamed_acknowledgement = None
+
+    async def model_delta(chunk):
+        nonlocal streamed_acknowledgement
+        value = visible.feed(chunk)
+        if (value and historical_acknowledgement_allowed(value, interview_context)
+                and (acknowledgement is None or value == acknowledgement)):
+            streamed_acknowledgement = value
+            # Only the complete validated acknowledgement crosses this boundary.
+            await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
     root = Path(home_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     identity = packet.identity
@@ -332,12 +353,16 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'baseInstructions':governed.packet}, identity=identity.model_dump(mode='json'))
         candidate = opened['thread_id']
         reply = await connection.turn(candidate, GOVERNED_TURN_PROMPT,
-            output_schema=governed_collector_schema(interview_context),
+            output_schema=output_schema,
+            **({'on_delta':model_delta} if on_delta else {}),
             **({'on_event':on_event} if on_event else {}),
             **({'effort':effort} if effort else {}),
             responsesapi_client_metadata=responsesapi_client_metadata or {})
         try:
-            validate_governed_collector_result(reply, interview_context)
+            validated = validate_governed_collector_result(reply, interview_context)
+            expected = acknowledgement if acknowledgement is not None else streamed_acknowledgement
+            if expected is not None and validated['acknowledgement'] != expected:
+                raise ValueError('Correction cannot replace the streamed acknowledgement')
         except (ValueError, TypeError, KeyError) as error:
             reasons = {
                 'Continuity requires exact current narrator evidence',
@@ -366,8 +391,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn') from None
-    # Keep rejected attempts hidden so the same accepted turn can retry safely.
-    if on_delta:
+    if on_delta and streamed_acknowledgement is None:
         await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}

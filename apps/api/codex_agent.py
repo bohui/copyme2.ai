@@ -177,11 +177,14 @@ class CodexConnection:
         if self.progress:
             self.progress.begin_turn()
         result = await self.request('turn/start', params)
+        log_diagnostic(diagnostic_logger, 'appserver_turn_admitted', request_id,
+            component='memoir.appserver.client', elapsed_ms=elapsed_ms(started))
         turn_id = result['turn']['id']
         if self.progress:
             self.progress.bind_turn(thread_id, turn_id)
         messages = []
         streamed_items = set()
+        first_delta = False
         async with asyncio.timeout(self.timeout):
             while True:
                 queued = bool(self.events)
@@ -215,12 +218,21 @@ class CodexConnection:
                             'kind': 'tool_call', 'label': item.get('tool') or names[kind],
                             'operation': kind, 'status': status,
                         }})
-                if event.get('method') == 'item/agentMessage/delta' and on_delta:
+                if event.get('method') == 'item/agentMessage/delta':
+                    delta = params.get('delta', '')
                     streamed_items.add(params.get('itemId'))
-                    await on_delta(params.get('delta', ''))
+                    if delta and not first_delta:
+                        first_delta = True
+                        log_diagnostic(diagnostic_logger, 'appserver_first_delta', request_id,
+                            component='memoir.appserver.client', elapsed_ms=elapsed_ms(started))
+                    if on_delta:
+                        await on_delta(delta)
                 if event.get('method') == 'item/completed':
                     item = params.get('item', {})
                     if item.get('type') == 'agentMessage':
+                        log_diagnostic(diagnostic_logger, 'appserver_message_complete', request_id,
+                            component='memoir.appserver.client', elapsed_ms=elapsed_ms(started),
+                            streaming=item.get('id') in streamed_items)
                         messages.append(item['text'])
                         if on_delta and item.get('id') not in streamed_items:
                             await on_delta(item['text'])

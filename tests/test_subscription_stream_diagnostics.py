@@ -294,6 +294,45 @@ def test_protocol_progress_is_scoped_counts_queued_items_once_and_records_comple
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize('streaming', [True, False])
+def test_protocol_message_timings_do_not_log_private_text(tmp_path, monkeypatch, streaming):
+    from apps.api import codex_agent
+    records = []
+    monkeypatch.setattr(codex_agent.diagnostic_logger, 'info',
+        lambda template, payload: records.append(json.loads(payload)))
+
+    async def scenario():
+        connection = codex_agent.CodexConnection(['never-executed'], tmp_path)
+        async def request(method, params):
+            return {'turn': {'id': 'turn'}}
+        events = []
+        if streaming:
+            events.extend({'method': 'item/agentMessage/delta', 'params': {
+                'threadId': 'thread', 'turnId': 'turn', 'itemId': 'message', 'delta': chunk}}
+                for chunk in ['', PRIVATE, PRIVATE])
+        events.extend([
+            {'method': 'item/completed', 'params': {'threadId': 'thread', 'turnId': 'turn',
+                'item': {'id': 'message', 'type': 'agentMessage', 'text': PRIVATE}}},
+            {'method': 'turn/completed', 'params': {'threadId': 'thread',
+                'turn': {'id': 'turn', 'status': 'completed'}}},
+        ])
+        async def receive():
+            return events.pop(0)
+        connection.request = request
+        connection.receive = receive
+        assert await connection.turn('thread', PRIVATE, output_schema={'private': PRIVATE}) == PRIVATE
+    asyncio.run(scenario())
+    assert [row['event'] for row in records] == [
+        'appserver_turn_start', 'appserver_turn_admitted',
+        *(['appserver_first_delta'] if streaming else []),
+        'appserver_message_complete', 'appserver_turn_terminal',
+    ]
+    completed = next(row for row in records if row['event'] == 'appserver_message_complete')
+    assert completed['streaming'] is streaming
+    assert all(row['elapsed_ms'] >= 0 for row in records if 'elapsed_ms' in row)
+    assert PRIVATE not in json.dumps(records)
+
+
 @pytest.mark.parametrize('mutation',[{'threadId':'foreign'},{'turnId':'foreign'},
     {'item':{'id':'bad private id','type':'dynamicToolCall'}},
     {'item':{'id':'one','type':PRIVATE}}, {'item':{'id':'one','type':'dynamicToolCall','status':PRIVATE}},
