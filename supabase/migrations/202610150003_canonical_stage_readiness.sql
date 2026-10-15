@@ -5,14 +5,14 @@
 -- Keep the narrator_context_volume_v1 counter, thresholds and legacy totals.
 begin;
 alter table public.user_memory_event_source add column if not exists stage_progress_role text
-  not null default 'legacy' check(stage_progress_role in ('legacy','legacy_stage','primary','stage','dependency'));
+  not null default 'legacy' check(stage_progress_role in ('legacy','legacy_primary','legacy_stage','primary','stage','dependency'));
 alter table public.user_memory_event_source alter column stage_progress_role set default 'dependency';
 
 -- Old source_refs were the union of every dependency, without primary roles.
 -- Preserve only provable original stage attribution, including cues replaced by
 -- later enrichment/correction. Never guess that all historical context is direct.
--- Some old primary narration with separate short cues is irrecoverably ambiguous
--- in this schema; legacy_stage is explicitly weaker provenance than primary.
+-- A quote which was both primary and background is irrecoverably ambiguous in
+-- this schema; legacy_stage records only the provable stage role.
 update public.user_memory_event_source s set stage_progress_role='legacy_stage'
 where s.stage_progress_role='legacy' and (
   exists(select 1 from public.user_memory_event e
@@ -21,6 +21,28 @@ where s.stage_progress_role='legacy' and (
   or exists(select 1 from public.user_memory_event_revision r
     where r.user_id=s.user_id and r.project_id=s.project_id and r.event_id=s.event_id
       and coalesce(r.record->'stage_evidence','[]'::jsonb) @> jsonb_build_array(s.evidence))
+);
+
+-- At a quote's FIRST appearance in a model revision, the union minus every
+-- retained non-primary role proves primary ownership. Later absence from a
+-- role proves nothing: old links accumulate, so never infer from later records.
+update public.user_memory_event_source s set stage_progress_role='legacy_primary'
+where s.stage_progress_role='legacy' and exists(
+  select 1 from public.user_memory_event_revision r
+  where r.user_id=s.user_id and r.project_id=s.project_id and r.event_id=s.event_id
+    and r.actor='model' and r.origin='author_timeline'
+    and exists(select 1 from jsonb_array_elements(coalesce(r.record->'source_refs','[]')) ref where ref.value=s.evidence)
+    and not exists(select 1 from public.user_memory_event_revision prior
+      where prior.user_id=r.user_id and prior.project_id=r.project_id and prior.event_id=r.event_id and prior.revision<r.revision
+        and exists(select 1 from jsonb_array_elements(coalesce(prior.record->'source_refs','[]')) ref where ref.value=s.evidence))
+    and not exists(select 1 from (
+      select value from jsonb_array_elements(coalesce(r.record->'stage_evidence','[]'))
+      union all select value from jsonb_array_elements(coalesce(r.record->'temporal'->'basis','[]'))
+      union all select ref.value from jsonb_array_elements(coalesce(r.record->'relations','[]')) relation_ref,
+        jsonb_array_elements(relation_ref.value->'source_refs') ref
+      union all select ref.value from jsonb_array_elements(coalesce(r.record->'temporal_accounts','[]')) account,
+        jsonb_array_elements(coalesce(account->'temporal'->'basis','[]')) ref
+    ) context_ref where context_ref.value=s.evidence)
 );
 
 -- Workspace and chat corrections keep the existing narrated spans. A new
@@ -276,7 +298,7 @@ begin
      on s.user_id=n.user_id and s.project_id=n.project_id and s.source_id=n.id and s.source_version=n.version
    join public.user_memory_event e on e.user_id=s.user_id and e.project_id=s.project_id and e.id=s.event_id
    where e.status='active' and e.life_stage<>'unplaced'
-     and s.stage_progress_role in ('primary','stage','legacy_stage')
+     and s.stage_progress_role in ('primary','stage','legacy_primary','legacy_stage')
      and not exists(select 1 from public.user_memory_event_source_exclusion x
        where x.user_id=s.user_id and x.project_id=s.project_id and x.event_id=s.event_id and x.source_id=s.source_id)
  ), merged as (

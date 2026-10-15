@@ -152,7 +152,7 @@ def test_edit_requires_new_version_attribution_and_withdrawal_removes_it(sql):
 
 
 @pytest.mark.parametrize('short_cue', [False, True])
-def test_upgrade_recovers_provable_old_attribution_and_exposes_ambiguous_primary_limit(sql, short_cue):
+def test_upgrade_restores_provable_stage_and_primary_attribution_without_rewriting_evidence(sql, short_cue):
     root = Path(__file__).resolve().parents[1]
     migration = (root / 'supabase/migrations/202610150003_canonical_stage_readiness.sql').read_text()
     # Simulate rows produced by the actual pre-upgrade persistence body.
@@ -168,9 +168,9 @@ def test_upgrade_recovers_provable_old_attribution_and_exposes_ambiguous_primary
         assert sql('select record from public.user_memory_event_revision order by revision;').stdout == before
         view = stages(sql, project)
         assert view['childhood'] == readiness(0)
-        # Old union-only links cannot establish whether the longer quote was
-        # primary narration or merely a dependency. Do not invent that role.
-        assert view['midlife'] == readiness(4 if short_cue else 300)
+        # At its first model revision, the longer quote occurs in no contextual
+        # role, so the immutable union proves it was primary narration.
+        assert view['midlife'] == readiness(300)
         sql(migration)
         assert stages(sql, project) == view
     finally:
@@ -195,7 +195,15 @@ def test_legacy_union_records_cannot_distinguish_primary_from_background(sql):
         # One proposal has 300 primary words; the other has four, with the
         # longer quote only a temporal dependency. Their saved records match.
         assert len(records) == 2 and records[0] == records[1]
+        event_id = sql('select id from public.user_memory_event order by id limit 1;').stdout.strip()
+        later = save_stage_source(sql, project, '学' * 10)
+        enrichment = {**common, 'existing_id':event_id, 'expected_revision':1,
+                      'source_refs':[reference(later)], 'temporal':{'expression':'unknown','precision':'unknown'}}
+        rpc(sql, 'apply_user_memory_events', f"{literal(project)},"
+            f"{literal([{'id':later['id'],'version':1}])}::jsonb,{literal([enrichment])}::jsonb")
         sql(migration)
-        assert stages(sql, project)['childhood'] == readiness(4)
+        # A later revision no longer lists the long quote as temporal context,
+        # but its accumulated link does not become proof of primary ownership.
+        assert stages(sql, project)['childhood'] == readiness(14)
     finally:
         sql(migration)
