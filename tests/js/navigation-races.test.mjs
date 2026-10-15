@@ -83,6 +83,7 @@ for (const ending of ['final', 'error', 'workspace-tail']) test(`late A delta an
     reply.resolve({reply: 'A accepted partial', conversation_saved: true});
     // This ready reply may start its own draft refresh while still on A.
     context.refreshPrivateDraft = () => {};
+    context.refreshStageReadiness = () => {};
     await pending;
   }
   context.invalidateProjectNavigation();
