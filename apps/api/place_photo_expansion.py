@@ -174,7 +174,7 @@ def conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
     def named_city_in(value, aliases):
         for alias in aliases:
             expression = re.escape(alias.casefold())
-            expression = ((r'(?<!\\w)' + expression + r'(?!\\w)')
+            expression = ((r'(?<!\w)' + expression + r'(?!\w)')
                           if alias.isascii() else expression)
             if re.search(expression, value.casefold()):
                 return True
