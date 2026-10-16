@@ -1116,3 +1116,97 @@ def test_serpapi_verifies_and_publishes_initial_photo_before_followup_query(
     assert len(found) == 2 and len(searches) >= 2
     assert len(messages[0]) == 1
     assert all(item['date_expression'] == '1983-10-01' for item in found)
+
+
+
+def test_album_landmark_alias_cannot_override_wrong_city_on_photo(
+        monkeypatch, serpapi_sources):
+    """Regression: Chengde 离宫 is not Beijing's Summer Palace."""
+    import subprocess
+
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    local = 'https://archive.example/photos/chengde'
+    other = 'https://archive.example/photos/beijing'
+    anchored = 'https://archive.example/photos/anchored'
+
+    sources[album] = (
+        '<title>承德 避暑山庄 1983 album</title>'
+        '<section class="album-items">'
+        f'<a href="{local}">Local photo</a>'
+        f'<a href="{other}">Marble boat</a>'
+        f'<a href="{anchored}">Another local photo</a>'
+        '</section>')
+    sources[local] = photo_html(71, place='Chengde Mountain Resort')
+    sources[other] = (
+        '<title>Marble Boat</title>'
+        '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Photograph', 'name': 'Marble Boat',
+            'contentLocation': {'name': 'Summer Palace, Beijing'},
+            'dateCreated': '1983-10-01',
+            'contentUrl': 'https://live.staticflickr.com/1/72.jpg',
+        }) + '</script>')
+    sources[anchored] = (
+        '<title>Willow trees</title>'
+        '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Photograph', 'name': 'Willow trees',
+            'contentLocation': {'name': 'Chengde'},
+            'dateCreated': '1983-10-01',
+            'contentUrl': 'https://live.staticflickr.com/1/73.jpg',
+        }) + '</script>')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album,
+                       'text': '离宫 承德市 Mountain Resort 1983'}],
+        }))
+    monkeypatch.setattr(subprocess, 'run', discovery)
+
+    result = photos._google_serpapi('离宫, 承德市', '1980s')
+    assert set(item['source_url'] for item in result) == {local, anchored}
+    assert other in fetched, 'the linked wrong-city original was inspected, not silently skipped'
+    assert not any(item['image_url'].endswith('/72.jpg') for item in result)
+
+
+@pytest.mark.parametrize('child_location,accepted', [
+    ('Summer Palace, Beijing', False),
+    ('北京颐和园', False),
+    ('summer palace', False),
+    ('Summer Palace, Chengde', True),
+    ('承德市', True),
+    ('Chengde', True),
+    ('Chengde and Beijing', False),
+])
+def test_explicit_album_photo_locality_requires_city_anchor(
+        monkeypatch, serpapi_sources, child_location, accepted):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    item = 'https://archive.example/photos/locality'
+    sources[album] = (
+        '<title>承德 避暑山庄 photo album</title>'
+        '<section class="gallery"><a href="' + item + '">Photo</a></section>'
+    )
+    sources[item] = (
+        '<title>Marble Boat</title>'
+        '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Photograph', 'name': 'Marble Boat', 'dateCreated': '1983-10-01',
+            'contentLocation': {'name': child_location},
+            'contentUrl': 'https://live.staticflickr.com/1/75.jpg',
+        }) + '</script>')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album, 'text': '离宫 承德市 historical photograph'}],
+        }))
+    monkeypatch.setattr(subprocess, 'run', discovery)
+    found = photos._google_serpapi('离宫, 承德市', '1980s')
+    assert bool(found) is accepted
+    if accepted:
+        assert found[0]['source_url'] == item
