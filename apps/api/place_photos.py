@@ -846,6 +846,8 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
 
 
 def _google_serpapi(place: str, period: str) -> list[dict]:
+    if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
+        return _google_serpapi_expanded(place, period)
     import json
     from pathlib import Path
     import subprocess
@@ -912,6 +914,122 @@ def _google_serpapi(place: str, period: str) -> list[dict]:
         raise PhotoResearchUnavailable('google', 'source_unavailable')
     return _deduplicate(items)
 
+
+
+def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
+    """Expand sparse historical Google Images discovery with bounded original-page checks.
+
+    Keep the existing SerpAPI provider and its fresh-search contract. Discovery
+    snippets are leads only: dates and place evidence come from inspected pages.
+    Provider outages stop further paid discovery but never erase verified items.
+    """
+    import json
+    from pathlib import Path
+    import subprocess
+    import sys
+    import time
+    from threading import Lock
+    from .place_photo_browser import _research, _source_items
+    from .place_photo_expansion import (
+        EXPANDED_SEARCH_SECONDS, MAX_EXPANDED_SOURCE_PAGES, historical_queries,
+    )
+
+    helper = _research()
+    bounds = _photo_period_bounds(period)
+    primary = _google_query(place, period)
+    if bounds or _is_historical_period(period):
+        temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01',
+                     'end': f'{bounds[1]}-12-31'} if bounds
+                    else {'mode': 'historical_unspecified'})
+        primary = helper._crawl4ai_query({'place': place, 'temporal': temporal})
+    queries = historical_queries(primary, helper._crawl4ai_place_query(place), bounds)
+    deadline = time.monotonic() + EXPANDED_SEARCH_SECONDS
+    inspected, items, failures = set(), [], []
+    fetchers = {}
+
+    def inspect(source):
+        _, host, port = helper.valid_url(source)
+        helper.public_addresses(host, port)
+        lock, fetcher = fetchers[urlparse(source).netloc]
+        with lock:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError()
+            status, final, headers, body = fetcher.fetch(
+                source, helper.MAX_PAGE_BYTES, {host},
+                deadline_seconds=min(15, remaining),
+            )
+        if (status != 200 or headers.get('content-type', '').split(';', 1)[0]
+                not in {'text/html', 'application/xhtml+xml'}):
+            raise ValueError('Original photo source unavailable')
+        return [{**item, 'providers': ['google', 'serpapi']} for item in
+                _source_items(body.decode('utf-8', errors='replace'), final, place, period)]
+
+    for query in queries:
+        if len(items) >= MAX_RESULTS or len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            failures.append({'provider': 'google', 'reason': 'timeout'})
+            break
+        try:
+            result = subprocess.run(
+                [sys.executable, str(Path(helper.__file__).with_name('photo_search.py')), 'worker', 'serpapi'],
+                input=json.dumps({'query': query, 'refresh': True}),
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, timeout=min(50, remaining), check=True,
+            )
+            data = next(json.loads(line.removeprefix('PLACE_PHOTO_RESULT:'))
+                        for line in reversed(result.stdout.splitlines())
+                        if line.startswith('PLACE_PHOTO_RESULT:'))
+        except subprocess.TimeoutExpired:
+            failures.append({'provider': 'google', 'reason': 'timeout'})
+            break
+        except (subprocess.SubprocessError, OSError, StopIteration, ValueError):
+            failures.append({'provider': 'google', 'reason': 'invalid_response'})
+            break
+        if not isinstance(data, dict) or not isinstance(data.get('cards', []), list):
+            failures.append({'provider': 'google', 'reason': 'invalid_response'})
+            break
+        if data.get('status') != 'success':
+            error = data.get('error')
+            reason = ('timeout' if error == 'TimeoutError' else
+                      error if isinstance(error, str) and re.fullmatch(r'http_\d{3}', error)
+                      else 'unavailable')
+            failures.append({'provider': 'google', 'reason': reason})
+            break
+
+        sources = []
+        for card in data.get('cards', []):
+            if not isinstance(card, dict) or not _location_matches(_text(card.get('text')), place):
+                continue
+            source = card.get('source_url')
+            if not isinstance(source, str) or not source or source in inspected:
+                continue
+            if len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+                break
+            inspected.add(source)  # Failed and blocked pages also count against the cap.
+            sources.append(source)
+        for source in sources:
+            fetchers.setdefault(urlparse(source).netloc, (Lock(), helper.Fetcher()))
+        if sources:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                for future in as_completed([executor.submit(inspect, source) for source in sources]):
+                    try:
+                        items = _deduplicate(items + future.result())
+                    except (helper.ResearchError, OSError, ValueError, http.client.HTTPException,
+                            TimeoutError):
+                        failures.append({'provider': 'google', 'reason': 'source_unavailable'})
+        # A source can yield several distinct verified photos; never demand
+        # ten different source pages or fill a shortfall with modern results.
+    if items:
+        return _deduplicate(items)[:MAX_RESULTS]
+    if failures:
+        unique = dict.fromkeys((failure['provider'], failure['reason']) for failure in failures)
+        raise PhotoResearchUnavailable(failures=[
+            {'provider': name, 'reason': reason} for name, reason in unique
+        ])
+    return []
 
 def _google_browser(place: str, period: str, *, on_items=None) -> list[dict]:
     from .place_photo_browser import crawl_place_photos
