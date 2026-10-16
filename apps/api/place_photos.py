@@ -977,12 +977,16 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         )
         page_title = _text(page.get('title'))
         if location_context:
-            def matches_requested_alias(value, requested):
-                if helper._crawl4ai_location_matches(value, requested):
-                    return True
-                return any(helper._crawl4ai_location_matches(value, alias)
-                           for alias in helper._crawl4ai_place_terms(requested))
-            if conflicting_item_locality(page, place, matches_requested_alias):
+            def matches_requested_locality(value, requested):
+                # Explicit source locality must retain the geographic anchor.
+                # For "离宫, 承德市", a generic "summer palace" landmark alias
+                # does not establish Chengde and must never admit Beijing.
+                groups = helper._crawl4ai_place_groups(requested)
+                if len(groups) > 1:
+                    return any(helper._crawl4ai_location_matches(value, anchor)
+                               for anchor in groups[-1])
+                return helper._crawl4ai_location_matches(value, requested)
+            if conflicting_item_locality(page, place, matches_requested_locality):
                 return [], []
         photos = [{**item, 'providers': ['google', 'serpapi']} for item in
                   _source_items(markup, final, place, period, location_context=location_context)]
