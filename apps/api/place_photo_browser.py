@@ -406,7 +406,9 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                         task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
             if not items and source_errors:
-                raise PhotoResearchUnavailable(provider, source_errors[0])
+                raise PhotoResearchUnavailable(failures=[{
+                    'provider': provider, 'reason': source_errors[0], 'scope': 'source',
+                }])
             if len(seen_sources) >= source_budget:
                 break
     return items[:limit]
@@ -468,7 +470,8 @@ async def _browse(provider: str, place: str, period: str, search_url: str, *, li
             logger.warning('%s photo browser query unavailable: %s', provider, type(error).__name__)
             failures.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
                             else [{'provider': provider, 'reason': photo_failure_reason(error)}])
-            if any(failure['reason'] in {'verification_required', 'robots_denied'} for failure in failures):
+            if any(failure['reason'] in {'verification_required', 'robots_denied'}
+                   and failure.get('scope') != 'source' for failure in failures):
                 break
         if len(_deduplicate(items)) >= limit:
             break
