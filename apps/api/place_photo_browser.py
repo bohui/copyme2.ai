@@ -406,9 +406,12 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                         task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
             if not items and source_errors:
-                raise PhotoResearchUnavailable(failures=[{
-                    'provider': provider, 'reason': source_errors[0], 'scope': 'source',
-                }])
+                from .place_photos import _configured_env
+                if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
+                    raise PhotoResearchUnavailable(failures=[{
+                        'provider': provider, 'reason': source_errors[0], 'scope': 'source',
+                    }])
+                raise PhotoResearchUnavailable(provider, source_errors[0])
             if len(seen_sources) >= source_budget:
                 break
     return items[:limit]
