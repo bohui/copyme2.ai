@@ -278,7 +278,7 @@ def test_uploaded_audio_can_be_transcribed_and_replayed_before_answer_submission
     assert len(speech.transcription_calls) == 1
 
 
-def test_supabase_story_flow_uses_openai_speech_for_review_and_question_playback() -> None:
+def test_disabled_retention_blocks_anonymous_transcription_and_keeps_question_playback() -> None:
     speech = FakeSpeechService()
     storage = FakeStoryStorage()
     client = TestClient(
@@ -296,8 +296,9 @@ def test_supabase_story_flow_uses_openai_speech_for_review_and_question_playback
         json={"audio_base64": encoded, "filename": "round.webm", "mime_type": "audio/webm", "language": "zh-CN"},
         headers=headers,
     )
-    assert transcript.status_code == 200, transcript.text
-    assert transcript.json()["text"] == "我小时候和二舅一起走去学校。"
+    assert transcript.status_code == 503, transcript.text
+    assert transcript.headers["X-Error-Code"] == "ORIGINAL_RECORDINGS_DISABLED"
+    assert speech.transcription_calls == []
 
     question = client.post(
         "/v1/story/question-audio",
@@ -308,11 +309,10 @@ def test_supabase_story_flow_uses_openai_speech_for_review_and_question_playback
     assert question.json()["ai_generated"] is True
     assert base64.b64decode(question.json()["audio_base64"]) == b"fake-mp3-audio"
 
+    typed = "Typed correction while recording retention is disabled."
     answer = client.post(
-        "/v1/story/rounds",
-        json={"round": 1, "answer": transcript.json()["text"], "audio_base64": encoded, "audio_filename": "round.webm", "audio_mime_type": "audio/webm"},
-        headers=headers,
+        "/v1/story/rounds", json={"round": 1, "answer": typed}, headers=headers,
     )
     assert answer.status_code == 200, answer.text
-    assert answer.json()["transcript"] == transcript.json()["text"]
-    assert json.loads(storage._memories[0]["content"])["answer"] == transcript.json()["text"]
+    assert answer.json()["transcript"] is None
+    assert json.loads(storage._memories[0]["content"])["answer"] == typed

@@ -27,11 +27,36 @@ export const DecimalSequenceSchema = z
   .transform((value) => String(value).replace(/^0+(?=\d)/, ""));
 export const RecordSchema = z.record(z.string(), z.unknown());
 const optionalRecord = RecordSchema.nullish();
+export const RecordingSchema = z.object({
+  id: z.uuid(),
+  content_type: z.enum(["audio/webm", "audio/mp4", "audio/wav", "audio/ogg"]),
+  codec: z.string(),
+  byte_size: SafeIntegerSchema,
+  duration_seconds: z.number().positive().max(300),
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  storage_status: z.enum(["pending", "ready", "deleted"]),
+  transcription_status: z.enum(["not_started", "failed", "succeeded"]),
+  lifecycle: z.enum(["draft", "attached", "deleted"]),
+  created_at: z.string(),
+  backend_saved: z.boolean(),
+  content_url: z
+    .string()
+    .regex(/^\/api\/v1\/memoir\/story\/recordings\/[0-9a-f-]+\/content$/),
+});
+export type Recording = z.infer<typeof RecordingSchema>;
+const RecordingIdsSchema = z
+  .array(z.uuid())
+  .max(20)
+  .refine(
+    (ids) => new Set(ids).size === ids.length,
+    "Duplicate recording reference",
+  );
 export const TurnInputSchema = z.object({
   text: z.string().min(1).max(100000),
   client_turn_id: z.uuid().nullish(),
   conversation_text: z.string().min(1).max(100000).nullish(),
   source_kind: z.enum(["narrator_chat", "narrator_transcript"]).optional(),
+  recording_ids: RecordingIdsSchema.optional(),
   project_id: ProjectIdSchema.nullish(),
   language: LocaleSchema.nullish(),
   first_reply_localization: z.boolean().optional(),
@@ -106,6 +131,7 @@ export const TurnResultSchema = z
     conversation_saved: z.boolean().optional(),
     cached: z.boolean().optional(),
     accepted_source_id: z.string().nullish(),
+    recordings: z.array(RecordingSchema).max(20).optional(),
     source_sequence: DecimalSequenceSchema.optional(),
     recall_status: RecallStatusSchema.nullish(),
     profile_updates: optionalRecord,
@@ -230,6 +256,7 @@ export const TurnReceiptSchema = z
     conversation_sequence: DecimalSequenceSchema.nullable(),
     project_ordinal: DecimalSequenceSchema.nullable(),
     narrator_text: z.string().nullable(),
+    recordings: z.array(RecordingSchema).max(20).optional(),
     reply: z.string().nullable(),
     source_status: z.string().nullable(),
     source_processing_state: z.string().nullable(),
@@ -477,16 +504,30 @@ export const CollectionTaskInputSchema = z
     title: z.string().min(1).max(200).optional(),
   })
   .strict();
-export const TranscriptionInputSchema = z.object({
-  audio_base64: z.string().min(1),
-  filename: z.string().optional(),
-  mime_type: z.string().optional(),
-  language: z.string().nullish(),
-  prompt: z.string().nullish(),
-});
+export const TranscriptionInputSchema = z
+  .object({
+    audio_base64: z.string().min(1).max(13981016).optional(),
+    recording_id: z.uuid().optional(),
+    upload_idempotency_key: z.uuid().optional(),
+    project_id: ProjectIdSchema.nullish(),
+    filename: z.string().optional(),
+    mime_type: z.string().optional(),
+    language: z.string().nullish(),
+    prompt: z.string().nullish(),
+  })
+  .refine(
+    (value) =>
+      (value.audio_base64 === undefined) !== (value.recording_id === undefined),
+    "Supply either audio or a recording ID",
+  )
+  .refine(
+    (value) => !value.recording_id || !value.upload_idempotency_key,
+    "Upload key applies only to new audio",
+  );
 export type TranscriptionInput = z.infer<typeof TranscriptionInputSchema>;
 export const TranscriptionSchema = z
   .object({
+    recording: RecordingSchema.optional(),
     text: z.string(),
     source: z
       .object({
@@ -563,6 +604,7 @@ export const HistoryItemSchema = z
     source_version: DecimalSequenceSchema.nullable(),
     source_status: z.string().nullable(),
     narrator_text: z.string().nullable(),
+    recordings: z.array(RecordingSchema).max(20).optional(),
     reply: z.string().nullable(),
   })
   .passthrough();
@@ -616,6 +658,7 @@ export const PhotoPageSchema = z
 export type PhotoPage = z.infer<typeof PhotoPageSchema>;
 export const NarratorSourceDetailSchema = z
   .object({
+    recordings: z.array(RecordingSchema).max(20).optional(),
     schema_version: z.literal(1),
     id: z.uuid(),
     project_id: ProjectIdSchema,

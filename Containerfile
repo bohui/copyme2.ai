@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends --yes ca-certificates python3 python3-venv \
+    && apt-get install --no-install-recommends --yes ca-certificates python3 python3-venv ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/memory-spark-venv \
     && /opt/memory-spark-venv/bin/pip install --no-cache-dir --upgrade pip

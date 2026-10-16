@@ -232,7 +232,9 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
     commands = ProcessDeadline(deadline, cancellation, environment=environment)
     if postgres_image not in {'postgres:18.3', 'postgres:17.6'}:
         raise ValueError('Only the supported stock PostgreSQL fixture images are allowed')
-    container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'apple-container'
+    container_backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') in {'apple-container', 'docker'}
+    engine = 'docker' if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND') == 'docker' else 'container'
+    if engine == 'docker': publication_tcp = True
     publication_dsn = None
     if not container_backend and (os.geteuid() == 0 or not all(shutil.which(name) for name in ('initdb', 'pg_ctl', 'psql'))):
         pytest.skip('local PostgreSQL tools and a non-root account required')
@@ -269,7 +271,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                     allocation['attempted'] = True
                     if on_allocation is not None:
                         on_allocation()
-                commands.run(['container', 'run', '--detach', '--rm', '--name', pg_container_name,
+                commands.run([engine, 'run', '--detach', '--rm', '--name', pg_container_name,
                     '--cpus', '1', '--memory', '1G', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust',
                     *publish, postgres_image, *postgres], check=True)
                 if allocation is not None:
@@ -277,13 +279,20 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                     if on_allocation is not None:
                         on_allocation()
                 if publication_tcp:
-                    snapshot = commands.run(['container', 'inspect', pg_container_name], check=True, text=True)
-                    address = publication_guest_address(json.loads(snapshot.stdout), pg_container_name, port)
+                    snapshot = commands.run([engine, 'inspect', pg_container_name], check=True, text=True)
+                    if engine == 'docker':
+                        inspected = json.loads(snapshot.stdout)[0]
+                        bindings = inspected['HostConfig']['PortBindings']
+                        if inspected['Name'] != '/' + pg_container_name or bindings != {'5432/tcp':[{'HostIp':'127.0.0.1','HostPort':str(port)}]}:
+                            raise ValueError('Unexpected disposable PostgreSQL host binding')
+                        address = '0.0.0.0'  # Container only; host publication is loopback.
+                    else:
+                        address = publication_guest_address(json.loads(snapshot.stdout), pg_container_name, port)
                     if publication_endpoint is not None:
                         publication_endpoint.update(guest_address=address, binding_verified=True)
                     if on_allocation is not None:
                         on_allocation()
-                    commands.run(['container', 'exec', pg_container_name, 'sh', '-ec',
+                    commands.run([engine, 'exec', pg_container_name, 'sh', '-ec',
                         'printf "%s" "$1" > /tmp/memoir-publication-address.tmp && '
                         'mv /tmp/memoir-publication-address.tmp /tmp/memoir-publication-address',
                         'fixture', address], check=True)
@@ -291,18 +300,18 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 while True:
                     # The image briefly starts a bootstrap server, then restarts
                     # it. Only the final server is a stable test boundary.
-                    logs = commands.run(['container', 'logs', pg_container_name], text=True)
+                    logs = commands.run([engine, 'logs', pg_container_name], text=True)
                     initialized = 'PostgreSQL init process complete; ready for start up.' in logs.stdout + logs.stderr
-                    ready = commands.run(['container', 'exec', pg_container_name, 'pg_isready', '-h', '/var/run/postgresql', '-U', 'postgres']).returncode == 0
+                    ready = commands.run([engine, 'exec', pg_container_name, 'pg_isready', '-h', '/var/run/postgresql', '-U', 'postgres']).returncode == 0
                     if initialized and ready:
                         break
                     if time.monotonic() >= until:
                         raise RuntimeError('Disposable PostgreSQL container did not become ready')
                     time.sleep(min(.25, commands.remaining()))
             except BaseException:
-                ProcessDeadline(time.monotonic() + 10).run(['container', 'stop', pg_container_name], check=True)
+                ProcessDeadline(time.monotonic() + 10).run([engine, 'stop', pg_container_name], check=True)
                 raise
-            command = ['container', 'exec', '--interactive', pg_container_name, 'psql', '-U', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres']
+            command = [engine, 'exec', '--interactive', pg_container_name, 'psql', '-U', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres']
         else:
             # native-tcp supports hosts that permit loopback but not Unix sockets.
             # Both modes use a fresh cluster and real, independent SQL sessions.
@@ -372,7 +381,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 if container_sql:
                     container_sql.close()
             finally:
-                ProcessDeadline(time.monotonic() + 10, environment=environment).run(['container', 'stop', pg_container_name] if container_backend else
+                ProcessDeadline(time.monotonic() + 10, environment=environment).run([engine, 'stop', pg_container_name] if container_backend else
                                ['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'], check=True)
 
 

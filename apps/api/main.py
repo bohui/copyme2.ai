@@ -1055,6 +1055,8 @@ def create_app(
         memory = MemoryStore(object_store_path=object_store_path)
     selected_speech_service = speech_service or build_speech_service()
     app = FastAPI(title="CopyMe2 Memoir", version="1.0.0", description="Evidence-linked guided memoir product")
+    from .original_recordings import RecordingBodyLimit
+    app.add_middleware(RecordingBodyLimit)
     app.state.store = memory
     from .supabase_routes import router as supabase_router
     app.include_router(supabase_router)
@@ -1214,14 +1216,19 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        errors = exc.errors()
+        if request.url.path.endswith('/story/transcriptions'):
+            # Pydantic's input/context fields may contain the complete base64
+            # original or private prompt. Expose field locations/codes only.
+            errors = [{'loc':item['loc'], 'type':item['type'], 'msg':'Invalid recording request'} for item in errors]
         payload = {
-            "detail": exc.errors(),
+            "detail": errors,
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Request validation failed",
                 "retryable": False,
                 "request_id": request.state.request_id,
-                "field_errors": exc.errors(),
+                "field_errors": errors,
             },
         }
         return JSONResponse(status_code=422, content=jsonable_encoder(payload), headers={"X-Request-ID": request.state.request_id})

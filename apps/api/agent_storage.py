@@ -446,13 +446,19 @@ class UserStorage:
                      json={'prefixes':[record['object_path']]})
 
     def accept_interview_turn(self, project_id, client_turn_id, text, *, kind='narrator_chat',
-                              language='en-AU', uploaded_photo_ids=None, photo_selection=None, two_lane=False):
+                              language='en-AU', uploaded_photo_ids=None, photo_selection=None, two_lane=False, recording_ids=None):
         name='accept_two_lane_interview_turn' if two_lane else 'accept_user_interview_turn'
         return self.request('POST', '/rest/v1/rpc/'+name, json={
             'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id)),
             'p_text':text, 'p_kind':kind, 'p_language':language,
             'p_uploaded_photo_ids':[str(UUID(value)) for value in (uploaded_photo_ids or [])],
-            'p_photo_selection':photo_selection}).json()
+            'p_photo_selection':photo_selection, **({'p_recording_ids':[str(UUID(value)) for value in recording_ids]} if recording_ids else {})}).json()
+
+    def source_recordings(self, project_id, source_id):
+        import os
+        if os.getenv('MEMOIR_ORIGINAL_RECORDINGS', '') != '1': return []
+        return self.request('POST', '/rest/v1/rpc/read_user_source_recordings', json={
+            'p_project_id':project_id, 'p_source_id':str(UUID(source_id))}).json()
 
     def interview_context(self, project_id):
         return self.request('POST', '/rest/v1/rpc/read_user_interview_context', json={

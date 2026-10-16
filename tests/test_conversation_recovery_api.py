@@ -382,7 +382,7 @@ def test_source_detail_reads_current_canonical_evidence_without_family_entitleme
     response = client.get(url, headers={'Authorization': 'Bearer owner'})
     assert response.status_code == 200
     assert response.json() == dict(schema_version=1, id=SOURCE, project_id='project-a',
-        version='3', sequence=str(UNSAFE), text='My corrected transcript.',
+        version='3', sequence=str(UNSAFE), text='My corrected transcript.', recordings=[],
         source_kind='narrator_transcript', status='active', language='en-AU',
         created_at='2026-10-07T05:00:00+00:00')
     assert client.get(url, params={'expected_version': '3'}, headers={'Authorization': 'Bearer owner'}).json() == response.json()

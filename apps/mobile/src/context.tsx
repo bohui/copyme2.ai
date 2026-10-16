@@ -1,3 +1,4 @@
+import { transcriptTurnFields, type TranscriptDraft } from "./platform/media";
 import React, {
   createContext,
   useContext,
@@ -245,13 +246,18 @@ export function MemoirProvider({ children }: { children: React.ReactNode }) {
               const composers = (await vaultRef.current?.listComposers()) ?? [];
               const media =
                 (await vaultRef.current?.get<unknown[]>("media.index")) ?? [];
+              const cancellations =
+                (await vaultRef.current?.get<unknown[]>(
+                  "recording-cancellations",
+                )) ?? [];
               if (
                 oldOwner !== ownerEpoch.current ||
                 draftRef.current.trim() ||
                 sendAdmission.current ||
                 pendingItems.length ||
                 composers.length ||
-                media.length
+                media.length ||
+                cancellations.length
               )
                 throw new Error("LOCAL_WORK_PENDING");
               const transferApi = createMemoirApi({
@@ -701,18 +707,23 @@ export function MemoirProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (epoch !== ownerEpoch.current) return;
-      const transcript = await storage.get<{ text: string }>(
+      const transcript = await storage.get<TranscriptDraft>(
         "transcript:" + project,
       );
       const item = await sender.enqueue({
         text,
         project_id: project,
         client_turn_id: Crypto.randomUUID(),
-        source_kind:
-          transcript?.text === text ? "narrator_transcript" : sourceKind,
+        source_kind: transcript?.recordingIds?.length
+          ? "narrator_transcript"
+          : sourceKind,
+        ...transcriptTurnFields(transcript, storage.owner, project),
       });
       if (epoch !== ownerEpoch.current) return;
-      if (draftRef.current.trim() === text) await setDraft("");
+      if (draftRef.current.trim() === text) {
+        await setDraft("");
+        await storage.delete("transcript:" + project);
+      }
       await sender.runQueued(item);
       if (epoch === ownerEpoch.current) setPending(await sender.pending());
     } catch (failure) {
@@ -764,12 +775,16 @@ export function MemoirProvider({ children }: { children: React.ReactNode }) {
       const composers = (await vaultRef.current?.listComposers()) ?? [];
       const media =
         (await vaultRef.current?.get<unknown[]>("media.index")) ?? [];
+      const cancellations =
+        (await vaultRef.current?.get<unknown[]>("recording-cancellations")) ??
+        [];
       if (
         sendAdmission.current ||
         draftRef.current.trim() ||
         remaining.length ||
         composers.length ||
-        media.length
+        media.length ||
+        cancellations.length
       )
         throw new Error(t("signOutWarning"));
       logoutVault.current = vaultRef.current;

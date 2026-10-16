@@ -1591,7 +1591,7 @@ class CodexRuntime:
                    first_reply_localization: bool = False,
                    conversation_text: str | None = None,
                    client_turn_id: str | None = None,
-                   source_kind: str = 'narrator_chat',
+                   source_kind: str = 'narrator_chat', recording_ids=None,
                    uploaded_photo_ids: list[str] | None = None,
                    photo_selection: dict | None = None,
                    workspace_focus: dict | None = None,
@@ -1605,7 +1605,7 @@ class CodexRuntime:
         return await run_lifetime_turn(self, storage,
             conversation_text if conversation_text is not None else original_conversation_text(text),
             publication=lifetime_context, project_id=project_id, language=language, client_turn_id=client_turn_id,
-            source_kind=source_kind, uploaded_photo_ids=uploaded_photo_ids, photo_selection=photo_selection,
+            source_kind=source_kind, uploaded_photo_ids=uploaded_photo_ids, photo_selection=photo_selection, recording_ids=recording_ids,
             workspace_focus=workspace_focus, user_response=user_response, on_delta=on_delta, on_event=on_event,
             evaluation=evaluation,trajectory=trajectory)
 

@@ -65,6 +65,11 @@ window.recorders = [];
 window.tracks = [];
 window.uploads = 0;
 window.turns = 0;
+window.turnRequests = [];
+window.recordingUploads = new Map();
+window.deletedRecordings = [];
+window.recordingSequence = 0;
+Object.defineProperty(window.crypto,'randomUUID',{value:()=> 'aaaaaaaa-aaaa-4aaa-8aaa-' + String(++window.recordingSequence).padStart(12,'0')});
 window.playbacks = 0;
 window.spokenRequests = [];
 window.speakers = [];
@@ -103,9 +108,10 @@ window.AudioContext = class {
   close() { this.closed = true; return Promise.resolve(); }
 };
 ensureMemorySession = async () => null;
-agentTurn = async () => {
+agentTurn = async (text, fallback, tools, language, first, conversationText, action, sourceKind, photoOptions = {}) => {
+  turnRequests.push({sourceKind,...photoOptions});
   turns++;
-  const turn = state.photoTurns.prepare({text: '', attachments: state.attachments});
+  const turn = state.photoTurns.prepare({text, conversationText, sourceKind, attachments: state.attachments, recordingIds:photoOptions.recordingIds});
   const result = {reply: 'What do you remember?', conversation_saved: true};
   state.photoTurns.finish(turn, result);
   return result;
@@ -116,7 +122,19 @@ storyApi = async (path, options) => {
     uploads++;
     window.lastTranscription = JSON.parse(options.body);
     if (window.failTranscription) throw new Error('Speech unavailable');
-    return {text: 'An afternoon by the sea.', source: {language: 'en'}};
+    const recordingId = recordingUploads.get(lastTranscription.upload_idempotency_key) || 'recording-' + uploads;
+    recordingUploads.set(lastTranscription.upload_idempotency_key, recordingId);
+    if (window.holdTranscription) await new Promise(resolve => window.releaseTranscription = resolve);
+    return {text: 'An afternoon by the sea.', source: {language: 'en'}, recording:{id:recordingId, backend_saved:true, storage_status:'ready'}};
+  }
+  if (path.startsWith('/v1/story/recordings/by-upload/')) {
+    const id = recordingUploads.get(path.split('/').at(-1));
+    if (!id) throw Object.assign(new Error('Missing'),{status:404});
+    return {recording:{id}};
+  }
+  if (path.startsWith('/v1/story/recordings/') && options?.method === 'DELETE') {
+    deletedRecordings.push(path.split('/').at(-1).split('?')[0]);
+    return {deleted:true};
   }
   if (path === '/v1/story/question-audio') {
     const speech = JSON.parse(options.body);
@@ -163,6 +181,8 @@ render();
         page.get_by_role('button', name='Send message').click()
         page.wait_for_function('turns === 1 && !testState.loading')
         assert page.evaluate('playbacks') == 0
+        assert page.evaluate('turnRequests[0].recordingIds') == ['recording-1']
+        assert page.evaluate('testState.audioRecordings') == []
         # Add files with the plus button; upload only on explicit send.
         with page.expect_file_chooser() as chooser:
             page.get_by_role('button', name='Add pictures or videos').click()
@@ -197,6 +217,10 @@ render();
         expect(draft).to_have_value('Keep this draft.')
         assert page.evaluate('turns') == 3
         page.evaluate('failTranscription = false')
+        page.get_by_role('button', name='Dictate', exact=True).click()
+        page.wait_for_function('testState.pendingAudioUpload === null && testState.dictationStatus === \"off\"')
+        page.get_by_role('button', name='Discard draft recordings', exact=True).click()
+        page.wait_for_function('testState.audioRecordings.length === 0')
         draft.fill('')
         page.get_by_role('button', name='Start voice conversation').click()
         expect(page.locator('.voice-orb')).to_be_visible()
@@ -255,6 +279,34 @@ render();
         page.screenshot(path=str(ROOT / 'output/playwright/voice-orb-speaking.png'))
         page.evaluate('stopPlaybackMonitor(); stopVoiceMode({silent: true})')
         assert page.evaluate('audioContexts.every(context => context.closed)')
+        # Several dictated clips keep their order through typed edits and send.
+        for _ in range(2):
+            page.get_by_role('button', name='Dictate', exact=True).click()
+            page.get_by_role('button', name='Stop recording', exact=True).click()
+            page.wait_for_function('testState.dictationStatus === "off"')
+        clips = page.evaluate('testState.audioRecordings.map(recording => recording.id)')
+        assert len(clips) == 2
+        draft.fill('Corrected date and a typed clarification.')
+        page.get_by_role('button', name='Send message', exact=True).click()
+        page.wait_for_function('turns === 7 && !testState.loading')
+        assert page.evaluate('turnRequests.at(-1).recordingIds') == clips
+        assert page.evaluate('turnRequests.at(-1).sourceKind') == 'narrator_transcript'
+        # Cancelling an in-flight appended clip preserves the earlier original.
+        page.get_by_role('button', name='Dictate', exact=True).click()
+        page.get_by_role('button', name='Stop recording', exact=True).click()
+        page.wait_for_function('testState.audioRecordings.length === 1')
+        earlier = page.evaluate('testState.audioRecordings[0].id')
+        page.evaluate('holdTranscription = true')
+        page.get_by_role('button', name='Dictate', exact=True).click()
+        page.get_by_role('button', name='Stop recording', exact=True).click()
+        page.wait_for_function('typeof window.releaseTranscription === "function"')
+        page.get_by_role('button', name='Cancel dictation', exact=True).click()
+        page.evaluate('holdTranscription = false; releaseTranscription()')
+        page.wait_for_function('testState.pendingAudioUpload === null')
+        assert page.evaluate('testState.audioRecordings.map(recording => recording.id)') == [earlier]
+        assert earlier not in page.evaluate('deletedRecordings')
+        page.get_by_role('button', name='Discard draft recordings', exact=True).click()
+        page.wait_for_function('testState.audioRecordings.length === 0')
         # Cancel while permission is pending: the eventual stream must be released.
         page.evaluate('() => { navigator.mediaDevices.getUserMedia = () => new Promise(resolve => window.allowMic = resolve); }')
         page.get_by_role('button', name='Dictate', exact=True).click()
@@ -267,7 +319,7 @@ render();
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), page.evaluate('[...document.querySelectorAll("*")].filter(e => e.getBoundingClientRect().right > innerWidth).map(e => [e.tagName, e.className, e.getBoundingClientRect().right])')
         assert not errors, errors
         browser.close()
-        print('Voice controls passed: cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout.')
+        print('Voice controls passed: ordered recording references, edited multi-clip dictation, append cancellation, cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout.')
 
 
 if __name__ == '__main__':

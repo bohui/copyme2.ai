@@ -105,6 +105,8 @@ const state = {
   attachmentRights: false,
   attachmentProgress: "",
   audioUploadId: null,
+  audioRecordings: [],
+  pendingAudioUpload: null,
   audioTranscript: "",
   audioTranscriptKind: "narrator_chat",
   audioPlayer: null,
@@ -267,7 +269,7 @@ const {
 });
 
 const {
-  cancelDictation, finishDictation, queueVoiceModeTurn, speakText, speakVoiceReply, startAudioRecorder,
+  cancelDictation, discardAudioDraft, finishDictation, queueVoiceModeTurn, speakText, speakVoiceReply, startAudioRecorder,
   startVoiceModeTurn, stopVoiceMode, toggleVoiceInput
 } = createConversationAudio({
   captureProjectScope, cleanAssistantText, conversationLanguage, conversationMessage, isCurrentProjectScope,
@@ -319,6 +321,15 @@ function memoirApiPath(path) {
 }
 
 const ERROR_MESSAGE_KEYS = {
+  ORIGINAL_RECORDINGS_DISABLED:'recordingRetentionDisabled',
+  RECORDING_AUTHORITY_REQUIRED:'recordingAuthorityRequired',
+  RECORDING_PRESERVATION_FAILED:'recordingNotSavedRetry',
+  RECORDING_TRANSCRIPTION_FAILED:'recordingSavedRetry',
+  RECORDING_TRANSCRIPTION_UNCERTAIN:'recordingSavedRetry',
+  INVALID_AUDIO_MEDIA:'invalidAudio',
+  UNSUPPORTED_AUDIO:'invalidAudio',
+  AUDIO_DURATION_EXCEEDED:'recordingLimit',
+  AUDIO_TOO_LARGE:'recordingLimit',
   PAYMENT_REQUIRED: "paymentRequired",
   ENTITLEMENT_REQUIRED: "entitlementRequired",
   INVALID_AUDIO_PAYLOAD: "invalidAudio",
@@ -403,6 +414,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const error = new Error(localizedErrorMessage(response.headers.get("X-Error-Code") || body?.error?.code));
     error.status = response.status;
+    error.detail = body.detail;
     error.code = response.headers.get("X-Error-Code") || body?.error?.code || null;
     throw error;
   }
@@ -870,7 +882,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
     : { text, conversation_text: conversationText, source_kind: sourceKind, client_turn_id: clientTurnId || undefined, project_id: scope.projectId || null, language, first_reply_localization: firstReplyLocalization };
   if (!isGreeting && request.turn) {
     Object.assign(body, {text:request.turn.text, conversation_text:request.turn.conversationText,
-      source_kind:request.turn.sourceKind, uploaded_photo_ids:request.turn.uploadedPhotoIds || [],
+      source_kind:request.turn.sourceKind, recording_ids:request.turn.recordingIds || [], uploaded_photo_ids:request.turn.uploadedPhotoIds || [],
       photo_selection:request.turn.photoSelection || null, workspace_focus:request.turn.workspaceFocus || null});
   }
   const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
@@ -1619,6 +1631,8 @@ async function signOut() {
     state.recordingStream = null;
     state.recordedChunks = [];
     state.audioUploadId = null;
+    state.audioRecordings = [];
+    state.pendingAudioUpload = null;
     state.audioTranscript = "";
     state.audioPlayer = null;
     state.recognition = null;
@@ -2613,7 +2627,7 @@ function chatComposer() {
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${state.loading || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
 }
 
 async function retryInterviewTurn() {
@@ -2746,6 +2760,7 @@ function bindViewActions() {
   $("#chat-input")?.addEventListener("input", (event) => {
     if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
     state.audioTranscript = event.target.value;
+    state.photoTurns?.saveAudioDraft();
     resizeChatInput(event.target);
   });
   resizeChatInput($("#chat-input"));
@@ -2796,6 +2811,7 @@ function bindViewActions() {
     },
     "dictate": startAudioRecorder,
     "cancel-dictation": cancelDictation,
+    "discard-audio-draft": discardAudioDraft,
     "stop-dictation": () => finishDictation(false),
     "accept-dictation": () => finishDictation(true),
     "mute-voice": () => {
@@ -2880,7 +2896,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   const input = $("#chat-input");
   const text = voiceTurn ? state.audioTranscript.trim() : (input?.value.trim() || state.audioTranscript.trim() || "");
-  const sourceKind = voiceTurn ? "narrator_transcript" : state.audioTranscriptKind;
+  const sourceKind = voiceTurn || state.audioRecordings?.length ? "narrator_transcript" : state.audioTranscriptKind;
   const uploadId = state.audioUploadId;
   const attachments = [...state.attachments];
   if (attachments.length && !state.attachmentRights) return toast(translate("Memoir.story.attachmentRightsRequired"));
@@ -2968,7 +2984,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       text,
       null,
       sourceKind,
-      {attachments},
+      {attachments, recordingIds:(state.audioRecordings || []).map(recording => recording.id)},
     );
     if (result.detached || !current()) return;
     if (result.blocked) {

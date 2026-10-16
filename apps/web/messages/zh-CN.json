@@ -90,7 +90,12 @@
     "identityLinkFailed": "无法连接该登录方式，请稍后再试。",
     "logoutStorageWarning": "已退出登录，但无法完全清除旧的浏览器登录数据。请先清除此网站的浏览器数据，再次登录。",
     "WORKSPACE_MEMORY_FOCUS_STALE": "这段回忆已更新或暂时不可用，请重新选择。",
-    "WORKSPACE_SECTION_REWORK_STALE": "这一段故事已更新或正在修改，请重新加载。"
+    "WORKSPACE_SECTION_REWORK_STALE": "这一段故事已更新或正在修改，请重新加载。",
+    "recordingRetentionDisabled": "后端录音保留尚未启用。你仍然可以打字回答。",
+    "recordingAuthorityRequired": "保留录音前，需要可恢复的身份及经确认的录音同意。",
+    "recordingNotSavedRetry": "尚未确认原始录音已保存。点击麦克风重试同一次上传，或删除草稿。",
+    "recordingSavedRetry": "原始录音已私密保存。点击麦克风重试转写，无需重新录音。",
+    "recordingLimit": "每个回答的录音总长最多五分钟，每段录音最多10 MiB。"
   },
   "Platform": {
     "brand": "CopyMe2",
@@ -253,7 +258,7 @@
       "yourMessage": "您的消息",
       "listen": "用 AI 语音朗读此消息",
       "reviewTranscript": "请先查看文字稿，准备好后再发送。",
-      "voiceNote": "Mira 会用 AI 生成的声音回复，然后继续倾听。点击 × 结束。",
+      "voiceNote": "Mira 会用 AI 生成的声音回复，然后继续倾听。点击 × 结束。身份和同意经确认后，提交会私密保留原始录音。",
       "sourceNote": "您的叙述与相关记忆将会被一起保存。",
       "shortcutNote": "按 Enter 发送 · 按 Shift + Enter 换行",
       "dictate": "语音输入",
@@ -264,7 +269,7 @@
       "dictationStopped": "录音已停止",
       "connectingMic": "正在连接麦克风…",
       "transcribing": "正在将录音转为文字…",
-      "dictationNote": "点击停止，将语音转为草稿；点击发送，将语音转为文字并发送。",
+      "dictationNote": "身份和同意经确认后，转写会将原始录音私密保存在回忆录后端并发送给语音服务。发送才关联到故事；停止会保留草稿。",
       "muteMic": "静音麦克风",
       "unmuteMic": "取消麦克风静音",
       "micMuted": "麦克风已静音",
@@ -280,7 +285,8 @@
       "photoUploadFailed": "照片未能上传，请重试。",
       "privatePhoto": "您的私人照片",
       "publicPhoto": "公共参考照片",
-      "photoSource": "查看来源"
+      "photoSource": "查看来源",
+      "discardAudio": "删除草稿录音"
     },
     "workspace": {
       "showWorkspace": "显示工作区",

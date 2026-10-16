@@ -90,7 +90,12 @@
     "identityLinkFailed": "Unable to connect that sign-in provider. Please try again.",
     "logoutStorageWarning": "Signed out, but old browser sign-in data could not be fully cleared. Clear this site’s browser data before signing in again.",
     "WORKSPACE_MEMORY_FOCUS_STALE": "This memory changed or is unavailable. Choose it again.",
-    "WORKSPACE_SECTION_REWORK_STALE": "This section changed or is being revised. Reload it before trying again."
+    "WORKSPACE_SECTION_REWORK_STALE": "This section changed or is being revised. Reload it before trying again.",
+    "recordingRetentionDisabled": "Backend recording retention is not enabled. You can type your answer.",
+    "recordingAuthorityRequired": "A recoverable identity and approved recording consent are required before retaining your voice.",
+    "recordingNotSavedRetry": "Your original was not confirmed saved. Choose the microphone to retry the same upload, or discard the draft.",
+    "recordingSavedRetry": "Your original is saved privately. Choose the microphone to retry transcription without recording again.",
+    "recordingLimit": "Use at most five minutes of audio per answer and no more than 10 MiB per clip."
   },
   "Platform": {
     "brand": "CopyMe2",
@@ -253,7 +258,7 @@
       "yourMessage": "Your message",
       "listen": "Read this message aloud with an AI-generated voice",
       "reviewTranscript": "Review the transcript, then press send when you are ready.",
-      "voiceNote": "Mira replies with an AI-generated voice, then listens again. Use × to end.",
+      "voiceNote": "Mira replies with an AI-generated voice, then listens again. Use × to end. Submitted voice retains your original privately with approved identity and consent.",
       "sourceNote": "Your stories and related memories will be saved together.",
       "shortcutNote": "Press Enter to send · Shift + Enter for a new line",
       "dictate": "Dictate",
@@ -264,7 +269,7 @@
       "dictationStopped": "Recording stopped",
       "connectingMic": "Connecting microphone…",
       "transcribing": "Transcribing…",
-      "dictationNote": "Stop to transcribe into your draft, or send to transcribe and send your message.",
+      "dictationNote": "With approved identity and consent, transcribing saves your original privately in Memoir and sends it to the speech provider. Send attaches it to your story; Stop keeps a draft.",
       "muteMic": "Mute microphone",
       "unmuteMic": "Unmute microphone",
       "micMuted": "Microphone muted",
@@ -280,7 +285,8 @@
       "photoUploadFailed": "Your photo could not be uploaded. Please try again.",
       "privatePhoto": "Your private photo",
       "publicPhoto": "Public reference photo",
-      "photoSource": "View source"
+      "photoSource": "View source",
+      "discardAudio": "Discard draft recordings"
     },
     "workspace": {
       "showWorkspace": "Show workspace",

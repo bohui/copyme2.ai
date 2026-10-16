@@ -225,7 +225,7 @@ class PostgresRest:
         else:
             assert path in {'user_profile', 'user_memory', 'user_agent_session', 'user_place_journey',
                             'user_recall_usage', 'user_completed_round', 'user_private_draft_outbox', 'user_family_context',
-                            'user_memoir_project', 'user_narrator_source'}
+                            'user_memoir_project', 'user_narrator_source', 'user_interview_turn'}
             if request.method == 'GET':
                 selected = request.url.params.get('select', '*')
                 if not re.fullmatch(r'\*|[a-z_]+(?:,[a-z_]+)*', selected):

@@ -52,6 +52,7 @@ class TurnReceipt(BaseModel):
     recall_status: RecallStatus
     photo_cue: dict | None = None
     response_photos: list[dict] = Field(default_factory=list)
+    recordings: list[dict] = Field(default_factory=list, max_length=20)
     historical_context: PublicHistoricalContext | None = None
     conversation_phase: PhaseState | None = None
 
@@ -80,14 +81,15 @@ class NarratorSourceDetail(BaseModel):
     status: Literal['active']
     language: Literal['en-AU', 'zh-CN']
     created_at: str
+    recordings: list[dict] = Field(default_factory=list, max_length=20)
 
 
-def narrator_source_detail(row):
+def narrator_source_detail(row, recordings=None):
     """Project original evidence without exposing owner/internal worker fields."""
     return NarratorSourceDetail(id=row['id'], project_id=row['project_id'],
         version=decimal(row['version']), sequence=decimal(row['sequence']),
         text=row['text'], source_kind=row['kind'], status=row['status'],
-        language=row['language'], created_at=row['created_at'])
+        language=row['language'], created_at=row['created_at'], recordings=recordings or [])
 
 
 class ConversationExchange(BaseModel):
@@ -104,6 +106,7 @@ class ConversationExchange(BaseModel):
     reply: str | None
     photo_cue: dict | None = None
     response_photos: list[dict] = Field(default_factory=list)
+    recordings: list[dict] = Field(default_factory=list, max_length=20)
     historical_context: PublicHistoricalContext | None = None
     conversation_phase: PhaseState | None = None
 
@@ -197,9 +200,13 @@ def pending_turn_input(storage, project_id):
             or source['version'] != accepted['source_version']):
         return None
     photos = accepted.get('photo_context') or []
+    # Deleted audio has no readable descriptor, but its accepted request
+    # identity is still required to replay an unfinished turn.
     return {'project_id': project_id, 'client_turn_id': turn_id,
         'text': source['text'], 'conversation_text': source['text'],
         'source_kind': source['kind'], 'language': source['language'],
+        'recording_ids': accepted.get('recording_ids',
+            [record['id'] for record in accepted.get('recordings',[])]),
         'uploaded_photo_ids': [photo['photo_id'][len('upload:'):] for photo in photos
             if photo.get('kind') == 'private_upload' and photo.get('photo_id', '').startswith('upload:')],
         'photo_selection': {'key': accepted['consumed_photo_key'],

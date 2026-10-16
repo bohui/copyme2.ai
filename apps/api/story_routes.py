@@ -17,7 +17,7 @@ import httpx
 
 from fastapi import APIRouter, Header, HTTPException, Request, Query
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .agent_routes_support import authenticated_storage
 from .agent_storage import UserStorage
@@ -84,11 +84,23 @@ class StoryRoundInput(BaseModel):
 
 
 class StoryTranscriptionInput(BaseModel):
-    audio_base64: str = Field(min_length=1)
-    filename: str = "story-round.webm"
-    mime_type: str = "audio/webm"
-    language: str | None = None
-    prompt: str | None = None
+    audio_base64: str | None = Field(default=None, min_length=1, max_length=13981016)
+    recording_id: UUID | None = None
+    upload_idempotency_key: UUID | None = None
+    project_id: str | None = Field(default=None, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
+    filename: str = Field(default="story-round.webm", max_length=200)
+    mime_type: str = Field(default="audio/webm", max_length=100)
+    language: str | None = Field(default=None, max_length=32)
+    prompt: str | None = Field(default=None, max_length=1000)
+
+
+    @model_validator(mode='after')
+    def require_original_or_reference(self):
+        if (self.audio_base64 is None) == (self.recording_id is None):
+            raise ValueError('Supply either complete audio or an owned recording ID')
+        if self.recording_id is not None and self.upload_idempotency_key is not None:
+            raise ValueError('Upload key applies only to new audio')
+        return self
 
 
 class StorySpeechInput(BaseModel):
@@ -552,28 +564,62 @@ def build_router(
     def story_transcription(payload: StoryTranscriptionInput, authorization: str | None = Header(default=None)):
         storage = storage_for(authorization)
         try:
+            from .original_recordings import RecordingStore
             try:
-                audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
-            except (ValueError, binascii.Error) as error:
-                raise HTTPException(422, "The recording payload is not valid base64.", headers={"X-Error-Code": "INVALID_AUDIO_PAYLOAD"}) from error
-            try:
-                transcription = speech_service.transcribe(
-                    audio,
-                    filename=payload.filename,
-                    mime_type=payload.mime_type,
-                    language=payload.language,
-                    prompt=payload.prompt,
-                )
-            except SpeechUnavailable as exc:
-                raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_UNAVAILABLE"}) from exc
-            except SpeechProviderError as exc:
-                raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_PROVIDER_FAILED"}) from exc
-            text = str(transcription.get("text") or "").strip()
-            if not text:
-                raise HTTPException(502, "Speech transcription returned no text", headers={"X-Error-Code": "EMPTY_TRANSCRIPT"})
-            return {"text": text, "source": {"source_kind": "transcript", "transcription_method": str(transcription.get("provider") or "openai"), "transcription_model": transcription.get("model"), "language": transcription.get("language"), "segments": transcription.get("segments") or []}}
+                return RecordingStore(storage).transcribe(payload, speech_service)
+            except httpx.HTTPError:
+                raise HTTPException(503, 'Recording storage is unavailable', headers={'X-Error-Code':'RECORDING_STORAGE_UNAVAILABLE'}) from None
         finally:
             _close(storage)
+
+    @router.get('/recordings/by-upload/{upload_key}')
+    def recording_by_upload(upload_key: UUID, authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore, descriptor, error
+        storage = storage_for(authorization)
+        try:
+            record = RecordingStore(storage).trusted('find_upload', data={'upload_key':str(upload_key)})
+            if not record: raise error(404,'RECORDING_NOT_FOUND','Recording unavailable')
+            return JSONResponse({'recording':descriptor(record)}, headers={'Cache-Control':'private, no-store','Vary':'Authorization'})
+        finally: _close(storage)
+
+    @router.delete('/recordings/by-upload/{upload_key}')
+    def cancel_recording_upload(upload_key: UUID, authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore
+        storage = storage_for(authorization)
+        try:
+            return JSONResponse(RecordingStore(storage).cancel_upload(str(upload_key)),
+                headers={'Cache-Control':'private, no-store','Vary':'Authorization'})
+        finally: _close(storage)
+
+    @router.get('/recordings/{recording_id}')
+    def recording_metadata(recording_id: UUID, authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore, descriptor
+        storage = storage_for(authorization)
+        try:
+            record = RecordingStore(storage).metadata(str(recording_id))
+            return JSONResponse({'recording':descriptor(record), 'asr_result':record.get('asr_result')},
+                headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
+        finally: _close(storage)
+
+    @router.get('/recordings/{recording_id}/content', response_class=Response,
+        responses={200:{'content':{'audio/webm':{},'audio/mp4':{},'audio/wav':{},'audio/ogg':{}}}})
+    def recording_content(recording_id: UUID, authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore, OriginalContentResponse
+        storage = storage_for(authorization)
+        try:
+            recordings = RecordingStore(storage)
+            record = recordings.metadata(str(recording_id))
+            return OriginalContentResponse(recordings.content(record), record, storage.user_id)
+        except httpx.HTTPError:
+            raise HTTPException(503,'Original recording is temporarily unavailable',headers={'X-Error-Code':'RECORDING_STORAGE_UNAVAILABLE'}) from None
+        finally: _close(storage)
+
+    @router.delete('/recordings/{recording_id}')
+    def delete_recording(recording_id: UUID, draft_only: bool = Query(default=False), authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore
+        storage = storage_for(authorization)
+        try: return RecordingStore(storage).delete(str(recording_id), draft_only=draft_only)
+        finally: _close(storage)
 
     @router.post("/question-audio")
     def story_question_audio(payload: StorySpeechInput, authorization: str | None = Header(default=None)):

@@ -63,7 +63,7 @@ test('server pending recovery cannot replace another principal or a later naviga
  for(const change of [h=>{h.state.supabase.user.id='other';},h=>{h.state.navigationGeneration++;},h=>{h.state.project.id='other';}]){
   const h=harness();let resolve;
   const photos=createInterviewPhotoState({...h.deps,api:()=>new Promise(done=>{resolve=done;})});
-  const pending=photos.recover();change(h);
+  const pending=photos.recover();await Promise.resolve();change(h);
   resolve({turn:{project_id:'p',client_turn_id:'original-accepted',text:'Private original'}});
   await pending;assert.equal(photos.pending(),null);assert.equal(h.storage.size,0);
  }
@@ -180,4 +180,56 @@ test('legacy selections without a revision use null and still fence a newer UUID
   photos.accept(turn,{state:'source_accepted',photo_cue:{consumed:true,key:'photo-a',revision:null}});
   assert.equal(state.project.profile.photo_memories.p.selected,reselected?'photo-a':null);
  }
+});
+
+test('ordered recording refs survive edits, retry/reload and clear only on confirmed acceptance',async()=>{
+ const {state,photos,deps}=harness();
+ state.audioRecordings=[{id:'recording-one'},{id:'recording-two'}];
+ const turn=photos.prepare({text:'Edited date plus typed clarification',conversationText:'Edited date plus typed clarification',sourceKind:'narrator_transcript',recordingIds:state.audioRecordings.map(r=>r.id)});
+ assert.deepEqual(turn.recordingIds,['recording-one','recording-two']);
+ const restored=createInterviewPhotoState(deps);await restored.recover();
+ assert.deepEqual(restored.pending().recordingIds,turn.recordingIds);
+ photos.accept(turn,{state:'not_found'});
+ assert.equal(state.audioRecordings.length,2);
+ photos.accept(turn,{state:'source_accepted'});
+ assert.deepEqual(state.audioRecordings,[]);
+});
+
+
+test('dictation review restores ordered backend references and edited text after refresh',async()=>{
+ const {state,photos,deps}=harness();
+ state.audioRecordings=[{id:'one'},{id:'two'}];state.audioTranscript='Corrected date plus typed words';
+ photos.saveAudioDraft();
+ state.audioRecordings=[];state.audioTranscript='';
+ const restored=createInterviewPhotoState({...deps,api:async path=>({recording:{id:path.split('/').at(-1),lifecycle:'draft',backend_saved:true}})});
+ await restored.recoverAudioDraft();
+ assert.deepEqual(state.audioRecordings.map(r=>r.id),['one','two']);
+ assert.equal(state.audioTranscript,'Corrected date plus typed words');
+ assert.equal(state.audioTranscriptKind,'narrator_transcript');
+});
+
+test('a lost upload response recovers its durable identity without caching audio bytes',async()=>{
+ const {state,photos,deps,storage}=harness();
+ state.pendingAudioUpload={uploadKey:'stable-key',blob:new Blob(['private bytes'])};
+ photos.saveAudioDraft();
+ assert.ok(![...storage.values()].join('').includes('private bytes'));
+ state.pendingAudioUpload=null;
+ const restored=createInterviewPhotoState({...deps,api:async()=>({recording:{id:'saved-original',lifecycle:'draft',backend_saved:true}})});
+ await restored.recoverAudioDraft();
+ assert.equal(state.pendingAudioUpload.recordingId,'saved-original');
+ assert.equal(state.pendingAudioUpload.blob,null);
+ state.supabase.user.id='other';
+ await restored.recoverAudioDraft();
+ assert.equal(state.pendingAudioUpload.scope.ownerId,'owner');
+});
+
+test('a cancelled upload key is reconciled after refresh without accepting its late original',async()=>{
+ const {state,photos,deps}=harness();
+ state.pendingAudioUpload={uploadKey:'cancelled-key',cancelled:true};photos.saveAudioDraft();
+ state.pendingAudioUpload=null;const calls=[];
+ const restored=createInterviewPhotoState({...deps,api:async(path,options)=>{calls.push([path,options.method]);return {cancelled:true,recording_id:null};}});
+ await restored.recoverAudioDraft();
+ assert.deepEqual(calls,[['/v1/story/recordings/by-upload/cancelled-key','DELETE']]);
+ assert.equal(state.pendingAudioUpload,null);
+ assert.deepEqual(state.audioRecordings,[]);
 });

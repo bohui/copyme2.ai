@@ -174,7 +174,8 @@ def read_project_source(project_id: str, source_id: UUID,
             if expected_version is not None and expected_version != str(source['version']):
                 raise HTTPException(409, 'The cited source has changed; refresh the draft or source reference',
                                     headers={'X-Error-Code': 'SOURCE_REVISION_CONFLICT'})
-            return narrator_source_detail(source)
+            return narrator_source_detail(source, service.source_recordings(project_id,str(source_id))
+                if callable(getattr(service,'source_recordings',None)) else [])
         return snapshot_lifetime_read(service, project_id, read_source)
     except (httpx.HTTPStatusError, httpx.RequestError, PublicationUnavailable):
         raise HTTPException(503, 'Source temporarily unavailable',
