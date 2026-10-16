@@ -974,3 +974,36 @@ def test_expansion_cache_identity_tracks_server_provider_mode_not_credential_val
     assert search_key('Chengde', '1980s') == serpapi_key
     monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-three')
     assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key}
+
+
+
+def test_rehosted_duplicate_never_fills_ten_photo_target(monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'true')
+    attempts = []
+
+    def fingerprint(image_url):
+        number = int(image_url.rsplit('/', 1)[1].split('.')[0])
+        return {'content_hash': 'same-photo' if number in {1, 2} else f'unique-{number}'}
+
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', fingerprint)
+
+    def discovered(command, **kwargs):
+        attempts.append(json.loads(kwargs['input'])['query'])
+        ids = [1] if len(attempts) == 1 else (
+            list(range(2, 11)) if len(attempts) == 2 else [11])
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': [
+                {'source_url': f'https://archive.example/photos/{index}', 'text': 'Chengde street'}
+                for index in ids
+            ],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovered)
+    for index in range(1, 12):
+        sources[f'https://archive.example/photos/{index}'] = photo_html(index)
+    result = photos._google_serpapi('Chengde', '1980s')
+    assert len(result) == 10
+    assert len({item['content_hash'] for item in result}) == 10
+    assert len(attempts) == 3, 'one rehosted duplicate must not prematurely satisfy the target'
