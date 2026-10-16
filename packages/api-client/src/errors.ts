@@ -22,6 +22,8 @@ export class MemoirApiError extends Error {
     public readonly retryable: boolean,
     public readonly requestId?: string,
     public readonly retryAfterMs?: number,
+    public readonly recordingId?: string,
+    public readonly backendSaved?: boolean,
   ) {
     super(code);
   }
@@ -87,6 +89,21 @@ export function mapApiError(
       : Date.parse(retryAfter) - now;
     if (Number.isFinite(delay)) retryAfterMs = Math.max(0, delay);
   }
+  const detail =
+    body &&
+    typeof body === "object" &&
+    "detail" in body &&
+    body.detail &&
+    typeof body.detail === "object"
+      ? (body.detail as Record<string, unknown>)
+      : {};
+  const recordingId =
+    typeof detail.recording_id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      detail.recording_id,
+    )
+      ? detail.recording_id
+      : undefined;
   // Raw error bodies may contain provider details or source text. Do not retain them.
   return new MemoirApiError(
     code,
@@ -95,6 +112,8 @@ export function mapApiError(
     retryable,
     requestId,
     retryAfterMs,
+    recordingId,
+    recordingId ? detail.backend_saved === true : undefined,
   );
 }
 export function retryDelay(

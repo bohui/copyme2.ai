@@ -83,7 +83,25 @@ test("transcription requires consent, owner and bounded clip and keeps unverifie
   let sent = 0;
   const request = async () => {
     sent++;
-    return { text: "中文记忆", source: { language: "zh" } };
+    return {
+      text: "中文记忆",
+      source: { language: "zh" },
+      recording: {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        backend_saved: true,
+        storage_status: "ready" as const,
+        content_type: "audio/mp4" as const,
+        codec: "aac",
+        byte_size: 3,
+        duration_seconds: 1,
+        content_sha256: "a".repeat(64),
+        transcription_status: "succeeded" as const,
+        lifecycle: "draft" as const,
+        created_at: "2026-10-16",
+        content_url:
+          "/api/v1/memoir/story/recordings/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content",
+      },
+    };
   };
   await assert.rejects(
     transcribeClip(clip, { ownerId: "other", consent: true, request }),

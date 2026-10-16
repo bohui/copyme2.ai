@@ -485,6 +485,6 @@ def public_interview_fields(turn):
     if isinstance(turn.get('conversation_phase'), dict):
         from .conversation_phase import PhaseState
         phase_fields['conversation_phase'] = PhaseState.model_validate(turn['conversation_phase']).model_dump(mode='json')
-    return {**phase_fields, 'photo_cue': {'consumed': bool(key or turn.get('photo_context')), 'key': key, 'revision': revision}, 'response_photos': safe,
+    return {**phase_fields, **({'recordings':turn['recordings']} if 'recordings' in turn else {}), 'photo_cue': {'consumed': bool(key or turn.get('photo_context')), 'key': key, 'revision': revision}, 'response_photos': safe,
         **({'historical_context': public_clue(turn['historical_context'])}
            if isinstance(turn.get('historical_context'), dict) else {})}

@@ -128,6 +128,7 @@ export function createConversationAudio({
   }
 
   function stopVoiceMode({ silent = false } = {}) {
+    if (state.pendingAudioUpload) state.pendingAudioUpload.cancelled = true;
     const active = Boolean(state.voiceMode || state.voiceModeRecorder || state.voiceModeStream);
     state.voiceMode = false;
     state.voiceModeStatus = "off";
@@ -260,16 +261,18 @@ export function createConversationAudio({
             }
             return;
           }
+          state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
           state.audioUploadId = saved.uploadId;
           state.audioTranscript = saved.text;
           state.audioTranscriptKind = "narrator_transcript";
+          state.photoTurns?.saveAudioDraft();
           await sendChatMessage({ voiceTurn: true });
         } catch (error) {
           if (state.voiceMode) {
             toast(error.message || conversationMessage("voiceAnswerFailed"));
-            state.voiceModeStatus = "listening";
+            state.voiceMode = false;
+            state.voiceModeStatus = "off";
             render();
-            queueVoiceModeTurn();
           }
         }
       });
@@ -287,6 +290,7 @@ export function createConversationAudio({
   }
 
   function toggleVoiceInput() {
+    if (!state.voiceMode && state.pendingAudioUpload) { void startAudioRecorder(); return; }
     if (state.voiceMode) {
       stopVoiceMode();
       return;
@@ -336,6 +340,7 @@ export function createConversationAudio({
   }
 
   function cancelDictation() {
+    if (state.pendingAudioUpload) { state.pendingAudioUpload.cancelled = true; void discardAudioDraft({pendingOnly:true}); }
     clearDictationMonitor();
     state.dictationId += 1;
     state.dictationStatus = "off";
@@ -370,8 +375,10 @@ export function createConversationAudio({
       const saved = await transcribeRecordedAudio(blob, `dictation-${Date.now()}`);
       if (state.dictationId !== id) return;
       if (state.dictationId !== id) return;
+      state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
       state.audioTranscript = [state.audioTranscript.trim(), saved.text].filter(Boolean).join(" ");
       state.audioTranscriptKind = "narrator_transcript";
+      state.photoTurns?.saveAudioDraft();
       shouldSend = state.dictationSend && Boolean(saved.text);
     } catch (error) { if (state.dictationId === id) toast(error.message); }
     finally {
@@ -389,6 +396,19 @@ export function createConversationAudio({
   async function startAudioRecorder() {
     if (state.loading || state.voiceMode || state.dictationStatus !== "off") return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast(translate("Memoir.storyFlow.browserCannotRecord"));
+    if (state.pendingAudioUpload) {
+      const pending = state.pendingAudioUpload;
+      state.dictationStatus = 'processing'; render();
+      try {
+        const saved = await transcribeRecordedAudio(pending.blob, pending.filenamePrefix);
+        state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
+        state.audioTranscript = [state.audioTranscript.trim(),saved.text].filter(Boolean).join(' ');
+        state.audioTranscriptKind = 'narrator_transcript';
+        state.photoTurns?.saveAudioDraft();
+      } catch (error) { toast(error.message); }
+      finally { state.dictationStatus = 'off'; render(); }
+      return;
+    }
     const id = ++state.dictationId;
     state.dictationStatus = "starting";
     render();
@@ -428,22 +448,73 @@ export function createConversationAudio({
   }
 
   async function transcribeRecordedAudio(blob, filenamePrefix) {
-    const encoded = await blobToBase64(blob);
-    const mimeType = (blob.type || "audio/webm").split(";")[0];
+    const scope = captureProjectScope();
+    const pending = state.pendingAudioUpload?.blob === blob ? state.pendingAudioUpload :
+      {blob, filenamePrefix, scope, uploadKey:globalThis.crypto.randomUUID()};
+    if (!isCurrentProjectScope(pending.scope)) throw new Error('Recording owner changed');
+    state.pendingAudioUpload = pending;
+    state.photoTurns?.saveAudioDraft();
+    if (!blob && pending.backendSaved === false) throw new Error('Upload was not confirmed; discard this incomplete draft before retaking.');
+    const encoded = pending.recordingId ? null : await blobToBase64(blob);
+    if (!isCurrentProjectScope(scope)) throw new Error('Recording owner changed');
+    if (pending.cancelled) throw new Error('Recording discarded');
+    const mimeType = (blob?.type || "audio/webm").split(";")[0];
     const extension = mimeType === "audio/mp4" ? "mp4" : "webm";
-    const transcript = await storyApi("/v1/story/transcriptions", {
-      method: "POST",
-      body: JSON.stringify({ audio_base64: encoded, filename: `${filenamePrefix}.${extension}`, mime_type: mimeType, language: conversationLanguage() }),
-    });
-    return {
-      uploadId: null,
-      text: String(transcript.text || "").trim(),
-      language: transcript.source?.language || "",
-    };
+    try {
+      const transcript = await storyApi("/v1/story/transcriptions", {
+        method: "POST",
+        body: JSON.stringify(pending.recordingId ? {recording_id:pending.recordingId,project_id:scope.projectId || null,language:conversationLanguage()} :
+          {audio_base64:encoded, upload_idempotency_key:pending.uploadKey, project_id:scope.projectId || null,
+            filename:`${filenamePrefix}.${extension}`, mime_type:mimeType, language:conversationLanguage()}),
+      });
+      if (!isCurrentProjectScope(scope)) throw new Error('Recording owner changed');
+      if (!transcript.recording?.backend_saved || transcript.recording.storage_status !== 'ready')
+        throw new Error('Backend original was not confirmed saved');
+      if (pending.cancelled) {
+        pending.recordingId = transcript.recording.id;
+        await storyApi('/v1/story/recordings/' + encodeURIComponent(transcript.recording.id) + '?draft_only=true', {method:'DELETE'});
+        state.pendingAudioUpload = null;
+        throw new Error('Recording discarded');
+      }
+      state.pendingAudioUpload = null;
+      return {uploadId:null, recording:transcript.recording, text:String(transcript.text || '').trim(), language:transcript.source?.language || ''};
+    } catch (error) {
+      if (isCurrentProjectScope(scope) && error.detail?.backend_saved && error.detail?.recording_id)
+        pending.recordingId = error.detail.recording_id;
+      if (isCurrentProjectScope(scope)) state.photoTurns?.saveAudioDraft();
+      throw error;
+    }
+  }
+
+  async function discardAudioDraft({pendingOnly=false} = {}) {
+    const scope = captureProjectScope();
+    const pending = state.pendingAudioUpload;
+    if (pending && !isCurrentProjectScope(pending.scope)) return;
+    if (pending) pending.cancelled = true;
+    try {
+      const ids = pendingOnly ? [] : (state.audioRecordings || []).map(recording => recording.id);
+      if (pending?.recordingId) ids.push(pending.recordingId);
+      else if (pending?.uploadKey) {
+        try {
+          const found = await storyApi('/v1/story/recordings/by-upload/' + encodeURIComponent(pending.uploadKey));
+          if (!isCurrentProjectScope(scope)) return;
+          ids.push(found.recording.id);
+        } catch (error) { if (error.status !== 404) throw error; }
+      }
+      for (const id of new Set(ids)) {
+        if (!isCurrentProjectScope(scope)) return;
+        await storyApi('/v1/story/recordings/' + encodeURIComponent(id) + '?draft_only=true', {method:'DELETE'});
+      }
+      if (!isCurrentProjectScope(scope)) return;
+      if (!pendingOnly) { state.audioRecordings = []; state.audioTranscriptKind = 'narrator_chat'; }
+      if (state.pendingAudioUpload === pending) state.pendingAudioUpload = null;
+      state.photoTurns?.saveAudioDraft();
+      render();
+    } catch (error) { if (isCurrentProjectScope(scope)) toast(error.message); }
   }
 
   return {
-    cancelDictation, finishDictation, queueVoiceModeTurn, speakText, speakVoiceReply, startAudioRecorder,
+    cancelDictation, discardAudioDraft, finishDictation, queueVoiceModeTurn, speakText, speakVoiceReply, startAudioRecorder,
     startVoiceModeTurn, stopVoiceMode, toggleVoiceInput
   };
 }

@@ -99,6 +99,14 @@
               }
             ]
           },
+          "recordings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
           "reply": {
             "anyOf": [
               {
@@ -365,6 +373,14 @@
           },
           "project_id": {
             "type": "string"
+          },
+          "recordings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
           },
           "schema_version": {
             "const": 1,
@@ -968,16 +984,26 @@
       "StoryTranscriptionInput": {
         "properties": {
           "audio_base64": {
-            "minLength": 1,
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 13981016,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "filename": {
             "default": "story-round.webm",
+            "maxLength": 200,
             "type": "string"
           },
           "language": {
             "anyOf": [
               {
+                "maxLength": 32,
                 "type": "string"
               },
               {
@@ -987,11 +1013,46 @@
           },
           "mime_type": {
             "default": "audio/webm",
+            "maxLength": 100,
             "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "prompt": {
             "anyOf": [
               {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recording_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "upload_idempotency_key": {
+            "anyOf": [
+              {
+                "format": "uuid",
                 "type": "string"
               },
               {
@@ -1000,9 +1061,6 @@
             ]
           }
         },
-        "required": [
-          "audio_base64"
-        ],
         "type": "object"
       },
       "TaskRequest": {
@@ -1100,6 +1158,14 @@
                 "type": "null"
               }
             ]
+          },
+          "recording_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
           },
           "source_kind": {
             "default": "narrator_chat",
@@ -1214,6 +1280,14 @@
           },
           "recall_status": {
             "$ref": "#/components/schemas/RecallStatus"
+          },
+          "recordings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
           },
           "reply": {
             "anyOf": [
@@ -3246,6 +3320,206 @@
               "application/json": {
                 "schema": {}
               }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memoir/story/recordings/by-upload/{upload_key}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "path",
+            "name": "upload_key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memoir/story/recordings/{recording_id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "draft_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memoir/story/recordings/{recording_id}/content": {
+      "get": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "audio/mp4": {},
+              "audio/ogg": {},
+              "audio/wav": {},
+              "audio/webm": {}
             }
           },
           "422": {

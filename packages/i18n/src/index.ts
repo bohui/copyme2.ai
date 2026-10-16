@@ -167,7 +167,18 @@ const en = {
   fixtureBody:
     "This preview uses fictional memories for interface testing. Nothing is sent to a server.",
   recorderNote:
-    "Recording stays on your device until you choose Transcribe. Transcription sends the recording to Memoir’s configured speech provider.",
+    "Recording stays on this device until Transcribe. With approved identity and consent, Transcribe retains the original privately in Memoir and sends it to the configured speech provider. Using the text attaches it to your story. Cancel discards the uploaded draft.",
+  localRecordingOnly: "Original saved on this device only",
+  originalRecordingSaved:
+    "Original saved privately in Memoir. Sending your reviewed words attaches it to your story.",
+  recordingRetentionDisabled:
+    "Backend recording retention is not enabled. You can type your answer.",
+  recordingAuthorityRequired:
+    "A recoverable identity and approved recording consent are required.",
+  recordingNotSavedRetry:
+    "Original not confirmed saved. Retry Transcribe with this local clip, or cancel to discard.",
+  recordingSavedRetry:
+    "Original saved privately. Retry Transcribe without recording again.",
   transcribe: "Transcribe recording",
   useTranscript: "Use this text",
   recordPermission:
@@ -352,7 +363,15 @@ const zh: Record<keyof typeof en, string> = {
   fixture: "虚构预览 · 非真实账户",
   fixtureBody: "此预览使用虚构回忆测试界面，不会发送到服务器。",
   recorderNote:
-    "选择“转写录音”前，录音仅保存在本设备。转写会将录音发送给回忆录所配置的语音服务。",
+    "选择“转写录音”前，录音仅在本设备。身份和同意经确认后，转写会将原始录音私密保存到回忆录后端，并发送给语音服务。使用文字后才关联到故事；取消会删除已上传草稿。",
+  localRecordingOnly: "原始录音目前仅保存在本设备",
+  originalRecordingSaved:
+    "原始录音已私密保存到回忆录后端；发送检查后的文字才关联到故事。",
+  recordingRetentionDisabled: "后端录音保留尚未启用。你仍然可以打字回答。",
+  recordingAuthorityRequired: "需要可恢复的身份及经确认的录音同意。",
+  recordingNotSavedRetry:
+    "尚未确认原始录音已保存。请用本地录音重试转写，或取消以删除草稿。",
+  recordingSavedRetry: "原始录音已私密保存。请重试转写，无需重新录音。",
   transcribe: "转写录音",
   useTranscript: "使用这段文字",
   recordPermission: "未获得麦克风权限。你仍然可以打字讲述。",

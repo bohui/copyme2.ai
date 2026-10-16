@@ -31,6 +31,7 @@ class TurnInput(BaseModel):
     client_turn_id: UUID | None = None
     conversation_text: str | None = Field(default=None, max_length=100000)
     source_kind: Literal['narrator_chat', 'narrator_transcript'] = 'narrator_chat'
+    recording_ids: list[UUID] = Field(default_factory=list, max_length=20)
     uploaded_photo_ids: list[UUID] = Field(default_factory=list, max_length=5)
     photo_selection: dict | None = None
     workspace_focus: WorkspaceMemoryFocus | None = None
@@ -52,6 +53,10 @@ class TurnInput(BaseModel):
             raise ValueError('Enter an answer or select a photo')
         if (self.uploaded_photo_ids or self.photo_selection) and not self.project_id:
             raise ValueError('Photo cues require an interview project')
+        if len(self.recording_ids) != len(set(self.recording_ids)):
+            raise ValueError('Duplicate recording reference')
+        if self.recording_ids and (self.source_kind != 'narrator_transcript' or not original.strip()):
+            raise ValueError('Recordings require a narrator transcript')
         if self.photo_selection is not None:
             if (set(self.photo_selection) != {'key', 'revision'}
                 or not isinstance(self.photo_selection.get('key'), str)
@@ -364,7 +369,8 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
         'client_turn_id': str(payload.client_turn_id) if payload.client_turn_id else None,
         'conversation_text': payload.conversation_text, 'source_kind': payload.source_kind,
         'uploaded_photo_ids': [str(id) for id in payload.uploaded_photo_ids],
-        'photo_selection': payload.photo_selection, 'workspace_focus': focus})
+        'photo_selection': payload.photo_selection, 'workspace_focus': focus,
+        'recording_ids': [str(id) for id in payload.recording_ids]})
 
 
 @router.get('/family-context')

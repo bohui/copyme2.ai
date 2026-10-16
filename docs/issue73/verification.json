@@ -1,0 +1,166 @@
+{
+  "issue": "https://github.com/bohui/copyme2.ai/issues/73",
+  "branch": "agent/issue73-original-recordings",
+  "initial_base": "a6c1c9055119b90a21b04bb09b99f4d5545379f2",
+  "rebased_onto": "971dd672c407ca508b8cf62f913d96dbbb9b6ba0",
+  "recorded_at": "2026-10-16T09:33:35.467221+00:00",
+  "release_status": "draft_disabled_not_full_acceptance",
+  "final_head_location": "Draft PR description and final handoff",
+  "rollout": {
+    "environment_default": "0",
+    "database_default": false,
+    "approved_authority_implementation": false
+  },
+  "test_boundary": {
+    "application": "existing FastAPI/TestClient",
+    "database": "task-owned PostgreSQL 17.6/18.3 Docker containers, native roles and separate psycopg connections",
+    "external_controls": [
+      "authentication exchange",
+      "private object transport",
+      "STT/model provider"
+    ],
+    "single_user_backend": false,
+    "primary_tests_skipped": 0
+  },
+  "checks": [
+    {
+      "name": "feature_api_sql_media",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_original_recordings.py tests/test_original_recordings_postgres.py tests/test_original_recordings_http.py -q",
+      "observed": [
+        "76 passed in 97.31s (0:01:37)"
+      ]
+    },
+    {
+      "name": "final_request_bound_unit",
+      "command": "python -m pytest tests/test_original_recordings.py -q",
+      "observed": [
+        "17 passed in 4.62s"
+      ]
+    },
+    {
+      "name": "canonical_and_compatibility_regressions",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_lifetime_memory_runtime.py tests/test_canonical_guest_conversation.py tests/test_conversation_recovery_api.py tests/test_speech_integration.py tests/test_speech.py tests/test_canonical_only_conversation.py -q",
+      "observed": [
+        "103 passed in 80.66s (0:01:20)"
+      ]
+    },
+    {
+      "name": "web_reference_state",
+      "command": "node --test tests/js/interview-photo-turns.test.mjs",
+      "observed": [
+        "\u2139 tests 20",
+        "\u2139 pass 20",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    {
+      "name": "browser_voice_controls",
+      "command": "PLAYWRIGHT_BROWSERS_PATH=/tmp/issue73-playwright python tests/browser_voice_controls.py",
+      "observed": [
+        "Voice controls passed: ordered recording references, edited multi-clip dictation, append cancellation, cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout."
+      ]
+    },
+    {
+      "name": "openapi",
+      "command": "python scripts/check_mobile_openapi.py",
+      "observed": [
+        "Mobile OpenAPI snapshot matches (47 operations)"
+      ]
+    },
+    {
+      "name": "mobile_complete_check",
+      "command": "npm run check:mobile",
+      "exit_code": 0,
+      "observed": [
+        "\u2139 tests 92",
+        "\u2139 pass 92",
+        "\u2139 fail 0",
+        "\u2139 skipped 0",
+        "Test Suites: 8 passed, 8 total",
+        "Tests:       66 passed, 66 total",
+        "Mobile OpenAPI snapshot matches (47 operations)",
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       21 passed, 21 total",
+        "Native config introspection passed (not a native binary/device test)"
+      ],
+      "includes": [
+        "unit/domain tests",
+        "TypeScript app/UI/integration checks",
+        "ESLint",
+        "native UI tests",
+        "OpenAPI snapshot",
+        "native integration tests",
+        "native config introspection"
+      ]
+    }
+  ],
+  "known_baseline_failures": {
+    "suite": "tests/test_interview_photos_postgres.py",
+    "original_base_result": "34 passed, 3 failed",
+    "task_branch_result": "34 passed, 3 failed",
+    "cases": [
+      "test_final_conversation_commit_rejects_invalidated_saved_collector[source]",
+      "test_final_conversation_commit_rejects_invalidated_saved_collector[photo]",
+      "test_final_conversation_commit_rejects_invalidated_saved_collector[newer_turn]"
+    ],
+    "cause": "Retired commit_user_agent_turn is denied earlier with canonical execution required; same failures reproduced on original base with only Docker fixture transport adaptation."
+  },
+  "remaining_blockers": [
+    "Approved recoverable identity and purpose-specific retention/AI consent hook is absent: remains deny-all",
+    "Actual private Storage HTTP, listing/signing/overwrite/withdrawal/transfer policy behavior is unverified; no Storage policies/access changed",
+    "Project/account orphan cleanup retains inaccessible pending tombstones but approved physical cleanup executor/transport is not wired",
+    "Real STT/provider behavior and billing evidence is unobserved; no paid calls made",
+    "Real browser microphone and native iOS/Android device/binary/format evidence is unobserved",
+    "Updated API decoder dependency image was not built",
+    "Independent cloud review/fixes and explicit rollout approval remain required"
+  ],
+  "production_actions": {
+    "migrations_applied": false,
+    "storage_access_changed": false,
+    "customer_recordings_accessed": false,
+    "provider_calls": false,
+    "deployment": false,
+    "merge": false,
+    "github_review_comments": false
+  },
+  "task_file_sha256": {
+    ".env.example": "4022471d6f65d37f151f834bc28b5d068cf46758e5a6fa51c88ba115e6e1da03",
+    "Containerfile": "b876c36b6c1eb5c4089bbed89ab16fc09f4627e18711d8939df34c8a2e3a2110",
+    "apps/api/agent_routes.py": "8ffa153057fa5d483ccbc80a2bbc0520ddfddfc5578e44f9aef27446f4cd0652",
+    "apps/api/agent_storage.py": "d7c519f3ee7157e93a1cb97483209f6d3504ac077f7747f6b87dadc37341e217",
+    "apps/api/codex_runtime.py": "0bbc46025d5342f259d158504ac498205b580377aa7906f9f67defc1e7c7f0a3",
+    "apps/api/conversation_recovery.py": "2fc2312742a2acfb80fa89fbb4ba8b54eb79de8512153327aa6f8e1b6665a158",
+    "apps/api/interview_plan.py": "e95536583524dfde5889864545529321d93c6cef33e15141b091a4d9084b3ac8",
+    "apps/api/lifetime_memory_runtime.py": "a17f9a28b2b3d5264f07f0d98bf1e260ae9c1ac45cd5647d7868ba932af082ee",
+    "apps/api/main.py": "3249f03e1e842bf938d896b255308cf79e722f06be4fd0f3c43af9dcc62dff8f",
+    "apps/api/original_recordings.py": "5735044ebbafec8209af730dee8de7aaf559ad9521ea855823e50f6846e676ee",
+    "apps/api/story_routes.py": "e2b5044bf2e8fa439044fe81b6be95ac8777863058f6d57221817c802b86932c",
+    "apps/api/supabase_routes.py": "171762bf37c76ce0580fd75c02709b1ac8392acc5aeee57c12c03a1e86ad1a41",
+    "apps/mobile/app/record.tsx": "309568eb2c7d12edf00dd0788462651fc435b0b0e3a103fcb0624a1534337042",
+    "apps/mobile/src/context.tsx": "7095aad98756583e88c711628516b0a687c79c7ad0d32b784813d23c074ae629",
+    "apps/mobile/src/platform/media.ts": "f4f3d76105d319a3fb9e98a447e48e3fd37b5b6790c4a3bd1ec5cf39ba24b1a5",
+    "apps/web/client/memoir/client.js": "693e6938006166012c56f6db5f91dd22c27f4284c5656a9fdb261d2865135cf3",
+    "apps/web/client/memoir/conversation-audio.mjs": "ab413790e66248543fab9d0302df44ab513a3f0187601556ae2ddf573a027328",
+    "apps/web/client/memoir/interview-photo-turns.mjs": "7faebb131a088038c85231a09c447b79b6f7cbdbf747916cacfb33fbf30d3631",
+    "apps/web/messages/en-AU.json": "b8d7a1853af557977ee027c34853038272e6ca1b527570718d03537362f85afc",
+    "apps/web/messages/zh-CN.json": "a99f32553b1e063888012f53f1ff7dab6e27acc7d3eb74871451f2b8bbaab646",
+    "packages/api-client/src/errors.ts": "2805a2ebf98062009a13f8b7f9dc1df2eb227a85e268ebd7dbb3edf58ddc3fb1",
+    "packages/api-client/src/index.ts": "fb21fd64119933b453991e2dbd95989e48a527144426e8ff58fa225827d58548",
+    "packages/contracts/openapi.snapshot.json": "17b5d95c1ed738f9116fbab6722eda2a19fce1ae02c7e9d373de17e17683e1d6",
+    "packages/contracts/src/index.ts": "a58d91067c2f264ebe477587419427bdcbe28ddd5022c5548fa4fe5d12be9db5",
+    "packages/i18n/src/index.ts": "20cd66857fbc7de11d8d3ac5bde1fb65998968ca52ad15c2654a647b832915cc",
+    "scripts/check_mobile_openapi.py": "d949124eb696640e5e8ce5eb3bb2cadc62266543223135bb117fa14fd442eb39",
+    "supabase/migrations/202610160003_original_recordings.sql": "7eb9cc841f813ba6866f9b86057404a1dd645e9c3a29f55b8c15510150b32394",
+    "tests/browser_voice_controls.py": "ca675bae9ae734cf9c346c1582ba578f93dd6e51d436c89b7e589767520b6ed4",
+    "tests/js/interview-photo-turns.test.mjs": "1e7c378f175ed99c509e9328adb8effdc27ecc391ae5e638057f70073d00327d",
+    "tests/mobile/original-recordings.test.ts": "961977bf571c48f83eeb22f30f497b8c62d302ca3d76d0ab75ad80d36ee78226",
+    "tests/mobile/private-media.test.ts": "762c55e2e8aaf1147f54e7074afa798e34fc49fca6701036776d606daa67bec2",
+    "tests/test_agent_commit_postgres.py": "87a20319531f8716470030addb488469f18288f9150f8b2bc8d25dd54da83712",
+    "tests/test_conversation_recovery_api.py": "7585bbf95b3a84ef3359e4daf94c77153db218a6c5258dded0a0e41bb988b1d6",
+    "tests/test_original_recordings.py": "07d160b98e4c1251226e5c1ed91ed7d99e83235b808acd3dd02031e50d61bbda",
+    "tests/test_original_recordings_http.py": "c00e8540fa9ba15a5e3a511463e37ab032f436f06bd977c0aab24da19039ab32",
+    "tests/test_original_recordings_postgres.py": "ecfecca4e5ac120e6cd1a98c8fcb7bfc32b771c858eeb567fa120047ea40a30e",
+    "tests/test_speech_integration.py": "eb4fb4e99aa82805dfa24a5ca358d848cd7d3973a76010ed35164d23b4ea1dd9"
+  }
+}

@@ -20,6 +20,48 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   const current = turn => turn && turn.projectId === scope().projectId && turn.ownerId === scope().ownerId
     && turn.generation === scope().generation;
   const key = () => `memory-spark-pending-turn:${encodeURIComponent(scope().ownerId || '')}:${encodeURIComponent(scope().projectId || '')}`;
+  const audioKey = () => `memory-spark-audio-draft:${encodeURIComponent(scope().ownerId || '')}:${encodeURIComponent(scope().projectId || '')}`;
+  let audioRevision = 0;
+  function saveAudioDraft() {
+    audioRevision += 1;
+    const pending = state.pendingAudioUpload;
+    const recordingIds = (state.audioRecordings || []).map(recording => recording.id);
+    try {
+      if (!recordingIds.length && !pending) storage.removeItem(audioKey());
+      else storage.setItem(audioKey(),JSON.stringify({...scope(),text:state.audioTranscript,recordingIds,
+        pending:pending ? {uploadKey:pending.uploadKey,recordingId:pending.recordingId} : null}));
+    } catch { /* The backend metadata and accepted associations remain authoritative. */ }
+  }
+  async function recoverAudioDraft() {
+    const ownerScope = scope(); const revision = audioRevision; let saved;
+    try { saved = JSON.parse(storage.getItem(audioKey()) || 'null'); } catch { return; }
+    if (!saved || saved.ownerId !== ownerScope.ownerId || saved.projectId !== ownerScope.projectId) return;
+    try {
+      const restored = [];
+      for (const id of (saved.recordingIds || []).slice(0,20)) {
+        const data = await api(`/v1/story/recordings/${encodeURIComponent(id)}`);
+        if (!current(ownerScope)) return;
+        if (data.recording?.lifecycle === 'draft' && data.recording.backend_saved) restored.push(data.recording);
+      }
+      let pending = null;
+      if (saved.pending) {
+        const data = await api(saved.pending.recordingId
+          ? `/v1/story/recordings/${encodeURIComponent(saved.pending.recordingId)}`
+          : `/v1/story/recordings/by-upload/${encodeURIComponent(saved.pending.uploadKey)}`);
+        if (!current(ownerScope)) return;
+        if (data.recording?.lifecycle === 'draft') pending = {...ownerScope,scope:ownerScope,blob:null,filenamePrefix:'retry',
+          uploadKey:saved.pending.uploadKey,recordingId:data.recording.id,backendSaved:data.recording.backend_saved};
+      }
+      if (revision !== audioRevision || !current(ownerScope)) return;
+      state.audioRecordings = restored;
+      state.pendingAudioUpload = pending;
+      if (restored.length || pending) {
+        state.audioTranscript = String(saved.text || '');
+        state.audioTranscriptKind = restored.length ? 'narrator_transcript' : 'narrator_chat';
+      }
+      saveAudioDraft();
+    } catch { /* Keep the owner-scoped cache during uncertain reads. */ }
+  }
   function save(turn) {
     active = turn;
     try { storage.setItem(key(), JSON.stringify(turn)); } catch { /* In-memory retry still works. */ }
@@ -27,11 +69,11 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   function pending() { return current(active) ? active : null; }
   function prepare(options) {
     const retry = options.retry || pending();
-    if (current(retry) && (options.retry || retry.conversationText === options.conversationText && retry.text === options.text && JSON.stringify(retry.workspaceFocus || null) === JSON.stringify(options.workspaceFocus || null))) return retry;
+    if (current(retry) && (options.retry || retry.conversationText === options.conversationText && retry.text === options.text && JSON.stringify(retry.recordingIds || []) === JSON.stringify(options.recordingIds || []) && JSON.stringify(retry.workspaceFocus || null) === JSON.stringify(options.workspaceFocus || null))) return retry;
     const saved = state.project?.profile?.photo_memories?.[scope().projectId] || {};
     const attachments = options.attachments || [];
     const turn = {...scope(), id:uuid(), text:options.text, conversationText:options.conversationText,
-      sourceKind:options.sourceKind || 'narrator_chat', language:options.language,
+      recordingIds:[...(options.recordingIds || [])], sourceKind:options.sourceKind || 'narrator_chat', language:options.language,
       workspaceFocus:options.workspaceFocus ? {...options.workspaceFocus} : null,
       firstReplyLocalization:options.firstReplyLocalization || false, serverAction:options.serverAction || null,
       photoSelection:saved.selected ? {key:saved.selected, revision:saved.selection_revision || null} : null,
@@ -46,6 +88,8 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
     const accepted = data?.conversation_saved === true || ['source_accepted', 'conversation_saved'].includes(data?.state);
     if (!accepted) return;
     turn.accepted = true;
+    state.audioRecordings = (state.audioRecordings || []).filter(recording => !(turn.recordingIds || []).includes(recording.id));
+    saveAudioDraft();
     const cue = data.photo_cue;
     const saved = state.project?.profile?.photo_memories?.[turn.projectId];
     // Compare the selection generation as well as its identity: selecting the
@@ -71,6 +115,9 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
     try { storage.removeItem(key()); } catch { /* Optional cache. */ }
   }
   async function recover() {
+    const recoveryScope = scope();
+    await recoverAudioDraft();
+    if (!current(recoveryScope)) return;
     if (!scope().projectId) return;
     const ownerScope = scope();
     let saved;
@@ -101,7 +148,7 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
       save({...ownerScope, ...(turn?.id === input.client_turn_id ? turn : {}),
         id:input.client_turn_id, text:input.text, conversationText:input.conversation_text,
         sourceKind:input.source_kind, language:input.language, firstReplyLocalization:false, serverAction:null,
-        uploadedPhotoIds:input.uploaded_photo_ids || [], photoSelection:input.photo_selection || null,
+        recordingIds:input.recording_ids || [], uploadedPhotoIds:input.uploaded_photo_ids || [], photoSelection:input.photo_selection || null,
         attachmentIds:input.uploaded_photo_ids || [], accepted:true});
     } catch { /* Keep a cached turn available if server recovery is unavailable. */ }
     finally {
@@ -110,6 +157,8 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   }
   function clearDisplay() {
     active = null;
+    state.audioRecordings = [];
+    state.pendingAudioUpload = null;
     for (const image of images.values()) {
       image.controller?.abort();
       if (image.url) URL.revokeObjectURL(image.url);
@@ -148,5 +197,5 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
       });
     }
   }
-  return {prepare, pending, accept, finish, recover, clearDisplay, bindImages, cards:responsePhotoCards};
+  return {saveAudioDraft, recoverAudioDraft, prepare, pending, accept, finish, recover, clearDisplay, bindImages, cards:responsePhotoCards};
 }

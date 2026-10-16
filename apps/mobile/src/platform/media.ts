@@ -1,3 +1,4 @@
+import type { Recording, TranscriptionInput } from "@memoir/contracts";
 import type { Vault } from "./vault";
 export const MAX_CLIP_BYTES = 1024 * 1024;
 export const MAX_CLIP_DURATION_MS = 60_000;
@@ -252,6 +253,10 @@ export interface TranscriptDraft {
   text: string;
   originalText: string;
   clipId: string;
+  recordingId: string;
+  recordingIds: string[];
+  ownerId: string;
+  projectId: string | null;
   revision: number;
   verified: false;
   source: Record<string, unknown>;
@@ -263,12 +268,15 @@ export async function transcribeClip(
     ownerId: string;
     consent: boolean;
     language?: string;
-    request(body: {
-      audio_base64: string;
-      filename: string;
-      mime_type: string;
-      language?: string;
-    }): Promise<{ text: string; source?: Record<string, unknown> }>;
+    projectId?: string | null;
+    recordingId?: string;
+    request(
+      body: TranscriptionInput,
+    ): Promise<{
+      text: string;
+      source?: Record<string, unknown>;
+      recording?: Recording;
+    }>;
   },
 ): Promise<TranscriptDraft> {
   if (clip.ownerId !== options.ownerId)
@@ -276,17 +284,38 @@ export async function transcribeClip(
   if (!options.consent)
     throw new Error("AI-processing consent is required before transcription");
   assertBoundedClip(clip);
-  const result = await options.request({
-    audio_base64: clip.base64,
-    filename: clip.filename,
-    mime_type: clip.mimeType,
-    language: options.language,
-  });
+  const result = await options.request(
+    options.recordingId
+      ? {
+          recording_id: options.recordingId,
+          project_id: options.projectId,
+          language: options.language,
+        }
+      : {
+          audio_base64: clip.base64,
+          filename: clip.filename,
+          mime_type: clip.mimeType,
+          language: options.language,
+          project_id: options.projectId,
+          upload_idempotency_key: clip.id,
+        },
+  );
   if (typeof result.text !== "string" || !result.text.trim())
     throw new Error(
       "No transcript received; keep the recording and type a correction",
     );
+  if (
+    !result.recording?.backend_saved ||
+    result.recording.storage_status !== "ready"
+  )
+    throw new Error(
+      "Backend original was not confirmed saved; keep the local clip",
+    );
   return {
+    recordingId: result.recording.id,
+    recordingIds: [result.recording.id],
+    ownerId: options.ownerId,
+    projectId: options.projectId ?? null,
     text: result.text,
     originalText: result.text,
     clipId: clip.id,
@@ -300,4 +329,19 @@ export function editTranscript(
   text: string,
 ): TranscriptDraft {
   return { ...draft, text, revision: draft.revision + 1, verified: false };
+}
+
+/** Editing canonical words must never erase the provenance of dictated input. */
+export function transcriptTurnFields(
+  draft: TranscriptDraft | null,
+  ownerId: string,
+  projectId: string,
+) {
+  if (!draft?.recordingIds?.length) return {};
+  if (draft.ownerId !== ownerId || draft.projectId !== projectId)
+    throw new Error("Recording scope mismatch");
+  return {
+    source_kind: "narrator_transcript" as const,
+    recording_ids: [...draft.recordingIds],
+  };
 }

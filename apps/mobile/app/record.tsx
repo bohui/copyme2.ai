@@ -27,26 +27,111 @@ export default function Record() {
   const [text, setText] = useScopedState("");
   const [busy, setBusy] = useScopedState(false);
   const [error, setError] = useScopedState("");
+  const [backendRecordingId, setBackendRecordingId] = useScopedState<
+    string | null
+  >(null);
+  const scope = `${m.session?.user.id}:${m.projectId}`;
+  const attemptRef = React.useRef({
+    scope,
+    cancelled: false,
+    started: false,
+    controller: new AbortController(),
+  });
+  if (attemptRef.current.scope !== scope)
+    attemptRef.current = {
+      scope,
+      cancelled: false,
+      started: false,
+      controller: new AbortController(),
+    };
+  async function discardUploaded(
+    clipId: string | undefined,
+    knownId?: string | null,
+  ) {
+    let id = knownId;
+    if (!id && clipId) {
+      try {
+        id = (await m.api?.recordingByUpload(clipId))?.recording.id;
+      } catch (failure) {
+        if ((failure as { status?: number }).status !== 404) throw failure;
+      }
+    }
+    if (id) await m.api?.discardRecording(id);
+  }
   async function transcribe() {
     if (!snapshot.clip || !m.session || !m.api) return;
+    const vault = m.vault;
+    const clip = snapshot.clip;
+    const attempt = attemptRef.current;
+    attempt.started = true;
     setBusy(true);
     try {
-      const result = await transcribeClip(snapshot.clip, {
+      const priorId =
+        backendRecordingId ??
+        (await vault?.get<string>("backend-recording:" + clip.id));
+      const prior = priorId ? await m.api.recording(priorId) : null;
+      if (attempt !== attemptRef.current || attempt.cancelled) return;
+      const result = await transcribeClip(clip, {
         ownerId: m.session.user.id,
         consent,
+        projectId: m.projectId,
+        recordingId: prior?.recording.backend_saved
+          ? prior.recording.id
+          : undefined,
         language: m.locale,
-        request: (body) => m.api!.transcribe(body),
+        request: (body) => {
+          if (attempt !== attemptRef.current || attempt.cancelled)
+            throw new Error("Recording cancelled");
+          return m.api!.transcribe(body, { signal: attempt.controller.signal });
+        },
       });
+      if (attempt !== attemptRef.current) return;
+      if (attempt.cancelled) {
+        await discardUploaded(clip.id, result.recordingId);
+        return;
+      }
+      if (vault !== m.vault || vault?.owner !== result.ownerId) return;
+      await vault?.set(
+        "backend-recording:" + snapshot.clip.id,
+        result.recordingId,
+      );
+      setBackendRecordingId(result.recordingId);
       setTranscript(result);
       setText(result.text);
-    } catch {
-      setError(t("error"));
+    } catch (failure) {
+      if (attempt !== attemptRef.current) return;
+      const saved = failure as { recordingId?: string; backendSaved?: boolean };
+      if (attempt.cancelled) {
+        await discardUploaded(clip.id, saved.recordingId);
+        return;
+      }
+      if (saved.recordingId) {
+        await vault?.set(
+          "backend-recording:" + snapshot.clip.id,
+          saved.recordingId,
+        );
+        setBackendRecordingId(saved.recordingId);
+      }
+      const code = (failure as { code?: string }).code;
+      setError(
+        t(
+          code === "ORIGINAL_RECORDINGS_DISABLED"
+            ? "recordingRetentionDisabled"
+            : code === "RECORDING_AUTHORITY_REQUIRED"
+              ? "recordingAuthorityRequired"
+              : code === "RECORDING_PRESERVATION_FAILED"
+                ? "recordingNotSavedRetry"
+                : saved.backendSaved
+                  ? "recordingSavedRetry"
+                  : "error",
+        ),
+      );
     } finally {
       setBusy(false);
     }
   }
   async function use() {
-    if (!transcript) return;
+    if (!transcript || attemptRef.current.cancelled) return;
     await m.vault?.set("transcript:" + m.projectId, { ...transcript, text });
     await m.setDraft(text);
     router.back();
@@ -60,6 +145,7 @@ export default function Record() {
       {!available && <Body>{t("unavailable")}</Body>}
       {transcript ? (
         <>
+          <Notice text={t("originalRecordingSaved")} />
           <Field
             label={t("voiceReview")}
             value={text}
@@ -99,6 +185,7 @@ export default function Record() {
           )}{" "}
           {snapshot.clip && (
             <>
+              <Text style={styles.small}>{t("localRecordingOnly")}</Text>
               <Text style={styles.small}>
                 {Math.round(snapshot.clip.durationMs / 1000)} s
               </Text>
@@ -127,9 +214,21 @@ export default function Record() {
         title={t("cancel")}
         secondary
         onPress={() =>
-          void (controller ? controller.cancel() : Promise.resolve()).then(() =>
-            router.back(),
-          )
+          void (async () => {
+            attemptRef.current.cancelled = true;
+            attemptRef.current.controller.abort();
+            const recordingId =
+              backendRecordingId ??
+              (snapshot.clip
+                ? await m.vault?.get<string>(
+                    "backend-recording:" + snapshot.clip.id,
+                  )
+                : null);
+            if (recordingId || attemptRef.current.started)
+              await discardUploaded(snapshot.clip?.id, recordingId);
+            await controller?.cancel();
+            router.back();
+          })().catch(() => setError(t("error")))
         }
       />
     </Screen>

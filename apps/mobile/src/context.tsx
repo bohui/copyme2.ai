@@ -1,3 +1,4 @@
+import { transcriptTurnFields, type TranscriptDraft } from "./platform/media";
 import React, {
   createContext,
   useContext,
@@ -701,18 +702,23 @@ export function MemoirProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (epoch !== ownerEpoch.current) return;
-      const transcript = await storage.get<{ text: string }>(
+      const transcript = await storage.get<TranscriptDraft>(
         "transcript:" + project,
       );
       const item = await sender.enqueue({
         text,
         project_id: project,
         client_turn_id: Crypto.randomUUID(),
-        source_kind:
-          transcript?.text === text ? "narrator_transcript" : sourceKind,
+        source_kind: transcript?.recordingIds?.length
+          ? "narrator_transcript"
+          : sourceKind,
+        ...transcriptTurnFields(transcript, storage.owner, project),
       });
       if (epoch !== ownerEpoch.current) return;
-      if (draftRef.current.trim() === text) await setDraft("");
+      if (draftRef.current.trim() === text) {
+        await setDraft("");
+        await storage.delete("transcript:" + project);
+      }
       await sender.runQueued(item);
       if (epoch === ownerEpoch.current) setPending(await sender.pending());
     } catch (failure) {

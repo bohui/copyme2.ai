@@ -112,7 +112,7 @@ def lifetime_generation_paused():
 
 
 async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,language='en-AU',
-        client_turn_id=None,source_kind='narrator_chat',uploaded_photo_ids=None,photo_selection=None,
+        client_turn_id=None,source_kind='narrator_chat',uploaded_photo_ids=None,photo_selection=None,recording_ids=None,
         user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     turn_started=time.monotonic()
     from .collector_configuration import collector_configuration
@@ -168,7 +168,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         replay=None
         already_accepted=False
         if user_response:
-            already_accepted=await call('validate_lifetime_replay_input',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id,p_text=text,p_kind=source_kind)
+            already_accepted=await call('validate_lifetime_replay_input',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id,p_text=text,p_kind=source_kind,**({'p_recording_ids':recording_ids} if recording_ids else {}))
             replay=await call('read_lifetime_two_lane_reply' if two_lane else 'read_lifetime_reply',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id)
         policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
         if policy_status.get('pending'):
@@ -182,6 +182,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 raise InputLimitExceeded('This message exceeds the explicit privacy-control request limit; the original was not accepted or truncated') from None
         if replay is not None:
             response={**replay,'cached':True,'recall_status':access}
+            response['recordings']=await lease.io(storage.source_recordings,project_id,replay['accepted_source_id']) if callable(getattr(storage,'source_recordings',None)) else []
             if replay.get('reply'):
                 journeys=await call('read_lifetime_place_journeys',p_project_id=project_id,p_source_id=replay['accepted_source_id'])
                 progress=TurnProgress(on_event,client_turn_id,project_id,language,enabled=thinking_steps_enabled())
@@ -222,6 +223,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             accepted_start=time.monotonic()
             accepted=await lease.io(storage.accept_interview_turn,project_id,client_turn_id,text,kind=source_kind,
                 language=detect_reply_locale(text) or language,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
+                **({'recording_ids':recording_ids} if recording_ids else {}),
                 **({'two_lane':True} if two_lane else {}))
             source=accepted.get('source')
             if not source:raise ValueError('Governed narrator turn requires a canonical source')
@@ -237,7 +239,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             publication.set_fence(fence)
             progress=TurnProgress(on_event,client_turn_id,project_id,selected_language,enabled=thinking_steps_enabled())
             if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
-                'accepted_source_id':source['id'],**public_interview_fields(accepted)}})
+                'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),**public_interview_fields(accepted)}})
             await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
             context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
             if workspace_focus:
@@ -407,7 +409,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 prefix=validated.get('acknowledgement','') if visible.emitted else ''
                 await on_delta(validated['reply'][len(prefix):] if prefix and validated['reply'].startswith(prefix) else validated['reply'])
             access=await lease.io(storage_recall_status,storage,entitlement)
-            response={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id'],
+            response={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),
                 'conversation_saved':True,'reply':validated['reply'],'recall_status':access,**public_interview_fields(committed['interview']),
                 'trace':list(progress.steps),'trace_mode':'live'}
             if two_lane:
@@ -472,6 +474,8 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage
         if isinstance(error,MappingRequired):raise HTTPException(409,str(error),headers={'X-Error-Code':'LIFETIME_MAPPING_REQUIRED'}) from None
         if isinstance(error,InputLimitExceeded):raise HTTPException(413,str(error)) from None
         import httpx
+        if isinstance(error,httpx.HTTPStatusError) and error.response.status_code==413:
+            raise HTTPException(413,'The combined recordings exceed five minutes; your answer was not accepted',headers={'X-Error-Code':'AUDIO_DURATION_EXCEEDED'}) from None
         if isinstance(error,httpx.HTTPStatusError):raise HTTPException(409 if error.response.status_code in {400,409} else 503,'The accepted conversation state changed; reconcile the saved receipt before retrying') from None
         if isinstance(error,PolicyMaintenancePending):
             raise HTTPException(503,{'state':'policy_maintenance_pending','message':str(error),

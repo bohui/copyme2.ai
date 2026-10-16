@@ -550,6 +550,49 @@ export function createMemoirApi(options: ApiClientOptions) {
         C.TranscriptionInputSchema.parse(input),
         request,
       ),
+    recordingByUpload: (key: string, request?: RequestOptions) =>
+      json(
+        "/story/recordings/by-upload/" + encodeURIComponent(key),
+        z.object({ recording: C.RecordingSchema }),
+        "GET",
+        undefined,
+        request,
+      ),
+    recording: (id: string, request?: RequestOptions) =>
+      json(
+        "/story/recordings/" + encodeURIComponent(id),
+        z.object({
+          recording: C.RecordingSchema,
+          asr_result: C.RecordSchema.nullish(),
+        }),
+        "GET",
+        undefined,
+        request,
+      ),
+    discardRecording: (id: string, request?: RequestOptions) =>
+      json(
+        "/story/recordings/" + encodeURIComponent(id) + "?draft_only=true",
+        z.object({
+          id: z.uuid(),
+          deleted: z.literal(true),
+          cleanup_status: z.enum(["pending", "complete"]),
+        }),
+        "DELETE",
+        undefined,
+        request,
+      ),
+    deleteRecording: (id: string, request?: RequestOptions) =>
+      json(
+        "/story/recordings/" + encodeURIComponent(id),
+        z.object({
+          id: z.uuid(),
+          deleted: z.literal(true),
+          cleanup_status: z.enum(["pending", "complete"]),
+        }),
+        "DELETE",
+        undefined,
+        request,
+      ),
     questionAudio: (
       input: z.infer<typeof C.SpeechInputSchema>,
       request?: RequestOptions,
