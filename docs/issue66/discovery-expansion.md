@@ -52,9 +52,10 @@ above are instructions, not claimed passes.
 
 - The keyed `GOOGLE_CSE_API_KEY` JSON API route is unchanged, and complete
   source-inspection parity across all providers is not yet established.
-- The expanded SerpAPI path accumulates verified items until the provider
-  completes; first-image progressive streaming and safe diagnostics for
-  partial outages still need endpoint/browser acceptance.
+- The expanded SerpAPI path now publishes verified original-source
+  results through the existing `on_items` callback before completing later
+  discovery queries. Full JSON/NDJSON endpoint/browser streaming and safe
+  diagnostics for partial outages still need independent acceptance.
 - Real source availability, archive coverage, dates/attribution, cursor stability,
   refreshed gallery states, CSE widget behaviour and source-budget accuracy
   need independent integrated review and execution.
