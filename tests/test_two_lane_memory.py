@@ -20,6 +20,13 @@ def database():
     yield from base_database.__wrapped__(publication_tcp=True)
 
 
+@pytest.fixture(autouse=True)
+def enable_only_disposable_database_rollout(sql):
+    # This fixture owns a fresh local PostgreSQL cluster. Never configure a
+    # shared service, deploy a migration, or activate a production flag here.
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
+
+
 TEXT = 'I grew up in Hobart and walked by the river.'
 PLACE = {'place':'Hobart','hierarchy':['Earth','Australia','Tasmania','Hobart'],
          'granularity':'city','latitude':None,'longitude':None}
@@ -85,7 +92,7 @@ def test_background_places_candidates_and_events_share_one_fenced_page(sql):
     assert rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'",owner=OTHER,check=False).returncode!=0
 
 
-@pytest.mark.parametrize('change',['policy','source','generation','phase','lease'])
+@pytest.mark.parametrize('change',['policy','source','generation','phase','lease','rollout'])
 def test_background_cas_rejects_stale_results_and_candidate_reads(sql,change):
     identity,accepted=accept(sql)
     lane_id=lane(sql,identity)
@@ -98,6 +105,8 @@ def test_background_cas_rejects_stale_results_and_candidate_reads(sql,change):
         sql('update public.user_lifetime_conversation set execution_generation=execution_generation+1;')
     elif change=='phase':
         rpc(sql,'change_user_conversation_phase',f"{literal(identity['project_id'])},'shape',0")
+    elif change=='rollout':
+        sql('update public.lifetime_two_lane_rollout set enabled=false;')
     else:
         sql('update public.user_memoir_lane set lease_until=clock_timestamp()-interval \'1 second\';')
     result={'events':[],'place_journeys':[{k:v for k,v in {**PLACE,'schema_version':1}.items() if v is not None}], 'prepared_questions':[QUESTION]}
@@ -412,3 +421,53 @@ def test_burst_coalescing_concurrent_claim_crash_restart_and_old_token_are_idemp
     assert sql('select count(*) from public.user_lifetime_source_extraction;').stdout.strip()=='4'
     assert sql("select count(*) from public.user_lifetime_memory_obligation where kind='source_projection';").stdout.strip()=='4'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'
+
+
+def test_database_rollout_guard_cannot_be_enabled_by_an_authenticated_rpc_caller(sql):
+    sql('update public.lifetime_two_lane_rollout set enabled=false;')
+    identity=rpc(sql,'resolve_lifetime_conversation','null')
+    assert rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{uuid4()}','Must not be accepted'",check=False).returncode!=0
+    assert sql(as_user('update public.lifetime_two_lane_rollout set enabled=true;'),check=False).returncode!=0
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='0'
+
+
+@pytest.mark.parametrize('text,language,mode,name,stopped',[
+    ('My name is Joan','en-AU','reply_only','Joan',False),
+    ('我小时候住在承德，常和母亲一起去河边散步。','zh-CN','extract',None,False),
+    ('Dad repaired things.','en-AU','extract',None,False),
+    ('Please continue in English. 我记得花园。','en-AU','extract',None,False),
+    ('What happens to my memories?','en-AU','reply_only',None,False),
+    ('I would like to pause here. Please do not ask another question.','en-AU','reply_only',None,True),
+    ("Don't discuss my school. I meant my mother, not my sister.",'en-AU','extract',None,False),
+])
+def test_flag_on_single_collector_work_question_and_language_contract(sql,tmp_path,monkeypatch,text,language,mode,name,stopped):
+    from apps.api import agent_routes
+    from apps.api.codex_runtime import CodexRuntime
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+    from fastapi.testclient import TestClient
+    from memoir_postgres_workflow import PostgresRest
+    monkeypatch.setenv('MEMOIR_TWO_LANES','1');monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    calls=[]
+    def provider(request):
+        body=json.loads(request.content);calls.append(body);packet=json.loads(body['governed']['packet'])
+        assert packet['current']['narrator']['original']==text
+        assert packet['pinned']['language']==language
+        assert packet['interview_context']['two_lane_memory'] is True
+        if "Don't discuss" in text:assert packet['pinned']['excluded_topics']
+        output=proposal(mode=mode,name=name,question='您还记得什么？' if language=='zh-CN' else 'What else do you remember?')
+        output['plan']['conversation_phase']='comfort' if mode=='reply_only' else 'explore'
+        output['stopped']=stopped
+        if stopped:output['plan'].update(candidates=[],chosen_id=None)
+        elif mode=='extract':
+            extra=deepcopy(output['plan']['candidates'][0]);extra.update(id='q-extra',question='当时的什么让您印象深刻？' if language=='zh-CN' else 'What stood out then?',order=1)
+            output['plan']['candidates'].append(extra)
+        return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'controlled','artifacts':[]})
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
+    monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path,worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
+    with TestClient(create_app(MemoryStore())) as client:
+        response=client.post('/v1/agent/turn',json={'text':text,'client_turn_id':str(uuid4())})
+        assert response.status_code==200,response.text
+        assert response.json()['conversation_saved']
+        assert len(calls)==1
+    assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='1'

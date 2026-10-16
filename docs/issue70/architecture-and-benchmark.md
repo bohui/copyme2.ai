@@ -23,7 +23,10 @@ This is a structural critical-path profile; no live model timings are claimed.
 
 ## Decision and bounded slice
 
-Server flag `MEMOIR_TWO_LANES`, absent/0 by default. A retains one collector pass,
+Server flag `MEMOIR_TWO_LANES`, absent/0 by default, plus database-owner-only
+`lifetime_two_lane_rollout.enabled=false` by default. Both must be deliberately
+enabled in a separately approved rollout; authenticated/service roles cannot
+change the rollout row. No production flag has been enabled. A retains one collector pass,
 current input/corrections/policy, chosen-question validation and atomic save.
 The existing unique project timeline lane is B: durable accepted originals,
 monotonic target source, bounded pages, exact version/offset and lease receipts.
@@ -44,8 +47,11 @@ public reply completion; failed/empty updates preserve activated state.
 Dialogue coverage_end + all positions K+1..N-1 (including tombstones) remains
 separate from composition's character-fragment cursor. Occupancy-triggered
 canonical compaction remains fail-closed; no summary may pretend to cover a gap.
-Any unimplemented background checkpoint/warm-runtime requirement must be listed
-as a gap rather than inferred from existing primitives.
+B advances the same canonical dialogue proof/checkpoint tables in bounded
+32-window steps and CAS publication, through at most its snapshot high water
+minus one. This is raw coverage with exact evidence excerpts, not a claim that
+every source has a semantic summary. The engine still uses cold bounded homes;
+capacity is reserved per worker, not a new provider-wide quota allocation.
 
 ## Frozen checks and matched live protocol
 
