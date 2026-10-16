@@ -812,3 +812,84 @@ def test_enabled_browser_expansion_uses_shared_page_source_budgets(monkeypatch, 
     assert sum(opts['page_budget'] for _, opts in calls) == browser.MAX_SEARCH_PAGES
     assert sum(opts['source_budget'] for _, opts in calls) <= browser.MAX_SOURCE_PAGES
     assert all(opts['album'] is False for _, opts in calls)
+
+
+
+def test_expanded_cache_is_separate_and_does_not_trust_sparse_legacy_completion(monkeypatch):
+    from apps.api.place_photo_repository import PhotoRepository, search_key
+    rows = {}
+
+    def storage(request):
+        if request.method == 'POST':
+            record = json.loads(request.content)
+            rows[record['search_key']] = record['result']
+            return httpx.Response(201)
+        key = request.url.params['search_key'].removeprefix('eq.')
+        return httpx.Response(200, json=[{'result': rows[key]}] if key in rows else [])
+
+    repository = PhotoRepository('https://example.supabase.co', 'synthetic',
+                                 transport=httpx.MockTransport(storage))
+    monkeypatch.delenv('MEMOIR_PHOTO_EXPANSION', raising=False)
+    legacy = search_key('承德', '1980s')
+    repository.save('承德', '1980s', {
+        'items': [{'asset_id': 'sparse', 'date_expression': '1983'}], 'complete': True,
+    })
+    assert len(repository.load('承德', '1980s')['items']) == 1
+
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    assert search_key('承德', '1980s') != legacy
+    assert repository.load('承德', '1980s') is None, 'expanded mode must re-research legacy complete caches'
+    repository.save('承德', '1980s', {'items': [{'asset_id': 'expanded'}], 'complete': True})
+    assert repository.load('承德', '1980s')['items'][0]['asset_id'] == 'expanded'
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '0')
+    assert repository.load('承德', '1980s')['items'][0]['asset_id'] == 'sparse'
+
+
+def test_expansion_through_authenticated_photo_endpoint_without_database(monkeypatch, serpapi_sources):
+    import subprocess
+    from fastapi.testclient import TestClient
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setenv('SERPAPI_KEY', 'synthetic-provider-key')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
+    for provider in ('_commons', '_loc', '_flickr_browser'):
+        monkeypatch.setattr(photos, provider, lambda *args: [])
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    searches = []
+
+    def discovered(command, **kwargs):
+        searches.append(json.loads(kwargs['input']))
+        batch = [1] if len(searches) == 1 else list(range(2, 11))
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': [
+                {'source_url': f'https://archive.example/photo/{index}', 'text': 'Chengde photo'}
+                for index in batch],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovered)
+    for index in range(1, 11):
+        sources[f'https://archive.example/photo/{index}'] = photo_html(index)
+
+    with TestClient(create_app(MemoryStore())) as client:
+        headers = {'X-Account-Id': 'cloud-fixture-owner'}
+        created = client.post('/v1/projects', headers=headers, json={'mode': 'self'})
+        assert created.status_code == 200
+        project = created.json()['id']
+        url = f'/v1/projects/{project}/place-photos'
+        scope = {'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}
+        response = client.get(url, headers=headers, params=scope)
+        assert response.status_code == 200
+        page = response.json()
+        assert page['status'] == 'READY'
+        assert len(page['items']) == page['count'] == page['target_count'] == 10
+        assert page['shortfall'] == 0
+        assert all(item['requested_period'] == '1980s' for item in page['items'])
+        other = client.get(url, headers={'X-Account-Id': 'other-owner'}, params=scope)
+        assert other.status_code in {403, 404}
+    assert len(searches) == 2 and all(query['refresh'] is True for query in searches)
