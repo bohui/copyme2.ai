@@ -893,3 +893,33 @@ def test_expansion_through_authenticated_photo_endpoint_without_database(monkeyp
         other = client.get(url, headers={'X-Account-Id': 'other-owner'}, params=scope)
         assert other.status_code in {403, 404}
     assert len(searches) == 2 and all(query['refresh'] is True for query in searches)
+
+
+
+def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    album = 'https://archive.example/albums/chengde/'
+    sources[album] = ('<title>Chengde 1980s photographer album</title>' +
+        ''.join(f'<a href="https://archive.example/photos/{i}">Photo {i}</a>'
+                for i in range(1, 6)))
+    sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees', date='1983-10-01')
+    sources['https://archive.example/photos/2'] = photo_html(2, place='Market street', date='1984-05-01')
+    sources['https://archive.example/photos/3'] = photo_html(3, place='Museum', date='2025-05-01')
+    sources['https://archive.example/photos/4'] = photo_html(4, place='Chengdu', date='1983-10-01')
+    sources['https://archive.example/photos/5'] = photo_html(5, place='Hillside', date='')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album, 'text': 'Chengde photographer album'}],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovery)
+    result = photos._google_serpapi('Chengde', '1980s')
+    assert [item['date_expression'] for item in result] == ['1983-10-01', '1984-05-01']
+    assert {item['source_url'] for item in result} == {
+        'https://archive.example/photos/1', 'https://archive.example/photos/2'}
+    assert album in fetched and 'https://archive.example/photos/3' in fetched
+    assert all('Chengde' in item['location_evidence'] for item in result)
