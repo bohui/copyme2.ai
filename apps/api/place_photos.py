@@ -975,6 +975,13 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
             location_context = page_title
         photos = [{**item, 'providers': ['google', 'serpapi']} for item in
                   _source_items(markup, final, place, period, location_context=location_context)]
+        # Fingerprint *before* declaring the ten-photo target complete. Copies
+        # rehosted under different URLs must not use up the target count.
+        from .place_photo_fingerprints import image_fingerprint
+        for item in photos:
+            if deadline - time.monotonic() < 8:
+                break
+            item.update(image_fingerprint(item['image_url']))
         leads = []
         if location_context:
             host_name = urlparse(final).hostname
