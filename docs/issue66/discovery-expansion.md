@@ -21,6 +21,12 @@ Scope: opt-in offline-testable first slice, not full ticket acceptance.
   links are excluded. Conflicting photo location metadata or recognizable
   different-city titles veto inheritance. This is not a global gazetteer.
   Verified sibling members may still inherit locality without inventing a date.
+- P2 follow-up at PR #72 comment 6211230780: explicit item location must retain
+  the **geographic anchor** for landmark+city queries. For “离宫, 承德市”,
+  “Summer Palace, Beijing” or “summer palace” alone never establishes Chengde;
+  “Chengde”, “承德市” and “Summer Palace, Chengde” remain compatible. A child
+  explicitly mentioning both the requested city and another known city is
+  rejected as ambiguous. The album title cannot override either exclusion.
 - Same-host public page restrictions, robots/source validation, source
   deduplication, historical-only fallback, and end-user publish/print guards
   remain in the existing source processors.
@@ -53,6 +59,11 @@ explicit title/structured-place conflicts and malformed source inputs. These
 were checks of a reproduced helper implementation, **not** full GitHub checkout
 tests. The PR contains additional controlled original-source/endpoint fixtures
 for valid siblings alongside wrong-city metadata and same-host links.
+The follow-up geographic-anchor logic was separately exercised with 10
+synthetic accepted/rejected locality cases in a reproduced matching harness;
+all matched their expected outcomes. The integrated source-inspection tests
+for the wrong-city “Marble Boat” case and seven additional locality variants
+have been committed but not executed in a full repository checkout.
 Full repository pytest, browser and live-provider verification have **not** run.
 The commands above are a verification plan, not claimed passing checks.
 
