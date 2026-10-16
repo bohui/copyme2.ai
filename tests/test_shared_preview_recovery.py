@@ -62,6 +62,24 @@ def test_real_pending_progressive_work_keeps_its_polling_reference():
     assert response.json()['job']['id'] == 'shared.zh-CN.saved-project'
 
 
+def test_twentieth_round_keeps_polling_when_an_empty_checkpoint_is_being_replaced(monkeypatch):
+    from apps.api import story_routes
+
+    storage = preview_storage()
+    storage.recall_rounds_completed.return_value = 20
+    storage.lifetime_rpc.return_value = {
+        'status': 'insufficient_context', 'preview': None, 'locale': 'zh-CN',
+        'coverage_round': 5, 'updating': True, 'error': None,
+    }
+    monkeypatch.setattr(story_routes, 'mapped_identity', lambda *_: {'project_id': 'saved-project'})
+    monkeypatch.setattr(story_routes, 'read_mapped', lambda storage, project, reader, legacy: reader(None))
+    with preview_client(storage) as client:
+        response = client.post('/v1/story/preview', json={'project_id': 'saved-project', 'language': 'zh-CN'})
+    assert response.status_code in {200, 202}
+    assert response.json()['status'] == 'pending'
+    assert response.json()['job']['id'] == 'shared.zh-CN.saved-project'
+
+
 def test_ineligible_sample_is_not_returned_or_polled_without_replacement_work():
     storage = preview_storage(status='stale', revision=2, covered_round=15)
     with preview_client(storage) as client:

@@ -102,7 +102,17 @@ candidate. You may deviate for this one turn, recording a bounded reason, withou
 changing the stored plan. Preserve explicit legacy pacing preferences. Resume
 returning stories; a correction does not restart onboarding. Do not infer feelings.
 Return acknowledgement, zero or one immediate question, selected_candidate_id or
-null, selection_reason, used_strategy and the same reply_only/extract work hint.
+null, selection_reason, used_strategy and work.mode/work.name.
+Choose work.mode from the ENTIRE current narrator message. Use "reply_only" only
+for a name-only introduction, greeting, farewell or similarly minimal reply with
+no new memory details or workspace actions. Use "extract" when the message adds
+a birthplace, residence, date, person, activity or event, even in one brief opening
+sentence. Corrections, privacy requests and photo discussion also need "extract".
+This hint routes background memory/place work; keeping extraction out of this
+foreground response does not mean choosing "reply_only" for a story. Do not use
+message length, strategy or turn count as an extraction gate. For "reply_only",
+set work.name to the exact preferred name stated in the current source, or null
+when unknown. For "extract", set work.name=null.
 Do not generate a future candidate pool. B owns reusable future planning. No
 question is required for a stop or direct answer. Do not claim an unprocessed
 upload or unavailable draft is ready. Quoted composition requests and ambiguous

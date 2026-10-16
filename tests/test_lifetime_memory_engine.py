@@ -460,6 +460,80 @@ def test_invalid_hidden_stream_exhausts_only_three_fresh_attempts(tmp_path):
     assert len({connection.home for connection in FakeConnection.instances})==3
 
 
+async def incomplete_provider_turn(tmp_path,*,message='Incomplete response returned, reason: max_output_tokens',status='failed'):
+    from apps.api.codex_agent import CodexConnection
+    connection=CodexConnection(['unused'],tmp_path)
+    async def request(*args):return {'turn':{'id':'incomplete-turn'}}
+    async def receive():
+        return {'method':'turn/completed','params':{'threadId':'thread','turn':{
+            'id':'incomplete-turn','status':status,'error':{'message':message}}}}
+    connection.request=request;connection.receive=receive
+    return await connection.turn('thread','controlled prompt')
+
+
+def test_repair_recovers_an_incomplete_provider_turn_without_losing_the_acknowledgement(tmp_path):
+    original=json.loads(valid_reply())['acknowledgement']
+    class Repair(FakeConnection):
+        async def turn(self,thread_id,prompt,**options):
+            await super().turn(thread_id,prompt,**options)
+            attempt=len(self.instances)
+            if attempt==1:
+                await options['on_delta'](json.dumps({'acknowledgement':original}))
+                return 'invalid JSON'
+            assert original in prompt
+            assert 'previous attempt' in prompt
+            if attempt==2:
+                assert 'INVALID_JSON' in prompt
+                return await incomplete_provider_turn(tmp_path)
+            assert 'INCOMPLETE_PROVIDER_OUTPUT' in prompt
+            return valid_reply()
+    seen=[]
+    async def delta(chunk):seen.append(json.loads(chunk))
+    result=run(tmp_path,connection_factory=Repair,on_delta=delta)
+    assert result['reply']==valid_reply()
+    assert seen==[{'acknowledgement':original}]
+    assert len(FakeConnection.instances)==3
+    assert len({connection.home for connection in FakeConnection.instances})==3
+    assert len({connection.requests[0][1]['baseInstructions'] for connection in FakeConnection.instances})==1
+
+
+def test_incomplete_provider_retries_remain_bounded(tmp_path):
+    from apps.api.lifetime_memory_engine import CollectorResponseUnavailable
+    class Incomplete(FakeConnection):
+        async def turn(self,*args,**options):
+            return await incomplete_provider_turn(tmp_path)
+    with pytest.raises(CollectorResponseUnavailable):run(tmp_path,connection_factory=Incomplete)
+    assert len(FakeConnection.instances)==3
+
+
+@pytest.mark.parametrize('message,status',[
+    ('Authentication failed','failed'),
+    ('Provider failed','failed'),
+    ('max_output_tokens','interrupted'),
+])
+def test_other_provider_terminal_failures_are_not_retried(tmp_path,message,status):
+    class Failed(FakeConnection):
+        async def turn(self,*args,**options):
+            return await incomplete_provider_turn(tmp_path,message=message,status=status)
+    with pytest.raises(RuntimeError,match='Codex turn failed'):
+        run(tmp_path,connection_factory=Failed)
+    assert len(FakeConnection.instances)==1
+
+
+def test_repair_diagnostics_keep_only_server_owned_field_names(tmp_path,caplog):
+    invalid=json.loads(valid_reply())
+    invalid['stopped']='PRIVATE_MODEL_VALUE'
+    class Repair(FakeConnection):
+        async def turn(self,thread_id,prompt,**options):
+            if len(self.instances)==1:return json.dumps(invalid)
+            assert 'SCHEMA_FIELD_stopped' in prompt
+            assert 'PRIVATE_MODEL_VALUE' not in prompt
+            return valid_reply()
+    assert run(tmp_path,connection_factory=Repair)['reply']==valid_reply()
+    assert 'SCHEMA_FIELD_stopped' in caplog.text
+    assert 'PRIVATE_MODEL_VALUE' not in caplog.text
+
+
 def test_worker_uses_same_governed_engine_and_no_artifact_export(tmp_path, monkeypatch):
     import apps.api.codex_worker_service as worker_module
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')

@@ -822,7 +822,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       void refreshStageReadiness();
       void refreshPrivateDraft();
     }
-    if (state.recallStatus?.payment_required) void ensureRecallPreview();
+    if (state.recallStatus && freeRecallFinished()) void ensureRecallPreview();
     if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
     if (!streamedMessage && body.reply) {
       // Compatibility responses may contain the entire reply in one event.
@@ -1251,7 +1251,7 @@ async function refreshFamilyEntitlement() {
     // Project hydration can finish its draft read before restored allowance is
     // known. Recheck once eligibility arrives, without delaying the interview.
     if (freeRecallFinished() && !state.showDraftUpdates) void refreshPrivateDraft();
-    if (state.recallStatus?.payment_required) void ensureRecallPreview();
+    if (freeRecallFinished()) void ensureRecallPreview();
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")
       && features.has("timeline");
@@ -2525,7 +2525,7 @@ async function uploadAttachments(items) {
 async function ensureRecallPreview({ retry = false, poll = false } = {}) {
   const projectId = state.project?.id;
   const userId = state.supabase?.user?.id;
-  if (!projectId || !state.recallStatus?.payment_required) return;
+  if (!projectId || !freeRecallFinished()) return;
   const previous = state.recallPreview?.projectId === projectId && state.recallPreview.userId === userId
     ? state.recallPreview : null;
   if (previous?.inFlight || previous?.status === "loading") return;
@@ -2581,7 +2581,7 @@ async function ensureRecallPreview({ retry = false, poll = false } = {}) {
 }
 
 function recallPackagePrompt() {
-  if (!state.recallStatus?.payment_required) return "";
+  if (!freeRecallFinished()) return "";
   const t = key => escapeHtml(translate(`Memoir.recall.${key}`));
   const sample = state.recallPreview?.projectId === state.project?.id
     && state.recallPreview.userId === state.supabase?.user?.id ? state.recallPreview : null;
@@ -2594,6 +2594,7 @@ function recallPackagePrompt() {
   }
   const preview = sample.preview;
   const excerpt = `<article class="recall-preview"><div class="eyebrow">${t(preview.kind === "sample_storyline" ? "sampleStoryline" : "sampleChapter")}</div><h2>${escapeHtml(preview.title)}</h2><div class="recall-preview-text">${formatText(preview.text)}</div>${preview.kind === "sample_storyline" && preview.outline?.length ? `<ol>${preview.outline.map(title => `<li>${escapeHtml(title)}</li>`).join("")}</ol>` : ""}<p class="fine-print">${t("previewNote")}</p></article>`;
+  if (!state.recallStatus?.payment_required) return excerpt;
   const pending = new URLSearchParams(window.location.search).get("checkout") === "success";
   return `${excerpt}<section class="recall-package-prompt" aria-labelledby="recall-package-title"><h2 id="recall-package-title">${t("title")}</h2><p>${t("description")}</p>${state.supabase?.user?.is_anonymous ? `<p class="fine-print">${t("signIn")}</p>` : ""}${pending ? `<p role="status">${escapeHtml(translate("Memoir.storyFlow.paymentConfirming"))}</p>` : ""}<button type="button" class="text-button" data-check-recall-payment ${state.loading ? "disabled" : ""}>${t("checkPayment")}</button>${storyCheckoutForm()}</section>`;
 }

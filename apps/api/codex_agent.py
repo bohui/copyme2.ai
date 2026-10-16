@@ -17,6 +17,10 @@ diagnostic_logger = logging.getLogger("memoir.appserver.diagnostics")
 configure_diagnostic_logger(diagnostic_logger)
 
 
+class CodexTurnIncomplete(RuntimeError):
+    """The provider stopped without a complete output document."""
+
+
 class CodexConnection:
     def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None,
                  issue14_admission=None, progress=None, request_admission=None):
@@ -257,6 +261,11 @@ class CodexConnection:
                         )
                         if self.trajectory:
                             self.trajectory.record('codex.turn', 'turn.failed', output=params['turn'])
+                        error=params['turn'].get('error')
+                        if (params['turn']['status']=='failed' and isinstance(error,dict)
+                                and isinstance(error.get('message'),str)
+                                and 'max_output_tokens' in error['message']):
+                            raise CodexTurnIncomplete('Provider output was incomplete')
                         raise RuntimeError('Codex turn failed; no reply was substituted')
                     log_diagnostic(
                         diagnostic_logger,

@@ -771,6 +771,18 @@ def build_router(
         state = 'error' if job['status'] == 'FAILED' else 'pending'
         return {'status': state, 'preview': None, 'job': job, 'retry_after': 3}
 
+    def shared_preview_view(saved, project_id, locale):
+        locale = normalize_conversation_language(locale or saved.get('locale'))
+        if saved.get('preview'):
+            return {**saved, 'status': 'ready', 'cached': True}
+        if not saved.get('updating') and not saved.get('error'):
+            return {**saved, 'status': 'stale' if saved['status'] == 'stale' else 'insufficient_context'}
+        failed = bool(saved.get('error') and not saved.get('updating'))
+        return {**saved, 'status': 'error' if failed else 'pending', 'preview': None,
+            'job': {'id': f'shared.{locale}.{project_id}', 'project_id': project_id, 'language': locale,
+                    'status': 'FAILED' if failed else 'RUNNING', 'phase': 'drafting', 'error': saved.get('error')},
+            'retry_after': 3}
+
     async def shared_preview_response(storage, project_id, language=None, *, retry=False):
         access = await AgentTurnLease.io(storage_recall_status, storage, None)
         if not access or access['rounds_completed'] < access['free_rounds']:
@@ -780,7 +792,9 @@ def build_router(
             if retry:
                 await AgentTurnLease.io(retry_draft, storage, project_id, language)
             return await AgentTurnLease.io(read_mapped, storage, project_id,
-                lambda fence: draft_head(storage, project_id, language=language), canonical_only)
+                lambda fence: shared_preview_view(draft_head(storage, project_id, language=language),
+                    project_id, language),
+                canonical_only)
         profile = await AgentTurnLease.io(storage.profile)
         locale = normalize_conversation_language(language or profile.get('preferred_language'))
         saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
@@ -794,11 +808,7 @@ def build_router(
             await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'timeline')
             await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'composer')
             saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
-        failed = bool(saved['error'] and not saved['updating'])
-        return {**saved, 'status': 'error' if failed else 'pending', 'preview': None,
-            'job': {'id': f'shared.{locale}.{project_id}', 'project_id': project_id, 'language': locale,
-                    'status': 'FAILED' if failed else 'RUNNING', 'phase': 'drafting', 'error': saved['error']},
-            'retry_after': 3}
+        return shared_preview_view(saved, project_id, locale)
 
     @router.post('/preview')
     async def preview(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):

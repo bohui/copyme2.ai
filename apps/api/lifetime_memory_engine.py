@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, StrictBool, model_validator
 
-from .codex_agent import CodexConnection, provider_config
+from .codex_agent import CodexConnection, CodexTurnIncomplete, provider_config
 from .codex_worker_files import write_config
 from .conversation_phase import PhaseState
 from .lifetime_memory_continuity import governed_collector_schema, validate_governed_collector_result
@@ -50,6 +50,10 @@ class CollectorResponseUnavailable(RuntimeError):
 
 class CollectorOutputInvalid(CollectorResponseUnavailable):
     code = 'LIFETIME_COLLECTOR_OUTPUT_INVALID'
+
+    def __init__(self,message,*,reason='OUTPUT_CONTRACT'):
+        super().__init__(message)
+        self.reason=reason
 
 
 class _AssistantExchange(Contract):
@@ -214,9 +218,10 @@ class GovernedCollectorInput(Contract):
         return self
 
 
-def governed_request_overhead(interview_context, budget: ContextBudget, *, output_schema=None) -> int:
+def governed_request_overhead(interview_context, budget: ContextBudget, *, output_schema=None,
+        prompt=GOVERNED_TURN_PROMPT) -> int:
     """Reserve the actual schema, fixed input and conservative protocol framing."""
-    return (budget.count(GOVERNED_TURN_PROMPT)
+    return (budget.count(prompt)
         + budget.count(serialize_packet(output_schema if output_schema is not None
             else governed_collector_schema(interview_context))) + budget.framing_headroom)
 
@@ -290,13 +295,20 @@ async def run_governed_collector(**options):
                     await original_delta(text)
         options['on_delta'] = observed_delta
     attempts=3
+    repair_reason=None
     async with asyncio.timeout(options.get('timeout',120)):
         for attempt in range(attempts):
             try:
-                return await _run_governed_collector_once(**options, acknowledgement=acknowledgement)
-            except CollectorOutputInvalid:
+                return await _run_governed_collector_once(**options, acknowledgement=acknowledgement,
+                    repair_reason=repair_reason)
+            except CollectorOutputInvalid as error:
+                repair_reason=error.reason
                 if attempt==attempts-1:
                     raise
+            except CodexTurnIncomplete:
+                repair_reason='INCOMPLETE_PROVIDER_OUTPUT'
+                if attempt==attempts-1:
+                    raise CollectorResponseUnavailable('The saved message needs another response attempt') from None
 
 
 async def _run_governed_collector_once(*, command, home_root, base_url, api_key, model,
@@ -304,7 +316,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         timeout=120, on_delta=None, on_event=None, effort=None,
         responsesapi_client_metadata=None, connection_factory=None,
         issue14_admission=None, trajectory=None, progress=None, uid=None, apply_owner=False, publisher=None,
-        acknowledgement=None):
+        acknowledgement=None,repair_reason=None):
     """Generate once from canonical evidence, returning an uncommitted pointer.
 
     No resume is currently admitted because harness transcript size is not
@@ -319,12 +331,16 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     check_lane_generation()
     packet = validate_governed_context(governed, interview_context, model=model)
     output_schema = governed_collector_schema(interview_context)
+    prompt=GOVERNED_TURN_PROMPT
+    if repair_reason is not None:
+        prompt+=' The previous attempt failed validation or ended incomplete: '+repair_reason+'. Return a complete corrected object using the same original evidence and allowed identifiers.'
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
         output_schema['properties']['acknowledgement']['enum'] = [acknowledgement]
-        if (governed.budget.count(governed.packet) + governed_request_overhead(
-                interview_context, governed.budget, output_schema=output_schema) > governed.budget.input_budget):
-            raise CollectorResponseUnavailable('The acknowledged reply exceeds the request budget')
+        prompt+=' Copy this already displayed acknowledgement exactly: '+json.dumps(acknowledgement,ensure_ascii=False)+'.'
+    if (governed.budget.count(governed.packet) + governed_request_overhead(
+            interview_context, governed.budget, output_schema=output_schema,prompt=prompt) > governed.budget.input_budget):
+        raise CollectorResponseUnavailable('The acknowledged reply exceeds the request budget')
     check_issue14_dispatch(issue14_admission, role='collector', correlation=responsesapi_client_metadata)
     if publisher is None:
         # Server-only configuration, never accepted in WorkerTurnInput. No
@@ -369,7 +385,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'model':model, 'approvalPolicy':'never', 'sandbox':'read-only',
                 'baseInstructions':governed.packet}, identity=identity.model_dump(mode='json'))
         candidate = opened['thread_id']
-        reply = await connection.turn(candidate, GOVERNED_TURN_PROMPT,
+        reply = await connection.turn(candidate, prompt,
             output_schema=output_schema,
             **({'on_delta':model_delta} if on_delta else {}),
             **({'on_event':on_event} if on_event else {}),
@@ -393,11 +409,25 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'Continuity span must cover exact original characters',
                 'Inferred continuity requires explicit uncertainty',
                 'Duplicate continuity update',
+                'Candidate is stale, asked or outside this project',
+                'Current intent overrides prepared candidates',
+                'Candidate use requires its recorded reason',
+                'Candidate identity required',
+                'Prepared candidate text changed',
+                'Only one immediate question is allowed',
+                'No-question outcome requires an explicit reason',
+                'Current pause requires no question',
+                'A stop cannot force a question',
+                'Correction cannot replace the streamed acknowledgement',
             }
             reason = str(error) if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
+            if isinstance(error,json.JSONDecodeError):reason='INVALID_JSON'
             from pydantic import ValidationError
             if isinstance(error, ValidationError):
                 for detail in error.errors(include_input=False, include_url=False):
+                    field=detail['loc'][0] if detail['loc'] else None
+                    if reason=='SCHEMA_OR_OTHER_CONTRACT' and field in output_schema['properties']:
+                        reason='SCHEMA_FIELD_'+field
                     cause = str((detail.get('ctx') or {}).get('error', ''))
                     if cause in reasons:
                         reason = cause
@@ -407,7 +437,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 reason)
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
-            raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn') from None
+            raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
     if on_delta and streamed_acknowledgement is None:
         await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],

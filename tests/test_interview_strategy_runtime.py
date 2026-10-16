@@ -34,6 +34,52 @@ def client_fixture(sql,tmp_path,monkeypatch,provider):
     return TestClient(create_app(MemoryStore()))
 
 
+@pytest.mark.parametrize('text,language,place,mode,name',[
+    ('I grew up in Hobart and walked by the river.','en-AU',
+     {'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],'granularity':'city','latitude':None,'longitude':None},'extract',None),
+    ('我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院','zh-CN',
+     {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':None,'longitude':None},'extract',None),
+    ('My name is Joan','en-AU',None,'reply_only','Joan'),
+])
+def test_strategy_prompt_preserves_work_routing_and_background_map(sql,tmp_path,monkeypatch,text,language,place,mode,name):
+    from types import SimpleNamespace
+    from apps.api.lifetime_memory_composer import _extract
+    from apps.api.lifetime_memory_lane_engine import LanePublication
+    calls=[]
+    def provider(request):
+        body=json.loads(request.content)
+        instructions=json.loads(body['governed']['packet'])['instructions']
+        assert 'Use "extract" when' in instructions
+        assert 'work.mode' in instructions and 'work.name' in instructions
+        assert 'plan.work' not in instructions
+        output=wire(selection_reason='latest_story',work={'mode':mode,'name':name})
+        return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'work-routing','artifacts':[]})
+    with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
+        response=client.post('/v1/agent/turn',json={'text':text,'language':language,'client_turn_id':str(uuid4())})
+        assert response.status_code==200,response.text
+        assert response.json()['conversation_saved']
+    identity=rpc(sql,'resolve_lifetime_conversation',literal(response.json()['project_id']))
+    lane_id=lane(sql,identity);page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
+    assert page['two_lane']['work_mode']==mode
+    class Broker:
+        async def rpc(self,rpc_name,**args):
+            query=','.join(k+'=>'+literal(v) for k,v in args.items())
+            return json.loads(sql('set role service_role;select to_jsonb(public.'+rpc_name+'('+query+'));').stdout.splitlines()[-1])
+    def background(request):
+        calls.append(request)
+        result={'events':[],'place_journeys':[place],'prepared_questions':[],
+            'strategy_proposal':{'strategy':'explore','objective':'follow_story','focus_event_ids':[]}}
+        return httpx.Response(200,json={'reply':json.dumps(result),'thread_id':'background-map','artifacts':[]})
+    worker=SimpleNamespace(broker=Broker(),worker_url='http://controlled.invalid',worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(background),lane_publisher=LanePublication(sql.publication_dsn,authenticated_owner=OWNER))
+    import asyncio
+    result=asyncio.run(_extract(page,worker))
+    assert len(calls)==(1 if place else 0)
+    service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}',0,{literal(result)}")
+    places=rpc(sql,'read_lifetime_place_journeys',literal(identity['project_id']))
+    assert [item['place'] for item in places]==([place['place']] if place else [])
+
+
 @pytest.mark.parametrize('strategy',['comfort','explore','shape'])
 def test_active_full_turn_saves_one_question_and_records_only_actual_delivery(sql,tmp_path,monkeypatch,caplog,strategy):
     calls=[]

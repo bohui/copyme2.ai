@@ -16,6 +16,7 @@ function load(context, name) {
     for (const helper of ['savedProjectStorageKey', 'readBrowserValue', 'saveBrowserValue', 'savedProjectId', 'rememberProject']) load(context, helper);
   }
   if (name === 'ensureRecallPreview') {
+    load(context, 'freeRecallFinished');
     context.AbortController = AbortController;
     context.clearTimeout ||= () => {};
     context.setTimeout ||= () => {};
@@ -88,7 +89,7 @@ test('history removes legacy instructions from cached user messages before dedup
 });
 
 test('busy composer remains pending rather than reporting a failed skill', async () => {
-  const state = { project: { id: 'project' }, recallStatus: { payment_required: true } };
+  const state = { project: { id: 'project' }, recallStatus: { rounds_completed: 20, free_rounds: 20, payment_required: true } };
   const context = vm.createContext({ state, render() {}, conversationLanguage: () => 'zh-CN',
     setTimeout() {},
     storyApi: async () => { throw Object.assign(new Error('Busy'), { code: 'AGENT_TURN_IN_PROGRESS' }); },
@@ -149,7 +150,7 @@ test('history response for an account cannot populate a different account', asyn
 });
 
 test('manual retry cannot launch a second preview while the first request is running', async () => {
-  const state = { project: { id: 'project' }, recallStatus: { payment_required: true } };
+  const state = { project: { id: 'project' }, recallStatus: { rounds_completed: 20, free_rounds: 20, payment_required: true } };
   let finish, requests = 0;
   const context = vm.createContext({ state, render() {}, conversationLanguage: () => 'zh-CN',
     storyApi: () => { requests++; return new Promise(resolve => { finish = resolve; }); },

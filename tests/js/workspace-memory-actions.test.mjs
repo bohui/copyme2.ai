@@ -96,7 +96,7 @@ test('a workspace task finalizes its reply, round status, cards and receipt with
       controller=request.controller;state.conversationStreams.add(controller);
       await onDelta('We can review');await onEvent({type:'conversation_saved',data:saved});return saved;
     }});
-  for(const name of ['agentTurn'])vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0],context);
+  for(const name of ['freeRecallFinished','agentTurn'])vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0],context);
   const result=await context.agentTurn('Shape my story','fallback');
   assert.notEqual(result.detached,true);assert.equal(controller.signal.aborted,false);
   assert.equal(state.recallStatus.rounds_completed,5);assert.equal(draftReads,1);

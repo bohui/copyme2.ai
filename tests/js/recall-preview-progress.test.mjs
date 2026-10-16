@@ -5,7 +5,8 @@ import vm from 'node:vm';
 
 const source = readMemoirClientSource();
 function client(storyApi) {
-  const state = { project: { id: 'project' }, supabase: { user: { id: 'owner' } }, recallStatus: { payment_required: true } };
+  const state = { project: { id: 'project' }, supabase: { user: { id: 'owner' } },
+    recallStatus: { rounds_completed: 20, free_rounds: 20, payment_required: true } };
   const timers = new Map();
   let time = 1000, id = 0;
   const context = vm.createContext({ state, storyApi, render() {}, conversationLanguage: () => 'zh-CN',
@@ -13,9 +14,30 @@ function client(storyApi) {
     setTimeout(fn, ms) { timers.set(++id, { fn, ms }); return id; },
     clearTimeout(key) { timers.delete(key); },
   });
+  vm.runInContext(source.match(/function freeRecallFinished\([^]*?\n\}/)[0], context);
   vm.runInContext(source.match(/async function ensureRecallPreview\([^]*?\n\}/)[0], context);
   return { state, timers, context, advance(ms) { time += ms; } };
 }
+
+test('the twentieth completed round generates a sample for paid accounts too', async () => {
+  const requests = [];
+  const fixture = client(async url => {
+    requests.push(url);
+    return {status: 'ready', preview: {text: 'A supported sample.'}};
+  });
+  fixture.state.recallStatus.payment_required = false;
+  fixture.state.recallStatus.paid = true;
+  await fixture.context.ensureRecallPreview();
+  assert.deepEqual(requests, ['/v1/story/preview']);
+  assert.equal(fixture.state.recallPreview.status, 'ready');
+});
+
+test('nineteen completed rounds do not request the free sample', async () => {
+  const fixture = client(async () => assert.fail('Sample requested before the twentieth round'));
+  fixture.state.recallStatus.rounds_completed = 19;
+  await fixture.context.ensureRecallPreview();
+  assert.equal(fixture.state.recallPreview, undefined);
+});
 
 test('polling reads one existing job and never submits it again', async () => {
   const requests = [];

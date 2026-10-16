@@ -25,6 +25,7 @@ def mapped(monkeypatch, tmp_path):
         calls.append((name, kwargs))
         if name == 'read_lifetime_project_identity': return fence['identity']
         if name == 'capture_lifetime_read_fence': return deepcopy(fence)
+        if name == 'set_lifetime_draft_edition': return {'status': 'pending'}
         if name == 'read_lifetime_collection_selection': return {'revision':0,'periods':{},'ready':False,'tasks':[]}
         assert any(call[0] == 'capture_lifetime_read_fence' for call in calls)
         return deepcopy(result)
@@ -92,6 +93,28 @@ def test_retry_uses_existing_lanes_without_creating_composition_eligibility(mapp
     assert response.json()['page_complete'] is False
     assert response.json()['publication_approved'] is False
     assert calls[-1][0] == 'actual_send_guard'
+
+
+def test_sample_polls_a_replacement_checkpoint_through_the_original_read_fence(mapped, monkeypatch):
+    from apps.api import story_routes
+    client, storage, calls, result = mapped
+    monkeypatch.setattr(story_routes, 'UserStorage', SimpleNamespace)
+    storage.recall_rounds_completed = lambda: 20
+    result.update(status='insufficient_context', preview=None, locale='zh-CN',
+                  coverage_round=5, updating=True, error=None)
+    response = client.post('/v1/story/preview', json={'project_id': 'read-project', 'language': 'zh-CN'})
+    assert response.status_code == 200, response.text
+    assert response.json()['status'] == 'pending'
+    assert response.json()['job']['id'] == 'shared.zh-CN.read-project'
+    assert calls[-1][0] == 'actual_send_guard'
+    assert response.headers['cache-control'] == 'no-store'
+    calls.clear()
+    result.update(status='ready', preview={'title': 'A memory', 'text': 'A supported sample.'}, updating=False)
+    response = client.get('/v1/story/preview/shared.zh-CN.read-project')
+    assert response.json()['status'] == 'ready'
+    assert response.json()['preview']['text'] == 'A supported sample.'
+    assert calls[-1][0] == 'actual_send_guard'
+    assert not any(name in {'retry', 'set_lifetime_draft_edition'} for name, _ in calls)
 
 
 def test_family_display_gate_still_precedes_canonical_event_read(mapped):
