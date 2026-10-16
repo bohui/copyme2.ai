@@ -16,6 +16,11 @@ Scope: opt-in offline-testable first slice, not full ticket acceptance.
 - Photo evidence remains item-specific. A search snippet or a photographer
   album title is not allowed to date a photograph. Album location context may
   help match linked images, but capture date must come from the inspected item.
+- PR #72 P2 repair: only links inside explicit album/gallery item containers
+  can inherit location. Navigation, recommendations, sidebars and bare same-host
+  links are excluded. Conflicting photo location metadata or recognizable
+  different-city titles veto inheritance. This is not a global gazetteer.
+  Verified sibling members may still inherit locality without inventing a date.
 - Same-host public page restrictions, robots/source validation, source
   deduplication, historical-only fallback, and end-user publish/print guards
   remain in the existing source processors.
@@ -41,12 +46,15 @@ outage after partial success, authenticated endpoint readback using MemoryStore,
 and expanded-vs-legacy cache separation with HTTPX MockTransport. They do not
 require a local PostgreSQL instance or production deployment.
 
-**Verification status (authored 16 October 2026):** the exact
-`apps/api/place_photo_expansion.py` blob `959c21ec232bef5647c324ba3db1b77164ab7f84`
-was reproduced locally, compiled and passed focused query/URL smoke
-assertions. Repository-level pytest, browser and live-provider verification
-have **not** been executed in this remote editing context. The tests listed
-above are instructions, not claimed passes.
+**Verification status (updated 16 October 2026):** P2 helper behaviour was
+reproduced in an isolated local Python harness. Nine focused helper-behaviour
+checks passed, covering gallery membership, excluded navigation/recommendations,
+explicit title/structured-place conflicts and malformed source inputs. These
+were checks of a reproduced helper implementation, **not** full GitHub checkout
+tests. The PR contains additional controlled original-source/endpoint fixtures
+for valid siblings alongside wrong-city metadata and same-host links.
+Full repository pytest, browser and live-provider verification have **not** run.
+The commands above are a verification plan, not claimed passing checks.
 
 ## Remaining acceptance gates
 
