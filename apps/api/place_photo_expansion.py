@@ -114,7 +114,10 @@ def verified_album_member_links(source_html: str, source_url: str) -> list[str]:
                 and bool(_COLLECTION_REGION.search(label))
             ))
             if tag == 'a' and member and attributes.get('href'):
-                self.links.append(urljoin(source_url, attributes['href']))
+                try:
+                    self.links.append(urljoin(source_url, attributes['href']))
+                except ValueError:
+                    pass  # One malformed public link cannot erase verified siblings.
             if tag not in _VOID_TAGS:
                 self.stack.append((tag, member, blocked))
 
@@ -152,7 +155,10 @@ def conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
             types = node.get('@type', [])
             if isinstance(types, str):
                 types = [types]
-            if set(types).intersection({'ImageObject', 'Photograph', 'ImageGallery'}):
+            if not isinstance(types, list):
+                types = []
+            if any(value in {'ImageObject', 'Photograph', 'ImageGallery'}
+                   for value in types if isinstance(value, str)):
                 titles.append(node.get('name', ''))
                 location = node.get('contentLocation') or node.get('spatialCoverage')
                 if isinstance(location, dict):
