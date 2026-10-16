@@ -1,6 +1,15 @@
 -- Issue 70, additive local schema only. The server flag remains OFF by default.
 -- Reuse the unique timeline lane, source positions, outbox and page receipts.
 begin;
+-- A client JWT cannot activate the experiment by calling its RPC directly.
+-- Only a separately approved database-owner rollout may change this row.
+create table public.lifetime_two_lane_rollout (
+ singleton boolean primary key default true check(singleton),
+ enabled boolean not null default false
+);
+alter table public.lifetime_two_lane_rollout enable row level security;
+revoke all on public.lifetime_two_lane_rollout from public,anon,authenticated,service_role;
+insert into public.lifetime_two_lane_rollout default values;
 alter table public.user_lifetime_place_journey add column derived_fence jsonb;
 create table public.user_lifetime_two_lane_source (
  user_id uuid not null,project_id text not null,source_id uuid not null,
@@ -24,6 +33,8 @@ create function public.accept_two_lane_interview_turn(p_project_id text,p_client
 returns jsonb language plpgsql security definer set search_path=public,auth as $$
 declare result jsonb; identity public.user_lifetime_conversation%rowtype;
 begin
+ perform 1 from public.lifetime_two_lane_rollout where singleton and enabled for share;
+ if not found then raise exception 'two lane rollout is disabled' using errcode='55000';end if;
  select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and project_id=p_project_id;
  if not found then raise exception 'canonical conversation required' using errcode='42501';end if;
  perform 1 from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id for update;
@@ -61,7 +72,7 @@ language plpgsql security definer set search_path=public,auth as $$
 declare page jsonb; descriptor jsonb;
 begin
  page:=public.read_lifetime_memoir_lane_page_before_two_lanes(p_lane_id,p_token);
- if page->>'skill'='timeline' and exists(select 1 from public.user_lifetime_two_lane_source m
+ if page->>'skill'='timeline' and exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) and exists(select 1 from public.user_lifetime_two_lane_source m
    where m.user_id=(page->>'user_id')::uuid and m.project_id=page->>'project_id' and m.source_id=(page->'source'->>'id')::uuid) then
    select jsonb_build_object('schema_version',1,'task_version','two-lane-v1','execution_generation',c.execution_generation,
      'phase_revision',coalesce(p.revision,0),'work_mode',case when t.collector is null and exists(select 1 from public.user_agent_turn_lease a
@@ -86,6 +97,7 @@ declare identity public.user_lifetime_conversation%rowtype; pins jsonb; result j
 begin
  -- Reuse the existing content access/policy guard before selecting any bytes.
  pins:=public.read_lifetime_pinned(p_conversation_id);
+ if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then return '[]'::jsonb;end if;
  select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and conversation_id=p_conversation_id;
  select coalesce(jsonb_agg(item),'[]') into result from (
    select q||jsonb_build_object('id','bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'),
@@ -212,7 +224,8 @@ begin
  owner:=snap.user_id;
  if not exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='timeline') then
    raise exception 'timeline checkpoint owner required' using errcode='42501';end if;
- if not exists(select 1 from public.user_lifetime_two_lane_source where user_id=owner and project_id=snap.project_id) then
+ if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
+   or not exists(select 1 from public.user_lifetime_two_lane_source where user_id=owner and project_id=snap.project_id) then
    return jsonb_build_object('complete',true,'coverage_end',0);
  end if;
  select * into project from public.user_memoir_project where user_id=owner and project_id=snap.project_id;
