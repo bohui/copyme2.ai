@@ -1007,3 +1007,40 @@ def test_rehosted_duplicate_never_fills_ten_photo_target(monkeypatch, serpapi_so
     assert len(result) == 10
     assert len({item['content_hash'] for item in result}) == 10
     assert len(attempts) == 3, 'one rehosted duplicate must not prematurely satisfy the target'
+
+
+
+def test_serpapi_verifies_and_publishes_initial_photo_before_followup_query(
+        monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setenv('SERPAPI_KEY', 'synthetic-key')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
+    for name in ('_flickr_browser', '_commons', '_loc'):
+        monkeypatch.setattr(photos, name, lambda *args, **kwargs: [])
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    sources['https://archive.example/photos/1'] = photo_html(1)
+    sources['https://archive.example/photos/2'] = photo_html(2)
+    messages, searches = [], []
+
+    def search(command, **kwargs):
+        searches.append(json.loads(kwargs['input'])['query'])
+        if len(searches) == 2:
+            assert messages and len(messages[0]) == 1, (
+                'first verified original must reach callback before second provider request')
+        index = min(len(searches), 2)
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': [
+                {'source_url': f'https://archive.example/photos/{index}', 'text': 'Chengde 1983'}
+            ],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', search)
+    found = photos._search_period('Chengde', '1980s', on_items=lambda items: messages.append(items))
+    assert len(found) == 2 and len(searches) >= 2
+    assert len(messages[0]) == 1
+    assert all(item['date_expression'] == '1983-10-01' for item in found)
