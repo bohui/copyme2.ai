@@ -127,7 +127,7 @@ async def _summarize(page,worker):
 
 
 async def _extract(page,worker):
-    from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
+    from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT, EXTRACTION_REJECTION_REASONS
     if (page.get('two_lane') or {}).get('work_mode')=='reply_only':
         result={'events':[],'place_journeys':[],'prepared_questions':[]}
         if (page.get('two_lane') or {}).get('strategy_mode'):
@@ -147,8 +147,8 @@ async def _extract(page,worker):
         instructions,schema=extraction_contract(strategy=bool((page.get('two_lane') or {}).get('strategy_mode')))
     check_model_packet(packet,instructions,schema)
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
-    bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
     for attempt in range(3):
+        bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
         response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
             bounded_lane=bounded,worker_transport=worker.worker_transport,
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
@@ -164,33 +164,11 @@ async def _extract(page,worker):
             return result
         except (ValueError,TypeError,KeyError) as error:
             # Only fixed validator messages cross the logging boundary.
-            reasons = {
-                'Unsupported life stage': 'LIFE_STAGE',
-                'Canonical event revision conflict': 'EVENT_REVISION',
-                'Ambiguous identity must remain unresolved': 'AMBIGUOUS_IDENTITY',
-                'A new event has no expected revision': 'NEW_EVENT_REVISION',
-                'Unresolved candidates must be canonical scoped identities': 'CANDIDATE_SCOPE',
-                'Chronology requires a canonical scoped target': 'CHRONOLOGY_SCOPE',
-                'Explicit correction must cite the current original statement': 'CORRECTION_SCOPE',
-                'Evidence must match an authorised original source version': 'EVIDENCE_SOURCE',
-                'Evidence span must match the original words': 'EVIDENCE_SPAN',
-                'Stage placement requires evidence': 'STAGE_EVIDENCE',
-                'Person identities are unavailable in this bounded source page': 'PERSON_SCOPE',
-                'A supported year requires a date evidence basis': 'DATE_BASIS',
-                'Date ranges must retain their original direction': 'DATE_RANGE',
-                'Numeric date requires supported original evidence': 'DATE_NUMERIC',
-                'The original date expression must be retained in its evidence': 'DATE_EXPRESSION',
-                'Evidence outside the claimed source page': 'PAGE_SOURCE',
-                'Evidence requires both exact offsets or neither': 'PAGE_OFFSETS',
-                'An ambiguous occurrence requires exact offsets': 'PAGE_AMBIGUOUS',
-                'Evidence span exceeds claimed source page': 'PAGE_SPAN',
-                'Evidence quote outside claimed source page': 'PAGE_QUOTE',
-                'Whole-source policy authority changed': 'POLICY_SOURCE',
-            }
+            packet['retry_reason']=EXTRACTION_REJECTION_REASONS.get(str(error),'OUTPUT_SCHEMA')
             logging.getLogger(__name__).warning(
                 'canonical_extraction rejected lane_id=%s page_number=%d attempt=%d reason=%s',
                 page['lane_id'], page['page_number'], attempt + 1,
-                reasons.get(str(error), 'OUTPUT_SCHEMA'))
+                packet['retry_reason'])
             if attempt==2:raise
 
 

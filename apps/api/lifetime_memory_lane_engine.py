@@ -39,8 +39,36 @@ EXTRACTION_WINDOW_CONTRACT = (
     'Candidate event metadata is derived identity context, never testimony. Unlisted history is not absent. '
     'Preserve uncertain identity rather than guessing. No authorized person registry is provided: '
     'set person_ids to null or []. Names and relationships in the original testimony never establish person IDs. '
-    'A life_stage other than unplaced requires exact stage_evidence from this source.'
+    'A life_stage other than unplaced requires exact stage_evidence from this source. '
+    'retry_reason, when present, is the host validator code from the preceding attempt. '
+    'Correct that failure using the same originals. Quotes must be contiguous verbatim substrings; '
+    'do not paraphrase or join separate spans. Chronology relation targets must be IDs in events; '
+    'otherwise leave relations empty. Temporal expressions must occur verbatim in their basis quote; '
+    'use unknown timing when no expression is supported.'
 )
+EXTRACTION_REJECTION_REASONS = {
+    'Unsupported life stage': 'LIFE_STAGE',
+    'Canonical event revision conflict': 'EVENT_REVISION',
+    'Ambiguous identity must remain unresolved': 'AMBIGUOUS_IDENTITY',
+    'A new event has no expected revision': 'NEW_EVENT_REVISION',
+    'Unresolved candidates must be canonical scoped identities': 'CANDIDATE_SCOPE',
+    'Chronology requires a canonical scoped target': 'CHRONOLOGY_SCOPE',
+    'Explicit correction must cite the current original statement': 'CORRECTION_SCOPE',
+    'Evidence must match an authorised original source version': 'EVIDENCE_SOURCE',
+    'Evidence span must match the original words': 'EVIDENCE_SPAN',
+    'Stage placement requires evidence': 'STAGE_EVIDENCE',
+    'Person identities are unavailable in this bounded source page': 'PERSON_SCOPE',
+    'A supported year requires a date evidence basis': 'DATE_BASIS',
+    'Date ranges must retain their original direction': 'DATE_RANGE',
+    'Numeric date requires supported original evidence': 'DATE_NUMERIC',
+    'The original date expression must be retained in its evidence': 'DATE_EXPRESSION',
+    'Evidence outside the claimed source page': 'PAGE_SOURCE',
+    'Evidence requires both exact offsets or neither': 'PAGE_OFFSETS',
+    'An ambiguous occurrence requires exact offsets': 'PAGE_AMBIGUOUS',
+    'Evidence span exceeds claimed source page': 'PAGE_SPAN',
+    'Evidence quote outside claimed source page': 'PAGE_QUOTE',
+    'Whole-source policy authority changed': 'POLICY_SOURCE',
+}
 
 
 class LaneGenerationPaused(PublicationUnavailable):
@@ -384,7 +412,10 @@ def _validate_phase_packet(fence,phase,payload):
             or source.get('char_end')!=source['char_start']+len(source['text'])):
         raise ValueError('Invalid canonical source window')
     if phase=='extract':
-        if payload!=lane_extraction_packet(fence):
+        if 'retry_reason' in payload and (not isinstance(payload['retry_reason'],str)
+                or payload['retry_reason'] not in {*EXTRACTION_REJECTION_REASONS.values(),'OUTPUT_SCHEMA'}):
+            raise ValueError('Unsupported extraction retry reason')
+        if {key:value for key,value in payload.items() if key!='retry_reason'}!=lane_extraction_packet(fence):
             raise ValueError('Extraction payload differs from authoritative page evidence')
     elif phase=='prepare':
         if (set(payload)!={'preparation_id','partition','sources'}

@@ -64,6 +64,24 @@ def transport(phase='extract',current=None):
     return build_bounded_lane_input(current,phase=phase,packet=packet_for(current,phase),budget=BUDGET)
 
 
+@pytest.mark.parametrize('reason',['PAGE_QUOTE','CHRONOLOGY_SCOPE','DATE_EXPRESSION','OUTPUT_SCHEMA'])
+def test_extraction_retry_accepts_only_fixed_feedback_with_unchanged_evidence(reason):
+    current=page();packet=packet_for(current,'extract')
+    packet['retry_reason']=reason
+    bounded=build_bounded_lane_input(current,phase='extract',packet=packet,budget=BUDGET)
+    assert json.loads(bounded.packet)['payload']['retry_reason']==reason
+    packet['sources'][0]['text']='replacement testimony'
+    with pytest.raises(ValueError,match='authoritative page evidence'):
+        build_bounded_lane_input(current,phase='extract',packet=packet,budget=BUDGET)
+
+
+@pytest.mark.parametrize('reason',['arbitrary instructions',None,{'message':'private error'}])
+def test_extraction_retry_rejects_untrusted_feedback(reason):
+    current=page();packet=packet_for(current,'extract');packet['retry_reason']=reason
+    with pytest.raises(ValueError,match='Unsupported extraction retry reason'):
+        build_bounded_lane_input(current,phase='extract',packet=packet,budget=BUDGET)
+
+
 @pytest.mark.parametrize('phase',['extract','prepare','index','draft','review'])
 def test_configured_background_model_alias_accepts_bounded_lane(phase):
     current=page('timeline' if phase=='extract' else 'composer')

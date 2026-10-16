@@ -109,7 +109,32 @@ def test_invalid_extraction_retries_the_same_bounded_source_before_commit():
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     assert asyncio.run(_extract(current,worker))=={'events':[]}
-    assert len(requests)==2 and requests[0]==requests[1]
+    assert len(requests)==2 and requests[0]['fence']==requests[1]['fence']
+    first=json.loads(requests[0]['packet'])
+    second=json.loads(requests[1]['packet'])
+    assert second['payload'].pop('retry_reason')=='OUTPUT_SCHEMA'
+    assert first==second
+
+
+def test_extraction_retry_reports_rejected_quote_without_replacing_original():
+    from apps.api.lifetime_memory_composer import _extract
+    current=page();requests=[]
+    class Broker:
+        async def rpc(self,name,**payload):
+            assert name=='read_lifetime_lane_policy_source'
+            return copy.deepcopy(current['source'])
+    def model(request):
+        bounded=json.loads(request.content)['bounded_lane']
+        payload=json.loads(bounded['packet'])['payload'];requests.append(payload)
+        assert payload['sources']==[current['source']]
+        quote=current['source']['text'] if payload.get('retry_reason')=='PAGE_QUOTE' else 'invented testimony'
+        return httpx.Response(200,json={'reply':json.dumps({'events':[{
+            'kind':'event','title':'Childhood','source_refs':[{'source_id':'source','version':1,'quote':quote}]}]})})
+    worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
+    result=asyncio.run(_extract(current,worker))
+    assert len(requests)==2
+    assert result['events'][0]['source_refs'][0]['quote']==current['source']['text']
 
 
 def test_10000_mixed_language_packets_have_constant_declared_bound():
