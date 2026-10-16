@@ -740,6 +740,7 @@ def test_sparse_serpapi_expansion_inspects_ten_distinct_history_photos(serpapi_s
     import subprocess
     _, sources, _, fetched = serpapi_sources
     monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     queries = []
 
     def search(command, **kwargs):
@@ -775,6 +776,7 @@ def test_sparse_serpapi_outage_preserves_verified_result_and_stops_retries(serpa
     import subprocess
     _, sources, _, _ = serpapi_sources
     monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     sources['https://archive.example/photo/1'] = photo_html()
     searches = []
 
@@ -900,6 +902,7 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
     import subprocess
     _, sources, _, fetched = serpapi_sources
     monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     album = 'https://archive.example/albums/chengde/'
     sources[album] = ('<title>Chengde 1980s photographer album</title>' +
         ''.join(f'<a href="https://archive.example/photos/{i}">Photo {i}</a>'
