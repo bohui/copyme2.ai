@@ -390,17 +390,6 @@ end $$;
 revoke all on function public.create_lifetime_checkpoint(jsonb,bigint,text,text,jsonb,uuid) from public,anon;
 grant execute on function public.create_lifetime_checkpoint(jsonb,bigint,text,text,jsonb,uuid) to authenticated;
 
-create or replace function public.defer_lifetime_memoir_lane(p_lane_id uuid,p_token uuid,p_reason text) returns jsonb
-language plpgsql security definer set search_path=public,auth as $$
-begin
- perform public.lock_lifetime_memoir_lane(p_lane_id,p_token);
- if p_reason not in ('LIFETIME_PRIVACY_MAINTENANCE_REQUIRED','LIFETIME_MODEL_BUDGET_REQUIRED','LIFETIME_GENERATION_PAUSED','LIFETIME_PROVIDER_AUTHORITY_UNAVAILABLE') then
-   raise exception 'invalid lane maintenance reason';end if;
- update public.user_memoir_lane set token=null,lease_until=null,run_deadline=null,pending=true,attempts=0,error=p_reason,
-   available_at=clock_timestamp()+interval '5 minutes' where id=p_lane_id;
- return jsonb_build_object('status','pending','error',p_reason,'retrieval_complete',false);
-end $$;
-
 -- A technical retry can be older than the newest background checkpoint. Choose
 -- a compatible accepted predecessor without moving the canonical head backwards.
 create index lifetime_checkpoint_before_current on public.user_lifetime_checkpoint
