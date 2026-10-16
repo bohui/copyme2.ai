@@ -11,8 +11,15 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+def _expansion_enabled():
+    return os.getenv('MEMOIR_PHOTO_EXPANSION', '').strip().lower() in {'1', 'true', 'yes'}
+
+
 def search_key(place, period, *, policy=None):
     from .place_photos import PHOTO_SEARCH_POLICY
+    if policy is None and _expansion_enabled():
+        # A legacy complete but sparse gallery must not suppress fresh coverage.
+        policy = PHOTO_SEARCH_POLICY + '-expanded-v1'
     normalized = [' '.join(unicodedata.normalize('NFKC', value).casefold().split())
                   for value in (place, period)]
     return hashlib.sha256(json.dumps([policy or PHOTO_SEARCH_POLICY, *normalized], ensure_ascii=False).encode()).hexdigest()
@@ -29,7 +36,7 @@ class PhotoRepository:
             with httpx.Client(timeout=10, transport=self.transport) as client:
                 # Revalidate previous public research under the current filters
                 # so source outages do not discard already found photographs.
-                for policy in (None, 'place-fallback-gps-time-v8'):
+                for policy in ((None,) if _expansion_enabled() else (None, 'place-fallback-gps-time-v8')):
                     response = client.get(self.url, headers=self.headers, params={
                         'search_key': 'eq.' + search_key(place, period, policy=policy), 'select': 'result', 'limit': '1'})
                     response.raise_for_status()
