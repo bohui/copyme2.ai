@@ -910,7 +910,7 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
         '<section class="album-items">' +
         ''.join(f'<article class="album-photo">'
                 f'<a href="https://archive.example/photos/{i}">Photo {i}</a></article>'
-                for i in range(1, 8)) +
+                for i in range(1, 7)) +
         '<div class="recommendations">'
         '<a href="https://archive.example/photos/related-beijing">Recommended Beijing street</a>'
         '</div></section>'
@@ -947,11 +947,65 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
     assert album in fetched and 'https://archive.example/photos/3' in fetched
     assert 'https://archive.example/photos/4' in fetched
     assert 'https://archive.example/photos/6' in fetched
-    assert 'https://archive.example/photos/7' in fetched
     assert 'https://archive.example/photos/navigation-beijing' not in fetched
     assert 'https://archive.example/photos/related-beijing' not in fetched
     assert all('Chengde' in item['location_evidence'] for item in result)
 
+
+
+
+def test_gallery_item_with_structured_conflicting_city_cannot_inherit_album_location(
+        monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    source = 'https://archive.example/photos/7'
+    sources[album] = (
+        '<title>Chengde 1980s photographer album</title>'
+        '<section class="album-items">'
+        '<a href="https://archive.example/photos/1">Local album image</a>'
+        '<a href="https://archive.example/photos/7">Other city image</a>'
+        '</section>')
+    sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees')
+    claim = {'@type': 'Photograph', 'name': 'Willow trees', 'dateCreated': '1983-10-01',
+             'contentLocation': {'name': 'Beijing'},
+             'contentUrl': 'https://live.staticflickr.com/1/7.jpg'}
+    sources[source] = ('<title>Willow trees</title>'
+                       '<script type="application/ld+json">' + json.dumps(claim) + '</script>')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album, 'text': 'Chengde historical photo album'}],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovery)
+    photos_found = photos._google_serpapi('Chengde', '1980s')
+    assert len(photos_found) == 1
+    assert photos_found[0]['image_url'] == 'https://live.staticflickr.com/1/1.jpg'
+    assert source in fetched, 'conflicting item must be inspected, then excluded'
+    assert all('Beijing' not in item['location_evidence'] for item in photos_found)
+
+
+def test_only_gallery_member_markup_can_inherit_album_locality():
+    from apps.api.place_photo_expansion import verified_album_member_links
+    base = 'https://archive.example/albums/chengde/'
+    html = ('<title>Chengde history</title>'
+            '<nav><a href="/photos/beijing">Navigation: Beijing street</a></nav>'
+            '<a href="/photos/unscoped">Other same-host photograph</a>'
+            '<div class="album-grid"><figure><a href="/photos/1">Photo one</a></figure>'
+            '<section class="recommendations"><a href="/photos/recommended">Related</a></section>'
+            '<figure><a href="/photos/2">Photo two</a></figure></div>'
+            '<aside class="related-gallery"><a href="/photos/more">More photos</a></aside>')
+    assert verified_album_member_links(html, base) == [
+        'https://archive.example/photos/1',
+        'https://archive.example/photos/2',
+    ]
+    assert verified_album_member_links(
+        '<title>Chengde album</title><a href="/photos/unscoped">Not a member</a>', base,
+    ) == []
 
 
 @pytest.mark.parametrize('scope,expected_queries', [('source', 3), ('provider', 1)])
