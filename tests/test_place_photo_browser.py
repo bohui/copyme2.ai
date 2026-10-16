@@ -712,3 +712,103 @@ def test_blocked_combined_google_query_is_not_repeated_for_decade_fallback(monke
         photos.search_place_photos('承德', '1983年')
     assert calls == ['1983年']
     assert error.value.failures == [{'provider': 'google', 'reason': 'verification_required'}]
+
+
+
+# Issue #66: offline discovery expansion, with no local database or live provider.
+def test_historical_query_expansion_has_bounded_archive_street_album_and_year_leads():
+    from apps.api.place_photo_expansion import historical_queries, google_search_urls
+    base = '("承德" OR "Chengde") ("1980" OR "1989")'
+    queries = historical_queries(base, '("承德" OR "Chengde")', (1980, 1989))
+    assert queries[0] == base
+    assert len(queries) == len(set(queries)) == 7
+    assert any('archive' in query and '档案' in query for query in queries[1:])
+    assert any('street' in query and '街景' in query for query in queries[1:])
+    assert any('album' in query and '相册' in query for query in queries[1:])
+    assert all('Chengde' in query for query in queries)
+    assert historical_queries(base, 'Chengde', None) == [base]
+    assert historical_queries(base, 'Chengde', (1800, 1901)) == [base]
+    urls = google_search_urls('https://cse.google.com/cse?cx=engine&page=9', queries)
+    assert len(urls) == len(queries)
+    assert all(parse_qs(urlsplit(url).query).get('cx') == ['engine'] for url in urls)
+    assert all('page' not in parse_qs(urlsplit(url).query) for url in urls)
+    with pytest.raises(ValueError):
+        google_search_urls('https://attacker.example/cse?cx=engine', queries)
+
+
+def test_sparse_serpapi_expansion_inspects_ten_distinct_history_photos(serpapi_sources, monkeypatch):
+    import subprocess
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    queries = []
+
+    def search(command, **kwargs):
+        payload = json.loads(kwargs['input'])
+        assert payload['refresh'] is True
+        queries.append(payload['query'])
+        batch = ([1] if len(queries) == 1 else list(range(2, 11)))
+        cards = [{'source_url': f'https://archive.example/photo/{i}',
+                  'text': 'Chengde 1980s historical image'} for i in batch]
+        if len(queries) == 2:
+            cards += [{'source_url': 'https://archive.example/modern', 'text': 'Chengde'},
+                      {'source_url': 'https://archive.example/chengdu', 'text': 'Chengde'},
+                      cards[0]]
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': cards,
+        }))
+
+    for index in range(1, 11):
+        sources[f'https://archive.example/photo/{index}'] = photo_html(index, date='1983-10-01')
+    sources['https://archive.example/modern'] = photo_html(50, date='2025-10-01')
+    sources['https://archive.example/chengdu'] = photo_html(51, place='Chengdu')
+    monkeypatch.setattr(subprocess, 'run', search)
+    items = photos._google_serpapi('Chengde', '1980s')
+    assert len(items) == 10
+    assert len({item['image_url'] for item in items}) == 10
+    assert all(item['date_expression'] == '1983-10-01' for item in items)
+    assert all(item['source_url'] in fetched for item in items)
+    assert all(item['providers'] == ['google', 'serpapi'] for item in items)
+    assert len(queries) == 2, 'stop after reaching ten verified originals'
+
+
+def test_sparse_serpapi_outage_preserves_verified_result_and_stops_retries(serpapi_sources, monkeypatch):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    sources['https://archive.example/photo/1'] = photo_html()
+    searches = []
+
+    def search(command, **kwargs):
+        searches.append(json.loads(kwargs['input']))
+        if len(searches) == 1:
+            payload = {'status': 'success', 'cards': [
+                {'source_url': 'https://archive.example/photo/1', 'text': 'Chengde 1983'},
+            ]}
+        else:
+            payload = {'status': 'error', 'error': 'TimeoutError'}
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps(payload))
+
+    monkeypatch.setattr(subprocess, 'run', search)
+    items = photos._google_serpapi('Chengde', '1980s')
+    assert len(items) == 1 and items[0]['date_expression'] == '1983-10-01'
+    assert len(searches) == 2
+
+
+def test_enabled_browser_expansion_uses_shared_page_source_budgets(monkeypatch, fake_crawler):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'true')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    calls = []
+
+    async def query(provider, place, period, url, **kwargs):
+        calls.append((parse_qs(urlsplit(url).query)['q'][0], kwargs))
+        return []
+
+    monkeypatch.setattr(browser, '_browse_query', query)
+    url = browser._search_url('google', '承德', '1980s')
+    assert asyncio.run(browser._browse('google', '承德', '1980s', url)) == []
+    assert len(calls) == browser.MAX_SEARCH_PAGES
+    assert len({query for query, _ in calls}) == len(calls)
+    assert sum(opts['page_budget'] for _, opts in calls) == browser.MAX_SEARCH_PAGES
+    assert sum(opts['source_budget'] for _, opts in calls) <= browser.MAX_SOURCE_PAGES
+    assert all(opts['album'] is False for _, opts in calls)
