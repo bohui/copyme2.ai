@@ -45,3 +45,17 @@ test('a revoked transient place is removed even when profile history was already
   assert.equal(applyDerivedWorkspace(s,{...update([],5),policy_epoch:2}),true);
   assert.equal(s.placeJourney,null);
 });
+test('independent updates preserve photos and grouping on still-authorized places',()=>{
+  const s=state();s.project.profile.memory_places[0].pictures=[{id:'photo-1',source_url:'https://synthetic.invalid/photo'}];
+  s.project.profile.memory_places[0].map_city_key='saved-city';
+  applyDerivedWorkspace(s,update([place('Hobart'),place('Sydney',2)]));
+  const kept=s.project.profile.memory_places.find(p=>p.place==='Hobart');
+  assert.equal(kept.pictures[0].id,'photo-1');
+  assert.equal(kept.map_city_key,'saved-city');
+});
+test('a policy revision discards old photo and grouping decorations even for the same place',()=>{
+  const s=state();s.project.profile.memory_places[0].pictures=[{id:'old-photo'}];
+  applyDerivedWorkspace(s,update([place('Hobart')]));
+  applyDerivedWorkspace(s,{...update([place('Hobart')],3),policy_epoch:2});
+  assert.equal(s.project.profile.memory_places[0].pictures,undefined);
+});
