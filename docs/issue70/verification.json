@@ -1,0 +1,264 @@
+{
+  "source_head": "481f42ae693bc91b8a7c2ac1b1adb93091627935",
+  "base": "83e48e166568fe949eccd6f68ffa13273dcf55af",
+  "draft_pr": "https://github.com/bohui/copyme2.ai/pull/71",
+  "full_issue_acceptance": false,
+  "rollout_controls": "Both OFF; no production action performed",
+  "aggregate": {
+    "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short --junitxml=/tmp/issue70-aggregate-final.xml",
+    "environment": "Sanitized application/provider environment; native PostgreSQL; pytest-timeout 2.4.0, xdist 3.8.0. MEMOIR_TEST_TEMPORAL_CLI was absent in this run.",
+    "cases": 6400,
+    "passed": 5542,
+    "failed": 576,
+    "error": 21,
+    "skipped": 261,
+    "warnings": 3,
+    "wall_seconds": 902.35,
+    "status": "failed; preserved raw",
+    "source_timing": "Started at 0acbf01; final changes were PT409 conflict codes and JS metadata retention. Final affected checks rerun separately. Not falsely labeled an immutable final-head aggregate."
+  },
+  "supplemental": {
+    "baseline-runtime": {
+      "cases": 25,
+      "passed": 25,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "exact-base": {
+      "cases": 36,
+      "passed": 36,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "regression-head": {
+      "cases": 291,
+      "passed": 291,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "feature-rollout2": {
+      "cases": 27,
+      "passed": 27,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "conflict-final2": {
+      "cases": 32,
+      "passed": 32,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "browser-final": {
+      "cases": 2,
+      "passed": 2,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "temporal-local": {
+      "cases": 29,
+      "passed": 24,
+      "failed": 5,
+      "error": 0,
+      "skipped": 0
+    },
+    "temporal-six": {
+      "cases": 6,
+      "passed": 6,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "javascript": {
+      "command": "PATH=/workspace/copyme2.ai/.venv/bin:$PATH node --test tests/js/*.test.mjs skills/memoir-composer/tests/*.test.mjs tests/historical-news/*.test.mjs",
+      "passed": 530,
+      "failed": 0
+    }
+  },
+  "comparison": {
+    "raw_new_failures_vs_historical": 6,
+    "all_new_failure_ids_pass_with_local_cli_same_timeout": true,
+    "raw_errors_all_preexisting": true,
+    "fresh_exact_base_selected_cases": 36,
+    "fresh_complete_base_aggregate": "Not rerun; parent reported 5521 pass/570 fail/21 errors/259 skips."
+  },
+  "raw_archive": {
+    "file": "raw-evidence.tar.gz",
+    "sha256": "c31738acb97b8fef190e0e37d569f9754bb0fd70841b0f6a8b5b72360b6d6b71",
+    "members": {
+      "baseline.xml": {
+        "bytes": 21037,
+        "sha256": "075895a93b8e15d0bbf908c442c521a43a750e0a625d24c9782991d340a4b67a"
+      },
+      "baseline-runtime.xml": {
+        "bytes": 4372,
+        "sha256": "df369e1d256139e61ea5289f5b406578deef23d466ba57134fc3ffd305c6a68d"
+      },
+      "red.xml": {
+        "bytes": 23512,
+        "sha256": "c96f738d4523ba0517796a5ff9e8c669d027bb6a56325fc4f6ae26d58835f273"
+      },
+      "red.log": {
+        "bytes": 18910,
+        "sha256": "e8ea0202a213fe1f4ffc4ad74b8a14c56e894a21bb8540ec7fe29e2f9c587031"
+      },
+      "conditional-red.log": {
+        "bytes": 1207,
+        "sha256": "30687d9a2b5c74fa9c6e5f3dce42f591db1e3bcd1e7d40be38d8a2fcd35bdde4"
+      },
+      "rollout-red.log": {
+        "bytes": 1696,
+        "sha256": "61f83a7fe766879435c1d259b0970eaadab0e5107af0352d7d7092c0691c3811"
+      },
+      "receipt-red.log": {
+        "bytes": 24007,
+        "sha256": "acc016e0e8f814199de8765dacea79ce67e8e229d196b20c12537cb8081a09a0"
+      },
+      "workspace-red.log": {
+        "bytes": 1424,
+        "sha256": "b04a17d1f7811d5bc294d6dc460e6fedb833a7ead46687213244e45ecf66e457"
+      },
+      "workspace-metadata-red.log": {
+        "bytes": 1399,
+        "sha256": "29493e367578c9fec94af9fc0078a42bc6e41dd1bf2c5f8783ccfe9206b6bb1e"
+      },
+      "baseline-runtime.log": {
+        "bytes": 100,
+        "sha256": "fb07b04c882dc4f7a6c3271592ab1d6204de13abea4a67238f96ce518e1d3e90"
+      },
+      "exact-base.xml": {
+        "bytes": 6077,
+        "sha256": "70a0edd240e3f3e25da93af42e68e7400abb4f0f2e97139c65cafde4f975e707"
+      },
+      "exact-base.log": {
+        "bytes": 110,
+        "sha256": "8123ec9bf2ed0cf6027dc51370c404c54c244467f1161b22651b21aae33b0bfa"
+      },
+      "aggregate.xml": {
+        "bytes": 486791,
+        "sha256": "a31227a64f040986357ea2c5a2c616dde56873db3c4281ab007fc1261e9ec7db"
+      },
+      "aggregate.log": {
+        "bytes": 419297,
+        "sha256": "eea068aee792af2d1eed9ad9f1f9a114911688ededd02a43a02282b84b3ad088"
+      },
+      "aggregate-bounded.xml": {
+        "bytes": 12728008,
+        "sha256": "51be151d73be5124da1394344fb8fd286e2676e40453b400c31113b7d47a9b1f"
+      },
+      "aggregate-bounded.log": {
+        "bytes": 1556875,
+        "sha256": "6bd4b2be5747d6f77fe162c3c65d6facfb595f34ba6cb5cb513c2d611cfda3c1"
+      },
+      "aggregate-final.xml": {
+        "bytes": 12737658,
+        "sha256": "e5ce7b6024854166a4f5e355bb9a2feb83d4f75e5b64e59f4ea6387189c67c23"
+      },
+      "aggregate-final.log": {
+        "bytes": 1561579,
+        "sha256": "e1ff381724a3255a0f8bb3f0c17713594a6b73d28c2e1ed0bc43b396975962e2"
+      },
+      "regression-head.xml": {
+        "bytes": 44400,
+        "sha256": "00ea04a4c4e139724520e8dc4953c69d3b435ac0eb1e08f86f3ffcf5ded007d8"
+      },
+      "regression-head.log": {
+        "bytes": 432,
+        "sha256": "c0187fbbd6512c082aa217fb50e083e688952d7ae7d04ccb73232e6dea3113bb"
+      },
+      "feature-rollout2.xml": {
+        "bytes": 4741,
+        "sha256": "ec952ca86cd2292242325abd3398a8aa8fd6c62d7ae2727420a3e6f1c93147d0"
+      },
+      "feature-rollout2.log": {
+        "bytes": 100,
+        "sha256": "c8c5ca3e4e7b4516ed3919d5f2931dd318c36ad20839bc9d5d61d98252c747bc"
+      },
+      "conflict-final2.xml": {
+        "bytes": 5467,
+        "sha256": "c26884eee42641d81fa156a4ed947c47b75763a2d95e13c2ceefd075fee050b5"
+      },
+      "conflict-final2.log": {
+        "bytes": 100,
+        "sha256": "871d4e652c62fd9e2c60fc92aa0ac5ee75bf3ee6b6cecd91659810972482499f"
+      },
+      "js-head.log": {
+        "bytes": 47614,
+        "sha256": "d9b21de571db051abdab99dc0e6f784eab1559db77c0409708916c7de2f9539a"
+      },
+      "js-final2.log": {
+        "bytes": 47818,
+        "sha256": "d04cf2b759af0c523f8f86498090500b088c0901752c4a433d92c09b32de5035"
+      },
+      "browser.log": {
+        "bytes": 22927,
+        "sha256": "54fa8489478feb6dc50879c275024879d978f3d57f15e973ff16e8de41fdbb6f"
+      },
+      "browser-final.xml": {
+        "bytes": 501,
+        "sha256": "bd4d59c5b5ba6c4cbf0137ba30b028c3298ed3d646208d25d26d69ad0f31e851"
+      },
+      "browser-final.log": {
+        "bytes": 99,
+        "sha256": "207c960dc2822eea526ff8efa3e9040efb3c5896cabdf874978ca05bb2931102"
+      },
+      "temporal-local.xml": {
+        "bytes": 29839,
+        "sha256": "05792b0469912dff598a1628e28ab0ea3a5108721651033236fb8468eec99672"
+      },
+      "temporal-local.log": {
+        "bytes": 26746,
+        "sha256": "627be9442c821aac760d55b712ff37ee2bafaf74125fe501f31127972c76e5f9"
+      },
+      "temporal-six.xml": {
+        "bytes": 1228,
+        "sha256": "1774626acbc18dc7ae05c4619abd48c87e4b96eebe5507d59c287a1e4590da0f"
+      },
+      "temporal-six.log": {
+        "bytes": 99,
+        "sha256": "29858e05647fa8f77a6d2b00cbf6450bba22c5327c1822de0aedaeefdeb8df11"
+      },
+      "source-manifest.json": {
+        "bytes": 1766,
+        "sha256": "44bacd825299e6c85c4a3660815aae7031b999933580c7accba59bd5aa63a4c1"
+      }
+    }
+  },
+  "case_ledger": {
+    "file": "case-ledger.json.gz",
+    "sha256": "c3d9c6448dba43d53a71ca0e6ff6bf5cf7da19907f9ff7cca09e34d5420995f8"
+  },
+  "remaining_gates": [
+    "Independent exact-head cloud review",
+    "Matched authorized live model/quality/latency campaign and funded cost ceiling",
+    "Provider-wide interactive reservation across replicas",
+    "Inherited aggregate failures/skips/unresolved product contracts",
+    "Separately authorized production migration/configuration/enablement"
+  ],
+  "source_manifest": {
+    "source_head": "481f42ae693bc91b8a7c2ac1b1adb93091627935",
+    "base": "83e48e166568fe949eccd6f68ffa13273dcf55af",
+    "files": {
+      ".env.example": "1eceee098f1bf9ea2a052fade5a962e55e60421e435bd7525cc212a050d2ffe1",
+      "apps/api/agent_storage.py": "0cc9d198fa494e14f20e001d906466474897fb94fc7c35e652342f01f266574b",
+      "apps/api/codex_worker_service.py": "abb0d459be0b743089b5fdb36256112d5db542329ab6b20c24137003a36f4944",
+      "apps/api/lifetime_memory_composer.py": "e243c54df11e65173fe2377d89141c4c5654ae0f8d0048842c3efef4b723b095",
+      "apps/api/lifetime_memory_continuity.py": "6c93f786083ef4bad37c8f2372a8d5dba2b8bd65493e03ceac069b6632b0ca9f",
+      "apps/api/lifetime_memory_lane_engine.py": "5c1a250c3739e0e40e2372ce3feaa9c149ac781fa876bcfd573a32cef4e16a0b",
+      "apps/api/lifetime_memory_runtime.py": "f7efe628df8fc6b831cf9919bbecc36535b24e8b3dfbf88fe1b033355760f27e",
+      "apps/api/story_routes.py": "8edc88c8a1a6d75533c34cd3e45625bfccbaf79588f5fd480ff974bc766ce19a",
+      "apps/api/two_lane_memory.py": "bc2023e75aab1fa9b0b44c706843ec652f73f45d8ab6c5270c037c873c2da8b2",
+      "apps/web/client/memoir/client.js": "3500fda54e7eaef4acc8ab04735ca6d1e75fe5de13cd5b15a92d6c3da0000efe",
+      "apps/web/client/memoir/derived-workspace.mjs": "b4d8a874f6d8ebae01a38faed5ceb9a437dd29a8985b0160a7c5251ba82bab07",
+      "supabase/migrations/202610160001_two_lane_memory.sql": "4f694d578c4c814421a655b45dc2d2c3d91674f70c90284e862b6e07a5b307a2",
+      "tests/js/two-lane-workspace.test.mjs": "6748ee1d051d645fcf70559c7f2759101669c2da7e1f4cc4ec660f3a5c1cf379",
+      "tests/test_two_lane_browser.py": "92bd9470f1a0d31bd12c9e90697249e8a61e6541332325c8063c5d2f99254c96",
+      "tests/test_two_lane_memory.py": "fe1d079614a3d65b7366a53dab9636798ac81f856a0f79e511cc187bfabaed7e"
+    }
+  }
+}

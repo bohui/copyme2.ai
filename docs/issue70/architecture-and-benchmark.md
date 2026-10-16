@@ -2,7 +2,7 @@
 
 Base: `83e48e166568fe949eccd6f68ffa13273dcf55af`, 2026-10-16.
 Isolated worktree `/workspace/issue70`, branch `agent/issue70-two-lanes`.
-All 51 published heads were inspected; every non-main head is an ancestor of
+All published heads were inspected; every non-main head is an ancestor of
 main. GitHub returned no open PRs. The original checkout is clean. No external
 agent was contacted. Unpublished work outside this workspace cannot be verified.
 No root/API AGENTS.md or repo .agents/skills exists in this environment. Read the
