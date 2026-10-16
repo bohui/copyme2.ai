@@ -169,6 +169,11 @@ create function public.commit_lifetime_memoir_lane_page(p_lane_id uuid,p_token u
 returns jsonb language plpgsql security definer set search_path=public,auth as $$
 declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb; q jsonb;
 begin
+ -- Preserve the canonical disabled path without duplicate page preparation.
+ -- Its own lock/digest/receipt checks still fence every commit and replay.
+ if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then
+   return public.commit_lifetime_memoir_lane_page_before_two_lanes(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
+ end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  -- The canonical receipt verifies identical retries before any repeated effect.
  if p_page_number<snap.page_number then

@@ -120,15 +120,37 @@ def selector_schema():
 
 
 def current_constraints(text):
-    # These are narrow literal controls, not an extra intent-classification pass.
-    # Quoted/attributed words cannot become a preference or action authorization.
+    # Bound reported speech to its own clause. Mask whole quotes first, keeping
+    # a sentence boundary so later direct narrator requests remain authoritative.
     from .conversation_phase import QUOTED_SENTENCE_PATTERN,QUOTED_PATTERN,ATTRIBUTION_PATTERN
-    value=re.sub(QUOTED_SENTENCE_PATTERN,' ',text or '')
-    value=re.sub(QUOTED_PATTERN,' ',value)
-    if re.search(ATTRIBUTION_PATTERN,value,re.I):return {}
+    value=re.sub(QUOTED_SENTENCE_PATTERN,' [quoted]. ',text or '')
+    value=re.sub(QUOTED_PATTERN,' [quoted] ',value)
+    direct=[];reported_continuation=False
+    for part in re.finditer(r'([^.!?。！？;；,，\r\n]+)([.!?。！？;；,，\r\n]*|$)',value):
+        clause=part.group(1).strip();boundary=part.group(2)
+        if not clause:continue
+        if reported_continuation:
+            if re.search(r'[.!?。！？;；]',boundary) or '[quoted]' in clause:reported_continuation=False
+            continue
+        # "我说错了" is an explicit narrator correction, not attribution to
+        # another speaker. Do not promote "他说错了" or a quoted correction.
+        correction=bool(re.match(r'^(?:刚才|剛才|刚刚|剛剛|之前)?我(?:说|說)错',clause))
+        attributed=list(re.finditer(ATTRIBUTION_PATTERN,clause,re.I))
+        if attributed and not correction:
+            tail=clause[attributed[-1].end():].strip().strip(':：')
+            # A bare report introduction can include its indirect object. It
+            # continues through comma-separated speech until a strong boundary.
+            introduction=not tail or bool(re.fullmatch(r'(?:me|us|him|her|them|you|我|我们|我們|对我|對我)',tail,re.I))
+            reported_continuation=introduction
+            # A complete sentence closes an unquoted reported clause. An
+            # introduction followed only by a newline continues to the next one.
+            if re.search(r'[.!?。！？;；]',boundary):reported_continuation=False
+            continue
+        direct.append(clause)
+    value='\n'.join(direct)
     if re.search(r'\b(?:not today|stop here|pause here|finished today)\b|今天不聊|今天先到这里|先停一停',value,re.I):return {'no_question':True}
     if re.search(r"let[’']s (?:talk|discuss)|change (?:the )?(?:subject|topic)|换个话题|想聊",value,re.I):return {'override':'user_redirect'}
-    if re.search(r'\b(?:I meant|got that wrong|correction)\b|说错|更正',value,re.I):return {'override':'current_correction'}
+    if re.search(r'\b(?:I meant|got that wrong|correction)\b|(?:我(?:说|說)错)|更正',value,re.I):return {'override':'current_correction'}
     if re.search(r'\b(?:lighter question|keep it gentle|take it slowly)\b|轻松|慢慢聊',value,re.I):return {'override':'pacing'}
     return {}
 

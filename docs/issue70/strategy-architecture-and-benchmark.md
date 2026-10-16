@@ -112,3 +112,24 @@ observer. Actual provider usage/cost and playable audio are unavailable in this
 adapter and remain null. Synthetic barriers prove ordering and contract behavior;
 controlled provider proposals and source-frontend fixtures do not prove live
 semantic decisions or a speed improvement.
+
+## Follow-up review repairs
+
+A's save validates the exact pinned revision when a candidate was used. It does
+not require adoption of a newer optional B plan; a no-candidate fallback can save
+when B publishes after A's read. Current publication/source/policy fences and
+pinned candidate dependencies still reject real changes. An owner-only internal
+reader can validate a historical plan revision without exposing a new public API.
+
+Current-intent parsing masks quoted material, bounds attribution to its reported
+clause, and then processes subsequent direct English/Chinese pauses, redirects,
+corrections and lighter pacing. A narrator's explicit “我说错了” is a correction;
+another speaker's quoted or introduced controls remain untrusted. Native API
+counterexamples cover both defects, including pinned no-plan/old-plan races and
+a genuine concurrent policy change.
+
+The atomic-policy crash tests now assert the required pending-reply reconciliation
+instead of silently accepting a different source after a crash. Their original
+six failures remain in the frozen bb59 aggregate. Disabled planning also delegates
+ordinary B commits without an extra canonical page read/lock; strategy replays
+retain the complete guarded receipt path.

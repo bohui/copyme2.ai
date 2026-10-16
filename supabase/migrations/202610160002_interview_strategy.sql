@@ -111,7 +111,7 @@ end $$;
 revoke all on function public.read_lifetime_memoir_lane_page(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.read_lifetime_memoir_lane_page(uuid,uuid) to service_role;
 
-create function public.read_lifetime_strategy_context(p_conversation_id uuid) returns jsonb
+create function public.read_lifetime_strategy_context_at(p_conversation_id uuid,p_plan_revision bigint) returns jsonb
 language plpgsql security definer set search_path=public,auth as $$
 declare pins jsonb; identity public.user_lifetime_conversation%rowtype; planned public.user_lifetime_interview_strategy%rowtype;
  rollout text; data jsonb; candidates jsonb; hint text; delivery jsonb;
@@ -133,7 +133,7 @@ begin
  delivery:=coalesce(delivery,jsonb_build_object('prior_delivered_question',null,'prior_delivered_sequence',null));
  select active_strategy into hint from public.user_lifetime_strategy_frontier where user_id=auth.uid() and project_id=identity.project_id;
  select * into planned from public.user_lifetime_interview_strategy where user_id=auth.uid() and project_id=identity.project_id and not shadow
-   order by plan_revision desc limit 1;
+   and (p_plan_revision is null or plan_revision=p_plan_revision) order by plan_revision desc limit 1;
  data:=planned.data;
  if planned.plan_revision is null or not exists(select 1 from public.user_memoir_project p join public.user_narrator_source s
    on s.user_id=p.user_id and s.project_id=p.project_id and s.id=planned.source_id and s.version=planned.source_version and s.status='active'
@@ -156,6 +156,11 @@ begin
  data:=jsonb_set(data,'{candidates}',candidates);
  return jsonb_build_object('mode',rollout,'plan',data,'planned_strategy_hint',hint)||delivery;
 end $$;
+revoke all on function public.read_lifetime_strategy_context_at(uuid,bigint) from public,anon,authenticated,service_role;
+create function public.read_lifetime_strategy_context(p_conversation_id uuid) returns jsonb
+language sql security definer set search_path=public,auth as $$
+ select public.read_lifetime_strategy_context_at(p_conversation_id,null);
+$$;
 revoke all on function public.read_lifetime_strategy_context(uuid) from public,anon;
 grant execute on function public.read_lifetime_strategy_context(uuid) to authenticated;
 
@@ -166,6 +171,12 @@ returns jsonb language plpgsql security definer set search_path=public,auth as $
 declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb; proposal jsonb; shadow_mode boolean;
  current_revision bigint; prior_sequence bigint; next_revision bigint; candidates jsonb; manifest jsonb; checkpoint uuid; lag bigint;
 begin
+ -- Disabled planning adds no repeated canonical page read/lock to ordinary
+ -- composer work. Strategy receipts still take the full guarded replay path.
+ if not (p_result ? 'strategy_proposal') and not exists(select 1 from public.lifetime_two_lane_rollout
+   where singleton and enabled and strategy_enabled) then
+   return public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
+ end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  -- Canonical receipts own retries including the complete proposal digest. Store
  -- the proposal inside the existing events envelope's result digest separately
@@ -272,11 +283,18 @@ begin
      or prior.question_delivered is distinct from question or prior.work_hint is distinct from p_outcome->>'work_hint' then
      raise exception 'saved outcome identity conflict' using errcode='PT409';end if;
  else
-   context:=public.read_lifetime_strategy_context((p_fence->'identity'->>'conversation_id')::uuid);
+   -- A validates its pinned revision, not the newest optional B result.
+   -- The publication fence still owns current policy/source authority. A
+   -- fallback that used no candidate cannot depend on a later B plan.
+   context:=public.read_lifetime_strategy_context_at((p_fence->'identity'->>'conversation_id')::uuid,
+     (p_outcome->>'plan_revision_seen')::bigint);
    if context->>'mode'<>'active' then raise exception 'strategy is disabled' using errcode='PT409';end if;
-   if coalesce(context->'plan'->>'plan_revision',context->>'invalid_plan_revision') is distinct from p_outcome->>'plan_revision_seen' then
-     raise exception 'strategy plan changed' using errcode='PT409';end if;
+   if p_outcome->>'plan_revision_seen' is not null and not exists(select 1 from public.user_lifetime_interview_strategy p
+     where p.user_id=auth.uid() and p.project_id=project and not p.shadow and p.plan_revision=(p_outcome->>'plan_revision_seen')::bigint) then
+     raise exception 'pinned strategy unavailable' using errcode='PT409';end if;
    if p_outcome->>'selected_candidate_id' is not null then
+     if p_outcome->>'plan_revision_seen' is null or context->'plan'->>'plan_revision' is distinct from p_outcome->>'plan_revision_seen' then
+       raise exception 'pinned candidate dependencies changed' using errcode='PT409';end if;
      select q into candidate from jsonb_array_elements(context->'plan'->'candidates') q where q->>'id'=p_outcome->>'selected_candidate_id';
      if candidate is null or p_outcome->>'selection_reason' not in ('prepared_candidate','adapted_candidate') then
        raise exception 'candidate unavailable' using errcode='PT409';end if;
