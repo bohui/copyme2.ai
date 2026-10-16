@@ -953,3 +953,21 @@ def test_source_robots_denial_does_not_stop_healthy_google_expansion(
         with pytest.raises(photos.PhotoResearchUnavailable):
             asyncio.run(browser._browse('google', 'Chengde', '1980s', search))
     assert len(calls) == expected_queries
+
+
+
+def test_expansion_cache_identity_tracks_server_provider_mode_not_credential_values(monkeypatch):
+    from apps.api.place_photo_repository import search_key
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'synthetic-engine')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.delenv('SERPAPI_KEY', raising=False)
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    browser_key = search_key('Chengde', '1980s')
+    monkeypatch.setenv('SERPAPI_KEY', 'private-one')
+    serpapi_key = search_key('Chengde', '1980s')
+    assert browser_key != serpapi_key
+    monkeypatch.setenv('SERPAPI_KEY', 'private-two')
+    assert search_key('Chengde', '1980s') == serpapi_key
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-three')
+    assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key}
