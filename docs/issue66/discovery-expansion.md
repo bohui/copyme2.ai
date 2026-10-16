@@ -8,7 +8,7 @@ Scope: opt-in offline-testable first slice, not full ticket acceptance.
 - `MEMOIR_PHOTO_EXPANSION=0` preserves existing SerpAPI and warm-Crawl4AI browser discovery.
 - When enabled, sparse historical SerpAPI research broadens trusted place aliases
   into archive, street, album/photographer and sampled year searches. At most
-  **7 discovery queries**, **36 distinct original/linked pages**, **65 seconds**,
+  **7 discovery queries**, **36 distinct original/linked pages**, **12 initial leads per query**, **65 seconds**,
   **4 concurrent original page inspections**, **6 same-host album links per page**
   and **2 linked-page hops** are allowed.
 - On the keyless Google CSE browser route, the existing warm crawler searches
@@ -42,8 +42,8 @@ and expanded-vs-legacy cache separation with HTTPX MockTransport. They do not
 require a local PostgreSQL instance or production deployment.
 
 **Verification status (authored 16 October 2026):** the exact
-`apps/api/place_photo_expansion.py` blob `08431d43972677d8bc02dbc71c948c8a112e2114`
-was reproduced locally, compiled and passed seven focused query/URL smoke
+`apps/api/place_photo_expansion.py` blob `959c21ec232bef5647c324ba3db1b77164ab7f84`
+was reproduced locally, compiled and passed focused query/URL smoke
 assertions. Repository-level pytest, browser and live-provider verification
 have **not** been executed in this remote editing context. The tests listed
 above are instructions, not claimed passes.
