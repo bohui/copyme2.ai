@@ -947,7 +947,7 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
     inspected, items, failures = set(), [], []
     fetchers = {}
 
-    def inspect(source):
+    def inspect(source, location_context=''):
         _, host, port = helper.valid_url(source)
         helper.public_addresses(host, port)
         lock, fetcher = fetchers[urlparse(source).netloc]
@@ -962,8 +962,35 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
         if (status != 200 or headers.get('content-type', '').split(';', 1)[0]
                 not in {'text/html', 'application/xhtml+xml'}):
             raise ValueError('Original photo source unavailable')
-        return [{**item, 'providers': ['google', 'serpapi']} for item in
-                _source_items(body.decode('utf-8', errors='replace'), final, place, period)]
+        markup = body.decode('utf-8', errors='replace')
+        parsed = helper.PageParser(final)
+        parsed.feed(markup)
+        page = parsed.output()
+        # A verified album establishes a locality cue for its children only;
+        # album dates are never passed as scene-date evidence.
+        page_title = _text(page.get('title'))
+        if re.search(r'chengde|承德', place, re.I) and re.search(r'chengdu|成都', page_title, re.I):
+            return [], []
+        if helper._crawl4ai_location_matches(page_title, place):
+            location_context = page_title
+        photos = [{**item, 'providers': ['google', 'serpapi']} for item in
+                  _source_items(markup, final, place, period, location_context=location_context)]
+        leads = []
+        if location_context:
+            host_name = urlparse(final).hostname
+            for link in page.get('links', []):
+                target = link.get('url', '')
+                address = urlparse(target)
+                if (address.scheme != 'https' or address.hostname != host_name
+                        or address.port not in {None, 443} or address.username or address.password
+                        or not re.search(r'/(?:photos?|images?|albums?|archives?|gallery|collection|pictures?|pics?)(?:/|$)',
+                                         address.path, re.I)):
+                    continue
+                if target != final and target not in [entry[0] for entry in leads]:
+                    leads.append((target, location_context))
+                if len(leads) >= 6:
+                    break
+        return photos, leads
 
     for query in queries:
         if len(items) >= MAX_RESULTS or len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
@@ -1012,11 +1039,29 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
             sources.append(source)
         for source in sources:
             fetchers.setdefault(urlparse(source).netloc, (Lock(), helper.Fetcher()))
-        if sources:
+        # At most two link hops within publicly accessible, locality-verified
+        # same-host collections. Failed, repeated and blocked leads consume
+        # the same page budget; one source may yield several different photos.
+        pending = [(source, 0, '') for source in sources]
+        while pending and len(items) < MAX_RESULTS and time.monotonic() < deadline:
+            batch, pending = pending[:4], pending[4:]
             with ThreadPoolExecutor(max_workers=4) as executor:
-                for future in as_completed([executor.submit(inspect, source) for source in sources]):
+                futures = [executor.submit(inspect, source, context)
+                           for source, _, context in batch]
+                for (source, depth, context), future in zip(batch, futures):
                     try:
-                        items = _deduplicate(items + future.result())
+                        found, links = future.result()
+                        items = _deduplicate(items + found)
+                        if depth >= 2 or len(items) >= MAX_RESULTS:
+                            continue
+                        for url, album_context in links:
+                            if len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+                                break
+                            if url in inspected:
+                                continue
+                            inspected.add(url)
+                            fetchers.setdefault(urlparse(url).netloc, (Lock(), helper.Fetcher()))
+                            pending.append((url, depth + 1, album_context))
                     except (helper.ResearchError, OSError, ValueError, http.client.HTTPException,
                             TimeoutError):
                         failures.append({'provider': 'google', 'reason': 'source_unavailable'})
