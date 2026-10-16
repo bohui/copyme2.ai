@@ -256,15 +256,14 @@ def test_background_checkpoint_is_bounded_resumable_and_keeps_composer_fragment_
     assert result['complete'] is False
     while not result['complete']:
         result=service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
-    assert result['coverage_end']==22
+    assert result['coverage_end']==0 and result['summary_pending'] and not result['checkpoint_published']
     checkpoint=rpc(sql,'read_lifetime_checkpoint',f"'{identity['conversation_id']}',2,'gpt-5.6-luna-pooled','lifetime-v1'")
-    assert checkpoint['coverage_end']==22
-    assert checkpoint['manifest']['source_revision']==23
+    assert checkpoint is None, 'A coverage proof cannot license silently dropped narrator evidence'
     assert sql('select count(distinct sequence) from public.user_lifetime_covered_evidence;').stdout.strip()=='22'
     assert sql("select count(*) from public.user_lifetime_covered_evidence where status in ('withdrawn','superseded');").stdout.strip()=='1'
     assert sql('select jsonb_build_array(summary_source,summary_offset) from public.user_lifetime_lane_snapshot;').stdout.strip()==before
-    assert service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")['coverage_end']==22
-    assert sql('select count(*) from public.user_lifetime_checkpoint;').stdout.strip()=='1'
+    assert service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")['summary_pending']
+    assert sql('select count(*) from public.user_lifetime_checkpoint;').stdout.strip()=='0'
 
 
 def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_deduplicates(sql,tmp_path,monkeypatch):

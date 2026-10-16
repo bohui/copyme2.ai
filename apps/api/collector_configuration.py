@@ -27,6 +27,6 @@ def collector_configuration(legacy_model: str) -> CollectorConfiguration:
         raise CollectorConfigurationError('Invalid collector model configuration')
     if effort not in {None, 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'}:
         raise CollectorConfigurationError('Invalid collector reasoning effort configuration')
-    if version not in {'legacy', 'compact-v1'}:
+    if version not in {'legacy', 'compact-v1', 'two-lane-v1'}:
         raise CollectorConfigurationError('Invalid collector prompt version configuration')
     return CollectorConfiguration(model, effort, version)

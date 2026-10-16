@@ -247,11 +247,12 @@ async def _send_generic(send, message, publisher):
 
 class GovernedStreamingResponse(StreamingResponse):
     def __init__(self, content, *, publisher, status_code=200, headers=None,
-                 media_type='application/x-ndjson', background=None):
+                 media_type='application/x-ndjson', background=None, on_delivered=None):
         if not isinstance(content, GovernedTurnStream):
             raise TypeError('GovernedStreamingResponse requires governed_turn_events')
         self.publisher = publisher
         self.governed_stream = content
+        self.on_delivered=on_delivered
         self.delivered = False
         super().__init__(content, status_code=status_code,
                          headers={**STREAM_HEADERS, **(headers or {})},
@@ -271,6 +272,7 @@ class GovernedStreamingResponse(StreamingResponse):
                     try:
                         await send_governed(send, message, publisher=self.publisher,
                                             fence=envelope.fence)
+                        if self.on_delivered:self.on_delivered(json.loads(envelope.body))
                         if envelope.terminal:
                             terminal_delivered = json.loads(envelope.body).get('type') == 'result'
                     except Exception as error:
@@ -302,10 +304,11 @@ class GovernedStreamingResponse(StreamingResponse):
 class GovernedJSONResponse(JSONResponse):
     """Freeze whole-body JSON and retain its lease until actual send completion."""
     def __init__(self, content, *, publisher, fence, cleanup=None, status_code=200,
-                 headers=None, media_type=None, background=None):
+                 headers=None, media_type=None, background=None, on_delivered=None):
         self.publisher = publisher
         self.fence = _copy_fence(fence)
         self._cleanup = cleanup
+        self.on_delivered=on_delivered
         self._closing = None
         self.delivered = False
         super().__init__(content, status_code=status_code, headers=headers,
@@ -326,6 +329,7 @@ class GovernedJSONResponse(JSONResponse):
                 await send_governed(send, message, publisher=self.publisher, fence=self.fence)
                 if not message.get('more_body', False):
                     self.delivered = True
+                    if self.on_delivered:self.on_delivered({'type':'result'})
             else:
                 await _send_generic(send, message, self.publisher)
         try:

@@ -11,6 +11,7 @@ alter table public.lifetime_two_lane_rollout enable row level security;
 revoke all on public.lifetime_two_lane_rollout from public,anon,authenticated,service_role;
 insert into public.lifetime_two_lane_rollout default values;
 alter table public.user_lifetime_place_journey add column derived_fence jsonb;
+alter table public.user_lifetime_checkpoint add column lossless boolean not null default false;
 create table public.user_lifetime_two_lane_source (
  user_id uuid not null,project_id text not null,source_id uuid not null,
  primary key(user_id,project_id,source_id),
@@ -72,6 +73,10 @@ language plpgsql security definer set search_path=public,auth as $$
 declare page jsonb; descriptor jsonb;
 begin
  page:=public.read_lifetime_memoir_lane_page_before_two_lanes(p_lane_id,p_token);
+ if exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
+   and exists(select 1 from public.user_lifetime_two_lane_source where user_id=(page->>'user_id')::uuid and project_id=page->>'project_id') then
+   page:=page||jsonb_build_object('two_lane_maintenance_required',true);
+ end if;
  if page->>'skill'='timeline' and exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) and exists(select 1 from public.user_lifetime_two_lane_source m
    where m.user_id=(page->>'user_id')::uuid and m.project_id=page->>'project_id' and m.source_id=(page->'source'->>'id')::uuid) then
    select jsonb_build_object('schema_version',1,'task_version','two-lane-v1','execution_generation',c.execution_generation,
@@ -83,6 +88,11 @@ begin
    left join public.user_interview_turn t on t.user_id=c.user_id and t.project_id=c.project_id and t.source_id=(page->'source'->>'id')::uuid
    where c.user_id=(page->>'user_id')::uuid and c.conversation_id=(page->>'conversation_id')::uuid;
    page:=(page-'input_digest'-'page_digest')||jsonb_build_object('two_lane',descriptor);
+   page:=page||jsonb_build_object('input_digest',encode(sha256(convert_to((page-'token')::text,'UTF8')),'hex'));
+   page:=page||jsonb_build_object('page_digest',encode(sha256(convert_to(page::text,'UTF8')),'hex'));
+ end if;
+ if page ? 'two_lane_maintenance_required' then
+   page:=page-'input_digest'-'page_digest';
    page:=page||jsonb_build_object('input_digest',encode(sha256(convert_to((page-'token')::text,'UTF8')),'hex'));
    page:=page||jsonb_build_object('page_digest',encode(sha256(convert_to(page::text,'UTF8')),'hex'));
  end if;
@@ -167,17 +177,21 @@ begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  if page ? 'two_lane' then
    if p_page_digest is distinct from page->>'page_digest' then raise exception 'stale derived page' using errcode='PT409';end if;
-   if jsonb_typeof(p_result->'prepared_questions') is distinct from 'array' or jsonb_array_length(p_result->'prepared_questions')>3
+   if jsonb_typeof(p_result->'prepared_questions') is distinct from 'array' or jsonb_array_length(p_result->'prepared_questions')>5
      or octet_length((p_result->'prepared_questions')::text)>6000
      or exists(select 1 from jsonb_object_keys(p_result) k where k not in ('events','place_journeys','prepared_questions')) then
      raise exception 'bounded derived hints required' using errcode='22023';end if;
+   if (select count(*) from jsonb_array_elements(p_result->'prepared_questions')) is distinct from
+     (select count(distinct lower(btrim(candidate.value->>'question'))) from jsonb_array_elements(p_result->'prepared_questions') candidate(value)) then
+     raise exception 'prepared questions must be distinct' using errcode='22023';end if;
    perform public.validate_two_lane_places(page->'source'->>'text',p_result->'place_journeys');
    for q in select * from jsonb_array_elements(p_result->'prepared_questions') loop
      if jsonb_typeof(q)<>'object' or exists(select 1 from jsonb_object_keys(q) k where k not in ('question','topic','quote'))
        or jsonb_typeof(q->'question') is distinct from 'string' or length(q->>'question') not between 1 and 800
        or jsonb_typeof(q->'topic') is distinct from 'string' or length(q->>'topic') not between 1 and 120
        or jsonb_typeof(q->'quote') is distinct from 'string' or length(q->>'quote') not between 1 and 500
-       or strpos(page->'source'->>'text',q->>'quote')=0 then raise exception 'grounded question hints required' using errcode='22023';end if;
+       or strpos(page->'source'->>'text',q->>'quote')=0
+       or length(regexp_replace(q->>'question','[^?？]','','g'))>1 then raise exception 'grounded question hints required' using errcode='22023';end if;
    end loop;
    if page->'two_lane'->>'work_mode'='reply_only' and (jsonb_array_length(p_result->'events')>0
      or jsonb_array_length(p_result->'place_journeys')>0 or jsonb_array_length(p_result->'prepared_questions')>0) then
@@ -189,17 +203,19 @@ begin
    if jsonb_array_length(p_result->'place_journeys')>0 then
      insert into public.user_lifetime_place_journey(user_id,project_id,source_id,source_version,journeys,derived_fence) values(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid,
        (page->'source'->>'version')::bigint,p_result->'place_journeys',jsonb_build_object('policy_epoch',snap.policy_epoch,
-         'preference_revision',snap.preference_revision,'execution_generation',(page->'two_lane'->>'execution_generation')::bigint))
+         'preference_revision',snap.preference_revision,'execution_generation',(page->'two_lane'->>'execution_generation')::bigint,'privacy_digest',snap.privacy_digest))
      on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,derived_fence=excluded.derived_fence,
        journeys=(select coalesce(jsonb_agg(distinct j),'[]') from jsonb_array_elements(
          case when user_lifetime_place_journey.source_version=excluded.source_version then user_lifetime_place_journey.journeys else '[]' end||excluded.journeys) j);
    end if;
+   if page->'two_lane'->>'strategy_mode' is null then
    insert into public.user_lifetime_prepared_question values(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid,
      (page->'source'->>'version')::bigint,snap.source_high_water,snap.policy_epoch,snap.preference_revision,
      (page->'two_lane'->>'execution_generation')::bigint,(page->'two_lane'->>'phase_revision')::bigint,snap.id,p_page_digest,p_result->'prepared_questions')
    on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,source_revision=excluded.source_revision,
      policy_epoch=excluded.policy_epoch,preference_revision=excluded.preference_revision,execution_generation=excluded.execution_generation,
      phase_revision=excluded.phase_revision,snapshot_id=excluded.snapshot_id,page_digest=excluded.page_digest,questions=excluded.questions;
+   end if;
  end if;
  return result;
 end $$;
@@ -219,7 +235,7 @@ declare snap public.user_lifetime_lane_snapshot%rowtype; identity public.user_li
  processed integer; fingerprint text; count_items bigint; chain text; last_seq bigint; last_start integer;
 begin
  if p_steps is null or p_steps not between 1 and 4 or p_model not in
-   ('gpt-5.6-luna-pooled','gpt-5.6-luna-memoir-low','synthetic-byte-bpe') then raise exception 'bounded checkpoint configuration required';end if;
+   ('gpt-5.6-luna-pooled','gpt-5.6-luna-memoir-low','memoir-luna-low','legal2ai-luna-low','synthetic-byte-bpe') then raise exception 'bounded checkpoint configuration required';end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  owner:=snap.user_id;
  if not exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='timeline') then
@@ -235,7 +251,7 @@ begin
  pins:=public.read_lifetime_pinned(snap.conversation_id);
  if pins->'privacy_complete' is distinct from 'true'::jsonb then raise exception 'complete current privacy required' using errcode='PT409';end if;
  predecessor:=identity.checkpoint_id;
- select coverage_end into start_sequence from public.user_lifetime_checkpoint where id=predecessor and published;
+ select coverage_end into start_sequence from public.user_lifetime_checkpoint where id=predecessor and published and lossless;
  start_sequence:=coalesce(start_sequence,0);
  -- Never cover an in-flight current source. The next A consumes this accepted
  -- checkpoint plus every remaining canonical position, including tombstones.
@@ -287,6 +303,17 @@ begin
 
  end loop;
  if saved.complete then
+   -- Publish only a complete lossless replacement. A raw inventory/hash is not
+   -- a summary. Larger intervals retain mandatory raw context and fail closed
+   -- on A budget overflow until an accepted bounded summary is available.
+   if (select count(*) from public.user_lifetime_covered_evidence where maintenance_id=saved.id and status='active')
+       + coalesce((select jsonb_array_length(c.evidence) from public.user_lifetime_checkpoint c where c.id=predecessor and c.lossless),0)>16 then
+     perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+     return jsonb_build_object('complete',true,'coverage_end',start_sequence,'summary_pending',true,'checkpoint_published',false);
+   end if;
+   select coalesce(c.evidence,'[]'),coalesce(c.manifest->'sources','[]') into evidence,manifest_sources
+     from public.user_lifetime_checkpoint c where c.id=predecessor and c.lossless;
+   evidence:=coalesce(evidence,'[]');manifest_sources:=coalesce(manifest_sources,'[]');
    -- The project lock and timeline admission remain held through predecessor
    -- CAS and every derived write. All exact windows/tombstones were scanned.
    if identity.checkpoint_id is distinct from saved.predecessor_id or
@@ -295,7 +322,7 @@ begin
    for item in select c.*,s.language,substring(s.text from c.char_start+1 for c.char_end-c.char_start) original
      from public.user_lifetime_covered_evidence c join public.user_narrator_source s
        on s.user_id=owner and s.project_id=snap.project_id and s.id=c.source_id and s.version=c.version and s.status='active'
-     where c.maintenance_id=saved.id and c.status='active' order by c.sequence desc,c.char_start desc limit 2 loop
+     where c.maintenance_id=saved.id and c.status='active' order by c.sequence,c.char_start loop
      evidence:=evidence||jsonb_build_array(jsonb_build_object('schema_version',1,'source_id',item.source_id,'version',item.version,
        'char_start',item.char_start,'char_end',item.char_end,'original',item.original,'language',item.language,
        'role','storyteller','assertion','asserted','allowed_use',jsonb_build_array('conversation'),'policy_epoch',project.policy_epoch));
@@ -304,9 +331,9 @@ begin
      end if;
    end loop;
    insert into public.user_lifetime_checkpoint(user_id,conversation_id,predecessor_id,fence,coverage_end,model,prompt_version,pinned,
-     manifest,evidence,published,coverage_proof_id) values(owner,snap.conversation_id,predecessor,checkpoint_fence,end_sequence,p_model,'lifetime-v1',pins,
+     manifest,evidence,published,coverage_proof_id,lossless) values(owner,snap.conversation_id,predecessor,checkpoint_fence,end_sequence,p_model,'lifetime-v1',pins,
        jsonb_build_object('schema_version',1,'identity',checkpoint_fence->'identity','policy_epoch',project.policy_epoch,
-         'source_revision',project.source_sequence,'sources',manifest_sources),evidence,true,saved.id) returning id into candidate;
+         'source_revision',project.source_sequence,'sources',manifest_sources),evidence,true,saved.id,true) returning id into candidate;
    update public.user_lifetime_conversation set checkpoint_id=candidate where user_id=owner and conversation_id=snap.conversation_id
      and checkpoint_id is not distinct from predecessor;
    if not found then raise exception 'checkpoint CAS failed' using errcode='PT409';end if;
@@ -356,11 +383,14 @@ end $$;
 
 create or replace function public.read_lifetime_place_journeys(p_project_id text,p_source_id uuid default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare owner uuid:=auth.uid(); result jsonb;
+declare owner uuid:=auth.uid(); result jsonb; pins jsonb; privacy_hash text;
 begin
  if not exists(select 1 from public.user_lifetime_conversation where user_id=owner and project_id=p_project_id)
    then raise exception 'canonical conversation required'; end if;
  perform 1 from public.user_memoir_project where user_id=owner and project_id=p_project_id for share;
+ pins:=public.read_lifetime_pinned((select conversation_id from public.user_lifetime_conversation where user_id=owner and project_id=p_project_id));
+ privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
+   'paused_topics',pins->'paused_topics','privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
  select coalesce(jsonb_agg(journey||jsonb_build_object('source_sequence',sequence,
    'status','active','revision',version,'updated_at',created_at) order by sequence,ordinal),'[]') into result
  from (
@@ -373,7 +403,7 @@ begin
      and (p.derived_fence is null or exists(select 1 from public.user_lifetime_conversation c join public.user_memoir_project m
        on m.user_id=c.user_id and m.project_id=c.project_id where c.user_id=p.user_id and c.project_id=p.project_id
        and p.derived_fence->>'policy_epoch'=m.policy_epoch::text
-       and p.derived_fence->>'preference_revision'=c.preference_revision::text
+       and p.derived_fence->>'privacy_digest'=privacy_hash
        and p.derived_fence->>'execution_generation'=c.execution_generation::text)) and (p_source_id is null or p.source_id=p_source_id)
    order by journey->'hierarchy',journey->>'granularity',s.sequence desc,ordinal
    limit 1000

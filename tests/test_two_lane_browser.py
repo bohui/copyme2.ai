@@ -10,15 +10,17 @@ pytestmark=pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'),reason='Requir
 
 
 @pytest.mark.parametrize('locale',['en-AU','zh-CN'])
-def test_saved_reply_precedes_background_workspace(locale):
+@pytest.mark.parametrize('strategy',['comfort','explore','shape'])
+def test_saved_reply_precedes_background_workspace(locale,strategy):
     project={'id':'issue70-browser','revision':1,'profile':{'preferred_language':locale},'mode':'self','workspace_unlocked':False}
     history=StoryHistoryFixture(STAGE_OWNER,project['id'],'fixture-only')
     place={'schema_version':1,'place':'Hobart','hierarchy':['Earth','Australia','Tasmania','Hobart'],
         'granularity':'city','latitude':-42.88,'longitude':147.32,'status':'active','source_sequence':1,'revision':1}
-    reply='What do you remember about the river?' if locale=='en-AU' else '您还记得河边的什么？'
+    reply=({'comfort':'Where would you like to begin?','explore':'What do you remember about the river?','shape':'Was that before or after the move?'}[strategy]
+        if locale=='en-AU' else {'comfort':'您想从哪里聊起？','explore':'您还记得河边的什么？','shape':'那是在搬家之前还是之后？'}[strategy])
     saved=False;ready=False;reads=[]
     def api(route):
-        nonlocal saved
+        nonlocal saved,reply
         path=route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
         if history.serve(route):return
         if path=='/agent/config':data={'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase','show_draft_updates':False}
@@ -32,7 +34,9 @@ def test_saved_reply_precedes_background_workspace(locale):
         elif path=='/story/private-draft':data={'status':'empty','preview':None,'milestone':None,'pending':False}
         elif path=='/agent/place-journey':data={'place_journey':place if ready else None}
         elif path=='/agent/turn':
-            packet=route.request.post_data_json;record=history.save(packet,reply);saved=True
+            packet=route.request.post_data_json
+            if history.rows:reply='What did you grow in your garden?' if locale=='en-AU' else '您的花园里种了什么？'
+            record=history.save(packet,reply);saved=True
             data={'reply':reply,'project_id':project['id'],'client_turn_id':record['client_turn_id'],
                 'accepted_source_id':record['_source']['id'],'reply_id':'saved-reply','conversation_saved':True}
             return route.fulfill(content_type='application/x-ndjson',body='\n'.join(json.dumps(e) for e in [
@@ -65,5 +69,15 @@ def test_saved_reply_precedes_background_workspace(locale):
             assert any(reads)
             expect(page.locator('.assistant-message').last).to_contain_text(reply)
             assert len(history.rows)==1
+            # The strategy lives on the server; the chat exposes the response and
+            # ordinary controls. A redirect can continue while B is already ready.
+            for label in ['Comfort','Explore','Shape']:
+                expect(page.get_by_role('button',name=label,exact=True)).to_have_count(0)
+            page.locator('#chat-input').fill("Let's talk about my garden." if locale=='en-AU' else '我想聊聊我的花园。')
+            page.locator('.send-button').click()
+            expect(page.locator('.assistant-message').last).to_contain_text('garden' if locale=='en-AU' else '花园',timeout=30000)
+            expect(page.locator('.send-button')).to_be_enabled()
+            expect(page.locator('.place-journey-heading')).to_contain_text('Hobart')
+            assert len(history.rows)==2
         finally:
             context.close();browser.close()

@@ -35,10 +35,10 @@ class PreparedQuestion(BaseModel):
 
 
 class DerivedHints(_Places):
-    prepared_questions: list[PreparedQuestion] = Field(max_length=3)
+    prepared_questions: list[PreparedQuestion] = Field(max_length=5)
 
 
-def extraction_contract():
+def extraction_contract(*, strategy=False):
     from .memory_events import extraction_instructions, extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
@@ -49,7 +49,7 @@ def extraction_contract():
     schema['properties'].update(extension['properties'])
     schema['required']+=list(extension['properties'])
     instructions=extraction_instructions()+'''
-In this same bounded extraction pass also return place_journeys and at most three
+In this same bounded extraction pass also return place_journeys and at most five
 prepared_questions. Empty arrays are valid. Places must be coarse public
 administrative places literally named in this source window, hierarchy from
 Earth to the exact source-script place; no private address, building or inferred
@@ -59,6 +59,13 @@ not a delivered question. Prepared questions use lane_context.preferences.langua
 independently of the memoir edition locale. Respect current privacy/topics. Never infer
 preferences, grant access, publish, charge or claim an upload was processed.
 '''
+    if strategy:
+        from .interview_strategy import StrategyProposal
+        proposal=StrategyProposal.model_json_schema()
+        schema.setdefault('$defs',{}).update(proposal.get('$defs',{}))
+        schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
+        schema['required'].append('strategy_proposal')
+        instructions+='\nPropose the next internal comfort/explore/shape strategy and objective. Shape clarifies chronology/identity/links, never composition. Rich first narratives can explore immediately; no turn gates. Corrections preserve continuity; short answers alone imply no discomfort. Respect legacy pacing and current exclusions. A normal grounded pool is 2–5 when supported, with no filler minimum. Focus IDs must be active events in this page or []. This proposal changes no preferences, permissions or actual delivered questions.'
     return instructions,schema
 
 

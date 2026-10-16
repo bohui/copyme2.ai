@@ -107,7 +107,12 @@ def extraction_events(raw,page,original=None):
 async def _extract(page,worker):
     from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
     if (page.get('two_lane') or {}).get('work_mode')=='reply_only':
-        return {'events':[],'place_journeys':[],'prepared_questions':[]}
+        result={'events':[],'place_journeys':[],'prepared_questions':[]}
+        if (page.get('two_lane') or {}).get('strategy_mode'):
+            # No extraction/classifier call, and no inferred downgrade from a
+            # short reply or pause. Preserve the prior planned strategy unchanged.
+            result['strategy_proposal']=None
+        return result
     original=await worker.broker.rpc('read_lifetime_lane_policy_source',p_lane_id=page['lane_id'],p_token=page['token'])
     packet={'schema_version':1,'sources':[page['source']],
         'events':page['events'],'interview_context':{},'preferences':page['preferences'],
@@ -117,7 +122,7 @@ async def _extract(page,worker):
     instructions,schema=extraction_instructions(),extraction_schema()
     if page.get('two_lane'):
         from .two_lane_memory import extraction_contract
-        instructions,schema=extraction_contract()
+        instructions,schema=extraction_contract(strategy=bool((page.get('two_lane') or {}).get('strategy_mode')))
     check_model_packet(packet,instructions,schema)
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
@@ -131,6 +136,9 @@ async def _extract(page,worker):
             if page.get('two_lane'):
                 from .two_lane_memory import derived_hints
                 result.update(derived_hints(raw,page))
+                if (page.get('two_lane') or {}).get('strategy_mode'):
+                    from .interview_strategy import validate_proposal
+                    result['strategy_proposal']=validate_proposal(raw['strategy_proposal'],page)
             return result
         except (ValueError,TypeError,KeyError) as error:
             # Only fixed validator messages cross the logging boundary.
@@ -213,7 +221,7 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason='LIFETIME_PRIVACY_MAINTENANCE_REQUIRED')
         if page['complete']:
-            if page['skill']=='timeline' and job.get('two_lane'):
+            if page['skill']=='timeline' and page.get('two_lane_maintenance_required') is True:
                 from .collector_configuration import collector_configuration
                 model=collector_configuration(os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')).model
                 checkpoint=await worker.broker.rpc('advance_two_lane_checkpoint',p_lane_id=job['lane_id'],p_token=job['token'],p_steps=1,p_model=model)

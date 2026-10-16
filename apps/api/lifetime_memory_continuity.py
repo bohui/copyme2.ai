@@ -120,7 +120,11 @@ def governed_collector_schema(context=None):
     The provider requires every wire property; old responses may still omit the
     extension when validated. The caller budgets these full schema bytes.
     """
-    schema = deepcopy(collector_schema(context))
+    if (context or {}).get('strategy_selector'):
+        from .interview_strategy import selector_schema
+        schema=selector_schema()
+    else:
+        schema = deepcopy(collector_schema(context))
     extension = _Updates.model_json_schema()
     schema.setdefault('$defs', {}).update(extension['$defs'])
     item = schema['$defs']['_ContinuityUpdate']['properties']
@@ -264,8 +268,13 @@ def validate_governed_collector_result(raw, context):
     value = json.loads(raw) if isinstance(raw, str) else raw
     if not isinstance(value, dict):
         raise ValueError('Collector result must be an object')
+    outcome=None
+    if context.get('strategy_selector'):
+        from .interview_strategy import adapt_selection
+        value,outcome,stopped=adapt_selection(value,context)
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
+    if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
     updates = value.get('continuity_updates', [])
     if isinstance(updates, list):
