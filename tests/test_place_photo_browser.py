@@ -923,3 +923,33 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
         'https://archive.example/photos/1', 'https://archive.example/photos/2'}
     assert album in fetched and 'https://archive.example/photos/3' in fetched
     assert all('Chengde' in item['location_evidence'] for item in result)
+
+
+
+@pytest.mark.parametrize('scope,expected_queries', [('source', 3), ('provider', 1)])
+def test_source_robots_denial_does_not_stop_healthy_google_expansion(
+        monkeypatch, fake_crawler, scope, expected_queries):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    accepted = browser._source_items(photo_html(), 'https://archive.example/photo/1',
+                                     'Chengde', '1980s')
+    calls = []
+
+    async def query(provider, place, period, url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            raise photos.PhotoResearchUnavailable(failures=[{
+                'provider': 'google', 'reason': 'robots_denied', 'scope': scope,
+            }])
+        return accepted
+
+    monkeypatch.setattr(browser, '_browse_query', query)
+    search = browser._search_url('google', 'Chengde', '1980s')
+    if scope == 'source':
+        results = asyncio.run(browser._browse('google', 'Chengde', '1980s', search))
+        assert len(results) == 1 and results[0]['date_expression'] == '1983-10-01'
+    else:
+        with pytest.raises(photos.PhotoResearchUnavailable):
+            asyncio.run(browser._browse('google', 'Chengde', '1980s', search))
+    assert len(calls) == expected_queries
