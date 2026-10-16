@@ -11,8 +11,14 @@ export function applyDerivedWorkspace(state, update) {
   if (prior?.project_id === update.project_id
       && (update.policy_epoch < prior.policy_epoch
         || (update.policy_epoch === prior.policy_epoch && update.source_revision < prior.source_revision))) return false;
-  const places = update.places.filter(p => p?.status === 'active' && p.place && Array.isArray(p.hierarchy));
   const previousPlaces = state.project.profile?.memory_places || [];
+  const preserve = prior ? prior.policy_epoch === update.policy_epoch : update.policy_epoch === 1;
+  const previous = new Map(previousPlaces.map(p => [placeHistoryKey(p),p]));
+  const decorations = ['pictures','map_city','map_city_key','map_pin','life_stage','life_stages','period'];
+  const places = update.places.filter(p => p?.status === 'active' && p.place && Array.isArray(p.hierarchy)).map(p => {
+    const saved = preserve && previous.get(placeHistoryKey(p));
+    return {...(saved ? Object.fromEntries(decorations.filter(key => Object.hasOwn(saved,key)).map(key => [key,saved[key]])) : {}),...p};
+  });
   state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision};
   if (JSON.stringify(previousPlaces) === JSON.stringify(places)
       && (!state.placeJourney || places.some(p => placeHistoryKey(p) === placeHistoryKey(state.placeJourney)))) return false;

@@ -45,7 +45,7 @@ begin
    where t.user_id=auth.uid() and t.project_id=p_project_id and t.client_turn_id<>p_client_turn_id
    and not exists(select 1 from public.user_lifetime_reply r where r.user_id=t.user_id
      and r.conversation_id=identity.conversation_id and r.client_turn_id=t.client_turn_id)) then
-   raise exception 'saved source has a pending reply; retry its original turn' using errcode='40001';
+   raise exception 'saved source has a pending reply; retry its original turn' using errcode='PT409';
  end if;
  result:=public.accept_user_interview_turn(p_project_id,p_client_turn_id,p_text,p_kind,p_language,p_uploaded_photo_ids,p_photo_selection);
  insert into public.user_lifetime_two_lane_source values(auth.uid(),p_project_id,(result->'source'->>'id')::uuid) on conflict do nothing;
@@ -166,7 +166,7 @@ begin
  end if;
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  if page ? 'two_lane' then
-   if p_page_digest is distinct from page->>'page_digest' then raise exception 'stale derived page' using errcode='40001';end if;
+   if p_page_digest is distinct from page->>'page_digest' then raise exception 'stale derived page' using errcode='PT409';end if;
    if jsonb_typeof(p_result->'prepared_questions') is distinct from 'array' or jsonb_array_length(p_result->'prepared_questions')>3
      or octet_length((p_result->'prepared_questions')::text)>6000
      or exists(select 1 from jsonb_object_keys(p_result) k where k not in ('events','place_journeys','prepared_questions')) then
@@ -233,7 +233,7 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',owner::text,true);
  pins:=public.read_lifetime_pinned(snap.conversation_id);
- if pins->'privacy_complete' is distinct from 'true'::jsonb then raise exception 'complete current privacy required' using errcode='40001';end if;
+ if pins->'privacy_complete' is distinct from 'true'::jsonb then raise exception 'complete current privacy required' using errcode='PT409';end if;
  predecessor:=identity.checkpoint_id;
  select coverage_end into start_sequence from public.user_lifetime_checkpoint where id=predecessor and published;
  start_sequence:=coalesce(start_sequence,0);
@@ -246,7 +246,7 @@ begin
  end if;
  if not exists(select 1 from public.user_lifetime_source_inventory where user_id=owner and project_id=snap.project_id
    and record_count=project.source_sequence and max_sequence=project.source_sequence) then
-   raise exception 'complete canonical source inventory required' using errcode='40001';end if;
+   raise exception 'complete canonical source inventory required' using errcode='PT409';end if;
  checkpoint_fence:=jsonb_build_object('schema_version',1,'identity',jsonb_build_object('schema_version',1,'owner_id',owner,
    'conversation_id',snap.conversation_id,'project_id',snap.project_id,'product','memoir'),
    'policy_epoch',project.policy_epoch,'source_revision',project.source_sequence,'execution_generation',identity.execution_generation,
@@ -291,7 +291,7 @@ begin
    -- CAS and every derived write. All exact windows/tombstones were scanned.
    if identity.checkpoint_id is distinct from saved.predecessor_id or
      saved.item_count<>(select count(*) from public.user_lifetime_covered_evidence where maintenance_id=saved.id) then
-     raise exception 'checkpoint predecessor or coverage changed' using errcode='40001';end if;
+     raise exception 'checkpoint predecessor or coverage changed' using errcode='PT409';end if;
    for item in select c.*,s.language,substring(s.text from c.char_start+1 for c.char_end-c.char_start) original
      from public.user_lifetime_covered_evidence c join public.user_narrator_source s
        on s.user_id=owner and s.project_id=snap.project_id and s.id=c.source_id and s.version=c.version and s.status='active'
@@ -309,7 +309,7 @@ begin
          'source_revision',project.source_sequence,'sources',manifest_sources),evidence,true,saved.id) returning id into candidate;
    update public.user_lifetime_conversation set checkpoint_id=candidate where user_id=owner and conversation_id=snap.conversation_id
      and checkpoint_id is not distinct from predecessor;
-   if not found then raise exception 'checkpoint CAS failed' using errcode='40001';end if;
+   if not found then raise exception 'checkpoint CAS failed' using errcode='PT409';end if;
  end if;
  perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
  return jsonb_build_object('complete',saved.complete,'coverage_end',case when saved.complete then end_sequence else start_sequence end,
@@ -325,7 +325,7 @@ begin
  perform public.lock_lifetime_publication(p_fence);
  select * into source from public.user_narrator_source
    where user_id=owner and project_id=project and id=p_source_id and version=p_source_version and status='active';
- if not found then raise exception 'current narrator source required' using errcode='40001'; end if;
+ if not found then raise exception 'current narrator source required' using errcode='PT409'; end if;
  if jsonb_typeof(p_journeys) is distinct from 'array' or jsonb_array_length(p_journeys)>8
    or octet_length(p_journeys::text)>8192 then raise exception 'bounded place journeys required' using errcode='22023'; end if;
  for journey in select * from jsonb_array_elements(p_journeys) loop
