@@ -48,10 +48,12 @@ def test_complete_page_reclaim_still_finishes_durable_maintenance(sql):
     assert sql('select complete from public.user_lifetime_compaction;').stdout.strip()=='f'
     page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
     result=asyncio.run(execute_lifetime_lane(page,SimpleNamespace(broker=Broker(sql))))
-    assert result['retrieval_complete']
+    assert result['status']=='pending' and not result['retrieval_complete']
+    assert result['error']=='LIFETIME_PROVIDER_AUTHORITY_UNAVAILABLE'
     assert sql('select complete from public.user_lifetime_compaction;').stdout.strip()=='t'
-    # A raw inventory is not a semantic summary. This large original cannot
-    # disappear behind two excerpt windows.
+    assert sql('select summary_required from public.user_lifetime_compaction;').stdout.strip()=='t'
+    # Coverage is complete, but this worker has no configured summary provider.
+    # The required semantic step stays pending; no raw original is discarded.
     assert sql('select count(*) from public.user_lifetime_checkpoint;').stdout.strip()=='0'
 
 

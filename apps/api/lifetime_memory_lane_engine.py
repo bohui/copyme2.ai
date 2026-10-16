@@ -87,6 +87,18 @@ class TwoLaneFence(Contract):
     strategy_revision: int = Field(default=0,ge=0,strict=True)
 
 
+class MemorySummaryFence(Contract):
+    maintenance_id:UUID
+    revision:int=Field(ge=0,strict=True)
+    through_sequence:int=Field(ge=1,strict=True)
+    sequence:int=Field(ge=1,strict=True)
+    char_start:int=Field(ge=0,strict=True)
+    char_end:int=Field(ge=0,strict=True)
+    status:Literal['active','tombstone']
+    work_mode:Literal['extract','reply_only']
+    prior:dict[str,Any]
+
+
 class LaneFence(Contract):
     protocol: Literal['lifetime_composer_pages'] = 'lifetime_composer_pages'
     lane_id: UUID
@@ -114,6 +126,7 @@ class LaneFence(Contract):
     base_revision: int = Field(default=0, ge=0, strict=True)
     editorial_request: EditorialRequest | None = None
     two_lane: TwoLaneFence | None = None
+    memory_summary:MemorySummaryFence|None=Field(default=None,exclude_if=lambda value:value is None)
     prior_outputs: list[LaneArtifact] = Field(default_factory=list, max_length=16)
 
 
@@ -142,6 +155,9 @@ def _object(value):
 
 def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False):
     """Use server code, never client-supplied instructions or output schemas."""
+    if phase == 'summarize':
+        from .lifetime_memory_summary import summary_contract
+        return summary_contract()
     if phase == 'extract':
         from .memory_events import extraction_instructions, extraction_schema
         instructions, schema = extraction_instructions(), extraction_schema()
@@ -184,12 +200,12 @@ class BoundedLaneInput(Contract):
     fence: LaneFence
     budget: ContextBudget
     prompt_version: Literal['lifetime-lane-v1'] = 'lifetime-lane-v1'
-    phase: Literal['extract', 'index', 'prepare', 'draft', 'review']
+    phase: Literal['extract', 'summarize', 'index', 'prepare', 'draft', 'review']
     packet: str = Field(min_length=1, max_length=10_000_000)
 
     @model_validator(mode='after')
     def validate_transport(self):
-        if (self.fence.skill == 'timeline') != (self.phase == 'extract'):
+        if (self.fence.skill == 'timeline') != (self.phase in {'extract','summarize'}):
             raise ValueError('Bounded lane phase does not match skill')
         if (self.budget.context_window > 131072 or self.budget.input_budget > 65536
                 or self.budget.framing_headroom < 2048):
@@ -297,6 +313,29 @@ def canonical_lane_request(fence):
 
 
 def _validate_phase_packet(fence,phase,payload):
+    if phase=='summarize':
+        from .lifetime_memory_summary import SummaryProposal,summary_packet
+        if fence.memory_summary is None or fence.batch is not None or fence.prior_outputs:
+            raise ValueError('Summary requires its canonical compaction page')
+        SummaryProposal.model_validate(fence.memory_summary.prior)
+        state=fence.memory_summary;source=fence.source
+        if state.through_sequence!=fence.source_high_water-1 or state.sequence>state.through_sequence:
+            raise ValueError('Summary window exceeds its covered snapshot')
+        if state.status=='active':
+            if (not isinstance(source,dict) or source.get('project_id')!=fence.project_id or source.get('status')!='active'
+                or source.get('kind') not in {'narrator_chat','narrator_transcript'}
+                or not isinstance(source.get('text'),str) or not 0<len(source['text'])<=2000
+                or source.get('sequence')!=state.sequence or source.get('char_start')!=state.char_start
+                or source.get('char_end')!=state.char_end or state.char_end-state.char_start!=len(source['text'])
+                or type(source.get('original_length')) is not int or not state.char_end<=source['original_length']<=100000):
+                raise ValueError('Invalid bounded summary source window')
+        elif source is not None or state.work_mode!='reply_only':
+            raise ValueError('A tombstone cannot supply narrator text')
+        if payload!=summary_packet(fence.model_dump(mode='json')):
+            raise ValueError('Summary payload differs from its canonical window')
+        return
+    if fence.memory_summary is not None:
+        raise ValueError('Semantic window cannot run another lane phase')
     if fence.batch is not None:
         from .progressive_composer import summary_packet, validate_batch, validate_summary
         validate_batch(fence.batch, fence.project_id)
@@ -538,10 +577,10 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
         raise PublicationUnavailable('Bounded lane worker is unavailable')
     publisher = _publisher(bounded,publisher)
     payload = {'user_id':str(bounded.fence.user_id), 'project_id':bounded.fence.project_id,
-        'agent_role':'author_timeline' if bounded.phase == 'extract' else 'composer',
+        'agent_role':'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer',
         'model':bounded.budget.model, 'language':bounded.fence.locale,
         'bounded_lane':bounded.model_dump(mode='json')}
-    if bounded.phase != 'extract':
+    if bounded.phase not in {'extract','summarize'}:
         payload['composer_phase'] = bounded.phase
     body = LaneRequestBody(serialize_packet(payload).encode('utf-8'),publisher=publisher,fence=bounded.fence)
     options = {'timeout':timeout or 300}
@@ -575,7 +614,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     check_lane_generation()
     bounded = _validated(bounded_lane,model)
     await validate_lane_payload(bounded)
-    role = 'author_timeline' if bounded.phase == 'extract' else 'composer'
+    role = 'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer'
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
     fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))

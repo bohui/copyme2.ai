@@ -290,7 +290,11 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
             overhead=governed_request_overhead(context,overall)
             packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
-            saved=await call('read_lifetime_two_lane_checkpoint' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_model=collector.model,p_prompt_version='lifetime-v1')
+            saved=await call('read_lifetime_checkpoint_before' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_model=collector.model,p_prompt_version='lifetime-v1',
+                **({'p_before_sequence':source['sequence'],'p_require_accepted':True} if two_lane else {}))
+            if saved and saved['coverage_end']>=source['sequence']:
+                saved=await call('read_lifetime_checkpoint_before',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],
+                    p_model=collector.model,p_prompt_version='lifetime-v1',p_before_sequence=source['sequence'],p_require_accepted=False)
             after=saved['coverage_end'] if saved else 0
             tail=await call('read_lifetime_two_lane_tail' if two_lane else 'read_lifetime_tail',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_after_sequence=after,p_through_sequence=source['sequence']-1)
             def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
@@ -307,7 +311,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 instructions+=CONVERSATION_INSTRUCTIONS
             try:
                 packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
-                tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context)
+                tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
             except InputLimitExceeded as error:
                 pending=MaintenancePending('The source is accepted; required current context exceeds this request budget')
                 pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id

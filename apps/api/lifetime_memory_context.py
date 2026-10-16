@@ -9,6 +9,7 @@ from typing import Literal
 from uuid import UUID
 from pydantic import Field
 
+from .lifetime_memory_summary import AcceptedMemorySummary
 from .lifetime_memory_contracts import Contract, IdentityEnvelope, PinnedContinuity, EvidenceEnvelope, ContextBudget, SourceManifest
 
 
@@ -48,6 +49,7 @@ class ContextCheckpoint(Contract):
     pinned: PinnedContinuity
     manifest: SourceManifest
     evidence: list[EvidenceEnvelope] = Field(default_factory=list,max_length=16)
+    memory_summary: AcceptedMemorySummary | None = Field(default=None,exclude_if=lambda value:value is None)
 
 
 class TailCoverage(Contract):
@@ -97,6 +99,13 @@ def build_context(*,identity:IdentityEnvelope,policy_epoch:int,pinned:PinnedCont
             if (versions.get(claim.source_id)!=claim.version or claim.policy_epoch!=policy_epoch
                 or 'conversation' not in claim.allowed_use):
                 raise ValueError('checkpoint evidence is outside its authorized manifest')
+        if checkpoint.memory_summary:
+            if checkpoint.memory_summary.processed_through!=checkpoint.coverage_end:
+                raise ValueError('Summary processing watermark differs from checkpoint')
+            for item in checkpoint.memory_summary.items:
+                for ref in item.source_refs:
+                    if versions.get(UUID(ref.source_id))!=ref.version:
+                        raise ValueError('Summary citation is outside its authorized manifest')
     if (tail_coverage.identity!=identity or tail_coverage.policy_epoch!=policy_epoch
        or not tail_coverage.complete or tail_coverage.after_sequence!=coverage_end
        or tail_coverage.through_sequence!=current.sequence-1):
