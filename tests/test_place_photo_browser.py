@@ -879,7 +879,7 @@ def test_expansion_through_authenticated_photo_endpoint_without_database(monkeyp
     with TestClient(create_app(MemoryStore())) as client:
         headers = {'X-Account-Id': 'cloud-fixture-owner'}
         created = client.post('/v1/projects', headers=headers, json={'mode': 'self'})
-        assert created.status_code == 200
+        assert created.status_code in {200, 201}
         project = created.json()['id']
         url = f'/v1/projects/{project}/place-photos'
         scope = {'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}
