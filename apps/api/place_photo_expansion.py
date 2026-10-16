@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 MAX_EXPANDED_QUERIES = 7
 MAX_EXPANDED_SOURCE_PAGES = 36
+MAX_SOURCE_LEADS_PER_QUERY = 12
 EXPANDED_SEARCH_SECONDS = 65
 
 
