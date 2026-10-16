@@ -171,8 +171,24 @@ def conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
             if '@graph' in node:
                 visit(node['@graph'], depth + 1)
     visit(page.get('json_ld', []))
+    def named_city_in(value, aliases):
+        for alias in aliases:
+            expression = re.escape(alias.casefold())
+            expression = ((r'(?<!\\w)' + expression + r'(?!\\w)')
+                          if alias.isascii() else expression)
+            if re.search(expression, value.casefold()):
+                return True
+        return False
+
     for locality in explicit:
-        if isinstance(locality, str) and locality.strip() and not location_matches(locality, place):
+        if not isinstance(locality, str) or not locality.strip():
+            continue
+        # Even if Chengde appears, explicit mention of a different known
+        # city makes this item ambiguous: never let a parent album resolve it.
+        if any(named_city_in(locality, aliases) and not named_city_in(place, aliases)
+               for aliases in _CITY_ALIASES):
+            return True
+        if not location_matches(locality, place):
             return True
     for title in titles:
         if not isinstance(title, str):
