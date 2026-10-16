@@ -29,7 +29,7 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
     try {
       if (!recordingIds.length && !pending) storage.removeItem(audioKey());
       else storage.setItem(audioKey(),JSON.stringify({...scope(),text:state.audioTranscript,recordingIds,
-        pending:pending ? {uploadKey:pending.uploadKey,recordingId:pending.recordingId} : null}));
+        pending:pending ? {uploadKey:pending.uploadKey,recordingId:pending.recordingId,cancelled:pending.cancelled === true} : null}));
     } catch { /* The backend metadata and accepted associations remain authoritative. */ }
   }
   async function recoverAudioDraft() {
@@ -44,7 +44,10 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
         if (data.recording?.lifecycle === 'draft' && data.recording.backend_saved) restored.push(data.recording);
       }
       let pending = null;
-      if (saved.pending) {
+      if (saved.pending?.cancelled && saved.pending.uploadKey) {
+        await api(`/v1/story/recordings/by-upload/${encodeURIComponent(saved.pending.uploadKey)}`,{method:'DELETE'});
+        if (!current(ownerScope)) return;
+      } else if (saved.pending) {
         const data = await api(saved.pending.recordingId
           ? `/v1/story/recordings/${encodeURIComponent(saved.pending.recordingId)}`
           : `/v1/story/recordings/by-upload/${encodeURIComponent(saved.pending.uploadKey)}`);

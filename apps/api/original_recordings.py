@@ -221,12 +221,18 @@ class RecordingStore:
         record = self.trusted('reserve', data={**metadata, 'project_id':payload.project_id,
             'upload_key':str(payload.upload_idempotency_key or uuid4())})
         if record['storage_status'] == 'ready': return record, self.content(record)
+        attempt = None
+        write_terminal = False
         try:
+            record = self.trusted('begin_upload',record['id'])
+            attempt = record['upload_attempt_id']
             try:
                 self.storage.request('POST', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET + '/'
                     + quote(record['object_path'], safe='/'), content=content,
                     headers={'Content-Type':record['content_type'], 'x-upsert':'false'})
+                write_terminal = True
             except httpx.HTTPStatusError as exc:
+                write_terminal = exc.response.status_code < 500
                 if exc.response.status_code != 409: raise
             # A duplicate object or success response is not a trusted finalization.
             observed = self.storage.request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
@@ -239,6 +245,15 @@ class RecordingStore:
             logger.warning('recording_preservation_failed recording_id=%s byte_size=%d', record['id'],record['byte_size'])
             raise error(503, 'RECORDING_PRESERVATION_FAILED', 'Original was not confirmed saved. Retry with the same upload key.',
                 retryable=True, recording_id=record['id'], backend_saved=False, transcription_status='not_started') from None
+        finally:
+            if attempt and write_terminal:
+                # A network timeout is not evidence that the upstream writer
+                # stopped. Leave its durable attempt unresolved in that case.
+                try:
+                    current = self.trusted('finish_upload',record['id'],{'attempt_id':attempt})
+                    if current['lifecycle']=='deleted': self.delete(current['id'])
+                except (HTTPException,httpx.HTTPError):
+                    logger.warning('recording_upload_reconciliation_pending recording_id=%s',record['id'])
 
     @contextmanager
     def provider_guard(self, recording_id):
@@ -250,9 +265,9 @@ class RecordingStore:
         try:
             with connect(dsn,connect_timeout=2) as connection:
                 connection.execute("set local lock_timeout='2000ms'")
-                connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
-                    (self.storage.user_id,'read',recording_id,Jsonb({})))
-                yield
+                current = connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
+                    (self.storage.user_id,'read',recording_id,Jsonb({}))).fetchone()[0]
+                yield connection,current
         except Error as exc:
             if getattr(exc,'sqlstate',None)=='42501':
                 raise error(403,'RECORDING_AUTHORITY_REQUIRED','Recording processing permission changed') from None
@@ -261,27 +276,30 @@ class RecordingStore:
     def transcribe(self, payload, speech):
         started = time.monotonic()
         record, content = self.preserve(payload)
-        if record['transcription_status'] == 'succeeded':
-            transcription = record['asr_result']
-        else:
-            try:
-                self.metadata(record['id'])
-                with self.provider_guard(record['id']):
+        try:
+            # The lock supplies the current persisted result, including a success
+            # committed while this request was reading the original bytes.
+            with self.provider_guard(record['id']) as (connection,current):
+                record = current
+                if record['transcription_status'] != 'succeeded':
                     transcription = speech.transcribe(content, filename='original.' +
                         {'audio/webm':'webm','audio/mp4':'m4a','audio/wav':'wav','audio/ogg':'ogg'}[record['content_type']],
                         mime_type=record['content_type'], language=payload.language, prompt=payload.prompt)
-                if not str(transcription.get('text') or '').strip(): raise SpeechProviderError('empty', retryable=True)
-            except (SpeechUnavailable, SpeechProviderError):
-                logger.warning('recording_transcription_failed recording_id=%s code=STT_FAILED', record['id'])
-                try: self.trusted('asr_failed', record['id'])
-                except HTTPException: pass
-                raise error(503, 'RECORDING_TRANSCRIPTION_FAILED', 'Original saved; retry transcription using its recording ID.',
-                    retryable=True, recording_id=record['id'], backend_saved=True, transcription_status='failed') from None
-            try:
-                record = self.trusted('asr_succeeded', record['id'], {'result':transcription})
-            except HTTPException:
-                raise error(503, 'RECORDING_TRANSCRIPTION_UNCERTAIN', 'Original saved; transcription outcome requires metadata reconciliation.',
-                    retryable=True, recording_id=record['id'], backend_saved=True, transcription_status='uncertain') from None
+                    if not str(transcription.get('text') or '').strip(): raise SpeechProviderError('empty', retryable=True)
+                    from psycopg.types.json import Jsonb
+                    record = connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
+                        (self.storage.user_id,'asr_succeeded',record['id'],Jsonb({'result':transcription}))).fetchone()[0]
+                transcription = record['asr_result']
+        except (SpeechUnavailable, SpeechProviderError):
+            logger.warning('recording_transcription_failed recording_id=%s code=STT_FAILED', record['id'])
+            try: self.trusted('asr_failed', record['id'])
+            except HTTPException: pass
+            raise error(503, 'RECORDING_TRANSCRIPTION_FAILED', 'Original saved; retry transcription using its recording ID.',
+                retryable=True, recording_id=record['id'], backend_saved=True, transcription_status='failed') from None
+        except HTTPException as exc:
+            if exc.status_code == 403: raise
+            raise error(503, 'RECORDING_TRANSCRIPTION_UNCERTAIN', 'Original saved; transcription outcome requires metadata reconciliation.',
+                retryable=True, recording_id=record['id'], backend_saved=True, transcription_status='uncertain') from None
         logger.info('recording_transcription_ready recording_id=%s elapsed_ms=%d',record['id'],int((time.monotonic()-started)*1000))
         return {'text':str(transcription['text']).strip(), 'recording':descriptor(record),
             'source':{'source_kind':'transcript','transcription_method':transcription.get('provider') or 'openai',
@@ -293,7 +311,15 @@ class RecordingStore:
         try:
             self.storage.request('DELETE', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET,
                 json={'prefixes':[record['object_path']]})
-            self.trusted('cleanup_complete', record['id'])
-            return {'id':record['id'], 'deleted':True, 'cleanup_status':'complete'}
+            finished = self.trusted('cleanup_complete', record['id'])
+            return {'id':record['id'], 'deleted':True, 'cleanup_status':finished['cleanup_status']}
         except httpx.HTTPError:
             return {'id':record['id'], 'deleted':True, 'cleanup_status':'pending'}
+
+
+    def cancel_upload(self, upload_key):
+        result = self.trusted('cancel_upload',data={'upload_key':str(UUID(upload_key))})
+        if result.get('recording_id') and not result.get('already_attached'):
+            deleted = self.delete(result['recording_id'],draft_only=True)
+            result['cleanup_status'] = deleted['cleanup_status']
+        return result

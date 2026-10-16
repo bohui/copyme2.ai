@@ -580,6 +580,15 @@ def build_router(
             return JSONResponse({'recording':descriptor(record)}, headers={'Cache-Control':'private, no-store','Vary':'Authorization'})
         finally: _close(storage)
 
+    @router.delete('/recordings/by-upload/{upload_key}')
+    def cancel_recording_upload(upload_key: UUID, authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore
+        storage = storage_for(authorization)
+        try:
+            return JSONResponse(RecordingStore(storage).cancel_upload(str(upload_key)),
+                headers={'Cache-Control':'private, no-store','Vary':'Authorization'})
+        finally: _close(storage)
+
     @router.get('/recordings/{recording_id}')
     def recording_metadata(recording_id: UUID, authorization: str | None = Header(default=None)):
         from .original_recordings import RecordingStore, descriptor

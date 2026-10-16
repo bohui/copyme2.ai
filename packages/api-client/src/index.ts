@@ -550,6 +550,19 @@ export function createMemoirApi(options: ApiClientOptions) {
         C.TranscriptionInputSchema.parse(input),
         request,
       ),
+    cancelRecordingUpload: (key: string, request?: RequestOptions) =>
+      json(
+        "/story/recordings/by-upload/" + encodeURIComponent(key),
+        z.object({
+          cancelled: z.literal(true),
+          recording_id: z.uuid().nullable(),
+          already_attached: z.boolean(),
+          cleanup_status: z.enum(["pending", "complete"]).optional(),
+        }),
+        "DELETE",
+        undefined,
+        request,
+      ),
     recordingByUpload: (key: string, request?: RequestOptions) =>
       json(
         "/story/recordings/by-upload/" + encodeURIComponent(key),

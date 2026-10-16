@@ -23,7 +23,7 @@ def info(**extra):
 
 @pytest.fixture
 def approved(sql):
-    sql('truncate public.user_original_recording cascade;')
+    sql('truncate public.user_original_recording,public.user_original_recording_cancel cascade;')
     # Only this disposable fixture installs synthetic consent authority.
     sql("update public.original_recording_rollout set enabled=true; create or replace function "
         "public.original_recording_authorized(p_owner uuid,p_project_id text) returns boolean "
@@ -172,3 +172,65 @@ def test_combined_clips_cannot_exceed_the_five_minute_turn_ceiling(approved):
     sql=approved;first=ready(sql,duration_seconds=200);second=ready(sql,duration_seconds=200)
     with pytest.raises(AssertionError,match='combined recording duration'):accept(sql,[first['id'],second['id']])
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='0'
+
+
+def wait_for_database_lock_or_completion(dsn, name, future):
+    import time
+    from psycopg import connect
+    until=time.monotonic()+5
+    with connect(dsn,autocommit=True) as observer:
+        while time.monotonic()<until:
+            if future.done():return 'completed'
+            if observer.execute("select exists(select 1 from pg_stat_activity where application_name=%s and wait_event_type='Lock')",(name,)).fetchone()[0]:return 'blocked'
+            time.sleep(.01)
+    raise AssertionError('Controlled database interleaving did not reach its barrier')
+
+
+def test_reservation_cannot_escape_a_concurrent_project_deletion(approved):
+    from concurrent.futures import ThreadPoolExecutor
+    from psycopg import connect
+    from psycopg.types.json import Jsonb
+    sql=approved;dsn=sql.publication_dsn;data=info(project_id='project')
+    sql(f"insert into public.user_memoir_project(user_id,project_id) values('{OWNER}','project');")
+    sql("create function public.fixture_hold_reservation() returns trigger language plpgsql as $$begin perform pg_advisory_xact_lock(730400);return new;end$$; create trigger fixture_hold_reservation before insert on public.user_original_recording for each row execute function public.fixture_hold_reservation();")
+    def reserve():
+        with connect(dsn,application_name='issue73-reserve-race') as connection:
+            return connection.execute('select public.recording_server_operation(%s,%s,null,%s)',(OWNER,'reserve',Jsonb(data))).fetchone()[0]
+    def delete():
+        with connect(dsn,application_name='issue73-delete-project-race') as connection:
+            connection.execute('delete from public.user_memoir_project where user_id=%s and project_id=%s',(OWNER,'project'))
+    blocker=connect(dsn,autocommit=True);blocker.execute('select pg_advisory_lock(730400)')
+    try:
+        with ThreadPoolExecutor(2) as pool:
+            pending=pool.submit(reserve)
+            try:
+                assert wait_for_database_lock_or_completion(dsn,'issue73-reserve-race',pending)=='blocked'
+                deletion=pool.submit(delete)
+                wait_for_database_lock_or_completion(dsn,'issue73-delete-project-race',deletion)
+            finally:blocker.execute('select pg_advisory_unlock(730400)')
+            record=pending.result(10);deletion.result(10)
+        state=json.loads(sql(f"select to_jsonb(r) from public.user_original_recording r where id='{record['id']}';").stdout.strip())
+        assert state['lifecycle']=='deleted' and state['cleanup_status']=='pending'
+    finally:
+        blocker.close()
+        sql('drop trigger fixture_hold_reservation on public.user_original_recording;drop function public.fixture_hold_reservation();')
+
+
+def test_inflight_read_guard_orders_rollout_disablement_before_new_access(approved):
+    from concurrent.futures import ThreadPoolExecutor
+    from psycopg import connect
+    from psycopg.types.json import Jsonb
+    sql=approved;record=ready(sql);dsn=sql.publication_dsn
+    guarded=connect(dsn)
+    guarded.execute('select public.recording_server_operation(%s,%s,%s,%s)',(OWNER,'read',record['id'],Jsonb({})))
+    def disable():
+        with connect(dsn,application_name='issue73-disable-race') as connection:
+            connection.execute('update public.original_recording_rollout set enabled=false')
+    with ThreadPoolExecutor(1) as pool:
+        pending=pool.submit(disable)
+        try:
+            observed=wait_for_database_lock_or_completion(dsn,'issue73-disable-race',pending)
+        finally:guarded.close()
+        pending.result(10)
+    assert observed=='blocked', 'Disable committed while the publication/provider guard still held its read transaction'
+    assert rpc(sql,'read_user_original_recording',literal(record['id'])) is None

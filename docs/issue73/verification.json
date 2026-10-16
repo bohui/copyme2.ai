@@ -3,7 +3,7 @@
   "branch": "agent/issue73-original-recordings",
   "initial_base": "a6c1c9055119b90a21b04bb09b99f4d5545379f2",
   "rebased_onto": "971dd672c407ca508b8cf62f913d96dbbb9b6ba0",
-  "recorded_at": "2026-10-16T09:33:35.467221+00:00",
+  "recorded_at": "2026-10-16T10:01:32.805633+00:00",
   "release_status": "draft_disabled_not_full_acceptance",
   "final_head_location": "Draft PR description and final handoff",
   "rollout": {
@@ -24,32 +24,32 @@
   },
   "checks": [
     {
-      "name": "feature_api_sql_media",
+      "name": "feature_api_sql_media_and_review_races",
       "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_original_recordings.py tests/test_original_recordings_postgres.py tests/test_original_recordings_http.py -q",
       "observed": [
-        "76 passed in 97.31s (0:01:37)"
+        "96 passed in 94.68s (0:01:34)"
       ]
     },
     {
-      "name": "final_request_bound_unit",
-      "command": "python -m pytest tests/test_original_recordings.py -q",
-      "observed": [
-        "17 passed in 4.62s"
-      ]
-    },
-    {
-      "name": "canonical_and_compatibility_regressions",
+      "name": "canonical_and_api_regressions",
       "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_lifetime_memory_runtime.py tests/test_canonical_guest_conversation.py tests/test_conversation_recovery_api.py tests/test_speech_integration.py tests/test_speech.py tests/test_canonical_only_conversation.py -q",
       "observed": [
-        "103 passed in 80.66s (0:01:20)"
+        "103 passed in 77.92s (0:01:17)"
+      ]
+    },
+    {
+      "name": "migration_ledger_histories",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_consolidated_migration_upgrade.py -k migration_history -q",
+      "observed": [
+        "4 passed, 2 deselected in 31.44s"
       ]
     },
     {
       "name": "web_reference_state",
       "command": "node --test tests/js/interview-photo-turns.test.mjs",
       "observed": [
-        "\u2139 tests 20",
-        "\u2139 pass 20",
+        "\u2139 tests 21",
+        "\u2139 pass 21",
         "\u2139 fail 0",
         "\u2139 skipped 0"
       ]
@@ -62,14 +62,7 @@
       ]
     },
     {
-      "name": "openapi",
-      "command": "python scripts/check_mobile_openapi.py",
-      "observed": [
-        "Mobile OpenAPI snapshot matches (47 operations)"
-      ]
-    },
-    {
-      "name": "mobile_complete_check",
+      "name": "complete_mobile_check",
       "command": "npm run check:mobile",
       "exit_code": 0,
       "observed": [
@@ -77,21 +70,12 @@
         "\u2139 pass 92",
         "\u2139 fail 0",
         "\u2139 skipped 0",
-        "Test Suites: 8 passed, 8 total",
-        "Tests:       66 passed, 66 total",
-        "Mobile OpenAPI snapshot matches (47 operations)",
+        "Test Suites: 9 passed, 9 total",
+        "Tests:       68 passed, 68 total",
+        "Mobile OpenAPI snapshot matches (48 operations)",
         "Test Suites: 1 passed, 1 total",
-        "Tests:       21 passed, 21 total",
+        "Tests:       23 passed, 23 total",
         "Native config introspection passed (not a native binary/device test)"
-      ],
-      "includes": [
-        "unit/domain tests",
-        "TypeScript app/UI/integration checks",
-        "ESLint",
-        "native UI tests",
-        "OpenAPI snapshot",
-        "native integration tests",
-        "native config introspection"
       ]
     }
   ],
@@ -109,7 +93,7 @@
   "remaining_blockers": [
     "Approved recoverable identity and purpose-specific retention/AI consent hook is absent: remains deny-all",
     "Actual private Storage HTTP, listing/signing/overwrite/withdrawal/transfer policy behavior is unverified; no Storage policies/access changed",
-    "Project/account orphan cleanup retains inaccessible pending tombstones but approved physical cleanup executor/transport is not wired",
+    "Project/account orphan cleanup and ambiguous/crashed upload-attempt reconciliation retain inaccessible pending intent; approved physical cleanup execution remains unwired",
     "Real STT/provider behavior and billing evidence is unobserved; no paid calls made",
     "Real browser microphone and native iOS/Android device/binary/format evidence is unobserved",
     "Updated API decoder dependency image was not built",
@@ -134,33 +118,161 @@
     "apps/api/interview_plan.py": "e95536583524dfde5889864545529321d93c6cef33e15141b091a4d9084b3ac8",
     "apps/api/lifetime_memory_runtime.py": "a17f9a28b2b3d5264f07f0d98bf1e260ae9c1ac45cd5647d7868ba932af082ee",
     "apps/api/main.py": "3249f03e1e842bf938d896b255308cf79e722f06be4fd0f3c43af9dcc62dff8f",
-    "apps/api/original_recordings.py": "5735044ebbafec8209af730dee8de7aaf559ad9521ea855823e50f6846e676ee",
-    "apps/api/story_routes.py": "e2b5044bf2e8fa439044fe81b6be95ac8777863058f6d57221817c802b86932c",
+    "apps/api/original_recordings.py": "7eafcb206234461ff2320e2616f674d6b39d8426640bb80de50db791a093358c",
+    "apps/api/story_routes.py": "db7edfdd15ae6ccd571400d8e594be1bc03cd455f2cdc07f77d0f2644b129eda",
     "apps/api/supabase_routes.py": "171762bf37c76ce0580fd75c02709b1ac8392acc5aeee57c12c03a1e86ad1a41",
-    "apps/mobile/app/record.tsx": "309568eb2c7d12edf00dd0788462651fc435b0b0e3a103fcb0624a1534337042",
-    "apps/mobile/src/context.tsx": "7095aad98756583e88c711628516b0a687c79c7ad0d32b784813d23c074ae629",
+    "apps/mobile/app/record.tsx": "91e5bb80f5aeefadd5aeb31c2ab14b44d08c71e08a20d23bfd7f93602c64959b",
+    "apps/mobile/src/context.tsx": "d57d02813972dc0cb308235c498b5faecbe71cdd3acf93d702748d4f91dccfe8",
     "apps/mobile/src/platform/media.ts": "f4f3d76105d319a3fb9e98a447e48e3fd37b5b6790c4a3bd1ec5cf39ba24b1a5",
+    "apps/mobile/src/platform/recording-cancellations.ts": "61bae47680a8f6776c5b2042b29b149ed73d8f013f2abb0b0238b925d2cd3b36",
     "apps/web/client/memoir/client.js": "693e6938006166012c56f6db5f91dd22c27f4284c5656a9fdb261d2865135cf3",
-    "apps/web/client/memoir/conversation-audio.mjs": "ab413790e66248543fab9d0302df44ab513a3f0187601556ae2ddf573a027328",
-    "apps/web/client/memoir/interview-photo-turns.mjs": "7faebb131a088038c85231a09c447b79b6f7cbdbf747916cacfb33fbf30d3631",
+    "apps/web/client/memoir/conversation-audio.mjs": "c61fc0122322931c4d92babc01917529314a94d550ccb9a08a4435d11d4b1303",
+    "apps/web/client/memoir/interview-photo-turns.mjs": "e8591600692cd4912bb563663db24dd1836b7bef6226e07d4b21ef44dc4c80e7",
     "apps/web/messages/en-AU.json": "b8d7a1853af557977ee027c34853038272e6ca1b527570718d03537362f85afc",
     "apps/web/messages/zh-CN.json": "a99f32553b1e063888012f53f1ff7dab6e27acc7d3eb74871451f2b8bbaab646",
     "packages/api-client/src/errors.ts": "2805a2ebf98062009a13f8b7f9dc1df2eb227a85e268ebd7dbb3edf58ddc3fb1",
-    "packages/api-client/src/index.ts": "fb21fd64119933b453991e2dbd95989e48a527144426e8ff58fa225827d58548",
-    "packages/contracts/openapi.snapshot.json": "17b5d95c1ed738f9116fbab6722eda2a19fce1ae02c7e9d373de17e17683e1d6",
+    "packages/api-client/src/index.ts": "367c836d6b12616bd1b82254294b46445d099489cff52423f7a96e536bb1d451",
+    "packages/contracts/openapi.snapshot.json": "844c75c6139b53ff2057ff44217bc17b3e81bdcfcc3ff9d05aff67e357cb177f",
     "packages/contracts/src/index.ts": "a58d91067c2f264ebe477587419427bdcbe28ddd5022c5548fa4fe5d12be9db5",
     "packages/i18n/src/index.ts": "20cd66857fbc7de11d8d3ac5bde1fb65998968ca52ad15c2654a647b832915cc",
-    "scripts/check_mobile_openapi.py": "d949124eb696640e5e8ce5eb3bb2cadc62266543223135bb117fa14fd442eb39",
-    "supabase/migrations/202610160003_original_recordings.sql": "7eb9cc841f813ba6866f9b86057404a1dd645e9c3a29f55b8c15510150b32394",
+    "scripts/check_mobile_openapi.py": "1fb9b28bf1252e536899a8b5db2f1d3cdb6533d31e7779ecddcfdf28291714f9",
+    "supabase/migrations/202610160004_original_recordings.sql": "7e7466f0d3809cc7db0032131fc87f019f4a00fa6dce3e3aef6a562217f0a79a",
     "tests/browser_voice_controls.py": "ca675bae9ae734cf9c346c1582ba578f93dd6e51d436c89b7e589767520b6ed4",
-    "tests/js/interview-photo-turns.test.mjs": "1e7c378f175ed99c509e9328adb8effdc27ecc391ae5e638057f70073d00327d",
+    "tests/js/interview-photo-turns.test.mjs": "a554681239ff8d932b8a6a35b97ea1fe9386480f3aeba2527b400bab71aa4fc9",
+    "tests/mobile-integration/provider.test.tsx": "76a6c964349745dc9e1f8639d7eee7bc1befa8b6b6b3cc53b8e551359ce87920",
+    "tests/mobile-ui/recording-cancellation.test.tsx": "51bb357420608fc4dddf17231f1f68e789793bccc7c1c57c599eb45244f978c0",
     "tests/mobile/original-recordings.test.ts": "961977bf571c48f83eeb22f30f497b8c62d302ca3d76d0ab75ad80d36ee78226",
     "tests/mobile/private-media.test.ts": "762c55e2e8aaf1147f54e7074afa798e34fc49fca6701036776d606daa67bec2",
     "tests/test_agent_commit_postgres.py": "87a20319531f8716470030addb488469f18288f9150f8b2bc8d25dd54da83712",
+    "tests/test_consolidated_migration_upgrade.py": "7d3017706d548ffaba3b679e4e60457c642c61041ce79cb6377b8d9b242162ef",
     "tests/test_conversation_recovery_api.py": "7585bbf95b3a84ef3359e4daf94c77153db218a6c5258dded0a0e41bb988b1d6",
     "tests/test_original_recordings.py": "07d160b98e4c1251226e5c1ed91ed7d99e83235b808acd3dd02031e50d61bbda",
-    "tests/test_original_recordings_http.py": "c00e8540fa9ba15a5e3a511463e37ab032f436f06bd977c0aab24da19039ab32",
-    "tests/test_original_recordings_postgres.py": "ecfecca4e5ac120e6cd1a98c8fcb7bfc32b771c858eeb567fa120047ea40a30e",
+    "tests/test_original_recordings_http.py": "398bc581f319621eedad6ee3a4c2c30609343156f36578c37c034f69dad70af5",
+    "tests/test_original_recordings_postgres.py": "03117b8d6e820e1ea969d28bfcd98026e0822f08bf0c721b506582c18e788af9",
     "tests/test_speech_integration.py": "eb4fb4e99aa82805dfa24a5ca358d848cd7d3973a76010ed35164d23b4ea1dd9"
+  },
+  "review_target": "cb5d61b7ce299416cc32957a5f3f8b5e692bb666",
+  "main_observed": "2ac93d9a279e7fe7ffa6cca39c7b071d45a9fd43",
+  "recording_migration": "202610160004_original_recordings.sql",
+  "previous_head_verification": {
+    "head": "cb5d61b7ce299416cc32957a5f3f8b5e692bb666",
+    "recorded_at": "2026-10-16T09:33:35.467221+00:00",
+    "checks": [
+      {
+        "name": "feature_api_sql_media",
+        "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_original_recordings.py tests/test_original_recordings_postgres.py tests/test_original_recordings_http.py -q",
+        "observed": [
+          "76 passed in 97.31s (0:01:37)"
+        ]
+      },
+      {
+        "name": "final_request_bound_unit",
+        "command": "python -m pytest tests/test_original_recordings.py -q",
+        "observed": [
+          "17 passed in 4.62s"
+        ]
+      },
+      {
+        "name": "canonical_and_compatibility_regressions",
+        "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_lifetime_memory_runtime.py tests/test_canonical_guest_conversation.py tests/test_conversation_recovery_api.py tests/test_speech_integration.py tests/test_speech.py tests/test_canonical_only_conversation.py -q",
+        "observed": [
+          "103 passed in 80.66s (0:01:20)"
+        ]
+      },
+      {
+        "name": "web_reference_state",
+        "command": "node --test tests/js/interview-photo-turns.test.mjs",
+        "observed": [
+          "\u2139 tests 20",
+          "\u2139 pass 20",
+          "\u2139 fail 0",
+          "\u2139 skipped 0"
+        ]
+      },
+      {
+        "name": "browser_voice_controls",
+        "command": "PLAYWRIGHT_BROWSERS_PATH=/tmp/issue73-playwright python tests/browser_voice_controls.py",
+        "observed": [
+          "Voice controls passed: ordered recording references, edited multi-clip dictation, append cancellation, cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout."
+        ]
+      },
+      {
+        "name": "openapi",
+        "command": "python scripts/check_mobile_openapi.py",
+        "observed": [
+          "Mobile OpenAPI snapshot matches (47 operations)"
+        ]
+      },
+      {
+        "name": "mobile_complete_check",
+        "command": "npm run check:mobile",
+        "exit_code": 0,
+        "observed": [
+          "\u2139 tests 92",
+          "\u2139 pass 92",
+          "\u2139 fail 0",
+          "\u2139 skipped 0",
+          "Test Suites: 8 passed, 8 total",
+          "Tests:       66 passed, 66 total",
+          "Mobile OpenAPI snapshot matches (47 operations)",
+          "Test Suites: 1 passed, 1 total",
+          "Tests:       21 passed, 21 total",
+          "Native config introspection passed (not a native binary/device test)"
+        ],
+        "includes": [
+          "unit/domain tests",
+          "TypeScript app/UI/integration checks",
+          "ESLint",
+          "native UI tests",
+          "OpenAPI snapshot",
+          "native integration tests",
+          "native config introspection"
+        ]
+      }
+    ]
+  },
+  "review_red_reproductions": {
+    "red-http": [
+      "FAILED tests/test_original_recordings_http.py::test_cancel_during_validation_prevents_later_reservation_and_retention[webm]",
+      "FAILED tests/test_original_recordings_http.py::test_delete_cannot_finish_cleanup_while_upload_post_can_still_write[webm]",
+      "FAILED tests/test_original_recordings_http.py::test_concurrent_asr_responses_match_the_first_persisted_provenance[webm]",
+      "FAILED tests/test_original_recordings_http.py::test_cancel_during_validation_prevents_later_reservation_and_retention[m4a]",
+      "FAILED tests/test_original_recordings_http.py::test_delete_cannot_finish_cleanup_while_upload_post_can_still_write[m4a]",
+      "FAILED tests/test_original_recordings_http.py::test_concurrent_asr_responses_match_the_first_persisted_provenance[m4a]",
+      "FAILED tests/test_original_recordings_http.py::test_cancel_during_validation_prevents_later_reservation_and_retention[wav]",
+      "FAILED tests/test_original_recordings_http.py::test_delete_cannot_finish_cleanup_while_upload_post_can_still_write[wav]",
+      "FAILED tests/test_original_recordings_http.py::test_concurrent_asr_responses_match_the_first_persisted_provenance[wav]",
+      "9 failed, 45 deselected in 20.86s"
+    ],
+    "red-sql": [
+      "FAILED tests/test_original_recordings_postgres.py::test_reservation_cannot_escape_a_concurrent_project_deletion",
+      "FAILED tests/test_original_recordings_postgres.py::test_inflight_read_guard_orders_rollout_disablement_before_new_access",
+      "2 failed, 14 deselected in 15.84s"
+    ],
+    "red-ledger": [
+      "FAILED tests/test_consolidated_migration_upgrade.py::test_main_migration_history_accepts_the_unapplied_workspace_upgrade[pre-recordings-history]",
+      "1 failed, 5 deselected in 12.21s"
+    ],
+    "red-native": [
+      "Test Suites: 1 failed, 1 total",
+      "Tests:       2 failed, 2 total"
+    ],
+    "red-identity": [
+      "Test Suites: 1 failed, 1 total",
+      "Tests:       2 failed, 21 skipped, 23 total"
+    ]
+  },
+  "review_findings": {
+    "confirmed_and_fixed": [
+      "duplicate migration version",
+      "accepted local clip blocked by draft-only 409",
+      "pre-reservation cancellation lost on lookup 404",
+      "late object POST after cleanup success",
+      "response ASR differs from persisted result",
+      "project deletion/reservation race",
+      "inflight rollout-disable ordering"
+    ],
+    "independent_runtime_review": false,
+    "followup_record": "docs/issue73/review-fixes.md"
   }
 }

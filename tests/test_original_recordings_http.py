@@ -53,7 +53,7 @@ def workflow(approved, monkeypatch):
         def transcribe(self,audio,**options):
             calls.append(('stt',audio))
             if mode['stt_fail']:raise SpeechProviderError('synthetic timeout')
-            return {'text':'' if mode['empty'] else 'Raw ASR words 中文','provider':'controlled','model':'synthetic','language':'zh','segments':[]}
+            return {'text':'' if mode['empty'] else f'ASR result {len(calls)}' if mode.get('distinct_asr') else 'Raw ASR words 中文','provider':'controlled','model':f'synthetic-{len(calls)}' if mode.get('distinct_asr') else 'synthetic','language':'zh','segments':[]}
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_ORIGINAL_RECORDINGS','1')
     storage=Storage(sql)
@@ -260,3 +260,110 @@ def test_failed_mira_reply_keeps_accepted_source_and_audio_without_consuming_rou
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'
     assert client.get(record['content_url']).content==media[0]
     assert client.get('/api/v1/memoir/story/recordings/'+record['id']).json()['recording']['lifecycle']=='attached'
+
+
+def test_cancel_during_validation_prevents_later_reservation_and_retention(workflow,media,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from apps.api import original_recordings
+    client,storage,sql,objects,calls,mode=workflow
+    entered,release=Event(),Event();original=original_recordings.validate_original
+    def delayed(*args):
+        entered.set();assert release.wait(5)
+        return original(*args)
+    monkeypatch.setattr(original_recordings,'validate_original',delayed)
+    key=str(uuid4())
+    with ThreadPoolExecutor(1) as pool:
+        pending=pool.submit(upload,client,media,key)
+        try:
+            assert entered.wait(5)
+            cancelled=client.delete('/api/v1/memoir/story/recordings/by-upload/'+key)
+        finally:release.set()
+        response=pending.result(10)
+    assert cancelled.status_code==200,cancelled.text
+    assert cancelled.json()['cancelled'] is True
+    assert response.status_code==409,response.text
+    assert not objects and not [c for c in calls if c[0]=='stt']
+    assert sql('select count(*) from public.user_original_recording;').stdout.strip()=='0'
+
+
+def test_delete_cannot_finish_cleanup_while_upload_post_can_still_write(workflow,media,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    import json
+    client,storage,sql,objects,calls,mode=workflow
+    entered,release=Event(),Event();original=type(storage).request
+    def held_post(self,method,path,**options):
+        if method=='POST' and path.startswith('/storage/'):
+            entered.set();assert release.wait(5)
+        return original(self,method,path,**options)
+    monkeypatch.setattr(type(storage),'request',held_post)
+    with ThreadPoolExecutor(1) as pool:
+        pending=pool.submit(upload,client,media)
+        try:
+            assert entered.wait(5)
+            identifier=sql('select id from public.user_original_recording;').stdout.strip()
+            deleted=client.delete('/api/v1/memoir/story/recordings/'+identifier)
+        finally:release.set()
+        result=pending.result(10)
+    assert deleted.json()['cleanup_status']=='pending'
+    assert result.status_code!=200
+    assert not objects
+    state=json.loads(sql(f"select to_jsonb(r) from public.user_original_recording r where id='{identifier}';").stdout.strip())
+    assert state['lifecycle']=='deleted' and state['cleanup_status']=='complete'
+    assert not [c for c in calls if c[0]=='stt']
+
+
+def test_concurrent_asr_responses_match_the_first_persisted_provenance(workflow,media,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    client,storage,sql,objects,calls,mode=workflow
+    mode['stt_fail']=True
+    saved=upload(client,media).json()['detail']['recording_id']
+    mode['stt_fail']=False;mode['distinct_asr']=True
+    barrier=Barrier(2);original=type(storage).request
+    def simultaneous_read(self,method,path,**options):
+        if method=='GET' and path.startswith('/storage/'):
+            barrier.wait(timeout=5)
+        return original(self,method,path,**options)
+    monkeypatch.setattr(type(storage),'request',simultaneous_read)
+    def retry():return client.post('/api/v1/memoir/story/transcriptions',json={'recording_id':saved})
+    before=len([c for c in calls if c[0]=='stt'])
+    with ThreadPoolExecutor(2) as pool:
+        futures=[pool.submit(retry),pool.submit(retry)]
+        responses=[future.result(10) for future in futures]
+    metadata=client.get('/api/v1/memoir/story/recordings/'+saved).json()
+    assert all(response.status_code==200 for response in responses)
+    assert [response.json()['text'] for response in responses]==[metadata['asr_result']['text']]*2
+    assert [response.json()['source']['transcription_model'] for response in responses]==[metadata['asr_result']['model']]*2
+    assert len([c for c in calls if c[0]=='stt'])==before+1
+
+
+@pytest.mark.parametrize('failure',['timeout','server_error'])
+def test_ambiguous_upload_failure_keeps_cleanup_pending(workflow,media,monkeypatch,failure):
+    client,storage,sql,objects,calls,mode=workflow
+    original=type(storage).request
+    def uncertain(self,method,path,**options):
+        if method=='POST' and path.startswith('/storage/'):
+            if failure=='timeout':raise httpx.ReadTimeout('synthetic lost upload response')
+            return httpx.Response(503,request=httpx.Request(method,'https://synthetic.invalid')).raise_for_status()
+        return original(self,method,path,**options)
+    monkeypatch.setattr(type(storage),'request',uncertain)
+    result=upload(client,media)
+    assert result.status_code==503,result.text
+    identifier=result.json()['detail']['recording_id']
+    for _ in range(2):
+        deleted=client.delete('/api/v1/memoir/story/recordings/'+identifier)
+        assert deleted.json()['cleanup_status']=='pending'
+    assert not [c for c in calls if c[0]=='stt']
+
+
+def test_capture_key_cancellation_preserves_an_already_accepted_original(workflow,media):
+    client,storage,sql,objects,calls,mode=workflow
+    key=str(uuid4());record=upload(client,media,key).json()['recording']
+    storage.accept_interview_turn('project',str(uuid4()),'Accepted words',kind='narrator_transcript',recording_ids=[record['id']])
+    cancelled=client.delete('/api/v1/memoir/story/recordings/by-upload/'+key)
+    assert cancelled.status_code==200,cancelled.text
+    assert cancelled.json()['already_attached'] is True
+    assert client.get(record['content_url']).content==media[0]
+    assert sql('select count(*) from public.user_original_recording_cancel;').stdout.strip()=='0'

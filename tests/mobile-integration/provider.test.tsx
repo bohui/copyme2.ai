@@ -600,3 +600,30 @@ it("keeps a sealed local recording when destructive logout is requested", async 
   expect(await vault.get("media.index")).toEqual(["clip-logout"]);
   expect(state().session?.user.id).toBe("owner-a");
 });
+
+it.each(["logout", "transfer"] as const)(
+  "preserves pending recording cancellation before %s can discard the owner vault",
+  async (action) => {
+    if (action === "transfer") runtime.session = sessionFor("owner-a", true);
+    const vault = await seedVault();
+    const pending = [{ uploadKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }];
+    await vault.set("recording-cancellations", pending);
+    const clear = jest.spyOn(vault, "clear");
+    await mount();
+    await act(async () => {
+      if (action === "logout")
+        await expect(state().signOut()).rejects.toThrow();
+      else
+        await expect(
+          state().auth!.signInWithPassword(
+            "fictional@example.invalid",
+            "synthetic",
+          ),
+        ).rejects.toThrow();
+    });
+    expect(clear).not.toHaveBeenCalled();
+    expect(await vault.get("recording-cancellations")).toEqual(pending);
+    expect(authPort.signOut).not.toHaveBeenCalled();
+    expect(authPort.signInWithPassword).not.toHaveBeenCalled();
+  },
+);

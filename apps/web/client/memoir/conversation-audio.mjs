@@ -493,14 +493,10 @@ export function createConversationAudio({
     if (pending) pending.cancelled = true;
     try {
       const ids = pendingOnly ? [] : (state.audioRecordings || []).map(recording => recording.id);
-      if (pending?.recordingId) ids.push(pending.recordingId);
-      else if (pending?.uploadKey) {
-        try {
-          const found = await storyApi('/v1/story/recordings/by-upload/' + encodeURIComponent(pending.uploadKey));
-          if (!isCurrentProjectScope(scope)) return;
-          ids.push(found.recording.id);
-        } catch (error) { if (error.status !== 404) throw error; }
-      }
+      if (pending?.uploadKey) {
+        await storyApi('/v1/story/recordings/by-upload/' + encodeURIComponent(pending.uploadKey), {method:'DELETE'});
+        if (!isCurrentProjectScope(scope)) return;
+      } else if (pending?.recordingId) ids.push(pending.recordingId);
       for (const id of new Set(ids)) {
         if (!isCurrentProjectScope(scope)) return;
         await storyApi('/v1/story/recordings/' + encodeURIComponent(id) + '?draft_only=true', {method:'DELETE'});
@@ -510,7 +506,7 @@ export function createConversationAudio({
       if (state.pendingAudioUpload === pending) state.pendingAudioUpload = null;
       state.photoTurns?.saveAudioDraft();
       render();
-    } catch (error) { if (isCurrentProjectScope(scope)) toast(error.message); }
+    } catch (error) { if (isCurrentProjectScope(scope)) { state.photoTurns?.saveAudioDraft(); toast(error.message); } }
   }
 
   return {

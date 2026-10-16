@@ -4,6 +4,10 @@ import { router } from "expo-router";
 import { useScopedState } from "../src/resource";
 import { useMemoir } from "../src/context";
 import { useForegroundRecorder } from "../src/platform/use-recorder";
+import {
+  queueRecordingCancellation,
+  retryRecordingCancellations,
+} from "../src/platform/recording-cancellations";
 import { transcribeClip, type TranscriptDraft } from "../src/platform/media";
 import {
   Body,
@@ -48,16 +52,63 @@ export default function Record() {
     clipId: string | undefined,
     knownId?: string | null,
   ) {
-    let id = knownId;
-    if (!id && clipId) {
+    if (clipId && m.vault && m.api) {
+      await queueRecordingCancellation(m.vault, clipId, knownId);
+      await retryRecordingCancellations(m.vault, m.api);
+    } else if (knownId) {
       try {
-        id = (await m.api?.recordingByUpload(clipId))?.recording.id;
+        await m.api?.discardRecording(knownId);
       } catch (failure) {
-        if ((failure as { status?: number }).status !== 404) throw failure;
+        if ((failure as { status?: number }).status !== 409) throw failure;
       }
     }
-    if (id) await m.api?.discardRecording(id);
   }
+  React.useEffect(() => {
+    if (m.vault && m.api)
+      void retryRecordingCancellations(m.vault, m.api).catch(() =>
+        setError(t("error")),
+      );
+  }, [m.vault, m.api]);
+  async function beginCapture() {
+    attemptRef.current = {
+      scope,
+      cancelled: false,
+      started: false,
+      controller: new AbortController(),
+    };
+    setError("");
+    await controller?.start();
+  }
+  async function cancel() {
+    const attempt = attemptRef.current;
+    attempt.cancelled = true;
+    attempt.controller.abort();
+    const clip = snapshot.clip;
+    const recordingId =
+      backendRecordingId ??
+      (clip
+        ? await m.vault?.get<string>("backend-recording:" + clip.id)
+        : null);
+    const reconcile = Boolean(
+      clip && (recordingId || attempt.started) && m.vault && m.api,
+    );
+    // A failed network discard must never prevent releasing the recorder. Save
+    // only its opaque retry identity before deleting any local recording bytes.
+    if (reconcile)
+      await queueRecordingCancellation(m.vault!, clip!.id, recordingId);
+    try {
+      await controller?.cancel();
+    } finally {
+      if (clip) await m.vault?.delete("backend-recording:" + clip.id);
+      setTranscript(null);
+      setBackendRecordingId(null);
+      setText("");
+      setBusy(false);
+      router.back();
+    }
+    if (reconcile) await retryRecordingCancellations(m.vault!, m.api!);
+  }
+
   async function transcribe() {
     if (!snapshot.clip || !m.session || !m.api) return;
     const vault = m.vault;
@@ -179,7 +230,9 @@ export default function Record() {
                 title={t("record")}
                 icon="mic-outline"
                 disabled={!available}
-                onPress={() => void controller?.start()}
+                onPress={() =>
+                  void beginCapture().catch(() => setError(t("error")))
+                }
               />
             )
           )}{" "}
@@ -213,23 +266,7 @@ export default function Record() {
       <Button
         title={t("cancel")}
         secondary
-        onPress={() =>
-          void (async () => {
-            attemptRef.current.cancelled = true;
-            attemptRef.current.controller.abort();
-            const recordingId =
-              backendRecordingId ??
-              (snapshot.clip
-                ? await m.vault?.get<string>(
-                    "backend-recording:" + snapshot.clip.id,
-                  )
-                : null);
-            if (recordingId || attemptRef.current.started)
-              await discardUploaded(snapshot.clip?.id, recordingId);
-            await controller?.cancel();
-            router.back();
-          })().catch(() => setError(t("error")))
-        }
+        onPress={() => void cancel().catch(() => setError(t("error")))}
       />
     </Screen>
   );

@@ -60,7 +60,7 @@ MOBILE_OPERATIONS = {
     '/v1/story/events/{project_id}/{event_id}/details': ('get',),
     '/v1/story/events/{project_id}/{event_id}': ('patch',),
     '/v1/story/transcriptions': ('post',),
-    '/v1/story/recordings/by-upload/{upload_key}': ('get',),
+    '/v1/story/recordings/by-upload/{upload_key}': ('get','delete'),
     '/v1/story/recordings/{recording_id}': ('get','delete'),
     '/v1/story/recordings/{recording_id}/content': ('get',),
     '/v1/story/question-audio': ('post',),

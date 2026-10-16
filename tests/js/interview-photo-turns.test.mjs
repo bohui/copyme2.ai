@@ -222,3 +222,14 @@ test('a lost upload response recovers its durable identity without caching audio
  await restored.recoverAudioDraft();
  assert.equal(state.pendingAudioUpload.scope.ownerId,'owner');
 });
+
+test('a cancelled upload key is reconciled after refresh without accepting its late original',async()=>{
+ const {state,photos,deps}=harness();
+ state.pendingAudioUpload={uploadKey:'cancelled-key',cancelled:true};photos.saveAudioDraft();
+ state.pendingAudioUpload=null;const calls=[];
+ const restored=createInterviewPhotoState({...deps,api:async(path,options)=>{calls.push([path,options.method]);return {cancelled:true,recording_id:null};}});
+ await restored.recoverAudioDraft();
+ assert.deepEqual(calls,[['/v1/story/recordings/by-upload/cancelled-key','DELETE']]);
+ assert.equal(state.pendingAudioUpload,null);
+ assert.deepEqual(state.audioRecordings,[]);
+});

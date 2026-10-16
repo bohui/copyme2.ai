@@ -86,8 +86,8 @@ def test_exact_consolidated_chain_preserves_originals_and_backfills_canonical_ev
         assert sql(as_user('select count(*) from public.user_narrator_source;', OTHER)).stdout.splitlines()[-1] == '0'
 
 
-@pytest.mark.parametrize('history', ['fresh', 'pre_workspace', 'current_main'],
-    ids=['fresh-history', 'main-upgrade-history', 'current-main-upgrade-history'])
+@pytest.mark.parametrize('history', ['fresh', 'pre_workspace', 'current_main', 'pre_recordings'],
+    ids=['fresh-history', 'main-upgrade-history', 'current-main-upgrade-history', 'pre-recordings-history'])
 def test_main_migration_history_accepts_the_unapplied_workspace_upgrade(consolidated_database, history):
     sql = consolidated_database
     # Match Supabase's primary key: a descriptive suffix does not make another
@@ -99,7 +99,8 @@ def test_main_migration_history_accepts_the_unapplied_workspace_upgrade(consolid
     # A pre-workspace history cannot already contain later migrations that
     # depend on its schema. Apply its real prefix first, then every forward
     # upgrade in version order. Also cover current main's full pre-task chain.
-    boundary = workspace.name if history == 'pre_workspace' else '202610150004'
+    recordings = next(path for path in paths if path.name.endswith('_original_recordings.sql'))
+    boundary = workspace.name if history == 'pre_workspace' else recordings.name if history == 'pre_recordings' else '202610150004'
     prior = [path for path in paths if path.name < boundary] if history != 'fresh' else []
     forward = [path for path in paths if path not in prior]
     assert not set(prior).intersection(forward)

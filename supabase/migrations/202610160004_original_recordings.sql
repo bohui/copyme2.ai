@@ -28,6 +28,22 @@ create table public.user_original_recording (
  cleanup_status text not null default 'not_requested' check(cleanup_status in ('not_requested','pending','complete')),
  created_at timestamptz not null default clock_timestamp(), unique(user_id,upload_key)
 );
+-- Cancellation survives requests that have not finished decoding/reserving yet.
+-- No audio is stored here; keys never expire into reusable upload identities.
+create table public.user_original_recording_cancel (
+ user_id uuid not null references auth.users on delete cascade, upload_key uuid not null,
+ created_at timestamptz not null default clock_timestamp(), primary key(user_id,upload_key)
+);
+-- An unfinished writer makes byte erasure uncertain, even after a successful
+-- DELETE response. A process crash leaves a pending cleanup intent, not success.
+create table public.user_original_recording_upload (
+ id uuid primary key default gen_random_uuid(), recording_id uuid not null references public.user_original_recording on delete cascade,
+ finished_at timestamptz
+);
+alter table public.user_original_recording_cancel enable row level security;
+alter table public.user_original_recording_upload enable row level security;
+revoke all on public.user_original_recording_cancel,public.user_original_recording_upload from public,anon,authenticated,service_role;
+
 create table public.user_source_recording (
  user_id uuid not null, project_id text not null, source_id uuid not null, source_version bigint not null,
  client_turn_id uuid not null, recording_id uuid not null unique references public.user_original_recording,
@@ -42,6 +58,7 @@ revoke all on public.user_original_recording,public.user_source_recording from p
 create function public.original_recording_visible(r public.user_original_recording,p_owner uuid) returns boolean
 language sql stable security definer set search_path='' as $$
  select r.user_id=p_owner and r.lifecycle<>'deleted'
+ and not exists(select 1 from public.user_original_recording_cancel where user_id=p_owner and upload_key=r.upload_key)
  and exists(select 1 from public.original_recording_rollout where enabled)
  and public.original_recording_authorized(p_owner,r.project_id)
  and (r.project_id is null or exists(select 1 from public.user_memoir_project p
@@ -95,14 +112,37 @@ begin
    select * into r from public.user_original_recording where user_id=p_owner and upload_key=(p_data->>'upload_key')::uuid;
    return case when found then to_jsonb(r) else null end;
  end if;
+ if p_operation='cancel_upload' then
+   perform pg_advisory_xact_lock(hashtextextended(p_owner::text||':'||(p_data->>'upload_key'),0));
+   select * into r from public.user_original_recording where user_id=p_owner and upload_key=(p_data->>'upload_key')::uuid for update;
+   if found and r.lifecycle='attached' then
+     return jsonb_build_object('cancelled',true,'recording_id',r.id,'already_attached',true);
+   end if;
+   insert into public.user_original_recording_cancel(user_id,upload_key) values(p_owner,(p_data->>'upload_key')::uuid) on conflict do nothing;
+   if r.id is not null then
+     update public.user_original_recording set lifecycle='deleted',storage_status='deleted',asr_result=null,
+       cleanup_status=case when cleanup_status='complete' then 'complete' else 'pending' end where id=r.id;
+   end if;
+   return jsonb_build_object('cancelled',true,'recording_id',r.id,'already_attached',false);
+ end if;
+ if p_operation in ('read','begin_upload','finalize','asr_failed','asr_succeeded') then
+   -- Disable is a committed revocation boundary: it waits for admitted reads/
+   -- provider work, and no later guard can admit after it commits.
+   perform 1 from public.original_recording_rollout where enabled for share;
+   if not found then raise exception 'recording unavailable' using errcode='42501';end if;
+ end if;
  if p_operation in ('authorize','reserve') then
    perform 1 from public.original_recording_rollout where enabled for share;
    if not found or not public.original_recording_authorized(p_owner,project) then
      raise exception 'recording authority required' using errcode='42501';end if;
-   if project is not null and not exists(select 1 from public.user_memoir_project where user_id=p_owner and project_id=project) then
-     raise exception 'recording project unavailable' using errcode='42501';end if;
+   if project is not null then
+     perform 1 from public.user_memoir_project where user_id=p_owner and project_id=project for share;
+     if not found then raise exception 'recording project unavailable' using errcode='42501';end if;
+   end if;
    if p_operation='authorize' then return '{}'::jsonb;end if;
    perform pg_advisory_xact_lock(hashtextextended(p_owner::text||':'||(p_data->>'upload_key'),0));
+   if exists(select 1 from public.user_original_recording_cancel where user_id=p_owner and upload_key=(p_data->>'upload_key')::uuid) then
+     raise exception 'upload was cancelled' using errcode='40001';end if;
    select * into r from public.user_original_recording where user_id=p_owner and upload_key=(p_data->>'upload_key')::uuid for update;
    if found then
      if r.lifecycle='deleted' or r.upload_project_id is distinct from project
@@ -139,11 +179,19 @@ begin
    update public.user_original_recording set lifecycle='deleted',storage_status='deleted',
      cleanup_status=case when cleanup_status='complete' then 'complete' else 'pending' end,asr_result=null
      where id=r.id returning * into r;
+ elsif p_operation='finish_upload' then
+   update public.user_original_recording_upload set finished_at=clock_timestamp()
+     where id=(p_data->>'attempt_id')::uuid and recording_id=r.id and finished_at is null;
  elsif p_operation='cleanup_complete' and r.lifecycle='deleted' then
-   update public.user_original_recording set cleanup_status='complete' where id=r.id returning * into r;
+   if not exists(select 1 from public.user_original_recording_upload where recording_id=r.id and finished_at is null) then
+     update public.user_original_recording set cleanup_status='complete' where id=r.id returning * into r;
+   end if;
  else
    if not public.original_recording_visible(r,p_owner) then raise exception 'recording unavailable' using errcode='42501';end if;
-   if p_operation='finalize' then
+   if p_operation='begin_upload' then
+     insert into public.user_original_recording_upload(recording_id) values(r.id) returning id into identifier;
+     return to_jsonb(r)||jsonb_build_object('upload_attempt_id',identifier);
+   elsif p_operation='finalize' then
      if r.content_sha256 is distinct from p_data->>'content_sha256'
        or r.byte_size is distinct from (p_data->>'byte_size')::bigint then
        raise exception 'original readback conflict' using errcode='40001';end if;

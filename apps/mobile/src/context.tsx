@@ -246,13 +246,18 @@ export function MemoirProvider({ children }: { children: React.ReactNode }) {
               const composers = (await vaultRef.current?.listComposers()) ?? [];
               const media =
                 (await vaultRef.current?.get<unknown[]>("media.index")) ?? [];
+              const cancellations =
+                (await vaultRef.current?.get<unknown[]>(
+                  "recording-cancellations",
+                )) ?? [];
               if (
                 oldOwner !== ownerEpoch.current ||
                 draftRef.current.trim() ||
                 sendAdmission.current ||
                 pendingItems.length ||
                 composers.length ||
-                media.length
+                media.length ||
+                cancellations.length
               )
                 throw new Error("LOCAL_WORK_PENDING");
               const transferApi = createMemoirApi({
@@ -770,12 +775,16 @@ export function MemoirProvider({ children }: { children: React.ReactNode }) {
       const composers = (await vaultRef.current?.listComposers()) ?? [];
       const media =
         (await vaultRef.current?.get<unknown[]>("media.index")) ?? [];
+      const cancellations =
+        (await vaultRef.current?.get<unknown[]>("recording-cancellations")) ??
+        [];
       if (
         sendAdmission.current ||
         draftRef.current.trim() ||
         remaining.length ||
         composers.length ||
-        media.length
+        media.length ||
+        cancellations.length
       )
         throw new Error(t("signOutWarning"));
       logoutVault.current = vaultRef.current;
