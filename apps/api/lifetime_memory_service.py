@@ -9,6 +9,9 @@ from .lifetime_memory_contracts import IdentityEnvelope, PinnedContinuity, Evide
 from .lifetime_memory_context import ContextSource, ContextCheckpoint, TailCoverage, build_context, CheckpointRequired
 
 
+_UNPINNED=object()
+
+
 STOP_WORDS={'about','what','when','where','which','that','this','tell','remember','memory','please','could','would','have','with','from','your','mine','more','there','were','then'}
 
 
@@ -31,14 +34,22 @@ class LifetimeMemoryService:
     def __init__(self,rpc,*,budget,prompt_version='lifetime-v1'):
         self.rpc=rpc;self.budget=budget;self.prompt_version=prompt_version
 
-    def assemble(self,*,fence,current,instructions,tail,tail_coverage,interview_context=None):
+    def assemble(self,*,fence,current,instructions,tail,tail_coverage,interview_context=None,accepted_checkpoint=_UNPINNED):
         """Tail must be a complete bounded canonical page result, not a guess."""
         identity=IdentityEnvelope.model_validate(fence['identity']);epoch=fence['policy_epoch']
         pins=PinnedContinuity.model_validate(self.rpc('read_lifetime_pinned',p_conversation_id=str(identity.conversation_id)))
         if not pins.privacy_complete:
             raise MaintenancePending('The source is accepted; active privacy constraints need maintenance before another model request')
-        saved=self.rpc('read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
-            p_model=self.budget.model,p_prompt_version=self.prompt_version)
+        saved=accepted_checkpoint
+        if saved is _UNPINNED:
+            two_lane=(interview_context or {}).get('two_lane_memory') is True
+            saved=self.rpc('read_lifetime_checkpoint_before' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
+                p_model=self.budget.model,p_prompt_version=self.prompt_version,
+                **({'p_before_sequence':current.sequence,'p_require_accepted':True} if two_lane else {}))
+        if saved and saved['coverage_end']>=current.sequence:
+            saved=self.rpc('read_lifetime_checkpoint_before',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
+                p_model=self.budget.model,p_prompt_version=self.prompt_version,p_before_sequence=current.sequence,
+                p_require_accepted=bool((interview_context or {}).get('two_lane_memory')))
         checkpoint=ContextCheckpoint.model_validate(saved) if saved else None
         retrieved=[];seen=set();complete=True
         terms=lexical_terms(current.original)
@@ -65,6 +76,8 @@ class LifetimeMemoryService:
             if not tail_coverage.complete:raise CheckpointRequired('Incomplete local tail requires a complete canonical maintenance proof')
             return build_context(**args,tail=tail,tail_coverage=tail_coverage,checkpoint=checkpoint)
         except CheckpointRequired:
+            if (interview_context or {}).get('two_lane_memory'):
+                raise MaintenancePending('Accepted summary is not ready; complete raw context cannot fit this bounded request') from None
             if current.sequence<=1:raise
             proof=self.rpc('begin_lifetime_compaction',p_fence=fence,p_through_sequence=current.sequence-1)
             for _ in range(8):
@@ -83,7 +96,7 @@ class LifetimeMemoryService:
             candidate=self.rpc('create_lifetime_checkpoint',p_fence=fence,p_coverage_end=current.sequence-1,
                 p_model=self.budget.model,p_prompt_version=self.prompt_version,p_evidence=selected,p_coverage_proof=proof['id'])
             self.rpc('publish_lifetime_checkpoint',p_id=candidate,p_fence=fence)
-            saved=self.rpc('read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
+            saved=self.rpc('read_lifetime_two_lane_checkpoint' if (interview_context or {}).get('two_lane_memory') else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
                 p_model=self.budget.model,p_prompt_version=self.prompt_version)
             checkpoint=ContextCheckpoint.model_validate(saved)
             covered=TailCoverage(identity=identity,policy_epoch=epoch,after_sequence=checkpoint.coverage_end,

@@ -1,0 +1,609 @@
+{
+  "source_head": "2c06eaad48301a397fb3d802bd74283a491b3e43",
+  "base": "072baf5f64e07f1d3740c218f348479a2aa858c9",
+  "draft_pr": "https://github.com/bohui/copyme2.ai/pull/71",
+  "spec_blob": "50c0458e94b9c2bc9c399720133018594ba426f3",
+  "full_issue_acceptance": false,
+  "rollout": "Environment/server flags remain OFF; DB defaults disabled/shadow; no production actions",
+  "environment": "Sanitized inherited application/provider credentials; disposable native PostgreSQL17; official installed local Temporal CLI; Python3.12.14/pytest9.1.1/Pydantic2.14.1/pytest-xdist3.8.0/pytest-timeout2.4.0; controlled provider transports only",
+  "aggregate": {
+    "cases": 6503,
+    "passed": 5647,
+    "failed": 570,
+    "skipped": 265,
+    "error": 21,
+    "seconds": 961.836,
+    "timing_basis": "JUnit testsuite time; pytest summary is recorded separately",
+    "pytest_summary_seconds": 963.15,
+    "source": "2c06eaad48301a397fb3d802bd74283a491b3e43",
+    "immutable_application_migration_test_source": true,
+    "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short --junitxml=/tmp/issue70-semantic-final-aggregate.xml",
+    "junit": "issue70-semantic-final-aggregate.xml",
+    "log": "issue70-semantic-final-aggregate.log"
+  },
+  "intermediate_404ca58_aggregate": {
+    "cases": 6503,
+    "passed": 5646,
+    "failed": 571,
+    "skipped": 265,
+    "error": 21,
+    "seconds": 968.003,
+    "new_bad_ids": [
+      "tests.test_progressive_composer::test_pg_transient_authority_retry_keeps_originals_and_snapshot_cursor[LIFETIME_PROVIDER_AUTHORITY_UNAVAILABLE-15]"
+    ],
+    "repair": "Removed redundant11-line deferral override; canonical15-second authority retry is retained",
+    "junit": "issue70-semantic-404ca58-aggregate.xml",
+    "log": "issue70-semantic-404ca58-aggregate.log"
+  },
+  "comparison": {
+    "previous_frozen_source": "87478ec1c6d312a3cb23daa1e6883d746fb44154",
+    "previous_counts": {
+      "cases": 6484,
+      "passed": 5628,
+      "failed": 570,
+      "skipped": 265,
+      "error": 21
+    },
+    "new_bad_ids": [],
+    "status_transitions": [],
+    "new_case_ids": [
+      "tests.test_lifetime_semantic_checkpoint::test_blocked_or_cancelled_summary_does_not_block_a_or_advance_coverage",
+      "tests.test_lifetime_semantic_checkpoint::test_every_window_is_processed_before_semantic_head_and_http_continuation",
+      "tests.test_lifetime_semantic_checkpoint::test_foreground_keeps_explicitly_pinned_empty_checkpoint_during_preparation",
+      "tests.test_lifetime_semantic_checkpoint::test_long_unicode_original_uses_every_absolute_window_without_raw_overflow",
+      "tests.test_lifetime_semantic_checkpoint::test_lossless_predecessor_is_processed_before_selective_summary_replaces_it",
+      "tests.test_lifetime_semantic_checkpoint::test_new_checkpoint_extends_previous_summary_and_flag_rollback_reads_it",
+      "tests.test_lifetime_semantic_checkpoint::test_old_pending_turn_can_retry_after_background_checkpoint_has_passed_it",
+      "tests.test_lifetime_semantic_checkpoint::test_older_b_snapshot_cannot_move_a_newer_canonical_checkpoint_backwards",
+      "tests.test_lifetime_semantic_checkpoint::test_pending_retry_uses_current_policy_after_another_source_is_revoked",
+      "tests.test_lifetime_semantic_checkpoint::test_prior_summary_tampering_is_rejected_before_provider_bytes",
+      "tests.test_lifetime_semantic_checkpoint::test_stale_summary_cannot_publish_or_resurrect_a_restricted_source[generation]",
+      "tests.test_lifetime_semantic_checkpoint::test_stale_summary_cannot_publish_or_resurrect_a_restricted_source[lease]",
+      "tests.test_lifetime_semantic_checkpoint::test_stale_summary_cannot_publish_or_resurrect_a_restricted_source[policy]",
+      "tests.test_lifetime_semantic_checkpoint::test_stale_summary_cannot_publish_or_resurrect_a_restricted_source[source]",
+      "tests.test_lifetime_semantic_checkpoint::test_summary_receipt_replay_and_expired_owner_resume_do_not_skip_windows",
+      "tests.test_lifetime_semantic_checkpoint::test_summary_sql_rejects_unseen_foreign_evidence_even_with_a_real_quote",
+      "tests.test_lifetime_semantic_checkpoint::test_summary_transport_rejects_an_unbounded_original_window",
+      "tests.test_lifetime_semantic_checkpoint::test_summary_wire_is_bounded_derived_context_and_rejects_unseen_evidence",
+      "tests.test_lifetime_semantic_checkpoint::test_worker_checkpoint20_is_consumed_with_complete_tail21_22_current23"
+    ],
+    "missing_prior_ids": [],
+    "development_photo_failures": [
+      "tests.test_interview_photos_postgres::test_final_conversation_commit_rejects_invalidated_saved_collector[newer_turn]",
+      "tests.test_interview_photos_postgres::test_final_conversation_commit_rejects_invalidated_saved_collector[photo]",
+      "tests.test_interview_photos_postgres::test_final_conversation_commit_rejects_invalidated_saved_collector[source]"
+    ],
+    "development_photo_new_bad_ids": [],
+    "note": "Failures/errors/skips retain raw status. A repeated prior failing ID does not itself prove identical root cause. Baseline comparisons and earlier independent review are preserved, not waived."
+  },
+  "supplemental_runs": {
+    "frozen-targeted": {
+      "cases": 370,
+      "passed": 370,
+      "seconds": 81.714,
+      "source": "404ca58f96b3b4cd0b5d8b7af7d69b91189a5f72",
+      "immutable_source": true,
+      "source_bytes_equal_final": false,
+      "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal tests/test_lifetime_semantic_checkpoint.py tests/test_issue70_review_repairs.py tests/test_issue70_strategy_review_repairs.py tests/test_two_lane_memory.py tests/test_interview_strategy.py tests/test_interview_strategy_postgres.py tests/test_interview_strategy_runtime.py tests/test_lifetime_memory_runtime.py tests/test_lifetime_memory_context.py tests/test_lifetime_memory_engine.py tests/test_lifetime_memory_checkpoints.py tests/test_lifetime_memory_service.py tests/test_lifetime_memory_transport.py tests/test_lifetime_memory_publication.py tests/test_lifetime_memory_commit.py tests/test_lifetime_policy_atomic_postgres.py tests/test_lifetime_policy_engine.py tests/test_postgrest_application_conflicts.py tests/test_agent_commit_postgres.py --junitxml=/tmp/issue70-semantic-frozen-targeted.xml",
+      "junit": "issue70-semantic-frozen-targeted.xml",
+      "log": "issue70-semantic-frozen-targeted.log"
+    },
+    "frozen-capacity": {
+      "cases": 1,
+      "passed": 1,
+      "seconds": 47.374,
+      "source": "404ca58f96b3b4cd0b5d8b7af7d69b91189a5f72",
+      "immutable_source": true,
+      "source_bytes_equal_final": false,
+      "command": "python -m pytest -q tests/test_lifetime_composer_capacity.py::test_pg_composer_10000_dispositions_have_bounded_complete_root --timeout=60 --timeout-method=signal --tb=short --junitxml=/tmp/issue70-semantic-frozen-capacity.xml",
+      "junit": "issue70-semantic-frozen-capacity.xml",
+      "log": "issue70-semantic-frozen-capacity.log"
+    },
+    "final-affected": {
+      "cases": 57,
+      "passed": 57,
+      "seconds": 36.783,
+      "source": "2c06eaad48301a397fb3d802bd74283a491b3e43 application/migration/test bytes, executed before commit",
+      "immutable_source": false,
+      "source_bytes_equal_final": true,
+      "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal tests/test_lifetime_semantic_checkpoint.py tests/test_issue70_review_repairs.py tests/test_progressive_composer.py::test_pg_transient_authority_retry_keeps_originals_and_snapshot_cursor tests/test_lifetime_composer_clearance.py tests/test_lifetime_composer_policy.py --junitxml=/tmp/issue70-semantic-retry-delay-green.xml",
+      "junit": "issue70-semantic-retry-delay-green.xml",
+      "log": "issue70-semantic-retry-delay-green.log"
+    },
+    "development-canonical": {
+      "cases": 402,
+      "passed": 402,
+      "seconds": 141.844,
+      "source": "Development; not a frozen final-source run",
+      "immutable_source": false,
+      "source_bytes_equal_final": false,
+      "command": null,
+      "junit": "issue70-semantic-canonical.xml",
+      "log": "issue70-semantic-canonical.log"
+    },
+    "development-photo-commit": {
+      "cases": 61,
+      "passed": 58,
+      "failed": 3,
+      "seconds": 46.007,
+      "source": "Development; not a frozen final-source run",
+      "immutable_source": false,
+      "source_bytes_equal_final": false,
+      "command": null,
+      "junit": "issue70-semantic-fence-green.xml",
+      "log": "issue70-semantic-fence-green.log"
+    },
+    "development-targeted": {
+      "cases": 369,
+      "passed": 368,
+      "failed": 1,
+      "seconds": 148.504,
+      "source": "Development; not a frozen final-source run",
+      "immutable_source": false,
+      "source_bytes_equal_final": false,
+      "command": null,
+      "junit": "issue70-semantic-final-targeted.xml",
+      "log": "issue70-semantic-final-targeted.log"
+    }
+  },
+  "javascript": {
+    "passed": 530,
+    "failed": 0,
+    "skipped": 0,
+    "source": "404ca58f96b3b4cd0b5d8b7af7d69b91189a5f72",
+    "unchanged_js_and_frontend_test_bytes_at_final": true,
+    "command": "node --test tests/js/*.test.mjs skills/memoir-composer/tests/*.test.mjs tests/historical-news/*.test.mjs",
+    "log": "issue70-semantic-js.log"
+  },
+  "browser": {
+    "fresh_on_semantic_source": false,
+    "unchanged_frontend_and_browser_test_bytes": true,
+    "prior_passed": 6,
+    "prior_source": "strategy stage; synthetic API/auth",
+    "evidence": "strategy-raw-evidence.tar.gz:issue70-strategy-browser.xml",
+    "limitations": "Not real-model/live auth/uploads/audio/deployment evidence"
+  },
+  "tdd": {
+    "meaningful_counterexamples": [
+      "issue70-semantic-red2.xml",
+      "issue70-semantic-frontier-red.xml",
+      "issue70-semantic-pinned-red.xml",
+      "issue70-semantic-bound-red.xml",
+      "issue70-semantic-policy-red.xml",
+      "issue70-semantic-404ca58-aggregate.xml"
+    ],
+    "note": "All development runs, including fixture/transport mistakes and the initial weaker red, are retained. The development-targeted run had one legacy-lease test-setup failure while test bytes changed; the frozen-targeted run is authoritative. Controlled summaries prove input/output validation and processing, not semantic model quality."
+  },
+  "source_files": {
+    ".env.example": {
+      "git_blob": "e66bc2aa0cbad713369c41f92fe0b4b116d37c01",
+      "sha256": "4b45637b78c922ada8c9e09fb863058ada02f394092ad78866b56462534bfb4d"
+    },
+    "apps/api/agent_storage.py": {
+      "git_blob": "765916156d19a43f0ee814f9b2a528bf91f091e0",
+      "sha256": "0cc9d198fa494e14f20e001d906466474897fb94fc7c35e652342f01f266574b"
+    },
+    "apps/api/codex_worker_service.py": {
+      "git_blob": "42bd05d863406aa2f2944b11f96b493dacb7390f",
+      "sha256": "14d2388c32930c5089f15f1038701c32292bbd50be4639dfbfa5b1cc5f95df36"
+    },
+    "apps/api/collector_configuration.py": {
+      "git_blob": "03941a2f0984bad7309b7e814e034bbfea9d4a07",
+      "sha256": "c938e1d46b0821cc632d1b101acf11b621afdd368437e04d79566b5fd3dda0c6"
+    },
+    "apps/api/interview_strategy.py": {
+      "git_blob": "370039fc8e3f07724792d9fd7baf7cef2f067972",
+      "sha256": "c9873ec2443b61ce7c2c9a4ea83d9a95039423d7fc12cea3c88f795eed3e4cf5"
+    },
+    "apps/api/lifetime_memory_composer.py": {
+      "git_blob": "bb4e34ab37c8b3f2deae6f1bec639f19ce64f665",
+      "sha256": "70f31c61890c17da9268623b257589ead330f9c4ae988929f4eab5a44cb60517"
+    },
+    "apps/api/lifetime_memory_context.py": {
+      "git_blob": "b60ef9ebbc4d0cf3e358037835eec7849ce305d2",
+      "sha256": "8fd5e10dd08cfa19ebcf6bd5e3ba093690e97b295a85ba48b5d06ba73449eae6"
+    },
+    "apps/api/lifetime_memory_continuity.py": {
+      "git_blob": "bc9ba72f90b91d945da451d2fe9ca12c5bf9cb25",
+      "sha256": "da27be1179f684b3752c983212b65c0b78d3196df5a97e7e20746d906cf11112"
+    },
+    "apps/api/lifetime_memory_engine.py": {
+      "git_blob": "88ce3bc5d21ee1e4049e661c17db52821007c77e",
+      "sha256": "7d8b00b9fdd7af5b9238d7d6eef90f46be697db0e2803c10945fe6774cb0af5c"
+    },
+    "apps/api/lifetime_memory_lane_engine.py": {
+      "git_blob": "1e58d2a33779f46b996a80f9420a4e10fb94a553",
+      "sha256": "ee1b3bb300e70d219618de7e86d5c9e65d87c7e3a574e25f8555a61029817d0c"
+    },
+    "apps/api/lifetime_memory_runtime.py": {
+      "git_blob": "54a23f33f287691bebe98197ab590f0e50ce7199",
+      "sha256": "6472e0be3564868c93c33b3ef9b91b48ee542ed5fce0b0f68f34588481ff6c57"
+    },
+    "apps/api/lifetime_memory_service.py": {
+      "git_blob": "d4d06820b3c7261ca91df0995615a9fe7ffbb523",
+      "sha256": "2cb22c9945c3845d6eaabb88d1336fbb55b25584a4fb5ae4f863d84b127b444c"
+    },
+    "apps/api/lifetime_memory_summary.py": {
+      "git_blob": "e56b7648524678fc7ee916329343a9717aa16822",
+      "sha256": "5ab1097c555418e0b1ade8eea68cf1d915df32a0a219dfc07d83d5aa9c729946"
+    },
+    "apps/api/lifetime_memory_transport.py": {
+      "git_blob": "c3a3527a670e8ba755499c737351248672a563ce",
+      "sha256": "2671ff0976ed7356ec97c474220c1ba8f6c95877e60fe26d5506107da235f225"
+    },
+    "apps/api/story_routes.py": {
+      "git_blob": "778aea2f9611089c61e0d58cf7f0c31c59d6b513",
+      "sha256": "8edc88c8a1a6d75533c34cd3e45625bfccbaf79588f5fd480ff974bc766ce19a"
+    },
+    "apps/api/two_lane_memory.py": {
+      "git_blob": "1857e380891126735ec3054991a2e9baa6b216d0",
+      "sha256": "edaafb01cc9882225ae52740cfcbbdba2b3979467ccdcade5fb4793363f717d5"
+    },
+    "apps/web/client/memoir/client.js": {
+      "git_blob": "d25c856226c24cd432e01637606b4e9c83cec184",
+      "sha256": "3500fda54e7eaef4acc8ab04735ca6d1e75fe5de13cd5b15a92d6c3da0000efe"
+    },
+    "apps/web/client/memoir/derived-workspace.mjs": {
+      "git_blob": "60e1548e6602aa3fa81f212cfea8d146e0736768",
+      "sha256": "b4d8a874f6d8ebae01a38faed5ceb9a437dd29a8985b0160a7c5251ba82bab07"
+    },
+    "supabase/migrations/202610160001_two_lane_memory.sql": {
+      "git_blob": "645ad1b8788beb58f9a3a1339396f07753a8a6f6",
+      "sha256": "673b5ac325322257d2e4810edbcbc7042ec21762433e8b675e0e394f4f7eb1c9"
+    },
+    "supabase/migrations/202610160002_interview_strategy.sql": {
+      "git_blob": "4c705200b6583dcc3a696273c34131494b83e511",
+      "sha256": "91c4f3bb592905ee2b8fd241cc8ece06c9f1071d58c361f3753a5a755cba9c5c"
+    },
+    "supabase/migrations/202610160003_semantic_checkpoints.sql": {
+      "git_blob": "3f7603a6bda7803b60fc415e5384afcb5a4cc00c",
+      "sha256": "adff684146d34ec991aa564edb615858e4a1a00bdb10d448d8e1f36dfa02bcdf"
+    },
+    "tests/js/two-lane-workspace.test.mjs": {
+      "git_blob": "6b38ddf7a3956153e254c5068a331e2a4f44061f",
+      "sha256": "6748ee1d051d645fcf70559c7f2759101669c2da7e1f4cc4ec660f3a5c1cf379"
+    },
+    "tests/test_interview_strategy.py": {
+      "git_blob": "0c5fa53166c7c7bc3a5828f311faab20a0ec5bea",
+      "sha256": "506cb6a5b39930deac7e4ad0445546a3da2ea370ff31e1c5c61e6a3d273fa740"
+    },
+    "tests/test_interview_strategy_postgres.py": {
+      "git_blob": "8cdf57f6d48b45129e4dab0eb16c7f21c6e55ccb",
+      "sha256": "de46a289e3a0015bb18235111d694c09cc8a67e1b64b211abc47c5e8a407c0a6"
+    },
+    "tests/test_interview_strategy_runtime.py": {
+      "git_blob": "e9fc792fe05d5790506eb0a139c69e7b8f96d391",
+      "sha256": "9ee17a2c175cbe80a75e05371f8f625ee5739ee0e2e4af49a99848dda37b9386"
+    },
+    "tests/test_issue70_review_repairs.py": {
+      "git_blob": "f48c8c74c83e42a23c8b069640d903867c89d6cd",
+      "sha256": "8c49429d455c1df0f5c5492b51e963c678b9cff8be55fe4b9ab4e2e6d0ad132b"
+    },
+    "tests/test_issue70_strategy_review_repairs.py": {
+      "git_blob": "3327883ef6f6f93101b18ad0846220761a8c3db1",
+      "sha256": "ac6ff3c2d1d40002e6e1d8af5465304848d1455d503392f31771392fb54dbc5c"
+    },
+    "tests/test_lifetime_policy_atomic_postgres.py": {
+      "git_blob": "7ff78a77c0cdbfc9e8f01268297cc32206af35f0",
+      "sha256": "a709eac09af5c0057aacf0bf071943e63ea6f5cc9590dfe8e8acad3a6002ba50"
+    },
+    "tests/test_lifetime_semantic_checkpoint.py": {
+      "git_blob": "9c7ada514cdbc60922831c6861ec9f0838171251",
+      "sha256": "374a39b5cfe931e4ac0dc5e4034997d6c3962a6e8ebc55f1b6c038a05091320f"
+    },
+    "tests/test_two_lane_browser.py": {
+      "git_blob": "7d0faf64f3beb70256bb79af7285b5ae8646a2be",
+      "sha256": "43f56e4f92f048db3caf6a0564c2e56e6d13ead41becbeba741ad230ab51b25f"
+    },
+    "tests/test_two_lane_memory.py": {
+      "git_blob": "4945282f53c280fcc339f6ff09c0150031c316c5",
+      "sha256": "5110ff283579a93f0dd09e191fa3c1ded1fc0505317fcbdc5194868bcf0c002b"
+    }
+  },
+  "preserved_prior_evidence": {
+    "acceptance.md": "136b5626da89abeb58f7b45ba8a31f42ac671471b94bbe1be5ce7c89f0172b38",
+    "architecture-and-benchmark.md": "e2596160c61907950eded9c54339fa7990446c6f8906f197d79e4ce27e5e4121",
+    "verification.json": "b88defbb05f59fb2592e104b87f699ef00af2160333da3ab6d50618eef723ad9",
+    "case-ledger.json.gz": "c3d9c6448dba43d53a71ca0e6ff6bf5cf7da19907f9ff7cca09e34d5420995f8",
+    "raw-evidence.tar.gz": "c31738acb97b8fef190e0e37d569f9754bb0fd70841b0f6a8b5b72360b6d6b71",
+    "strategy-architecture-and-benchmark.md": "a2cbf359db1f374936d56b00a53e2cdfe49c9a8bb6e91eae911e5834870e7b70",
+    "strategy-acceptance.md": "128e7e2658d1991cdbe8ddd6219a12f72428094538eda3cf71a74710e969724d",
+    "strategy-reproduce.md": "588f5be8d539e20cd36e36858152831882b5329a6ba0eb4ca0f8804c71ba7c5f",
+    "strategy-reproduce.py": "2e180ed97aaad3952e173e81810d141f76aa2356bad6309b81af517b4662dc86",
+    "strategy-verification.json": "f75b02d82f8971b8e5d96eed7d0fe9cb5e298727c068bb88f7a4c5f95f73b890",
+    "strategy-case-ledger.json.gz": "8124981db03f20604536aa5d2d656f0c83b44ad5cf4987cf37982a17e2f09b29",
+    "strategy-raw-evidence.tar.gz": "9698e0f40faf4fbf9f1f013eae2fc9677dffea182a59a78c461b83ef59115baa"
+  },
+  "archive": {
+    "file": "semantic-raw-evidence.tar.gz",
+    "sha256": "0176084a5963addf93e7c4f3958f29a07927d5396bc08b0d7ea0a2dfff0e8130",
+    "members": {
+      "issue70-semantic-404ca58-aggregate.log": {
+        "bytes": 1544577,
+        "sha256": "fc6d6becef9b13d0d7d92b5bfbce6b47e2085c506d1436027093d014102ccc62"
+      },
+      "issue70-semantic-404ca58-aggregate.xml": {
+        "bytes": 12735883,
+        "sha256": "0cad6b256bdb5c06f056fa9abccf1190b8186d5ff0f8a0fe7e321b8cccd7aa95"
+      },
+      "issue70-semantic-bound-red.log": {
+        "bytes": 2865,
+        "sha256": "e7e8c609a70112c8405c9eb4e6da6b07a0af0498a8a4de006d8fd6bc6c7ca97f"
+      },
+      "issue70-semantic-bound-red.xml": {
+        "bytes": 1634,
+        "sha256": "2eb9ebdc35cb01c45b353706fc8f188c865c570d0516f63d85774efe41c458a5"
+      },
+      "issue70-semantic-canonical.log": {
+        "bytes": 512,
+        "sha256": "ed0b1ab06720cc30c56b2f20f8f868e95166cdf2cb21363c821e32d151168f71"
+      },
+      "issue70-semantic-canonical.xml": {
+        "bytes": 65120,
+        "sha256": "150e148f243dabb3fc7d3d2c86692119ce9bdacadff136f33076a158736078bc"
+      },
+      "issue70-semantic-extended.log": {
+        "bytes": 15255,
+        "sha256": "c83bbb3b7b0a4e745679825f555bd8781874c92966cc58ec75b439f408e1108e"
+      },
+      "issue70-semantic-extended.xml": {
+        "bytes": 14157,
+        "sha256": "99328e1be1aff0f21740d879a46494d120bb21e8ec7bcaa32e4bdeadbe747181"
+      },
+      "issue70-semantic-extended2.log": {
+        "bytes": 100,
+        "sha256": "4599be966c811a1150e650fa1777d136ec38ce8cfce87abfc122b0d17829c5b3"
+      },
+      "issue70-semantic-extended2.xml": {
+        "bytes": 2996,
+        "sha256": "5ad9ec2b64bf7ac346fa10b327c340bb6e2d82529bc70866418c628b32f1f1b5"
+      },
+      "issue70-semantic-fence-green.log": {
+        "bytes": 6429,
+        "sha256": "9a439421e5e4e3633d6957f17f1d49437b0fd6f7b9a7b9fb7682a4ac884101aa"
+      },
+      "issue70-semantic-fence-green.xml": {
+        "bytes": 17232,
+        "sha256": "03ab63a49e837ee8fa0f149d58d3eef66155e5d762fbe0721302bb060ec25683"
+      },
+      "issue70-semantic-final-aggregate.log": {
+        "bytes": 1543132,
+        "sha256": "eba484048685af4d52ac9d4444ee856fd26a7baf18968249dc02fca86b9eeeba"
+      },
+      "issue70-semantic-final-aggregate.xml": {
+        "bytes": 12735389,
+        "sha256": "ccf40907663af4ca4f12d2b59d4b20ea951526599acf8653b165f927e5a83b05"
+      },
+      "issue70-semantic-final-targeted.log": {
+        "bytes": 4405,
+        "sha256": "364bf8da2b52908d35a6e50789b848ebee823bd03c55041926858ef94fa0c551"
+      },
+      "issue70-semantic-final-targeted.xml": {
+        "bytes": 65409,
+        "sha256": "d9c672ab997c3c083f59f1d2a72a0ae994768af24b14ea8d3c1a0295adb9f9b1"
+      },
+      "issue70-semantic-first.log": {
+        "bytes": 12555,
+        "sha256": "9e393e1503a9541f0a17ad5720cc8557a19032efac2bf7210885797abc8af466"
+      },
+      "issue70-semantic-first.xml": {
+        "bytes": 11585,
+        "sha256": "e868a7477a3143c7a036fd08bab1e5872a9ad79f86e881454dfcbaf3f3875648"
+      },
+      "issue70-semantic-frontier-red.log": {
+        "bytes": 3690,
+        "sha256": "a0ec1afe95da479caf304f545a63f7e432fa36f06179025b57f838da15f3517a"
+      },
+      "issue70-semantic-frontier-red.xml": {
+        "bytes": 2611,
+        "sha256": "dd4c9e0914d3c6e3f65cca744b35aa7d9c4a7b42c3804543bc55ef6d1c0ee0f2"
+      },
+      "issue70-semantic-frozen-capacity.log": {
+        "bytes": 99,
+        "sha256": "10d809811c4709e0ebceca8c3ef3674de30228bb89082e099b9811561e3ad197"
+      },
+      "issue70-semantic-frozen-capacity.xml": {
+        "bytes": 395,
+        "sha256": "1ed0781f3bd6d8894274e6bb1fac1cbe7f2f036b13c1f41ec9c80e9dc3823009"
+      },
+      "issue70-semantic-frozen-targeted.log": {
+        "bytes": 554,
+        "sha256": "c50515479a8fbee739a03e7cee9afcae9d1d2b8a870a011e04fc373fb9417671"
+      },
+      "issue70-semantic-frozen-targeted.xml": {
+        "bytes": 60886,
+        "sha256": "26097a840ba4ee445eac8495cf01c1ee03f44500cc6dc99786b64eca045b5ff1"
+      },
+      "issue70-semantic-green.log": {
+        "bytes": 99,
+        "sha256": "b628cf5428654945f8e570e3ca3b34077d66e83193d00400ebe882b0e9021266"
+      },
+      "issue70-semantic-green.xml": {
+        "bytes": 1360,
+        "sha256": "4d8683153fc066ac86a1bf45358461feb3221ae9ada68c7c33463a3d7941afba"
+      },
+      "issue70-semantic-js.log": {
+        "bytes": 47780,
+        "sha256": "8338dc68e83840b97492154373e1f2451e7c2fa1252fe1cbfe886c5a1b247457"
+      },
+      "issue70-semantic-local.log": {
+        "bytes": 100,
+        "sha256": "1cc1e5d13a34b0745e6fe35e5ad6154ade3df16cbbe5bf7b850997b4c77f4748"
+      },
+      "issue70-semantic-local.xml": {
+        "bytes": 3151,
+        "sha256": "5820801f16c0adb1e147783c3d191d3b995c47c98b8ff0f4d7c72f48827ff79a"
+      },
+      "issue70-semantic-local2.log": {
+        "bytes": 4396,
+        "sha256": "300d199607aba9ec356886a87e48099b6b9ea42cadb6624a07a5fac68cbf03dd"
+      },
+      "issue70-semantic-local2.xml": {
+        "bytes": 6302,
+        "sha256": "9a7e583a936ffba681f25d03c3262a37e29c189f91c1906b177f0a8f08bb5454"
+      },
+      "issue70-semantic-local3.log": {
+        "bytes": 4414,
+        "sha256": "d5eab75fee77b9ef796233ee5f36a7875f2e2fa8b30a3772302fd58f35731cb7"
+      },
+      "issue70-semantic-local3.xml": {
+        "bytes": 6142,
+        "sha256": "188f9993f3082a5088d13e685b96f587f8cfd1d23d8051f4060cf8710caceda3"
+      },
+      "issue70-semantic-local4.log": {
+        "bytes": 100,
+        "sha256": "990ab056c7aa59f278139c52affcb771a7a8075c83ec597a3749c8df73a35aa9"
+      },
+      "issue70-semantic-local4.xml": {
+        "bytes": 3770,
+        "sha256": "77907803db902fb138be52ff76544496280375eea6ec6899975ec1501f319fe7"
+      },
+      "issue70-semantic-pinned-red.log": {
+        "bytes": 1704,
+        "sha256": "6701cd40adcbd5a20c746ea04f98dd0d39991eb66d34c854a6c6cde8f3883b35"
+      },
+      "issue70-semantic-pinned-red.xml": {
+        "bytes": 1765,
+        "sha256": "1fe7ba3054eae0fff83c7feb640f44ca1d5e896f4b489d3ccf5ae9ad89747585"
+      },
+      "issue70-semantic-policy-red.log": {
+        "bytes": 2218,
+        "sha256": "ea6b7124a889bd480a058dbfd846fb5deb2f119053bd369639045a6d9ce2faf8"
+      },
+      "issue70-semantic-policy-red.xml": {
+        "bytes": 2917,
+        "sha256": "eb453143004497ed9492e47304d66f6339934793a4fb6a12077b5572d5931ec1"
+      },
+      "issue70-semantic-red.log": {
+        "bytes": 6236,
+        "sha256": "2a17f46c6c8d65a28279e7c270eb51c805678f101f7ec7eb3085866ece8ed398"
+      },
+      "issue70-semantic-red.xml": {
+        "bytes": 4428,
+        "sha256": "a1cf53950d438f4c1d1f5ffef4fe53ccccc5d976065c80fee290fdf3e77bb42b"
+      },
+      "issue70-semantic-red2.log": {
+        "bytes": 13437,
+        "sha256": "1a8fd3fa9034e3438937b10c610d8c5fde618b6fb347031f67a26c0a980be728"
+      },
+      "issue70-semantic-red2.xml": {
+        "bytes": 8772,
+        "sha256": "d162cd8902a237eaf2fc56c106f87bcc070ce5af7bc5121c592b5e5aa766f738"
+      },
+      "issue70-semantic-regression.log": {
+        "bytes": 4210,
+        "sha256": "fd08f209f2e622e094f127655b18f3a27b2c601e3a37d75f4059cb9061d4e57e"
+      },
+      "issue70-semantic-regression.xml": {
+        "bytes": 51740,
+        "sha256": "d6240c4c0428c01412a5a6ec2dc9fdd529ce3d825c7a1e83664f54a9727d421b"
+      },
+      "issue70-semantic-retry-debug.log": {
+        "bytes": 4704,
+        "sha256": "5a3f5f0dbfe46ba0ff688a1d522a5668699199e17cdf26ce630e9442ad563074"
+      },
+      "issue70-semantic-retry-debug.xml": {
+        "bytes": 3873,
+        "sha256": "837f9f69942104f535722c253a3d6d0aad527c4cd63b552161389643789efc41"
+      },
+      "issue70-semantic-retry-debug2.log": {
+        "bytes": 2640,
+        "sha256": "bee4481ea1f8a9f159eabef5ccdff519b355827f9cea594b4bbc0b8590e2afb2"
+      },
+      "issue70-semantic-retry-delay-green.log": {
+        "bytes": 143,
+        "sha256": "caffd077e3ced7dbf1d89593afa9ee0175f7433a48781b806491a4880f29cd98"
+      },
+      "issue70-semantic-retry-delay-green.xml": {
+        "bytes": 9234,
+        "sha256": "777cfa0e05747592623654bcc79dc114e87314d95df174ca99d67a259773f025"
+      },
+      "issue70-semantic-retry-final.log": {
+        "bytes": 113,
+        "sha256": "7c3138d64cbcd77d6da67863d02c8df2131ee0d5e1f52eb441a6cfd7c5a00760"
+      },
+      "issue70-semantic-retry-final.xml": {
+        "bytes": 406,
+        "sha256": "21f96f851154b714992e384c80227ff3d3f9e4a43fcafc2125f7e87c8301acc6"
+      },
+      "issue70-semantic-retry-red.log": {
+        "bytes": 6474,
+        "sha256": "26065848bd4834a68b72acbfa7dfd70fc3b3d512a2d12fd6229005af35d66a54"
+      },
+      "issue70-semantic-retry-red.xml": {
+        "bytes": 5885,
+        "sha256": "687f3e6b0913986601859090242fe6c099f13a4f640673f28f09690034d635c9"
+      },
+      "implementation-environment-runner.py": {
+        "bytes": 579,
+        "sha256": "b91d1010e5ddbeec7637131ea28b03af74cf367e3eabbe47becdcc2b97294885"
+      },
+      "issue70-build-semantic-evidence.py": {
+        "bytes": 12330,
+        "sha256": "107869098e7836fefe453134a6c2c546e31ef2498b0e1d2ecf73dc4fb2893a03"
+      }
+    }
+  },
+  "case_ledger": {
+    "file": "semantic-case-ledger.json.gz",
+    "sha256": "4b1ba30a84a2ca548373e93978186d6848c896062464326d144c79a79ae824a5"
+  },
+  "independent_review": {
+    "source_head": "404ca58f96b3b4cd0b5d8b7af7d69b91189a5f72",
+    "reported_by": "Parent delegation on2026-10-16; raw review files are not assumed to be in this workspace",
+    "result": "No new actionable defect established in reported review scope; subsequent404ca58 aggregate found one retry-delay regression, repaired at2c06eaa",
+    "runs_reported": [
+      {
+        "scope": "semantic/strategy/policy",
+        "passed": 180
+      },
+      {
+        "scope": "context/transport",
+        "passed": 196
+      },
+      {
+        "scope": "boundary/repair probes",
+        "passed": 13
+      },
+      {
+        "scope": "prior repairs",
+        "passed": 6,
+        "obsolete_expectations_deselected": 2
+      }
+    ],
+    "counts_overlap": true,
+    "additional_probes": "Crash takeover, empty-output advancement, stale dependencies and account isolation pass",
+    "remaining": "Subsequent404ca58 aggregate found the retry regression; the2c06eaa repair review is recorded separately"
+  },
+  "independent_retry_delta_review": {
+    "source_head": "2c06eaad48301a397fb3d802bd74283a491b3e43",
+    "reported_by": "Parent delegation on2026-10-16; independent raw files remain with parent",
+    "result": "No new actionable finding",
+    "delta": "Sole11-line redundant SQL override removal",
+    "verified": "Native15-second transient-authority retry, five-minute other delays, partial summary progress, single-owner deferral and stale-token rejection",
+    "runs_reported": [
+      {
+        "scope": "semantic/retry/policy",
+        "passed": 52
+      },
+      {
+        "scope": "boundary/earlier probes",
+        "passed": 19
+      },
+      {
+        "scope": "prior repair/coalescing",
+        "passed": 12
+      }
+    ],
+    "superseded_probes_deselected": 2,
+    "counts_overlap": true
+  },
+  "unrun_and_release_gates": [
+    "Matched authorized funded live semantic retention/interview quality and latency campaign; exact total cost ceiling absent",
+    "Actual provider usage/cost/audio and provider-wide quota/capacity across replicas",
+    "Verification of the final evidence-only head and disposition of failed/error/skipped aggregate cases; both404ca58 and the2c06eaa retry delta were independently reviewed as reported",
+    "Applicable rollout/production migration/deployment/merge approvals; none implied"
+  ],
+  "budget": "All semantic maintenance calls and repairs count against the existing frozen540-call B ceiling; no implicit increase or live dispatch",
+  "local_semantic_cases": 19
+}

@@ -127,7 +127,7 @@ class WorkerTurnInput(BaseModel):
                     or self.preparation_id is not None):
                 raise ValueError('Bounded lanes cannot mix legacy execution context')
             lane = self.bounded_lane
-            role = 'author_timeline' if lane.phase == 'extract' else 'composer'
+            role = 'author_timeline' if lane.phase in {'extract','summarize'} else 'composer'
             if (self.agent_role != role or self.user_id != lane.fence.user_id
                     or self.project_id != lane.fence.project_id
                     or (self.model is not None and self.model != lane.budget.model)
@@ -188,6 +188,8 @@ class CodexWorker:
         self._deadline_context = ContextVar('worker_execution_deadline', default=None)
         self._progress_context = ContextVar('worker_execution_progress', default=None)
         self._locks: dict[str, object] = {}
+        from .two_lane_memory import RuntimeCapacity
+        self._capacity=RuntimeCapacity()
         self._identity_lock = threading.Lock()
         self._identity_file = self.home_root / ".user-ids.json"
 
@@ -297,7 +299,14 @@ class CodexWorker:
         )
         try:
             execution_role = self._execution_role(payload)
-            async with self._lock(user_id, execution_role):
+            from .two_lane_memory import two_lanes_enabled
+            from contextlib import AsyncExitStack
+            async with AsyncExitStack() as admission:
+                if two_lanes_enabled():
+                    await admission.enter_async_context(self._capacity.slot(interactive=payload.agent_role=='collector',
+                        serial_lock=self._lock(user_id, execution_role)))
+                else:
+                    await admission.enter_async_context(self._lock(user_id, execution_role))
                 if payload.agent_role == 'composer' and payload.bounded_lane is None:
                     await self._ensure_composer_provider()
                 # Shared-volume lock also covers API disconnect/lease expiry and

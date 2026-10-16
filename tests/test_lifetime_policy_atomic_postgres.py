@@ -49,8 +49,14 @@ def test_policy_is_complete_when_acceptance_returns_and_matches_python(sql, text
     assert [{'record_id': row['record_id'], 'kind': row['kind'], 'data': row['data']} for row in saved] == sorted(expected, key=lambda row: row['record_id'])
     assert status(sql, identity)['pending'] is False
     assert sql('select count(*) from public.user_lifetime_source_policy_receipt;').stdout.strip() == '1'
-    # Simulate a process dying here: a different subsequent turn sees the durable controls.
-    accept(sql, identity, 'I walked through the garden.', '00000000-0000-4000-8000-000000000702')
+    # A crash preserves the controls but cannot silently abandon the accepted
+    # source. Reconcile that exact turn before admitting a different source.
+    blocked = accept(sql, identity, 'I walked through the garden.',
+                     '00000000-0000-4000-8000-000000000702', check=False)
+    assert blocked.returncode != 0 and 'pending reply' in blocked.stderr
+    resumed = accept(sql, identity, text)
+    assert resumed['source']['id'] == source['id']
+    assert status(sql, identity)['pending'] is False
     assert len(policies(sql, identity)) == len(expected)
 
 

@@ -185,6 +185,13 @@ class GovernedCollectorInput(Contract):
                 if (claim.source_id == packet.current.narrator.source_id
                         or versions.get(claim.source_id) != claim.version):
                     raise ValueError('Governed checkpoint evidence is inconsistent')
+            if checkpoint.memory_summary:
+                if checkpoint.memory_summary.processed_through!=checkpoint.coverage_end:
+                    raise ValueError('Governed summary watermark is inconsistent')
+                for item in checkpoint.memory_summary.items:
+                    for ref in item.source_refs:
+                        if versions.get(UUID(ref.source_id))!=ref.version or UUID(ref.source_id)==packet.current.narrator.source_id:
+                            raise ValueError('Governed summary citation is inconsistent')
             claims.extend(checkpoint.evidence)
         elif packet.coverage_end:
             raise ValueError('Governed coverage requires its checkpoint')
@@ -195,6 +202,13 @@ class GovernedCollectorInput(Contract):
             if claim.source_id in versions and versions[claim.source_id] != claim.version:
                 raise ValueError('Governed evidence has conflicting source versions')
             versions[claim.source_id] = claim.version
+        if checkpoint and checkpoint.memory_summary:
+            for item in checkpoint.memory_summary.items:
+                for ref in item.source_refs:
+                    source_id=UUID(ref.source_id)
+                    if source_id in versions and versions[source_id]!=ref.version:
+                        raise ValueError('Governed summary has conflicting source versions')
+                    versions[source_id]=ref.version
         if {'source', 'sources'} & packet.interview_context.keys():
             raise ValueError('Governed interview context cannot duplicate narrator evidence')
         return self

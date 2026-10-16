@@ -104,15 +104,48 @@ def extraction_events(raw,page,original=None):
     return [event for event in updates if any(ref['char_end']>core_start for ref in event['source_refs'])]
 
 
+async def _summarize(page,worker):
+    from .lifetime_memory_summary import summary_contract,summary_packet,validate_summary
+    state=page['memory_summary']
+    if state['work_mode']=='reply_only' or page['source'] is None:
+        return copy.deepcopy(state['prior'])
+    from .lifetime_memory_activation import CanonicalActivationUnavailable
+    if not getattr(worker,'worker_url',None) or not getattr(worker,'worker_secret',None):
+        raise CanonicalActivationUnavailable()
+    from .lifetime_memory_lane_engine import build_bounded_lane_input,send_bounded_lane_request
+    instructions,schema=summary_contract();packet=summary_packet(page)
+    check_model_packet(packet,instructions,schema)
+    bounded=build_bounded_lane_input(page,phase='summarize',packet=packet,budget=lane_model_budget())
+    for attempt in range(3):
+        response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
+            bounded_lane=bounded,worker_transport=getattr(worker,'worker_transport',None),
+            publisher=getattr(worker,'lane_publisher',None),timeout=240)
+        try:return validate_summary(json.loads(response['reply']),page)
+        except (ValueError,TypeError,KeyError):
+            if attempt==2:raise ValueError('Semantic summary output failed validation') from None
+            logging.getLogger(__name__).warning('canonical_summary rejected lane_id=%s attempt=%d',page['lane_id'],attempt+1)
+
+
 async def _extract(page,worker):
     from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
+    if (page.get('two_lane') or {}).get('work_mode')=='reply_only':
+        result={'events':[],'place_journeys':[],'prepared_questions':[]}
+        if (page.get('two_lane') or {}).get('strategy_mode'):
+            # No extraction/classifier call, and no inferred downgrade from a
+            # short reply or pause. Preserve the prior planned strategy unchanged.
+            result['strategy_proposal']=None
+        return result
     original=await worker.broker.rpc('read_lifetime_lane_policy_source',p_lane_id=page['lane_id'],p_token=page['token'])
     packet={'schema_version':1,'sources':[page['source']],
         'events':page['events'],'interview_context':{},'preferences':page['preferences'],
         'coverage':{'scope':'source_window','snapshot_id':page['snapshot_id'],
             'source_high_water':page['source_high_water'],'complete':False},
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
-    check_model_packet(packet,extraction_instructions(),extraction_schema())
+    instructions,schema=extraction_instructions(),extraction_schema()
+    if page.get('two_lane'):
+        from .two_lane_memory import extraction_contract
+        instructions,schema=extraction_contract(strategy=bool((page.get('two_lane') or {}).get('strategy_mode')))
+    check_model_packet(packet,instructions,schema)
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
     for attempt in range(3):
@@ -120,7 +153,15 @@ async def _extract(page,worker):
             bounded_lane=bounded,worker_transport=worker.worker_transport,
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
         try:
-            return {'events':extraction_events(json.loads(response['reply']),page,original)}
+            raw=json.loads(response['reply'])
+            result={'events':extraction_events({'events':raw['events']},page,original)}
+            if page.get('two_lane'):
+                from .two_lane_memory import derived_hints
+                result.update(derived_hints(raw,page))
+                if (page.get('two_lane') or {}).get('strategy_mode'):
+                    from .interview_strategy import validate_proposal
+                    result['strategy_proposal']=validate_proposal(raw['strategy_proposal'],page)
+            return result
         except (ValueError,TypeError,KeyError) as error:
             # Only fixed validator messages cross the logging boundary.
             reasons = {
@@ -194,13 +235,29 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
     page=job
     for _ in range(page_quantum):
         validate_page(page)
+        if (page.get('two_lane') or {}).get('work_mode')=='pending':
+            # The single A collector owns the decision. A failed reply releases
+            # its lease, so durable source extraction can still recover.
+            return await worker.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])
         if page['preferences'].get('privacy_complete') is not True:
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason='LIFETIME_PRIVACY_MAINTENANCE_REQUIRED')
         if page['complete']:
+            if page['skill']=='timeline' and page.get('two_lane_maintenance_required') is True:
+                from .collector_configuration import collector_configuration
+                model=collector_configuration(os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')).model
+                checkpoint=await worker.broker.rpc('advance_two_lane_checkpoint',p_lane_id=job['lane_id'],p_token=job['token'],p_steps=1,p_model=model)
+                if not checkpoint['complete']:
+                    return await worker.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])
+                if checkpoint.get('summary_pending'):
+                    page=await worker.broker.rpc('read_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'])
+                    if page.get('memory_summary') is None:
+                        return await worker.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])
+                    continue
             return await worker.broker.rpc('complete_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])
         try:
-            result=await (_extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
+            result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
+                _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
         except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason=deferred.code)
@@ -209,8 +266,12 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                 raise
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
-        result=await worker.broker.rpc('commit_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'],
-            p_page_number=page['page_number'],p_result=result,p_page_digest=page['page_digest'])
+        if page.get('memory_summary') is not None:
+            result=await worker.broker.rpc('commit_lifetime_memory_summary_page',p_lane_id=job['lane_id'],p_token=job['token'],
+                p_revision=page['memory_summary']['revision'],p_result=result,p_page_digest=page['page_digest'])
+        else:
+            result=await worker.broker.rpc('commit_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'],
+                p_page_number=page['page_number'],p_result=result,p_page_digest=page['page_digest'])
         if result.get('status')!='page_saved': return result
         page=await worker.broker.rpc('read_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'])
         if not page: return {'status':'stale'}

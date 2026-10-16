@@ -446,8 +446,9 @@ class UserStorage:
                      json={'prefixes':[record['object_path']]})
 
     def accept_interview_turn(self, project_id, client_turn_id, text, *, kind='narrator_chat',
-                              language='en-AU', uploaded_photo_ids=None, photo_selection=None):
-        return self.request('POST', '/rest/v1/rpc/accept_user_interview_turn', json={
+                              language='en-AU', uploaded_photo_ids=None, photo_selection=None, two_lane=False):
+        name='accept_two_lane_interview_turn' if two_lane else 'accept_user_interview_turn'
+        return self.request('POST', '/rest/v1/rpc/'+name, json={
             'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id)),
             'p_text':text, 'p_kind':kind, 'p_language':language,
             'p_uploaded_photo_ids':[str(UUID(value)) for value in (uploaded_photo_ids or [])],

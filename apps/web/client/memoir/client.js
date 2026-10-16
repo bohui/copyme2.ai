@@ -14,6 +14,7 @@ import { historicalContext, historicalContextMarkup, bindHistoricalControls } fr
 import { createAuthReminder } from "./auth-reminder.js";
 import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
 import { openAttachedConversations, retryConversationTransfer } from "./conversation-attachments.js";
+import {applyDerivedWorkspace} from "./derived-workspace.mjs";
 import { mergePlaces, placeHistoryKey } from "./places.mjs";
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
@@ -2332,6 +2333,15 @@ async function refreshStageReadiness() {
           // A snapshot predating that save cannot repaint newer client state.
           if (!job.requested) {
             state.stageReadiness = result.stages || {};
+            if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace)) {
+              // The existing bounded recovery poll owns workspace catch-up too.
+              // Do not persist background hints as profile/language authority.
+              if (state.placeJourney) {
+                rememberPlaceJourneyProject(projectId);
+                resolvePlaceMap(state.placeJourney);
+                void loadPlacePictures(state.placeJourney, projectId);
+              }
+            }
             render();
             if (!result.pending) return;
           }

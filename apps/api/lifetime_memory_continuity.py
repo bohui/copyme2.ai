@@ -120,7 +120,11 @@ def governed_collector_schema(context=None):
     The provider requires every wire property; old responses may still omit the
     extension when validated. The caller budgets these full schema bytes.
     """
-    schema = deepcopy(collector_schema(context))
+    if (context or {}).get('strategy_selector'):
+        from .interview_strategy import selector_schema
+        schema=selector_schema()
+    else:
+        schema = deepcopy(collector_schema(context))
     extension = _Updates.model_json_schema()
     schema.setdefault('$defs', {}).update(extension['$defs'])
     item = schema['$defs']['_ContinuityUpdate']['properties']
@@ -135,6 +139,8 @@ def governed_collector_schema(context=None):
                                if kind not in _DIRECT_KINDS or kind in direct_kinds]
     schema['properties']['continuity_updates'] = extension['properties']['continuity_updates']
     schema['required'].append('continuity_updates')
+    if (context or {}).get('two_lane_memory') is True:
+        return schema
     places = _Places.model_json_schema()
     places['$defs']['_PlaceJourney']['required'] = list(places['$defs']['_PlaceJourney']['properties'])
     for field in ('latitude', 'longitude'):
@@ -262,8 +268,13 @@ def validate_governed_collector_result(raw, context):
     value = json.loads(raw) if isinstance(raw, str) else raw
     if not isinstance(value, dict):
         raise ValueError('Collector result must be an object')
+    outcome=None
+    if context.get('strategy_selector'):
+        from .interview_strategy import adapt_selection
+        value,outcome,stopped=adapt_selection(value,context)
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
+    if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
     updates = value.get('continuity_updates', [])
     if isinstance(updates, list):
@@ -303,7 +314,8 @@ def validate_governed_collector_result(raw, context):
                 or not any(_same_literal(item, direct) for direct in literal)):
             raise ValueError('Privacy and commitment continuity require asserted direct narrator wording')
 
-    places = _Places.model_validate({'place_journeys': value.get('place_journeys', [])}).place_journeys
+    places = _Places.model_validate({'place_journeys': [] if context.get('two_lane_memory') is True
+        else value.get('place_journeys', [])}).place_journeys
     candidates = [validate_place_journey(place.model_dump()) for place in places
                   if place.hierarchy[-1] == place.place]
     journeys = grounded_place_journeys([place for place in candidates if place is not None],
