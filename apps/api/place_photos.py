@@ -931,7 +931,8 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
     from threading import Lock
     from .place_photo_browser import _research, _source_items
     from .place_photo_expansion import (
-        EXPANDED_SEARCH_SECONDS, MAX_EXPANDED_SOURCE_PAGES, historical_queries,
+        EXPANDED_SEARCH_SECONDS, MAX_EXPANDED_SOURCE_PAGES,
+        MAX_SOURCE_LEADS_PER_QUERY, historical_queries,
     )
 
     helper = _research()
@@ -1049,6 +1050,8 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
                 break
             inspected.add(source)  # Failed and blocked pages also count against the cap.
             sources.append(source)
+            if len(sources) >= MAX_SOURCE_LEADS_PER_QUERY:
+                break  # Leave room for later queries and promising linked albums.
         for source in sources:
             fetchers.setdefault(urlparse(source).netloc, (Lock(), helper.Fetcher()))
         # At most two link hops within publicly accessible, locality-verified
