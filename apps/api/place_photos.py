@@ -969,13 +969,21 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         parsed = helper.PageParser(final)
         parsed.feed(markup)
         page = parsed.output()
-        # A verified album establishes a locality cue for its children only;
-        # album dates are never passed as scene-date evidence.
+        # Inherited locality is allowed only from a previously verified album
+        # member link. A relevant page title alone never grants that authority
+        # to unrelated navigation or recommendation links.
+        from .place_photo_expansion import (
+            conflicting_item_locality, verified_album_member_links,
+        )
         page_title = _text(page.get('title'))
-        if re.search(r'chengde|承德', place, re.I) and re.search(r'chengdu|成都', page_title, re.I):
-            return [], []
-        if helper._crawl4ai_location_matches(page_title, place):
-            location_context = page_title
+        if location_context:
+            def matches_requested_alias(value, requested):
+                if helper._crawl4ai_location_matches(value, requested):
+                    return True
+                return any(helper._crawl4ai_location_matches(value, alias)
+                           for alias in helper._crawl4ai_place_terms(requested))
+            if conflicting_item_locality(page, place, matches_requested_alias):
+                return [], []
         photos = [{**item, 'providers': ['google', 'serpapi']} for item in
                   _source_items(markup, final, place, period, location_context=location_context)]
         # Fingerprint *before* declaring the ten-photo target complete. Copies
@@ -986,10 +994,13 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
                 break
             item.update(image_fingerprint(item['image_url']))
         leads = []
-        if location_context:
+        member_locality = (page_title if helper._crawl4ai_location_matches(page_title, place)
+                           else location_context)
+        if member_locality:
             host_name = urlparse(final).hostname
-            for link in page.get('links', []):
-                target = link.get('url', '')
+            # Structural gallery membership, never mere same-host links.
+            # Recommendations, sidebars and navigation do not inherit place.
+            for target in verified_album_member_links(markup, final):
                 address = urlparse(target)
                 try:
                     valid_origin = (address.scheme == 'https' and address.hostname == host_name
@@ -1002,7 +1013,7 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
                         address.path, re.I)):
                     continue
                 if target != final and target not in [entry[0] for entry in leads]:
-                    leads.append((target, location_context))
+                    leads.append((target, member_locality))
                 if len(leads) >= 6:
                     break
         return photos, leads
