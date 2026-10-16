@@ -261,9 +261,9 @@ class CodexConnection:
                         )
                         if self.trajectory:
                             self.trajectory.record('codex.turn', 'turn.failed', output=params['turn'])
-                        error=params['turn'].get('error')
-                        if (params['turn']['status']=='failed' and isinstance(error,dict)
-                                and isinstance(error.get('message'),str)
+                        error = params['turn'].get('error')
+                        if (params['turn']['status'] == 'failed' and isinstance(error, dict)
+                                and isinstance(error.get('message'), str)
                                 and 'max_output_tokens' in error['message']):
                             raise CodexTurnIncomplete('Provider output was incomplete')
                         raise RuntimeError('Codex turn failed; no reply was substituted')

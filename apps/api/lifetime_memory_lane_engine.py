@@ -153,7 +153,7 @@ def _object(value):
     return parsed
 
 
-def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False):
+def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None):
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'summarize':
         from .lifetime_memory_summary import summary_contract
@@ -167,6 +167,10 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False)
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
         instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
+    if phase == 'draft' and fence is not None:
+        sources = fence.batch['sources'] if fence.batch is not None else [fence.source] if fence.source else []
+        if sources:
+            schema['$defs']['ref']['properties']['source_id']['enum'] = sorted({source['id'] for source in sources})
     if batch:
         if phase == 'prepare':
             instructions += ('\nSummarize only these new narrator messages since the preceding five-round checkpoint. '
@@ -444,7 +448,7 @@ async def validate_lane_payload(bounded):
         raise ValueError('Candidate validation differs from the canonical page proof')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
-    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode))
+    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence)
     return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
@@ -620,7 +624,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))
     def request_admission():
         return _admission(publisher,json.loads(fence_json))
-    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode))
+    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence)
     root = Path(home_root).expanduser().resolve()
     root.mkdir(parents=True,exist_ok=True,mode=0o700)
     fence = bounded.fence

@@ -51,9 +51,9 @@ class CollectorResponseUnavailable(RuntimeError):
 class CollectorOutputInvalid(CollectorResponseUnavailable):
     code = 'LIFETIME_COLLECTOR_OUTPUT_INVALID'
 
-    def __init__(self,message,*,reason='OUTPUT_CONTRACT'):
+    def __init__(self, message, *, reason='OUTPUT_CONTRACT'):
         super().__init__(message)
-        self.reason=reason
+        self.reason = reason
 
 
 class _AssistantExchange(Contract):
@@ -296,19 +296,24 @@ async def run_governed_collector(**options):
         options['on_delta'] = observed_delta
     attempts=3
     repair_reason=None
+    invalid_attempts=0
+    incomplete_retry_used=False
     async with asyncio.timeout(options.get('timeout',120)):
-        for attempt in range(attempts):
+        # One incomplete provider document can be replaced without consuming a validation attempt.
+        for _ in range(attempts+1):
             try:
                 return await _run_governed_collector_once(**options, acknowledgement=acknowledgement,
                     repair_reason=repair_reason)
             except CollectorOutputInvalid as error:
                 repair_reason=error.reason
-                if attempt==attempts-1:
+                invalid_attempts+=1
+                if invalid_attempts==attempts:
                     raise
             except CodexTurnIncomplete:
                 repair_reason='INCOMPLETE_PROVIDER_OUTPUT'
-                if attempt==attempts-1:
+                if incomplete_retry_used:
                     raise CollectorResponseUnavailable('The saved message needs another response attempt') from None
+                incomplete_retry_used=True
 
 
 async def _run_governed_collector_once(*, command, home_root, base_url, api_key, model,
@@ -333,7 +338,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     output_schema = governed_collector_schema(interview_context)
     prompt=GOVERNED_TURN_PROMPT
     if repair_reason is not None:
-        prompt+=' The previous attempt failed validation or ended incomplete: '+repair_reason+'. Return a complete corrected object using the same original evidence and allowed identifiers.'
+        prompt+=(' The previous attempt failed validation or ended incomplete: '+repair_reason
+            +'. Return a complete corrected object using the same original evidence and allowed identifiers.')
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
         output_schema['properties']['acknowledgement']['enum'] = [acknowledgement]

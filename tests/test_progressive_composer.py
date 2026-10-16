@@ -102,6 +102,47 @@ def test_five_new_messages_use_one_summary_instead_of_one_preparation_per_quote(
         assert any(e['id'] in s['event_ids'] for s in bundle['sections'])
 
 
+def test_twenty_round_backlog_summarizes_latest_messages_while_drafting_earlier_evidence():
+    current = batch_page()
+    current.update(source_high_water=20, coverage_round=20)
+    current['batch']['starting_after'] = 15
+    current['batch']['new_messages'] = deepcopy(current['batch']['new_messages'])
+    for index, source in enumerate(current['batch']['new_messages']):
+        source.update(id=str(UUID(int=100 + index)), sequence=16 + index)
+    phases = []
+    bundle = compose(current, phases, Broker())
+    assert bundle['status'] == 'ready'
+    assert phases == ['prepare', 'draft', 'review']
+    assert bundle['request']['context']['checkpoint_delta'] == {'starting_after': 15, 'through_source': 5}
+
+
+def test_first_chapter_after_empty_checkpoints_starts_at_chapter_revision_zero():
+    current = batch_page()
+    current['base_revision'] = 5
+    phases = []
+    bundle = compose(current, phases, Broker())
+    assert bundle['status'] == 'ready'
+    assert bundle['request']['prior_state']['revision'] == 5
+    assert bundle['draft']['chapters'][0]['base_revision'] == 0
+    assert phases == ['prepare', 'draft', 'review']
+
+
+def test_draft_schema_rejects_a_source_that_only_appears_in_the_message_summary():
+    from jsonschema import Draft202012Validator
+    from apps.api.lifetime_memory_lane_engine import LaneFence, lane_contract
+    current = batch_page()
+    current['batch']['new_messages'] = [{**current['batch']['sources'][0], 'id': str(UUID(int=100))}]
+    fence = LaneFence.model_validate({key: current[key] for key in LaneFence.model_fields if key in current})
+    _, schema = lane_contract('draft', current['locale'], batch=True, fence=fence)
+    reference_schema = schema['$defs']['ref']
+    valid = {'source_id': current['batch']['sources'][0]['id'], 'version': '1',
+             'char_start': None, 'char_end': None}
+    validator = Draft202012Validator(reference_schema)
+    validator.validate(valid)
+    invalid = {**valid, 'source_id': current['batch']['new_messages'][0]['id']}
+    assert any(error.validator == 'enum' for error in validator.iter_errors(invalid))
+
+
 def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sql):  # noqa: F811
     identity=resolve(sql);project=identity['project_id']
     def add(first,last):

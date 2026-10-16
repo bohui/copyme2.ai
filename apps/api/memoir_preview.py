@@ -118,6 +118,14 @@ def normalize_canonical_actions(draft):
     return draft
 
 
+def normalize_new_chapter_revisions(request, draft):
+    prior_ids = {prior['chapter']['id'] for prior in request['prior_state']['chapters']}
+    for chapter in draft.get('chapters', []):
+        if chapter.get('id') not in prior_ids:
+            chapter['base_revision'] = 0
+    return draft
+
+
 def normalize_canonical_event_dispositions(draft):
     """Keep included-event dispositions aligned with the rendered placement.
 
@@ -313,6 +321,8 @@ async def composer_call(runtime, storage, project_id, language, phase, packet):
                 worker_elapsed_ms = int((time.monotonic() - worker_started) * 1000)
             from .lifetime_memory_lane_engine import lane_artifact_digest
             artifact = json_reply(result['reply'])
+            if phase == 'draft':
+                normalize_new_chapter_revisions(packet['request'], artifact)
             await runtime.lane_broker.rpc('record_lifetime_lane_output',
                 p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
                 p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
@@ -742,6 +752,7 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
             draft['input_fingerprint'] = plan['input_fingerprint']
             draft['expected_manuscript_revision'] = request['prior_state']['revision']
             draft['counter'] = plan['counter']
+            normalize_new_chapter_revisions(request, draft)
             normalize_canonical_actions(draft)
             normalize_canonical_event_dispositions(draft)
         if request.get('context', {}).get('canonical_event_index'):

@@ -39,6 +39,17 @@ test('nineteen completed rounds do not request the free sample', async () => {
   assert.equal(fixture.state.recallPreview, undefined);
 });
 
+test('paid storytellers see their completed sample without another package offer', async () => {
+  const fixture = client(async () => ({status: 'ready', preview: {title: 'A memory', text: 'My sample.'}}));
+  fixture.state.recallStatus.payment_required = false;
+  await fixture.context.ensureRecallPreview();
+  Object.assign(fixture.context, {escapeHtml: String, translate: key => key, formatText: String});
+  vm.runInContext(source.match(/function recallPackagePrompt\([^]*?\n\}/)[0], fixture.context);
+  const markup = fixture.context.recallPackagePrompt();
+  assert.match(markup, /My sample\./);
+  assert.doesNotMatch(markup, /recall-package-prompt/);
+});
+
 test('polling reads one existing job and never submits it again', async () => {
   const requests = [];
   const fixture = client(async (url, options) => {

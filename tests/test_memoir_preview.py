@@ -121,6 +121,15 @@ def test_canonical_included_event_without_placement_is_deferred():
     }
 
 
+def test_new_chapter_revision_normalization_preserves_existing_revision_checks():
+    request = {'prior_state': {'chapters': [{'chapter': {'id': 'existing'}}]}}
+    draft = {'chapters': [{'id': 'existing', 'base_revision': 2, 'blocks': []},
+                          {'id': 'new', 'base_revision': 5, 'blocks': []}]}
+    assert memoir_preview.normalize_new_chapter_revisions(request, draft)['chapters'] == [
+        {'id': 'existing', 'base_revision': 2, 'blocks': []},
+        {'id': 'new', 'base_revision': 0, 'blocks': []}]
+
+
 def test_composition_retry_preserves_rejected_candidate_and_exact_validation(monkeypatch):
     request = {'sources': [], 'periods': [], 'events': []}
     checkpoint = {'request': request}

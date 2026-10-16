@@ -471,18 +471,20 @@ async def incomplete_provider_turn(tmp_path,*,message='Incomplete response retur
     return await connection.turn('thread','controlled prompt')
 
 
-def test_repair_recovers_an_incomplete_provider_turn_without_losing_the_acknowledgement(tmp_path):
+@pytest.mark.parametrize('invalid_attempts',[1,2])
+def test_repair_recovers_an_incomplete_provider_turn_without_losing_the_acknowledgement(tmp_path,invalid_attempts):
     original=json.loads(valid_reply())['acknowledgement']
     class Repair(FakeConnection):
         async def turn(self,thread_id,prompt,**options):
             await super().turn(thread_id,prompt,**options)
             attempt=len(self.instances)
-            if attempt==1:
+            if attempt<=invalid_attempts:
+                if attempt>1:assert 'INVALID_JSON' in prompt
                 await options['on_delta'](json.dumps({'acknowledgement':original}))
                 return 'invalid JSON'
             assert original in prompt
             assert 'previous attempt' in prompt
-            if attempt==2:
+            if attempt==invalid_attempts+1:
                 assert 'INVALID_JSON' in prompt
                 return await incomplete_provider_turn(tmp_path)
             assert 'INCOMPLETE_PROVIDER_OUTPUT' in prompt
@@ -492,8 +494,8 @@ def test_repair_recovers_an_incomplete_provider_turn_without_losing_the_acknowle
     result=run(tmp_path,connection_factory=Repair,on_delta=delta)
     assert result['reply']==valid_reply()
     assert seen==[{'acknowledgement':original}]
-    assert len(FakeConnection.instances)==3
-    assert len({connection.home for connection in FakeConnection.instances})==3
+    assert len(FakeConnection.instances)==invalid_attempts+2
+    assert len({connection.home for connection in FakeConnection.instances})==invalid_attempts+2
     assert len({connection.requests[0][1]['baseInstructions'] for connection in FakeConnection.instances})==1
 
 
@@ -503,7 +505,7 @@ def test_incomplete_provider_retries_remain_bounded(tmp_path):
         async def turn(self,*args,**options):
             return await incomplete_provider_turn(tmp_path)
     with pytest.raises(CollectorResponseUnavailable):run(tmp_path,connection_factory=Incomplete)
-    assert len(FakeConnection.instances)==3
+    assert len(FakeConnection.instances)==2
 
 
 @pytest.mark.parametrize('message,status',[

@@ -63,6 +63,37 @@ def test_summary_wire_is_bounded_derived_context_and_rejects_unseen_evidence():
     with pytest.raises(ValueError):validate_summary(bad,page)
 
 
+def test_summary_can_shorten_a_prior_quote_without_losing_its_original_span():
+    from apps.api.lifetime_memory_summary import validate_summary
+    prior = {'source_id': 'earlier-source', 'version': 1, 'quote': 'A violet kite.',
+             'char_start': 10, 'char_end': 24}
+    page = {'source': {'id': 'current-source', 'version': 1, 'text': 'Another memory.', 'char_start': 0},
+            'memory_summary': {'prior': {'items': [{'text': 'A kite.', 'uncertainty': 'Remembered.',
+                                                   'source_refs': [prior]}]}}}
+    raw = {'items': [{'text': 'A kite.', 'uncertainty': 'Remembered.', 'source_refs': [
+        {**prior, 'quote': 'violet kite', 'char_start': None, 'char_end': None}]}]}
+    accepted = validate_summary(raw, page)
+    assert accepted['items'][0]['source_refs'][0] == {
+        **prior, 'quote': 'violet kite', 'char_start': 12, 'char_end': 23}
+    raw['items'][0]['source_refs'][0]['quote'] = 'a red kite'
+    with pytest.raises(ValueError):
+        validate_summary(raw, page)
+
+
+def test_summary_repairs_unique_quote_offsets_but_rejects_ambiguous_matches():
+    from apps.api.lifetime_memory_summary import validate_summary
+    page = {'source': {'id': 'current-source', 'version': 1, 'text': '风筝是紫色的。', 'char_start': 20},
+            'memory_summary': {'prior': {'items': []}}}
+    raw = {'items': [{'text': '紫色的风筝。', 'uncertainty': '回忆。', 'source_refs': [
+        {'source_id': 'current-source', 'version': 1, 'quote': '紫色', 'char_start': 3, 'char_end': 5}]}]}
+    accepted = validate_summary(raw, page)
+    assert accepted['items'][0]['source_refs'][0]['char_start'] == 23
+    assert accepted['items'][0]['source_refs'][0]['char_end'] == 25
+    page['source']['text'] += '紫色'
+    with pytest.raises(ValueError):
+        validate_summary(raw, page)
+
+
 def test_every_window_is_processed_before_semantic_head_and_http_continuation(sql,tmp_path,monkeypatch):
     from apps.api.lifetime_memory_composer import execute_lifetime_lane
     from apps.api.lifetime_memory_lane_engine import LanePublication

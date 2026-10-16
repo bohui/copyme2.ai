@@ -1,7 +1,8 @@
 """Sample admission must distinguish queued work from an empty interview."""
 from unittest.mock import Mock
 
-from fastapi import FastAPI
+import pytest
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from apps.api.agent_storage import UserStorage
@@ -62,22 +63,51 @@ def test_real_pending_progressive_work_keeps_its_polling_reference():
     assert response.json()['job']['id'] == 'shared.zh-CN.saved-project'
 
 
-def test_twentieth_round_keeps_polling_when_an_empty_checkpoint_is_being_replaced(monkeypatch):
+@pytest.mark.parametrize('updating', [True, False])
+def test_twentieth_round_distinguishes_pending_and_failed_replacements(monkeypatch, updating):
     from apps.api import story_routes
 
     storage = preview_storage()
     storage.recall_rounds_completed.return_value = 20
     storage.lifetime_rpc.return_value = {
         'status': 'insufficient_context', 'preview': None, 'locale': 'zh-CN',
-        'coverage_round': 5, 'updating': True, 'error': None,
+        'coverage_round': 5, 'updating': updating, 'error': None,
+        'progress': {'composition': {'state': 'pending' if updating else 'retry_required',
+                                     'error': None if updating else 'MEMOIR_UNAVAILABLE'}},
     }
     monkeypatch.setattr(story_routes, 'mapped_identity', lambda *_: {'project_id': 'saved-project'})
     monkeypatch.setattr(story_routes, 'read_mapped', lambda storage, project, reader, legacy: reader(None))
     with preview_client(storage) as client:
         response = client.post('/v1/story/preview', json={'project_id': 'saved-project', 'language': 'zh-CN'})
     assert response.status_code in {200, 202}
-    assert response.json()['status'] == 'pending'
+    assert response.json()['status'] == ('pending' if updating else 'error')
     assert response.json()['job']['id'] == 'shared.zh-CN.saved-project'
+    if not updating:
+        assert response.json()['job']['error'] == 'MEMOIR_UNAVAILABLE'
+
+
+@pytest.mark.parametrize('updating', [True, False])
+def test_sample_admission_polls_a_composer_that_is_already_running(monkeypatch, updating):
+    from apps.api import story_routes
+
+    storage = preview_storage()
+    storage.lifetime_rpc.return_value = {
+        'status': 'pending', 'preview': None, 'locale': 'zh-CN', 'updating': updating, 'error': None,
+    }
+    monkeypatch.setattr(story_routes, 'mapped_identity', lambda *_: {'project_id': 'saved-project'})
+    monkeypatch.setattr(story_routes, 'read_mapped', lambda storage, project, reader, legacy: reader(None))
+    def busy(*_):
+        raise HTTPException(409, 'Composer already running',
+                            headers={'X-Error-Code': 'LIFETIME_DRAFT_RETRY_CONFLICT'})
+    monkeypatch.setattr(story_routes, 'retry_draft', busy)
+    with preview_client(storage) as client:
+        response = client.post('/v1/story/preview', json={'project_id': 'saved-project', 'language': 'zh-CN'})
+    if updating:
+        assert response.status_code in {200, 202}
+        assert response.json()['status'] == 'pending'
+        assert response.json()['job']['id'] == 'shared.zh-CN.saved-project'
+    else:
+        assert response.status_code == 409
 
 
 def test_ineligible_sample_is_not_returned_or_polled_without_replacement_work():

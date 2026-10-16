@@ -57,10 +57,11 @@ def validate_summary(value, page):
 
 
 def validate_batch(batch, project_id):
+    # Message summaries and prose advance on independent source cursors.
     if (not isinstance(batch, dict) or batch.get('schema_version') != 1
         or set(batch) != {'schema_version', 'starting_after', 'through_source', 'next_offset',
             'cursor', 'sources', 'events', 'new_messages', 'previous', 'previous_summary'}
-        or not 0 <= batch['starting_after'] <= batch['through_source']
+        or any(type(batch[field]) is not int or batch[field] < 0 for field in ('starting_after', 'through_source'))
         or len(batch['new_messages']) > 5 or len(batch['sources']) > 16 or len(batch['events']) > 8):
         raise ValueError('Invalid progressive composer batch')
     for field in ('sources', 'new_messages'):

@@ -775,6 +775,10 @@ def build_router(
         locale = normalize_conversation_language(locale or saved.get('locale'))
         if saved.get('preview'):
             return {**saved, 'status': 'ready', 'cached': True}
+        composition = (saved.get('progress') or {}).get('composition') or {}
+        if composition.get('state') == 'retry_required':
+            saved = {**saved, 'updating': False,
+                     'error': saved.get('error') or composition.get('error') or 'PREVIEW_UNAVAILABLE'}
         if not saved.get('updating') and not saved.get('error'):
             return {**saved, 'status': 'stale' if saved['status'] == 'stale' else 'insufficient_context'}
         failed = bool(saved.get('error') and not saved.get('updating'))
@@ -789,21 +793,30 @@ def build_router(
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
         if await AgentTurnLease.io(mapped_identity, storage, project_id) is not None:
+            retry_conflict = None
             if retry:
-                await AgentTurnLease.io(retry_draft, storage, project_id, language)
+                try:
+                    await AgentTurnLease.io(retry_draft, storage, project_id, language)
+                except HTTPException as error:
+                    if (error.headers or {}).get('X-Error-Code') != 'LIFETIME_DRAFT_RETRY_CONFLICT':
+                        raise
+                    retry_conflict = error
+                    await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'timeline')
+            def read_sample(fence):
+                saved = draft_head(storage, project_id, language=language)
+                if retry_conflict is not None and not saved.get('updating'):
+                    raise retry_conflict
+                return shared_preview_view(saved, project_id, language)
             return await AgentTurnLease.io(read_mapped, storage, project_id,
-                lambda fence: shared_preview_view(draft_head(storage, project_id, language=language),
-                    project_id, language),
-                canonical_only)
+                read_sample, canonical_only)
         profile = await AgentTurnLease.io(storage.profile)
         locale = normalize_conversation_language(language or profile.get('preferred_language'))
         saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
-        if saved['preview']:
-            return {**saved, 'status': 'ready', 'cached': True}
-        if not saved['updating'] and not saved['error']:
+        view = shared_preview_view(saved, project_id, locale)
+        if view['status'] in {'ready', 'stale', 'insufficient_context'}:
             # The allowance is account-wide, but drafts belong to an interview.
             # An empty/new project has no job to poll even at the account limit.
-            return {**saved, 'status': 'stale' if saved['status'] == 'stale' else 'insufficient_context'}
+            return view
         if retry:
             await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'timeline')
             await AgentTurnLease.io(storage.retry_memoir_lane, project_id, 'composer')
