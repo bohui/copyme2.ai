@@ -1,0 +1,633 @@
+{
+  "source_head": "87478ec1c6d312a3cb23daa1e6883d746fb44154",
+  "base": "072baf5f64e07f1d3740c218f348479a2aa858c9",
+  "spec_blob": "50c0458e94b9c2bc9c399720133018594ba426f3",
+  "draft_pr": "https://github.com/bohui/copyme2.ai/pull/71",
+  "full_issue_acceptance": false,
+  "rollout": "Environment flags OFF; private database disabled/shadow by default; no production actions",
+  "final_aggregate": {
+    "cases": 6484,
+    "passed": 5628,
+    "failed": 570,
+    "skipped": 265,
+    "error": 21,
+    "source": "87478ec1c6d312a3cb23daa1e6883d746fb44154",
+    "immutable_tracked_application_migration_test_source": true,
+    "command": "python -m pytest -q -n2 --dist=loadfile --timeout=60 --timeout-method=signal --tb=short --junitxml=/tmp/issue70-final-aggregate.xml",
+    "environment": "Sanitized credentials; native PostgreSQL; installed official local Temporal CLI; pytest-timeout2.4.0 and xdist3.8.0",
+    "raw_junit": "issue70-final-aggregate.xml",
+    "raw_log": "issue70-final-aggregate.log",
+    "seconds": 945.92,
+    "warnings": 4
+  },
+  "bb59_frozen_aggregate": {
+    "cases": 6462,
+    "passed": 5599,
+    "failed": 577,
+    "skipped": 265,
+    "error": 21,
+    "source": "bb59cb4130085982613d0ec59c52d194e1b63d63",
+    "seconds": 965.96
+  },
+  "supplemental": {
+    "final-targeted": {
+      "cases": 161,
+      "passed": 161,
+      "source": "87478ec1c6d312a3cb23daa1e6883d746fb44154",
+      "immutable_source_or_bytes": true,
+      "junit": "issue70-review2-final-targeted.xml",
+      "log": "issue70-review2-final-targeted.log"
+    },
+    "bb59-task": {
+      "cases": 85,
+      "passed": 85,
+      "source": "bb59cb4130085982613d0ec59c52d194e1b63d63",
+      "immutable_source_or_bytes": true,
+      "junit": "issue70-strategy-frozen-task.xml",
+      "log": "issue70-strategy-frozen-task.log"
+    },
+    "development-regression": {
+      "cases": 697,
+      "passed": 690,
+      "failed": 7,
+      "source": "development; source changed during run",
+      "immutable_source_or_bytes": false,
+      "junit": "issue70-strategy-regression.xml",
+      "log": "issue70-strategy-regression.log"
+    },
+    "browser": {
+      "cases": 6,
+      "passed": 6,
+      "source": "unchanged final UI/test bytes; synthetic API/auth",
+      "immutable_source_or_bytes": false,
+      "junit": "issue70-strategy-browser.xml",
+      "log": "issue70-strategy-browser.log"
+    },
+    "commercial-bb59": {
+      "cases": 20,
+      "passed": 20,
+      "source": "bb59 source bytes",
+      "immutable_source_or_bytes": false,
+      "junit": "issue70-strategy-commercial.xml",
+      "log": "issue70-strategy-commercial.log"
+    },
+    "exact-base-seven": {
+      "cases": 7,
+      "failed": 7,
+      "source": "83e48e166568fe949eccd6f68ffa13273dcf55af; code identical to base072",
+      "immutable_source_or_bytes": true,
+      "junit": "issue70-strategy-exact-base-seven.xml",
+      "log": "issue70-strategy-exact-base-seven.log"
+    },
+    "capacity-before": {
+      "cases": 1,
+      "failed": 1,
+      "source": "pre-fastpath candidate",
+      "immutable_source_or_bytes": false,
+      "junit": "issue70-capacity-head.xml",
+      "log": "issue70-capacity-head.log"
+    },
+    "capacity-base": {
+      "cases": 1,
+      "passed": 1,
+      "source": "83e48e166568fe949eccd6f68ffa13273dcf55af; code identical to base072",
+      "immutable_source_or_bytes": true,
+      "junit": "issue70-capacity-base.xml",
+      "log": "issue70-capacity-base.log"
+    },
+    "capacity-final": {
+      "cases": 1,
+      "passed": 1,
+      "source": "87478ec1c6d312a3cb23daa1e6883d746fb44154",
+      "immutable_source_or_bytes": true,
+      "junit": "issue70-capacity-final.xml",
+      "log": "issue70-capacity-final.log"
+    },
+    "reproduction-runner": {
+      "cases": 5,
+      "passed": 5,
+      "source": "sanitized runner smoke; bb59 application bytes",
+      "immutable_source_or_bytes": false,
+      "junit": "issue70-reproduce-runner.xml",
+      "log": "issue70-reproduce-runner.log"
+    },
+    "review2-red": {
+      "cases": 18,
+      "failed": 14,
+      "passed": 4,
+      "source": "bb59; temporary test file copied into final tests",
+      "immutable_source_or_bytes": true,
+      "junit": "issue70-review2-red.xml",
+      "log": "issue70-review2-red.log"
+    },
+    "review2-clause-red": {
+      "cases": 13,
+      "passed": 10,
+      "failed": 3,
+      "source": "development clause counterexamples",
+      "immutable_source_or_bytes": false,
+      "junit": "issue70-review2-clause-red.xml",
+      "log": "issue70-review2-clause-red.log"
+    }
+  },
+  "javascript": {
+    "passed": 530,
+    "failed": 0,
+    "log": "issue70-strategy-js.log",
+    "scope": "Unchanged final JavaScript bytes"
+  },
+  "comparison": {
+    "prior_aggregate_failed_or_error_ids": 597,
+    "bb_new_bad_ids": [
+      "tests.test_lifetime_composer_capacity::test_pg_composer_10000_dispositions_have_bounded_complete_root",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[Don't discuss my school. Let's set aside my workplace for now.]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[I visited home.\\n\\tDo not mention my school!\\n\\u5148\\u4e0d\\u804a\\u6211\\u7684\\u5de5\\u4f5c\\u3002]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[She said:\\nDon't discuss my school.]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[The teacher wrote.\\nDo not discuss my school.]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[\\u4e0d\\u8981\\u8ba8\\u8bba\\u6211\\u7684\\u5b66\\u6821\\u3002\\u5148\\u4e0d\\u804a\\u6211\\u7684\\u5de5\\u4f5c\\u3002]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[\\u4ed6\\u5199\\u9053\\uff1a\\n\\u4e0d\\u8981\\u8ba8\\u8bba\\u6211\\u7684\\u5b66\\u6821\\u3002]"
+    ],
+    "final_new_bad_ids": [],
+    "resolved_bb_bad_ids": [
+      "tests.test_lifetime_composer_capacity::test_pg_composer_10000_dispositions_have_bounded_complete_root",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[Don't discuss my school. Let's set aside my workplace for now.]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[I visited home.\\n\\tDo not mention my school!\\n\\u5148\\u4e0d\\u804a\\u6211\\u7684\\u5de5\\u4f5c\\u3002]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[She said:\\nDon't discuss my school.]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[The teacher wrote.\\nDo not discuss my school.]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[\\u4e0d\\u8981\\u8ba8\\u8bba\\u6211\\u7684\\u5b66\\u6821\\u3002\\u5148\\u4e0d\\u804a\\u6211\\u7684\\u5de5\\u4f5c\\u3002]",
+      "tests.test_lifetime_policy_atomic_postgres::test_policy_is_complete_when_acceptance_returns_and_matches_python[\\u4ed6\\u5199\\u9053\\uff1a\\n\\u4e0d\\u8981\\u8ba8\\u8bba\\u6211\\u7684\\u5b66\\u6821\\u3002]"
+    ],
+    "note": "Raw failures/errors/skips retain status. Six bb59 policy-test changes strengthen required crash/retry protection, not an inherited-failure claim."
+  },
+  "tdd": {
+    "meaningful_counterexamples": [
+      "issue70-review-red.xml",
+      "issue70-strategy-red.xml",
+      "issue70-strategy-pg-red.xml",
+      "issue70-delivery-red.xml",
+      "issue70-shadow-red.xml",
+      "issue70-plan-privacy-red.xml",
+      "issue70-plan-validation-red.xml",
+      "issue70-prior-delivery-red2.xml",
+      "issue70-review2-red.xml",
+      "issue70-review2-clause-red.xml",
+      "issue70-capacity-head.xml"
+    ],
+    "note": "Development syntax/fixture/ambiguous-SQL errors are also retained; they are not semantic acceptance proof."
+  },
+  "source_files": {
+    ".env.example": {
+      "git_blob": "e66bc2aa0cbad713369c41f92fe0b4b116d37c01",
+      "sha256": "4b45637b78c922ada8c9e09fb863058ada02f394092ad78866b56462534bfb4d"
+    },
+    "apps/api/agent_storage.py": {
+      "git_blob": "765916156d19a43f0ee814f9b2a528bf91f091e0",
+      "sha256": "0cc9d198fa494e14f20e001d906466474897fb94fc7c35e652342f01f266574b"
+    },
+    "apps/api/codex_worker_service.py": {
+      "git_blob": "7c566d148d4cf7f2f7fa2ee3ff68bd0946a1e5cb",
+      "sha256": "abb0d459be0b743089b5fdb36256112d5db542329ab6b20c24137003a36f4944"
+    },
+    "apps/api/collector_configuration.py": {
+      "git_blob": "03941a2f0984bad7309b7e814e034bbfea9d4a07",
+      "sha256": "c938e1d46b0821cc632d1b101acf11b621afdd368437e04d79566b5fd3dda0c6"
+    },
+    "apps/api/interview_strategy.py": {
+      "git_blob": "370039fc8e3f07724792d9fd7baf7cef2f067972",
+      "sha256": "c9873ec2443b61ce7c2c9a4ea83d9a95039423d7fc12cea3c88f795eed3e4cf5"
+    },
+    "apps/api/lifetime_memory_composer.py": {
+      "git_blob": "797b15f5466e2b976739281e489df774ef10de8d",
+      "sha256": "970eb9490eef17a66dfcca3b54d9863938cf4f0d3256ebcddc09b4731d570f1e"
+    },
+    "apps/api/lifetime_memory_continuity.py": {
+      "git_blob": "bc9ba72f90b91d945da451d2fe9ca12c5bf9cb25",
+      "sha256": "da27be1179f684b3752c983212b65c0b78d3196df5a97e7e20746d906cf11112"
+    },
+    "apps/api/lifetime_memory_lane_engine.py": {
+      "git_blob": "a98706deeb456971d182fcf2301a9c4d89d6daa3",
+      "sha256": "2622e54014ab38be94a56e3aa0917ca7e3235a5893b1a5fb59bfdafa1f0fd001"
+    },
+    "apps/api/lifetime_memory_runtime.py": {
+      "git_blob": "185696d5c8192bf41995de2fe997fba8d8362b9e",
+      "sha256": "f1dd22e30e791dc006c097d32869e6d8f834d285fb77890324eafc343ba556ca"
+    },
+    "apps/api/lifetime_memory_service.py": {
+      "git_blob": "14b57f4cc071fdb08ebbafaee34a46c34b103f39",
+      "sha256": "97f1012c57db674980c509572ea579d8bdb48ff738246f2843e12563b5f794f3"
+    },
+    "apps/api/lifetime_memory_transport.py": {
+      "git_blob": "c3a3527a670e8ba755499c737351248672a563ce",
+      "sha256": "2671ff0976ed7356ec97c474220c1ba8f6c95877e60fe26d5506107da235f225"
+    },
+    "apps/api/story_routes.py": {
+      "git_blob": "778aea2f9611089c61e0d58cf7f0c31c59d6b513",
+      "sha256": "8edc88c8a1a6d75533c34cd3e45625bfccbaf79588f5fd480ff974bc766ce19a"
+    },
+    "apps/api/two_lane_memory.py": {
+      "git_blob": "1857e380891126735ec3054991a2e9baa6b216d0",
+      "sha256": "edaafb01cc9882225ae52740cfcbbdba2b3979467ccdcade5fb4793363f717d5"
+    },
+    "apps/web/client/memoir/client.js": {
+      "git_blob": "d25c856226c24cd432e01637606b4e9c83cec184",
+      "sha256": "3500fda54e7eaef4acc8ab04735ca6d1e75fe5de13cd5b15a92d6c3da0000efe"
+    },
+    "apps/web/client/memoir/derived-workspace.mjs": {
+      "git_blob": "60e1548e6602aa3fa81f212cfea8d146e0736768",
+      "sha256": "b4d8a874f6d8ebae01a38faed5ceb9a437dd29a8985b0160a7c5251ba82bab07"
+    },
+    "supabase/migrations/202610160001_two_lane_memory.sql": {
+      "git_blob": "645ad1b8788beb58f9a3a1339396f07753a8a6f6",
+      "sha256": "673b5ac325322257d2e4810edbcbc7042ec21762433e8b675e0e394f4f7eb1c9"
+    },
+    "supabase/migrations/202610160002_interview_strategy.sql": {
+      "git_blob": "4c705200b6583dcc3a696273c34131494b83e511",
+      "sha256": "91c4f3bb592905ee2b8fd241cc8ece06c9f1071d58c361f3753a5a755cba9c5c"
+    },
+    "tests/js/two-lane-workspace.test.mjs": {
+      "git_blob": "6b38ddf7a3956153e254c5068a331e2a4f44061f",
+      "sha256": "6748ee1d051d645fcf70559c7f2759101669c2da7e1f4cc4ec660f3a5c1cf379"
+    },
+    "tests/test_interview_strategy.py": {
+      "git_blob": "0c5fa53166c7c7bc3a5828f311faab20a0ec5bea",
+      "sha256": "506cb6a5b39930deac7e4ad0445546a3da2ea370ff31e1c5c61e6a3d273fa740"
+    },
+    "tests/test_interview_strategy_postgres.py": {
+      "git_blob": "8cdf57f6d48b45129e4dab0eb16c7f21c6e55ccb",
+      "sha256": "de46a289e3a0015bb18235111d694c09cc8a67e1b64b211abc47c5e8a407c0a6"
+    },
+    "tests/test_interview_strategy_runtime.py": {
+      "git_blob": "e9fc792fe05d5790506eb0a139c69e7b8f96d391",
+      "sha256": "9ee17a2c175cbe80a75e05371f8f625ee5739ee0e2e4af49a99848dda37b9386"
+    },
+    "tests/test_issue70_review_repairs.py": {
+      "git_blob": "54b59c3500265046050326059334a8b5ceffb60b",
+      "sha256": "5461173c6951d6c2c003b672027c98f1e25a1b059773c55d599d2cc87622110a"
+    },
+    "tests/test_issue70_strategy_review_repairs.py": {
+      "git_blob": "3327883ef6f6f93101b18ad0846220761a8c3db1",
+      "sha256": "ac6ff3c2d1d40002e6e1d8af5465304848d1455d503392f31771392fb54dbc5c"
+    },
+    "tests/test_lifetime_policy_atomic_postgres.py": {
+      "git_blob": "7ff78a77c0cdbfc9e8f01268297cc32206af35f0",
+      "sha256": "a709eac09af5c0057aacf0bf071943e63ea6f5cc9590dfe8e8acad3a6002ba50"
+    },
+    "tests/test_two_lane_browser.py": {
+      "git_blob": "7d0faf64f3beb70256bb79af7285b5ae8646a2be",
+      "sha256": "43f56e4f92f048db3caf6a0564c2e56e6d13ead41becbeba741ad230ab51b25f"
+    },
+    "tests/test_two_lane_memory.py": {
+      "git_blob": "4945282f53c280fcc339f6ff09c0150031c316c5",
+      "sha256": "5110ff283579a93f0dd09e191fa3c1ded1fc0505317fcbdc5194868bcf0c002b"
+    }
+  },
+  "archive": {
+    "file": "strategy-raw-evidence.tar.gz",
+    "sha256": "9698e0f40faf4fbf9f1f013eae2fc9677dffea182a59a78c461b83ef59115baa",
+    "members": {
+      "issue70-capacity-base.log": {
+        "bytes": 99,
+        "sha256": "daa608334654d0499eaf3d18e14a0c2586e2eda1e4a2aa413a3afc6dcb5ef275"
+      },
+      "issue70-capacity-base.xml": {
+        "bytes": 395,
+        "sha256": "6fad64fe677b4a3328a110adb8d40a0329b609467bcf9001d9379ee8f0d68c86"
+      },
+      "issue70-capacity-fastpath.log": {
+        "bytes": 99,
+        "sha256": "98d9158177f01aeb7c3611dbae2017693132c96986e5d8e5c6f46a97139b24c9"
+      },
+      "issue70-capacity-fastpath.xml": {
+        "bytes": 395,
+        "sha256": "125d8036c477920d8a76d5b5465207b304815c1e18334b86220aeaf1a45f26a3"
+      },
+      "issue70-capacity-final.log": {
+        "bytes": 99,
+        "sha256": "13ef8fc76a71d34021fdf4d35e1b7f9f2b34921f850c3715d3237af7d7f1c491"
+      },
+      "issue70-capacity-final.xml": {
+        "bytes": 395,
+        "sha256": "ec447c1d4b15ad1d648595f0c6f5fa6855fab36825326fc50f3cdcc6247a3225"
+      },
+      "issue70-capacity-head.log": {
+        "bytes": 1757,
+        "sha256": "5e602721c652b6ccfa7b0e17ddc467803668c47e69a855ef9dccbb3b02a1657e"
+      },
+      "issue70-capacity-head.xml": {
+        "bytes": 1777,
+        "sha256": "20ae73820048e875e9e57bc1f5aaad38fce09a2495f63220d10db744ce3fc225"
+      },
+      "issue70-delivery-red.log": {
+        "bytes": 5816,
+        "sha256": "236af71e7e117ef487926196da69f97c93a0aa8585ac785a64b1fbabda7af53c"
+      },
+      "issue70-delivery-red.xml": {
+        "bytes": 3585,
+        "sha256": "b48f6d24ea45be3484a909233edc4742bf8fb0cbdfd38b80556873d7ea2566dd"
+      },
+      "issue70-expanded-final.log": {
+        "bytes": 180,
+        "sha256": "d38a58dba96b349a51b0944887c0599193fa6c74048fd4247f36edcef1fb5f4a"
+      },
+      "issue70-expanded-final.xml": {
+        "bytes": 13295,
+        "sha256": "a5fed48669e1734b0f4fafedc554b0eadd2ff0eb248af1785a1bd9f4dd0907c8"
+      },
+      "issue70-expanded-green.log": {
+        "bytes": 14283,
+        "sha256": "3d80502c62e1aa0dd12078edfd575cc973160b719140f1229432447ea690ab2d"
+      },
+      "issue70-expanded-green.xml": {
+        "bytes": 22595,
+        "sha256": "3c447366c438ee6bc376bda4d04ab7ade8abf1164e37c992bc9fd1c9d6a022d0"
+      },
+      "issue70-expanded-green2.log": {
+        "bytes": 180,
+        "sha256": "a1c5b897fda2e4befbe9ae7c9c153222f4837e9df1139a360ab2a1e1fe41eb51"
+      },
+      "issue70-expanded-green2.xml": {
+        "bytes": 13295,
+        "sha256": "d96a7f43d19c154d61d5a8e24d3cf11fa1a8f12450d48950fb910e5823104ebc"
+      },
+      "issue70-final-aggregate.log": {
+        "bytes": 1540928,
+        "sha256": "67dbfb2f7a6107ccfeea18fd548adf0c3f85fd7cffb0fe553f1145f79e850a3c"
+      },
+      "issue70-final-aggregate.xml": {
+        "bytes": 12729531,
+        "sha256": "78da1b3fefcf7851e77cdbddc45dfcb4b4c01c30511ad524c0db88957f61c3c8"
+      },
+      "issue70-plan-privacy-red.log": {
+        "bytes": 1322,
+        "sha256": "d9879ebe8a5841a9f05bbfc6e1af88bfcd9409dfe9f83034e1b14cacee9bbe41"
+      },
+      "issue70-plan-privacy-red.xml": {
+        "bytes": 1345,
+        "sha256": "528207220849b7197f8432247fbb0e40d86fd2d85c51d506473a25a2870cca1a"
+      },
+      "issue70-plan-validation-red.log": {
+        "bytes": 3268,
+        "sha256": "a18b110442d103c5e67b789debdf0882befad722e8ba55aceb1e0dd9f8c95fc7"
+      },
+      "issue70-plan-validation-red.xml": {
+        "bytes": 3439,
+        "sha256": "f73f839a91b35b9a9a29cb131ce2a724d9f74d8e00172f5690b1f621164f99c5"
+      },
+      "issue70-prior-delivery-red.log": {
+        "bytes": 17867,
+        "sha256": "3b6174abe985a7dcaf92287e229289e14f6ba375585fab42c384be04e123f079"
+      },
+      "issue70-prior-delivery-red.xml": {
+        "bytes": 17365,
+        "sha256": "2c091e9977d61bd13cd266c3fdf16e2ee724b0555a50e433dc85fb1d667f1450"
+      },
+      "issue70-prior-delivery-red2.log": {
+        "bytes": 40243,
+        "sha256": "8180db960f9265b363f76a043ebba424bfd59aaec850610fdf6f8952515d3b6e"
+      },
+      "issue70-prior-delivery-red2.xml": {
+        "bytes": 33460,
+        "sha256": "16ba45a7d9834b29b537af6f9beb34f4c01999ba90840b8f97827fcc1b8e4935"
+      },
+      "issue70-reproduce-runner.log": {
+        "bytes": 98,
+        "sha256": "5de3ea2e213cc95bbbd0fb11670814dc0272164982c8bcd34560630dfafa2744"
+      },
+      "issue70-reproduce-runner.xml": {
+        "bytes": 974,
+        "sha256": "ef7a40b79966c18b36db488107e700ecc0c802220417262f7e9554b3719f64bc"
+      },
+      "issue70-review-green.log": {
+        "bytes": 7930,
+        "sha256": "75980eecb32e02eea2f0315e391f993680e7972ff04bdf92e55d35d8a9ca96fc"
+      },
+      "issue70-review-green.xml": {
+        "bytes": 10277,
+        "sha256": "ce8ee9e40db4cf3b6c8073edcfcb664333a678bf497a5dd030cfd2a3e87fcad9"
+      },
+      "issue70-review-red.log": {
+        "bytes": 8074,
+        "sha256": "92985a00f2b8fbad58514316da7c6aa76b628c7ce7171948aa26b72f0f31dea9"
+      },
+      "issue70-review-red.xml": {
+        "bytes": 10116,
+        "sha256": "a5dca54ec1950e5b08f9c8b8bd825243989bb8cf944c78a82478e9ea96124907"
+      },
+      "issue70-review2-clause-red.log": {
+        "bytes": 6085,
+        "sha256": "58a054e991a4a5476709e7273e788b64dd31208c0df5163e0c1fdd97da1b59ce"
+      },
+      "issue70-review2-clause-red.xml": {
+        "bytes": 8734,
+        "sha256": "c32e534090336f3c2f9fd2d010425b19de4a197a3cd9e3caaae55e5435744c4b"
+      },
+      "issue70-review2-final-targeted.log": {
+        "bytes": 271,
+        "sha256": "0f2fc5ddace31794655177b6e3f3286edf834d78d4ff210e61a3e759e1052589"
+      },
+      "issue70-review2-final-targeted.xml": {
+        "bytes": 29269,
+        "sha256": "c9145d8aed096f1fbf967413849b14898738c9ddb2298dc8b3937523793d3fe7"
+      },
+      "issue70-review2-green.log": {
+        "bytes": 100,
+        "sha256": "4ed8624dd011e8cf28354d60a4a5b4db719e2ba8c25e22e7d5d727de577a073a"
+      },
+      "issue70-review2-green.xml": {
+        "bytes": 4432,
+        "sha256": "63dc9e34374d97820a028006ab28c38c57db68e9c39bc7a328eb749951a54d4d"
+      },
+      "issue70-review2-red.log": {
+        "bytes": 70156,
+        "sha256": "91aaaeabbb8b278b2eb4ccd3144bbd0374b2e4e7e648f9f152f69350f7fb4b62"
+      },
+      "issue70-review2-red.xml": {
+        "bytes": 78500,
+        "sha256": "5126149b9239bf218a0619141a766e31e825f4058ef634a3c32829378297248e"
+      },
+      "issue70-review2-task.log": {
+        "bytes": 191,
+        "sha256": "8b739133dd2b7ba5ed2d9a9297b36afafdfa8c47116fad758835fb38fb082b85"
+      },
+      "issue70-review2-task.xml": {
+        "bytes": 25259,
+        "sha256": "e35c22c5dea9d5186e7d633f695accc671dba6ce34c49103c230cddb423619b1"
+      },
+      "issue70-shadow-red.log": {
+        "bytes": 1633,
+        "sha256": "63c2b41d24ff7b090fc6f89ba13c81770f902c66821ef45df2b44078f303537b"
+      },
+      "issue70-shadow-red.xml": {
+        "bytes": 2035,
+        "sha256": "ea1da26b6c88b0cb04fe13cee7f8d05f588a8b4d0d38e716cba9d1176dc6f1fb"
+      },
+      "issue70-strategy-aggregate.log": {
+        "bytes": 1563950,
+        "sha256": "2b7909f18ac7edb57364960baec4e2b063a4eeb0b2d846c5ab490973cfd5459e"
+      },
+      "issue70-strategy-aggregate.xml": {
+        "bytes": 12745506,
+        "sha256": "6f186eb068ebcf767d19eff6898d9d6a5eae287226591f3edf70a12f6ee1a969"
+      },
+      "issue70-strategy-barrier.log": {
+        "bytes": 113,
+        "sha256": "93525927661e602ec7c48075d4cab7c9ab1a935b7a8f816637fed0fedd6178a2"
+      },
+      "issue70-strategy-browser.log": {
+        "bytes": 99,
+        "sha256": "a9c4bb749235227d34f96eea0be07443677d3a8c8e0ef65233972c46d2a0e0fa"
+      },
+      "issue70-strategy-browser.xml": {
+        "bytes": 1050,
+        "sha256": "0ad2a0ca804d86ebba8cf430f6a64a253072c6058fa7c00d439ffb65b2ffc2f7"
+      },
+      "issue70-strategy-commercial.log": {
+        "bytes": 99,
+        "sha256": "ecc90e03215f5b155859de56fb3a52de7e02491e814c00b208cabaa9b54fff0e"
+      },
+      "issue70-strategy-commercial.xml": {
+        "bytes": 3351,
+        "sha256": "61cc57deecd3e2a6720bbeb26dd172b1133d1e6f781c0551cb0b4db088e5c951"
+      },
+      "issue70-strategy-exact-base-seven.log": {
+        "bytes": 6336,
+        "sha256": "0c6ce33687c177a4f13dc6b5d1d8e0435f222c1ebe9a17acfae5e1ba1448c207"
+      },
+      "issue70-strategy-exact-base-seven.xml": {
+        "bytes": 6525,
+        "sha256": "d8e2390c4ce3842d9984ed21f36328b39fb5204b24dada61ed44d55a89ced925"
+      },
+      "issue70-strategy-final-task.log": {
+        "bytes": 47999,
+        "sha256": "4f97688d9e39dd634e2e2dd82beaf8f9641e08cc250effa66d56d01c59ec4c05"
+      },
+      "issue70-strategy-final-task.xml": {
+        "bytes": 69439,
+        "sha256": "fc3118ac84d9fd7521518cae9d614f4691c686470e4c40660c8b12160a5a2d91"
+      },
+      "issue70-strategy-first.log": {
+        "bytes": 3081,
+        "sha256": "adf10c1f8d2ca05e0fd22a45ecc2ef14100f4726f8e514719d9a80408063d354"
+      },
+      "issue70-strategy-frozen-task.log": {
+        "bytes": 180,
+        "sha256": "291ef5bdd2aff10d7cbb8fb9e4b39e0f4cc32101c77e5c7cb7c012a0a0067756"
+      },
+      "issue70-strategy-frozen-task.xml": {
+        "bytes": 14803,
+        "sha256": "22d208b7e4fd4c265ffd50d810dcd9e1c372c8071e2985dc9b641bf4deefa022"
+      },
+      "issue70-strategy-integrated.log": {
+        "bytes": 100,
+        "sha256": "e32066ba2dc1b3a1c327a6ff32d8deba2db052442f260adb92eac393430e9a66"
+      },
+      "issue70-strategy-integrated.xml": {
+        "bytes": 7505,
+        "sha256": "a77ab6476985f1a0395517635704b54023135be8a0584c0d07256012f0b65c78"
+      },
+      "issue70-strategy-js.log": {
+        "bytes": 47858,
+        "sha256": "c7aa40b73e20889cb073887ff53b484d6012f38b7fe50c62c38b31b2d749a243"
+      },
+      "issue70-strategy-jsonfirst.log": {
+        "bytes": 25880,
+        "sha256": "1f71831b6555c22fab46035f2e590c4983597d722364e041c75b85a74209f351"
+      },
+      "issue70-strategy-jsonfirst2.log": {
+        "bytes": 113,
+        "sha256": "c7da578e8d1fde66621a100fd625dc979c11fdad8ee6aee163778ea1cf66345c"
+      },
+      "issue70-strategy-layer.log": {
+        "bytes": 99,
+        "sha256": "1b6598e3e8f77cfa0ef4416055da0b5d1db16e1395054653b60c13041884aae2"
+      },
+      "issue70-strategy-layer.xml": {
+        "bytes": 3886,
+        "sha256": "55c709c10a7c12de56a5f58ff04cc9cbf66d525cf0b8e5e6f2d43adf1c36fab1"
+      },
+      "issue70-strategy-pg-green.log": {
+        "bytes": 98,
+        "sha256": "15aa66a43ad60db780dfc927670aecf3113267147e434864f8667b155a60d003"
+      },
+      "issue70-strategy-pg-green.xml": {
+        "bytes": 1375,
+        "sha256": "4bfa25020905d5a3d18012098633b2af941e015dd209e89b306415f323ee3db3"
+      },
+      "issue70-strategy-pg-red.log": {
+        "bytes": 13748,
+        "sha256": "0f02cff2316c4aec394ba5d2b3ae21ebbb068722b47d5111317f4861e7888b16"
+      },
+      "issue70-strategy-pg-red.xml": {
+        "bytes": 17670,
+        "sha256": "aafc724d810733a2a80753f5c757929b7cb80ed1b58184fe33e0d09833c7aad0"
+      },
+      "issue70-strategy-red.log": {
+        "bytes": 20415,
+        "sha256": "7de2d18472175019474866af3ebb505774465b4a7c1792cd8c30e9ae9dc69cf1"
+      },
+      "issue70-strategy-red.xml": {
+        "bytes": 27667,
+        "sha256": "4166aaaa254e2d14ac49d303f0c40198e766d7f19bbc3c3dadea23a2b4e1d0de"
+      },
+      "issue70-strategy-regression.log": {
+        "bytes": 31188,
+        "sha256": "61050cb2117c016d349e1c28b982bb7a9ab873d82a13defad218b2d0ee4904e5"
+      },
+      "issue70-strategy-regression.xml": {
+        "bytes": 146223,
+        "sha256": "81e56e36c8591db476f89c129db738b0cd3a27817127c5b5e3d8954a58604a36"
+      },
+      "issue70-strategy-runtime-green.log": {
+        "bytes": 162001,
+        "sha256": "b26c0f9fb8e2b4e65daa3b54faeb5aad44551d326dd510912df53932c2e2392c"
+      },
+      "issue70-strategy-runtime-green.xml": {
+        "bytes": 164290,
+        "sha256": "236ca32c7fca4d2b7b2f1c02c475418980445ac769925977196c4942e0332848"
+      },
+      "issue70-strategy-runtime-green2.log": {
+        "bytes": 367161,
+        "sha256": "a3f2370c275852fae18ba0ce01fcf59385496d26e53648e7aef1260de4d0c4c6"
+      },
+      "issue70-strategy-runtime-green2.xml": {
+        "bytes": 367740,
+        "sha256": "dc22733666e7fead2f247d4141fd2c08b0f9b6c13f7efa8e70e21758f40fdbf6"
+      },
+      "issue70-strategy-runtime-red.log": {
+        "bytes": 142349,
+        "sha256": "7145ef37b75a3ea88fd37d4498824631ccb6250549896f680dd98e4ba75acb37"
+      },
+      "issue70-strategy-runtime-red.xml": {
+        "bytes": 143429,
+        "sha256": "afec88e75a6a7b03741353209954ed43cefbe68f15f4c5a6f465e11048dd7685"
+      },
+      "issue70-strategy-source-origins.log": {
+        "bytes": 128,
+        "sha256": "332a4d22b45331d6cf8aa0b63644bff8e8c26c13014ad6404e5b761508177fec"
+      },
+      "issue70-strategy-unit-green.log": {
+        "bytes": 99,
+        "sha256": "fa09b8e4b0147900b166463ac7f299ae98cffb871f62c0e1bfca5d9882f783a8"
+      },
+      "issue70-strategy-unit-green.xml": {
+        "bytes": 2759,
+        "sha256": "64d89f9e2e02688cb77197b206094ee0bd03da30aee66ef34f0336a5c6368472"
+      },
+      "implementation-environment-runner.py": {
+        "bytes": 579,
+        "sha256": "b91d1010e5ddbeec7637131ea28b03af74cf367e3eabbe47becdcc2b97294885"
+      }
+    }
+  },
+  "case_ledger": {
+    "file": "strategy-case-ledger.json.gz",
+    "sha256": "8124981db03f20604536aa5d2d656f0c83b44ad5cf4987cf37982a17e2f09b29"
+  },
+  "unrun_and_gaps": [
+    "Accepted semantic summaries beyond lossless checkpoint capacity",
+    "Matched live model/quality/latency/actual usage/cost/audio campaign; no funded authorization",
+    "Independent exact-final-head review and aggregate disposition",
+    "Provider-wide quota/capacity across replicas",
+    "Production rollout/migration/deployment/merge are not authorized"
+  ]
+}
