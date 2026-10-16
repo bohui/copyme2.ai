@@ -764,7 +764,9 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
             accepted = matching(found)
             if accepted and on_items:
                 on_items(_deduplicate(accepted))
-        if on_items and provider in (_google_browser, _flickr_browser):
+        if on_items and (provider in (_google_browser, _flickr_browser)
+                         or (provider is _google_serpapi and
+                             _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'})):
             found = provider(place, period, on_items=publish)
         else:
             found = matching(provider(place, period))
@@ -845,9 +847,9 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
     return mixed[:limit] if limit is not None else mixed[:150]
 
 
-def _google_serpapi(place: str, period: str) -> list[dict]:
+def _google_serpapi(place: str, period: str, *, on_items=None) -> list[dict]:
     if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
-        return _google_serpapi_expanded(place, period)
+        return _google_serpapi_expanded(place, period, on_items=on_items)
     import json
     from pathlib import Path
     import subprocess
@@ -916,7 +918,7 @@ def _google_serpapi(place: str, period: str) -> list[dict]:
 
 
 
-def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
+def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[dict]:
     """Expand sparse historical Google Images discovery with bounded original-page checks.
 
     Keep the existing SerpAPI provider and its fresh-search contract. Discovery
@@ -1066,7 +1068,11 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
                 for (source, depth, context), future in zip(batch, futures):
                     try:
                         found, links = future.result()
-                        items = _deduplicate(items + found)
+                        updated = _deduplicate(items + found)
+                        if updated != items:
+                            items = updated
+                            if on_items:
+                                on_items(items)
                         if depth >= 2 or len(items) >= MAX_RESULTS:
                             continue
                         for url, album_context in links:
