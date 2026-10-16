@@ -181,6 +181,32 @@ def turn_receipt(storage, project_id, client_turn_id):
     )
 
 
+def pending_turn_input(storage, project_id):
+    """Recover an unfinished accepted request without trusting browser retry state."""
+    rows = storage.request('GET', '/rest/v1/user_interview_turn', params={
+        'select': 'client_turn_id', 'user_id': f'eq.{storage.user_id}',
+        'project_id': f'eq.{project_id}', 'order': 'sequence.desc', 'limit': '1'}).json()
+    if not rows:
+        return None
+    turn_id = str(UUID(rows[0]['client_turn_id']))
+    if storage.agent_turn_by_id(project_id, turn_id):
+        return None
+    accepted = storage.interview_turn_by_id(project_id, turn_id)
+    source = (accepted or {}).get('source')
+    if (not source or source.get('status') != 'active'
+            or source['version'] != accepted['source_version']):
+        return None
+    photos = accepted.get('photo_context') or []
+    return {'project_id': project_id, 'client_turn_id': turn_id,
+        'text': source['text'], 'conversation_text': source['text'],
+        'source_kind': source['kind'], 'language': source['language'],
+        'uploaded_photo_ids': [photo['photo_id'][len('upload:'):] for photo in photos
+            if photo.get('kind') == 'private_upload' and photo.get('photo_id', '').startswith('upload:')],
+        'photo_selection': {'key': accepted['consumed_photo_key'],
+            'revision': accepted.get('consumed_photo_revision')}
+            if accepted.get('consumed_photo_key') else None}
+
+
 def project_snapshot(row):
     return ProjectSnapshot(project_id=row['project_id'],
         source_sequence=decimal(row['source_sequence']),

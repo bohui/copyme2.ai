@@ -72,21 +72,41 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   }
   async function recover() {
     if (!scope().projectId) return;
+    const ownerScope = scope();
     let saved;
-    try { saved = JSON.parse(storage.getItem(key()) || 'null'); } catch { return; }
-    if (!saved?.id || saved.projectId !== scope().projectId || saved.ownerId !== scope().ownerId) return;
-    active = {...saved, generation:scope().generation};
-    const turn = active;
+    try { saved = JSON.parse(storage.getItem(key()) || 'null'); } catch { /* Recover from the server instead. */ }
+    const turn = saved?.id && saved.projectId === ownerScope.projectId && saved.ownerId === ownerScope.ownerId
+      ? {...saved, generation:ownerScope.generation} : null;
+    if (turn) active = turn;
+    let receipt;
     try {
-      const receipt = await api(`/v1/agent/turns/${encodeURIComponent(turn.id)}?project_id=${encodeURIComponent(turn.projectId)}`);
-      if (!current(turn)) return;
-      accept(turn, receipt);
-      if (receipt.state === 'conversation_saved' && receipt.reply) {
-        await onRecovered(turn, {...receipt, response_photos:responsePhotoCards(receipt.response_photos)});
-        finish(turn, receipt);
+      if (turn) {
+        receipt = await api(`/v1/agent/turns/${encodeURIComponent(turn.id)}?project_id=${encodeURIComponent(turn.projectId)}`);
+        if (!current(turn)) return;
+        accept(turn, receipt);
+        if (receipt.state === 'conversation_saved' && receipt.reply) {
+          await onRecovered(turn, {...receipt, response_photos:responsePhotoCards(receipt.response_photos)});
+          finish(turn, receipt);
+          return;
+        }
       }
-    } catch { /* Keep the original turn available for an explicit retry. */ }
-    if (current(turn)) render();
+      const {turn: input} = await api(`/v1/agent/pending-turn?project_id=${encodeURIComponent(ownerScope.projectId)}`);
+      if (!current(ownerScope)) return;
+      if (input === null && turn && receipt?.state !== 'not_found') {
+        active = null;
+        try { storage.removeItem(key()); } catch { /* The server already retired this retry. */ }
+        return;
+      }
+      if (!input || input.project_id !== ownerScope.projectId) return;
+      save({...ownerScope, ...(turn?.id === input.client_turn_id ? turn : {}),
+        id:input.client_turn_id, text:input.text, conversationText:input.conversation_text,
+        sourceKind:input.source_kind, language:input.language, firstReplyLocalization:false, serverAction:null,
+        uploadedPhotoIds:input.uploaded_photo_ids || [], photoSelection:input.photo_selection || null,
+        attachmentIds:input.uploaded_photo_ids || [], accepted:true});
+    } catch { /* Keep a cached turn available if server recovery is unavailable. */ }
+    finally {
+      if (current(ownerScope)) render();
+    }
   }
   function clearDisplay() {
     active = null;

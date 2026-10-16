@@ -625,6 +625,7 @@ function simulatedLoopTrace(toolNames = ["memory.search"], finalDetail = transla
 }
 
 async function agentTurn(text, fallback = "", toolNames = ["memory.search"], language = conversationLanguage(), firstReplyLocalization = false, conversationText = undefined, serverAction = null, sourceKind = "narrator_chat", photoOptions = {}) {
+  if (!photoOptions.retry && state.photoTurns?.pending()?.accepted) throw new Error(translate("Memoir.story.retryTurn"));
   const scope = captureProjectScope();
   const controller = globalThis.AbortController ? new AbortController() : null;
   const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted;
@@ -2617,6 +2618,7 @@ function chatComposer() {
 async function retryInterviewTurn() {
   const turn = state.photoTurns?.pending();
   if (!turn || state.loading) return;
+  state.audioTranscript = $("#chat-input")?.value || state.audioTranscript;
   const scope = captureProjectScope();
   const current = () => isCurrentProjectScope(scope);
   state.loading = true;
@@ -2865,6 +2867,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   }
   if (state.recallStatus?.payment_required) return;
   if (state.loading || state.photoMemoryTask || state.dictationStatus !== "off") return;
+  if (state.photoTurns?.pending()?.accepted) return toast(translate("Memoir.story.retryTurn"));
   if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
   if (state.voiceMode && state.voiceModeRecorder && !voiceTurn) {
     if (state.voiceModeRecorder.state !== "inactive") {
@@ -2924,7 +2927,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     let instruction = profileIntake
       ? PROFILE_INTAKE_PROMPT
       : "Acknowledge the storyteller naturally, then ask one gentle open-ended follow-up question. Do not restart onboarding or request profile fields.";
-    if (session) {
+    if (session && (session.follow_ups_used || 0) < 3 && (session.turns?.length || 0) < 5) {
       try {
         const turnType = session.turns?.length ? "follow_up" : "initial";
         const answerOptions = { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) };

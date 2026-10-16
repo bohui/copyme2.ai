@@ -40,6 +40,46 @@ test('retry and reload retain original photo snapshot and upload IDs',async()=>{
  state.supabase.user.id='other';assert.equal(reloaded.pending(),null);
 });
 
+for (const cached of [false, true]) test(`server recovery restores the accepted turn when the browser cache is ${cached ? 'a rejected newer turn' : 'missing'}`, async () => {
+ const h=harness();
+ if(cached)h.photos.prepare({text:'Rejected new message',conversationText:'Rejected new message'});
+ const requests=[];
+ const photos=createInterviewPhotoState({...h.deps,api:async path=>{
+  requests.push(path);
+  if(path.includes('/turns/'))return {state:'not_found'};
+  return {turn:{project_id:'p',client_turn_id:'original-accepted',text:'Original narration',conversation_text:'Original narration',
+   source_kind:'narrator_transcript',language:'zh-CN',uploaded_photo_ids:['owned-photo'],photo_selection:{key:'photo-a',revision:'r1'}}};
+ }});
+ await photos.recover();
+ const pending=photos.pending();
+ assert.equal(pending.id,'original-accepted');assert.equal(pending.accepted,true);
+ assert.equal(pending.conversationText,'Original narration');assert.equal(pending.sourceKind,'narrator_transcript');
+ assert.deepEqual(pending.uploadedPhotoIds,['owned-photo']);assert.deepEqual(pending.photoSelection,{key:'photo-a',revision:'r1'});
+ assert.match(requests.at(-1),/\/pending-turn\?project_id=p$/);
+ assert.equal(photos.prepare({...pending,retry:pending}).id,'original-accepted');
+});
+
+test('server pending recovery cannot replace another principal or a later navigation',async()=>{
+ for(const change of [h=>{h.state.supabase.user.id='other';},h=>{h.state.navigationGeneration++;},h=>{h.state.project.id='other';}]){
+  const h=harness();let resolve;
+  const photos=createInterviewPhotoState({...h.deps,api:()=>new Promise(done=>{resolve=done;})});
+  const pending=photos.recover();change(h);
+  resolve({turn:{project_id:'p',client_turn_id:'original-accepted',text:'Private original'}});
+  await pending;assert.equal(photos.pending(),null);assert.equal(h.storage.size,0);
+ }
+});
+
+for(const receipt of [
+ {state:'source_accepted',source_status:'withdrawn'},
+ {state:'source_accepted',source_status:'active',narrator_text:'Corrected narration'},
+ {state:'conversation_saved',conversation_saved:true,reply:null},
+])test(`an authoritative empty pending result clears a ${receipt.source_status || receipt.state} retry instead of blocking new narration`,async()=>{
+ const h=harness();const turn=h.photos.prepare({text:'Original',conversationText:'Original'});
+ h.photos.accept(turn,{state:'source_accepted'});
+ const photos=createInterviewPhotoState({...h.deps,api:async path=>path.includes('/turns/')?receipt:{turn:null}});
+ await photos.recover();assert.equal(photos.pending(),null);assert.equal(h.storage.size,0);
+});
+
 test('private cards never retain display credentials, URLs or plan JSON',()=>{
  const [card]=responsePhotoCards([{photo_id:'upload:abc',kind:'private_upload',title:'Private',description:'Narrator says garden',content_url:'https://secret',image_url:'https://secret?token=x',plan:{question:'Hidden'}}]);
  assert.deepEqual(card,{photo_id:'upload:abc',kind:'private_upload',title:'Private',description:'Narrator says garden'});

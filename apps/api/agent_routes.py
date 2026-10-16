@@ -303,6 +303,24 @@ async def project_place_photos(project_id: str, request: Request,
         return {'items': [], 'status': 'UNAVAILABLE'}
 
 
+@router.get('/pending-turn')
+def read_pending_turn(project_id: str = Query(..., pattern=PROJECT_ID_PATTERN),
+                      authorization: str | None = Header(default=None)):
+    storage = authenticated_storage(authorization)
+    try:
+        from .conversation_recovery import pending_turn_input
+        from .lifetime_memory_reads import snapshot_lifetime_read
+        def read(fence):
+            pending = pending_turn_input(storage, project_id) if fence is not None else None
+            return {'turn': TurnInput.model_validate(pending).model_dump(mode='json') if pending else None}
+        return snapshot_lifetime_read(storage, project_id, read)
+    except (httpx.HTTPError, PublicationUnavailable):
+        raise HTTPException(503, 'Conversation recovery temporarily unavailable',
+                            headers={'X-Error-Code': 'TURN_RECEIPT_UNAVAILABLE'}) from None
+    finally:
+        storage.client.close()
+
+
 @router.get('/turns/{client_turn_id}', response_model=TurnReceipt)
 def read_turn_receipt(client_turn_id: UUID,
                       project_id: str = Query(..., pattern=PROJECT_ID_PATTERN),
