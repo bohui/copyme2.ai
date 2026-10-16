@@ -981,10 +981,15 @@ def _google_serpapi_expanded(place: str, period: str) -> list[dict]:
             for link in page.get('links', []):
                 target = link.get('url', '')
                 address = urlparse(target)
-                if (address.scheme != 'https' or address.hostname != host_name
-                        or address.port not in {None, 443} or address.username or address.password
-                        or not re.search(r'/(?:photos?|images?|albums?|archives?|gallery|collection|pictures?|pics?)(?:/|$)',
-                                         address.path, re.I)):
+                try:
+                    valid_origin = (address.scheme == 'https' and address.hostname == host_name
+                                    and address.port in {None, 443}
+                                    and not address.username and not address.password)
+                except ValueError:
+                    continue  # A malformed page link must not lose verified sibling photos.
+                if (not valid_origin or not re.search(
+                        r'/(?:photos?|images?|albums?|archives?|gallery|collection|pictures?|pics?)(?:/|$)',
+                        address.path, re.I)):
                     continue
                 if target != final and target not in [entry[0] for entry in leads]:
                     leads.append((target, location_context))
