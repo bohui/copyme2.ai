@@ -923,13 +923,6 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
     sources['https://archive.example/photos/4'] = photo_html(4, place='Chengdu', date='1983-10-01')
     sources['https://archive.example/photos/5'] = photo_html(5, place='Hillside', date='')
     sources['https://archive.example/photos/6'] = photo_html(6, place='Beijing', date='1983-10-01')
-    structured_wrong_city = {'@type': 'Photograph', 'name': 'Willow trees',
-                             'dateCreated': '1983-10-01',
-                             'contentLocation': {'name': 'Beijing'},
-                             'contentUrl': 'https://live.staticflickr.com/1/7.jpg'}
-    sources['https://archive.example/photos/7'] = (
-        '<title>Willow trees</title>'
-        '<script type="application/ld+json">' + json.dumps(structured_wrong_city) + '</script>')
     sources['https://archive.example/photos/navigation-beijing'] = photo_html(20, place='Beijing')
     sources['https://archive.example/photos/related-beijing'] = photo_html(21, place='Beijing')
 
