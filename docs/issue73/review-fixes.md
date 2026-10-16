@@ -1,6 +1,20 @@
-# PR #74 static review follow-up
+# PR #74 review follow-up
 
-Review target: `cb5d61b7ce299416cc32957a5f3f8b5e692bb666`. The supplied review was static; the earlier independent cloud runtime launch did not complete. This follow-up reproduces the findings locally with failing tests, then fixes them. These author-run results do not replace independent runtime review or full feature acceptance.
+## Independent runtime review of 804a5b19
+
+The independent runtime review completed on `804a5b19c4835295700b5f377ec438e06431c7b1` and returned two reproduced defects. Its passing checks apply to that reviewed head; they do not approve the new fixes. This follow-up added failing regressions before changing implementation. The final pushed head is recorded in the PR description and handoff and still needs independent review.
+
+| Finding | Fix and ordering proof | Regression evidence |
+|---|---|---|
+| P1 false cleanup completion after a delayed DELETE receipt | Each recording has a durable `write_revision`, advanced on writer admission and once on terminal writer completion. DELETE captures the revision before object removal and supplies it to `cleanup_complete`. SQL requires the same revision and no unfinished writer. A late writer therefore invalidates an older receipt even when that receipt arrives after the writer stopped. Missing proof fails closed; a fresh successful DELETE can complete cleanup. Repeating `finish_upload` does not invalidate a later valid receipt. | Barrier-controlled HTTP tests physically remove the object before releasing a held POST, fail the compensating DELETE, and only then deliver the early DELETE response. Both HTTP and SQL remain pending while bytes remain inaccessible. A new DELETE removes the bytes and completes cleanup. Valid synthetic WebM, M4A and WAV all reproduce the old failure and pass after the fix. Native PostgreSQL tests also reject missing/stale proof and verify idempotent writer completion. |
+| P2 audio-only deletion breaks pending-turn recovery | The existing immutable ordered source-recording associations supply `recording_ids` in the owned interview-turn RPC, independently of currently readable `recordings`. Recovery uses that accepted list, with a compatibility fallback for older absent fields. Deleted audio stays deleted; descriptors, content and successful retry receipts do not restore it. | Six HTTP cases cover both execution modes and all three formats: source accepted, reply provider fails, audio-only DELETE, pending-turn read, successful replay of the same source, and a successful next turn. No extra STT occurs and no audio object returns. A SQL test preserves nontrivial accepted order when only one of two recordings remains readable and denies the other owner access. |
+| New main migration collision | Main `45ea6390fa8b777c0ec2090400fb5eb592466e80` introduced `202610160004_transferred_stage_readiness.sql` during this follow-up. The unapplied task migration is now `202610160005_original_recordings.sql`; no production migration was run. | A fifth real PostgreSQL upgrade history uses an exact upstream SQL fixture, then applies this task migration with the actual version primary key. It failed with duplicate version `202610160004` before the rename. The fixture pins upstream schema evidence without importing unrelated main application changes into the task branch. |
+
+Observed on the new source: 108 feature tests and 103 affected regressions passed; 21 web state tests and the browser voice-controls scenario passed; the complete mobile check passed (92 unit/domain, 68 UI, 23 integration, types, lint, 48-operation OpenAPI and configuration introspection). The private-photo rerun remains 34 passed / the same three baseline failures. Exact commands, final migration-history results and the source manifest are in `verification.json`. The two runtime defects first produced three cleanup HTTP failures, six recovery HTTP failures and three SQL failures on the reviewed implementation.
+
+## Earlier static review of cb5d61b
+
+Review target: `cb5d61b7ce299416cc32957a5f3f8b5e692bb666`. That supplied review was static; at that point, the earlier independent cloud runtime launch had not completed. This earlier follow-up reproduced the findings locally with failing tests, then fixed them in `804a5b19`. Those author-run results did not replace independent runtime review or full feature acceptance.
 
 Rollout remains OFF. The approved retention authority remains deny-all. No production migrations, Storage policies/access, customer recordings, paid provider calls, deployment, merge or GitHub review comments were used.
 
@@ -14,7 +28,7 @@ Rollout remains OFF. The approved retention authority remains deny-all. No produ
 | P2 late reserve escapes project deletion | Reservation holds the owned project row for share through insertion. Project deletion therefore either finishes first and rejects reserve, or waits and tombstones the inserted record. | Two native PostgreSQL connections interleave a blocked recording INSERT and project DELETE; the resulting recording is deleted with pending cleanup, rather than escaping as a draft. |
 | Additional rollout guard concern | Confirmed. The final original-content read and provider guard now hold the rollout row for share. Disable cannot commit while those admitted guards are in flight; once committed, a later guard denies admission. This orders original-content ASGI publication and provider work; it does not recall already delivered bytes or promise instantaneous provider cancellation. | A separate PostgreSQL connection observes disable blocked while the actual read-operation transaction is held, then commits after release. New recording reads are denied. Existing original-content withdrawal-before-ASGI and provider/API tests remain green. |
 
-## Observed checks
+## Historical checks at 804a5b19
 
 - 96 feature/API/media/SQL tests passed, including the new races for valid synthetic WebM, M4A and WAV; no primary skips.
 - 103 affected canonical/API regression tests passed.
@@ -23,7 +37,7 @@ Rollout remains OFF. The approved retention authority remains deny-all. No produ
 - Complete mobile check passed: 92 unit/domain, 68 UI and 23 integration tests; TypeScript, lint, 48-operation OpenAPI snapshot and native configuration introspection.
 - Before fixes, the focused runs produced nine HTTP failures, two SQL race failures, one ledger failure and two native cancellation failures. Additional cancellation-intent logout/transfer tests failed before their guards were added. Those red runs were reproduction only; final full runs passed.
 
-Commands, observed summaries and task source hashes are in `verification.json`. The final pushed commit is recorded in the PR description and handoff. The branch retains the original reviewed commit and a task-only fix commit. Main's subsequent `2ac93d9` change was inspected and introduces no conflicting migration version; this follow-up does not merge unrelated main work into the task branch.
+Commands, observed summaries and task source hashes are in `verification.json`. These are historical results for the first fix commit. The branch retains both reviewed heads and adds task-only follow-up commits. Main's then-current `2ac93d9` introduced no conflicting migration version; the newer `45ea639` collision is addressed above. No unrelated main application work is merged into the task branch.
 
 ## Acceptance still blocked
 

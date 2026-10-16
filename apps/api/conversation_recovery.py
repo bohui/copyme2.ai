@@ -200,10 +200,13 @@ def pending_turn_input(storage, project_id):
             or source['version'] != accepted['source_version']):
         return None
     photos = accepted.get('photo_context') or []
+    # Deleted audio has no readable descriptor, but its accepted request
+    # identity is still required to replay an unfinished turn.
     return {'project_id': project_id, 'client_turn_id': turn_id,
         'text': source['text'], 'conversation_text': source['text'],
         'source_kind': source['kind'], 'language': source['language'],
-        'recording_ids': [record['id'] for record in accepted.get('recordings',[])],
+        'recording_ids': accepted.get('recording_ids',
+            [record['id'] for record in accepted.get('recordings',[])]),
         'uploaded_photo_ids': [photo['photo_id'][len('upload:'):] for photo in photos
             if photo.get('kind') == 'private_upload' and photo.get('photo_id', '').startswith('upload:')],
         'photo_selection': {'key': accepted['consumed_photo_key'],

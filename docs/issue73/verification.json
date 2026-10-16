@@ -3,7 +3,7 @@
   "branch": "agent/issue73-original-recordings",
   "initial_base": "a6c1c9055119b90a21b04bb09b99f4d5545379f2",
   "rebased_onto": "971dd672c407ca508b8cf62f913d96dbbb9b6ba0",
-  "recorded_at": "2026-10-16T10:01:32.805633+00:00",
+  "recorded_at": "2026-10-16T10:27:11.358374+00:00",
   "release_status": "draft_disabled_not_full_acceptance",
   "final_head_location": "Draft PR description and final handoff",
   "rollout": {
@@ -24,52 +24,57 @@
   },
   "checks": [
     {
-      "name": "feature_api_sql_media_and_review_races",
-      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_original_recordings.py tests/test_original_recordings_postgres.py tests/test_original_recordings_http.py -q",
+      "name": "feature_api_sql_media_and_runtime_review_races",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_original_recordings.py tests/test_original_recordings_postgres.py tests/test_original_recordings_http.py -q",
+      "exit_code": 0,
       "observed": [
-        "96 passed in 94.68s (0:01:34)"
+        "108 passed in 130.55s (0:02:10)"
       ]
     },
     {
       "name": "canonical_and_api_regressions",
-      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_lifetime_memory_runtime.py tests/test_canonical_guest_conversation.py tests/test_conversation_recovery_api.py tests/test_speech_integration.py tests/test_speech.py tests/test_canonical_only_conversation.py -q",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_lifetime_memory_runtime.py tests/test_canonical_guest_conversation.py tests/test_conversation_recovery_api.py tests/test_speech_integration.py tests/test_speech.py tests/test_canonical_only_conversation.py -q",
+      "exit_code": 0,
       "observed": [
-        "103 passed in 77.92s (0:01:17)"
+        "103 passed in 87.99s (0:01:27)"
       ]
     },
     {
-      "name": "migration_ledger_histories",
-      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_consolidated_migration_upgrade.py -k migration_history -q",
+      "name": "migration_ledger_histories_including_main_45ea639",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_consolidated_migration_upgrade.py -k migration_history -q",
+      "exit_code": 0,
       "observed": [
-        "4 passed, 2 deselected in 31.44s"
+        "5 passed, 2 deselected in 43.61s"
       ]
     },
     {
       "name": "web_reference_state",
       "command": "node --test tests/js/interview-photo-turns.test.mjs",
+      "exit_code": 0,
       "observed": [
-        "\u2139 tests 21",
-        "\u2139 pass 21",
-        "\u2139 fail 0",
-        "\u2139 skipped 0"
+        "ℹ tests 21",
+        "ℹ pass 21",
+        "ℹ fail 0",
+        "ℹ skipped 0"
       ]
     },
     {
       "name": "browser_voice_controls",
-      "command": "PLAYWRIGHT_BROWSERS_PATH=/tmp/issue73-playwright python tests/browser_voice_controls.py",
+      "command": "PLAYWRIGHT_BROWSERS_PATH=/tmp/issue73-playwright /workspace/copyme2.ai/.venv/bin/python tests/browser_voice_controls.py",
+      "exit_code": 0,
       "observed": [
         "Voice controls passed: ordered recording references, edited multi-clip dictation, append cancellation, cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout."
       ]
     },
     {
       "name": "complete_mobile_check",
-      "command": "npm run check:mobile",
+      "command": "PATH=/workspace/copyme2.ai/.venv/bin:$PATH npm run check:mobile",
       "exit_code": 0,
       "observed": [
-        "\u2139 tests 92",
-        "\u2139 pass 92",
-        "\u2139 fail 0",
-        "\u2139 skipped 0",
+        "ℹ tests 92",
+        "ℹ pass 92",
+        "ℹ fail 0",
+        "ℹ skipped 0",
         "Test Suites: 9 passed, 9 total",
         "Tests:       68 passed, 68 total",
         "Mobile OpenAPI snapshot matches (48 operations)",
@@ -77,6 +82,15 @@
         "Tests:       23 passed, 23 total",
         "Native config introspection passed (not a native binary/device test)"
       ]
+    },
+    {
+      "name": "known_private_photo_baseline_rerun",
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_interview_photos_postgres.py -q",
+      "exit_code": 1,
+      "observed": [
+        "3 failed, 34 passed in 27.72s"
+      ],
+      "known_baseline_failure": true
     }
   ],
   "known_baseline_failures": {
@@ -88,7 +102,8 @@
       "test_final_conversation_commit_rejects_invalidated_saved_collector[photo]",
       "test_final_conversation_commit_rejects_invalidated_saved_collector[newer_turn]"
     ],
-    "cause": "Retired commit_user_agent_turn is denied earlier with canonical execution required; same failures reproduced on original base with only Docker fixture transport adaptation."
+    "cause": "Retired commit_user_agent_turn is denied earlier with canonical execution required; same failures reproduced on original base with only Docker fixture transport adaptation.",
+    "latest_task_result": "3 failed, 34 passed in 27.72s"
   },
   "remaining_blockers": [
     "Approved recoverable identity and purpose-specific retention/AI consent hook is absent: remains deny-all",
@@ -97,7 +112,7 @@
     "Real STT/provider behavior and billing evidence is unobserved; no paid calls made",
     "Real browser microphone and native iOS/Android device/binary/format evidence is unobserved",
     "Updated API decoder dependency image was not built",
-    "Independent cloud review/fixes and explicit rollout approval remain required"
+    "Independent cloud review/reruns of the new exact head, resulting fixes, and explicit rollout approval remain required"
   ],
   "production_actions": {
     "migrations_applied": false,
@@ -114,11 +129,11 @@
     "apps/api/agent_routes.py": "8ffa153057fa5d483ccbc80a2bbc0520ddfddfc5578e44f9aef27446f4cd0652",
     "apps/api/agent_storage.py": "d7c519f3ee7157e93a1cb97483209f6d3504ac077f7747f6b87dadc37341e217",
     "apps/api/codex_runtime.py": "0bbc46025d5342f259d158504ac498205b580377aa7906f9f67defc1e7c7f0a3",
-    "apps/api/conversation_recovery.py": "2fc2312742a2acfb80fa89fbb4ba8b54eb79de8512153327aa6f8e1b6665a158",
+    "apps/api/conversation_recovery.py": "aea1102fffd7ed4ecc34446b994be398c6570f751b89482bcfab56a70307431c",
     "apps/api/interview_plan.py": "e95536583524dfde5889864545529321d93c6cef33e15141b091a4d9084b3ac8",
     "apps/api/lifetime_memory_runtime.py": "a17f9a28b2b3d5264f07f0d98bf1e260ae9c1ac45cd5647d7868ba932af082ee",
     "apps/api/main.py": "3249f03e1e842bf938d896b255308cf79e722f06be4fd0f3c43af9dcc62dff8f",
-    "apps/api/original_recordings.py": "7eafcb206234461ff2320e2616f674d6b39d8426640bb80de50db791a093358c",
+    "apps/api/original_recordings.py": "125f99876a4de96ee055d3c3eb0d6fe149d9011845b1a0b729bfa0ced7d96db8",
     "apps/api/story_routes.py": "db7edfdd15ae6ccd571400d8e594be1bc03cd455f2cdc07f77d0f2644b129eda",
     "apps/api/supabase_routes.py": "171762bf37c76ce0580fd75c02709b1ac8392acc5aeee57c12c03a1e86ad1a41",
     "apps/mobile/app/record.tsx": "91e5bb80f5aeefadd5aeb31c2ab14b44d08c71e08a20d23bfd7f93602c64959b",
@@ -136,24 +151,26 @@
     "packages/contracts/src/index.ts": "a58d91067c2f264ebe477587419427bdcbe28ddd5022c5548fa4fe5d12be9db5",
     "packages/i18n/src/index.ts": "20cd66857fbc7de11d8d3ac5bde1fb65998968ca52ad15c2654a647b832915cc",
     "scripts/check_mobile_openapi.py": "1fb9b28bf1252e536899a8b5db2f1d3cdb6533d31e7779ecddcfdf28291714f9",
-    "supabase/migrations/202610160004_original_recordings.sql": "7e7466f0d3809cc7db0032131fc87f019f4a00fa6dce3e3aef6a562217f0a79a",
+    "supabase/migrations/202610160005_original_recordings.sql": "e78c450556220a5195040c08713bcb6a05754684779176e81f6f59a7fd24e209",
     "tests/browser_voice_controls.py": "ca675bae9ae734cf9c346c1582ba578f93dd6e51d436c89b7e589767520b6ed4",
+    "tests/fixtures/issue73/202610160004_transferred_stage_readiness.sql": "fd59bfc22f78c99369f93013d6d4791285ef74119f6fa8d63514aae9a07efad6",
     "tests/js/interview-photo-turns.test.mjs": "a554681239ff8d932b8a6a35b97ea1fe9386480f3aeba2527b400bab71aa4fc9",
+    "tests/memoir_postgres_workflow.py": "7887c1d1859a5a0e7d65e9cd335a5282654f9faf05d5a30afbb37a0df0b43b2e",
     "tests/mobile-integration/provider.test.tsx": "76a6c964349745dc9e1f8639d7eee7bc1befa8b6b6b3cc53b8e551359ce87920",
     "tests/mobile-ui/recording-cancellation.test.tsx": "51bb357420608fc4dddf17231f1f68e789793bccc7c1c57c599eb45244f978c0",
     "tests/mobile/original-recordings.test.ts": "961977bf571c48f83eeb22f30f497b8c62d302ca3d76d0ab75ad80d36ee78226",
     "tests/mobile/private-media.test.ts": "762c55e2e8aaf1147f54e7074afa798e34fc49fca6701036776d606daa67bec2",
     "tests/test_agent_commit_postgres.py": "87a20319531f8716470030addb488469f18288f9150f8b2bc8d25dd54da83712",
-    "tests/test_consolidated_migration_upgrade.py": "7d3017706d548ffaba3b679e4e60457c642c61041ce79cb6377b8d9b242162ef",
+    "tests/test_consolidated_migration_upgrade.py": "11734184fd8c95b22a3cc07171ffd2b06f91071c5de49770866a2a5b7ca2467d",
     "tests/test_conversation_recovery_api.py": "7585bbf95b3a84ef3359e4daf94c77153db218a6c5258dded0a0e41bb988b1d6",
     "tests/test_original_recordings.py": "07d160b98e4c1251226e5c1ed91ed7d99e83235b808acd3dd02031e50d61bbda",
-    "tests/test_original_recordings_http.py": "398bc581f319621eedad6ee3a4c2c30609343156f36578c37c034f69dad70af5",
-    "tests/test_original_recordings_postgres.py": "03117b8d6e820e1ea969d28bfcd98026e0822f08bf0c721b506582c18e788af9",
+    "tests/test_original_recordings_http.py": "beafa91e35492d3b844a57e539d1ad9f7899f7b95dfd82f33a4243a0e8ca594e",
+    "tests/test_original_recordings_postgres.py": "7e4c85a0d6b39fbc7ebee918cf6f886c67eefdb0fb00ff09d5e27a9f0d0ab199",
     "tests/test_speech_integration.py": "eb4fb4e99aa82805dfa24a5ca358d848cd7d3973a76010ed35164d23b4ea1dd9"
   },
-  "review_target": "cb5d61b7ce299416cc32957a5f3f8b5e692bb666",
-  "main_observed": "2ac93d9a279e7fe7ffa6cca39c7b071d45a9fd43",
-  "recording_migration": "202610160004_original_recordings.sql",
+  "review_target": "804a5b19c4835295700b5f377ec438e06431c7b1",
+  "main_observed": "45ea6390fa8b777c0ec2090400fb5eb592466e80",
+  "recording_migration": "202610160005_original_recordings.sql",
   "previous_head_verification": {
     "head": "cb5d61b7ce299416cc32957a5f3f8b5e692bb666",
     "recorded_at": "2026-10-16T09:33:35.467221+00:00",
@@ -183,10 +200,10 @@
         "name": "web_reference_state",
         "command": "node --test tests/js/interview-photo-turns.test.mjs",
         "observed": [
-          "\u2139 tests 20",
-          "\u2139 pass 20",
-          "\u2139 fail 0",
-          "\u2139 skipped 0"
+          "ℹ tests 20",
+          "ℹ pass 20",
+          "ℹ fail 0",
+          "ℹ skipped 0"
         ]
       },
       {
@@ -208,10 +225,10 @@
         "command": "npm run check:mobile",
         "exit_code": 0,
         "observed": [
-          "\u2139 tests 92",
-          "\u2139 pass 92",
-          "\u2139 fail 0",
-          "\u2139 skipped 0",
+          "ℹ tests 92",
+          "ℹ pass 92",
+          "ℹ fail 0",
+          "ℹ skipped 0",
           "Test Suites: 8 passed, 8 total",
           "Tests:       66 passed, 66 total",
           "Mobile OpenAPI snapshot matches (47 operations)",
@@ -270,9 +287,132 @@
       "late object POST after cleanup success",
       "response ASR differs from persisted result",
       "project deletion/reservation race",
-      "inflight rollout-disable ordering"
+      "inflight rollout-disable ordering",
+      "delayed cleanup receipt after late writer and failed compensating removal",
+      "pending-turn immutable accepted recording IDs after audio-only deletion",
+      "new main 45ea639 migration version collision"
     ],
-    "independent_runtime_review": false,
-    "followup_record": "docs/issue73/review-fixes.md"
-  }
+    "independent_runtime_review": true,
+    "followup_record": "docs/issue73/review-fixes.md",
+    "independent_runtime_review_verdict": "changes_required_on_804a5b19; new fixes require independent rerun"
+  },
+  "previous_runtime_reviewed_head_verification": {
+    "head": "804a5b19c4835295700b5f377ec438e06431c7b1",
+    "recorded_at": "2026-10-16T10:01:32.805633+00:00",
+    "checks": [
+      {
+        "name": "feature_api_sql_media_and_review_races",
+        "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_original_recordings.py tests/test_original_recordings_postgres.py tests/test_original_recordings_http.py -q",
+        "observed": [
+          "96 passed in 94.68s (0:01:34)"
+        ]
+      },
+      {
+        "name": "canonical_and_api_regressions",
+        "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_lifetime_memory_runtime.py tests/test_canonical_guest_conversation.py tests/test_conversation_recovery_api.py tests/test_speech_integration.py tests/test_speech.py tests/test_canonical_only_conversation.py -q",
+        "observed": [
+          "103 passed in 77.92s (0:01:17)"
+        ]
+      },
+      {
+        "name": "migration_ledger_histories",
+        "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker python -m pytest tests/test_consolidated_migration_upgrade.py -k migration_history -q",
+        "observed": [
+          "4 passed, 2 deselected in 31.44s"
+        ]
+      },
+      {
+        "name": "web_reference_state",
+        "command": "node --test tests/js/interview-photo-turns.test.mjs",
+        "observed": [
+          "ℹ tests 21",
+          "ℹ pass 21",
+          "ℹ fail 0",
+          "ℹ skipped 0"
+        ]
+      },
+      {
+        "name": "browser_voice_controls",
+        "command": "PLAYWRIGHT_BROWSERS_PATH=/tmp/issue73-playwright python tests/browser_voice_controls.py",
+        "observed": [
+          "Voice controls passed: ordered recording references, edited multi-clip dictation, append cancellation, cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout."
+        ]
+      },
+      {
+        "name": "complete_mobile_check",
+        "command": "npm run check:mobile",
+        "exit_code": 0,
+        "observed": [
+          "ℹ tests 92",
+          "ℹ pass 92",
+          "ℹ fail 0",
+          "ℹ skipped 0",
+          "Test Suites: 9 passed, 9 total",
+          "Tests:       68 passed, 68 total",
+          "Mobile OpenAPI snapshot matches (48 operations)",
+          "Test Suites: 1 passed, 1 total",
+          "Tests:       23 passed, 23 total",
+          "Native config introspection passed (not a native binary/device test)"
+        ]
+      }
+    ],
+    "review_findings": {
+      "confirmed_and_fixed": [
+        "duplicate migration version",
+        "accepted local clip blocked by draft-only 409",
+        "pre-reservation cancellation lost on lookup 404",
+        "late object POST after cleanup success",
+        "response ASR differs from persisted result",
+        "project deletion/reservation race",
+        "inflight rollout-disable ordering"
+      ],
+      "independent_runtime_review": false,
+      "followup_record": "docs/issue73/review-fixes.md"
+    }
+  },
+  "runtime_review": {
+    "reviewed_head": "804a5b19c4835295700b5f377ec438e06431c7b1",
+    "reviewer_thread": "01a1442a-5d2b-74aa-9f1b-9f05a70a803b",
+    "verdict": "changes_required",
+    "reported_defects": [
+      "P1 delayed physical DELETE receipt can falsely complete cleanup after a late writer and failed compensation",
+      "P2 audio-only deletion removes pending replay recording IDs and blocks recovery"
+    ],
+    "new_head_independent_review_passed": false,
+    "author_focused_green": "12 passed, 79 deselected in 47.88s"
+  },
+  "runtime_review_red_reproductions": {
+    "cleanup_http": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_original_recordings_http.py -k \"delayed_cleanup_receipt or deleted_audio_keeps_pending\" -q",
+      "confirmed_cases": [
+        "FAILED tests/test_original_recordings_http.py::test_delayed_cleanup_receipt_cannot_acknowledge_a_later_failed_compensation[webm]",
+        "FAILED tests/test_original_recordings_http.py::test_delayed_cleanup_receipt_cannot_acknowledge_a_later_failed_compensation[m4a]",
+        "FAILED tests/test_original_recordings_http.py::test_delayed_cleanup_receipt_cannot_acknowledge_a_later_failed_compensation[wav]"
+      ],
+      "failure": "HTTP cleanup_status complete rather than pending while a late original remains; the first combined run also exposed six missing test-adapter table routes, corrected before the separate recovery red run"
+    },
+    "recovery_http": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_original_recordings_http.py -k deleted_audio_keeps_pending -q",
+      "observed": "6 failed, 66 deselected in 17.24s",
+      "failure": "pending-turn returns [] instead of accepted recording IDs for both modes and all three valid formats"
+    },
+    "sql": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_original_recordings_postgres.py -k \"current_write_revision or only_some_audio\" -q",
+      "observed": "3 failed, 16 deselected in 13.65s",
+      "failure": "missing/stale cleanup proof incorrectly completes; accepted IDs missing from turn RPC"
+    },
+    "new_main_migration": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=docker /workspace/copyme2.ai/.venv/bin/python -m pytest tests/test_consolidated_migration_upgrade.py -k main-45ea639 -q",
+      "observed": "1 failed, 6 deselected in 11.23s",
+      "failure": "actual schema_migrations primary key rejects duplicate 202610160004"
+    }
+  },
+  "upstream_migration_fixture": {
+    "source_commit": "45ea6390fa8b777c0ec2090400fb5eb592466e80",
+    "source_path": "supabase/migrations/202610160004_transferred_stage_readiness.sql",
+    "fixture_path": "tests/fixtures/issue73/202610160004_transferred_stage_readiness.sql",
+    "sha256": "fd59bfc22f78c99369f93013d6d4791285ef74119f6fa8d63514aae9a07efad6",
+    "purpose": "Real disposable SQL/ledger compatibility only; no unrelated application changes or production migration"
+  },
+  "task_file_sha256_scope": "Task source/test/config files relative to 971dd672c407ca508b8cf62f913d96dbbb9b6ba0; evidence documents excluded to avoid self-referential hashes"
 }

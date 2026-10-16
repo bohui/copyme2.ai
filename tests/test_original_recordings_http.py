@@ -367,3 +367,100 @@ def test_capture_key_cancellation_preserves_an_already_accepted_original(workflo
     assert cancelled.json()['already_attached'] is True
     assert client.get(record['content_url']).content==media[0]
     assert sql('select count(*) from public.user_original_recording_cancel;').stdout.strip()=='0'
+
+
+def test_delayed_cleanup_receipt_cannot_acknowledge_a_later_failed_compensation(workflow,media,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event,Lock
+    import json
+    client,storage,sql,objects,calls,mode=workflow
+    post_entered,release_post,early_delete,release_receipt=Event(),Event(),Event(),Event()
+    original=type(storage).request;counter=0;lock=Lock()
+    def interleaved(self,method,path,**options):
+        nonlocal counter
+        if method=='POST' and path.startswith('/storage/'):
+            post_entered.set();assert release_post.wait(10)
+        if method=='DELETE' and path.startswith('/storage/'):
+            with lock:
+                counter+=1;first=counter==1
+            if first:
+                response=original(self,method,path,**options)
+                early_delete.set();assert release_receipt.wait(10)
+                return response
+            return httpx.Response(503,request=httpx.Request(method,'https://synthetic.invalid')).raise_for_status()
+        return original(self,method,path,**options)
+    monkeypatch.setattr(type(storage),'request',interleaved)
+    with ThreadPoolExecutor(2) as pool:
+        uploading=pool.submit(upload,client,media)
+        try:
+            assert post_entered.wait(5)
+            identifier=sql('select id from public.user_original_recording;').stdout.strip()
+            deleting=pool.submit(client.delete,'/api/v1/memoir/story/recordings/'+identifier)
+            assert early_delete.wait(5)
+            release_post.set()
+            assert uploading.result(15).status_code==503
+            assert objects, 'The controlled compensating delete failed, so the late original still exists'
+        finally:
+            release_post.set();release_receipt.set()
+        result=deleting.result(15)
+    assert result.status_code==200,result.text
+    assert result.json()['cleanup_status']=='pending'
+    state=json.loads(sql(f"select to_jsonb(r) from public.user_original_recording r where id='{identifier}';").stdout.strip())
+    assert state['lifecycle']=='deleted' and state['cleanup_status']=='pending'
+    assert client.get('/api/v1/memoir/story/recordings/'+identifier+'/content').status_code==404
+    monkeypatch.setattr(type(storage),'request',original)
+    retried=client.delete('/api/v1/memoir/story/recordings/'+identifier)
+    assert retried.json()['cleanup_status']=='complete'
+    assert not objects
+
+
+@pytest.mark.parametrize('two_lane',[False,True])
+def test_deleted_audio_keeps_pending_request_identity_and_allows_retry_then_next_turn(workflow,media,tmp_path,monkeypatch,two_lane):
+    import json
+    from apps.api import agent_routes
+    from apps.api.codex_runtime import CodexRuntime
+    from memoir_postgres_workflow import PostgresRest
+    from test_name_only_opening import proposal
+    from controlled_collector import worker_reply
+    client,storage,sql,objects,calls,mode=workflow
+    monkeypatch.setenv('MEMOIR_TWO_LANES','1' if two_lane else '0')
+    sql('update public.lifetime_two_lane_rollout set enabled='+('true' if two_lane else 'false')+';')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
+    monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS','99')
+    failure=[True]
+    def provider(request):
+        if failure[0]:return httpx.Response(503)
+        output=proposal(mode='extract',name=None,question='What do you remember about the garden?')
+        output['acknowledgement']='You remember the garden.';output['plan']['conversation_phase']='explore'
+        if request.headers.get('accept')=='application/x-ndjson':
+            return httpx.Response(200,headers={'Content-Type':'application/x-ndjson'},content=json.dumps({'type':'result','data':{'reply':json.dumps(output),'thread_id':'synthetic','artifacts':[]}})+'\n')
+        return worker_reply(request,{'reply':json.dumps(output),'thread_id':'synthetic','artifacts':[]})
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
+    monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
+    record=upload(client,media).json()['recording'];turn=str(uuid4())
+    command={'text':'I remember the garden.','source_kind':'narrator_transcript','recording_ids':[record['id']],'client_turn_id':turn}
+    accepted=client.post('/api/v1/memoir/agent/turn',json=command)
+    assert accepted.status_code==503,accepted.text
+    project=sql('select project_id from public.user_narrator_source;').stdout.strip()
+    source_id=sql('select id from public.user_narrator_source;').stdout.strip()
+    assert client.delete('/api/v1/memoir/story/recordings/'+record['id']).json()['cleanup_status']=='complete'
+    pending=client.get('/api/v1/memoir/agent/pending-turn',params={'project_id':project})
+    assert pending.status_code==200,pending.text
+    recovered=pending.json()['turn']
+    assert recovered['recording_ids']==command['recording_ids']
+    assert not objects
+    failure[0]=False
+    retried=client.post('/api/v1/memoir/agent/turn',json=recovered)
+    assert retried.status_code==200,retried.text
+    assert retried.json()['accepted_source_id']==source_id
+    assert retried.json()['recordings']==[]
+    assert client.get(record['content_url']).status_code==404
+    receipt=client.get('/api/v1/memoir/agent/turns/'+turn,params={'project_id':project})
+    assert receipt.json()['source_id']==source_id and receipt.json()['recordings']==[]
+    assert client.get('/api/v1/memoir/agent/pending-turn',params={'project_id':project}).json()['turn'] is None
+    following=client.post('/api/v1/memoir/agent/turn',json={'project_id':project,'text':'I remember another afternoon in the garden.','client_turn_id':str(uuid4())})
+    assert following.status_code==200,following.text
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
+    assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='2'
+    assert len([call for call in calls if call[0]=='stt'])==1
+    assert not objects

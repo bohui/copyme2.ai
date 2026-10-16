@@ -311,7 +311,10 @@ class RecordingStore:
         try:
             self.storage.request('DELETE', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET,
                 json={'prefixes':[record['object_path']]})
-            finished = self.trusted('cleanup_complete', record['id'])
+            # The receipt proves removal only for writers already stopped
+            # before this DELETE began, regardless of HTTP response timing.
+            finished = self.trusted('cleanup_complete', record['id'],
+                {'write_revision':record['write_revision']})
             return {'id':record['id'], 'deleted':True, 'cleanup_status':finished['cleanup_status']}
         except httpx.HTTPError:
             return {'id':record['id'], 'deleted':True, 'cleanup_status':'pending'}

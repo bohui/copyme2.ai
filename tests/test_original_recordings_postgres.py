@@ -99,7 +99,7 @@ def test_audio_delete_keeps_text_and_tombstone_until_exact_cleanup_completes(app
     assert rpc(sql,'read_user_interview_turn',f"'project','{result['client_turn_id']}'")['recordings']==[]
     assert sql('select text from public.user_narrator_source;').stdout.strip()==result['source']['text']
     assert server(sql,'delete',recording['id'])['cleanup_status']=='pending'
-    assert server(sql,'cleanup_complete',recording['id'])['cleanup_status']=='complete'
+    assert server(sql,'cleanup_complete',recording['id'],{'write_revision':tombstone['write_revision']})['cleanup_status']=='complete'
 
 
 def test_source_correction_preserves_provenance_withdrawal_fences_it(approved):
@@ -234,3 +234,26 @@ def test_inflight_read_guard_orders_rollout_disablement_before_new_access(approv
         pending.result(10)
     assert observed=='blocked', 'Disable committed while the publication/provider guard still held its read transaction'
     assert rpc(sql,'read_user_original_recording',literal(record['id'])) is None
+
+
+@pytest.mark.parametrize('proof',['missing','stale'])
+def test_cleanup_completion_requires_a_receipt_for_the_current_write_revision(approved,proof):
+    sql=approved;record=ready(sql)
+    writer=server(sql,'begin_upload',record['id'])
+    before=server(sql,'delete',record['id'])
+    after=server(sql,'finish_upload',record['id'],{'attempt_id':writer['upload_attempt_id']})
+    data={} if proof=='missing' else {'write_revision':before.get('write_revision',0)}
+    assert server(sql,'cleanup_complete',record['id'],data)['cleanup_status']=='pending'
+    assert server(sql,'cleanup_complete',record['id'],{'write_revision':after['write_revision']})['cleanup_status']=='complete'
+    replay=server(sql,'finish_upload',record['id'],{'attempt_id':writer['upload_attempt_id']})
+    assert replay['write_revision']==after['write_revision'] and replay['cleanup_status']=='complete'
+
+
+def test_accepted_recording_ids_keep_order_when_only_some_audio_is_readable(approved):
+    sql=approved;first,second=ready(sql),ready(sql)
+    accepted=accept(sql,[second['id'],first['id']]);server(sql,'delete',second['id'])
+    restored=rpc(sql,'read_user_interview_turn',f"'project','{accepted['client_turn_id']}'")
+    assert restored['recording_ids']==[second['id'],first['id']]
+    assert [record['id'] for record in restored['recordings']]==[first['id']]
+    assert rpc(sql,'read_user_interview_turn',f"'project','{accepted['client_turn_id']}'",owner=OTHER) is None
+    assert restored['source']['text']==accepted['source']['text']

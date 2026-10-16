@@ -26,6 +26,7 @@ create table public.user_original_recording (
  transcription_status text not null default 'not_started' check(transcription_status in ('not_started','failed','succeeded')),
  asr_result jsonb, lifecycle text not null default 'draft' check(lifecycle in ('draft','attached','deleted')),
  cleanup_status text not null default 'not_requested' check(cleanup_status in ('not_requested','pending','complete')),
+ write_revision bigint not null default 0,
  created_at timestamptz not null default clock_timestamp(), unique(user_id,upload_key)
 );
 -- Cancellation survives requests that have not finished decoding/reserving yet.
@@ -182,13 +183,22 @@ begin
  elsif p_operation='finish_upload' then
    update public.user_original_recording_upload set finished_at=clock_timestamp()
      where id=(p_data->>'attempt_id')::uuid and recording_id=r.id and finished_at is null;
+   if found then
+     -- A completed writer invalidates every DELETE receipt taken before it
+     -- stopped, even if that DELETE's HTTP response was delayed until later.
+     update public.user_original_recording set write_revision=write_revision+1,
+       cleanup_status=case when lifecycle='deleted' then 'pending' else cleanup_status end
+       where id=r.id returning * into r;
+   end if;
  elsif p_operation='cleanup_complete' and r.lifecycle='deleted' then
-   if not exists(select 1 from public.user_original_recording_upload where recording_id=r.id and finished_at is null) then
+   if r.write_revision=(p_data->>'write_revision')::bigint
+     and not exists(select 1 from public.user_original_recording_upload where recording_id=r.id and finished_at is null) then
      update public.user_original_recording set cleanup_status='complete' where id=r.id returning * into r;
    end if;
  else
    if not public.original_recording_visible(r,p_owner) then raise exception 'recording unavailable' using errcode='42501';end if;
    if p_operation='begin_upload' then
+     update public.user_original_recording set write_revision=write_revision+1 where id=r.id returning * into r;
      insert into public.user_original_recording_upload(recording_id) values(r.id) returning id into identifier;
      return to_jsonb(r)||jsonb_build_object('upload_attempt_id',identifier);
    elsif p_operation='finalize' then
@@ -272,7 +282,12 @@ alter function public.read_user_interview_turn(text,uuid) rename to read_user_in
 revoke all on function public.read_user_interview_turn_before_recordings(text,uuid) from public,anon,authenticated,service_role;
 create function public.read_user_interview_turn(p_project_id text,p_client_turn_id uuid) returns jsonb
 language sql stable security definer set search_path='' as $$
- select public.read_user_interview_turn_before_recordings(p_project_id,p_client_turn_id) || jsonb_build_object('recordings',
+ select public.read_user_interview_turn_before_recordings(p_project_id,p_client_turn_id) || jsonb_build_object(
+   -- Accepted request identity survives audio-only deletion. Readable
+   -- descriptors remain independently filtered by current access/lifecycle.
+   'recording_ids',(select coalesce(jsonb_agg(recording_id::text order by position),'[]')
+     from public.user_source_recording where user_id=auth.uid() and project_id=p_project_id and client_turn_id=p_client_turn_id),
+   'recordings',
    public.read_user_source_recordings(p_project_id,(select source_id from public.user_interview_turn
      where user_id=auth.uid() and project_id=p_project_id and client_turn_id=p_client_turn_id)))
 $$;
