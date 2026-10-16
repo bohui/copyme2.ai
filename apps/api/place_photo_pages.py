@@ -100,7 +100,9 @@ class PhotoPages:
         center = _coordinates({'latitude': latitude, 'longitude': longitude})
         if latitude is not None and center is None:
             raise HTTPException(status_code=422, detail='Invalid photo search coordinates')
-        search_query = (place.strip().casefold(), period.strip().casefold())
+        from .place_photo_repository import search_key
+        search_query = (place.strip().casefold(), period.strip().casefold(),
+                        search_key(place, period))
         query = (*search_query, latitude, longitude)
         with self.lock:
             now = time.monotonic()

@@ -406,6 +406,11 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                         task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
             if not items and source_errors:
+                from .place_photos import _configured_env
+                if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
+                    raise PhotoResearchUnavailable(failures=[{
+                        'provider': provider, 'reason': source_errors[0], 'scope': 'source',
+                    }])
                 raise PhotoResearchUnavailable(provider, source_errors[0])
             if len(seen_sources) >= source_budget:
                 break
@@ -441,6 +446,16 @@ async def _browse(provider: str, place: str, period: str, search_url: str, *, li
                                  crawler=opened, source_slots=asyncio.Semaphore(2), on_items=on_items)
     from .place_photos import _deduplicate, _mix_sources
     queries = _discovery_queries(provider, place, period, search_url)
+    if provider == 'google':
+        from .place_photos import _configured_env, _period_bounds
+        if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
+            from .place_photo_expansion import google_search_urls, historical_queries
+            primary = parse_qs(urlsplit(search_url).query).get('q', [''])[0]
+            expanded = historical_queries(
+                primary, _research()._crawl4ai_place_query(place), _period_bounds(period),
+                max_queries=MAX_SEARCH_PAGES,
+            )
+            queries = [(url, False) for url in google_search_urls(search_url, expanded)]
     deadline = time.monotonic() + timeout
     items, failures = [], []
     for index, (url, album) in enumerate(queries):
@@ -458,7 +473,8 @@ async def _browse(provider: str, place: str, period: str, search_url: str, *, li
             logger.warning('%s photo browser query unavailable: %s', provider, type(error).__name__)
             failures.extend(error.failures if isinstance(error, PhotoResearchUnavailable)
                             else [{'provider': provider, 'reason': photo_failure_reason(error)}])
-            if any(failure['reason'] in {'verification_required', 'robots_denied'} for failure in failures):
+            if any(failure['reason'] in {'verification_required', 'robots_denied'}
+                   and failure.get('scope') != 'source' for failure in failures):
                 break
         if len(_deduplicate(items)) >= limit:
             break

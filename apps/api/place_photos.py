@@ -764,7 +764,9 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
             accepted = matching(found)
             if accepted and on_items:
                 on_items(_deduplicate(accepted))
-        if on_items and provider in (_google_browser, _flickr_browser):
+        if on_items and (provider in (_google_browser, _flickr_browser)
+                         or (provider is _google_serpapi and
+                             _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'})):
             found = provider(place, period, on_items=publish)
         else:
             found = matching(provider(place, period))
@@ -845,7 +847,9 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
     return mixed[:limit] if limit is not None else mixed[:150]
 
 
-def _google_serpapi(place: str, period: str) -> list[dict]:
+def _google_serpapi(place: str, period: str, *, on_items=None) -> list[dict]:
+    if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
+        return _google_serpapi_expanded(place, period, on_items=on_items)
     import json
     from pathlib import Path
     import subprocess
@@ -912,6 +916,201 @@ def _google_serpapi(place: str, period: str) -> list[dict]:
         raise PhotoResearchUnavailable('google', 'source_unavailable')
     return _deduplicate(items)
 
+
+
+def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[dict]:
+    """Expand sparse historical Google Images discovery with bounded original-page checks.
+
+    Keep the existing SerpAPI provider and its fresh-search contract. Discovery
+    snippets are leads only: dates and place evidence come from inspected pages.
+    Provider outages stop further paid discovery but never erase verified items.
+    """
+    import json
+    from pathlib import Path
+    import subprocess
+    import sys
+    import time
+    from threading import Lock
+    from .place_photo_browser import _research, _source_items
+    from .place_photo_expansion import (
+        EXPANDED_SEARCH_SECONDS, MAX_EXPANDED_SOURCE_PAGES,
+        MAX_SOURCE_LEADS_PER_QUERY, historical_queries,
+    )
+
+    helper = _research()
+    bounds = _photo_period_bounds(period)
+    primary = _google_query(place, period)
+    if bounds or _is_historical_period(period):
+        temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01',
+                     'end': f'{bounds[1]}-12-31'} if bounds
+                    else {'mode': 'historical_unspecified'})
+        primary = helper._crawl4ai_query({'place': place, 'temporal': temporal})
+    queries = historical_queries(primary, helper._crawl4ai_place_query(place), bounds)
+    deadline = time.monotonic() + EXPANDED_SEARCH_SECONDS
+    inspected, items, failures = set(), [], []
+    fetchers = {}
+
+    def inspect(source, location_context=''):
+        _, host, port = helper.valid_url(source)
+        helper.public_addresses(host, port)
+        lock, fetcher = fetchers[urlparse(source).netloc]
+        with lock:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError()
+            status, final, headers, body = fetcher.fetch(
+                source, helper.MAX_PAGE_BYTES, {host},
+                deadline_seconds=min(15, remaining),
+            )
+        if (status != 200 or headers.get('content-type', '').split(';', 1)[0]
+                not in {'text/html', 'application/xhtml+xml'}):
+            raise ValueError('Original photo source unavailable')
+        markup = body.decode('utf-8', errors='replace')
+        parsed = helper.PageParser(final)
+        parsed.feed(markup)
+        page = parsed.output()
+        # Inherited locality is allowed only from a previously verified album
+        # member link. A relevant page title alone never grants that authority
+        # to unrelated navigation or recommendation links.
+        from .place_photo_expansion import (
+            conflicting_item_locality, verified_album_member_links,
+        )
+        page_title = _text(page.get('title'))
+        if location_context:
+            def matches_requested_locality(value, requested):
+                # Explicit source locality must retain the geographic anchor.
+                # For "离宫, 承德市", a generic "summer palace" landmark alias
+                # does not establish Chengde and must never admit Beijing.
+                groups = helper._crawl4ai_place_groups(requested)
+                if len(groups) > 1:
+                    return any(helper._crawl4ai_location_matches(value, anchor)
+                               for anchor in groups[-1])
+                return helper._crawl4ai_location_matches(value, requested)
+            if conflicting_item_locality(page, place, matches_requested_locality):
+                return [], []
+        photos = [{**item, 'providers': ['google', 'serpapi']} for item in
+                  _source_items(markup, final, place, period, location_context=location_context)]
+        # Fingerprint *before* declaring the ten-photo target complete. Copies
+        # rehosted under different URLs must not use up the target count.
+        from .place_photo_fingerprints import image_fingerprint
+        for item in photos:
+            if deadline - time.monotonic() < 8:
+                break
+            item.update(image_fingerprint(item['image_url']))
+        leads = []
+        member_locality = (page_title if helper._crawl4ai_location_matches(page_title, place)
+                           else location_context)
+        if member_locality:
+            host_name = urlparse(final).hostname
+            # Structural gallery membership, never mere same-host links.
+            # Recommendations, sidebars and navigation do not inherit place.
+            for target in verified_album_member_links(markup, final):
+                address = urlparse(target)
+                try:
+                    valid_origin = (address.scheme == 'https' and address.hostname == host_name
+                                    and address.port in {None, 443}
+                                    and not address.username and not address.password)
+                except ValueError:
+                    continue  # A malformed page link must not lose verified sibling photos.
+                if (not valid_origin or not re.search(
+                        r'/(?:photos?|images?|albums?|archives?|gallery|collection|pictures?|pics?)(?:/|$)',
+                        address.path, re.I)):
+                    continue
+                if target != final and target not in [entry[0] for entry in leads]:
+                    leads.append((target, member_locality))
+                if len(leads) >= 6:
+                    break
+        return photos, leads
+
+    for query in queries:
+        if len(items) >= MAX_RESULTS or len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            failures.append({'provider': 'google', 'reason': 'timeout'})
+            break
+        try:
+            result = subprocess.run(
+                [sys.executable, str(Path(helper.__file__).with_name('photo_search.py')), 'worker', 'serpapi'],
+                input=json.dumps({'query': query, 'refresh': True}),
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, timeout=min(50, remaining), check=True,
+            )
+            data = next(json.loads(line.removeprefix('PLACE_PHOTO_RESULT:'))
+                        for line in reversed(result.stdout.splitlines())
+                        if line.startswith('PLACE_PHOTO_RESULT:'))
+        except subprocess.TimeoutExpired:
+            failures.append({'provider': 'google', 'reason': 'timeout'})
+            break
+        except (subprocess.SubprocessError, OSError, StopIteration, ValueError):
+            failures.append({'provider': 'google', 'reason': 'invalid_response'})
+            break
+        if not isinstance(data, dict) or not isinstance(data.get('cards', []), list):
+            failures.append({'provider': 'google', 'reason': 'invalid_response'})
+            break
+        if data.get('status') != 'success':
+            error = data.get('error')
+            reason = ('timeout' if error == 'TimeoutError' else
+                      error if isinstance(error, str) and re.fullmatch(r'http_\d{3}', error)
+                      else 'unavailable')
+            failures.append({'provider': 'google', 'reason': reason})
+            break
+
+        sources = []
+        for card in data.get('cards', []):
+            if not isinstance(card, dict) or not _location_matches(_text(card.get('text')), place):
+                continue
+            source = card.get('source_url')
+            if not isinstance(source, str) or not source or source in inspected:
+                continue
+            if len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+                break
+            inspected.add(source)  # Failed and blocked pages also count against the cap.
+            sources.append(source)
+            if len(sources) >= MAX_SOURCE_LEADS_PER_QUERY:
+                break  # Leave room for later queries and promising linked albums.
+        for source in sources:
+            fetchers.setdefault(urlparse(source).netloc, (Lock(), helper.Fetcher()))
+        # At most two link hops within publicly accessible, locality-verified
+        # same-host collections. Failed, repeated and blocked leads consume
+        # the same page budget; one source may yield several different photos.
+        pending = [(source, 0, '') for source in sources]
+        while pending and len(items) < MAX_RESULTS and time.monotonic() < deadline:
+            batch, pending = pending[:4], pending[4:]
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [executor.submit(inspect, source, context)
+                           for source, _, context in batch]
+                for (source, depth, context), future in zip(batch, futures):
+                    try:
+                        found, links = future.result()
+                        updated = _deduplicate(items + found)
+                        if updated != items:
+                            items = updated
+                            if on_items:
+                                on_items(items)
+                        if depth >= 2 or len(items) >= MAX_RESULTS:
+                            continue
+                        for url, album_context in links:
+                            if len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+                                break
+                            if url in inspected:
+                                continue
+                            inspected.add(url)
+                            fetchers.setdefault(urlparse(url).netloc, (Lock(), helper.Fetcher()))
+                            pending.append((url, depth + 1, album_context))
+                    except (helper.ResearchError, OSError, ValueError, http.client.HTTPException,
+                            TimeoutError):
+                        failures.append({'provider': 'google', 'reason': 'source_unavailable'})
+        # A source can yield several distinct verified photos; never demand
+        # ten different source pages or fill a shortfall with modern results.
+    if items:
+        return _deduplicate(items)[:MAX_RESULTS]
+    if failures:
+        unique = dict.fromkeys((failure['provider'], failure['reason']) for failure in failures)
+        raise PhotoResearchUnavailable(failures=[
+            {'provider': name, 'reason': reason} for name, reason in unique
+        ])
+    return []
 
 def _google_browser(place: str, period: str, *, on_items=None) -> list[dict]:
     from .place_photo_browser import crawl_place_photos

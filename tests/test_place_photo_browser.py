@@ -712,3 +712,501 @@ def test_blocked_combined_google_query_is_not_repeated_for_decade_fallback(monke
         photos.search_place_photos('承德', '1983年')
     assert calls == ['1983年']
     assert error.value.failures == [{'provider': 'google', 'reason': 'verification_required'}]
+
+
+
+# Issue #66: offline discovery expansion, with no local database or live provider.
+def test_historical_query_expansion_has_bounded_archive_street_album_and_year_leads():
+    from apps.api.place_photo_expansion import historical_queries, google_search_urls
+    base = '("承德" OR "Chengde") ("1980" OR "1989")'
+    queries = historical_queries(base, '("承德" OR "Chengde")', (1980, 1989))
+    assert queries[0] == base
+    assert len(queries) == len(set(queries)) == 7
+    assert any('archive' in query and '档案' in query for query in queries[1:])
+    assert any('street' in query and '街景' in query for query in queries[1:])
+    assert any('album' in query and '相册' in query for query in queries[1:])
+    assert all('Chengde' in query for query in queries)
+    assert historical_queries(base, 'Chengde', None) == [base]
+    assert historical_queries(base, 'Chengde', (1800, 1901)) == [base]
+    urls = google_search_urls('https://cse.google.com/cse?cx=engine&page=9', queries)
+    assert len(urls) == len(queries)
+    assert all(parse_qs(urlsplit(url).query).get('cx') == ['engine'] for url in urls)
+    assert all('page' not in parse_qs(urlsplit(url).query) for url in urls)
+    with pytest.raises(ValueError):
+        google_search_urls('https://attacker.example/cse?cx=engine', queries)
+
+
+def test_sparse_serpapi_expansion_inspects_ten_distinct_history_photos(serpapi_sources, monkeypatch):
+    import subprocess
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    queries = []
+
+    def search(command, **kwargs):
+        payload = json.loads(kwargs['input'])
+        assert payload['refresh'] is True
+        queries.append(payload['query'])
+        batch = ([1] if len(queries) == 1 else list(range(2, 11)))
+        cards = [{'source_url': f'https://archive.example/photo/{i}',
+                  'text': 'Chengde 1980s historical image'} for i in batch]
+        if len(queries) == 2:
+            cards += [{'source_url': 'https://archive.example/modern', 'text': 'Chengde'},
+                      {'source_url': 'https://archive.example/chengdu', 'text': 'Chengde'},
+                      cards[0]]
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': cards,
+        }))
+
+    for index in range(1, 11):
+        sources[f'https://archive.example/photo/{index}'] = photo_html(index, date='1983-10-01')
+    sources['https://archive.example/modern'] = photo_html(50, date='2025-10-01')
+    sources['https://archive.example/chengdu'] = photo_html(51, place='Chengdu')
+    monkeypatch.setattr(subprocess, 'run', search)
+    items = photos._google_serpapi('Chengde', '1980s')
+    assert len(items) == 10
+    assert len({item['image_url'] for item in items}) == 10
+    assert all(item['date_expression'] == '1983-10-01' for item in items)
+    assert all(item['source_url'] in fetched for item in items)
+    assert all(item['providers'] == ['google', 'serpapi'] for item in items)
+    assert len(queries) == 2, 'stop after reaching ten verified originals'
+
+
+def test_sparse_serpapi_outage_preserves_verified_result_and_stops_retries(serpapi_sources, monkeypatch):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    sources['https://archive.example/photo/1'] = photo_html()
+    searches = []
+
+    def search(command, **kwargs):
+        searches.append(json.loads(kwargs['input']))
+        if len(searches) == 1:
+            payload = {'status': 'success', 'cards': [
+                {'source_url': 'https://archive.example/photo/1', 'text': 'Chengde 1983'},
+            ]}
+        else:
+            payload = {'status': 'error', 'error': 'TimeoutError'}
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps(payload))
+
+    monkeypatch.setattr(subprocess, 'run', search)
+    items = photos._google_serpapi('Chengde', '1980s')
+    assert len(items) == 1 and items[0]['date_expression'] == '1983-10-01'
+    assert len(searches) == 2
+
+
+def test_enabled_browser_expansion_uses_shared_page_source_budgets(monkeypatch, fake_crawler):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'true')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    calls = []
+
+    async def query(provider, place, period, url, **kwargs):
+        calls.append((parse_qs(urlsplit(url).query)['q'][0], kwargs))
+        return []
+
+    monkeypatch.setattr(browser, '_browse_query', query)
+    url = browser._search_url('google', '承德', '1980s')
+    assert asyncio.run(browser._browse('google', '承德', '1980s', url)) == []
+    assert len(calls) == browser.MAX_SEARCH_PAGES
+    assert len({query for query, _ in calls}) == len(calls)
+    assert sum(opts['page_budget'] for _, opts in calls) == browser.MAX_SEARCH_PAGES
+    assert sum(opts['source_budget'] for _, opts in calls) <= browser.MAX_SOURCE_PAGES
+    assert all(opts['album'] is False for _, opts in calls)
+
+
+
+def test_expanded_cache_is_separate_and_does_not_trust_sparse_legacy_completion(monkeypatch):
+    from apps.api.place_photo_repository import PhotoRepository, search_key
+    rows = {}
+
+    def storage(request):
+        if request.method == 'POST':
+            record = json.loads(request.content)
+            rows[record['search_key']] = record['result']
+            return httpx.Response(201)
+        key = request.url.params['search_key'].removeprefix('eq.')
+        return httpx.Response(200, json=[{'result': rows[key]}] if key in rows else [])
+
+    repository = PhotoRepository('https://example.supabase.co', 'synthetic',
+                                 transport=httpx.MockTransport(storage))
+    monkeypatch.delenv('MEMOIR_PHOTO_EXPANSION', raising=False)
+    legacy = search_key('承德', '1980s')
+    repository.save('承德', '1980s', {
+        'items': [{'asset_id': 'sparse', 'date_expression': '1983'}], 'complete': True,
+    })
+    assert len(repository.load('承德', '1980s')['items']) == 1
+
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    assert search_key('承德', '1980s') != legacy
+    assert repository.load('承德', '1980s') is None, 'expanded mode must re-research legacy complete caches'
+    repository.save('承德', '1980s', {'items': [{'asset_id': 'expanded'}], 'complete': True})
+    assert repository.load('承德', '1980s')['items'][0]['asset_id'] == 'expanded'
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '0')
+    assert repository.load('承德', '1980s')['items'][0]['asset_id'] == 'sparse'
+
+
+def test_expansion_through_authenticated_photo_endpoint_without_database(monkeypatch, serpapi_sources):
+    import subprocess
+    from fastapi.testclient import TestClient
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setenv('SERPAPI_KEY', 'synthetic-provider-key')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
+    for provider in ('_commons', '_loc', '_flickr_browser'):
+        monkeypatch.setattr(photos, provider, lambda *args, **kwargs: [])
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    searches = []
+
+    def discovered(command, **kwargs):
+        searches.append(json.loads(kwargs['input']))
+        batch = [1] if len(searches) == 1 else list(range(2, 11))
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': [
+                {'source_url': f'https://archive.example/photo/{index}', 'text': 'Chengde photo'}
+                for index in batch],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovered)
+    for index in range(1, 11):
+        sources[f'https://archive.example/photo/{index}'] = photo_html(index)
+
+    with TestClient(create_app(MemoryStore())) as client:
+        headers = {'X-Account-Id': 'cloud-fixture-owner'}
+        created = client.post('/v1/projects', headers=headers, json={'mode': 'self'})
+        assert created.status_code in {200, 201}
+        project = created.json()['id']
+        url = f'/v1/projects/{project}/place-photos'
+        scope = {'place': 'Chengde', 'period': '1980s', 'latitude': 40.98, 'longitude': 117.94}
+        response = client.get(url, headers=headers, params=scope)
+        assert response.status_code == 200
+        page = response.json()
+        assert page['status'] == 'READY'
+        assert len(page['items']) == page['count'] == page['target_count'] == 10
+        assert page['shortfall'] == 0
+        assert all(item['requested_period'] == '1980s' for item in page['items'])
+        other = client.get(url, headers={'X-Account-Id': 'other-owner'}, params=scope)
+        assert other.status_code in {403, 404}
+    assert len(searches) == 2 and all(query['refresh'] is True for query in searches)
+
+
+
+def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    sources[album] = (
+        '<title>Chengde 1980s photographer album</title>'
+        '<nav><a href="https://archive.example/photos/navigation-beijing">Other cities</a></nav>'
+        '<section class="album-items">' +
+        ''.join(f'<article class="album-photo">'
+                f'<a href="https://archive.example/photos/{i}">Photo {i}</a></article>'
+                for i in range(1, 7)) +
+        '<div class="recommendations">'
+        '<a href="https://archive.example/photos/related-beijing">Recommended Beijing street</a>'
+        '</div></section>'
+        '<aside class="related-gallery">'
+        '<a href="https://archive.example/photos/related-beijing">More photos</a></aside>'
+    )
+    sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees', date='1983-10-01')
+    sources['https://archive.example/photos/2'] = photo_html(2, place='Market street', date='1984-05-01')
+    sources['https://archive.example/photos/3'] = photo_html(3, place='Museum', date='2025-05-01')
+    sources['https://archive.example/photos/4'] = photo_html(4, place='Chengdu', date='1983-10-01')
+    sources['https://archive.example/photos/5'] = photo_html(5, place='Hillside', date='')
+    sources['https://archive.example/photos/6'] = photo_html(6, place='Beijing', date='1983-10-01')
+    sources['https://archive.example/photos/navigation-beijing'] = photo_html(20, place='Beijing')
+    sources['https://archive.example/photos/related-beijing'] = photo_html(21, place='Beijing')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album, 'text': 'Chengde photographer album'}],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovery)
+    result = photos._google_serpapi('Chengde', '1980s')
+    assert [item['date_expression'] for item in result] == ['1983-10-01', '1984-05-01']
+    assert {item['source_url'] for item in result} == {
+        'https://archive.example/photos/1', 'https://archive.example/photos/2'}
+    assert album in fetched and 'https://archive.example/photos/3' in fetched
+    assert 'https://archive.example/photos/4' in fetched
+    assert 'https://archive.example/photos/6' in fetched
+    assert 'https://archive.example/photos/navigation-beijing' not in fetched
+    assert 'https://archive.example/photos/related-beijing' not in fetched
+    assert all('Chengde' in item['location_evidence'] for item in result)
+
+
+
+
+def test_gallery_item_with_structured_conflicting_city_cannot_inherit_album_location(
+        monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    source = 'https://archive.example/photos/7'
+    sources[album] = (
+        '<title>Chengde 1980s photographer album</title>'
+        '<section class="album-items">'
+        '<a href="https://archive.example/photos/1">Local album image</a>'
+        '<a href="https://archive.example/photos/7">Other city image</a>'
+        '</section>')
+    sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees')
+    claim = {'@type': 'Photograph', 'name': 'Willow trees', 'dateCreated': '1983-10-01',
+             'contentLocation': {'name': 'Beijing'},
+             'contentUrl': 'https://live.staticflickr.com/1/7.jpg'}
+    sources[source] = ('<title>Willow trees</title>'
+                       '<script type="application/ld+json">' + json.dumps(claim) + '</script>')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album, 'text': 'Chengde historical photo album'}],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovery)
+    photos_found = photos._google_serpapi('Chengde', '1980s')
+    assert len(photos_found) == 1
+    assert photos_found[0]['image_url'] == 'https://live.staticflickr.com/1/1.jpg'
+    assert source in fetched, 'conflicting item must be inspected, then excluded'
+    assert all('Beijing' not in item['location_evidence'] for item in photos_found)
+
+
+def test_only_gallery_member_markup_can_inherit_album_locality():
+    from apps.api.place_photo_expansion import verified_album_member_links
+    base = 'https://archive.example/albums/chengde/'
+    html = ('<title>Chengde history</title>'
+            '<nav><a href="/photos/beijing">Navigation: Beijing street</a></nav>'
+            '<a href="/photos/unscoped">Other same-host photograph</a>'
+            '<div class="album-grid"><figure><a href="/photos/1">Photo one</a></figure>'
+            '<section class="recommendations"><a href="/photos/recommended">Related</a></section>'
+            '<figure><a href="/photos/2">Photo two</a></figure></div>'
+            '<aside class="related-gallery"><a href="/photos/more">More photos</a></aside>')
+    assert verified_album_member_links(html, base) == [
+        'https://archive.example/photos/1',
+        'https://archive.example/photos/2',
+    ]
+    assert verified_album_member_links(
+        '<title>Chengde album</title><a href="/photos/unscoped">Not a member</a>', base,
+    ) == []
+
+
+@pytest.mark.parametrize('scope,expected_queries', [('source', 3), ('provider', 1)])
+def test_source_robots_denial_does_not_stop_healthy_google_expansion(
+        monkeypatch, fake_crawler, scope, expected_queries):
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    accepted = browser._source_items(photo_html(), 'https://archive.example/photo/1',
+                                     'Chengde', '1980s')
+    calls = []
+
+    async def query(provider, place, period, url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            raise photos.PhotoResearchUnavailable(failures=[{
+                'provider': 'google', 'reason': 'robots_denied', 'scope': scope,
+            }])
+        return accepted
+
+    monkeypatch.setattr(browser, '_browse_query', query)
+    search = browser._search_url('google', 'Chengde', '1980s')
+    if scope == 'source':
+        results = asyncio.run(browser._browse('google', 'Chengde', '1980s', search))
+        assert len(results) == 1 and results[0]['date_expression'] == '1983-10-01'
+    else:
+        with pytest.raises(photos.PhotoResearchUnavailable):
+            asyncio.run(browser._browse('google', 'Chengde', '1980s', search))
+    assert len(calls) == expected_queries
+
+
+
+def test_expansion_cache_identity_tracks_server_provider_mode_not_credential_values(monkeypatch):
+    from apps.api.place_photo_repository import search_key
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'synthetic-engine')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.delenv('SERPAPI_KEY', raising=False)
+    monkeypatch.delenv('GOOGLE_CSE_URL', raising=False)
+    browser_key = search_key('Chengde', '1980s')
+    monkeypatch.setenv('SERPAPI_KEY', 'private-one')
+    serpapi_key = search_key('Chengde', '1980s')
+    assert browser_key != serpapi_key
+    monkeypatch.setenv('SERPAPI_KEY', 'private-two')
+    assert search_key('Chengde', '1980s') == serpapi_key
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-three')
+    assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key}
+
+
+
+def test_rehosted_duplicate_never_fills_ten_photo_target(monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'true')
+    attempts = []
+
+    def fingerprint(image_url):
+        number = int(image_url.rsplit('/', 1)[1].split('.')[0])
+        return {'content_hash': 'same-photo' if number in {1, 2} else f'unique-{number}'}
+
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', fingerprint)
+
+    def discovered(command, **kwargs):
+        attempts.append(json.loads(kwargs['input'])['query'])
+        ids = [1] if len(attempts) == 1 else (
+            list(range(2, 11)) if len(attempts) == 2 else [11])
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': [
+                {'source_url': f'https://archive.example/photos/{index}', 'text': 'Chengde street'}
+                for index in ids
+            ],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', discovered)
+    for index in range(1, 12):
+        sources[f'https://archive.example/photos/{index}'] = photo_html(index)
+    result = photos._google_serpapi('Chengde', '1980s')
+    assert len(result) == 10
+    assert len({item['content_hash'] for item in result}) == 10
+    assert len(attempts) == 3, 'one rehosted duplicate must not prematurely satisfy the target'
+
+
+
+def test_serpapi_verifies_and_publishes_initial_photo_before_followup_query(
+        monkeypatch, serpapi_sources):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', '1')
+    monkeypatch.setenv('SERPAPI_KEY', 'synthetic-key')
+    monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
+    monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
+    monkeypatch.delenv('FLICKR_API_KEY', raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
+    for name in ('_flickr_browser', '_commons', '_loc'):
+        monkeypatch.setattr(photos, name, lambda *args, **kwargs: [])
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    sources['https://archive.example/photos/1'] = photo_html(1)
+    sources['https://archive.example/photos/2'] = photo_html(2)
+    messages, searches = [], []
+
+    def search(command, **kwargs):
+        searches.append(json.loads(kwargs['input'])['query'])
+        if len(searches) == 2:
+            assert messages and len(messages[0]) == 1, (
+                'first verified original must reach callback before second provider request')
+        index = min(len(searches), 2)
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success', 'cards': [
+                {'source_url': f'https://archive.example/photos/{index}', 'text': 'Chengde 1983'}
+            ],
+        }))
+
+    monkeypatch.setattr(subprocess, 'run', search)
+    found = photos._search_period('Chengde', '1980s', on_items=lambda items: messages.append(items))
+    assert len(found) == 2 and len(searches) >= 2
+    assert len(messages[0]) == 1
+    assert all(item['date_expression'] == '1983-10-01' for item in found)
+
+
+
+def test_album_landmark_alias_cannot_override_wrong_city_on_photo(
+        monkeypatch, serpapi_sources):
+    """Regression: Chengde 离宫 is not Beijing's Summer Palace."""
+    import subprocess
+
+    _, sources, _, fetched = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    local = 'https://archive.example/photos/chengde'
+    other = 'https://archive.example/photos/beijing'
+    anchored = 'https://archive.example/photos/anchored'
+
+    sources[album] = (
+        '<title>承德 避暑山庄 1983 album</title>'
+        '<section class="album-items">'
+        f'<a href="{local}">Local photo</a>'
+        f'<a href="{other}">Marble boat</a>'
+        f'<a href="{anchored}">Another local photo</a>'
+        '</section>')
+    sources[local] = photo_html(71, place='Chengde Mountain Resort')
+    sources[other] = (
+        '<title>Marble Boat</title>'
+        '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Photograph', 'name': 'Marble Boat',
+            'contentLocation': {'name': 'Summer Palace, Beijing'},
+            'dateCreated': '1983-10-01',
+            'contentUrl': 'https://live.staticflickr.com/1/72.jpg',
+        }) + '</script>')
+    sources[anchored] = (
+        '<title>Willow trees</title>'
+        '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Photograph', 'name': 'Willow trees',
+            'contentLocation': {'name': 'Chengde'},
+            'dateCreated': '1983-10-01',
+            'contentUrl': 'https://live.staticflickr.com/1/73.jpg',
+        }) + '</script>')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album,
+                       'text': '离宫 承德市 Mountain Resort 1983'}],
+        }))
+    monkeypatch.setattr(subprocess, 'run', discovery)
+
+    result = photos._google_serpapi('离宫, 承德市', '1980s')
+    assert set(item['source_url'] for item in result) == {local, anchored}
+    assert other in fetched, 'the linked wrong-city original was inspected, not silently skipped'
+    assert not any(item['image_url'].endswith('/72.jpg') for item in result)
+
+
+@pytest.mark.parametrize('child_location,accepted', [
+    ('Summer Palace, Beijing', False),
+    ('北京颐和园', False),
+    ('summer palace', False),
+    ('Summer Palace, Chengde', True),
+    ('承德市', True),
+    ('Chengde', True),
+    ('Chengde and Beijing', False),
+])
+def test_explicit_album_photo_locality_requires_city_anchor(
+        monkeypatch, serpapi_sources, child_location, accepted):
+    import subprocess
+    _, sources, _, _ = serpapi_sources
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    album = 'https://archive.example/albums/chengde/'
+    item = 'https://archive.example/photos/locality'
+    sources[album] = (
+        '<title>承德 避暑山庄 photo album</title>'
+        '<section class="gallery"><a href="' + item + '">Photo</a></section>'
+    )
+    sources[item] = (
+        '<title>Marble Boat</title>'
+        '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Photograph', 'name': 'Marble Boat', 'dateCreated': '1983-10-01',
+            'contentLocation': {'name': child_location},
+            'contentUrl': 'https://live.staticflickr.com/1/75.jpg',
+        }) + '</script>')
+
+    def discovery(command, **kwargs):
+        return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
+            'status': 'success',
+            'cards': [{'source_url': album, 'text': '离宫 承德市 historical photograph'}],
+        }))
+    monkeypatch.setattr(subprocess, 'run', discovery)
+    found = photos._google_serpapi('离宫, 承德市', '1980s')
+    assert bool(found) is accepted
+    if accepted:
+        assert found[0]['source_url'] == item
