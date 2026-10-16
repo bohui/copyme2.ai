@@ -36,10 +36,13 @@ def storage_recall_status(storage, entitlement: dict | None) -> dict | None:
     # The retired story adapter and offline evaluation fixtures have no live quota.
     if not callable(reader):
         return None
-    limit = free_recall_rounds()
+    sample_rounds = limit = free_recall_rounds()
     # Local evaluation backend only: extend this one configured account's
     # absolute allowance, without fabricating a purchase or changing payment data.
     owner = os.getenv('MEMORY_SPARK_EVAL_RECALL_OWNER_ID', '').strip()
     if owner and owner == getattr(storage, 'user_id', None):
         limit = max(limit, _positive_config('MEMORY_SPARK_EVAL_RECALL_LIMIT', limit))
-    return recall_status(reader(), entitlement, free_rounds=limit)
+    status = recall_status(reader(), entitlement, free_rounds=limit)
+    if limit > sample_rounds:
+        status['sample_rounds'] = sample_rounds
+    return status

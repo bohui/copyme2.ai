@@ -119,6 +119,7 @@ class StoryCheckoutCreate(BaseModel):
 class StoryPreviewCreate(BaseModel):
     project_id: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
     language: str | None = Field(default=None, pattern=r'^(en-AU|zh-CN)$')
+    retry: bool = False
 
 
 class InMemoryStoryStorage:
@@ -748,7 +749,7 @@ def build_router(
 
     async def preview_snapshot(storage, project_id, language):
         access = await AgentTurnLease.io(storage_recall_status, storage, None)
-        if not access or access['rounds_completed'] < access['free_rounds']:
+        if not access or access['rounds_completed'] < access.get('sample_rounds', access['free_rounds']):
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
         from .memoir_preview import lifetime_draft_head
@@ -824,20 +825,24 @@ def build_router(
         if saved.get('preview'):
             return {**saved, 'status': 'ready', 'cached': True}
         composition = (saved.get('progress') or {}).get('composition') or {}
-        if composition.get('state') == 'retry_required':
+        extraction = (saved.get('progress') or {}).get('extraction') or {}
+        extracting = bool(extraction.get('pending_inputs'))
+        failed_lane = extraction if extracting and extraction.get('state') == 'retry_required' else composition
+        if failed_lane.get('state') == 'retry_required':
             saved = {**saved, 'updating': False,
-                     'error': saved.get('error') or composition.get('error') or 'PREVIEW_UNAVAILABLE'}
+                     'error': failed_lane.get('error') or saved.get('error') or 'PREVIEW_UNAVAILABLE'}
         if not saved.get('updating') and not saved.get('error'):
             return {**saved, 'status': 'stale' if saved['status'] == 'stale' else 'insufficient_context'}
         failed = bool(saved.get('error') and not saved.get('updating'))
         return {**saved, 'status': 'error' if failed else 'pending', 'preview': None,
             'job': {'id': f'shared.{locale}.{project_id}', 'project_id': project_id, 'language': locale,
-                    'status': 'FAILED' if failed else 'RUNNING', 'phase': 'drafting', 'error': saved.get('error')},
+                    'status': 'FAILED' if failed else 'RUNNING', 'phase': 'extracting' if extracting else 'drafting',
+                    'error': saved.get('error') or extraction.get('error') or composition.get('error')},
             'retry_after': 3}
 
     async def shared_preview_response(storage, project_id, language=None, *, retry=False):
         access = await AgentTurnLease.io(storage_recall_status, storage, None)
-        if not access or access['rounds_completed'] < access['free_rounds']:
+        if not access or access['rounds_completed'] < access.get('sample_rounds', access['free_rounds']):
             raise HTTPException(409, 'Complete the free recall experience before composing the sample',
                                 headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
         if await AgentTurnLease.io(mapped_identity, storage, project_id) is not None:
@@ -877,7 +882,7 @@ def build_router(
         transferred = False
         try:
             if isinstance(storage, UserStorage):
-                result = await shared_preview_response(storage, payload.project_id, payload.language, retry=True)
+                result = await shared_preview_response(storage, payload.project_id, payload.language, retry=payload.retry)
                 if isinstance(result, Response):
                     return result
                 return JSONResponse(status_code=202 if result['status']=='pending' else 200, content=result)

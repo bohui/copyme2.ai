@@ -124,6 +124,7 @@
       "previewTitle": "您的第一份回忆录样稿",
       "previewPreparing": "Mira 正在将您的回忆整理成免费样稿。您可以先阅读，再选择套餐。",
       "previewFailed": "您的回忆已保存。暂时无法生成样稿，请重试。",
+      "previewRetrying": "您的回忆已保存。上一次整理未成功，Mira 正在自动重试。",
       "previewInsufficient": "目前保存的故事素材还不足以生成样稿。您的回忆仍会保留。",
       "previewWorking": "正在准备样稿…",
       "previewSlow": "样稿准备需要多一点时间。Mira 仍在整理，您的回忆已保存。",

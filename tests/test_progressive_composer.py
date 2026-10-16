@@ -135,12 +135,30 @@ def test_draft_schema_rejects_a_source_that_only_appears_in_the_message_summary(
     fence = LaneFence.model_validate({key: current[key] for key in LaneFence.model_fields if key in current})
     _, schema = lane_contract('draft', current['locale'], batch=True, fence=fence)
     reference_schema = schema['$defs']['ref']
-    valid = {'source_id': current['batch']['sources'][0]['id'], 'version': '1',
-             'char_start': None, 'char_end': None}
+    ref=current['batch']['events'][0]['source_refs'][0]
+    valid = {key:ref[key] for key in ('source_id','char_start','char_end')}
+    valid['version']=str(ref['version'])
     validator = Draft202012Validator(reference_schema)
     validator.validate(valid)
     invalid = {**valid, 'source_id': current['batch']['new_messages'][0]['id']}
-    assert any(error.validator == 'enum' for error in validator.iter_errors(invalid))
+    assert not validator.is_valid(invalid)
+
+
+def test_draft_schema_cannot_join_separate_canonical_evidence_spans():
+    from jsonschema import Draft202012Validator
+    from apps.api.lifetime_memory_lane_engine import LaneFence, lane_contract
+    current=batch_page()
+    event=current['batch']['events'][0]
+    first={**event['source_refs'][0],'char_start':0,'char_end':2,'quote':current['batch']['sources'][0]['text'][:2]}
+    second={**first,'char_start':3,'char_end':5,'quote':current['batch']['sources'][0]['text'][3:5]}
+    event['source_refs']=[first,second]
+    fence=LaneFence.model_validate({key:current[key] for key in LaneFence.model_fields if key in current})
+    _,schema=lane_contract('draft',current['locale'],batch=True,fence=fence)
+    validator=Draft202012Validator(schema['$defs']['ref'])
+    references=[{**{key:ref[key] for key in ('source_id','char_start','char_end')},'version':str(ref['version'])} for ref in (first,second)]
+    for ref in references:validator.validate(ref)
+    assert not validator.is_valid({**references[0],'char_end':second['char_end']})
+    assert not validator.is_valid({**references[0],'char_start':None,'char_end':None})
 
 
 def test_pg_off_cadence_revision_does_not_consume_the_next_five_round_summary(sql):  # noqa: F811

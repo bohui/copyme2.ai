@@ -81,8 +81,8 @@ def test_canonical_driver_refuses_legacy_storage_before_dispatch():
             temporal_client=None, task_queue='synthetic')
 
 
-@pytest.mark.parametrize('cadence', [3, 5])
-def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_temporal(sql, tmp_path, monkeypatch, cadence):
+@pytest.mark.parametrize('cadence,round_count', [(3,3), (5,5), (5,20)])
+def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_temporal(sql, tmp_path, monkeypatch, cadence, round_count):
     from scripts.canonical_evaluation import CanonicalEvaluationDriver
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
@@ -99,12 +99,13 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
     storage = PostgresRest(sql, OWNER, entitlement=entitlement).storage()
     storage.save_profile({'preferred_language': 'en-AU', 'conversation_language':
         {'locale': 'en-AU', 'source': 'explicit', 'revision': 1}})
-    rounds = ['I started school around 1964.', 'Thanks.', 'Tell me more.', 'Yes.', 'Thank you.'][:cadence]
+    rounds = ['I started school around 1964.', *(['Thanks.', 'Tell me more.', 'Yes.', 'Thank you.']*5)][:round_count]
     project = 'synthetic-canonical-case'
     seed_fresh_canonical_project(sql, OWNER, project)
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     app = FastAPI()
     worker_roles = []
+    rejected={}
 
     async def scenario():
         async def ready(reader, writer):
@@ -125,6 +126,17 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                     events = [{'kind': 'event', 'title': 'Started school', 'source_refs':
                         [{'source_id': s['id'], 'version': s['version'], 'quote': s['text']}]} for s in sources]
                     options = {'reply': {'events': events}}
+                    source=packet['sources'][0]
+                    reason={1:'OUTPUT_SCHEMA',2:'PAGE_QUOTE',3:'CHRONOLOGY_SCOPE'}.get(source['sequence'])
+                    if round_count==20 and reason:
+                        if source['id'] not in rejected:
+                            rejected[source['id']]=reason
+                            ref={'source_id':source['id'],'version':source['version'],'quote':source['text']}
+                            bad={'kind':'event','title':'Rejected proposal','source_refs':[ref]}
+                            if reason=='PAGE_QUOTE':ref['quote']='Quotation absent from the original'
+                            if reason=='CHRONOLOGY_SCOPE':bad['relations']=[{'kind':'before','event_id':'unknown-event','source_refs':[ref]}]
+                            options={'reply':{'events':'invalid shape' if reason=='OUTPUT_SCHEMA' else [bad]}}
+                        else:assert packet['retry_reason']==reason
                 elif payload.agent_role == 'composer':
                     options = {'mode': 'composer', 'calls': str(tmp_path / 'composer.jsonl')}
                 elif payload.agent_role == 'collector':
@@ -139,7 +151,7 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                         on_delta=emit, on_event=emit.event)), media_type='application/x-ndjson')
                 return await provider.turn(payload)
 
-            transport = RequestLimitedTransport(httpx.ASGITransport(app=app), max_requests=40)
+            transport = RequestLimitedTransport(httpx.ASGITransport(app=app), max_requests=round_count*4+12)
             runtime = CodexRuntime(home_root=tmp_path / 'api-homes', base_url=base_url,
                 worker_url='http://controlled.invalid', worker_secret='synthetic',
                 worker_transport=transport, task_publisher_enabled=False)
@@ -162,18 +174,20 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                             rounds=rounds, language='en-AU', evidence_mode='mock_only', settle_timeout=30)
                         assert result['status'] == 'completed'
                         assert result['evidence_mode'] == 'mock_only'
-                        assert [r['round'] for r in result['rounds']] == list(range(1, cadence + 1))
+                        assert [r['round'] for r in result['rounds']] == list(range(1, round_count + 1))
                         assert all(r['trajectory']['final']['status'] == 'completed' for r in result['rounds'])
                         assert result['checkpoints'][0]['milestone'] == cadence
+                        assert [checkpoint['milestone'] for checkpoint in result['checkpoints']] == list(range(cadence,round_count+1,cadence))
                         assert result['checkpoints'][0]['draft']['revision'] == 1
+                        if round_count==20:assert set(rejected.values())=={'OUTPUT_SCHEMA','PAGE_QUOTE','CHRONOLOGY_SCOPE'}
                         view = storage.memory_events(project)
-                        assert view['completed_rounds'] == view['processing']['extracted_through'] == cadence
+                        assert view['completed_rounds'] == view['processing']['extracted_through'] == round_count
                         assert [s['text'] for s in view['sources']] == rounds
                         assert len(view['events']) == 1
                         assert view['events'][0]['title'] == 'Started school'
                         assert view['events'][0]['source_refs'][0]['quote'] == rounds[0]
-                        draft = result['checkpoints'][0]['draft']
-                        assert draft['coverage_round'] == cadence
+                        draft = result['checkpoints'][-1]['draft']
+                        assert draft['coverage_round'] == round_count
                         assert draft['page_complete'] is True
                         assert rounds[0] in json.dumps(draft)
                         assert 'author_timeline' in worker_roles and 'composer' in worker_roles
@@ -186,7 +200,7 @@ def test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_
                             await driver.run_case(case_id='must-not-reuse', project_id=project,
                                 rounds=['Do not send this.'], language='en-AU', evidence_mode='mock_only')
                         assert len(worker_roles) == contacted
-                        assert storage.memory_events(project)['completed_rounds'] == cadence
+                        assert storage.memory_events(project)['completed_rounds'] == round_count
         finally:
             readiness.close()
             await readiness.wait_closed()

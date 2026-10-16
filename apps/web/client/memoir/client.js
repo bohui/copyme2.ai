@@ -2210,7 +2210,7 @@ function workspaceMemoryFocusMarkup() {
 
 function freeRecallFinished() {
   const completed = state.recallStatus?.rounds_completed;
-  const limit = state.recallStatus?.free_rounds;
+  const limit = state.recallStatus?.sample_rounds ?? state.recallStatus?.free_rounds;
   return Number.isInteger(completed) && Number.isInteger(limit) && limit > 0 && completed >= limit;
 }
 
@@ -2563,7 +2563,7 @@ async function ensureRecallPreview({ retry = false, poll = false } = {}) {
     const result = await storyApi(checking && attempt.job?.id
       ? `/v1/story/preview/${encodeURIComponent(attempt.job.id)}` : "/v1/story/preview", {
       ...(checking && attempt.job?.id ? {} : { method: "POST",
-        body: JSON.stringify({ project_id: projectId, language: conversationLanguage() }) }),
+        body: JSON.stringify({ project_id: projectId, language: conversationLanguage(), retry }) }),
       signal: controller.signal,
     });
     if (!current()) return;
@@ -2600,7 +2600,8 @@ function recallPackagePrompt() {
   const sample = state.recallPreview?.projectId === state.project?.id
     && state.recallPreview.userId === state.supabase?.user?.id ? state.recallPreview : null;
   if (!sample || sample.status === "loading" || sample.status === "pending") {
-    const message = sample?.reconnect ? "previewReconnecting" : sample?.slow ? "previewSlow" : "previewPreparing";
+    const retrying = Object.values(sample?.progress || {}).some(lane => lane?.error);
+    const message = sample?.reconnect ? "previewReconnecting" : retrying ? "previewRetrying" : sample?.slow ? "previewSlow" : "previewPreparing";
     return `<section class="recall-preview" aria-busy="true"><h2>${t("previewTitle")}</h2><p role="status" aria-live="polite"><span class="preview-spinner" aria-hidden="true"></span>${t(message)}</p><button type="button" class="button button-secondary" disabled>${t("previewWorking")}</button></section>`;
   }
   if (sample.status !== "ready" || !sample.preview) {

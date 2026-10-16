@@ -73,6 +73,15 @@ def test_evaluation_allowance_applies_only_to_configured_owner_and_response(monk
     assert storage_recall_status(storage, None)['free_rounds'] == 20
 
 
+def test_extended_allowance_keeps_sample_milestone_at_twenty(monkeypatch):
+    from apps.api.recall import storage_recall_status
+    storage=RecallStorage(completed=20)
+    monkeypatch.setenv('MEMORY_SPARK_EVAL_RECALL_OWNER_ID',storage.user_id)
+    monkeypatch.setenv('MEMORY_SPARK_EVAL_RECALL_LIMIT','50')
+    assert storage_recall_status(storage,None)=={
+        'rounds_completed':20,'free_rounds':50,'sample_rounds':20,'payment_required':False,'paid':False}
+
+
 @pytest.mark.parametrize('explicit_original', [True, False])
 def test_original_conversation_text_is_saved_separately_from_agent_instructions(monkeypatch, explicit_original):
     storage = RecallStorage()

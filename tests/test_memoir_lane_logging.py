@@ -104,3 +104,13 @@ def test_timeline_commit_contract_error_gets_a_fresh_model_attempt(caplog):
     assert asyncio.run(worker.execute_lane('opaque-lane')) == {'status': 'saved'}
     assert len(requests) == 2
     assert 'private source text' not in caplog.text
+@pytest.mark.parametrize('message',[
+    'summary evidence outside accepted inputs','bounded derived hints required',
+    'grounded question hints required','invalid bounded strategy proposal',
+])
+def test_canonical_rejection_diagnostics_keep_only_fixed_validator_reason(message):
+    from apps.api.memory_event_worker import _safe_rpc_failure
+    request=httpx.Request('POST','https://synthetic.invalid/rest/v1/rpc/commit_lifetime_memoir_lane_page')
+    response=httpx.Response(400,request=request,json={'code':'22023','message':message+': private story and secret'})
+    error=httpx.HTTPStatusError('private story and secret',request=request,response=response)
+    assert _safe_rpc_failure(error)==('22023',message)

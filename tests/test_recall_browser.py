@@ -378,6 +378,48 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
 
 
 @pytest.mark.parametrize('locale,width', [('en-AU', 1440), ('zh-CN', 390)])
+def test_upstream_extraction_failure_stops_spinner_and_retry_recovers(locale,width):
+    copy=json.loads((ROOT/f'apps/web/messages/{locale}.json').read_text())['Memoir']['recall']
+    state={'status':'pending','preview':None,'job':{'id':'upstream-job'},
+           'progress':{'extraction':{'state':'pending','error':'MEMOIR_UNAVAILABLE','pending_inputs':5}}}
+    def api(route):
+        path=route.request.url.split('/api/v1/memoir')[-1]
+        if path=='/agent/config':data={'supabase_url':'https://auth.test','supabase_publishable_key':'public','auth_mode':'supabase'}
+        elif path in ('/agent/profile','/user/profile'):data={'preferred_language':locale}
+        elif path=='/projects/preview-fixture':data={'id':'preview-fixture','revision':1,'profile':{'preferred_language':locale},'mode':'self'}
+        elif path=='/story/state':data={'recall_status':{'rounds_completed':20,'free_rounds':20,'payment_required':True,'paid':False},'family_features_enabled':False}
+        elif path in ('/story/preview','/story/preview/upstream-job'):data=state
+        else:data={'items':[]}
+        route.fulfill(json=data)
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(headless=True)
+        context=browser.new_context(viewport={'width':width,'height':1000})
+        base=os.environ['MEMOIR_BROWSER_URL']
+        context.add_cookies([{'name':'copyme2_ui_locale','value':locale,'url':base},
+                            {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
+        page=context.new_page();control_optional_fonts(page);page.clock.install()
+        page.add_init_script("localStorage.setItem('memory-spark-project','preview-fixture');")
+        install_supabase_fixture(page,'''window.supabase={createClient:()=>({auth:{
+          getSession:async()=>({data:{session:{access_token:'synthetic',user:{id:'owner',is_anonymous:false}}}}),
+          onAuthStateChange:()=>({})}})};''')
+        page.route('**/api/v1/memoir/**',api)
+        page.goto(base+'/memoir/interview/preview-fixture')
+        page.wait_for_load_state('networkidle')
+        card=page.locator('.recall-preview')
+        expect(card).to_contain_text(copy['previewRetrying'])
+        state.update(status='error',updating=False,job={'id':'upstream-job','error':'MEMOIR_UNAVAILABLE'})
+        page.clock.fast_forward(4000)
+        expect(card).to_contain_text(copy['previewFailed'])
+        expect(card.locator('.preview-spinner')).to_have_count(0)
+        retry=page.get_by_role('button',name=copy['previewRetry'],exact=True)
+        expect(retry).to_be_visible()
+        state.update(status='ready',preview={'kind':'sample_chapter','title':'A supported memory','text':'The recovered sample.','outline':[]})
+        retry.click()
+        expect(card).to_contain_text('The recovered sample.')
+        browser.close()
+
+
+@pytest.mark.parametrize('locale,width', [('en-AU', 1440), ('zh-CN', 390)])
 def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
     """Exercise the real client with a slow credential-free job fixture."""
     from datetime import datetime, timedelta

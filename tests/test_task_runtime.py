@@ -1,5 +1,7 @@
 """Canonical Temporal activities carry opaque IDs and close their clients."""
 import asyncio
+from pathlib import Path
+import re
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -9,6 +11,48 @@ pytest.importorskip('temporalio')
 from temporalio.exceptions import ApplicationError
 
 from scripts import task_runtime
+
+
+def test_api_and_worker_keep_sqlite_caches_on_separate_vm_volumes():
+    compose = (Path(__file__).resolve().parents[1] / 'compose.yml').read_text()
+    volumes = []
+    for service in ('api', 'worker'):
+        section = re.search(rf'(?ms)^  {service}:\n(.*?)(?=^  \S|\Z)', compose)[1]
+        path = re.search(r'MEMORY_SPARK_TASK_DB: (\S+)', section)[1]
+        mount = re.search(rf'(?m)^      - ([\w-]+):{re.escape(str(Path(path).parent))}$', section)[1]
+        volumes.append(mount)
+    assert volumes[0] != volumes[1], 'SQLite WAL must not be shared between Linux VMs'
+
+
+def test_lane_activity_heartbeats_without_content_and_stops_after_completion(monkeypatch):
+    from apps.api import memory_event_worker
+    calls=[]
+    monkeypatch.setattr(task_runtime,'LANE_HEARTBEAT_SECONDS',0.01,raising=False)
+    monkeypatch.setattr(task_runtime.activity,'in_activity',lambda:True)
+    monkeypatch.setattr(task_runtime.activity,'heartbeat',lambda *args:calls.append(args))
+    broker=SimpleNamespace(client=SimpleNamespace(aclose=AsyncMock()),rpc=AsyncMock(return_value={'pending':False}))
+    async def execute(_):
+        while len(calls)<2:await asyncio.sleep(0.001)
+        return {'status':'saved'}
+    monkeypatch.setattr(memory_event_worker,'MemoirLaneBroker',lambda:broker)
+    monkeypatch.setattr(memory_event_worker,'MemoryEventWorker',lambda _:SimpleNamespace(execute_lane=execute))
+    async def scenario():
+        assert await asyncio.wait_for(task_runtime.execute_memoir_lane('opaque-lane'),0.5)=={'status':'saved','pending':False}
+        count=len(calls);await asyncio.sleep(0.03)
+        assert len(calls)==count
+    asyncio.run(scenario())
+    assert len(calls)>=2 and all(args==() for args in calls)
+    broker.client.aclose.assert_awaited_once()
+
+
+def test_lane_workflow_bounds_recovery_from_worker_loss(monkeypatch):
+    from datetime import timedelta
+    from temporalio import workflow
+    from apps.api.temporal_workflows import MemoirSkillLane
+    execute=AsyncMock(return_value={'status':'finished','pending':False})
+    monkeypatch.setattr(workflow,'execute_activity',execute)
+    assert asyncio.run(MemoirSkillLane().run('opaque-lane'))=={'status':'finished'}
+    assert execute.await_args.kwargs['heartbeat_timeout']==timedelta(seconds=60)
 
 
 @pytest.mark.parametrize('fails',[False,True])

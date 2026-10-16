@@ -109,6 +109,50 @@ def test_correction_or_privacy_invalidation_removes_plan_bytes_without_resetting
     assert sql('select count(*) from public.user_lifetime_interview_strategy;').stdout.strip()=='0'
 
 
+def test_background_correction_commits_without_republishing_the_invalidated_strategy(sql,tmp_path,monkeypatch):
+    import httpx
+    from test_interview_strategy_runtime import client_fixture
+    from test_interview_strategy import wire
+    def provider(request):
+        return httpx.Response(200,json={'reply':json.dumps(wire(selection_reason='latest_story')),'thread_id':'synthetic','artifacts':[]})
+    client=client_fixture(sql,tmp_path,monkeypatch,provider)
+    with client:
+        response=client.post('/v1/agent/turn',json={'text':'I started school in 1960.','client_turn_id':str(uuid4())})
+        assert response.status_code==200,response.text
+        project=response.json()['project_id']
+        lane_id=sql(f"select id from public.user_memoir_lane where project_id={literal(project)} and skill='timeline';").stdout.strip()
+        first=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
+        def ref(page):
+            source=page['source']
+            return {'source_id':source['id'],'version':source['version'],'quote':source['text'],
+                'char_start':source['char_start'],'char_end':source['char_end']}
+        event={'kind':'event','title':'School','source_refs':[ref(first)],'temporal':{
+            'expression':'1960','precision':'year','year_start':1960,'year_end':1960,'basis':[ref(first)]}}
+        result={'events':[event],'place_journeys':[],'prepared_questions':[],
+            'strategy_proposal':{'strategy':'explore','objective':'follow_story','focus_event_ids':[]}}
+        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{first['token']}',0,{literal(result)}")
+        service(sql,'complete_lifetime_memoir_lane',f"'{lane_id}','{first['token']}'")
+        response=client.post('/v1/agent/turn',json={'project_id':project,'text':'Correction: I started school in 1970.','client_turn_id':str(uuid4())})
+        assert response.status_code==200,response.text
+    page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
+    saved=page['events'][0]
+    result['events']=[{**event,'existing_id':saved['id'],'expected_revision':saved['revision'],
+        'source_refs':[ref(page)],'correction':ref(page),'temporal':{
+            'expression':'1970','precision':'year','year_start':1970,'year_end':1970,'basis':[ref(page)]}}]
+    saved=service(sql,'commit_lifetime_memoir_lane_page',
+        f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+    assert saved['status']=='page_saved' and saved['policy_changed'] is True
+    assert sql("select data->'temporal'->>'year_start' from public.user_memory_event;").stdout.strip()=='1970'
+    assert sql('select count(*) from public.user_lifetime_interview_strategy;').stdout.strip()=='0'
+    release=f"'{lane_id}','{page['token']}','{OWNER}',{literal(project)},'{page['conversation_id']}'"
+    with pytest.raises(AssertionError):
+        service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
+    service(sql,'yield_lifetime_memoir_lane_metadata',release)
+    resumed=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
+    assert resumed['policy_epoch']>page['policy_epoch'] and resumed['token']!=page['token']
+    with pytest.raises(AssertionError):service(sql,'yield_lifetime_memoir_lane_metadata',release)
+
+
 @pytest.mark.parametrize('invalid',['duplicate_questions','multiple_questions','duplicate_focus'])
 def test_application_commit_rejects_malformed_candidate_pool_even_without_python_adapter(sql,invalid):
     identity,accepted,lane_id,page=setup(sql,shadow=False)

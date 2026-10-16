@@ -13,17 +13,28 @@ from apps.api.temporal_workflows import MemoirSkillLane
 from apps.api.lifetime_memory_collection_workflow import MemoirCollectionJob
 
 log = logging.getLogger(__name__)
+LANE_HEARTBEAT_SECONDS = 15
+
+
+async def _heartbeat_lane_activity():
+    while True:
+        activity.heartbeat()
+        await asyncio.sleep(LANE_HEARTBEAT_SECONDS)
 
 
 @activity.defn(name='memoir.execute_lane')
 async def execute_memoir_lane(lane_id: str) -> dict:
     from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
     broker = MemoirLaneBroker()
+    heartbeat = asyncio.create_task(_heartbeat_lane_activity()) if activity.in_activity() else None
     try:
         result = await MemoryEventWorker(broker).execute_lane(lane_id)
         state = await broker.rpc('read_memoir_lane_state', p_lane_id=lane_id)
         return {'status': result['status'], 'pending': bool(state and state['pending'])}
     finally:
+        if heartbeat:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
         await broker.client.aclose()
 
 

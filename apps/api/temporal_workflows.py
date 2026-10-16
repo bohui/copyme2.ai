@@ -70,6 +70,7 @@ class MemoirSkillLane:
             self.notified = False
             result = await workflow.execute_activity('memoir.execute_lane', lane_id,
                 start_to_close_timeout=timedelta(seconds=300 if single_attempt else 1860),
+                heartbeat_timeout=timedelta(seconds=60),
                 retry_policy=RetryPolicy(initial_interval=timedelta(seconds=2),
                     maximum_interval=timedelta(seconds=30), maximum_attempts=1 if single_attempt else 3))
             if result['status'] == 'retry_required':

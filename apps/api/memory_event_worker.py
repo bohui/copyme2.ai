@@ -29,6 +29,17 @@ _SAFE_MEMORY_ERROR_KINDS = (
     'event source unavailable', 'evidence revision conflict',
     'evidence quote must match original testimony', 'evidence span must match original testimony',
     'memoir run expired before commit',
+    'bounded semantic summary required', 'fact-free summary step must preserve prior context',
+    'typed derived summary item required', 'exact summary evidence required',
+    'summary evidence outside accepted inputs', 'summary replay conflict', 'stale summary page',
+    'bounded place journeys required', 'grounded coarse place journey required', 'valid public place centre required',
+    'bounded derived hints required', 'prepared questions must be distinct', 'grounded question hints required',
+    'reply only work cannot create derived facts', 'invalid bounded strategy proposal',
+    'stale derived page', 'strategy revision changed', 'older strategy source',
+    'stale strategy plan input', 'strategy replay conflict', 'strategy CAS failed',
+    'complete canonical source inventory required', 'checkpoint predecessor or coverage changed',
+    'stale semantic checkpoint', 'incomplete accepted summary receipts', 'semantic checkpoint CAS failed',
+    'summary admission differs from canonical page', 'semantic page requires its canonical writer',
 )
 
 # Match only fixed validator messages. Exception bodies may include private
@@ -260,15 +271,31 @@ class MemoryEventWorker:
                         if extraction_attempt < 2 and failure.response.status_code == 400:
                             continue
                         raise
+        except asyncio.CancelledError:
+            if job.get('protocol') == 'lifetime_composer_pages':
+                from .lifetime_memory_lane_engine import _settle
+                try:
+                    await _settle(asyncio.create_task(self.broker.rpc('yield_lifetime_memoir_lane',
+                        p_lane_id=lane_id,p_token=job['token'])))
+                except (ValueError,RuntimeError,httpx.HTTPError):
+                    logging.getLogger(__name__).warning('memoir_lane cancellation_release_deferred lane_id=%s',lane_id)
+            raise
         except (ValueError, TimeoutError, httpx.HTTPError, RuntimeError) as failure:
             # Exception messages and response bodies can contain private story
             # text or credentials. Keep dispatch/provider failures diagnosable.
             rpc_code, rpc_kind = _safe_rpc_failure(failure)
+            rpc_name = None
+            if isinstance(failure,httpx.HTTPStatusError):
+                path=failure.request.url.path
+                candidate=path.rsplit('/',1)[-1]
+                if (path.startswith('/rest/v1/rpc/') and candidate.isascii()
+                        and len(candidate)<=80 and candidate.replace('_','').isalnum()):
+                    rpc_name=candidate
             logging.getLogger(__name__).warning(
-                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d rpc_code=%s rpc_kind=%s validation_kind=%s',
+                'memoir_lane failure lane_id=%s skill=%s failure_type=%s http_status=%s elapsed_ms=%d rpc_name=%s rpc_code=%s rpc_kind=%s validation_kind=%s',
                 lane_id, job['skill'], type(failure).__name__,
                 failure.response.status_code if isinstance(failure, httpx.HTTPStatusError) else None,
-                int((time.monotonic() - started) * 1000), rpc_code, rpc_kind, _safe_validation_failure(failure))
+                int((time.monotonic() - started) * 1000), rpc_name, rpc_code, rpc_kind, _safe_validation_failure(failure))
             return await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
                 p_error='MEMOIR_UNAVAILABLE', p_retryable=True)
         finally:

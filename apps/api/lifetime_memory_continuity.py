@@ -122,7 +122,7 @@ def governed_collector_schema(context=None):
     """
     if (context or {}).get('strategy_selector'):
         from .interview_strategy import selector_schema
-        schema=selector_schema()
+        schema=selector_schema(context)
     else:
         schema = deepcopy(collector_schema(context))
     extension = _Updates.model_json_schema()

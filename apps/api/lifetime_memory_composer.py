@@ -105,7 +105,7 @@ def extraction_events(raw,page,original=None):
 
 
 async def _summarize(page,worker):
-    from .lifetime_memory_summary import summary_contract,summary_packet,validate_summary
+    from .lifetime_memory_summary import summary_contract,summary_packet,summary_rejection_reason,validate_summary
     state=page['memory_summary']
     if state['work_mode']=='reply_only' or page['source'] is None:
         return copy.deepcopy(state['prior'])
@@ -115,15 +115,17 @@ async def _summarize(page,worker):
     from .lifetime_memory_lane_engine import build_bounded_lane_input,send_bounded_lane_request
     instructions,schema=summary_contract();packet=summary_packet(page)
     check_model_packet(packet,instructions,schema)
-    bounded=build_bounded_lane_input(page,phase='summarize',packet=packet,budget=lane_model_budget())
     for attempt in range(3):
+        bounded=build_bounded_lane_input(page,phase='summarize',packet=packet,budget=lane_model_budget())
         response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
             bounded_lane=bounded,worker_transport=getattr(worker,'worker_transport',None),
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
         try:return validate_summary(json.loads(response['reply']),page)
-        except (ValueError,TypeError,KeyError):
+        except (ValueError,TypeError,KeyError) as error:
+            packet['retry_reason']=summary_rejection_reason(error)
+            logging.getLogger(__name__).warning('canonical_summary rejected lane_id=%s attempt=%d reason=%s',
+                page['lane_id'],attempt+1,packet['retry_reason'])
             if attempt==2:raise ValueError('Semantic summary output failed validation') from None
-            logging.getLogger(__name__).warning('canonical_summary rejected lane_id=%s attempt=%d',page['lane_id'],attempt+1)
 
 
 async def _extract(page,worker):
@@ -250,6 +252,9 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
         else:
             result=await worker.broker.rpc('commit_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_page_number=page['page_number'],p_result=result,p_page_digest=page['page_digest'])
+        if result.get('policy_changed'):
+            return await worker.broker.rpc('yield_lifetime_memoir_lane_metadata',p_lane_id=job['lane_id'],p_token=job['token'],
+                p_user_id=job['user_id'],p_project_id=job['project_id'],p_conversation_id=job['conversation_id'])
         if result.get('status')!='page_saved': return result
         page=await worker.broker.rpc('read_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'])
         if not page: return {'status':'stale'}

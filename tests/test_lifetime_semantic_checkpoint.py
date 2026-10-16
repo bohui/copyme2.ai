@@ -80,6 +80,73 @@ def test_summary_can_shorten_a_prior_quote_without_losing_its_original_span():
         validate_summary(raw, page)
 
 
+def test_database_accepts_only_exact_subspans_of_prior_summary_quotes(sql,tmp_path,monkeypatch):
+    from apps.api.lifetime_memory_summary import validate_summary
+    _,lane_id,page,_=setup_backlog(sql,tmp_path,monkeypatch)
+    source=page['source']
+    value={'items':[{'text':'The first shop.','uncertainty':'Remembered testimony.','source_refs':[
+        {'source_id':source['id'],'version':source['version'],'quote':'first shop','char_start':None,'char_end':None}]}]}
+    value=validate_summary(value,page)
+    service(sql,'commit_lifetime_memory_summary_page',
+        f"'{lane_id}','{page['token']}',{page['memory_summary']['revision']},{literal(value)},'{page['page_digest']}'")
+    page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
+    shortened=deepcopy(value);shortened['items'][0]['source_refs'][0].update(quote='shop',char_start=None,char_end=None)
+    shortened=validate_summary(shortened,page)
+    outside=deepcopy(shortened)
+    outside['items'][0]['source_refs'][0].update(quote='remember',char_start=2,char_end=10)
+    with pytest.raises(AssertionError):
+        service(sql,'commit_lifetime_memory_summary_page',
+            f"'{lane_id}','{page['token']}',{page['memory_summary']['revision']},{literal(outside)},'{page['page_digest']}'")
+    assert service(sql,'commit_lifetime_memory_summary_page',
+        f"'{lane_id}','{page['token']}',{page['memory_summary']['revision']},{literal(shortened)},'{page['page_digest']}'")['status']=='page_saved'
+
+
+def test_semantic_summary_retry_carries_only_fixed_feedback(sql,tmp_path,monkeypatch):
+    from apps.api.lifetime_memory_composer import _summarize
+    _,_,page,_=setup_backlog(sql,tmp_path,monkeypatch)
+    calls=[]
+    def provider(request):
+        body=json.loads(request.content);calls.append(body['bounded_lane'])
+        if len(calls)==1:
+            value={'items':[{'text':'An unsupported detail.','uncertainty':'Unverified.','source_refs':[
+                {'source_id':page['source']['id'],'version':1,'quote':'invented quotation','char_start':None,'char_end':None}]}]}
+        else:value={'items':[]}
+        return httpx.Response(200,json={'reply':json.dumps(value),'artifacts':[]})
+    assert asyncio.run(_summarize(page,summary_worker(sql,provider)))=={'items':[]}
+    assert len(calls)==2
+    first=json.loads(calls[0]['packet'])['payload'];second=json.loads(calls[1]['packet'])['payload']
+    assert second.pop('retry_reason')=='SUMMARY_EVIDENCE'
+    assert second==first and calls[0]['fence']==calls[1]['fence']
+    from apps.api.lifetime_memory_lane_engine import build_bounded_lane_input
+    from apps.api.lifetime_memory_composer import lane_model_budget
+    first['retry_reason']='private diagnostic instructions'
+    with pytest.raises(ValueError,match='Unsupported summary retry reason'):
+        build_bounded_lane_input(page,phase='summarize',packet=first,budget=lane_model_budget())
+
+
+def test_summary_schema_limits_citations_to_exact_available_source_versions():
+    from jsonschema import validate,ValidationError
+    from apps.api.lifetime_memory_summary import summary_contract
+    prior={'source_id':'prior','version':1,'quote':'Earlier testimony.','char_start':0,'char_end':18}
+    item={'text':'Earlier testimony.','uncertainty':'Remembered.','source_refs':[prior]}
+    _,schema=summary_contract({'source':{'id':'current','version':2},'memory_summary':{'prior':{'items':[item]}}})
+    validate({'items':[item]},schema)
+    bad=deepcopy(item);bad['source_refs'][0]['version']=2
+    with pytest.raises(ValidationError):validate({'items':[bad]},schema)
+    bad['source_refs'][0].update(source_id='unknown',version=1)
+    with pytest.raises(ValidationError):validate({'items':[bad]},schema)
+
+
+def test_summary_rejection_feedback_distinguishes_budget_without_private_text():
+    from pydantic import ValidationError
+    from apps.api.lifetime_memory_summary import SummaryProposal,summary_rejection_reason
+    item={'text':'x'*500,'uncertainty':'y'*500,'source_refs':[
+        {'source_id':'source','version':1,'quote':'text','char_start':0,'char_end':4}]}
+    with pytest.raises(ValidationError) as error:SummaryProposal(items=[item]*16)
+    assert summary_rejection_reason(error.value)=='SUMMARY_BUDGET'
+    assert summary_rejection_reason(ValueError('private output and instructions'))=='OUTPUT_SCHEMA'
+
+
 def test_summary_repairs_unique_quote_offsets_but_rejects_ambiguous_matches():
     from apps.api.lifetime_memory_summary import validate_summary
     page = {'source': {'id': 'current-source', 'version': 1, 'text': '风筝是紫色的。', 'char_start': 20},

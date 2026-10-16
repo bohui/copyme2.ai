@@ -124,6 +124,7 @@
       "previewTitle": "Your first memoir sample",
       "previewPreparing": "Mira is shaping your memories into a free sample. You can read it before choosing a package.",
       "previewFailed": "Your memories are saved. We could not prepare your sample yet. Please try again.",
+      "previewRetrying": "Your memories are saved. An earlier preparation attempt failed; Mira is retrying automatically.",
       "previewInsufficient": "There is not enough saved story material to prepare a sample yet. Your memories remain saved.",
       "previewWorking": "Preparing your sample…",
       "previewSlow": "Your sample is taking a little longer. Mira is still preparing it, and your memories are saved.",

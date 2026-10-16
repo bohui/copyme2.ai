@@ -54,6 +54,7 @@ EXTRACTION_REJECTION_REASONS = {
     'Unresolved candidates must be canonical scoped identities': 'CANDIDATE_SCOPE',
     'Chronology requires a canonical scoped target': 'CHRONOLOGY_SCOPE',
     'Explicit correction must cite the current original statement': 'CORRECTION_SCOPE',
+    'Correction requires timeline placement fields': 'CORRECTION_SCOPE',
     'Evidence must match an authorised original source version': 'EVIDENCE_SOURCE',
     'Evidence span must match the original words': 'EVIDENCE_SPAN',
     'Stage placement requires evidence': 'STAGE_EVIDENCE',
@@ -185,7 +186,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'summarize':
         from .lifetime_memory_summary import summary_contract
-        return summary_contract()
+        return summary_contract(fence)
     if phase == 'extract':
         from .memory_events import extraction_instructions, extraction_schema
         instructions, schema = extraction_instructions(), extraction_schema()
@@ -195,10 +196,34 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
         instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
+    if phase == 'extract' and fence is not None:
+        from .stage_readiness import LIFE_STAGES
+        evidence=schema['$defs']['EvidenceRef']['properties']
+        evidence['source_id']['enum']=[fence.source['id']]
+        evidence['version']['enum']=[fence.source['version']]
+        identities=sorted({event['id'] for event in fence.events})
+        event=schema['$defs']['EventProposal']['properties']
+        event['id']={'type':'null'}
+        event['existing_id']={'type':['string','null'],'enum':[None,*identities]}
+        event['life_stage']={'type':['string','null'],'enum':[None,'unplaced',*LIFE_STAGES]}
+        for field in ('person_ids','candidate_ids','relations'):
+            for option in event[field]['anyOf']:
+                if option.get('type')=='array':
+                    if field=='person_ids' or not identities:option['maxItems']=0
+                    elif field=='candidate_ids':option['items']['enum']=identities
+        if identities:schema['$defs']['EventRelation']['properties']['event_id']['enum']=identities
     if phase == 'draft' and fence is not None:
-        sources = fence.batch['sources'] if fence.batch is not None else [fence.source] if fence.source else []
-        if sources:
-            schema['$defs']['ref']['properties']['source_id']['enum'] = sorted({source['id'] for source in sources})
+        references = [ref for event in fence.batch['events'] for ref in event['source_refs']] if fence.batch is not None else [
+            {'source_id':fence.source['id'],'version':fence.source['version'],
+             'char_start':fence.source['char_start'],'char_end':fence.source['char_end']}] if fence.source else []
+        choices=[]
+        for identity in sorted({(ref['source_id'],str(ref['version']),ref['char_start'],ref['char_end']) for ref in references}):
+            choice=deepcopy(schema['$defs']['ref'])
+            for key,value in zip(('source_id','version','char_start','char_end'),identity):
+                choice['properties'][key].update(type='integer' if key.startswith('char_') else 'string',enum=[value])
+            choices.append(choice)
+        if choices:
+            schema['$defs']['ref']={'anyOf':choices}
     if batch:
         if phase == 'prepare':
             instructions += ('\nSummarize only these new narrator messages since the preceding five-round checkpoint. '
@@ -346,7 +371,7 @@ def canonical_lane_request(fence):
 
 def _validate_phase_packet(fence,phase,payload):
     if phase=='summarize':
-        from .lifetime_memory_summary import SummaryProposal,summary_packet
+        from .lifetime_memory_summary import SUMMARY_RETRY_CODES,SummaryProposal,summary_packet
         if fence.memory_summary is None or fence.batch is not None or fence.prior_outputs:
             raise ValueError('Summary requires its canonical compaction page')
         SummaryProposal.model_validate(fence.memory_summary.prior)
@@ -363,7 +388,12 @@ def _validate_phase_packet(fence,phase,payload):
                 raise ValueError('Invalid bounded summary source window')
         elif source is not None or state.work_mode!='reply_only':
             raise ValueError('A tombstone cannot supply narrator text')
-        if payload!=summary_packet(fence.model_dump(mode='json')):
+        actual=deepcopy(payload)
+        if 'retry_reason' in actual:
+            reason=actual.pop('retry_reason')
+            if not isinstance(reason,str) or reason not in SUMMARY_RETRY_CODES:
+                raise ValueError('Unsupported summary retry reason')
+        if actual!=summary_packet(fence.model_dump(mode='json')):
             raise ValueError('Summary payload differs from its canonical window')
         return
     if fence.memory_summary is not None:

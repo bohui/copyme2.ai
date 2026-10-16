@@ -75,11 +75,55 @@ def test_extraction_retry_accepts_only_fixed_feedback_with_unchanged_evidence(re
         build_bounded_lane_input(current,phase='extract',packet=packet,budget=BUDGET)
 
 
+def test_wording_correction_requires_an_ordinary_event_update_instead_of_an_empty_placement_patch():
+    from apps.api.memory_events import validate_extraction
+    current=page();event=page('composer')['partition'];ref=event['source_refs'][0]
+    proposal={'kind':'event','title':'Corrected wording','existing_id':event['id'],
+        'expected_revision':event['revision'],'source_refs':[ref],'correction':ref}
+    with pytest.raises(ValueError,match='Correction requires timeline placement fields'):
+        validate_extraction({'events':[proposal]},[current['source']],[event])
+
+
+def test_committed_policy_change_releases_the_lane_without_reading_its_old_snapshot(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from apps.api import lifetime_memory_composer as composer
+    current=page()
+    monkeypatch.setattr(composer,'_extract',AsyncMock(return_value={'events':[]}))
+    broker=SimpleNamespace(rpc=AsyncMock(side_effect=[{'status':'page_saved','policy_changed':True},
+        {'status':'deferred'}]))
+    result=asyncio.run(composer.execute_lifetime_lane(current,SimpleNamespace(broker=broker)))
+    assert result=={'status':'deferred'}
+    assert [call.args[0] for call in broker.rpc.await_args_list]==[
+        'commit_lifetime_memoir_lane_page','yield_lifetime_memoir_lane_metadata']
+
+
 @pytest.mark.parametrize('reason',['arbitrary instructions',None,{'message':'private error'}])
 def test_extraction_retry_rejects_untrusted_feedback(reason):
     current=page();packet=packet_for(current,'extract');packet['retry_reason']=reason
     with pytest.raises(ValueError,match='Unsupported extraction retry reason'):
         build_bounded_lane_input(current,phase='extract',packet=packet,budget=BUDGET)
+
+
+@pytest.mark.parametrize('saved',[False,True])
+def test_extraction_schema_limits_evidence_and_relations_to_the_claimed_page(saved):
+    from jsonschema import Draft202012Validator
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    current=page()
+    if saved:current['events']=[current['partition'] or page('composer')['partition']]
+    _,schema=lane_contract('extract',current['locale'],fence=fence_for(current))
+    ref=deepcopy(current['events'][0]['source_refs'][0] if saved else page('composer')['partition']['source_refs'][0])
+    ref.update(char_start=None,char_end=None,attribution=None)
+    evidence=Draft202012Validator(schema['$defs']['EvidenceRef'])
+    evidence.validate(ref)
+    assert not evidence.is_valid({**ref,'source_id':'invented-source'})
+    assert not evidence.is_valid({**ref,'version':999})
+    relations=schema['$defs']['EventProposal']['properties']['relations']
+    validate=Draft202012Validator({'$defs':schema['$defs'],**relations})
+    assert validate.is_valid([]) and validate.is_valid(None)
+    assert not validate.is_valid([{'kind':'before','event_id':'invented-event','source_refs':[ref]}])
+    if saved:
+        validate.validate([{'kind':'before','event_id':current['events'][0]['id'],'source_refs':[ref]}])
 
 
 @pytest.mark.parametrize('phase',['extract','prepare','index','draft','review'])

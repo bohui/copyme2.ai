@@ -260,7 +260,10 @@ services:
       - ./skills:/app/skills:ro
       - ./infra:/app/infra:ro
       - ./var/memory-spark:/var/lib/memory-spark
-      - memoir-tasks:/var/lib/memoir-tasks
+      # Apple Container runs each service in a separate Linux VM. This local
+      # receipt cache must not share SQLite/WAL files with the API's cache.
+      # Canonical lane/checkpoint authority remains in PostgreSQL.
+      - memoir-worker-tasks:/var/lib/memoir-tasks
     depends_on:
       temporal:
         condition: service_healthy
@@ -321,4 +324,5 @@ services:
 volumes:
   codex-worker-home:
   memoir-tasks:
+  memoir-worker-tasks:
   temporal-data:

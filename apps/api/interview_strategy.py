@@ -103,6 +103,11 @@ changing the stored plan. Preserve explicit legacy pacing preferences. Resume
 returning stories; a correction does not restart onboarding. Do not infer feelings.
 Return acknowledgement, zero or one immediate question, selected_candidate_id or
 null, selection_reason, used_strategy and work.mode/work.name.
+When question is null, selected_candidate_id must be null and selection_reason
+must be "pause" or "direct_answer". Use "direct_answer" for an answer to a request
+or an acknowledgement of an instruction without a follow-up question.
+Select only an exact ID from strategy_context.plan.candidates, or null. When no
+candidate is selected, never use "prepared_candidate" or "adapted_candidate".
 Choose work.mode from the ENTIRE current narrator message. Use "reply_only" only
 for a name-only introduction, greeting, farewell or similarly minimal reply with
 no new memory details or workspace actions. Use "extract" when the message adds
@@ -121,11 +126,28 @@ No private plan, strategy label, tool log or reasoning belongs in visible text.
 '''
 
 
-def selector_schema():
+def selector_schema(context=None):
     schema=ImmediateSelection.model_json_schema()
     schema['required']=list(schema['properties'])
     for prop in schema['properties'].values():prop.pop('default',None)
     schema['properties']['acknowledgement']['pattern']='^[^?？]*$'
+    context=context or {}
+    constraints=current_constraints((context.get('source') or {}).get('text',''))
+    candidates=((context.get('strategy_context') or {}).get('plan') or {}).get('candidates',[])
+    identities=[] if constraints else [candidate['id'] for candidate in candidates]
+    schema['properties']['selected_candidate_id']['enum']=[None,*identities]
+    schema['properties']['question']['description']=(
+        'One immediate question, or null. Null requires selection_reason pause or direct_answer '
+        'and selected_candidate_id null.')
+    schema['properties']['selection_reason']['description']=(
+        'Use pause or direct_answer when question is null. A direct acknowledgement of a narrator '
+        'instruction without a follow-up uses direct_answer. Prepared/adapted requires a current candidate ID.')
+    if not identities:
+        schema['properties']['selection_reason']['enum']=[reason for reason in
+            schema['properties']['selection_reason']['enum'] if reason not in {'prepared_candidate','adapted_candidate'}]
+    if constraints.get('no_question'):
+        schema['properties']['question']={'type':'null'}
+        schema['properties']['selection_reason']['enum']=['pause']
     return schema
 
 

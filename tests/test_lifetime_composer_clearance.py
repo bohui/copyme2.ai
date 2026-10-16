@@ -25,6 +25,55 @@ def composer_page():
     return current
 
 
+def test_cancelled_composer_releases_its_lease_and_preserves_saved_checkpoint():
+    current=composer_page();checkpoints={};calls=[]
+    class Broker:
+        async def rpc(self,name,**payload):
+            calls.append(name)
+            if name=='claim_memoir_lane':return current
+            if name=='read_memoir_checkpoint':return copy.deepcopy(checkpoints.get(payload['p_key']))
+            if name=='save_memoir_checkpoint':checkpoints[payload['p_key']]=copy.deepcopy(payload['p_value']);return True
+            if name=='record_lifetime_lane_output':return True
+            if name=='commit_lifetime_memoir_lane_page':return {'status':'page_saved'}
+            if name=='read_lifetime_memoir_lane_page':return {**current,'complete':True,'source':None,'partition':None}
+            if name=='complete_lifetime_memoir_lane':return {'status':'saved'}
+            if name=='yield_lifetime_memoir_lane':
+                assert payload=={'p_lane_id':current['lane_id'],'p_token':current['token']}
+                return {'status':'pending'}
+            raise AssertionError(name)
+    async def scenario():
+        started=asyncio.Event();blocked=True;phases=[]
+        async def model(request):
+            bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase']
+            phases.append(phase)
+            payload=json.loads(bounded['packet'])['payload']
+            if phase=='prepare':
+                result=dict(event_id=current['partition']['id'],context='Grounded context',source_refs=current['partition']['source_refs'])
+            elif phase=='draft':result=controlled_draft(payload,current['source']['text'],'Childhood')
+            elif blocked:
+                started.set()
+                await asyncio.Event().wait()
+            else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+            return httpx.Response(200,json={'reply':json.dumps(result)})
+        worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
+            worker_transport=httpx.MockTransport(model))
+        worker.lane_publisher=Publisher()
+        task=asyncio.create_task(worker.execute_lane(current['lane_id']))
+        async with asyncio.timeout(5):await started.wait()
+        before=copy.deepcopy(checkpoints)
+        assert any(value.get('draft') for value in before.values())
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):await task
+        assert calls[-1]=='yield_lifetime_memoir_lane' and 'fail_memoir_lane' not in calls
+        assert checkpoints==before
+        blocked=False
+        current.update(token='00000000-0000-4000-8000-000000000017',page_digest='4'*64)
+        result=await worker.execute_lane(current['lane_id'])
+        assert result['status']=='saved'
+        assert phases==['prepare','draft','review','review']
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize('blocked_phase',['extract','prepare','draft','review'])
 def test_remote_clearance_preserves_bounded_work_and_completed_phases(blocked_phase):
     current=page() if blocked_phase=='extract' else composer_page()

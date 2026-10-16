@@ -29,6 +29,33 @@ continue updating after the assistant reply finishes; polling never changes its
 text or rerenders an active stream. Voice input continues through the same saved
 canonical conversation.
 
+Draft heads expose both extraction and composition progress. An exhausted
+extraction retry stops the draft spinner at the five-round checkpoints and the
+20-round sample; automatic retries disclose recovery while retaining originals.
+The sample POST reads existing canonical work by default. Only `retry: true`
+resets failed lanes. Cancellation releases the canonical lane lease and retains
+completed preparation and draft checkpoints for the next worker.
+
+The API and Temporal worker use separate local SQLite receipt-cache volumes.
+Apple Container runs them in separate Linux VMs, where sharing WAL files caused
+SIGBUS during concurrent commits. PostgreSQL remains the authority for canonical
+inputs, outbox delivery, lanes and manuscript checkpoints; an empty worker cache
+replays unfinished receipts without replacing those saved records.
+
+The scoped live-test allowance extends conversation access without moving sample
+eligibility. Its recall status carries the normal `sample_rounds` milestone so
+both the API and UI still expose the sample after twenty completed rounds.
+
+An explicit timeline correction can invalidate the old strategy during its own
+commit. The correction remains committed, its stale strategy is discarded, and
+the worker releases only metadata authority before claiming a fresh policy-bound
+snapshot. Wording corrections use ordinary event updates instead of empty
+placement patches.
+
+Temporal lane activities send a content-free heartbeat every fifteen seconds.
+A sixty-second heartbeat timeout allows redelivery after worker loss, while
+PostgreSQL lease tokens and saved page checkpoints fence resumed execution.
+
 Large testimony continues through exact bounded windows, and a backlog may require
 several batches. Coverage advances only after the corresponding summary and model
 proofs are saved; resource limits, original policy/lease fences and the three-draft

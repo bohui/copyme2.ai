@@ -35,6 +35,35 @@ def test_compact_selector_has_no_fresh_future_pool():
     assert 'question' in schema['required'] and 'selected_candidate_id' in schema['required']
 
 
+def test_selector_schema_only_admits_current_candidate_ids():
+    from jsonschema import validate, ValidationError
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
+    schema = governed_collector_schema({**context(text='Please go on.'), 'two_lane_memory': True})
+    validate(wire(question='Was that before the move?', selected_candidate_id='candidate-1',
+        selection_reason='prepared_candidate'), schema)
+    with pytest.raises(ValidationError):
+        validate(wire(selected_candidate_id='stale-candidate', selection_reason='adapted_candidate'), schema)
+
+
+@pytest.mark.parametrize('text', ["Let's talk about my garden.", 'Not today.'])
+def test_selector_schema_disallows_prepared_candidates_when_current_intent_overrides_them(text):
+    from jsonschema import validate, ValidationError
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
+    schema = governed_collector_schema({**context(text=text), 'two_lane_memory': True})
+    with pytest.raises(ValidationError):
+        validate(wire(question='Was that before the move?', selected_candidate_id='candidate-1',
+            selection_reason='prepared_candidate'), schema)
+
+
+def test_pause_schema_requires_explicit_no_question_outcome():
+    from jsonschema import validate, ValidationError
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
+    schema = governed_collector_schema({**context(text='Not today.'), 'two_lane_memory': True})
+    validate(wire(question=None, selection_reason='pause', stopped=True), schema)
+    with pytest.raises(ValidationError):
+        validate(wire(question=None, selection_reason='no_plan', stopped=True), schema)
+
+
 def test_local_redirect_does_not_mutate_the_stored_strategy():
     from apps.api.lifetime_memory_continuity import validate_governed_collector_result
     c=context();before=deepcopy(c['strategy_context'])

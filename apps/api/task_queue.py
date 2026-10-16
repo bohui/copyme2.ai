@@ -1,8 +1,10 @@
-"""Durable local task queue shared only by API and deterministic workers.
+"""Durable task queue for processes on one filesystem host.
 
 SQLite transactions claim work across processes. Lease tokens fence late
 completions; deterministic results are committed in the queue transaction.
 The task volume is not mounted in the tenant-hosting Codex container.
+Separate Linux VMs must use separate local caches; WAL cannot share its
+memory index across VM-backed filesystem mounts.
 """
 import hashlib
 import json
