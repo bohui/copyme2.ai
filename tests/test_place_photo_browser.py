@@ -904,14 +904,34 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
     monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION', 'yes')
     monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     album = 'https://archive.example/albums/chengde/'
-    sources[album] = ('<title>Chengde 1980s photographer album</title>' +
-        ''.join(f'<a href="https://archive.example/photos/{i}">Photo {i}</a>'
-                for i in range(1, 6)))
+    sources[album] = (
+        '<title>Chengde 1980s photographer album</title>'
+        '<nav><a href="https://archive.example/photos/navigation-beijing">Other cities</a></nav>'
+        '<section class="album-items">' +
+        ''.join(f'<article class="album-photo">'
+                f'<a href="https://archive.example/photos/{i}">Photo {i}</a></article>'
+                for i in range(1, 8)) +
+        '<div class="recommendations">'
+        '<a href="https://archive.example/photos/related-beijing">Recommended Beijing street</a>'
+        '</div></section>'
+        '<aside class="related-gallery">'
+        '<a href="https://archive.example/photos/related-beijing">More photos</a></aside>'
+    )
     sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees', date='1983-10-01')
     sources['https://archive.example/photos/2'] = photo_html(2, place='Market street', date='1984-05-01')
     sources['https://archive.example/photos/3'] = photo_html(3, place='Museum', date='2025-05-01')
     sources['https://archive.example/photos/4'] = photo_html(4, place='Chengdu', date='1983-10-01')
     sources['https://archive.example/photos/5'] = photo_html(5, place='Hillside', date='')
+    sources['https://archive.example/photos/6'] = photo_html(6, place='Beijing', date='1983-10-01')
+    structured_wrong_city = {'@type': 'Photograph', 'name': 'Willow trees',
+                             'dateCreated': '1983-10-01',
+                             'contentLocation': {'name': 'Beijing'},
+                             'contentUrl': 'https://live.staticflickr.com/1/7.jpg'}
+    sources['https://archive.example/photos/7'] = (
+        '<title>Willow trees</title>'
+        '<script type="application/ld+json">' + json.dumps(structured_wrong_city) + '</script>')
+    sources['https://archive.example/photos/navigation-beijing'] = photo_html(20, place='Beijing')
+    sources['https://archive.example/photos/related-beijing'] = photo_html(21, place='Beijing')
 
     def discovery(command, **kwargs):
         return SimpleNamespace(stdout='PLACE_PHOTO_RESULT:' + json.dumps({
@@ -925,6 +945,11 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
     assert {item['source_url'] for item in result} == {
         'https://archive.example/photos/1', 'https://archive.example/photos/2'}
     assert album in fetched and 'https://archive.example/photos/3' in fetched
+    assert 'https://archive.example/photos/4' in fetched
+    assert 'https://archive.example/photos/6' in fetched
+    assert 'https://archive.example/photos/7' in fetched
+    assert 'https://archive.example/photos/navigation-beijing' not in fetched
+    assert 'https://archive.example/photos/related-beijing' not in fetched
     assert all('Chengde' in item['location_evidence'] for item in result)
 
 
