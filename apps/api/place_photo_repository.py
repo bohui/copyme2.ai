@@ -18,8 +18,21 @@ def _expansion_enabled():
 def search_key(place, period, *, policy=None):
     from .place_photos import PHOTO_SEARCH_POLICY
     if policy is None and _expansion_enabled():
-        # A legacy complete but sparse gallery must not suppress fresh coverage.
-        policy = PHOTO_SEARCH_POLICY + '-expanded-v1'
+        from .place_photos import _configured_env
+        # Source-provider configuration affects completeness; never treat a
+        # result from a different route as proof the current route was searched.
+        if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
+            google = 'cse-api'
+        elif _configured_env('SERPAPI_KEY'):
+            google = 'serpapi'
+        elif _configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID'):
+            google = 'cse-browser'
+        else:
+            google = 'none'
+        flickr = 'flickr-api' if _configured_env('FLICKR_API_KEY') else 'flickr-browser'
+        llm = 'llm-on' if _configured_env('MEMORY_SPARK_PHOTO_WEB_SEARCH').lower() in {'1', 'true', 'yes'} else 'llm-off'
+        # Never include credential values, only provider modes, in a cache ID.
+        policy = f'{PHOTO_SEARCH_POLICY}-expanded-v1-{google}-{flickr}-{llm}'
     normalized = [' '.join(unicodedata.normalize('NFKC', value).casefold().split())
                   for value in (place, period)]
     return hashlib.sha256(json.dumps([policy or PHOTO_SEARCH_POLICY, *normalized], ensure_ascii=False).encode()).hexdigest()
