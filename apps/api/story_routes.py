@@ -315,6 +315,8 @@ def build_router(
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
             def legacy():
+                if callable(getattr(storage, 'lifetime_rpc', None)):
+                    return storage.lifetime_rpc('read_lifetime_stage_readiness', p_project_id=project_id)
                 rows = getattr(storage, 'all_memories', storage.memories)()
                 return {'project_id': project_id, 'stages': stage_readiness(rows, project_id),
                         'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}

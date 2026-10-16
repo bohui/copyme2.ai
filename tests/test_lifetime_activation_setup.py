@@ -1,10 +1,38 @@
 import asyncio
+from types import SimpleNamespace
 
 import psycopg
 import pytest
 
 from apps.api.lifetime_memory_activation import ActivationPublication, CanonicalActivationUnavailable
 from test_lifetime_memory_transport import FENCE
+from test_lifetime_realtime_clearance import publisher_case
+
+
+@pytest.mark.parametrize('kind', ['lane', 'job'])
+def test_healthy_background_provider_setup_survives_normal_database_latency(monkeypatch, kind):
+    class Connection:
+        closed = False
+
+        async def execute(self, statement, parameters=None):
+            await asyncio.sleep(.45)
+            async def fetchone():
+                return (10,)
+            return SimpleNamespace(fetchone=fetchone)
+
+        async def close(self):
+            self.closed = True
+
+    connection = Connection()
+    async def connect(*args, **kwargs):
+        return connection
+    monkeypatch.setattr(psycopg.AsyncConnection, 'connect', connect)
+    publisher, fence = publisher_case(kind)
+    async def run():
+        async with publisher.guard(fence):
+            assert not connection.closed
+    asyncio.run(run())
+    assert connection.closed and publisher.send_timeout == 2
 
 
 @pytest.mark.parametrize('unavailable',[False,True])
