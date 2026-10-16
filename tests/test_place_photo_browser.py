@@ -859,7 +859,7 @@ def test_expansion_through_authenticated_photo_endpoint_without_database(monkeyp
     monkeypatch.delenv('FLICKR_API_KEY', raising=False)
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
     for provider in ('_commons', '_loc', '_flickr_browser'):
-        monkeypatch.setattr(photos, provider, lambda *args: [])
+        monkeypatch.setattr(photos, provider, lambda *args, **kwargs: [])
     monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     searches = []
 
