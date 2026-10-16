@@ -135,6 +135,8 @@ def governed_collector_schema(context=None):
                                if kind not in _DIRECT_KINDS or kind in direct_kinds]
     schema['properties']['continuity_updates'] = extension['properties']['continuity_updates']
     schema['required'].append('continuity_updates')
+    if (context or {}).get('two_lane_memory') is True:
+        return schema
     places = _Places.model_json_schema()
     places['$defs']['_PlaceJourney']['required'] = list(places['$defs']['_PlaceJourney']['properties'])
     for field in ('latitude', 'longitude'):
@@ -303,7 +305,8 @@ def validate_governed_collector_result(raw, context):
                 or not any(_same_literal(item, direct) for direct in literal)):
             raise ValueError('Privacy and commitment continuity require asserted direct narrator wording')
 
-    places = _Places.model_validate({'place_journeys': value.get('place_journeys', [])}).place_journeys
+    places = _Places.model_validate({'place_journeys': [] if context.get('two_lane_memory') is True
+        else value.get('place_journeys', [])}).place_journeys
     candidates = [validate_place_journey(place.model_dump()) for place in places
                   if place.hierarchy[-1] == place.place]
     journeys = grounded_place_journeys([place for place in candidates if place is not None],

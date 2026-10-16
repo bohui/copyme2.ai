@@ -318,10 +318,31 @@ def build_router(
                 rows = getattr(storage, 'all_memories', storage.memories)()
                 return {'project_id': project_id, 'stages': stage_readiness(rows, project_id),
                         'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}
-            return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: storage.lifetime_rpc('read_lifetime_stage_readiness', p_project_id=project_id), legacy)
+            def canonical(fence):
+                result=storage.lifetime_rpc('read_lifetime_stage_readiness',p_project_id=project_id)
+                from .two_lane_memory import two_lanes_enabled
+                if two_lanes_enabled():
+                    places=storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=project_id)
+                    result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
+                        'source_revision':fence.source_revision,'places':places,'authoritative':True}
+                return result
+            return await asyncio.to_thread(read_mapped, storage, project_id, canonical, legacy)
         finally:
             await asyncio.to_thread(_close, storage)
+
+    @router.post('/memory/retry')
+    async def retry_memory_work(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):
+        from .two_lane_memory import two_lanes_enabled
+        if not two_lanes_enabled():raise HTTPException(404,'Not found')
+        storage=await asyncio.to_thread(storage_for,authorization)
+        try:
+            if await asyncio.to_thread(mapped_identity,storage,payload.project_id) is None:
+                raise HTTPException(409,'Canonical conversation required')
+            await asyncio.to_thread(storage.retry_memoir_lane,payload.project_id,'timeline')
+            return await asyncio.to_thread(read_mapped,storage,payload.project_id,
+                lambda fence:{'project_id':payload.project_id,'status':'pending'},canonical_only)
+        finally:
+            await asyncio.to_thread(_close,storage)
 
     @router.get('/private-draft')
     async def saved_private_draft(project_id: str, request: Request, language: str | None = None,
