@@ -15,14 +15,14 @@ from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
 from apps.api.store import MemoryStore
 from memoir_postgres_workflow import PostgresRest
 from test_background_profile_workflow import Broker, FixturePublication, worker_response, database
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
+from test_lifetime_memory_postgres import event_database, private_database, attachment_database
 from test_agent_commit_postgres import OWNER, OTHER
 from test_name_only_opening import proposal
-from test_shared_memory_events_postgres import literal, rpc
+from test_shared_memory_events_postgres import literal, rpc, sql
 
 
 class Conversation:
-    def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=False):
+    def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=False, strategy=None):
         self.sql, self.extract, self.project = sql, extract, None
         self.admissions = []
         self.fail_immediate = False
@@ -30,6 +30,10 @@ class Conversation:
         sql('update public.lifetime_two_lane_rollout set enabled=true;')
         monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
         monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+        if strategy:
+            monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','1')
+            monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','two-lane-v1')
+            sql('update public.lifetime_two_lane_rollout set strategy_enabled=true,strategy_shadow=false;')
         monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
         async def provider(request):
             body = json.loads(request.content)
@@ -51,15 +55,22 @@ class Conversation:
                     output = self.extract(packet)
                 if inspect.isawaitable(output):
                     output = await output
+                if strategy and bounded['phase'] == 'extract':
+                    output = {**output,'strategy_proposal':{'strategy':strategy,
+                        'objective':'clarify_order' if strategy == 'shape' else 'follow_story','focus_event_ids':[]}}
             else:
                 if self.fail_immediate:
                     return httpx.Response(503)
                 output = proposal(mode=work, name=name, question='What happened next?')
-                output['plan']['conversation_phase'] = 'explore'
                 focus = body.get('interview_context', {}).get('workspace_focus', {})
                 if focus.get('event_id'):
                     output['plan']['active_event_id'] = focus['event_id']
                     output['plan']['candidates'][0]['context']['event_id'] = focus['event_id']
+                if strategy:
+                    from test_interview_strategy import wire
+                    pause = body['interview_context']['source']['text'].startswith('Please stop.')
+                    output = wire(question=None if pause else 'What happened next?',used_strategy=strategy,
+                        selection_reason='pause' if pause else 'latest_story',stopped=bool(pause),work={'mode':work,'name':name})
             return worker_response(request, output)
         transport = httpx.MockTransport(provider)
         monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(home_root=tmp_path,
@@ -113,9 +124,15 @@ class Conversation:
                 query = 'set role service_role; select to_jsonb(public.' + request.url.path.rsplit('/',1)[-1] + '(' + arguments + '));'
                 result = await asyncio.to_thread(self.sql,query)
                 value = result.stdout.strip()
-                return httpx.Response(200, json=json.loads(value.splitlines()[-1]) if value else None)
+                return httpx.Response(200, content=value.splitlines()[-1] if value else 'null',
+                    headers={'content-type':'application/json'})
             async with httpx.AsyncClient(transport=httpx.MockTransport(postgrest)) as client:
-                return await MemoirLaneBroker(url='http://disposable.invalid', key='synthetic',client=client).drain_once()
+                broker = MemoirLaneBroker(url='http://disposable.invalid', key='synthetic',client=client)
+                for _ in range(64):
+                    await broker.drain_once()
+                    if not await broker.rpc('pending_memoir_receipts',p_limit=1):
+                        return
+                pytest.fail('Bounded receipt delivery did not settle')
         return asyncio.run(run())
 
 
@@ -244,6 +261,7 @@ def test_private_recording_boundary_is_withheld_not_non_story(sql, tmp_path, mon
 
 @pytest.mark.parametrize('text,work,name,disposition', [
     ('Hello!', 'extract', None, 'non_story'), ('谢谢。', 'extract', None, 'non_story'),
+    ('What can you do?', 'reply_only', None, 'non_story'),
     ('My name is Joan.', 'reply_only', 'Joan', 'non_story'), ('Please stop.', 'extract', None, 'non_story'),
     ('Yes.', 'extract', None, 'unresolved'), ('There.', 'reply_only', None, 'unresolved'),
 ])
@@ -291,6 +309,8 @@ def test_partial_reply_exposes_unlinked_passages_and_a_mixed_control(sql, tmp_pa
         wrong = conversation.client.get(f'/v1/story/sources/{conversation.project}/{saved["accepted_source_id"]}/attribution',
             headers={'Authorization':'Bearer another-owner'})
         assert wrong.status_code >= 400 and 'Bicycle accident' not in wrong.text
+        project_mismatch = conversation.client.get(f'/v1/story/sources/another-project/{saved["accepted_source_id"]}/attribution')
+        assert project_mismatch.status_code >= 400 and 'Bicycle accident' not in project_mismatch.text
 
 
 def test_event_places_are_selective_roles_not_every_place_for_every_event(sql, tmp_path, monkeypatch):
@@ -675,3 +695,40 @@ def test_source_cursor_expires_after_replacement_and_mixed_introduction_is_not_s
         assert stale.status_code >= 400 and 'Chengde' not in stale.text
         fresh = conversation.attribution(saved['accepted_source_id'])
         assert fresh['source_version'] == 2 and not fresh['complete']
+
+
+@pytest.mark.parametrize('strategy',['comfort','explore','shape'])
+def test_attribution_is_independent_of_automatic_interview_strategy(sql,tmp_path,monkeypatch,strategy):
+    story = 'At age twelve I repaired a bicycle in Chengde.'
+    correction = 'Actually, I repaired that bicycle at age thirteen.'
+    def extract(packet):
+        text = packet['sources'][0]['text']
+        quote = story if story in text else correction
+        existing = packet['events'][0] if packet['events'] else None
+        event = episode(packet,quote,existing=existing)
+        expression = 'age twelve' if story in text else 'age thirteen'
+        event['temporal'] = {'expression':expression,'precision':'age','basis':[reference(packet,expression)]}
+        places = [] if existing else [{'event_index':0,'role':'setting','place':{'place':'Chengde',
+            'hierarchy':['Earth','China','Chengde'],'granularity':'city'},'source_ref':reference(packet,story)}]
+        return {**empty(packet),'events':[event],'event_places':places}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract,work='reply_only',strategy=strategy)
+    with conversation.client:
+        first = conversation.say('Please stop. ' + story)
+        conversation.drain()
+        initial = conversation.attribution(first['accepted_source_id'])
+        event = next(item['event'] for item in initial['items'] if item['event'])
+        assert event['temporal']['expression'] == 'age twelve' and event['places'][0]['place']['place'] == 'Chengde'
+        # A mode-only legacy preference is inert after #79 and cannot reset B.
+        before = len(conversation.admissions)
+        sql("update public.user_profile set profile=profile||'{\"preferred_phase\":\"comfort\"}'::jsonb;")
+        conversation.drain()
+        assert len(conversation.admissions) == before
+        thanks = conversation.say('Thank you.')
+        conversation.drain()
+        assert conversation.attribution(thanks['accepted_source_id'])['resolved']
+        corrected = conversation.say(correction)
+        conversation.drain()
+        current = conversation.attribution(corrected['accepted_source_id'])['items'][0]['event']
+        assert current['id'] == event['id'] and current['temporal']['expression'] == 'age thirteen'
+        assert current['places'][0]['place']['place'] == 'Chengde'
+        assert len([phase for phase,_ in conversation.admissions if phase == 'extract']) == 2
