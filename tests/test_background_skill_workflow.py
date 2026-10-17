@@ -166,6 +166,36 @@ def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(s
         assert len(conversation.admissions)==3 # two timeline sources + first profile, no enrichment model
 
 
+@pytest.mark.parametrize('service',['photos','grouping'])
+def test_completed_optional_services_do_not_keep_readiness_pending(sql,tmp_path,monkeypatch,service):
+    from apps.api import place_photo_pages
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL',raising=False)
+    monkeypatch.setattr(place_photo_pages,'search_place_photos',lambda *args,**kwargs:[])
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty)
+    with conversation.client:
+        conversation.say('In Hobart I repaired a bicycle.')
+        conversation.drain()
+        assert progress(conversation)['pending'] is False
+        if service=='photos':
+            response=conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+                params={'place':'Hobart','period':'1980s'})
+        else:
+            response=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json={
+                'places':[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
+                    'granularity':'city','latitude':-42.88,'longitude':147.33}]})
+        assert response.status_code==200,response.text
+        assert response.json()['skill_progress']['status']=='completed'
+        view=progress(conversation)
+        assert any(item['phase']==service and item['status']=='completed' for item in view['skill_progress']['items'])
+        assert view['skill_progress']['pending'] is False
+        assert view['pending'] is False
+        conversation.say('I later painted the shed blue.')
+        assert progress(conversation)['pending'] is True
+        conversation.drain()
+        assert progress(conversation)['pending'] is False
+
+
 def test_completed_optional_service_receipts_do_not_expire(sql,tmp_path,monkeypatch):
     from apps.api import place_photo_pages
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')

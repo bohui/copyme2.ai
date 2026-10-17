@@ -115,3 +115,30 @@ node --test --test-reporter=spec tests/js/*.test.mjs
 The three English/Chinese/thinking-off browser cases passed again in 33.97 seconds using the source-UI command above. The production webpack build passed again; the mobile OpenAPI snapshot still matches 48 operations. Browser syntax, changed Python test compilation and diff checks pass. The initial JavaScript run lacked this worktree's installed-dependency link; after restoring that local test setup, the complete run above passed. No dependency/version change was made.
 
 The unmerged migration was updated in place and applied only to fresh disposable test clusters. No production migration, deployment, live-provider run or merge was performed. The 16 previously reproduced baseline failures are not reclassified as passing; unrelated broad legacy fixtures were not rerun in this focused review-fix pass.
+
+### Follow-up P2 — completed services must not keep readiness pending
+
+Reviewed head: `887b34e`. The remaining readiness aggregation treated all `completed` receipts as unfinished, even though photo/grouping completion is terminal. The API now excludes completed services from its pending predicate while retaining queued/running work, SQL-owned canonical pending state, profile automation and model completion awaiting a save. No scheduler, SQL migration or browser implementation changed in this follow-up.
+
+The parameterized regression drives the authenticated conversation API, drains the actual B worker, then invokes a real authenticated photo/grouping service and reads readiness. Both service cases failed with `pending=true` before the fix (**2 failed in 7.28 seconds**). Both passed after the fix (**2 passed in 8.18 seconds**), asserting completed receipts remain visible while `readiness.pending=false`. Each case then accepts another source, verifies pending becomes true again, drains B and verifies false again.
+
+```sh
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_background_skill_workflow.py -k completed_optional_services_do_not_keep_readiness_pending
+# 2 passed, 15 deselected in 8.18 seconds.
+
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_background_skill_workflow.py tests/test_background_profile_workflow.py \
+  tests/test_lifetime_memory_read_api.py
+# 55 passed in 116.20 seconds, including the two new service regressions.
+
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_stage_readiness.py tests/test_stage_progress_regression.py \
+  tests/test_stage_progress_rpc_lifecycle.py
+# 26 passed in 15.67 seconds.
+
+node --test tests/js/stage-readiness.test.mjs
+# 31 passed; includes stopping recovery when readiness is no longer pending.
+```
+
+Python compilation, diff checks and the reviewed 48-operation mobile OpenAPI snapshot pass. External model/photo discovery remains controlled; the actual grouping service, canonical workers, PostgreSQL and readiness route are exercised. No full browser/build or live-provider rerun is claimed for this API-only follow-up. No deployment, migration or merge was performed.
