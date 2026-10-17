@@ -1,5 +1,28 @@
 # Conversation phases: implementation and acceptance record
 
+## Retired on 17 October 2026
+
+The user-selected `PhaseState`, its HTTP controls, and its language-pattern
+mode switches have been removed. The migration archives old preferences in
+`user_conversation_phase_archive` with application access revoked. Existing
+`phase_revision` transport fields remain zero-valued compatibility metadata.
+
+Lane B persists `StrategyProposal` as a versioned `InterviewStrategyPlan` in
+`user_lifetime_interview_strategy`. Lane A reloads the current eligible plan
+through `read_lifetime_strategy_context` and persists its actual `used_strategy`
+in `user_lifetime_strategy_outcome` with the reply. The strategy frontier retains
+a safe strategy hint when a correction invalidates the plan. Plans reference
+the checkpoint and extraction snapshot; checkpoint summaries do not own strategy.
+The existing strategy rollout controls still apply.
+
+Comfort/explore/shape are internal AI strategies. Formal composition requires
+an explicit action and its existing evidence/privacy/access checks, without a
+user-selected mode. Story-game execution remains unavailable pending its own
+explicit-action, completion, consent and delivery bindings.
+
+The following sections record the superseded implementation and its historical
+verification; they do not describe the current contract.
+
 The chat selector described here is superseded by the
 [workspace memory actions follow-up](workspace-memory-actions-acceptance.md).
 The backend phase contract and verbal preferences remain compatible. The checks

@@ -22,8 +22,7 @@ def seed(sql, count=2, texts=None):
         ref = dict(source_id=source['id'], version=1, quote=text, char_start=0, char_end=len(text))
         rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([{'id':source['id'],'version':1}])},{literal([dict(kind='event',title='Memory',source_refs=[ref])])}")
         sources.append(source)
-    current = rpc(sql, 'read_user_conversation_phase', literal(project))
-    phase = rpc(sql, 'change_user_conversation_phase', f"{literal(project)},'shape',{current['revision']}")
+    phase = {'revision':0}  # Compatibility metadata; no user-selected mode.
     return project, sources, phase
 
 
@@ -121,7 +120,6 @@ def test_exact_edition_consent_requires_owner_cas_and_can_be_revoked_outside_sha
     assert eligible['reasons'] == ['runtime_unavailable']
     assert consent(sql,project,edition,initial['consent_revision'],check=False).returncode != 0
     assert consent(sql,project,edition,grant['revision'],owner=OTHER,check=False).returncode != 0
-    rpc(sql,'change_user_conversation_phase',f"{literal(project)},'explore',{phase['revision']}")
     revoked = consent(sql,project,edition,grant['revision'],'revoke')
     assert revoked['status'] == 'revoked'
     denied = rpc(sql,'read_story_game_eligibility',literal(project))
@@ -142,7 +140,7 @@ def test_source_correction_invalidates_completed_authority_and_purges_access(sql
     assert consent(sql,project,edition,grant['revision'],check=False).returncode != 0
 
 
-@pytest.mark.parametrize('change',['withdraw','edit','new_source','phase_roundtrip','privacy'])
+@pytest.mark.parametrize('change',['withdraw','edit','new_source','privacy'])
 def test_inflight_authority_change_fences_read_stage_complete_and_allows_safe_status(sql,change):
     project,sources,phase=seed(sql)
     run=begin(sql,project,phase)
@@ -153,9 +151,6 @@ def test_inflight_authority_change_fences_read_stage_complete_and_allows_safe_st
         rpc(sql,'change_user_narrator_source',f"{literal(project)},'{sources[0]['id']}',1,'{change}',{replacement}")
     elif change=='new_source':
         rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{uuid4()}','I added a new memory.'")
-    elif change=='phase_roundtrip':
-        next_phase=rpc(sql,'change_user_conversation_phase',f"{literal(project)},'explore',{phase['revision']}")
-        rpc(sql,'change_user_conversation_phase',f"{literal(project)},'shape',{next_phase['revision']}")
     else:
         sql(as_user("update public.user_profile set profile=profile||'{\"memory_preferences\":{\"excluded_topics\":[\"garden\"]}}'::jsonb;"))
     args=f"'{run['run_id']}','{claim['token']}'"
@@ -301,8 +296,7 @@ def test_inexact_legacy_evidence_blocks_without_leaving_a_partial_formal_run(sql
     if case=='oversized_end':ref.update(char_start=0,char_end=2001)
     elif case=='null_ambiguous':ref.update(char_start=None,char_end=None)
     rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([{'id':source['id'],'version':1}])},{literal([dict(kind='event',title='Memory',source_refs=[ref])])}")
-    current=rpc(sql,'read_user_conversation_phase',literal(project))
-    phase=rpc(sql,'change_user_conversation_phase',f"{literal(project)},'shape',{current['revision']}")
+    phase={'revision':0}
     result=begin(sql,project,phase,check=False)
     assert result.returncode!=0 and 'FORMAL_EXACT_EVIDENCE_REQUIRED' in result.stderr
     assert rpc(sql,'read_formal_memoir_status',literal(project))=={'schema_version':1,'run':None,'edition':None}
@@ -347,9 +341,9 @@ def test_profile_update_and_project_reader_do_not_deadlock_without_a_formal_run(
     waiter='formal_preferences_'+uuid4().hex
     try:
         held.stdin.write("\\set VERBOSITY verbose\nset statement_timeout='8s'; set deadlock_timeout='100ms';\n"+
-            as_user('begin;\n\\o /dev/null\n'+
-                f'select public.read_user_conversation_phase({literal(project)});\n'+
-                '\\o\nselect pg_backend_pid();\n'))
+            'begin;\n\\o /dev/null\n'+
+                f"select 1 from public.user_memoir_project where user_id='{OWNER}' and project_id={literal(project)} for update;\n"+
+                '\\o\nselect pg_backend_pid();\n')
         held.stdin.flush()
         assert select.select([held.stdout],[],[],5)[0], 'reader did not acquire project'
         reader_pid=int(held.stdout.readline())
@@ -369,7 +363,7 @@ def test_profile_update_and_project_reader_do_not_deadlock_without_a_formal_run(
                 time.sleep(.02)
             query=(f'select public.read_story_game_eligibility({literal(project)});' if reader=='eligibility'
                 else f'select public.lock_lifetime_read_publication({literal(old)}::jsonb);')
-            held.stdin.write(query+'\ncommit;\n\\q\n')
+            held.stdin.write(as_user(query)+'\ncommit;\n\\q\n')
             held.stdin.flush()
             output,errors=held.communicate(timeout=10)
             update=changed.result(timeout=10)
@@ -388,7 +382,7 @@ def test_profile_update_and_project_reader_do_not_deadlock_without_a_formal_run(
 
 
 @pytest.mark.parametrize('state',['staged','completed'])
-def test_phase_change_waits_before_formal_rows_and_profile_purge_is_atomic(sql,state):
+def test_formal_read_waits_before_formal_rows_and_profile_purge_is_atomic(sql,state):
     project,_,phase=seed(sql)
     run=begin(sql,project,phase)
     claim=service(sql,'claim_formal_memoir',f"'{run['run_id']}'")
@@ -410,8 +404,7 @@ def test_phase_change_waits_before_formal_rows_and_profile_purge_is_atomic(sql,s
         with ThreadPoolExecutor(max_workers=1) as pool:
             phase_change=pool.submit(sql,"\\set VERBOSITY verbose\n"+
                 f"set application_name='{waiter}'; set statement_timeout='8s'; set deadlock_timeout='100ms'; "+
-                as_user(f"begin; select public.change_user_conversation_phase({literal(project)},'explore',{phase['revision']}); "+
-                    f"select public.read_story_game_eligibility({literal(project)}); commit;"),
+                as_user(f"begin; select public.read_story_game_eligibility({literal(project)}); commit;"),
                 check=False)
             until=time.monotonic()+5
             while True:

@@ -56,7 +56,7 @@ def surface(monkeypatch):
 
 def test_begin_requires_authentication_and_uses_server_scope(surface):
     request, observations, _ = surface
-    body = {'expected_phase_revision': 3, 'expected_revision': 0, 'request_id': REQUEST}
+    body = {'expected_revision': 0, 'request_id': REQUEST}
     path = '/v1/agent/projects/project/formal-memoir'
     assert request('POST', path, json=body, signed=False).status_code == 401
     response = request('POST', path, json=body)
@@ -64,7 +64,7 @@ def test_begin_requires_authentication_and_uses_server_scope(surface):
     assert response.json() == {'schema_version': 1, 'run_id': RUN, 'status': 'pending'}
     assert response.headers['cache-control'] == 'no-store'
     assert observations == [('begin_formal_memoir', {
-        'p_project_id': 'project', 'p_expected_phase_revision': 3,
+        'p_project_id': 'project', 'p_expected_phase_revision': 0,
         'p_expected_revision': 0, 'p_request_id': REQUEST})]
 
 
@@ -97,7 +97,7 @@ def test_exact_edition_consent_and_eligibility_remain_separate_from_runtime(surf
 def test_browser_cannot_supply_authority_or_content(surface, extra):
     request, observations, _ = surface
     response = request('POST', '/v1/agent/projects/project/formal-memoir', json={
-        'expected_phase_revision': 3, 'expected_revision': 0, 'request_id': REQUEST, **extra})
+        'expected_revision': 0, 'request_id': REQUEST, **extra})
     assert response.status_code == 422
     assert observations == []
 
@@ -107,7 +107,7 @@ def test_database_errors_do_not_leak_private_details(surface, code, status, expe
     request, _, replies = surface
     replies['begin_formal_memoir'] = httpx.Response(status, json={'code': code, 'message': 'private synthetic testimony'})
     response = request('POST', '/v1/agent/projects/project/formal-memoir', json={
-        'expected_phase_revision': 3, 'expected_revision': 0, 'request_id': REQUEST})
+        'expected_revision': 0, 'request_id': REQUEST})
     assert response.status_code == expected
     assert 'private synthetic testimony' not in response.text
 
@@ -117,7 +117,7 @@ def test_expected_privacy_block_is_distinct_from_transient_storage_failure(surfa
     replies['begin_formal_memoir'] = httpx.Response(400, json={
         'code': '55000', 'message': 'FORMAL_PRIVACY_REVIEW_REQUIRED'})
     response = request('POST', '/v1/agent/projects/project/formal-memoir', json={
-        'expected_phase_revision': 3, 'expected_revision': 0, 'request_id': REQUEST})
+        'expected_revision': 0, 'request_id': REQUEST})
     assert response.status_code == 409
     assert response.headers['x-error-code'] == 'FORMAL_PRIVACY_REVIEW_REQUIRED'
     assert response.json()['detail'] == 'Review memoir privacy choices before composing.'

@@ -19,7 +19,6 @@ from pydantic import Field, StrictBool, model_validator
 
 from .codex_agent import CodexConnection, CodexTurnIncomplete, provider_config
 from .codex_worker_files import write_config
-from .conversation_phase import PhaseState
 from .lifetime_memory_continuity import governed_collector_schema, validate_governed_collector_result
 from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
 from .lifetime_memory_context import ContextCheckpoint, serialize_packet
@@ -145,9 +144,6 @@ class GovernedCollectorInput(Contract):
             raise ValueError('Governed privacy constraints are incomplete')
         if packet.pinned.preference_revision != self.fence.preference_revision:
             raise ValueError('Governed preferences are stale')
-        phase = packet.pinned.conversation_phase
-        if (phase.revision if phase else 0) != self.fence.phase_revision:
-            raise ValueError('Governed conversation phase is stale')
         count = self.budget.count(self.packet)
         if count != packet.input_tokens_upper_bound or count > self.budget.input_budget:
             raise ValueError('Governed packet exceeds or misstates its input budget')
@@ -249,13 +245,6 @@ def validate_governed_context(governed: GovernedCollectorInput, interview_contex
         raise ValueError('Governed interview context differs from packet')
     if interview_context.get('interview_language') != packet.pinned.language:
         raise ValueError('Governed context language differs from pinned language')
-    phase = interview_context.get('conversation_phase')
-    try:
-        phase = PhaseState.model_validate(phase) if phase is not None else None
-    except ValueError:
-        raise ValueError('Governed context phase is invalid') from None
-    if phase != packet.pinned.conversation_phase:
-        raise ValueError('Governed context phase differs from pinned state')
     source = interview_context.get('source')
     current = packet.current.narrator
     if (not isinstance(source, dict) or source.get('id') != str(current.source_id)

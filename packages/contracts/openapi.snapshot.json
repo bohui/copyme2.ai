@@ -38,16 +38,6 @@
               }
             ]
           },
-          "conversation_phase": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PhaseState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "conversation_sequence": {
             "anyOf": [
               {
@@ -468,76 +458,6 @@
         "required": [
           "status"
         ],
-        "type": "object"
-      },
-      "PhaseState": {
-        "additionalProperties": false,
-        "properties": {
-          "phase": {
-            "default": "comfort",
-            "enum": [
-              "comfort",
-              "explore",
-              "shape"
-            ],
-            "type": "string"
-          },
-          "preferred_phase": {
-            "anyOf": [
-              {
-                "enum": [
-                  "comfort",
-                  "explore",
-                  "shape"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "reason": {
-            "default": "new_journey",
-            "enum": [
-              "narration",
-              "narrator_choice",
-              "new_journey",
-              "saved_narration",
-              "skip"
-            ],
-            "type": "string"
-          },
-          "revision": {
-            "default": 0,
-            "minimum": 0.0,
-            "type": "integer"
-          },
-          "schema_version": {
-            "const": 1,
-            "default": 1,
-            "type": "integer"
-          },
-          "selection": {
-            "default": "automatic",
-            "enum": [
-              "automatic",
-              "explicit"
-            ],
-            "type": "string"
-          },
-          "source_turn_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
         "type": "object"
       },
       "PlaceJourneyOutput": {
@@ -1495,16 +1415,6 @@
         "properties": {
           "client_turn_id": {
             "type": "string"
-          },
-          "conversation_phase": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PhaseState"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "conversation_saved": {
             "type": "boolean"

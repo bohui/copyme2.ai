@@ -465,7 +465,6 @@ class UserStorage:
             'p_project_id':project_id}).json()
 
     def interview_turn_by_id(self, project_id, client_turn_id):
-        # The phase wrapper may initialize state and lock the owned project.
         return self.request('POST', '/rest/v1/rpc/read_user_interview_turn', json={
             'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id))}).json()
 
@@ -474,15 +473,6 @@ class UserStorage:
             'p_project_id':project_id, 'p_client_turn_id':str(UUID(client_turn_id)),
             'p_plan':plan, 'p_associations':associations, 'p_lease_token':str(UUID(lease_token)),
             'p_reply':reply, 'p_response_photo_ids':response_photo_ids or [], 'p_thread_id':thread_id}).json()
-
-    def conversation_phase(self, project_id):
-        return self.request('POST', '/rest/v1/rpc/read_user_conversation_phase', json={
-            'p_project_id': project_id}).json()
-
-    def change_conversation_phase(self, project_id, action, expected_revision):
-        return self.request('POST', '/rest/v1/rpc/change_user_conversation_phase', json={
-            'p_project_id': project_id, 'p_action': action,
-            'p_expected_revision': expected_revision}).json()
 
     def historical_news_basis(self, project_id):
         return self.request('POST', '/rest/v1/rpc/read_user_historical_news_basis', json={

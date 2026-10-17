@@ -15,7 +15,7 @@ def prepare(sql):
 
 
 def commit(sql,turn,fence,check=True):
-    value=plan(name='Joan');value['phase_update']={'expected_revision':fence['phase_revision'],'phase':'comfort'}
+    value=plan(name='Joan')
     return rpc(sql,'commit_lifetime_turn',f"{literal(fence)}::jsonb,'{turn}',{literal(value)}::jsonb,'[]','Hello Joan.','[]','fresh-engine','lifetime-v1','fixture-model'",check=check)
 
 

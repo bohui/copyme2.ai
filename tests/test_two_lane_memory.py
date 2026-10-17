@@ -92,7 +92,7 @@ def test_background_places_candidates_and_events_share_one_fenced_page(sql):
     assert rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'",owner=OTHER,check=False).returncode!=0
 
 
-@pytest.mark.parametrize('change',['policy','source','generation','phase','lease','rollout'])
+@pytest.mark.parametrize('change',['policy','source','generation','lease','rollout'])
 def test_background_cas_rejects_stale_results_and_candidate_reads(sql,change):
     identity,accepted=accept(sql)
     lane_id=lane(sql,identity)
@@ -103,8 +103,6 @@ def test_background_cas_rejects_stale_results_and_candidate_reads(sql,change):
         rpc(sql,'change_user_narrator_source',f"{literal(identity['project_id'])},'{accepted['source']['id']}',1,'withdraw',null")
     elif change=='generation':
         sql('update public.user_lifetime_conversation set execution_generation=execution_generation+1;')
-    elif change=='phase':
-        rpc(sql,'change_user_conversation_phase',f"{literal(identity['project_id'])},'shape',0")
     elif change=='rollout':
         sql('update public.lifetime_two_lane_rollout set enabled=false;')
     else:

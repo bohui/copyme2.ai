@@ -30,7 +30,7 @@ class ExecutionFence(Contract):
     policy_epoch: int = Field(ge=1, strict=True)
     source_revision: int = Field(ge=0, strict=True)
     execution_generation: int = Field(ge=1, strict=True)
-    phase_revision: int = Field(ge=0, strict=True)
+    phase_revision: int = Field(ge=0, strict=True)  # Current SQL emits zero; retained for wire compatibility.
     preference_revision: int = Field(ge=0, strict=True)
     lease_token: UUID
 
@@ -150,7 +150,6 @@ def inventory_accounts(accounts: list[dict]) -> list[dict]:
             'mapping_required' if projects else 'new_account', candidate_project_ids=projects,
             source_ids=sources, turn_ids=turns, collisions=collisions,
             thread_pointer=account.get('thread_pointer'),
-            conversation_phase=deepcopy(account.get('conversation_phase')),
             preference_revision=account.get('preference_revision')))
     return result
 
@@ -170,10 +169,6 @@ class ContinuityRecord(Contract):
     assertion: Literal['asserted', 'inferred']
     uncertainty: str | None = Field(default=None, max_length=2000)
     evidence: list[EvidenceEnvelope] = Field(min_length=1, max_length=32)
-
-
-# The phase owner is authoritative; never reimplement its transitions here.
-from .conversation_phase import PhaseState
 
 
 class ContinuityQuote(Contract):
@@ -200,11 +195,16 @@ class ContinuityState(Contract):
 
 
 class PinnedContinuity(Contract):
+    @model_validator(mode='before')
+    @classmethod
+    def discard_retired_phase(cls, value):
+        # Old checkpoints remain readable without restoring a mode preference.
+        return {k:v for k,v in value.items() if k!='conversation_phase'} if isinstance(value,dict) else value
+
     known_continuity: list[ContinuityState] = Field(default_factory=list,max_length=8)
     known_continuity_complete: bool = True
     continuity_retrieval: str = 'read_lifetime_continuity'
     preference_revision: int = Field(ge=0, strict=True)
-    conversation_phase: PhaseState | None = None
     chosen_name: str | None = Field(default=None, max_length=200)
     language: Literal['en-AU', 'zh-CN']
     active_question: str | None = Field(default=None, max_length=2000)

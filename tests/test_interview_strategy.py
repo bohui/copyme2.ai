@@ -102,12 +102,12 @@ def test_unknown_or_reused_candidates_cannot_be_selected():
     with pytest.raises(ValueError):validate_governed_collector_result(wire(selected_candidate_id='cross-project',selection_reason='prepared_candidate'),context(text='Please go on.'))
 
 
-def test_legacy_explicit_preference_is_a_bounded_pacing_adapter():
-    from apps.api.interview_strategy import legacy_strategy
-    phase={'phase':'comfort','selection':'explicit','preferred_phase':'comfort','revision':8,'reason':'narrator_choice'}
-    adapted=legacy_strategy(phase,has_narration=True)
-    assert adapted=={'strategy':'comfort','legacy_pacing':'comfort','legacy_revision':8}
-    assert phase['revision']==8
+def test_prompt_has_no_user_selected_mode_policy():
+    from apps.api.interview_strategy import strategy_instructions
+    prompt=strategy_instructions('shape')
+    assert 'Automatic internal shape is allowed' in prompt
+    assert 'legacy pacing' not in prompt
+    assert 'Shape only on the storyteller' not in prompt
 
 
 def test_strategy_flag_defaults_off(monkeypatch):

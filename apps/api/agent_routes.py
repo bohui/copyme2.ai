@@ -89,58 +89,6 @@ GREETING_PROMPTS = {
 }
 
 
-class ConversationPhaseControl(BaseModel):
-    model_config = {'extra': 'forbid'}
-    action: Literal['comfort', 'explore', 'shape', 'automatic', 'skip']
-    expected_revision: int = Field(ge=0, strict=True)
-
-
-def phase_http_error(error):
-    status = error.response.status_code
-    try:
-        code = error.response.json().get('code')
-    except (ValueError, AttributeError):
-        code = None
-    if code == '40001' or status == 409:
-        return HTTPException(409, 'Your conversation choice changed. Please reload it.')
-    if status in (401, 403) or code == '42501':
-        return HTTPException(403, 'Conversation unavailable.')
-    return HTTPException(503, 'Conversation controls are temporarily unavailable.')
-
-
-@router.get('/projects/{project_id}/conversation-phase')
-async def read_conversation_phase(project_id: str, authorization: str | None = Header(default=None)):
-    if not re.fullmatch(PROJECT_ID_PATTERN, project_id):
-        raise HTTPException(422, 'Invalid project')
-    storage = await asyncio.to_thread(authenticated_storage, authorization)
-    try:
-        from .conversation_phase import PhaseState
-        state = await asyncio.to_thread(storage.conversation_phase, project_id)
-        return {'conversation_phase': PhaseState.model_validate(state).model_dump(mode='json')}
-    except httpx.HTTPStatusError as error:
-        raise phase_http_error(error) from None
-    finally:
-        await asyncio.to_thread(storage.client.close)
-
-
-@router.patch('/projects/{project_id}/conversation-phase')
-async def change_conversation_phase(project_id: str, payload: ConversationPhaseControl,
-                                    authorization: str | None = Header(default=None)):
-    if not re.fullmatch(PROJECT_ID_PATTERN, project_id):
-        raise HTTPException(422, 'Invalid project')
-    storage = await asyncio.to_thread(authenticated_storage, authorization)
-    try:
-        from .conversation_phase import PhaseState
-        # The RPC locks this owned project and compares preference revisions.
-        state = await asyncio.to_thread(storage.change_conversation_phase,
-            project_id, payload.action, payload.expected_revision)
-        return {'conversation_phase': PhaseState.model_validate(state).model_dump(mode='json')}
-    except httpx.HTTPStatusError as error:
-        raise phase_http_error(error) from None
-    finally:
-        await asyncio.to_thread(storage.client.close)
-
-
 ProfileField = Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
 PROFILE_SETTINGS_FIELDS = ('preferred_language', 'name', 'birth_year', 'birth_date_expression',
                            'birth_place', 'childhood_place', 'avatar_style')

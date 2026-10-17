@@ -70,13 +70,6 @@ def strategy_enabled():
     return os.getenv('MEMOIR_INTERVIEW_STRATEGY','').lower() in {'1','true','yes'}
 
 
-def legacy_strategy(phase,*,has_narration=False):
-    phase=phase or {}
-    return {'strategy':phase.get('preferred_phase') or phase.get('phase') or ('explore' if has_narration else 'comfort'),
-        'legacy_pacing':phase.get('preferred_phase') if phase.get('selection')=='explicit' else None,
-        'legacy_revision':phase.get('revision',0)}
-
-
 STRATEGY_MODULES={
  'comfort':'Offer low-pressure entry when there is no volunteered story. A concrete first detail can immediately use explore. Short answers alone do not imply discomfort. Do not force a life-history form.',
  'explore':'Follow one unanswered detail in the volunteered story, including a rich first reply. Keep uncertainty and follow redirects or gentler pacing. Never require a turn-count threshold.',
@@ -87,9 +80,6 @@ def strategy_instructions(strategy):
     from .collector_prompt import COMPACT_COLLECTOR_PROMPT
     if strategy not in STRATEGY_MODULES:raise ValueError('Unknown internal strategy')
     core=COMPACT_COLLECTOR_PROMPT
-    start=core.index('Comfort, explore and shape are soft')
-    end=core.index('Conversation is a continuing flow',start)
-    core=core[:start]+core[end:]
     core=core.replace('This pass produces the conversational response and private interview plan only.',
         'This pass produces one immediate response/question and one small work hint only.')
     return core+'\nActive internal strategy: '+strategy+'\n'+STRATEGY_MODULES[strategy]+'''
@@ -99,7 +89,7 @@ is the actual asked-question receipt. A saved assistant entry in the raw tail
 can be undelivered; it is not proof that a question was asked. Current redirect, correction,
 exclusion, lighter pacing, stop or direct question takes priority over a prepared
 candidate. You may deviate for this one turn, recording a bounded reason, without
-changing the stored plan. Preserve explicit legacy pacing preferences. Resume
+changing the stored plan. Respect the narrator's current pacing requests. Resume
 returning stories; a correction does not restart onboarding. Do not infer feelings.
 Return acknowledgement, zero or one immediate question, selected_candidate_id or
 null, selection_reason, used_strategy and work.mode/work.name.
@@ -154,7 +144,7 @@ def selector_schema(context=None):
 def current_constraints(text):
     # Bound reported speech to its own clause. Mask whole quotes first, keeping
     # a sentence boundary so later direct narrator requests remain authoritative.
-    from .conversation_phase import QUOTED_SENTENCE_PATTERN,QUOTED_PATTERN,ATTRIBUTION_PATTERN
+    from .conversation_attribution import QUOTED_SENTENCE_PATTERN,QUOTED_PATTERN,ATTRIBUTION_PATTERN
     value=re.sub(QUOTED_SENTENCE_PATTERN,' [quoted]. ',text or '')
     value=re.sub(QUOTED_PATTERN,' [quoted] ',value)
     direct=[];reported_continuation=False
@@ -209,7 +199,7 @@ def adapt_selection(raw,context):
     candidates=[] if item.question is None else [{'id':candidate_id,'question':item.question,
         'context':{'event_id':None,'photo_id':None,'life_stage':None,'year':None},'order':0,'bridge':''}]
     legacy={'acknowledgement':item.acknowledgement,'plan':{'candidates':candidates,
-        'chosen_id':candidate_id if candidates else None,'active_event_id':None,'work':item.work.model_dump(),'conversation_phase':None},
+        'chosen_id':candidate_id if candidates else None,'active_event_id':None,'work':item.work.model_dump()},
         'associations':[a.model_dump() for a in item.associations],'response_photo_ids':item.response_photo_ids,
         'stopped':item.question is None,'continuity_updates':raw.get('continuity_updates',[])}
     outcome={'schema_version':1,'plan_revision_seen':plan.get('plan_revision',state.get('invalid_plan_revision')),

@@ -209,13 +209,12 @@ def test_literal_privacy_variants_persist_before_http_provider(sql,tmp_path,monk
 
 @pytest.mark.parametrize('language',['en-AU','zh-CN'])
 @pytest.mark.parametrize('streaming',[False,True])
-def test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model(sql,tmp_path,monkeypatch,language,streaming):
+def test_mapped_greeting_needs_no_user_mode_or_model(sql,tmp_path,monkeypatch,language,streaming):
     from test_agent_commit_postgres import as_user
     from apps.api.main import create_app
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     identity=rpc(sql,'resolve_lifetime_conversation','null')
-    rpc(sql,'change_user_conversation_phase',f"'{identity['project_id']}','shape',0")
     sql(as_user(f"insert into public.user_profile(user_id,profile) values(auth.uid(),{literal({'preferred_language':language})}::jsonb) on conflict(user_id) do update set profile=excluded.profile;"))
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     def provider(request):raise AssertionError('Bounded greeting cannot call the provider')
@@ -224,9 +223,7 @@ def test_mapped_greeting_preserves_explicit_phase_without_acceptance_or_model(sq
         response=client.post('/v1/agent/greeting',headers={'Accept':'application/x-ndjson' if streaming else 'application/json'},json={'project_id':identity['project_id'],'action':'continue','language':language})
         assert response.status_code==200,response.text
         result=next(json.loads(line)['data'] for line in response.text.splitlines() if json.loads(line)['type']=='result') if streaming else response.json()
-        assert result['conversation_phase']['phase']=='shape'
-        assert result['conversation_phase']['selection']=='explicit'
-        assert 'paused' not in result['conversation_phase']
+        assert 'conversation_phase' not in result
         assert bool(result['reply'])
         assert not result['conversation_saved']
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='0'

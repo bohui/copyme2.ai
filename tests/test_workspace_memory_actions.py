@@ -112,7 +112,7 @@ def test_selected_event_takes_bounded_priority_without_becoming_testimony_or_pac
 def test_pg_focus_is_owned_revision_checked_and_does_not_create_a_round_or_mode(sql):
     identity, source, lane, page = seeded_composer(sql)
     project = identity['project_id']
-    before = sql('select row_to_json(p) from public.user_conversation_phase p;').stdout
+    before = sql('select row_to_json(p) from public.user_conversation_phase_archive p;').stdout
     count = sql('select count(*) from public.user_completed_round;').stdout
     focus = {'kind':'explore_memory','event_id':page['partition']['id'],'event_revision':page['partition']['revision']}
     result = rpc(sql, 'read_workspace_memory_focus', f"{literal(project)},{literal(focus)}")
@@ -122,7 +122,7 @@ def test_pg_focus_is_owned_revision_checked_and_does_not_create_a_round_or_mode(
     assert rpc(sql, 'read_workspace_memory_focus', f"{literal(project)},{literal(focus)}", check=False).returncode != 0
     stage = {'kind':'add_memory','life_stage':'childhood'}
     assert rpc(sql, 'read_workspace_memory_focus', f"{literal(project)},{literal(stage)}") == stage
-    assert sql('select row_to_json(p) from public.user_conversation_phase p;').stdout == before
+    assert sql('select row_to_json(p) from public.user_conversation_phase_archive p;').stdout == before
     assert sql('select count(*) from public.user_completed_round;').stdout == count
 
 
@@ -130,7 +130,7 @@ def test_pg_section_rework_is_idempotent_and_preserves_original_until_review(sql
     identity, source, lane, first = seeded_composer(sql)
     head = finish(sql, lane, first)
     event_before = deepcopy(first['partition'])
-    phase_before = sql('select row_to_json(p) from public.user_conversation_phase p;').stdout
+    phase_before = sql('select row_to_json(p) from public.user_conversation_phase_archive p;').stdout
     rounds = sql('select count(*) from public.user_completed_round;').stdout
     request_id = str(uuid4()); args = rework_args(head, request_id)
     assert rpc(sql, 'request_workspace_section_rework', args)['status'] == 'pending'
@@ -167,7 +167,7 @@ def test_pg_section_rework_is_idempotent_and_preserves_original_until_review(sql
     rpc(sql, 'set_lifetime_private_draft_proposal', decision)
     accepted = rpc(sql, 'read_lifetime_private_draft_head', literal(identity['project_id']))
     assert accepted['preview']['text'] == 'Chengde was my childhood home.'
-    assert sql('select row_to_json(p) from public.user_conversation_phase p;').stdout == phase_before
+    assert sql('select row_to_json(p) from public.user_conversation_phase_archive p;').stdout == phase_before
     assert sql('select count(*) from public.user_completed_round;').stdout == rounds
     assert sql('select text from public.user_narrator_source;').stdout.strip() == source['text']
 
@@ -177,8 +177,7 @@ def test_pg_private_rework_preserves_completed_formal_authority_and_consent(sql)
     identity, source, lane, first = seeded_composer(sql)
     project = identity['project_id']
     head = finish(sql, lane, first)
-    current = rpc(sql, 'read_user_conversation_phase', literal(project))
-    phase = rpc(sql, 'change_user_conversation_phase', f"{literal(project)},'shape',{current['revision']}")
+    phase = {'revision':0}
     edition = completed(sql, project, phase)
     initial = rpc(sql, 'read_story_game_eligibility', literal(project))
     grant = consent(sql, project, edition, initial['consent_revision'])

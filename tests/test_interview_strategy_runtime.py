@@ -146,7 +146,7 @@ def test_current_intent_matrix_uses_one_call_without_composition_permissions(sql
     assert state['delivered'] and state['selection_reason']==reason and state['used_strategy']==strategy
     assert state['question_delivered']==question
     assert sql("select count(*) from public.user_memoir_lane where skill='composer';").stdout.strip()=='0'
-    if text=='Yes.':assert calls[0]['interview_context']['active_strategy']!='comfort' or calls[0]['interview_context']['legacy_strategy']['legacy_pacing'] is None
+    if text=='Yes.':assert 'legacy_strategy' not in calls[0]['interview_context']
 
 
 @pytest.mark.parametrize('planned_strategy',['comfort','explore','shape'])
@@ -219,16 +219,15 @@ def test_saved_but_failed_send_does_not_mark_candidate_asked_and_retry_recovers(
 
 
 @pytest.mark.parametrize('rollback',['shadow','python_flag','database_flag'])
-def test_rollback_keeps_legacy_explicit_pacing_and_uses_legacy_schema(sql,tmp_path,monkeypatch,rollback):
+def test_rollback_uses_collector_schema_without_restoring_user_modes(sql,tmp_path,monkeypatch,rollback):
     calls=[]
     def provider(request):
         body=json.loads(request.content);calls.append(body)
         assert not body['interview_context'].get('strategy_selector')
-        phase=body['interview_context']['conversation_phase'];assert phase['selection']=='explicit' and phase['preferred_phase']=='comfort'
+        assert 'conversation_phase' not in body['interview_context']
         return httpx.Response(200,json={'reply':json.dumps(proposal(mode='extract',name=None)), 'thread_id':'legacy','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
         identity=rpc(sql,'resolve_lifetime_conversation','null')
-        rpc(sql,'change_user_conversation_phase',f"{literal(identity['project_id'])},'comfort',0")
         if rollback=='shadow':sql('update public.lifetime_two_lane_rollout set strategy_shadow=true;')
         elif rollback=='database_flag':sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
         else:monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','0')
@@ -236,8 +235,7 @@ def test_rollback_keeps_legacy_explicit_pacing_and_uses_legacy_schema(sql,tmp_pa
         assert response.status_code==200,response.text
     assert len(calls)==1
     assert sql('select count(*) from public.user_lifetime_strategy_outcome;').stdout.strip()=='0'
-    phase=rpc(sql,'read_user_conversation_phase',literal(identity['project_id']))
-    assert phase['phase']=='comfort' and phase['selection']=='explicit'
+    assert sql('select count(*) from public.user_conversation_phase_archive;').stdout.strip()=='0'
 
 
 @pytest.mark.parametrize('background',['blocked','failed'])
