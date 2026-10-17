@@ -1,4 +1,11 @@
-"""Quotation and attribution patterns shared by current-intent guards."""
+"""Narrator attribution guards and exact timeline passage/place proposals."""
+from copy import deepcopy
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .memory_events import EvidenceRef
+from .place_journey import validate_place_journey
 
 # Mask quotes across line/sentence boundaries, preserving a completed sentence
 # so a subsequent direct request still belongs to the current narrator.
@@ -9,3 +16,133 @@ QUOTED_PATTERN = r'"[^"]*(?:"|$)|“[^”]*(?:”|$)|‘(?:[^’]|’(?=\w)|(?<=
 QUOTED_SENTENCE_PATTERN += r"|(?<!\w)'(?:[^']|'(?=\w)|(?<=\w)'(?=[ \t]+\w))*[.!?。！？]\s*'"
 QUOTED_PATTERN += r"|(?<!\w)'(?:[^']|'(?=\w)|(?<=\w)'(?=[ \t]+\w))*(?:'(?!\w|[ \t]+\w)|$)"
 ATTRIBUTION_PATTERN = r'\b(?:said|says|told|asked)\b|(?:说|說|告诉|告訴)'
+
+
+class CoarsePlace(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    place: str = Field(min_length=1, max_length=120)
+    hierarchy: list[str] = Field(min_length=2, max_length=6)
+    granularity: Literal['country', 'region', 'city', 'suburb']
+
+
+class EventPlace(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    event_index: int = Field(ge=0, le=99)
+    role: Literal['setting', 'origin', 'destination']
+    place: CoarsePlace
+    source_ref: EvidenceRef
+
+
+class PassageDisposition(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    disposition: Literal['non_story', 'unresolved', 'withheld']
+    reason: Literal['conversation_control', 'profile_introduction', 'ambiguous_context',
+        'no_supported_event', 'uncertain_identity', 'uncertain_attribution', 'privacy_withheld']
+    source_ref: EvidenceRef
+
+
+class AttributionProposals(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    event_places: list[EventPlace] = Field(default_factory=list, max_length=32)
+    passage_dispositions: list[PassageDisposition] = Field(default_factory=list, max_length=64)
+
+
+def validate_attribution(raw, page, events):
+    proposed = AttributionProposals.model_validate({key: raw.get(key, []) for key in AttributionProposals.model_fields})
+    source = page['source']
+    result = proposed.model_dump(exclude_none=True)
+    places = []
+    for item in [*result['event_places'], *result['passage_dispositions']]:
+        ref = item['source_ref']
+        if ref['source_id'] != source['id'] or ref['version'] != source['version']:
+            raise ValueError('Attribution requires the current original source')
+        quote = ref['quote']
+        lo, hi = ref.get('char_start'), ref.get('char_end')
+        if not (type(lo) is int and type(hi) is int and 0 <= lo < hi <= len(source['text']) and source['text'][lo:hi] == quote):
+            lo = source['text'].find(quote)
+            if lo < 0 or source['text'].find(quote, lo + 1) >= 0:
+                raise ValueError('Attribution requires an exact unambiguous span')
+            hi = lo + len(quote)
+        ref.update(char_start=lo + source['char_start'], char_end=hi + source['char_start'])
+        if 'event_index' in item:
+            if item['event_index'] >= len(raw['events']):
+                raise ValueError('Place association requires its accepted event proposal')
+            original = raw['events'][item['event_index']]
+            def identity(event):
+                return (event.get('existing_id'), event['kind'], event['title'],
+                    [(r['source_id'], r['version'], r['quote']) for r in event['source_refs']])
+            matches = [index for index, event in enumerate(events) if identity(event) == identity(original)]
+            if not matches:
+                continue  # A privacy-withheld proposal cannot create a place claim.
+            if len(matches) != 1:
+                raise ValueError('Place association requires one unambiguous event proposal')
+            item['event_index'] = matches[0]
+            if not validate_place_journey(item['place']) or item['place']['place'] not in quote:
+                raise ValueError('Event place requires a named coarse place in its own evidence')
+            if not any(r['source_id'] == ref['source_id'] and r['version'] == ref['version']
+                    and r['char_start'] <= ref['char_start'] < ref['char_end'] <= r['char_end']
+                    for r in events[item['event_index']]['source_refs']):
+                raise ValueError('Place evidence must belong to this event passage')
+            places.append(item)
+    result['event_places'] = places
+    return result
+
+
+def policy_dispositions(page, original):
+    from .codex_runtime import _timeline_source_spans, _timeline_veto_scope
+    from .memory_events import _source_ref_is_vetoed
+    source = page['source']
+    dispositions = []
+    for clause, lo, hi in _timeline_source_spans(original['text']):
+        lo, hi = max(lo, source['char_start']), min(hi, source['char_end'])
+        for start in range(lo, hi, 2000):
+            end = min(start + 2000, hi)
+            ref = EvidenceRef(source_id=source['id'], version=source['version'],
+                quote=original['text'][start:end], char_start=start, char_end=end)
+            if _timeline_veto_scope(clause) or _source_ref_is_vetoed(ref, original):
+                dispositions.append({'disposition':'withheld', 'reason':'privacy_withheld',
+                    'source_ref':ref.model_dump(exclude_none=True)})
+    if len(dispositions) > 64:
+        raise ValueError('Attribution privacy budget exceeded')
+    return dispositions
+
+
+def attribution_schema(schema):
+    schema = deepcopy(schema)
+    extension = AttributionProposals.model_json_schema()
+    schema.setdefault('$defs', {}).update(extension.get('$defs', {}))
+    schema['properties'].update(extension['properties'])
+    schema['required'] += list(extension['properties'])
+    def strict(value):
+        if isinstance(value, dict):
+            value.pop('default', None)
+            if value.get('type') == 'object':
+                value['additionalProperties'] = False
+                value['required'] = list(value.get('properties', {}))
+            for child in value.values():
+                strict(child)
+        elif isinstance(value, list):
+            for child in value:
+                strict(child)
+    strict(schema)
+    return schema
+
+
+INSTRUCTIONS = '''
+Account for the whole current source window. Return passage_dispositions for
+genuine non-story/controls, unresolved identity/meaning, or withheld passages,
+each with exact original evidence and a fixed reason. Unmentioned story ranges
+remain unresolved, never implicitly complete. A bare yes cannot confirm facts
+from an assistant question. Do not classify a mixed control and story as wholly
+non-story. Context is navigation, not testimony or a date/place basis.
+Return event_places selectively: event_index indexes this response's events,
+role is setting, origin or destination, place is a coarse public named place,
+and source_ref is its exact passage within that event's direct source_refs.
+Never join every place to every event or use a relative's trip as the narrator's.
+Empty arrays are valid. Existing event context can justify identity reuse, not
+new facts: omit unchanged temporal/stage fields when enriching an established
+episode. Unknown age/year/place is valid. No source-order/profile-guess dating.
+Do not emit a new place_journey for an inherited setting or a vague there/then.
+Existing place_conflicts mark unresolved roles, not multiple established facts.
+Preserve the contradiction and its evidence; do not choose a setting from it.
+'''

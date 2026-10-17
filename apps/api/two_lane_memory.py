@@ -38,7 +38,7 @@ class DerivedHints(_Places):
     prepared_questions: list[PreparedQuestion] = Field(max_length=5)
 
 
-def extraction_contract(*, strategy=False):
+def extraction_contract(*, strategy=False, attribution=False):
     from .memory_events import extraction_instructions, extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
@@ -66,6 +66,10 @@ preferences, grant access, publish, charge or claim an upload was processed.
         schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
         schema['required'].append('strategy_proposal')
         instructions+='\nPropose the next internal comfort/explore/shape strategy and objective. Shape clarifies chronology/identity/links, never composition. Rich first narratives can explore immediately; no turn gates. Corrections preserve continuity; short answers alone imply no discomfort. Respect legacy pacing and current exclusions. A normal grounded pool is 2–5 when supported, with no filler minimum. Focus IDs must be active events in this page or []. This proposal changes no preferences, permissions or actual delivered questions.'
+    if attribution:
+        from .conversation_attribution import attribution_schema, INSTRUCTIONS
+        instructions += INSTRUCTIONS
+        schema = attribution_schema(schema)
     return instructions,schema
 
 

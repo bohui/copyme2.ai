@@ -116,6 +116,12 @@ class TwoLaneFence(Contract):
     strategy_revision: int = Field(default=0,ge=0,strict=True)
 
 
+class AttributionContext(Contract):
+    decision: Literal['extract', 'non_story', 'unresolved', 'withheld']
+    reason: Literal['new_testimony', 'conversation_control', 'profile_introduction', 'ambiguous_context', 'privacy_withheld']
+    delivered_event: dict[str, Any] | None = None
+
+
 class MemorySummaryFence(Contract):
     maintenance_id:UUID
     revision:int=Field(ge=0,strict=True)
@@ -157,6 +163,8 @@ class LaneFence(Contract):
     two_lane: TwoLaneFence | None = None
     memory_summary:MemorySummaryFence|None=Field(default=None,exclude_if=lambda value:value is None)
     profile_context:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
+    attribution_context:AttributionContext|None=Field(default=None,exclude_if=lambda value:value is None)
+    attribution_coverage:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
     prior_outputs: list[LaneArtifact] = Field(default_factory=list, max_length=16)
 
 
@@ -196,7 +204,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         instructions, schema = extraction_instructions(), extraction_schema()
         if two_lane:
             from .two_lane_memory import extraction_contract
-            instructions,schema=extraction_contract(strategy=strategy)
+            instructions,schema=extraction_contract(strategy=strategy, attribution=bool(fence and fence.attribution_context))
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
         instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
@@ -254,6 +262,10 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         + ('Write in Simplified Chinese; preserve original quoted source language.'
            if locale == 'zh-CN' else 'Write in Australian English; preserve original quoted source language.')
     )
+    if fence and fence.attribution_coverage:
+        instructions += ('\nCanonical context place_conflicts identifies unresolved location roles. '
+            'Do not choose one alternative or assert all alternatives as established facts. '
+            'Omit the unresolved placement or explicitly preserve the source correction/uncertainty.')
     return instructions, schema
 
 
@@ -346,7 +358,8 @@ def _required_artifacts(phase, payload):
 
 def lane_extraction_packet(fence):
     return {'schema_version':1,'sources':[deepcopy(fence.source)],'events':deepcopy(fence.events),
-        'interview_context':{},'preferences':fence.preferences.model_dump(mode='json'),
+        'interview_context':fence.attribution_context.model_dump(mode='json') if fence.attribution_context else {},
+        'preferences':fence.preferences.model_dump(mode='json'),
         'coverage':{'scope':'source_window','snapshot_id':str(fence.snapshot_id),
             'source_high_water':fence.source_high_water,'complete':False},
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
