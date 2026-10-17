@@ -10,6 +10,8 @@
 
 This revision incorporates the orchestration decision in [Issue 76](https://github.com/bohui/copyme2.ai/issues/76). The [skill execution map](Memoir_Skill_Execution_Map_Spec.md) is the maintained cross-skill policy and current-status reference. This document describes the target architecture, not evidence that shared orchestration is deployed. Existing Issue 70 benchmark/evaluation records remain pinned to their original v1.0 blob; this revision does not change those frozen results or controls.
 
+The [Issue 76 implementation record](Memoir_Skill_Execution_Map_Implementation.md) links the code-backed policy, runner integration and verification evidence. It distinguishes implemented branch behavior from deployment and disabled integrations without introducing a second skill matrix here.
+
 ## 1. Executive decision
 
 Adopt **two asynchronous execution lanes** using the existing application, Codex worker and durable task infrastructure:

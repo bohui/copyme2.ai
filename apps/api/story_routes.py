@@ -358,7 +358,7 @@ def build_router(
                     from .turn_progress import thinking_steps_enabled
                     if thinking_steps_enabled():
                         result['skill_progress'] = storage.lifetime_rpc('read_lifetime_skill_progress',p_project_id=project_id)
-                        result['pending'] = bool(result.get('pending') or any(item['status'] in {'queued','running','completed'}
+                        result['pending'] = bool(result.get('pending') or result['skill_progress'].get('pending') or any(item['status'] in {'queued','running','completed'}
                             for item in result['skill_progress']['items']))
                 return result
             return await asyncio.to_thread(read_mapped, storage, project_id, canonical, legacy)

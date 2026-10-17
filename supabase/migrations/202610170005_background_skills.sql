@@ -101,8 +101,10 @@ begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  result:=public.commit_lifetime_memoir_lane_page_before_skills(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
  if result->>'status'='page_saved' then
-   update public.user_background_skill_work set status='saved',updated_at=clock_timestamp()
-   where lane_id=p_lane_id and page_digest=p_page_digest and status in ('completed','failed') and model_invoked;
+   update public.user_background_skill_work set status='saved',reason=null,page_digest=p_page_digest,
+     lease_token=(page->>'token')::uuid,updated_at=clock_timestamp()
+   where lane_id=p_lane_id and snapshot_id=(page->>'snapshot_id')::uuid
+     and id=public.background_skill_id(page,phase) and status in ('completed','failed') and model_invoked;
    if not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id and page_digest=p_page_digest and status='saved')
      and page->'two_lane'->>'work_mode' is distinct from 'reply_only' then
      perform public.background_skill_receipt(page,case when page->>'skill'='composer' then 'commit' else 'extract' end,
@@ -180,6 +182,24 @@ begin
 end $$;
 revoke all on function public.fail_memoir_lane(uuid,uuid,text,boolean) from public,anon,authenticated;
 grant execute on function public.fail_memoir_lane(uuid,uuid,text,boolean) to service_role;
+
+-- Reading a validated existing checkpoint is cache use, not another model call.
+alter function public.read_memoir_checkpoint(uuid,uuid,text) rename to read_memoir_checkpoint_before_skills;
+revoke all on function public.read_memoir_checkpoint_before_skills(uuid,uuid,text) from public,anon,authenticated,service_role;
+create function public.read_memoir_checkpoint(p_lane_id uuid,p_token uuid,p_key text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare result jsonb; page jsonb;
+begin
+ result:=public.read_memoir_checkpoint_before_skills(p_lane_id,p_token,p_key);
+ if result is not null and exists(select 1 from public.user_memoir_lane l join public.user_lifetime_conversation c
+   on c.user_id=l.user_id and c.project_id=l.project_id where l.id=p_lane_id and l.skill='composer') then
+   page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
+   perform public.background_skill_receipt(page,'checkpoint','memoir-composer','cache','cached');
+ end if;
+ return result;
+end $$;
+revoke all on function public.read_memoir_checkpoint(uuid,uuid,text) from public,anon,authenticated;
+grant execute on function public.read_memoir_checkpoint(uuid,uuid,text) to service_role;
 
 -- Server-only optional-operation receipts. No source text/query or provider result
 -- enters this table; public photo caches and research claims remain separate.
@@ -291,7 +311,9 @@ begin
  from public.user_memoir_lane l where p_cursor is null and user_id=auth.uid() and project_id=p_project_id and pending
    and attempts<3 and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp());
  return jsonb_build_object('project_id',p_project_id,'items',queued||records,'recent_limit',32,
-   'continuation',p_cursor is not null,'truncated',more,'next_cursor',next_cursor);
+   'continuation',p_cursor is not null,'truncated',more,'next_cursor',next_cursor,
+   'pending',exists(select 1 from public.user_memoir_lane where user_id=auth.uid() and project_id=p_project_id
+     and attempts<3 and (pending or (token is not null and lease_until>clock_timestamp() and run_deadline>clock_timestamp()))));
 end $$;
 revoke all on function public.read_lifetime_skill_progress(text,text) from public,anon;
 grant execute on function public.read_lifetime_skill_progress(text,text) to authenticated;

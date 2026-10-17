@@ -50,6 +50,29 @@ test('refresh restores persisted photos without searching after the old cache ex
   assert.equal(calls, 0, 'history restoration unnecessarily triggered photo discovery');
   assert.equal(h.entry().pictures[0].asset_id, 'saved');
 });
+test('a late public lookup cannot restore a place removed by canonical readback',async()=>{
+  let finish,saves=0;
+  const h=harness({place:'Chengde'},()=>new Promise(resolve=>{finish=resolve;}));
+  h.context.saveProfileUpdates=async()=>{saves++;};
+  const request=h.context.loadPlacePictures(h.entry(),'project');
+  h.state.derivedWorkspace={project_id:'project',policy_epoch:2};
+  h.state.placeJourney=null;
+  h.context.profile=()=>({memory_places:[]});
+  finish({items:[picture('late')],status:'READY'});
+  await request;
+  assert.equal(saves,0);
+  assert.equal(h.state.placeJourney,null);
+});
+test('photo response progress keeps the server job identity for later persisted updates',async()=>{
+  const steps=[];
+  const h=harness({place:'Chengde'},async()=>({items:[picture('found')],status:'READY',
+    skill_progress:{id:'server-photo-job',status:'completed'}}),{persistChatHistory(){}});
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:step=>steps.push(step)});
+  assert.match(steps[0].id,/^photos:/);
+  assert.equal(steps.at(-1).id,'server-photo-job');
+  assert.equal(steps.at(-1).replaces_id,steps[0].id);
+  assert.equal(steps.at(-1).status,'completed');
+});
 
 for (const refresh of [false, true]) {
 for (const fallback of [false, true]) {

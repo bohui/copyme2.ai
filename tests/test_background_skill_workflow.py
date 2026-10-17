@@ -270,6 +270,7 @@ def test_failed_commit_and_fresh_worker_retry_do_not_leave_false_success(sql,tmp
         steps=progress(conversation)['skill_progress']['items']
         saved=next(item for item in steps if item['skill']=='memoir-author-timeline' and item['status']=='saved')
         assert saved['client_turn_id']==first['client_turn_id'] and saved['source_version']==1
+        assert saved['id']==first['id'] and saved['model_attempts']==2
         assert not any('lease_token' in item or 'page_digest' in item for item in steps)
 
 
@@ -286,3 +287,41 @@ def test_saved_writer_receipt_survives_missing_optional_invocation_telemetry(sql
         assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context'}
         assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in steps)
         assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in steps)
+
+
+def test_composer_cached_retry_saves_without_counting_another_model_pass(sql,tmp_path,monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'receipts.sqlite3'))
+    def extract(packet):
+        return {**empty(packet),'events':[episode(packet,packet['sources'][0]['text'])] if packet['sources'][0]['sequence']==1 else []}
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract)
+    with conversation.client:
+        for number in range(1,6):
+            conversation.say(f'I repaired bicycle number {number} in our shed.')
+            conversation.drain()
+        conversation.deliver_receipts()
+        lane=sql("select id from public.user_memoir_lane where skill='composer';").stdout.strip()
+        original=conversation.worker.broker.rpc
+        failed=False
+        async def interrupted(name,**params):
+            nonlocal failed
+            if name=='commit_lifetime_memoir_lane_page' and params['p_lane_id']==lane and not failed:
+                failed=True
+                raise RuntimeError('Synthetic commit unavailable')
+            return await original(name,**params)
+        monkeypatch.setattr(conversation.worker.broker,'rpc',interrupted)
+        result=asyncio.run(conversation.worker.execute_lane(lane))
+        assert result['status']=='retry',result
+        before=[phase for phase,_ in conversation.admissions if phase in {'prepare','draft','review'}]
+        assert before==['prepare','draft','review']
+        failed_steps=[item for item in progress(conversation)['skill_progress']['items'] if item['skill']=='memoir-composer' and item['phase']!='queue']
+        assert failed_steps and all(item['status']=='failed' for item in failed_steps)
+        retry=conversation.client.post('/v1/story/private-draft/retry',json={'project_id':conversation.project})
+        assert retry.status_code==200,retry.text
+        result=asyncio.run(conversation.worker.execute_lane(lane))
+        assert result.get('retrieval_complete'),(result,conversation.last_db_error)
+        assert [phase for phase,_ in conversation.admissions if phase in {'prepare','draft','review'}]==before
+        steps=[item for item in progress(conversation)['skill_progress']['items'] if item['skill']=='memoir-composer']
+        models=[item for item in steps if item['execution']=='model']
+        assert len(models)==3 and all(item['status']=='saved' and item['model_attempts']==1 for item in models)
+        assert any(item['status']=='cached' and item['execution']=='cache' and not item['model_invoked'] for item in steps)

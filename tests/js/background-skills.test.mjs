@@ -40,3 +40,18 @@ test('foreign project, missing correlation and thinking-off updates never attach
   assert.equal(h.saves(),0);
   assert.ok(h.state.chat.every(item=>!item.trace));
 });
+test('unattributed workspace lookups are scoped separately instead of assigned to a conversation',()=>{
+  const h=harness();
+  h.context.applyBackgroundSkillProgress({project_id:'p',items:[{id:'lookup',skill:'place-photo-research',phase:'photos',status:'cached'}]});
+  assert.equal(h.state.workspaceSkillProgress.project_id,'p');
+  assert.equal(h.state.workspaceSkillProgress.items[0].status,'cached');
+  assert.ok(h.state.chat.every(item=>!item.trace));
+});
+test('the server work identity replaces a temporary browser trace and readback upserts it',()=>{
+  const h=harness();
+  h.context.recordWorkspaceSkillProgress({id:'temporary',client_turn_id:'first',status:'running'});
+  h.context.recordWorkspaceSkillProgress({id:'server-job',replaces_id:'temporary',client_turn_id:'first',status:'completed'});
+  h.context.applyBackgroundSkillProgress({project_id:'p',items:[{id:'server-job',client_turn_id:'first',status:'completed'}]});
+  assert.equal(h.state.chat[0].trace.length,1);
+  assert.equal(h.state.chat[0].trace[0].id,'server-job');
+});

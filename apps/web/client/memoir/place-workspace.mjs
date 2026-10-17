@@ -327,9 +327,9 @@ export function createPlaceWorkspace({
     if (placeGroupRequests.has(signature)) return;
     const scope = captureProjectScope();
     const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
-    const report = (status) => {
+    const report = (status, work = null) => {
       if (!isCurrentProjectScope(scope)) return;
-      recordWorkspaceSkillProgress({id:`place-groups:${signature}`, kind:"skill", skill:"memoir-place-groups",
+      recordWorkspaceSkillProgress({id:work?.id || `place-groups:${signature}`, replaces_id:work?.id ? `place-groups:${signature}` : null, kind:"skill", skill:"memoir-place-groups",
         project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:"deterministic", model_invoked:false,
         label:"memoir-place-groups", status,
         detail:`${translate(`Memoir.trace.placeGroups.${status}`)} · ${journey.place}`}, onProgress);
@@ -341,7 +341,7 @@ export function createPlaceWorkspace({
     }) : api(`/v1/projects/${projectId}/place-groups`, {
       method: "POST", body: JSON.stringify({places: publicPlaces}),
     })).then(result => {
-      report("completed");
+      report("completed",result.skill_progress);
       if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
       for (const record of result.places || []) {
         const place = places[record.index];

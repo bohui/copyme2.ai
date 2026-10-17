@@ -206,7 +206,7 @@
         "cached": "已加载缓存"
       },
       "execution": {"model":"模型处理","embedded":"包含在时间线处理中","deterministic":"地点分组服务","provider":"公开资料查询","cache":"已保存的结果"},
-      "operation": {"extract":"提取带来源的回忆","profile":"检查自动资料目标","summarize":"更新回忆背景","prepare":"准备写作背景","draft":"更新回忆录文字","review":"核对原始记录","index":"更新写作索引","place":"保存带来源的地点","queue":"等待后台处理","historical":"查询公开历史资料","grouping":"整理公开地点","photos":"查询公开照片"},
+      "operation": {"extract":"提取带来源的回忆","profile":"检查自动资料目标","summarize":"更新回忆背景","prepare":"准备写作背景","draft":"更新回忆录文字","review":"核对原始记录","index":"更新写作索引","commit":"保存回忆录文字","checkpoint":"复用已保存的写作进度","place":"保存带来源的地点","queue":"等待后台处理","historical":"查询公开历史资料","grouping":"整理公开地点","photos":"查询公开照片"},
       "title": "思考步骤",
       "selectedQuestion": "已选",
       "placeJourneyRestored": "已恢复保存的地点线索",

@@ -664,6 +664,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   let previewJourney = null;
   const recordProgress = (step) => {
     if (!current() || !step?.id) return;
+    if (step.replaces_id) {
+      const previous=liveTrace.findIndex(item=>item.id===step.replaces_id);
+      if (previous>=0) liveTrace.splice(previous,1);
+    }
     const index = liveTrace.findIndex(item => item.id === step.id);
     if (index < 0) liveTrace.push(step);
     else if (step.status === "completed" || step.status === "failed") {
@@ -1051,8 +1055,23 @@ function recordWorkspaceSkillProgress(step, onProgress = null) {
   else {
     const message = (state.chat || []).findLast(item => item.role === "assistant" &&
       (step.client_turn_id ? item.clientTurnId === step.client_turn_id : item.trace?.some(previous => previous.id === step.id)));
-    if (!message) return;
+    if (!message) {
+      if (step.client_turn_id) return;
+      const owner=state.supabase?.user?.id, project=state.project?.id;
+      if (state.workspaceSkillProgress?.project_id!==project || state.workspaceSkillProgress?.owner_id!==owner)
+        state.workspaceSkillProgress={project_id:project,owner_id:owner,items:[]};
+      const steps=state.workspaceSkillProgress.items.filter(item=>item.id!==step.id && item.id!==step.replaces_id);
+      state.workspaceSkillProgress.items=[...steps,step].slice(-32);
+      if (typeof queueMicrotask==='function') queueMicrotask(()=>{
+        if (state.project?.id===project && state.supabase?.user?.id===owner) render();
+      });
+      return;
+    }
     const trace = message.trace ||= [];
+    if (step.replaces_id) {
+      const previous=trace.findIndex(item=>item.id===step.replaces_id);
+      if (previous>=0) trace.splice(previous,1);
+    }
     const index = trace.findIndex(previous => previous.id === step.id);
     if (index < 0) trace.push(step); else trace[index] = step;
     message.traceMode = "live";
@@ -1069,7 +1088,7 @@ function applyBackgroundSkillProgress(result) {
     message.trace = message.trace.filter(step => step.phase !== "queue" || activeQueues.has(step.id));
   }
   for (const item of result.items || []) {
-    if (!item.client_turn_id) continue; // Unattributed optional requests are not assigned to the newest turn.
+    if (!item.client_turn_id && (result.continuation || !['photos','grouping','historical'].includes(item.phase))) continue;
     recordWorkspaceSkillProgress({...item,kind:"skill",label:item.skill,
       detail:translate(`Memoir.trace.operation.${item.phase}`)});
   }
@@ -1092,12 +1111,13 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
     && entry.photo_search_policy === "place-fallback-gps-time-v9";
   const requestKey = photoRequestKey(entry, projectId);
   const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
+  let progressIdentity = `photos:${requestKey}`;
   const reportProgress = (status, label, failures = []) => {
     const safeFailures = (Array.isArray(failures) ? failures : []).filter(item => item
       && ["flickr", "google", "loc", "commons", "llm"].includes(item.provider)
       && /^(?:robots_denied|verification_required|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
       .map(({provider, reason}) => ({provider, reason}));
-    recordWorkspaceSkillProgress({id: `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
+    recordWorkspaceSkillProgress({id: progressIdentity, replaces_id:progressIdentity===`photos:${requestKey}` ? null : `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
       project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:status === "cached" ? "cache" : "provider", model_invoked:status === "cached" ? false : null,
       label: "place-photo-research", status, place: entry.place, period, failures: safeFailures,
       detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`
@@ -1133,6 +1153,10 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       if (state.project?.id !== projectId) return;
       photoStatus = result.status || "PARTIAL";
       photoCached = Boolean(result.cached);
+      if (result.skill_progress?.id && result.skill_progress.id !== progressIdentity) {
+        progressIdentity=result.skill_progress.id;
+        reportProgress(result.skill_progress.status,result.searching ? "picturesSearching" : photoCached ? "picturesCached" : "pictures",result.failures);
+      }
       if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
         state.photoRequests.set(requestKey, { error: true, failures: result.failures || [] });
         return;
@@ -2237,7 +2261,10 @@ function workspaceDetail() {
   const tabsMarkup = tabs.length
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
-  const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
+  const serviceProgress = state.workspaceSkillProgress?.project_id === state.project?.id
+    && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
+    ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
+  const contentMarkup = (content ? `${tabsMarkup}${content}` : tabsMarkup)+serviceProgress;
   const composing = composingWorkspaceActive();
   const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;

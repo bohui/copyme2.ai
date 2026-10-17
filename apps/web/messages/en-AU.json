@@ -206,7 +206,7 @@
         "cached": "Loaded from cache"
       },
       "execution": {"model":"Model pass","embedded":"Included in timeline pass","deterministic":"Grouping service","provider":"Reference lookup","cache":"Saved result"},
-      "operation": {"extract":"Extracting source-linked memories","profile":"Checking automatic profile targets","summarize":"Updating memory context","prepare":"Preparing writing context","draft":"Updating memoir writing","review":"Checking original evidence","index":"Updating writing index","place":"Saving source-linked places","queue":"Awaiting the background worker","historical":"Checking public historical references","grouping":"Grouping public places","photos":"Looking up public photographs"},
+      "operation": {"extract":"Extracting source-linked memories","profile":"Checking automatic profile targets","summarize":"Updating memory context","prepare":"Preparing writing context","draft":"Updating memoir writing","review":"Checking original evidence","index":"Updating writing index","commit":"Saving memoir writing","checkpoint":"Reusing saved writing progress","place":"Saving source-linked places","queue":"Awaiting the background worker","historical":"Checking public historical references","grouping":"Grouping public places","photos":"Looking up public photographs"},
       "title": "Thinking steps",
       "selectedQuestion": "Selected",
       "placeJourneyRestored": "Restored saved place cues",
