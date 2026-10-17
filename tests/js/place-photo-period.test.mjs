@@ -47,7 +47,7 @@ test('photo research reports real request progress and an unavailable provider f
   const events = [];
   let calls = 0;
   const context = vm.createContext({
-    state: {project: {id: 'project'}}, URLSearchParams, workspaceUpdateQueue: Promise.resolve(),
+    state: {project: {id: 'project'},showThinkingSteps:true}, URLSearchParams, workspaceUpdateQueue: Promise.resolve(),
     document: {querySelector: () => null}, profile: () => ({memory_places: [entry]}),
     api: async () => { calls++; return {items: [], status: 'UNAVAILABLE', failures: [
       {provider:'flickr', reason:'robots_denied', private:'secret'}, {provider:'loc', reason:'http_403'},

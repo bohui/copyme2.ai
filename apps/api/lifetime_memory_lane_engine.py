@@ -639,17 +639,20 @@ def _publisher(bounded, publisher):
 
 class LaneRequestBody:
     """Immutable single-use HTTP body, locked through transport consumption."""
-    def __init__(self, content, *, publisher, fence):
+    def __init__(self, content, *, publisher, fence, after_send=None):
         self._content = bytes(content)
         self._fence_json = serialize_packet(LaneFence.model_validate(fence).model_dump(mode='json'))
         self._publisher = publisher
         self._iterator = None
+        self._after_send = after_send
 
     async def _chunks(self):
         content = self._content
         snapshot = json.loads(self._fence_json)
         async with _admission(self._publisher,snapshot):
             yield content
+        if self._after_send:
+            await self._after_send()
 
     def __aiter__(self):
         if self._iterator is not None:
@@ -677,7 +680,13 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
         'bounded_lane':bounded.model_dump(mode='json')}
     if bounded.phase not in {'extract','summarize','profile'}:
         payload['composer_phase'] = bounded.phase
-    body = LaneRequestBody(serialize_packet(payload).encode('utf-8'),publisher=publisher,fence=bounded.fence)
+    from .background_skills import admit_lane, observe_lane
+    admit_lane(bounded.fence,bounded.phase)
+    invocation_id = uuid4()
+    async def observe(status):
+        await observe_lane(bounded.fence,bounded.phase,status,invocation_id)
+    body = LaneRequestBody(serialize_packet(payload).encode('utf-8'),publisher=publisher,fence=bounded.fence,
+        after_send=lambda: observe('running'))
     options = {'timeout':timeout or 300}
     if worker_transport is not None:
         options['transport'] = worker_transport
@@ -698,7 +707,11 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
             result = response.json()
             if not isinstance(result,dict) or not isinstance(result.get('reply'),str):
                 raise RuntimeError('Invalid bounded lane worker response')
+            await observe('completed')
             return result
+    except BaseException:
+        await observe('failed')
+        raise
     finally:
         await body.aclose()
 

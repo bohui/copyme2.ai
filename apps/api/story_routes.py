@@ -56,6 +56,11 @@ class StoryEventCorrection(BaseModel):
     statement: str = Field(min_length=1, max_length=2000)
 
 
+class StoryGameAction(BaseModel):
+    model_config = {'extra':'forbid'}
+    project_id: str = Field(min_length=1,max_length=128,pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
+
+
 class PrivateDraftDecision(BaseModel):
     project_id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
     snapshot_id: UUID
@@ -338,6 +343,10 @@ def build_router(
                 result=storage.lifetime_rpc('read_lifetime_stage_readiness',p_project_id=project_id)
                 from .two_lane_memory import two_lanes_enabled
                 if two_lanes_enabled():
+                    from .background_skills import execution_map
+                    from .interview_strategy import strategy_enabled
+                    result['skill_execution_map'] = execution_map()
+                    result['current_mode'] = storage.lifetime_rpc('read_lifetime_current_mode',p_project_id=project_id) if strategy_enabled() else None
                     places=storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=project_id)
                     result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
                         'source_revision':fence.source_revision,'places':places,'authoritative':True}
@@ -346,10 +355,41 @@ def build_router(
                     result['profile'] = {key: profile[key] for key in PROFILE_FIELDS if key in profile}
                     result['profile']['profile_automation'] = automation
                     result['pending'] = bool(result.get('pending') or automation.get('progress', {}).get('status') == 'pending')
+                    from .turn_progress import thinking_steps_enabled
+                    if thinking_steps_enabled():
+                        result['skill_progress'] = storage.lifetime_rpc('read_lifetime_skill_progress',p_project_id=project_id)
+                        result['pending'] = bool(result.get('pending') or result['skill_progress'].get('pending') or any(item['status'] in {'queued','running','completed'}
+                            for item in result['skill_progress']['items']))
                 return result
             return await asyncio.to_thread(read_mapped, storage, project_id, canonical, legacy)
         finally:
             await asyncio.to_thread(_close, storage)
+
+    @router.get('/skill-progress')
+    async def skill_progress(project_id: str, cursor: str | None = Query(default=None,max_length=2048),
+                             authorization: str | None = Header(default=None)):
+        from .turn_progress import thinking_steps_enabled
+        if not thinking_steps_enabled():raise HTTPException(404,'Not found')
+        storage=await asyncio.to_thread(storage_for,authorization)
+        try:
+            return await asyncio.to_thread(read_mapped,storage,project_id,
+                lambda fence:storage.lifetime_rpc('read_lifetime_skill_progress',p_project_id=project_id,p_cursor=cursor),canonical_only)
+        finally:
+            await asyncio.to_thread(_close,storage)
+
+    @router.post('/game')
+    async def story_game_action(payload: StoryGameAction, authorization: str | None = Header(default=None)):
+        from .memoir_story_game import story_game_admission
+        from .interview_strategy import strategy_enabled
+        storage=await asyncio.to_thread(storage_for,authorization)
+        try:
+            def action(fence):
+                mode=storage.lifetime_rpc('read_lifetime_current_mode',p_project_id=payload.project_id) if strategy_enabled() else None
+                authority=storage.request('POST','/rest/v1/rpc/read_story_game_eligibility',json={'p_project_id':payload.project_id}).json()
+                return {**story_game_admission(current_mode=mode,button_action=True),'reasons':authority['reasons']}
+            return await asyncio.to_thread(read_mapped,storage,payload.project_id,action,canonical_only)
+        finally:
+            await asyncio.to_thread(_close,storage)
 
     @router.post('/memory/retry')
     async def retry_memory_work(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):

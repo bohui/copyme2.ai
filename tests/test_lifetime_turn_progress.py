@@ -123,7 +123,7 @@ def test_model_tool_activity_and_question_pool_share_the_same_turn_trace(tmp_pat
     assert [step['id'] for step in result['trace']] == ['memory-context', 'collector-call', 'tool-1', 'save', 'question-pool']
     assert all(step['status'] == 'completed' for step in result['trace'])
     pool = next(step for step in result['trace'] if step['id'] == 'question-pool')
-    assert pool['question_pool']['chosen_id'] == 'q1'
+    assert 'question_pool' not in pool
     if streaming:
         saved = next(event['data'] for event in events if event['type'] == 'conversation_saved')
         assert activity in saved['trace'] and pool in saved['trace']

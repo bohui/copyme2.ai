@@ -45,6 +45,10 @@ def draft_head(storage, project_id, *, language=None):
             headers={'X-Error-Code': 'LIFETIME_EDITION_UNAVAILABLE'})
     if head.get('error') == 'LIFETIME_LEGACY_MANUSCRIPT_MIGRATION_REQUIRED':
         return storage.lifetime_rpc('read_lifetime_legacy_draft_head', **parameters)
+    from .two_lane_memory import two_lanes_enabled
+    from .turn_progress import thinking_steps_enabled
+    if two_lanes_enabled():
+        head={**head,'skill_progress':storage.lifetime_rpc('read_lifetime_skill_progress',p_project_id=project_id) if thinking_steps_enabled() else None}
     return head
 
 
