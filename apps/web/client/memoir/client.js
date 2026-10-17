@@ -676,7 +676,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     streamedMessage.traceMode = "live";
     updateStreamingAssistantMessage(streamedMessage);
   };
-  if (state.supabase.google_maps_browser_api_key) void loadCesium().catch(() => {});
+  if (state.supabase.google_maps_browser_api_key || state.supabase.geoapify_browser_api_key) void loadCesium().catch(() => {});
   try {
     const applyWorkspace = async (update) => {
       if (!current()) return;

@@ -359,7 +359,8 @@ class OwnedFiftyBrowserAPI:
 
             def configuration():
                 return {'enabled': False, 'auth_mode': 'test', 'supabase_url': None,
-                    'supabase_publishable_key': None, 'google_maps_browser_api_key': None,
+                    'supabase_publishable_key': None, 'geo_provider': 'google',
+                    'google_maps_browser_api_key': None, 'geoapify_browser_api_key': None,
                     'show_thinking_steps': False, 'free_recall_rounds': free_recall_rounds(),
                     'private_draft_cadence': private_draft_cadence(),
                     'evaluation_fixture': 'owned_fifty_armed_api' if self._turns_enabled else 'owned_fifty_readback_only'}

@@ -85,7 +85,8 @@ def test_canonical_case_identifier_cannot_escape_its_run_directory(tmp_path):
 
 
 @pytest.mark.parametrize('mode', ['fixture', 'pilot'])
-def test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credentials(tmp_path, mode):
+@pytest.mark.parametrize('provider', ['google', 'geoapify'])
+def test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credentials(tmp_path, mode, provider):
     contacts = []
     class GeocodingSpy(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -110,11 +111,14 @@ def test_resumed_fixture_places_cannot_contact_geocoding_with_configured_credent
             {'place': 'Perth', 'hierarchy': ['Earth', 'Australia', 'Western Australia', 'Perth'],
              'granularity': 'city'}]}))
         synthetic_env = tmp_path / 'synthetic.env'
-        synthetic_env.write_text('GOOGLE_MAPS_GEOCODING_API_KEY=synthetic-only\n'
-            f'GOOGLE_MAPS_GEOCODING_URL=http://127.0.0.1:{server.server_port}/geocode\n')
+        provider_env = {
+            'MEMOIR_GEO_PROVIDER': provider,
+            'GEOAPIFY_API_KEY': 'synthetic-only', 'GOOGLE_MAPS_GEOCODING_API_KEY': 'synthetic-only',
+            'GEOAPIFY_GEOCODING_URL': f'http://127.0.0.1:{server.server_port}/geocode',
+            'GOOGLE_MAPS_GEOCODING_URL': f'http://127.0.0.1:{server.server_port}/geocode'}
+        synthetic_env.write_text(''.join(f'{key}={value}\n' for key, value in provider_env.items()))
         process_env = offline_environment(ROOT)
-        process_env.update(GOOGLE_MAPS_GEOCODING_API_KEY='synthetic-only',
-            GOOGLE_MAPS_GEOCODING_URL=f'http://127.0.0.1:{server.server_port}/geocode')
+        process_env.update(provider_env)
         result = subprocess.run([sys.executable, 'scripts/run_memoir_five_case_evaluation.py',
             '--mode', mode, '--resume', '--skip-preflight', '--env-file', str(synthetic_env),
             '--run-id', run_id, '--output-root', str(tmp_path), '--cases', case_id,

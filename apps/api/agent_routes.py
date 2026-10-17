@@ -19,6 +19,7 @@ from .conversation_recovery import PROJECT_ID_PATTERN, TurnReceipt, turn_receipt
 from .family_context import family_features_enabled, valid_family_project_id
 from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_person_photo, with_photo_urls
 from .place_journey import normalize_persisted_place_journey
+from .place_geocoding import geo_provider
 from .workspace_memory_actions import WorkspaceMemoryFocus
 from .formal_memoir_routes import router as formal_memoir_router
 from .prompt_artifact import load_prompt_artifact
@@ -242,14 +243,16 @@ def config():
     from .turn_progress import thinking_steps_enabled
     configured = bool(os.getenv('SUPABASE_URL') and os.getenv('SUPABASE_PUBLISHABLE_KEY'))
     show_thinking_steps = thinking_steps_enabled()
+    provider = geo_provider()
     return {
         'enabled': configured,
         'auth_mode': 'supabase' if configured else ('test' if os.getenv('MEMORY_SPARK_TEST_MODE') == '1' else 'disabled'),
         'supabase_url': os.getenv('SUPABASE_URL'),
         'supabase_publishable_key': os.getenv('SUPABASE_PUBLISHABLE_KEY'),
-        # This is a browser-restricted key for Cesium's Google 2D Tiles only.
-        # The server-side geocoding key is intentionally never returned here.
-        'google_maps_browser_api_key': os.getenv('GOOGLE_MAPS_BROWSER_API_KEY'),
+        'geo_provider': provider,
+        # Only the selected provider's browser key is public; geocoding keys stay server-side.
+        'google_maps_browser_api_key': os.getenv('GOOGLE_MAPS_BROWSER_API_KEY') if provider == 'google' else None,
+        'geoapify_browser_api_key': os.getenv('GEOAPIFY_BROWSER_API_KEY') if provider == 'geoapify' else None,
         'show_thinking_steps': show_thinking_steps,
         'show_draft_updates': draft_updates_enabled(),
         'free_recall_rounds':free_recall_rounds(),
