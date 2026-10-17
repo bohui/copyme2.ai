@@ -70,7 +70,15 @@ export const GreetingInputSchema = z.object({
   first_reply_localization: z.boolean().optional(),
 });
 export type GreetingInput = z.infer<typeof GreetingInputSchema>;
-export const ProfileSettingsInputSchema = z.object({
+export const ProfileFieldSchema = z.enum([
+  "name",
+  "birth_year",
+  "birth_date_expression",
+  "birth_place",
+  "childhood_place",
+  "avatar_style",
+]);
+const ProfileSettingsValuesSchema = z.object({
   preferred_language: LocaleSchema.nullish(),
   name: z.string().max(120).nullish(),
   birth_year: z
@@ -82,13 +90,73 @@ export const ProfileSettingsInputSchema = z.object({
       "Birth year cannot be in the future",
     )
     .nullish(),
+  birth_date_expression: z.string().max(120).nullish(),
   birth_place: z.string().max(160).nullish(),
   childhood_place: z.string().max(160).nullish(),
+  avatar_style: z.enum(["male", "female"]).nullish(),
 });
+export const ProfileSettingsInputSchema = ProfileSettingsValuesSchema.extend({
+  profile_confirm_all: z.boolean().optional(),
+  profile_auto_enabled: z.boolean().optional(),
+  profile_release_fields: z.array(ProfileFieldSchema).max(6).optional(),
+})
+  .strict()
+  .superRefine((value, context) => {
+    const releases = value.profile_release_fields ?? [];
+    if (new Set(releases).size !== releases.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Duplicate profile field release",
+      });
+    }
+    if (releases.some((field) => Object.hasOwn(value, field))) {
+      context.addIssue({
+        code: "custom",
+        message: "Cannot set and release the same profile field",
+      });
+    }
+    if (
+      value.profile_confirm_all &&
+      (releases.length || value.profile_auto_enabled === true)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Cannot confirm the whole profile and enable automatic updates together",
+      });
+    }
+  });
 export type ProfileSettingsInput = z.infer<typeof ProfileSettingsInputSchema>;
-export const ProfileSettingsSchema = ProfileSettingsInputSchema.extend({
+export const ProfileAutomationSchema = z.object({
+  schema_version: z.literal(1),
+  revision: SafeIntegerSchema,
+  auto_enabled: z.boolean(),
+  stopped: z.boolean(),
+  manual_complete: z.boolean(),
+  field_locks: z.partialRecord(
+    ProfileFieldSchema,
+    z.enum(["manual", "preserved"]),
+  ),
+  progress: z
+    .object({
+      requested_round: SafeIntegerSchema,
+      requested_frontier: SafeIntegerSchema,
+      active_round: SafeIntegerSchema,
+      source_frontier: SafeIntegerSchema,
+      covered_round: SafeIntegerSchema,
+      covered_frontier: SafeIntegerSchema,
+      skipped_round: SafeIntegerSchema,
+      status: z
+        .enum(["idle", "pending", "covered", "skipped", "awaiting_checkpoint"])
+        .nullish(),
+      pending_source_changes: z.boolean().optional(),
+    })
+    .nullish(),
+});
+export const ProfileSettingsSchema = ProfileSettingsValuesSchema.extend({
   preferred_language: z.string().nullish(),
   conversation_language: z.union([z.string(), RecordSchema]).nullish(),
+  profile_automation: ProfileAutomationSchema.nullish(),
 }).passthrough();
 export const RecallStatusSchema = z
   .object({
@@ -207,7 +275,8 @@ export const KnownTurnEventSchema = z.discriminatedUnion("type", [
 ]);
 export type KnownTurnEvent = z.infer<typeof KnownTurnEventSchema>;
 export type TurnEvent =
-  KnownTurnEvent | { type: "unknown"; event_type: string };
+  | KnownTurnEvent
+  | { type: "unknown"; event_type: string };
 const knownTypes = new Set([
   "started",
   "heartbeat",

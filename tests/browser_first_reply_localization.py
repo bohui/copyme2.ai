@@ -64,8 +64,8 @@ def main() -> None:
 
         expect(fixed_page.locator("html")).to_have_attribute("lang", "en-AU", timeout=15000)
         expect(fixed_page.get_by_text("I will stay with you as you remember.")).to_be_visible(timeout=15000)
-        assert fixed_requests[-1].get("language") == "zh-CN"
-        assert fixed_requests[-1].get("first_reply_localization") is True
+        assert fixed_requests[-1].get("language") == "en-AU"
+        assert fixed_requests[-1].get("first_reply_localization") is False
         fixed.close()
         browser.close()
         print("First-reply localization switched the automatic UI session and preserved fixed UI choices.")

@@ -155,7 +155,7 @@ def test_saved_private_checkpoint_never_proves_formal_composition():
     assert coverage.round_skill_coverage(**data)['skills']['memoir-composer']['status'] == 'unavailable'
 
 
-def test_life_stage_coverage_is_observed_and_not_inferred_from_expected_bands():
+def test_profile_stage_labels_cannot_certify_timeline_or_profile_checkpoint_coverage():
     rounds = []
     for ordinal, stage in enumerate(coverage.LIFE_STAGES, 1):
         data = observed(ordinal)
@@ -163,8 +163,11 @@ def test_life_stage_coverage_is_observed_and_not_inferred_from_expected_bands():
         data['canonical_state']['events'] = []
         rounds.append({'round': ordinal, 'skill_coverage': coverage.round_skill_coverage(**data)})
     case = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=rounds)
-    assert case['all_life_stages_observed'] is True
-    assert case['life_stages_observed'] == list(coverage.LIFE_STAGES)
+    assert case['all_life_stages_observed'] is False
+    assert case['life_stages_observed'] == []
+    assert case['skills']['memoir-memory-context']['required_rounds'] == [1, 5, 10, 20, 30, 40, 50]
+    assert case['skills']['memoir-memory-context']['pass_rounds'] == []
+    assert 'scheduled_profile_checkpoint_evidence_not_collected' in case['coverage_gaps']
     assert case['exact_50_rounds'] is False
     empty = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[])
     assert empty['life_stages_observed'] == [] and empty['all_life_stages_observed'] is False

@@ -72,13 +72,21 @@ only dataset-declared positive and negative scenarios contribute to rates.
 
 | Skill | Required checks | Negative/unnecessary checks |
 | --- | --- | --- |
-| `memoir-memory-context` | first-reply locale decision; repeated stage tags; place/stage separation; no gender inference | generic place, quoted text, or ambiguous time does not create a stage/avatar |
+| `memoir-memory-context` | scheduled Lane B narrator-profile patches at rounds 1, 5, 10, 20, 30 and onward; exact original evidence, authorized targets and saved reference | protected fields and manual completion skip before loading; uncertain, quoted or relative evidence leaves fields unchanged |
 | `memoir-place-journey` | every explicit coarse place; multiple places in order; grounded correction; approximate hierarchy only | no marker for implied/ambiguous place, hospital/street/building, or public-history-only place |
 | `memoir-place-groups` | background grouping for each accepted preview/update/restored history; separate city group and child pins | no model-call substitute; no parent coordinates copied to unresolved child; stale/other-project result rejected |
 | `memoir-family-tree` | paid Family-only explicit people/relationships; canonical IDs on later updates; uncertainty/visibility | unpaid/pending/revoked entitlement never exposes or persists Family data |
 | `memoir-author-timeline` | explicit events/periods; approximate/range/unknown precision; correction via `existing_id` | no invented dates, exact addresses, people IDs, or entries from assistant/public history |
 | `place-photo-research` | current-day default; explicit historical window; source/rights/date labels; bounded search trace | no historical inference from life stage/previous context; no search for ambiguous/unrelated request; no fabricated source/photo/rights |
 | `memoir-composer` | private checkpoint gate; 20-round preview gate; progressive update; final consented review-only composition | no full composition from readiness suggestion, payment exhaustion, or unconfirmed silence; no publish/charge |
+
+The profile row applies the current checkpoint contract without rewriting the
+immutable five-case inputs, expectations, or recorded receipts. Legacy foreground
+traces and language/life-stage profile markers do not establish profile extraction
+or successful interval coverage. Existing report collectors lack that checkpoint
+readback and report profile acceptance as `unavailable`. Use the focused admitted
+page probes for proposal validation and the native authenticated conversation →
+Lane B → saved profile workflow tests for dispatch and persistence acceptance.
 
 `memoir-place-groups` is an application background service, not a model marker.
 The trace must therefore show the accepted source place, project identity,

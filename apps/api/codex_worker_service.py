@@ -127,7 +127,8 @@ class WorkerTurnInput(BaseModel):
                     or self.preparation_id is not None):
                 raise ValueError('Bounded lanes cannot mix legacy execution context')
             lane = self.bounded_lane
-            role = 'author_timeline' if lane.phase in {'extract','summarize'} else 'composer'
+            role = ('memory_context' if lane.phase == 'profile' else
+                'author_timeline' if lane.phase in {'extract','summarize'} else 'composer')
             if (self.agent_role != role or self.user_id != lane.fence.user_id
                     or self.project_id != lane.fence.project_id
                     or (self.model is not None and self.model != lane.budget.model)

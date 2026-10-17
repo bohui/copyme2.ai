@@ -51,7 +51,8 @@ def main():
         expect(dialog).to_have_count(0)
         assert writes[-1]['preferred_language'] == 'en-AU'
         assert writes[-1]['childhood_place'] == '悉尼'
-        assert writes[-1]['name'] == '慧博'
+        assert 'name' not in writes[-1]
+        assert saved['name'] == '慧博'
         expect(page.locator('html')).to_have_attribute('lang', 'en-AU')
         page.reload(wait_until='networkidle')
         expect(page.locator('html')).to_have_attribute('lang', 'en-AU')

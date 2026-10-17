@@ -87,7 +87,7 @@ test('photo batches persist after being painted optimistically', async () => {
     },
   });
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'recordWorkspaceSkillProgress', 'photoSearchPeriod', 'placePhotoCenter', 'photoRequestKey', 'photoMatchesScope',
-    'mergePlacePictures', 'loadPlacePictures', 'mergeProfileUpdates', 'saveProfileUpdates']) {
+    'mergePlacePictures', 'loadPlacePictures', 'preserveConversationLocale', 'mergeProfileUpdates', 'saveProfileUpdates']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   await context.loadPlacePictures(entry, 'project');

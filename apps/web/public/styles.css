@@ -1105,6 +1105,12 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .profile-settings small { font-size: 12px; font-weight: 400; }
 .profile-settings input, .profile-settings select { width: 100%; min-width: 0; box-sizing: border-box; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); color: var(--ink); font: inherit; font-size: 16px; }
 .profile-settings-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 24px; }
+.profile-settings-field { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.profile-settings .profile-settings-confirm { display: flex; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.profile-settings-confirm input { width: 16px; min-height: 16px; height: 16px; margin: 1px 0 0; flex-shrink: 0; }
+.profile-settings-field .text-button { justify-self: start; text-align: start; font-size: 12px; }
+.profile-settings [data-automation]:not([hidden]) { display: grid; gap: 12px; margin-top: 24px; }
+.profile-settings [data-automation] p { margin: 0; }
 .profile-settings-note { margin: 24px 0 0; font-size: 13px; }
 .profile-settings [data-status] { font-size: 13px; line-height: 1.5; }
 .profile-settings footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }

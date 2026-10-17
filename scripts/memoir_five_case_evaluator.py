@@ -135,6 +135,11 @@ def family_enabled_for_round(case_expected: Mapping[str, Any], round_number: int
     return bool(rule.get("default", False))
 
 
+def profile_checkpoint_round(round_number: int) -> bool:
+    """Default evaluation expectation; the host schedules actual work."""
+    return round_number in {1, 5} or (round_number >= 10 and round_number % 10 == 0)
+
+
 def expected_round(expected_payload: Mapping[str, Any], case_expected: Mapping[str, Any], round_number: int) -> dict[str, Any]:
     places = (case_expected.get("place_rounds") or {}).get(str(round_number), [])
     places = [str(place) for place in places] if isinstance(places, list) else []
@@ -144,8 +149,9 @@ def expected_round(expected_payload: Mapping[str, Any], case_expected: Mapping[s
     composer_action = (case_expected.get("composer_rounds") or {}).get(str(round_number))
     photo_action = (case_expected.get("photo_rounds") or {}).get(str(round_number))
     negative = round_number in set(case_expected.get("negative_rounds") or [])
+    profile_due = profile_checkpoint_round(round_number) and not case_expected.get("profile_auto_stopped", False)
     status: dict[str, str] = {
-        "memoir-memory-context": "required",
+        "memoir-memory-context": "required" if profile_due else "must_not_call",
         # Only explicit positive/negative scenarios are asserted. All other
         # skill behavior remains available to the production orchestrator but
         # is not used to manufacture a failure from an optional call.
@@ -161,6 +167,7 @@ def expected_round(expected_payload: Mapping[str, Any], case_expected: Mapping[s
         status["memoir-author-timeline"] = "must_not_call" if negative else "not_applicable"
     return {
         "round": round_number,
+        "profile_checkpoint": round_number if profile_due else None,
         # Case-specific anchors are sparse by design. An unlisted round does
         # not require a fresh stage tag; falling back to the global bands
         # over-asserted optional rounds and turned valid persisted context
@@ -310,13 +317,15 @@ def _skill_grade(
             return receipt_grade
         observed_call = bool(composer_observation.get("invoked"))
         observed_output = bool(composer_observation.get("output_ok"))
+    elif skill == "memoir-memory-context" and (expected_status == "required" or skill in observed):
+        # A foreground label cannot prove a B call or distinguish delayed
+        # checkpoint catch-up from an unnecessary new invocation.
+        return {"status": "unavailable", "invocation": "unavailable", "output": "unavailable",
+                "comment": "Scheduled profile acceptance needs canonical checkpoint coverage, exact original evidence, and persisted profile readback; this legacy round observation does not provide them."}
     else:
         observed_call = skill in observed
         observed_output = observed_call
-        if skill == "memoir-memory-context":
-            actual_stage = _profile_stage(result, result.get("state"))
-            observed_output = observed_call and (expected.get("life_stage") is None or actual_stage == expected.get("life_stage"))
-        elif skill == "memoir-place-journey":
+        if skill == "memoir-place-journey":
             actual_places = _places_from_result(result)
             observed_output = observed_call and (not expected.get("places") or set(expected["places"]).issubset(actual_places))
         elif skill == "memoir-family-tree":

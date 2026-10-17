@@ -91,7 +91,9 @@ def test_unrelated_settings_patch_preserves_provenance_until_source_withdrawal(s
     saved = rpc(sql, 'set_lifetime_profile_settings', f"'{{\"birth_place\":\"Anshan\"}}','{OLD}'")
     assert saved['name'] == 'Joan' and saved['birth_place'] == 'Anshan'
     change(sql, identity, accepted, 'withdraw')
-    assert profile(sql) == {'birth_place': 'Anshan'}
+    current = profile(sql)
+    assert current.pop('profile_automation')['field_locks'] == {'birth_place': 'manual'}
+    assert current == {'birth_place': 'Anshan'}
 
 
 @pytest.mark.parametrize('locale', ['zh-CN', None])
@@ -101,6 +103,7 @@ def test_atomic_settings_locale_matches_existing_explicit_preference_semantics(s
     initial = {'name': 'Joan', 'preferred_language': 'en-AU', 'conversation_language': record('en-AU', source='first_reply', detected='en-AU', first_reply_id='first')}
     sql(as_user(f"update public.user_profile set profile={literal(initial)}::jsonb;"))
     saved = rpc(sql, 'set_lifetime_profile_settings', f"{literal({'preferred_language': locale})}::jsonb,'{OLD}'")
+    assert saved.pop('profile_automation')['field_locks'] == {}
     assert saved == explicit_profile(initial, locale)
     for patch in ({'_provenance': {}}, {'name': 'x' * 121}, {'birth_year': '1950'}, {'preferred_language': 'fr'}):
         assert rpc(sql, 'set_lifetime_profile_settings', f"{literal(patch)}::jsonb,'{OLD}'", check=False).returncode != 0

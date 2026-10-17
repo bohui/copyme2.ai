@@ -39,7 +39,7 @@ def normalise_case(case: Mapping[str, Any]) -> dict[str, Any]:
     normalized.setdefault("profile", {})
     normalized.setdefault("memories", [])
     normalized.setdefault("entitlement", None)
-    normalized.setdefault("enabled_skills", ["memoir-memory-context"])
+    normalized.setdefault("enabled_skills", [])
     expected = normalized.get("expected") if isinstance(normalized.get("expected"), Mapping) else {}
     normalized.setdefault(
         "available_tools",

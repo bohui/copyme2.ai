@@ -222,6 +222,31 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
         if page['preferences'].get('privacy_complete') is not True:
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason='LIFETIME_PRIVACY_MAINTENANCE_REQUIRED')
+        if page['skill'] == 'timeline' and (page.get('two_lane') or page.get('two_lane_maintenance_required')):
+            profile_page = await worker.broker.rpc('read_lifetime_profile_page',
+                p_lane_id=job['lane_id'], p_token=job['token'])
+            if profile_page is not None:
+                from .background_profile import extract_profile
+                try:
+                    profile_result = await extract_profile(profile_page, worker)
+                except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
+                    return await worker.broker.rpc('defer_lifetime_memoir_lane',
+                        p_lane_id=job['lane_id'], p_token=job['token'], p_reason=deferred.code)
+                except ValueError as error:
+                    if 'budget' not in str(error).lower():
+                        raise
+                    return await worker.broker.rpc('defer_lifetime_memoir_lane',
+                        p_lane_id=job['lane_id'], p_token=job['token'], p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
+                saved = await worker.broker.rpc('commit_lifetime_profile_page',
+                    p_lane_id=job['lane_id'], p_token=job['token'],
+                    p_page_digest=profile_page['page_digest'], p_result=profile_result)
+                if saved.get('status') != 'page_saved':
+                    return saved
+                page = await worker.broker.rpc('read_lifetime_memoir_lane_page',
+                    p_lane_id=job['lane_id'], p_token=job['token'])
+                if not page:
+                    return {'status': 'stale'}
+                continue
         if page['complete']:
             if page['skill']=='timeline' and page.get('two_lane_maintenance_required') is True:
                 from .collector_configuration import collector_configuration
