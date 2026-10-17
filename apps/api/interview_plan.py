@@ -12,7 +12,7 @@ import json
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .memory_events import EvidenceRef
 from .stage_readiness import LIFE_STAGES
@@ -62,11 +62,16 @@ class TurnWorkPlan(StrictModel):
 
 
 class InterviewPlan(StrictModel):
+    @model_validator(mode='before')
+    @classmethod
+    def discard_retired_phase(cls, value):
+        # Accept an older worker response without reviving its mode control.
+        return {k:v for k,v in value.items() if k!='conversation_phase'} if isinstance(value,dict) else value
+
     candidates: list[QuestionCandidate] = Field(max_length=5)
     chosen_id: str | None
     active_event_id: str | None
     work: TurnWorkPlan | None = None
-    conversation_phase: Literal['comfort', 'explore'] | None = None
 
 
 class PhotoAssociation(StrictModel):
@@ -95,7 +100,6 @@ def collector_schema(context=None):
     plan = schema['$defs']['InterviewPlan']
     plan['required'] = list(plan['properties'])
     plan['properties']['work'].pop('default', None)
-    plan['properties']['conversation_phase'].pop('default', None)
     question_context = schema['$defs']['QuestionContext']
     question_context['required'] = list(question_context['properties'])
     question_context['properties']['historical_clue_id'].pop('default', None)
@@ -195,24 +199,15 @@ def collector_instructions(context):
         '"这条公开历史线索会让您想起当时的什么吗？" with bridge "这是一条可选的公开历史线索，不记得也没关系。". '
         'Birthplace relevance is tentative. Public source titles and proper names remain original. '
         'Never select excluded, rejected, sensitive, stale or uninspected news.\n'
-        'Conversation phase: comfort, explore and shape are soft reversible modes, independent from '
-        'life stage, extraction work, language, usage and draft access. Three gentle opening exchanges '
-        'and the first-five low-pressure guidance are optional pacing, never gates. Follow a rich first '
-        'story immediately. Short answers and silence do not imply reluctance or readiness. '
-        'Automatic guidance can move from comfort to explore as narration develops; returning '
-        'to comfort requires the storyteller to choose it. Set plan.conversation_phase to explore '
-        'only for that forward transition, otherwise null, including during corrections. '
-        'Explicit selection in conversation_phase sets the preferred pace; honour it while following the narrator’s current topic or workspace task. '
-        'Warmth and depth still adapt to the latest message in every mode; a saved explore mode '
-        'never requires probing when the narrator wants something lighter. '
+        'Comfort, explore and shape are automatic internal interview strategies, independent from '
+        'life stage, extraction work, language, usage and draft access. Follow a rich first story '
+        'immediately. Short answers and silence do not imply reluctance or readiness. '
+        'Adapt to the latest topic, correction and pacing request; no user mode selection is required. '
         'workspace_focus is an optional task selected in the workspace, not a mode preference or testimony. '
         'For add_memory invite a new memory around the chosen life stage without assuming it belongs there. '
         'For explore_memory follow the selected event, use already recorded details, and ask only for '
         'useful missing context. Honour a new topic or a wish to finish; never force the selection. '
-        'A workspace task does not change conversation_phase, grant composition access, or establish facts. '
-        'The current narrator may choose comfort/explore/shape/automatic or skip. '
-        'If phase_control_current=false, a newer accepted choice supersedes control words in this '
-        'older source; respect effective_conversation_phase rather than replaying the old request. '
+        'A workspace task does not grant composition access or establish facts. '
         'Conversation continues naturally across visits without a pause/resume state. '
         'A later correction updates only the affected year/event; it does not reset the mode or journey. '
         'Skip and redirect leave the old question behind. Distress offers skip/continue without '
@@ -251,8 +246,6 @@ def validate_collector_result(value, context):
     if _questions(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
-    from .conversation_phase import PhaseState, resolve_phase
-    phase = PhaseState.model_validate(context['conversation_phase']) if 'conversation_phase' in context else None
     ids = [item.id for item in plan.candidates]
     questions = [item.question.strip().casefold() for item in plan.candidates]
     if len(ids) != len(set(ids)) or len(questions) != len(set(questions)):
@@ -355,11 +348,6 @@ def validate_collector_result(value, context):
     # Always present an accepted cue, even when its topic is deferred.
     display = list(dict.fromkeys(result.response_photo_ids + [p['photo_id'] for p in context.get('photo_context', [])]))[:5]
     saved_plan = plan.model_dump()
-    saved_plan.pop('conversation_phase')
-    if phase is not None:
-        proposed = resolve_phase(phase, {'phase': plan.conversation_phase})
-        saved_plan['phase_update'] = {'expected_revision': phase.revision,
-            'phase': proposed.phase if proposed.phase != phase.phase else None}
 
     for candidate in saved_plan['candidates']:
         if candidate['context']['historical_clue_id'] is None:
@@ -481,10 +469,6 @@ def public_interview_fields(turn):
     from .historical_news import public_clue
     key = turn.get('consumed_photo_key')
     revision = turn.get('consumed_photo_revision')
-    phase_fields = {}
-    if isinstance(turn.get('conversation_phase'), dict):
-        from .conversation_phase import PhaseState
-        phase_fields['conversation_phase'] = PhaseState.model_validate(turn['conversation_phase']).model_dump(mode='json')
-    return {**phase_fields, **({'recordings':turn['recordings']} if 'recordings' in turn else {}), 'photo_cue': {'consumed': bool(key or turn.get('photo_context')), 'key': key, 'revision': revision}, 'response_photos': safe,
+    return {**({'recordings':turn['recordings']} if 'recordings' in turn else {}), 'photo_cue': {'consumed': bool(key or turn.get('photo_context')), 'key': key, 'revision': revision}, 'response_photos': safe,
         **({'historical_context': public_clue(turn['historical_context'])}
            if isinstance(turn.get('historical_context'), dict) else {})}

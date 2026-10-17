@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 
 from apps.api.codex_runtime import CodexRuntime
-from apps.api.conversation_phase import PhaseState
 from apps.api.lifetime_memory_runtime import LifetimePublicationContext
 from test_lifetime_memory_engine import FENCE, IDENTITY, TEXT, fixture, valid_reply
 
@@ -41,7 +40,7 @@ class Storage:
         if name == 'read_lifetime_policy_status':
             return {'pending': False}
         if name == 'read_lifetime_interview_context':
-            return {'historical_news': {}, 'conversation_phase': PhaseState().model_dump(mode='json'),
+            return {'historical_news': {},
                     'has_accepted_narration': False, 'events': [], 'photo_context': []}
         if name == 'read_lifetime_tail':
             return {'records': [], 'tombstones': [], 'complete': True}

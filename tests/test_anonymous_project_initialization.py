@@ -1,4 +1,4 @@
-"""Anonymous project creation must precede the first phase read and narration."""
+"""Anonymous project creation owns identity without initializing a mode preference."""
 import json
 
 import httpx
@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from apps.api import agent_routes, main
 from apps.api.agent_storage import UserStorage
-from apps.api.conversation_phase import PhaseState
 from apps.api.store import MemoryStore
 
 
@@ -29,17 +28,16 @@ def anonymous_project(monkeypatch):
             return httpx.Response(200, json={'id': owner, 'is_anonymous': True})
         if path == '/rest/v1/user_profile' and request.method == 'GET':
             return httpx.Response(200, json=[])
+        if path == '/rest/v1/rpc/read_lifetime_project_identity':
+            return httpx.Response(200, content='null', headers={'Content-Type':'application/json'})
         payload = json.loads(request.content)
-        key = owner, payload['p_project_id']
-        if path == '/rest/v1/rpc/ensure_user_memoir_project':
+        if path == '/rest/v1/rpc/resolve_lifetime_conversation':
             if unavailable:
                 return httpx.Response(503, json={'message': 'Synthetic outage'})
-            projects.add(key)
-            return httpx.Response(200, json=None)
-        if path == '/rest/v1/rpc/read_user_conversation_phase':
-            if key not in projects:
-                return httpx.Response(403, json={'code': '42501', 'message': 'project unavailable'})
-            return httpx.Response(200, json=PhaseState().model_dump(mode='json'))
+            project_id='memoir-'+owner[:8]
+            projects.add((owner,project_id))
+            return httpx.Response(200, json={'outcome':'resolved','schema_version':1,'owner_id':owner,
+                'conversation_id':'33333333-3333-4333-8333-333333333333','product':'memoir','project_id':project_id})
         pytest.fail(f'Unexpected persistence operation: {path}')
 
     def storage(authorization):
@@ -54,20 +52,19 @@ def anonymous_project(monkeypatch):
         yield client, store, projects, calls, unavailable
 
 
-def test_anonymous_project_has_owned_phase_before_first_answer(anonymous_project):
+def test_anonymous_project_needs_no_phase_before_first_answer(anonymous_project):
     client, _, projects, calls, _ = anonymous_project
     headers = {'Authorization': 'Bearer guest', 'Idempotency-Key': 'start'}
     created = client.post('/v1/projects', headers=headers, json={})
     assert created.status_code == 201, created.text
     project_id = created.json()['id']
     phase = client.get(f'/v1/agent/projects/{project_id}/conversation-phase', headers=headers)
-    assert phase.status_code == 200, phase.text
-    assert phase.json()['conversation_phase']['phase'] == 'comfort'
+    assert phase.status_code == 404, phase.text
     assert projects == {(GUEST, project_id)}
     assert client.post('/v1/projects', headers=headers, json={}).json()['id'] == project_id
-    assert calls.count('/rest/v1/rpc/ensure_user_memoir_project') == 1
+    assert calls.count('/rest/v1/rpc/resolve_lifetime_conversation') == 2
     assert client.get(f'/v1/agent/projects/{project_id}/conversation-phase',
-                      headers={'Authorization': 'Bearer other'}).status_code == 403
+                      headers={'Authorization': 'Bearer other'}).status_code == 404
     assert not any('accept_' in path for path in calls)
 
 

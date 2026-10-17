@@ -317,7 +317,7 @@ def test_postgres_capture_is_read_only_without_profile_or_writer_lease(sql):
         check=False).returncode != 0
 
 
-@pytest.mark.parametrize('change', ['source', 'profile', 'profile_delete', 'phase'])
+@pytest.mark.parametrize('change', ['source', 'profile', 'profile_delete'])
 def test_postgres_correction_between_read_and_send_blocks_old_body(sql, change):
     identity, source, fence, dsn = setup_read(sql)
     snapshot = ReadSnapshot({'reply': 'previous private body'}, fence)
@@ -328,8 +328,6 @@ def test_postgres_correction_between_read_and_send_blocks_old_body(sql, change):
         sql(as_user("update public.user_profile set profile='{\"preferred_language\":\"zh-CN\"}';"))
     elif change == 'profile_delete':
         sql(as_user('delete from public.user_profile where user_id=auth.uid();'))
-    else:
-        rpc(sql, 'change_user_conversation_phase', f"{literal(identity['project_id'])}, 'shape', 0")
     async def scenario():
         messages = []
         async def send(message): messages.append(message)

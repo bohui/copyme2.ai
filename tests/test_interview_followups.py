@@ -11,7 +11,6 @@ import pytest
 
 from apps.api.codex_agent import CodexConnection, provider_config
 from apps.api.codex_runtime import CodexRuntime, build_conversation_system_prompt
-from apps.api.conversation_phase import PhaseState
 from apps.api.interview_plan import collector_schema, validate_collector_result
 
 
@@ -95,7 +94,6 @@ def _live_collector_result(tmp_path, prompt_version, language, message, *, openi
         'source': {'id': 'followup-source', 'version': 1, 'status': 'active', 'text': message},
         'opening_turn': opening_turn,
         'interview_language': language,
-        'conversation_phase': PhaseState().model_dump(mode='json'),
     }
 
     async def run():

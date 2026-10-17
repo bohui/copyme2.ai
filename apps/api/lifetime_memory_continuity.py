@@ -1,6 +1,6 @@
 """Governed-only, evidence-bound continuity for the visible collector turn.
 
-This extension does not own conversation phase, language or chosen-name policy.
+This extension does not own interview strategy, language or chosen-name policy.
 It delegates the original interview result to its existing validator and emits
 only data suitable for the existing transactional continuity writer. Model text
 is kept verbatim: an authentic quote cannot license an invented paraphrase.
@@ -54,8 +54,8 @@ their exact scope and wording. Explicit commitments describe future intent, neve
 completed work. For initial literal controls use complete direct sentences such
 as "Don't discuss my school", "Let's set aside my school for now", or
 "I'll return to the garden later"; do not promote another person's quotation.
-The application continues to own all phase transitions and validates the existing
-plan; this extension cannot override a pause or change language or chosen name.
+The application validates the interview plan; this extension cannot override a
+pause or change language or chosen name.
 
 Return place_journeys for every distinct clear geographic place explicitly named
 in the CURRENT narrator source, in mention order, including an opening reply.

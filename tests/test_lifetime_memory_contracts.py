@@ -127,11 +127,11 @@ def test_inventory_retains_project_scoped_source_turn_associations():
     assert result['outcome'] == 'mapping_required'
 
 
-def test_pinned_continuity_preserves_phase_exactly_and_never_invents_absent_phase():
+def test_old_checkpoint_phase_is_discarded_without_changing_other_pins():
     from apps.api.lifetime_memory_contracts import PinnedContinuity
     phase = dict(schema_version=1, phase='shape', selection='explicit', preferred_phase='shape',
         revision=7, reason='narrator_choice', source_turn_id=None)
     pinned = PinnedContinuity(preference_revision=9, language='zh-CN', conversation_phase=phase,
         chosen_name='慧博', active_question='What happened next?', excluded_topics=['private'])
-    assert pinned.model_dump(mode='json')['conversation_phase'] == phase
-    assert PinnedContinuity(preference_revision=0, language='en-AU').conversation_phase is None
+    assert 'conversation_phase' not in pinned.model_dump(mode='json')
+    assert pinned.chosen_name=='慧博' and pinned.excluded_topics==['private']

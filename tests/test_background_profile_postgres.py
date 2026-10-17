@@ -182,7 +182,7 @@ def test_existing_populated_values_are_conservatively_locked_without_manual_comp
     assert not rpc(sql,'read_lifetime_profile_automation','')['manual_complete']
 
 
-@pytest.mark.parametrize('change',['manual','confirm_all','token','source','policy','generation','phase','rollout'])
+@pytest.mark.parametrize('change',['manual','confirm_all','token','source','policy','generation','rollout'])
 def test_commit_and_real_publication_guard_reject_stale_authority(sql,change):
     identity,sources,lane,base=setup(sql)
     p=read(sql,lane,base);f=fence(p)
@@ -193,7 +193,6 @@ def test_commit_and_real_publication_guard_reject_stale_authority(sql,change):
     elif change=='source':rpc(sql,'change_user_narrator_source',f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'withdraw',null")
     elif change=='policy':sql('update public.user_memoir_project set policy_epoch=policy_epoch+1;')
     elif change=='generation':sql('update public.user_lifetime_conversation set execution_generation=execution_generation+1;')
-    elif change=='phase':rpc(sql,'change_user_conversation_phase',f"{literal(identity['project_id'])},'shape',0")
     else:sql('update public.lifetime_two_lane_rollout set enabled=false;')
     assert rpc(sql,'lock_lifetime_memoir_lane_publication',literal(f),check=False).returncode!=0
     with pytest.raises(AssertionError):commit(sql,lane,p,result(p,'birth_year',1960))

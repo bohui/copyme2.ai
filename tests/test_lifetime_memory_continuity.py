@@ -6,7 +6,6 @@ from uuid import UUID
 import pytest
 from jsonschema import validate
 
-from apps.api.conversation_phase import PhaseState
 from apps.api.interview_plan import collector_schema, validate_collector_result
 from apps.api.lifetime_memory_continuity import (
     GOVERNED_CONTINUITY_INSTRUCTIONS,
@@ -29,8 +28,7 @@ def reply(updates=None):
         'plan': {'candidates': [{'id': 'q1', 'question': 'What comes to mind?',
             'context': {'event_id': None, 'photo_id': None, 'life_stage': None,
                         'year': None, 'historical_clue_id': None}, 'order': 0, 'bridge': ''}],
-            'chosen_id': 'q1', 'active_event_id': None, 'work': None,
-            'conversation_phase': None},
+            'chosen_id': 'q1', 'active_event_id': None, 'work': None},
         'associations': [], 'response_photo_ids': [], 'stopped': False}
     if updates is not None:
         result['continuity_updates'] = updates
@@ -264,14 +262,14 @@ def test_model_and_literal_fallback_deduplicate_same_control():
     assert len(rows) == 1
 
 
-def test_phase_validation_is_still_owned_by_existing_collector():
+def test_old_worker_phase_cannot_become_a_saved_preference():
     ctx = context('My brother Ming moved to Perth.')
-    ctx['conversation_phase'] = PhaseState(phase='shape',selection='explicit',preferred_phase='shape',reason='narrator_choice').model_dump(mode='json')
+    ctx['conversation_phase'] = {'phase':'shape','selection':'explicit','preferred_phase':'shape'}
     raw = reply([update(ctx)])
     raw['plan']['conversation_phase']='explore'
     got = validate_governed_collector_result(raw, ctx)
     assert got['plan'] == validate_collector_result(reply_without_updates(raw), ctx)['plan']
-    assert got['plan']['phase_update']['phase'] is None
+    assert 'phase_update' not in got['plan'] and 'conversation_phase' not in got['plan']
 
 
 

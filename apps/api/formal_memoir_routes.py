@@ -23,7 +23,6 @@ router = APIRouter(tags=['Formal memoir'])
 
 class BeginFormalMemoir(BaseModel):
     model_config = {'extra': 'forbid'}
-    expected_phase_revision: int = Field(ge=0, strict=True)
     expected_revision: int = Field(ge=0, strict=True)
     request_id: UUID
 
@@ -46,7 +45,6 @@ def _rpc_error(error):
         'FORMAL_PRIVACY_REVIEW_REQUIRED': 'Review memoir privacy choices before composing.',
         'FORMAL_EXTRACTION_INCOMPLETE': 'Your memories are still being prepared.',
         'FORMAL_EVIDENCE_REQUIRED': 'Add supported memories before composing.',
-        'FORMAL_SHAPE_REQUIRED': 'Choose Shape before composing.',
         'FORMAL_PLAN_CAPACITY_REQUIRED': 'This memoir needs a reviewed chapter plan.',
         'FORMAL_CHAPTER_CAPACITY_REQUIRED': 'This memoir needs a reviewed chapter plan.',
     }
@@ -79,7 +77,7 @@ async def _owned_rpc(project_id, authorization, name, parameters, *, status_code
 async def begin_formal_memoir(project_id: str, payload: BeginFormalMemoir,
                              authorization: str | None = Header(default=None)):
     return await _owned_rpc(project_id, authorization, 'begin_formal_memoir', {
-        'p_expected_phase_revision': payload.expected_phase_revision,
+        'p_expected_phase_revision': 0,
         'p_expected_revision': payload.expected_revision, 'p_request_id': str(payload.request_id)}, status_code=202)
 
 

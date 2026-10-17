@@ -1,9 +1,9 @@
 # CopyMe2 Memoir — Two-Lane Collector and Background Planning Refactor
 
 **Status:** Proposed target design; current implementation and remaining gaps are recorded separately\
-**Version:** 1.1\
+**Version:** 1.2\
 **Prepared:** 16 October 2026  
-**Updated:** 17 October 2026 — unified logical Lane B and explicit skill trigger policy\
+**Updated:** 17 October 2026 — automatic AI interview modes and mode-independent background work\
 **Repository:** [`bohui/copyme2.ai`](https://github.com/bohui/copyme2.ai)  
 **Product:** CopyMe2 Memoir (`/memoir/*`)  
 **Primary outcome:** Faster, natural Mira replies without weakening evidence-grounded memory capture, workspace consistency, or the memoir-composition gates.
@@ -17,11 +17,11 @@ Adopt **two asynchronous execution lanes** using the existing application, Codex
 1. **Lane A — Mira Collector (interactive, high priority):** Immediately understands the latest accepted user message, follows the user's current direction, and streams one natural reply / relevant next question.
 2. **Lane B — Background Orchestration (multiple independent runners):** Owns shared eligibility, dispatch, and progress for memory/profile extraction, composition, workspace enrichment, and interview planning. Reuse the durable memory/composer worker and independent grouping, research, and photo runners; a logical lane is not one worker process or serial queue. Interview planning may propose one of three internal strategies: `comfort`, `explore`, `shape`.
 
-Only **memoir-composer** and **memoir-memory-context** are periodic conversation-round skills. Composer defaults to rounds **5, 10, 15, 20...**; the profile parser is planned under [Issue 75](https://github.com/bohui/copyme2.ai/issues/75) for **1, 5, 10, 20, 30...**. Other active skills require content, state-change, or explicit-action rules, not every-N-round schedules. Story-game requires authoritative shape **and** its dedicated UI button action, plus existing gates; execution remains unavailable until separately integrated. Other non-deprecated skills are mode-eligible in comfort, explore, and shape, subject to their own gates.
+Only **memoir-composer** and **memoir-memory-context** are periodic conversation-round skills. Composer defaults to rounds **5, 10, 15, 20...**; the profile parser owned by [Issue 75](https://github.com/bohui/copyme2.ai/issues/75) uses **1, 5, 10, 20, 30...** and its implementation is merged in [PR 78](https://github.com/bohui/copyme2.ai/pull/78). Other active skills require content, state-change, or explicit-action rules, not every-N-round schedules. Interview mode is selected automatically by the existing LLM calls and affects Lane A interviewing and story-game admission only. Story-game requires a current server-recorded AI shape decision **and** its dedicated game-button action, plus existing gates; execution remains unavailable until separately integrated. Other background skills are mode-independent.
 
 **Do not start two new Codex processes per user reply.** Use reusable runtime capacity and distinct logical work queues/threads; isolate resource pools further only if measurements justify it.
 
-**Do not show mode-selection controls.** The strategies are internal interviewing policies, not a visible workflow or mandatory life-stage progression. **Lane B proposes the next stored strategy and question candidates; deterministic application code validates/commits the plan. Lane A may ignore stale/inappropriate candidates when the latest user message requires it.**
+**Do not expose user mode selection.** The strategies are internal interviewing policies, not a visible workflow or mandatory life-stage progression. **Lane B's existing LLM call proposes the next stored strategy and question candidates; Lane A's existing reply call chooses/adapts its immediate used strategy from the latest conversation. Application code validates and records those decisions.** Explicit command phrases or regex matching do not choose or lock the interview mode, and no additional mode-classifier call is needed.
 
 **Do not let the internal `shape` strategy unlock book composition.** Preview/full-composition triggers, purchase entitlements, consent, artifact eligibility, publishing and print approval remain independent server-owned processes.
 
@@ -102,11 +102,13 @@ flowchart TB
 | Free quota, payment, consent, composition trigger | Cannot grant | Cannot grant | **Authoritative** |
 | Draft approvals, publishing, print submission | Cannot approve | Cannot approve | Explicit application flow / authorised human |
 
-No new UI mode selector. No user-visible labels such as “You are in Shape.”
+No UI mode selector or mode-control command mechanism. No user-visible labels such as “You are in Shape.” Normal narrator wishes about topic, pace, privacy, and stopping are still honored.
 
 ## 5. Three internal interview strategies
 
-The strategy is a **planning hint**, not a lifecycle stage, source of permissions, or psychological assessment. All strategies retain Mira's journalist principles, adult-to-adult respect, warm tone, and one-main-question rule.
+The strategy is selected by the AI from conversation context. B's strategy is a next-turn planning hint; A records the strategy actually used for the immediate reply. All strategies retain Mira's journalist principles, adult-to-adult respect, warm tone, and one-main-question rule. None grants consent, composition, purchase, publication, or printing rights.
+
+The application resolves current interview mode from the latest successfully delivered, authorized A used-strategy outcome with its existing turn/source, plan, policy, and execution revisions. B may subsequently plan a different strategy for the next normal A call without rewriting that delivered outcome. Story-game's shape guard uses this current recorded AI decision; a shadow/future B plan, saved-but-undelivered reply, client mode field, or legacy user-selected PhaseState cannot satisfy it. Missing/stale mode evidence keeps that action pending/unavailable without asking the user to choose a mode or launching a classifier. The separate game button and existing completion/consent/entitlement gates remain required.
 
 | Strategy | Goal | Appropriate example | Do **not** infer |
 |---|---|---|---|
@@ -130,7 +132,7 @@ There is no forced cycle `comfort → explore → shape`. Any strategy can follo
 
 ### Explicit user wishes versus automatic strategy
 
-A user's expressed subject exclusions, pace and topic choices always override candidate questions. To avoid losing old preferences during the migration, preserve pre-existing `preferred_phase` / explicit-selection records as a **legacy pacing preference or compatible constraint**, not as evidence for book or payment permissions. Do not discard old saved preferences silently.
+A user's expressed subject exclusions, pace and topic choices always inform the current reply and override incompatible candidate questions. Preserve pre-existing preferred_phase/explicit-selection records as legacy provenance and retain usable expressed pacing wishes. Their old enum must not force the current AI strategy or gate story-game. A request for lighter pacing can be interpreted in the normal LLM reply without becoming a user mode-control action. Preserve historical records and independent formal-workflow permission checks during migration.
 
 ## 6. Prompt architecture
 
@@ -243,6 +245,7 @@ No fabricated IDs may enter live records. Candidate identifiers and source refer
   "plan_revision_seen": 18,
   "selected_candidate_id": null,
   "selection_reason": "user_redirect",
+  "used_strategy": "explore",
   "question_delivered": "What do you enjoy growing in your garden?",
   "work_hint": "reply_only"
 }
@@ -313,7 +316,7 @@ Never collapse an activated map, photo or family workspace because a delayed bac
 
 ### 8.5 Shared admission, independent execution, and truthful progress
 
-One application-owned B orchestration module accepts authorized source/change/action references, evaluates the maintained skill policy, dispatches the existing appropriate runner, and exposes correlated progress/readable outcomes. Lane, mode, cadence or qualifying rule, explicit action where required, manual settings, source/policy scope, entitlement, feature enablement, and cache/deduplication gates remain conjunctive. Keep the full per-skill matrix in the [skill execution map](Memoir_Skill_Execution_Map_Spec.md), not in a second competing scheduler or duplicated table.
+One application-owned B orchestration module accepts authorized source/change/action references, evaluates the maintained skill policy, dispatches the existing appropriate runner, and exposes correlated progress/readable outcomes. Lane, cadence or qualifying rule, explicit action where required, manual settings, source/policy scope, entitlement, feature enablement, and cache/deduplication gates remain conjunctive. Only story-game adds the current AI-shape check. Other B admissions, attribution effects, coverage frontiers, and idempotency identities are mode-independent. Keep the full per-skill matrix in the [skill execution map](Memoir_Skill_Execution_Map_Spec.md), not in a second competing scheduler or duplicated table. Issue 77 supplies the corresponding mode-independent attribution semantics and tests.
 
 Reuse existing task identities, receipts, and durable outbox obligations for work that must survive disconnect/restart. Retain request/cache behavior for optional lookups where appropriate. Adapt or retire the old dispatch callback for each migrated trigger so only one owner launches the work; do not let both paths enqueue it. Runners keep domain validation and final commit fences. Shared orchestration does not merge private canonical memory with public-reference caches, replace all storage, or add unrelated task types to the timeline/composer lane table.
 
@@ -348,9 +351,9 @@ Current `PhaseState`/`resolve_phase` includes `selection='automatic'|'explicit'`
 
 1. Add new, versioned `InterviewStrategyPlan` state **beside** existing phase state behind a feature flag; do not destructively overwrite existing rows initially.
 2. Decouple a user’s durable *conversation preference* (pace, topics, exclusions, consent) from *automatically selected interview strategy*.
-3. Permit **Lane B to propose `shape` internally** and validate it through the new planner-commit path. Remove the old “Shape requires explicit choice” restriction **only for the internal strategy**, not for formal composition or other protected actions.
+3. Permit **Lane B to propose `shape` internally** and A to use/adapt any of the three strategies through their existing LLM calls and validated commit/delivery paths. Remove the old explicit-mode-choice requirement from interview mode and the game's mode check. The game still requires its dedicated button and independent gates; preserve formal composition, consent, entitlement, and publication authority.
 4. Update the collector's JSON schema / prompt so it can consume a prepared strategy and select one immediate question without being forced to generate a fresh pool of 2–5 candidates. Preserve first-response grounding and `reply_only/extract` behaviour.
-5. Keep a temporary adapter from old `conversation_phase` to the initial internal strategy for existing projects; retain source/version and user preference metadata. Old preferences must not be silently discarded or used to grant eligibility.
+5. Retain historical phase/preference records and the existing bounded startup fallback where necessary, but let the normal LLM call select the current used strategy. A legacy phase enum, regex control sentence, or client field must not lock automatic mode or satisfy the game shape guard. Keep source/version and expressed user wishes; no legacy fallback grants game or composition permissions.
 6. Run old and new planners side by side in **shadow mode** before making Lane B authoritative. Only one plan can be committed to the real interview context.
 7. Migrate/reconcile existing active projects only after replay tests; rollback must remain possible while the old state remains valid.
 
@@ -425,13 +428,16 @@ Track `reply_only` vs `extract` routing and per-task provider/model/skill versio
 | Photo or map provider outage | Conversation continues; workspace retains last valid result |
 | Photo/research runner blocked or failed | Eligible canonical memory/profile commits and authorized composition continue independently; no shared memory lease held by enrichment |
 | Periodic milestone without another qualifying rule | Only eligible composer/profile work can become due; no automatic timeline/place/research/game fan-out |
+| Identical eligible narration under different AI interview modes | Mode-independent attribution and background admissions; mode changes cannot reset coverage or invent event/time/place facts |
+| Automatic mode decision without user command words | Existing A/B LLM calls produce and record used/planned strategies; no selector, regex transition, extra classifier, or forced turn count |
 | Relevant source/place/action between milestones | Rule-triggered work is admitted without waiting for round five/twenty; replay cannot duplicate dispatch |
 | Shared B dispatch migration | One admission owner and real independent runner; old callback and new interface cannot both launch the same work |
 | Late, cached, skipped, failed, or replayed skill progress | UI reflects actual execution/commit and coverage, without fabricated success, lost late updates, or cross-project traces |
 | Chinese and English language variation | User interview language persists; question suggestions and saved names follow locale/glossary |
 | Free threshold reached (configured value) | Correct preview trigger, no hard-coded count, no duplicate entitlements |
 | Internal `shape` selected automatically | May ask chronology clarification; **cannot** unlock draft, purchase, printing or organiser privileges |
-| Story-game request | Comfort/explore or shape without the explicit game button is denied; shape plus button still needs existing gates and an available integration |
+| Story-game request | Current delivered AI comfort/explore or AI shape without the game button is denied; current AI shape with legacy comfort/explore passes the mode check but still needs the button, existing gates, and available integration |
+| Stale or undelivered mode decision | Shadow/future B plans, undelivered A outcomes, client enums, and legacy shape cannot bypass the current AI-mode check |
 | User requests composition naturally | Separate server-owned eligibility/readiness check; ambiguous intent clarified |
 | No eligible artifact in Shape | Honest answer and permitted next step; no fabricated draft |
 | No relevant material changed | No needless recomposition or revision churn |
