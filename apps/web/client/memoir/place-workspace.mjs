@@ -60,7 +60,7 @@ export function createPlaceWorkspace({
         if (!places.length) continue;
         // Old turns have no execution log; describe this restoration, not an invented past call.
         (message.trace ||= []).push({id:"place-journey", kind:"skill", skill:"memoir-place-journey",
-          label:"memoir-place-journey", status:"completed",
+          label:"memoir-place-journey", status:"cached", lane:"B", execution:"cache", model_invoked:false,
           detail:`${translate("Memoir.trace.placeJourneyRestored")} · ${places.map(place => place.place).join(" · ")}`});
         message.traceMode = "live";
         restoredProgress = true;
@@ -326,18 +326,22 @@ export function createPlaceWorkspace({
     const signature = JSON.stringify([projectId, publicPlaces]);
     if (placeGroupRequests.has(signature)) return;
     const scope = captureProjectScope();
-    const report = (status) => {
+    const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
+    const report = (status, work = null) => {
       if (!isCurrentProjectScope(scope)) return;
-      recordWorkspaceSkillProgress({id:`place-groups:${signature}`, kind:"skill", skill:"memoir-place-groups",
+      recordWorkspaceSkillProgress({id:work?.id || `place-groups:${signature}`, replaces_id:work?.id ? `place-groups:${signature}` : null, kind:"skill", skill:"memoir-place-groups",
+        project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:"deterministic", model_invoked:false,
         label:"memoir-place-groups", status,
         detail:`${translate(`Memoir.trace.placeGroups.${status}`)} · ${journey.place}`}, onProgress);
     };
     report("running");
     placeGroupLatest.set(projectId, signature);
-    const request = api(`/v1/projects/${projectId}/place-groups`, {
+    const request = (state.supabase?.accessToken ? supabaseApi(`/v1/agent/places/${projectId}/groups`, {
+      method:"POST",body:JSON.stringify({places:publicPlaces,...(progressTurn ? {client_turn_id:progressTurn} : {})}),
+    }) : api(`/v1/projects/${projectId}/place-groups`, {
       method: "POST", body: JSON.stringify({places: publicPlaces}),
-    }).then(result => {
-      report("completed");
+    })).then(result => {
+      report("completed",result.skill_progress);
       if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
       for (const record of result.places || []) {
         const place = places[record.index];

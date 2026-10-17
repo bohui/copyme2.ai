@@ -54,13 +54,8 @@ class LifetimePublicationContext:
         if self.emitter:await self.emitter.flush()
 
     def queue_historical_research(self,runtime,storage,project_id):
-        import os
-        if os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() not in {'1','true','yes'}:return
-        from .historical_news import HistoricalResearch
-        from .historical_news_provider import GatewayHistoricalProvider
-        if runtime._news_engine is None:
-            runtime._news_engine=HistoricalResearch(GatewayHistoricalProvider())
-        self.historical_research=(storage,project_id,runtime._news_engine)
+        from .background_skills import queue_research
+        queue_research(self,runtime,storage,project_id)
 
     def observe_delivery(self,event):
         if self.strategy_metrics is not None:
@@ -189,7 +184,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     await progress.update('place-journey',
                         'Restored saved place cues · ' + ' · '.join(place['place'] for place in journeys),
                         '已恢复保存的地点线索 · ' + ' · '.join(place['place'] for place in journeys),
-                        status='completed',skill='memoir-place-journey')
+                        status='cached',skill='memoir-place-journey')
                     workspace=place_workspace_update(project_id,journeys)
                     response.update(workspace)
                     if on_event:await on_event({'type':'workspace_update','data':workspace})

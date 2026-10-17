@@ -221,6 +221,43 @@ for (const transition of ['project','owner','navigation']) test(`late readiness 
   assert.equal(h.timers.size, 0);
 });
 
+for (const transition of ['project','owner','navigation']) test(`progress pagination cannot publish private readiness across a ${transition} transition`, async () => {
+  const h = harness();
+  h.context.applyBackgroundSkillProgress = () => {};
+  const pending = h.context.refreshStageReadiness();
+  h.requests[0]({...stage(50),profile:{name:'Private old-project name',profile_automation:{revision:2}},
+    current_mode:{project_id:'p',mode:'shape'},skill_progress:{next_cursor:'older',items:[]}});
+  await settle();
+  assert.equal(h.requests.length,2,'The older progress page must be in flight');
+  if (transition === 'project') h.state.project = {id:'other',profile:{name:'New project name'}};
+  if (transition === 'owner') h.state.supabase.user.id = 'other';
+  if (transition === 'navigation') h.context.invalidateProjectNavigation();
+  const before = JSON.stringify(h.state.project);
+  h.requests[1]({items:[]});
+  await pending;
+  assert.equal(JSON.stringify(h.state.project),before);
+  assert.deepEqual(h.state.stageReadiness,{});
+  assert.equal(h.state.currentInterviewMode,undefined);
+  assert.equal(h.renders.length,0);
+  assert.equal(h.timers.size,0);
+});
+
+test('a new save during progress pagination discards the older private snapshot',async()=>{
+  const h=harness();
+  h.context.applyBackgroundSkillProgress=()=>{};
+  const pending=h.context.refreshStageReadiness();
+  h.requests[0]({...stage(50),profile:{name:'Obsolete'},skill_progress:{next_cursor:'older',items:[]}});
+  await settle();
+  const refreshed=h.context.refreshStageReadiness();
+  h.requests[1]({items:[]});
+  await settle();
+  assert.equal(h.renders.length,0);
+  assert.equal(h.requests.length,3);
+  h.requests[2]({...stage(10),profile:{name:'Current'}});
+  await Promise.all([pending,refreshed]);
+  assert.equal(h.state.project.profile.name,'Current');
+});
+
 test('pending extraction refreshes when stage evidence becomes ready', async () => {
   const h = harness();
   const pending = h.context.refreshStageReadiness();

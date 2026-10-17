@@ -25,8 +25,6 @@ class TurnProgress:
                 'status': status}
         if skill:
             step['skill'] = skill
-        if question_pool is not None:
-            step['question_pool'] = question_pool
         index = next((i for i, previous in enumerate(self.steps) if previous['id'] == key), None)
         if index is None:
             self.steps.append(step)
@@ -44,8 +42,7 @@ class TurnProgress:
         await self.update('question-pool',
                           f'Generated question pool · {count} candidates' if count else 'No follow-up questions generated',
                           f'已生成问题池 · {count} 个候选问题' if count else '本轮未生成追问',
-                          status='completed',
-                          question_pool={'candidates': candidates, 'chosen_id': plan['chosen_id']})
+                          status='completed')
 
     async def harness_event(self, event):
         if event.get('type') != 'codex_activity':

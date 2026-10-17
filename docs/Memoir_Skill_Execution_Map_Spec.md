@@ -1,5 +1,7 @@
 # Unify Lane B orchestration and map skill lanes, modes, and triggers
 
+Implementation tracking: [Issue 76 implementation](Memoir_Skill_Execution_Map_Implementation.md). The inventory below retains the inspected pre-implementation status; the application-owned map and test receipt document current branch behavior separately. No deployment or feature enablement is implied.
+
 ## Problem Statement
 
 Memoir's skill catalog mixes foreground behavior, durable background work, asynchronous browser/research services, deprecated instructions, and integrations whose execution is not wired or enabled. A maintainer cannot infer from a skill's presence whether it actually runs, which execution surface owns it, which conversation modes permit it, or whether a round number is relevant.

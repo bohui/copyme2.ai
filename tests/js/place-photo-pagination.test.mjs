@@ -14,7 +14,7 @@ const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.j
 function harness(entry, api, dependencies = {}) {
   Object.assign(entry, {period: '1980s', ...center, ...scope, ...entry});
   let saved = {memory_places: [entry]};
-  const state = {project: {id: 'project'}, placeJourney: entry};
+  const state = {project: {id: 'project'}, placeJourney: entry, showThinkingSteps:true};
   const context = vm.createContext({state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
     window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
     profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {}, translate: key => key,
@@ -49,6 +49,64 @@ test('refresh restores persisted photos without searching after the old cache ex
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 0, 'history restoration unnecessarily triggered photo discovery');
   assert.equal(h.entry().pictures[0].asset_id, 'saved');
+});
+test('a late public lookup cannot restore a place removed by canonical readback',async()=>{
+  let finish,saves=0;
+  const h=harness({place:'Chengde'},()=>new Promise(resolve=>{finish=resolve;}));
+  h.context.saveProfileUpdates=async()=>{saves++;};
+  const request=h.context.loadPlacePictures(h.entry(),'project');
+  h.state.derivedWorkspace={project_id:'project',policy_epoch:2};
+  h.state.placeJourney=null;
+  h.context.profile=()=>({memory_places:[]});
+  finish({items:[picture('late')],status:'READY'});
+  await request;
+  assert.equal(saves,0);
+  assert.equal(h.state.placeJourney,null);
+});
+test('photo response progress keeps the server job identity for later persisted updates',async()=>{
+  const steps=[];
+  const h=harness({place:'Chengde'},async()=>({items:[picture('found')],status:'READY',
+    skill_progress:{id:'server-photo-job',status:'completed'}}),{persistChatHistory(){}});
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:step=>steps.push(step)});
+  assert.match(steps[0].id,/^photos:/);
+  assert.equal(steps.at(-1).id,'server-photo-job');
+  assert.equal(steps.at(-1).replaces_id,steps[0].id);
+  assert.equal(steps.at(-1).status,'completed');
+});
+
+test('a later browser-cache hit updates the original server photo step instead of duplicating it',async()=>{
+  let calls=0;
+  const h=harness({place:'Chengde'},async()=>{
+    calls++;
+    return {items:[picture('found')],status:'READY',skill_progress:{id:'server-photo-job',status:'completed'}};
+  },{persistChatHistory(){},updateStreamingAssistantMessage(){}});
+  h.state.chat=[{role:'assistant',clientTurnId:'turn'}];
+  await h.context.loadPlacePictures(h.entry(),'project');
+  assert.equal(h.state.chat[0].trace.length,1);
+  await h.context.loadPlacePictures(h.entry(),'project');
+  assert.equal(calls,1,'Browser cache reuse must not dispatch another lookup');
+  assert.equal(h.state.chat[0].trace.length,1);
+  assert.equal(h.state.chat[0].trace[0].id,'server-photo-job');
+  assert.equal(h.state.chat[0].trace[0].status,'cached');
+});
+
+for (const reload of [false,true]) test(`cached photo progress stays on its original turn${reload ? ' after reload' : ''}`,async()=>{
+  let h=harness({place:'Chengde'},async()=>({items:[picture('found')],status:'READY',
+    skill_progress:{id:'server-photo-job',client_turn_id:'first',status:'completed'}}),
+    {persistChatHistory(){},updateStreamingAssistantMessage(){}});
+  h.state.chat=[{role:'assistant',clientTurnId:'first'}];
+  await h.context.loadPlacePictures(h.entry(),'project');
+  if (reload) {
+    const chat=JSON.parse(JSON.stringify(h.state.chat));
+    h=harness(JSON.parse(JSON.stringify(h.entry())),async()=>assert.fail('Cached photos must not request a provider'),
+      {persistChatHistory(){},updateStreamingAssistantMessage(){}});
+    h.state.chat=chat;
+  }
+  h.state.chat.push({role:'assistant',clientTurnId:'later'});
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:()=>assert.fail('Do not attach old cached work to a new reply')});
+  assert.equal(h.state.chat[0].trace.length,1);
+  assert.equal(h.state.chat[0].trace[0].status,'cached');
+  assert.equal(h.state.chat[1].trace,undefined);
 });
 
 for (const refresh of [false, true]) {
@@ -320,7 +378,7 @@ test('retry updates the original photo trace, preserves Sydney, and saves late c
   message.trace[1].status='failed';
   await h.context.loadPlacePictures(h.entry(),'project');
   assert.equal(calls,2,'reusing saved photos initiated another discovery');
-  assert.equal(message.trace[1].status,'completed');
+  assert.equal(message.trace[1].status,'cached');
   assert.match(message.trace[1].detail,/picturesCached/);
 });
 

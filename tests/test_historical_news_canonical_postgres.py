@@ -99,6 +99,12 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
         project = first['project_id']
         state = rpc(sql, 'read_user_historical_news', literal(project))
         assert len(state['clues']) == 1
+        steps=rpc(sql,'read_lifetime_skill_progress',literal(project))['items']
+        research=next(item for item in steps if item['skill']=='historical-news-research')
+        assert research['lane']=='B' and research['status']=='saved'
+        assert research['client_turn_id']==payload['client_turn_id'] and research['coverage_end']==1
+        assert research['execution']=='provider' and research['model_invoked'] is None
+        assert 'Boston' not in json.dumps(steps) and 'research_job_id' not in research
         replay = result(client.post('/v1/agent/turn', headers=headers, json={**payload, 'project_id': project}))
         assert replay['cached'] and len(calls) == 1
         assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '1'

@@ -249,7 +249,7 @@ const {
   currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
   privateDraftPreview, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
 } = createPrivateDraft({
-  captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
+  applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
 });
 
@@ -664,6 +664,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   let previewJourney = null;
   const recordProgress = (step) => {
     if (!current() || !step?.id) return;
+    if (step.replaces_id) {
+      const previous=liveTrace.findIndex(item=>item.id===step.replaces_id);
+      if (previous>=0) liveTrace.splice(previous,1);
+    }
     const index = liveTrace.findIndex(item => item.id === step.id);
     if (index < 0) liveTrace.push(step);
     else if (step.status === "completed" || step.status === "failed") {
@@ -1046,17 +1050,48 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
 }
 
 function recordWorkspaceSkillProgress(step, onProgress = null) {
+  if (!state.showThinkingSteps || !step?.id || (step.project_id && step.project_id !== state.project?.id)) return;
   if (onProgress) onProgress(step);
   else {
-    const message = (state.chat || []).findLast(item => item.role === "assistant"
-      && item.trace?.some(previous => previous.id === step.id));
-    if (!message) return;
-    message.trace[message.trace.findIndex(previous => previous.id === step.id)] = step;
+    const message = (state.chat || []).findLast(item => item.role === "assistant" &&
+      (step.client_turn_id ? item.clientTurnId === step.client_turn_id : item.trace?.some(previous => previous.id === step.id)));
+    if (!message) {
+      if (step.client_turn_id) return;
+      const owner=state.supabase?.user?.id, project=state.project?.id;
+      if (state.workspaceSkillProgress?.project_id!==project || state.workspaceSkillProgress?.owner_id!==owner)
+        state.workspaceSkillProgress={project_id:project,owner_id:owner,items:[]};
+      const steps=state.workspaceSkillProgress.items.filter(item=>item.id!==step.id && item.id!==step.replaces_id);
+      state.workspaceSkillProgress.items=[...steps,step].slice(-32);
+      if (typeof queueMicrotask==='function') queueMicrotask(()=>{
+        if (state.project?.id===project && state.supabase?.user?.id===owner) render();
+      });
+      return;
+    }
+    const trace = message.trace ||= [];
+    if (step.replaces_id) {
+      const previous=trace.findIndex(item=>item.id===step.replaces_id);
+      if (previous>=0) trace.splice(previous,1);
+    }
+    const index = trace.findIndex(previous => previous.id === step.id);
+    if (index < 0) trace.push(step); else trace[index] = step;
     message.traceMode = "live";
     updateStreamingAssistantMessage(message);
   }
   // Background work often finishes after the reply's normal history save.
   persistChatHistory();
+}
+
+function applyBackgroundSkillProgress(result) {
+  if (!state.showThinkingSteps || result?.project_id !== state.project?.id) return;
+  const activeQueues = new Set((result.items || []).filter(item => item.phase === "queue").map(item => item.id));
+  for (const message of state.chat || []) if (message.trace && !result.continuation) {
+    message.trace = message.trace.filter(step => step.phase !== "queue" || activeQueues.has(step.id));
+  }
+  for (const item of result.items || []) {
+    if (!item.client_turn_id && (result.continuation || !['photos','grouping','historical'].includes(item.phase))) continue;
+    recordWorkspaceSkillProgress({...item,kind:"skill",label:item.skill,
+      detail:translate(`Memoir.trace.operation.${item.phase}`)});
+  }
 }
 
 async function loadPlacePictures(entry, projectId, { more = false, force = false, onProgress = null } = {}) {
@@ -1075,12 +1110,15 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
     && entry.photo_search_policy === "place-fallback-gps-time-v9";
   const requestKey = photoRequestKey(entry, projectId);
+  let progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
+  let progressIdentity = `photos:${requestKey}`;
   const reportProgress = (status, label, failures = []) => {
     const safeFailures = (Array.isArray(failures) ? failures : []).filter(item => item
       && ["flickr", "google", "loc", "commons", "llm"].includes(item.provider)
       && /^(?:robots_denied|verification_required|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
       .map(({provider, reason}) => ({provider, reason}));
-    recordWorkspaceSkillProgress({id: `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
+    recordWorkspaceSkillProgress({id: progressIdentity, replaces_id:progressIdentity===`photos:${requestKey}` ? null : `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
+      project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:status === "cached" ? "cache" : "provider", model_invoked:status === "cached" ? false : null,
       label: "place-photo-research", status, place: entry.place, period, failures: safeFailures,
       detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`
         + (safeFailures.length ? ` · ${safeFailures.map(item => `${item.provider}: ${item.reason}`).join("; ")}` : "")}, onProgress);
@@ -1089,13 +1127,19 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
         && entry.photo_search_policy === "place-fallback-gps-time-v9" && entry.photo_search_at > 0))) {
-    reportProgress("completed", (entry.pictures || []).length ? "picturesCached" : "picturesNoMatch");
+    if (entry.photo_search_progress?.id) {
+      progressIdentity=entry.photo_search_progress.id;
+      if (entry.photo_search_progress.client_turn_id !== progressTurn) onProgress=null;
+      progressTurn=entry.photo_search_progress.client_turn_id;
+    }
+    reportProgress("cached", (entry.pictures || []).length ? "picturesCached" : "picturesNoMatch");
     return;
   }
   state.photoRequests ||= new Map();
   if (state.photoRequests.get(requestKey)?.loading) return;
   state.photoRequests.set(requestKey, { loading: true });
   let photoStatus = "SEARCHING";
+  let photoCached = false;
   reportProgress("running", "picturesSearching");
   render();
   const control = document.querySelector("[data-photo-more]");
@@ -1113,6 +1157,11 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       if (!isCurrentProjectScope(requestScope)) return;
       if (state.project?.id !== projectId) return;
       photoStatus = result.status || "PARTIAL";
+      photoCached = Boolean(result.cached);
+      if (result.skill_progress?.id && result.skill_progress.id !== progressIdentity) {
+        progressIdentity=result.skill_progress.id;
+        reportProgress(result.skill_progress.status,result.searching ? "picturesSearching" : photoCached ? "picturesCached" : "pictures",result.failures);
+      }
       if (!Array.isArray(result.items) || result.status === "UNAVAILABLE") {
         state.photoRequests.set(requestKey, { error: true, failures: result.failures || [] });
         return;
@@ -1124,6 +1173,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
         if (!isCurrentProjectScope(requestScope)) return;
         const places = [...(profile().memory_places || [])];
         const index = places.findIndex(item => placeHistoryKey(item) === key);
+        if (index < 0 && state.derivedWorkspace?.project_id === projectId) return;
         const latest = index >= 0 ? places[index] : entry;
         if (photoSearchPeriod(latest, profile().story_focus) !== period) return;
         if (photoRequestKey(latest, projectId) !== requestKey) return;
@@ -1143,6 +1193,8 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_at: result.searching ? 0 : Date.now(),
           photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
           photo_search_complete: !result.searching,
+          photo_search_progress: result.skill_progress ? {id:result.skill_progress.id,
+            client_turn_id:result.skill_progress.client_turn_id ?? progressTurn} : null,
           photo_search_policy: "place-fallback-gps-time-v9" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
@@ -1154,18 +1206,19 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       workspaceUpdateQueue = persist.catch(() => {});
       await persist;
     };
-    const options = { onPhotoPage: async result => {
+    const options = { ...(progressTurn ? {headers:{"X-Memoir-Progress-Turn":progressTurn}} : {}), onPhotoPage: async result => {
       await acceptPage(result);
       if (!result.searching) deliveredFinal = true;
     } };
     let result;
+    const photoPath = state.supabase?.accessToken ? `/v1/agent/places/${projectId}/photos` : `/v1/projects/${projectId}/place-photos`;
     try {
-      result = await api(`/v1/projects/${projectId}/place-photos?${query}`, options);
+      result = await api(`${photoPath}?${query}`, options);
     } catch (error) {
       if (!isCurrentProjectScope(requestScope)) return;
       if (!more || error.status !== 410) throw error;
       query.delete("cursor");
-      result = await api(`/v1/projects/${projectId}/place-photos?${query}`, options);
+      result = await api(`${photoPath}?${query}`, options);
     }
     // JSON-only servers and cached responses retain the existing contract.
     if (!deliveredFinal) await acceptPage(result);
@@ -1176,7 +1229,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
     if (!isCurrentProjectScope(requestScope)) return;
     state.photoRequests.set(requestKey, {...state.photoRequests.get(requestKey), loading: false});
     const failed = state.photoRequests.get(requestKey)?.error;
-    reportProgress(failed ? "failed" : "completed",
+    reportProgress(failed ? "failed" : photoCached ? "cached" : "completed",
       failed ? "picturesUnavailable" : photoStatus === "NO_MATCH" ? "picturesNoMatch" : "pictures",
       state.photoRequests.get(requestKey)?.failures || []);
     if (state.project?.id === projectId) render();
@@ -2215,7 +2268,10 @@ function workspaceDetail() {
   const tabsMarkup = tabs.length
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
-  const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
+  const serviceProgress = state.workspaceSkillProgress?.project_id === state.project?.id
+    && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
+    ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
+  const contentMarkup = (content ? `${tabsMarkup}${content}` : tabsMarkup)+serviceProgress;
   const composing = composingWorkspaceActive();
   const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
@@ -2366,7 +2422,7 @@ async function refreshStageReadiness() {
     job.wake = finish;
     job.controller.signal.addEventListener('abort', finish, {once:true});
   });
-  const read = async () => {
+  const read = async (path = `/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`) => {
     const request = new AbortController();
     const cancel = () => request.abort();
     job.controller.signal.addEventListener('abort', cancel, {once:true});
@@ -2380,7 +2436,7 @@ async function refreshStageReadiness() {
       // Race cancellation as well as aborting fetch: an optional auth/session
       // operation must not hold the recovery loop after its request deadline.
       return await Promise.race([interrupted,
-        storyApi(`/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`, {signal:request.signal})]);
+        storyApi(path, {signal:request.signal})]);
     } finally {
       clearTimeout(timer);
       request.signal.removeEventListener('abort', rejectRead);
@@ -2399,6 +2455,19 @@ async function refreshStageReadiness() {
           // Coalesce refreshes during a read into the next serialized read.
           // A snapshot predating that save cannot repaint newer client state.
           if (!job.requested) {
+            if (result.skill_progress) {
+              applyBackgroundSkillProgress(result.skill_progress);
+              let cursor=result.skill_progress.next_cursor;
+              while (cursor && current() && !job.requested) {
+                const older=await read(`/v1/story/skill-progress?project_id=${encodeURIComponent(projectId)}&cursor=${encodeURIComponent(cursor)}`);
+                if (!current() || job.requested) break;
+                applyBackgroundSkillProgress(older);
+                cursor=older.next_cursor;
+              }
+            }
+            if (!current()) return;
+            if (job.requested) continue;
+            state.currentInterviewMode = result.current_mode || null;
             state.stageReadiness = result.stages || {};
             if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
             if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace)) {
@@ -2669,7 +2738,8 @@ function recallPackagePrompt() {
 }
 
 function chatComposer() {
-  const focusControls = workspaceMemoryFocusMarkup();
+  const game = state.currentInterviewMode?.project_id === state.project?.id && state.currentInterviewMode?.mode === "shape" ? `<div class="workspace-game"><button type="button" class="text-button" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button>${state.storyGameNotice?.projectId === state.project?.id ? `<p role="status">${escapeHtml(translate(`Memoir.game.${state.storyGameNotice.reason}`))}</p>` : ""}</div>` : "";
+  const focusControls = workspaceMemoryFocusMarkup()+game;
   if (state.recallStatus?.payment_required) return "";
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
@@ -2728,18 +2798,26 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false) {
   if (!visibleSteps.length) return "";
   const title = escapeHtml(translate("Memoir.trace.title"));
   const steps = visibleSteps.map((step) => {
-    const pool = step.question_pool;
-    const questions = Array.isArray(pool?.candidates) && pool.candidates.length
-      ? `<ol class="agent-question-pool">${pool.candidates.map(candidate => {
-        const selected = candidate.id === pool.chosen_id;
-        return `<li class="agent-question-candidate" data-candidate-id="${escapeHtml(candidate.id)}" data-selected="${selected}">${selected ? `<span class="agent-question-selected">${escapeHtml(translate("Memoir.trace.selectedQuestion"))}</span>` : ""}${candidate.bridge ? `<span class="agent-question-bridge">${escapeHtml(candidate.bridge)}</span> ` : ""}<span>${escapeHtml(candidate.question)}</span></li>`;
-      }).join("")}</ol>` : "";
-    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}"><span class="agent-loop-detail">${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span>${questions}</li>`;
+    const execution = ["model","embedded","deterministic","provider","cache"].includes(step.execution)
+      ? ` · ${escapeHtml(translate(`Memoir.trace.execution.${step.execution}`))}` : "";
+    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}" data-lane="${escapeHtml(step.lane || "A")}" data-execution="${escapeHtml(step.execution || "operation")}"><span class="agent-loop-detail">${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))}${execution} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span></li>`;
   }).join("");
   return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}</ol></details>`;
 }
 
 function bindViewActions() {
+  $("[data-story-game]")?.addEventListener("click", async () => {
+    const scope=captureProjectScope();
+    try {
+      const result=await storyApi('/v1/story/game',{method:"POST",body:JSON.stringify({project_id:scope.projectId})});
+      if (!isCurrentProjectScope(scope)) return;
+      state.storyGameNotice={projectId:scope.projectId,reason:["shape_required","current_decision_required","integration_unavailable"].includes(result.reason) ? result.reason : "integration_unavailable"};
+    } catch (_) {
+      if (!isCurrentProjectScope(scope)) return;
+      state.storyGameNotice={projectId:scope.projectId,reason:"integration_unavailable"};
+    }
+    render();
+  });
   $(".family-workspace")?.addEventListener("error", event => {
     if (event.target.matches("[data-family-portrait]")) event.target.remove();
   }, true);

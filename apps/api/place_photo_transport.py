@@ -1,5 +1,6 @@
 """Forward public photo research without exposing worker credentials."""
 import asyncio
+import codecs
 import json
 import os
 
@@ -11,16 +12,37 @@ from .turn_stream import STREAM_HEADERS
 
 
 async def photo_response(cache, owner, place, period, cursor, *, stream=False, refresh=False,
-                         latitude=None, longitude=None):
+                         latitude=None, longitude=None, progress=None):
+    from .background_skills import admit
+    admit('place-photo-research','place_selection')
+    async def observed(events):
+        # Worker chunks may split a frame; only bounded complete JSON is used.
+        buffer=''
+        decoder=codecs.getincrementaldecoder('utf-8')()
+        async for chunk in events:
+            buffer+=decoder.decode(chunk) if isinstance(chunk,bytes) else chunk
+            if len(buffer)>2*1024*1024:raise ValueError('Photo frame too large')
+            while '\n' in buffer:
+                line,buffer=buffer.split('\n',1)
+                if line.strip():
+                    value=json.loads(line)
+                    if progress:value=await progress(value)
+                    yield json.dumps(value,ensure_ascii=False)+'\n'
+        buffer+=decoder.decode(b'',final=True)
+        if buffer.strip():
+            value=json.loads(buffer)
+            if progress:value=await progress(value)
+            yield json.dumps(value,ensure_ascii=False)+'\n'
     args = (owner, place, period, cursor)
     coordinates = {'latitude': latitude, 'longitude': longitude} if latitude is not None or longitude is not None else {}
     origin = os.getenv('MEMORY_SPARK_PHOTO_WORKER_URL', '').rstrip('/')
     if not origin:
         if stream:
             snapshot = cache._snapshot(*args, refresh=refresh, **coordinates)
-            return StreamingResponse(cache.stream(*args, snapshot=snapshot), media_type='application/x-ndjson',
+            return StreamingResponse(observed(cache.stream(*args, snapshot=snapshot)), media_type='application/x-ndjson',
                                      headers=STREAM_HEADERS)
-        return await asyncio.to_thread(cache.page, *args, refresh=refresh, **coordinates)
+        value=await asyncio.to_thread(cache.page, *args, refresh=refresh, **coordinates)
+        return await progress(value) if progress else value
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(240, connect=5))
     headers = {'X-Photo-Worker-Secret': os.getenv('MEMORY_SPARK_PHOTO_WORKER_SECRET', ''),
@@ -42,7 +64,8 @@ async def photo_response(cache, owner, place, period, cursor, *, stream=False, r
     if not stream:
         try:
             await response.aread()
-            return response.json()
+            value=response.json()
+            return await progress(value) if progress else value
         finally:
             await response.aclose()
             await client.aclose()
@@ -56,4 +79,4 @@ async def photo_response(cache, owner, place, period, cursor, *, stream=False, r
         finally:
             await response.aclose()
             await client.aclose()
-    return StreamingResponse(events(), media_type='application/x-ndjson', headers=STREAM_HEADERS)
+    return StreamingResponse(observed(events()), media_type='application/x-ndjson', headers=STREAM_HEADERS)

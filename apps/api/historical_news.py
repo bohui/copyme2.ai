@@ -352,18 +352,32 @@ def ready_projection(state, *, enabled):
 
 async def enrich(storage, project_id, engine):
     import asyncio
+    from .background_skills import ServiceWork, SkillUnavailable, admit
+    try:
+        admit('historical-news-research','delivered_context')
+    except SkillUnavailable:
+        return
     view=await asyncio.to_thread(storage.historical_news_basis,project_id)
     if not view:return
     hypothesis=accepted_hypothesis(view)
     if not hypothesis:return
     job=await asyncio.to_thread(storage.begin_historical_news,project_id,hypothesis,view['news_snapshot'])
     if not job:return
+    work=ServiceWork('historical-news-research','delivered_context',storage.user_id,project_id,job['id'],research_job_id=job['id'])
+    await work.update('running')
     try:
         result=await engine.run(hypothesis)
     except asyncio.CancelledError:
         # A cancelled execution cannot publish. The bounded durable claim
         # expires and a later authenticated request can recover it.
+        await work.update('failed')
         raise
     except Exception:
         result={'status':'unavailable','clues':[],'failures':['research_unavailable']}
-    await asyncio.to_thread(storage.finish_historical_news,project_id,job['id'],result)
+    try:
+        saved=await asyncio.to_thread(storage.finish_historical_news,project_id,job['id'],result)
+    except BaseException:
+        await work.update('failed')
+        raise
+    cached=(result.get('accounting') or {}).get('cache')=='hit'
+    await work.update('failed' if not saved or result['status']=='unavailable' else 'cached' if cached else 'saved',cached=cached)
