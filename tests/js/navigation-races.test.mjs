@@ -9,6 +9,9 @@ const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function load(context, ...names) {
+  if (names.some(name => ['refreshProject', 'startMemoirStory'].includes(name))) {
+    names = ['profile', 'preserveConversationLocale', 'mergePrivateProfile', 'hydrateConversationProfile', ...names];
+  }
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'invalidateProjectNavigation', ...names]) {
     if (extract(name)) vm.runInContext(extract(name), context);
   }
@@ -160,7 +163,8 @@ for (const ending of ['final', 'error']) test(`the outer send ${ending} cannot f
     dictationStatus: 'off', audioTranscript: '', attachments: [], profileIntakePending: false};
   const input = {value: 'A accepted memory'};
   const context = vm.createContext({state, $: () => input, profile: () => ({}),
-    conversationScroll: {follow() {}}, conversationLanguage: () => 'en-AU', conversationMessage: () => 'Fallback',
+    conversationScroll: {follow() {}}, conversationLanguage: () => 'en-AU', currentUiPreference: () => null,
+    settleUiLocale: async () => true, conversationMessage: () => 'Fallback',
     render() {}, persistChatHistory() {}, ensureMemorySession: async () => null, agentTurn: () => reply.promise,
     streamAssistantMessage: () => assert.fail('stale send must not replay a reply'), toast: () => assert.fail('stale send must not toast'),
     refreshFamilyContext: () => assert.fail('stale send must not refresh the new project')});

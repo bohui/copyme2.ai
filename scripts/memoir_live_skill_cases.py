@@ -6,7 +6,7 @@ Deterministic skills are probed for instruction adherence, not rerouted in produ
 from copy import deepcopy
 from pathlib import Path
 
-from apps.api.codex_runtime import LANGUAGE_INTAKE_SCHEMA, build_language_intake_prompt
+from apps.api.background_profile import PROFILE_FIELDS, profile_contract, profile_packet, validate_profile
 from apps.api.family_context import extract_family_tree_context
 from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
 from apps.api.memory_events import extraction_instructions, extraction_schema, validate_extraction
@@ -81,15 +81,94 @@ def progressive_page(locale, previous=None):
             cursor=[3 if previous else 2,events[-1]['id'],'last-ref'],sources=sources,events=events,new_messages=messages,previous=previous,previous_summary=None))
 
 
-def cases():
+def profile_cases():
+    """Admitted bounded pages, not proof of host scheduling or persistence."""
     rows = []
+
+    def add(label, text, expected, evidence, *, target, sequence, targets=PROFILE_FIELDS,
+            reference=None, start=0, kind='narrator_chat'):
+        page = dict(project_id='isolated-profile-test', source=dict(
+            id='synthetic-profile-' + label, version=2, project_id='isolated-profile-test',
+            status='active', author_role='storyteller', kind=kind, sequence=sequence,
+            text=text, char_start=start, char_end=start + len(text), original_length=start + len(text)),
+            profile_context=dict(work_mode='extract', revision=3, target_round=target,
+                                 targets=list(targets), reference=reference or {}))
+        instructions, schema = profile_contract(page)
+        rows.append(dict(id='memory-profile-' + label, skill='memoir-memory-context',
+            instructions=instructions, schema=schema, input=profile_packet(page), page=page,
+            expected=expected, evidence=evidence, validator='profile',
+            scope='admitted checkpoint page; proposal semantics only, no schedule or saved-profile certification'))
+
+    add('checkpoint-en-AU',
+        'My name is Alex. I was born in 1960 in Hobart. I grew up in Launceston. I am a man. Now I live in Sydney.',
+        dict(name='Alex', birth_year=1960, birth_place='Hobart', childhood_place='Launceston', avatar_style='male'),
+        dict(name='My name is Alex.', birth_year='I was born in 1960 in Hobart.',
+             birth_place='I was born in 1960 in Hobart.', childhood_place='I grew up in Launceston.',
+             avatar_style='I am a man.'), target=5, sequence=2,
+        targets=[field for field in PROFILE_FIELDS if field != 'birth_date_expression'],
+        reference={'birth_date_expression': '', 'authority': {'birth_date_expression': 'explicit'}})
+    add('checkpoint-zh-CN',
+        '🌱 我的名字是小梅。我出生于1960年前后，出生地是成都。我在昆明长大。我是一名女性。现在我住在悉尼。',
+        dict(name='小梅', birth_date_expression='1960年前后', birth_place='成都', childhood_place='昆明', avatar_style='female'),
+        dict(name='我的名字是小梅。', birth_date_expression='我出生于1960年前后', birth_place='出生地是成都',
+             childhood_place='我在昆明长大。', avatar_style='我是一名女性。'), target=10, sequence=7,
+        targets=[field for field in PROFILE_FIELDS if field != 'birth_year'], start=140,
+        reference={'birth_year': None, 'authority': {'birth_year': 'explicit'}}, kind='narrator_transcript')
+    add('manual-reference',
+        'My name is Robin. I was born in 1971 in Perth. I grew up in Fremantle. My wife is a woman.',
+        dict(childhood_place='Fremantle'), dict(childhood_place='I grew up in Fremantle.'),
+        target=20, sequence=12, targets=['childhood_place', 'avatar_style'], reference={
+            'name': 'Alex', 'birth_year': None, 'birth_place': 'Hobart',
+            'authority': {'name': 'explicit', 'birth_year': 'explicit', 'birth_place': 'explicit'}})
+    add('correction', 'I said 1961 before, but that was a mistake. I was born in 1962.',
+        dict(birth_year=1962), dict(birth_year='I said 1961 before, but that was a mistake. I was born in 1962.'),
+        target=30, sequence=24, targets=['birth_year'], reference={
+            'birth_year': 1961, 'authority': {'birth_year': 'inferred'},
+            'provenance': {'birth_year': [dict(source_id='prior-source', version=1,
+                quote='I was born in 1961.', char_start=0, char_end=19)]}})
+    add('other-people',
+        'My father was born in 1930 in Perth. My sister said, "I am a woman named Mei." '
+        'A book character says, "I grew up in Hobart." My spouse is a woman. '
+        'The photograph shows a man. Please change the interface to Chinese.',
+        {}, {}, target=1, sequence=1)
+    add('reference-is-not-testimony', 'Thank you.', {}, {}, target=5, sequence=4,
+        reference={'name': 'Alex', 'birth_place': 'Hobart', 'avatar_style': 'female',
+                   'authority': {'name': 'inferred', 'birth_place': 'inferred', 'avatar_style': 'explicit'}},
+        targets=[field for field in PROFILE_FIELDS if field != 'avatar_style'])
+    add('conflicting-avatar',
+        'I might describe myself as a man or as a woman; neither description is settled.',
+        {}, {}, target=10, sequence=8, targets=['avatar_style'])
+    return rows
+
+
+def validate_profile_case(case, value):
+    """Check original-window citations independently of host normalization."""
+    from jsonschema import Draft202012Validator
+
+    Draft202012Validator(case['schema']).validate(value)
+    original = case['input']['source']
+    for change in value['profile_patch']:
+        for ref in change['source_refs']:
+            start, end = ref['char_start'], ref['char_end']
+            if (ref['source_id'] != original['id'] or ref['version'] != original['version']
+                    or type(start) is not int or type(end) is not int
+                    or not 0 <= start < end <= len(original['text'])
+                    or original['text'][start:end] != ref['quote']):
+                raise ValueError('profile_original_window_evidence')
+        anchor = case['evidence'].get(change['field'])
+        if not anchor or not any(anchor in ref['quote'] for ref in change['source_refs']):
+            raise ValueError('profile_fact_evidence')
+    validated = validate_profile(value, case['page'])
+    actual = {change['field']: change['value'] for change in validated['profile_patch']}
+    if actual != case['expected']:
+        raise ValueError('profile_semantic_mismatch')
+
+
+def cases():
+    rows = profile_cases()
     for locale in ('en-AU', 'zh-CN'):
         original = source(locale)
         rows.extend([
-            dict(id='memory-language-' + locale, skill='memoir-memory-context',
-                 instructions=build_language_intake_prompt(), schema=LANGUAGE_INTAKE_SCHEMA,
-                 input={'storyteller_message': original['text'], 'ui_locale': 'zh-CN' if locale == 'en-AU' else 'en-AU'},
-                 expected=locale, validator='language'),
             dict(id='timeline-evidence-' + locale, skill='memoir-author-timeline',
                  instructions=extraction_instructions() + '\n' + EXTRACTION_WINDOW_CONTRACT,
                  schema=extraction_schema(), input={'sources': [original], 'saved_events': []},
@@ -119,16 +198,6 @@ def cases():
             'independent_pins': sum(p['pin'] is not None for p in expected_groups['places']),
             'conversation_must_wait': False}, validator='equal',
         scope='instruction probe; actual grouping is deterministic and has no model invocation'))
-    rows.append(dict(id='localization-recording-boundary', skill='app-auto-localization',
-        instructions=skill_prompt('app-auto-localization', 'references/detection-policy.md') +
-            '\nAudit only. Return the active UI locale, proposed manual UI locale, whether to defer, and whether the transcript changes.',
-        schema=object_schema({'active_locale': {'type': 'string'}, 'pending_locale': {'type': 'string'},
-                              'defer_switch': {'type': 'boolean'}, 'rewrite_transcript': {'type': 'boolean'}}),
-        input={'device_locale': 'en-AU', 'account_locale': 'zh-CN', 'browser_languages': ['zh-CN'],
-               'manual_request': 'Change the interface to Chinese', 'recording': True,
-               'interview_transcript': '我小时候住在成都。'},
-        expected=dict(active_locale='en-AU', pending_locale='zh-CN', defer_switch=True, rewrite_transcript=False),
-        validator='equal', scope='instruction probe; UI locale resolution has no production model invocation'))
     rows.append(dict(id='story-game-missing-authority', skill='memoir-story-game',
         instructions=skill_prompt('memoir-story-game', 'references/runtime-contract.md') +
             '\nAdmission audit only. Return whether generation is permitted, whether a game was generated, and whether author approval can be invented.',
@@ -166,9 +235,8 @@ def validate_case(case, value):
     if kind == 'equal':
         if value != case['expected']:
             raise ValueError('semantic_mismatch')
-    elif kind == 'language':
-        if value != {'preferred_language': case['expected']}:
-            raise ValueError('wrong_conversation_language')
+    elif kind == 'profile':
+        validate_profile_case(case, value)
     elif kind == 'extraction':
         events = validate_extraction(value, [case['original']], [])
         if not events or not any(e.get('life_stage') == 'childhood' for e in events):

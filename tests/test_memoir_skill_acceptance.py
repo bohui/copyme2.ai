@@ -13,8 +13,8 @@ from scripts.memoir_five_case_evaluator import (
 
 
 # This focused contract is separate from the immutable five-case fixtures.
-CASE = {"id": "optional-skill-probe", "family_enabled": {"default": True}}
-RESULT = {"reply": "A grounded reply.", "trace": [{"skill": "memoir-memory-context"}]}
+CASE = {"id": "optional-skill-probe", "family_enabled": {"default": True}, "profile_auto_stopped": True}
+RESULT = {"reply": "A grounded reply.", "trace": []}
 
 
 @pytest.mark.parametrize("observation", [None, {"status": "unavailable"}, {"status": "blocked"}])

@@ -5,19 +5,20 @@ export const missingPreferenceRpc = error => ['PGRST202','42883'].includes(error
 // Client epochs fence completions; the RPC enforces cross-client source priority
 // and rejects dispatch under a different SDK principal.
 export function createPreferenceSession() {
-  let client=null, user=null, generation=0, preference=null, pending=false, writeTail=Promise.resolve();
+  let client=null, user=null, generation=0, preference=null, pending=false, hydrated=false, writeTail=Promise.resolve();
   const capture = () => ({ viewer:user?.id || null, generation });
   const current = scope => scope.viewer === (user?.id || null) && scope.generation === generation;
   return {
     get preference() { return preference; },
     get busy() { return pending; },
+    get resolved() { return !client || !user?.id || hydrated; },
     get viewer() { return user?.id || null; },
     capture, current,
     beginIntent() { generation++; pending=true; },
     cancelIntent(scope) { if (current(scope)) pending=false; },
-    invalidate() { generation++; preference=null; pending=false; },
+    invalidate() { generation++; preference=null; pending=false; hydrated=false; },
     setSession(nextClient,nextUser) {
-      if ((user?.id || null) !== (nextUser?.id || null)) { generation++; preference=null; pending=false; }
+      if ((user?.id || null) !== (nextUser?.id || null)) { generation++; preference=null; pending=false; hydrated=false; }
       client=nextClient; user=nextUser;
     },
     async refresh() {
@@ -26,6 +27,7 @@ export function createPreferenceSession() {
       const {data,error}=await client.rpc('read_ui_locale_preference',{p_expected_viewer:scope.viewer});
       if (!current(scope) || pending) return null;
       if (error && !missingPreferenceRpc(error)) return null;
+      hydrated=true;
       const value=error ? {locale:user.user_metadata?.ui_locale,source:'manual',revision:0} : data;
       if (!valid(value)) return null;
       // A second overlapping read cannot install a lower committed revision.
@@ -45,7 +47,7 @@ export function createPreferenceSession() {
         if (!current(scope)) return null;
         // Fence reads begun while the write was in flight, including Auth events.
         if (result.error || !valid(result.data)) throw new Error('UI preference could not be saved');
-        generation++; pending=false;
+        generation++; pending=false; hydrated=true;
         preference=result.data;
         return preference;
       } catch (error) {

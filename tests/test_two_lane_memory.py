@@ -158,7 +158,7 @@ def test_actual_ndjson_a_is_saved_while_b_provider_is_blocked_or_failed(sql,tmp_
         class Broker:
             async def rpc(self,name,**args):
                 query=','.join(k+'=>'+literal(v) for k,v in args.items())
-                return await asyncio.to_thread(lambda:json.loads(sql('set role service_role;select to_jsonb(public.'+name+'('+query+'));').stdout.splitlines()[-1]))
+                return await asyncio.to_thread(lambda:json.loads(sql('set role service_role;select to_jsonb(public.'+name+'('+query+'));').stdout.strip() or 'null'))
         async def provider(request):
             body=json.loads(request.content);calls.append(body)
             if body.get('bounded_lane'):
@@ -297,9 +297,12 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
         class Broker:
             async def rpc(self,name,**args):
                 query=','.join(k+'=>'+literal(v) for k,v in args.items())
-                return await asyncio.to_thread(lambda:json.loads(sql('set role service_role;select to_jsonb(public.'+name+'('+query+'));').stdout.splitlines()[-1]))
+                return await asyncio.to_thread(lambda:json.loads(sql('set role service_role;select to_jsonb(public.'+name+'('+query+'));').stdout.strip() or 'null'))
         def background(request):
-            assert json.loads(request.content)['bounded_lane']['phase']=='extract'
+            phase=json.loads(request.content)['bounded_lane']['phase']
+            if phase=='profile':
+                return httpx.Response(200,json={'reply':'{"profile_patch":[]}','thread_id':'profile','artifacts':[]})
+            assert phase=='extract'
             return httpx.Response(200,json={'reply':json.dumps({'events':[],'place_journeys':[PLACE],'prepared_questions':[QUESTION]}),'thread_id':'b','artifacts':[]})
         worker=SimpleNamespace(broker=Broker(),worker_url='http://controlled.invalid',worker_secret='synthetic',
             worker_transport=httpx.MockTransport(background),lane_publisher=LanePublication(sql.publication_dsn,authenticated_owner=OWNER))

@@ -25,7 +25,7 @@ function harness() {
     stopVoiceMode() {}, restoreChatHistory:() => [], hydrateAccountHistory:async () => {},
     startCodexConversation:async () => {},
     markWorkspaceFocusStarted() {}, conversationLanguage:() => 'en-AU', simulatedLoopTrace:() => [],
-    refreshPrivateDraft() {}, applyCommittedConversationLocale:async () => {}, persistChatHistory() {},
+    refreshPrivateDraft() {}, refreshProfileMenu() {}, applyCommittedConversationLocale:async () => {}, persistChatHistory() {},
     render:() => renders.push(JSON.parse(JSON.stringify(state.stageReadiness))),
     toast:message => {throw new Error(message);},
     nextAssistantMessageId:() => 'reply', updateStreamingAssistantMessage() {},
@@ -37,6 +37,7 @@ function harness() {
     }),
     streamAgentTurn:async () => ({conversation_saved:true, reply:'Saved reply.'})});
   for (const name of ['captureProjectScope','isCurrentProjectScope','invalidateProjectNavigation',
+    'profile','preserveConversationLocale','mergePrivateProfile',
     'navigateTo','refreshStageReadiness','agentTurn','startMemoirStory','startStory']) vm.runInContext(extract(name), context);
   async function nextTimer() {
     const next = [...timers].sort((a,b) => a[1].at - b[1].at)[0];
@@ -45,6 +46,53 @@ function harness() {
   }
   return {context,state,requests,timers,renders,nextTimer,now:() => now};
 }
+
+test('active interview polling follows pending profile work and replaces saved or withdrawn facts', async () => {
+  const h = harness();
+  h.state.project.profile = {name:'Withdrawn', avatar_style:'male', photo_memories:{selected:'keep'},
+    profile_automation:{revision:1}};
+  const pending = h.context.refreshStageReadiness();
+  h.requests[0]({...stage(10, true), profile:{birth_year:1960, avatar_style:'female', profile_automation:{revision:2}}});
+  await settle();
+  assert.equal(h.state.project.profile.birth_year, 1960);
+  assert.equal(h.state.project.profile.avatar_style, 'female');
+  assert.equal(Object.hasOwn(h.state.project.profile, 'name'), false);
+  assert.equal(h.state.project.profile.photo_memories.selected, 'keep');
+  await h.nextTimer();
+  h.requests[1]({...stage(10), profile:{profile_automation:{revision:3}}});
+  await pending;
+  assert.equal(Object.hasOwn(h.state.project.profile, 'birth_year'), false);
+  assert.equal(Object.hasOwn(h.state.project.profile, 'avatar_style'), false);
+  assert.equal(h.state.project.profile.profile_automation.revision, 3);
+  assert.equal(h.timers.size, 0);
+});
+
+test('a profile poll started before a newer UI confirmation cannot overwrite it', async () => {
+  const h = harness();
+  h.state.project.profile = {name:'Automatic', profile_automation:{revision:1}};
+  const pending = h.context.refreshStageReadiness();
+  h.state.project.profile = {avatar_style:'female', profile_automation:{revision:3, field_locks:{name:'manual', avatar_style:'manual'}}};
+  h.requests[0]({...stage(10), profile:{name:'Obsolete', avatar_style:'male', profile_automation:{revision:2}}});
+  await pending;
+  assert.equal(Object.hasOwn(h.state.project.profile, 'name'), false);
+  assert.equal(h.state.project.profile.avatar_style, 'female');
+  assert.equal(h.state.project.profile.profile_automation.revision, 3);
+});
+
+for (const recording of ['recording', 'storyRecording', 'voiceMode']) test(`profile polling does not rebuild the composer during ${recording}`, async () => {
+  const h = harness();
+  h.state[recording] = true;
+  h.state.audioTranscript = 'An unfinished voice answer';
+  let menus = 0;
+  h.context.refreshProfileMenu = () => menus++;
+  const pending = h.context.refreshStageReadiness();
+  h.requests[0]({...stage(10), profile:{birth_year:1960, profile_automation:{revision:2}}});
+  await pending;
+  assert.equal(h.state.project.profile.birth_year, 1960);
+  assert.equal(h.state.audioTranscript, 'An unfinished voice answer');
+  assert.equal(h.renders.length, 0);
+  assert.equal(menus, 1);
+});
 
 test('saved-project Begin replaces the cancelled poll before its resume greeting finishes', async () => {
   const h = harness();

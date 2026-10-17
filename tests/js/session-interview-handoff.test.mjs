@@ -15,7 +15,8 @@ function harness({followUps = 3, turns = 4, accepted = false} = {}) {
     photoTurns: {pending: () => pending}};
   const context = vm.createContext({state, $: () => input, profile: () => ({}),
     captureProjectScope: () => ({}), isCurrentProjectScope: () => true,
-    conversationLanguage: () => 'en-AU', conversationMessage: () => 'Fallback', translate: key => key,
+    conversationLanguage: () => 'en-AU', currentUiPreference: () => null, settleUiLocale: async () => true,
+    conversationMessage: () => 'Fallback', translate: key => key,
     conversationScroll: {follow() {}}, render() {}, refreshFamilyContext() {},
     ensureMemorySession: async () => state.session, memoryFollowUpPrompt: () => 'Fallback',
     api: async path => {requests.push(path); return state.session;},

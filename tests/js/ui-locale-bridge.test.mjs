@@ -8,7 +8,7 @@ function harness(){
  const calls=[],toasts=[],state={project:{id:'p',profile:{}},supabase:{user:{id:'a'},accessToken:'fixture'}};
  const session=createPreferenceSession();let fail=false;
  session.setSession({rpc:async(name,args)=>{calls.push(['rpc',args]);return fail?{error:{code:'offline'}}:{data:{locale:args.p_locale,source:args.p_source,revision:1}};}},state.supabase.user);
- const context=vm.createContext({state,uiPreferenceSession:session,firstReplyUiCandidate,UI_LOCALES:new Set(['en-AU','zh-CN']),
+ const context=vm.createContext({state,writeTail:Promise.resolve(),uiPreferenceSession:session,firstReplyUiCandidate,UI_LOCALES:new Set(['en-AU','zh-CN']),
   toast:value=>toasts.push(value),translate:key=>key,currentUiPreference:()=>session.preference,profile:()=>state.project.profile,
   preserveConversationLocale:value=>value,storyApi:async(_path,options)=>{calls.push(['profile']);const language=JSON.parse(options.body).preferred_language;return {preferred_language:language,conversation_language:{source:'explicit'}};}});
  for(const name of ['installUiLocaleBridge','persistCommittedFirstReplyUiLocale']) vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0],context);

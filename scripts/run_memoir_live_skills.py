@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run bounded, real provider calls for every checked-in Memoir skill.
+"""Run bounded, real provider calls for every active Memoir skill.
 
 Synthetic isolated inputs only; no Supabase writes, user sessions, or deployment.
 Receipts distinguish instruction contracts, composition phases, and native search.
@@ -345,7 +345,8 @@ async def execute(args):
               '| Case | Skill | Result | Seconds | HTTP dispatches |', '| --- | --- | --- | ---: | ---: |']
     report += [f"| {r['case_id']} | {r['skill']} | {r['status']} | {r['elapsed_seconds']} | {r['http_dispatches']} |" for r in receipt['results']]
     report += ['', 'Native search passes require completed tool receipts and independently inspected source evidence.',
-               'Story-game tests the missing-authority rejection; game runtime is unavailable. Grouping and UI localization use deterministic production code.',
+               'Profile cases validate admitted checkpoint pages, not host scheduling or persisted effects. Retired localization is excluded.',
+               'Story-game tests the missing-authority rejection; game runtime is unavailable. Grouping uses deterministic production code.',
                'HTTP calls are bounded; internal gateway attempts and monetary cost are not verified.', '']
     (directory / 'report.md').write_text('\n'.join(report))
     print(json.dumps({'status': receipt['status'], 'receipt': str(directory / 'receipt.json'), 'report': str(directory / 'report.md')}))

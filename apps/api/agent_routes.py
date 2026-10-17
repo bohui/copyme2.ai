@@ -141,19 +141,81 @@ async def change_conversation_phase(project_id: str, payload: ConversationPhaseC
         await asyncio.to_thread(storage.client.close)
 
 
-class ProfileSettingsInput(BaseModel):
+ProfileField = Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
+PROFILE_SETTINGS_FIELDS = ('preferred_language', 'name', 'birth_year', 'birth_date_expression',
+                           'birth_place', 'childhood_place', 'avatar_style')
+
+
+class ProfileSettingsValues(BaseModel):
     preferred_language: Literal['en-AU', 'zh-CN'] | None = None
     name: str | None = Field(default=None, max_length=120)
-    birth_year: int | None = Field(default=None, ge=1800, le=date.today().year)
+    birth_year: int | None = Field(default=None, ge=1800, le=date.today().year, strict=True)
+    birth_date_expression: str | None = Field(default=None, max_length=120)
     birth_place: str | None = Field(default=None, max_length=160)
     childhood_place: str | None = Field(default=None, max_length=160)
+    avatar_style: Literal['male', 'female'] | None = None
+
+
+class ProfileSettingsInput(ProfileSettingsValues):
+    model_config = {'extra': 'forbid'}
+
+    profile_confirm_all: bool = Field(default=False, strict=True)
+    profile_auto_enabled: bool = Field(default=True, strict=True)
+    profile_release_fields: list[ProfileField] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode='after')
+    def validate_profile_actions(self):
+        releases = self.profile_release_fields
+        if len(releases) != len(set(releases)):
+            raise ValueError('Duplicate profile field release')
+        if set(releases) & self.model_fields_set:
+            raise ValueError('Cannot set and release the same profile field')
+        if self.profile_confirm_all and (releases or
+                'profile_auto_enabled' in self.model_fields_set and self.profile_auto_enabled):
+            raise ValueError('Cannot confirm the whole profile and enable automatic updates together')
+        return self
+
+
+class ProfileAutomationProgress(BaseModel):
+    requested_round: int = Field(ge=0)
+    requested_frontier: int = Field(ge=0)
+    active_round: int = Field(ge=0)
+    source_frontier: int = Field(ge=0)
+    covered_round: int = Field(ge=0)
+    covered_frontier: int = Field(ge=0)
+    skipped_round: int = Field(ge=0)
+    status: Literal['idle', 'pending', 'covered', 'skipped', 'awaiting_checkpoint'] | None = None
+    pending_source_changes: bool = False
+
+
+class ProfileAutomationOutput(BaseModel):
+    schema_version: Literal[1]
+    revision: int = Field(ge=0)
+    auto_enabled: bool
+    stopped: bool
+    manual_complete: bool
+    field_locks: dict[ProfileField, Literal['manual', 'preserved']]
+    progress: ProfileAutomationProgress | None = None
+
+
+class ProfileSettingsResponse(ProfileSettingsValues):
+    conversation_language: dict | str | None = None
+    profile_automation: ProfileAutomationOutput | None = Field(default=None, json_schema_extra={'readOnly': True})
 
 
 def _profile_settings_response(profile):
-    return {key: profile.get(key) for key in ProfileSettingsInput.model_fields}
+    return {**{key: profile.get(key) for key in PROFILE_SETTINGS_FIELDS},
+            'conversation_language': profile.get('conversation_language'),
+            'profile_automation': profile.get('profile_automation')}
 
 
-@router.get('/profile')
+def _canonical_profile_settings_response(storage):
+    response = _profile_settings_response(storage.profile())
+    response['profile_automation'] = storage.lifetime_rpc('read_lifetime_profile_automation')
+    return response
+
+
+@router.get('/profile', response_model=ProfileSettingsResponse)
 async def read_profile_settings(authorization: str | None = Header(default=None)):
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
@@ -162,16 +224,16 @@ async def read_profile_settings(authorization: str | None = Header(default=None)
             identity=await asyncio.to_thread(find_lifetime_read_identity,storage,None)
             if identity is not None:
                 return await asyncio.to_thread(snapshot_lifetime_read,storage,identity.project_id,
-                    lambda fence: _profile_settings_response(storage.profile()))
+                    lambda fence: _canonical_profile_settings_response(storage))
         profile = await asyncio.to_thread(storage.profile)
         from .conversation_locale import restore_from_history
         profile = await restore_from_history(storage, profile)
-        return {key: profile.get(key) for key in ProfileSettingsInput.model_fields}
+        return _profile_settings_response(profile)
     finally:
         await asyncio.to_thread(storage.client.close)
 
 
-@router.patch('/profile')
+@router.patch('/profile', response_model=ProfileSettingsResponse)
 async def update_profile_settings(payload: ProfileSettingsInput, authorization: str | None = Header(default=None)):
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
@@ -187,11 +249,11 @@ async def update_profile_settings(payload: ProfileSettingsInput, authorization: 
                     # Capture before rereading, never attach a newer fence to
                     # the original RPC response after a concurrent correction.
                     def current_settings(fence):
-                        current=storage.profile()
-                        return {**_profile_settings_response(current),
-                            'conversation_language':current.get('conversation_language')}
+                        return _canonical_profile_settings_response(storage)
                     return await lease.io(snapshot_lifetime_read,storage,identity.project_id,current_settings)
             profile = await lease.io(storage.profile)
+            if payload.model_fields_set - set(PROFILE_SETTINGS_FIELDS):
+                raise HTTPException(409, 'Profile automation controls require an active conversation.')
             for key, value in payload.model_dump(exclude_unset=True).items():
                 if isinstance(value, str):
                     value = value.strip() or None
@@ -204,7 +266,7 @@ async def update_profile_settings(payload: ProfileSettingsInput, authorization: 
                 profile = explicit_profile(profile, payload.preferred_language)
             await lease.check()
             await lease.io(storage.save_profile, profile)
-            return {**{key: profile.get(key) for key in ProfileSettingsInput.model_fields},
+            return {**_profile_settings_response(profile),
                     'conversation_language': profile.get('conversation_language')}
     except AgentTurnBusyError:
         raise HTTPException(409, 'Please wait for the current reply to finish before saving your profile.') from None

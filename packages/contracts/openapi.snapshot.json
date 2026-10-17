@@ -674,8 +674,157 @@
         ],
         "type": "object"
       },
-      "ProfileSettingsInput": {
+      "ProfileAutomationOutput": {
         "properties": {
+          "auto_enabled": {
+            "type": "boolean"
+          },
+          "field_locks": {
+            "additionalProperties": {
+              "enum": [
+                "manual",
+                "preserved"
+              ],
+              "type": "string"
+            },
+            "propertyNames": {
+              "enum": [
+                "avatar_style",
+                "birth_date_expression",
+                "birth_place",
+                "birth_year",
+                "childhood_place",
+                "name"
+              ]
+            },
+            "type": "object"
+          },
+          "manual_complete": {
+            "type": "boolean"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileAutomationProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "stopped": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auto_enabled",
+          "field_locks",
+          "manual_complete",
+          "revision",
+          "schema_version",
+          "stopped"
+        ],
+        "type": "object"
+      },
+      "ProfileAutomationProgress": {
+        "properties": {
+          "active_round": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "covered_frontier": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "covered_round": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "pending_source_changes": {
+            "default": false,
+            "type": "boolean"
+          },
+          "requested_frontier": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "requested_round": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "skipped_round": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "source_frontier": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "awaiting_checkpoint",
+                  "covered",
+                  "idle",
+                  "pending",
+                  "skipped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "active_round",
+          "covered_frontier",
+          "covered_round",
+          "requested_frontier",
+          "requested_round",
+          "skipped_round",
+          "source_frontier"
+        ],
+        "type": "object"
+      },
+      "ProfileSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "avatar_style": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "birth_date_expression": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "birth_place": {
             "anyOf": [
               {
@@ -734,6 +883,143 @@
                 "type": "null"
               }
             ]
+          },
+          "profile_auto_enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "profile_confirm_all": {
+            "default": false,
+            "type": "boolean"
+          },
+          "profile_release_fields": {
+            "items": {
+              "enum": [
+                "avatar_style",
+                "birth_date_expression",
+                "birth_place",
+                "birth_year",
+                "childhood_place",
+                "name"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ProfileSettingsResponse": {
+        "properties": {
+          "avatar_style": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "birth_date_expression": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "birth_place": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "birth_year": {
+            "anyOf": [
+              {
+                "maximum": 2026.0,
+                "minimum": 1800.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "childhood_place": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conversation_language": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferred_language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en-AU",
+                  "zh-CN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile_automation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileAutomationOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
           }
         },
         "type": "object"
@@ -927,6 +1213,10 @@
             "minLength": 1,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
             "type": "string"
+          },
+          "retry": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
@@ -2187,7 +2477,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileSettingsResponse"
+                }
               }
             }
           },
@@ -2234,7 +2526,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileSettingsResponse"
+                }
               }
             }
           },

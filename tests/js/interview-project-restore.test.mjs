@@ -82,7 +82,9 @@ for (const status of [401, 403, 404]) test(`a cached interview with status ${sta
       return { active_session: null };
     },
   });
-  for (const name of ['captureProjectScope', 'isCurrentProjectScope']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\}`))[0], context);
+  for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'mergePrivateProfile', 'hydrateConversationProfile', 'profile']) {
+    vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\}`))[0], context);
+  }
   vm.runInContext(source.match(/async function refreshProject\([^]*?\n\}/)[0], context);
   await context.refreshProject();
   assert.equal(state.project.id, 'project_saved');

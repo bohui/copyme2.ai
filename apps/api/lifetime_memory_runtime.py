@@ -229,7 +229,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if not source:raise ValueError('Governed narrator turn requires a canonical source')
             accepted_source_id=source['id']
             profile=await lease.io(storage.profile)
-            selected_language=explicit_request(text) or profile.get('preferred_language') or detect_reply_locale(text) or language
+            selected_language=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
             if selected_language not in {'en-AU','zh-CN'}:selected_language='en-AU'
             if profile.get('preferred_language')!=selected_language:
                 language_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)

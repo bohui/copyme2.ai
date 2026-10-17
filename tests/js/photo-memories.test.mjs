@@ -131,7 +131,7 @@ function refreshHarness({snapshot, delayedAt, saveResult = saved, failSave = fal
     },
   });
   h.state.supabase.accessToken = 'synthetic';
-  for (const name of ['refreshProject']) {
+  for (const name of ['mergePrivateProfile', 'hydrateConversationProfile', 'refreshProject']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], h.context);
   }
   return {...h, pending, reached};

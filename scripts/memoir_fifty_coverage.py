@@ -117,8 +117,6 @@ def round_skill_coverage(*, project_id, round_number, runtime_result, profile,
         raise ValueError('Family entitlement must be a boolean or unavailable')
 
     calls = _skill_calls(runtime_result)
-    focus = profile.get('story_focus') if isinstance(profile, dict) else None
-    stage = focus.get('life_stage') if isinstance(focus, dict) else None
     update = runtime_result.get('family_context_update')
     update = update if isinstance(update, dict) else {}
     tree_called = ('family_tree' in (update.get('skills') or [])
@@ -153,11 +151,11 @@ def round_skill_coverage(*, project_id, round_number, runtime_result, profile,
     timeline = _timeline(canonical_state, round_number, runtime_result.get('accepted_source_id'))
     skills = {
         'memoir-memory-context': {
-            'status': ('observed' if 'memoir-memory-context' in calls else 'not_observed')
-                if isinstance(profile, dict) else 'unavailable',
-            'scope': 'persisted_profile_and_public_progress',
-            'life_stage': stage if stage in LIFE_STAGES else None,
-            'preferred_language': profile.get('preferred_language') if isinstance(profile, dict) else None},
+            'status': 'unavailable',
+            'scope': 'saved_profile_reference_only',
+            'profile_readback_available': isinstance(profile, dict),
+            'legacy_progress_observed': 'memoir-memory-context' in calls,
+            'checkpoint_evidence_available': False},
         'memoir-place-journey': {
             'status': 'observed' if saved_current else ('unavailable' if raw_places else 'not_observed'),
             'scope': 'accepted_current_places_and_latest_saved_place',
@@ -290,6 +288,10 @@ def _grade(skill, requirement, expected, observation):
         return 'not_applicable'
     if observation is None:
         return 'unavailable'
+    if skill == 'memoir-memory-context':
+        # Old language/stage labels and populated values cannot establish an
+        # admitted profile request, its source coverage, or a committed patch.
+        return 'unavailable'
     if skill == 'memoir-author-timeline':
         # The current lane processes every input independently of entitlement;
         # absence of the old Family marker cannot grade its invocation.
@@ -320,9 +322,6 @@ def _grade(skill, requirement, expected, observation):
         return 'unavailable'
     if observation.get('status') != 'observed':
         return 'unavailable'
-    if skill == 'memoir-memory-context':
-        return 'pass' if (expected['life_stage'] is None
-            or observation.get('life_stage') == expected['life_stage']) else 'fail'
     if skill == 'memoir-place-journey':
         return 'pass' if set(expected['places']).issubset(observation.get('accepted_places') or []) else 'fail'
     if skill == 'memoir-family-tree':
@@ -369,9 +368,6 @@ def case_skill_coverage(*, case_id, rounds):
         observations = deepcopy(observation.get('skills', {})) if observation else {}
         if ordinal in photos:
             observations['place-photo-research'] = photos[ordinal]
-        memory = observations.get('memoir-memory-context', {})
-        if memory.get('status') == 'observed' and memory.get('life_stage') in LIFE_STAGES:
-            stages.add(memory['life_stage'])
         timeline = observations.get('memoir-author-timeline', {})
         if timeline.get('status') == 'observed':
             stages.update(timeline.get('life_stages', []))
@@ -406,6 +402,7 @@ def case_skill_coverage(*, case_id, rounds):
             'photo_research_service_only' if photo_status == 'partial' else
                 'photo_research_unavailable' if photo_called else 'photo_research_not_run',
             *(['photo_catalogue_http_bound_unverified'] if photo_called else []),
+            'scheduled_profile_checkpoint_evidence_not_collected',
             'legacy_timeline_invocation_contract_changed',
             'private_checkpoint_is_not_formal_composition', 'semantic_judge_not_run'],
         'round_grades': rows}

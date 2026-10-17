@@ -15,6 +15,10 @@ function load(context, name) {
   if (['boot', 'startMemoirStory'].includes(name)) {
     for (const helper of ['savedProjectStorageKey', 'readBrowserValue', 'saveBrowserValue', 'savedProjectId', 'rememberProject']) load(context, helper);
   }
+  if (name === 'startMemoirStory') {
+    for (const helper of ['profile', 'preserveConversationLocale', 'mergePrivateProfile', 'hydrateConversationProfile']) load(context, helper);
+    context.mergePlaces ||= places => places;
+  }
   if (name === 'ensureRecallPreview') {
     load(context, 'freeRecallFinished');
     context.AbortController = AbortController;

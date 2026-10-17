@@ -156,6 +156,7 @@ class LaneFence(Contract):
     editorial_request: EditorialRequest | None = None
     two_lane: TwoLaneFence | None = None
     memory_summary:MemorySummaryFence|None=Field(default=None,exclude_if=lambda value:value is None)
+    profile_context:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
     prior_outputs: list[LaneArtifact] = Field(default_factory=list, max_length=16)
 
 
@@ -184,6 +185,9 @@ def _object(value):
 
 def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None):
     """Use server code, never client-supplied instructions or output schemas."""
+    if phase == 'profile':
+        from .background_profile import profile_contract
+        return profile_contract(fence)
     if phase == 'summarize':
         from .lifetime_memory_summary import summary_contract
         return summary_contract(fence)
@@ -257,12 +261,12 @@ class BoundedLaneInput(Contract):
     fence: LaneFence
     budget: ContextBudget
     prompt_version: Literal['lifetime-lane-v1'] = 'lifetime-lane-v1'
-    phase: Literal['extract', 'summarize', 'index', 'prepare', 'draft', 'review']
+    phase: Literal['extract', 'summarize', 'profile', 'index', 'prepare', 'draft', 'review']
     packet: str = Field(min_length=1, max_length=10_000_000)
 
     @model_validator(mode='after')
     def validate_transport(self):
-        if (self.fence.skill == 'timeline') != (self.phase in {'extract','summarize'}):
+        if (self.fence.skill == 'timeline') != (self.phase in {'extract','summarize','profile'}):
             raise ValueError('Bounded lane phase does not match skill')
         if (self.budget.context_window > 131072 or self.budget.input_budget > 65536
                 or self.budget.framing_headroom < 2048):
@@ -370,6 +374,18 @@ def canonical_lane_request(fence):
 
 
 def _validate_phase_packet(fence,phase,payload):
+    if phase == 'profile':
+        from .background_profile import RETRY_CODES, profile_packet
+        if fence.memory_summary is not None or fence.batch is not None or fence.prior_outputs:
+            raise ValueError('Profile requires its canonical source page')
+        actual = deepcopy(payload)
+        if 'retry_reason' in actual and actual.pop('retry_reason') not in RETRY_CODES:
+            raise ValueError('Unsupported profile retry reason')
+        if actual != profile_packet(fence):
+            raise ValueError('Profile payload differs from authoritative page evidence')
+        return
+    if fence.profile_context is not None:
+        raise ValueError('Profile window cannot run another lane phase')
     if phase=='summarize':
         from .lifetime_memory_summary import SUMMARY_RETRY_CODES,SummaryProposal,summary_packet
         if fence.memory_summary is None or fence.batch is not None or fence.prior_outputs:
@@ -642,10 +658,11 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
         raise PublicationUnavailable('Bounded lane worker is unavailable')
     publisher = _publisher(bounded,publisher)
     payload = {'user_id':str(bounded.fence.user_id), 'project_id':bounded.fence.project_id,
-        'agent_role':'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer',
+        'agent_role':('memory_context' if bounded.phase == 'profile' else
+            'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer'),
         'model':bounded.budget.model, 'language':bounded.fence.locale,
         'bounded_lane':bounded.model_dump(mode='json')}
-    if bounded.phase not in {'extract','summarize'}:
+    if bounded.phase not in {'extract','summarize','profile'}:
         payload['composer_phase'] = bounded.phase
     body = LaneRequestBody(serialize_packet(payload).encode('utf-8'),publisher=publisher,fence=bounded.fence)
     options = {'timeout':timeout or 300}
@@ -679,7 +696,8 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     check_lane_generation()
     bounded = _validated(bounded_lane,model)
     await validate_lane_payload(bounded)
-    role = 'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer'
+    role = ('memory_context' if bounded.phase == 'profile' else
+        'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer')
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
     fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))

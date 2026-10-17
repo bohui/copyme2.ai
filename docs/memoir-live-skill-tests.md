@@ -1,6 +1,6 @@
 # Live skill tests
 
-Run `make memoir-live-skills-test` to test all ten checked-in skill packages with
+Run `make memoir-live-skills-test` to test the active skill packages with
 real Responses calls through the existing private gateway configuration. Use
 `LIVE_SKILL=memoir-composer` to run one package. `make memoir-live-skills-plan`
 makes zero calls. `ENV_FILE` selects an existing configuration; credentials are
@@ -18,7 +18,7 @@ unavailable and are not claimed to be bounded by the client dispatch count.
 
 | Package | Live check |
 | --- | --- |
-| memoir-memory-context | English and Chinese language intake; UI fallback differs |
+| memoir-memory-context | Admitted checkpoint pages in English/Chinese; accumulated earlier originals, manual target exclusion, saved reference, corrections, exact window-relative evidence, and empty/ambiguous patches |
 | memoir-author-timeline | Original evidence, childhood stage, and no invented family identities, in both languages |
 | memoir-family-tree | Explicit mother and her grounded introduction through the application marker parser |
 | memoir-place-journey | Both cities in a move, in order; generic river does not become a place |
@@ -26,7 +26,6 @@ unavailable and are not claimed to be bounded by the client dispatch count.
 | historical-news-research | Reject unverified leads and private search data; native search receipt and independent public-source inspection/validation |
 | place-photo-research | Reject unverified leads and unsupported downloads; native search receipt and independently inspected item capture metadata |
 | memoir-place-groups | Instruction contract checked against the deterministic city/pin resolver |
-| app-auto-localization | Explicit preference and deferred switch while recording; transcript preserved |
 | memoir-story-game | Reject missing completion/adaptation authority; no game generation |
 
 These are isolated skill contract tests using synthetic or public inputs. They do
@@ -36,6 +35,15 @@ remain deterministic in production. The game runtime is unavailable; its passing
 negative test is not a successful game-generation test. Native research fails
 when actual search receipts or inspected source support are absent, even if the
 model returns plausible URLs.
+
+Profile probes use `profile_contract`, `profile_packet`, and `validate_profile`
+from the application, with an independent exact-window citation check. The host
+owns the 1/5/10/20/30 schedule, interval coverage, current manual locks, and commit
+fences. These admitted-page probes do not prove those host decisions or a save;
+native conversation/worker/profile-readback tests cover that boundary. A stopped
+profile or empty target set must skip before the skill contract is loaded.
+Retired `app-auto-localization` has no active probe. Historical run results below
+retain their original cases and receipts.
 
 The separate `memoir-live-fifty-test` campaign retains its own source receipts,
 original inputs, deadlines and accounting. Running this suite neither resumes nor

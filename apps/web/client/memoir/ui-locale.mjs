@@ -14,6 +14,7 @@ export function createUiLocale({
   }
 
   const uiPreferenceSession = createPreferenceSession();
+  let writeTail = Promise.resolve();
 
   function currentUiPreference() {
     return uiPreferenceSession.preference || readPreference(readCookie(preferenceCookie), state.supabase?.user?.id || null);
@@ -40,6 +41,24 @@ export function createUiLocale({
     await globalThis.__copyme2SetUiLocale?.(preference.locale, {
       persistAccount: false, persistCookie: true, source: preference.source,
     });
+  }
+
+  async function settleUiLocale() {
+    const scope = captureProjectScope();
+    let writes;
+    do {
+      writes = writeTail;
+      await writes;
+      if (!isCurrentProjectScope(scope)) return false;
+      const hydration = state.conversationLocaleHydration;
+      if (hydration && isCurrentProjectScope(hydration.scope)) {
+        await (hydration.failed ? hydration.retry() : hydration.promise);
+      }
+      if (!isCurrentProjectScope(scope)) return false;
+      if (!uiPreferenceSession.resolved) await syncAccountUiLocale();
+      if (!isCurrentProjectScope(scope)) return false;
+    } while (writes !== writeTail);
+    return uiPreferenceSession.resolved && !uiPreferenceSession.busy;
   }
 
   function firstReplyLanguage(text) {
@@ -105,7 +124,6 @@ export function createUiLocale({
   }
 
   function installUiLocaleBridge() {
-    let writeTail = Promise.resolve();
     globalThis.__copyme2UiLocaleScope = () => uiPreferenceSession.capture();
     globalThis.__copyme2UiLocaleScopeCurrent = (scope) => uiPreferenceSession.current(scope)
       && !state.recording && !state.storyRecording && !state.voiceModeRecorder;
@@ -166,8 +184,8 @@ export function createUiLocale({
   }
 
   return {
-    applyFirstReplyLocalization, applyProfileUiLocale, clearDerivedUiPreference, firstReplyLanguage,
+    applyFirstReplyLocalization, applyProfileUiLocale, clearDerivedUiPreference, currentUiPreference, firstReplyLanguage,
     installUiLocaleBridge, persistCommittedFirstReplyUiLocale, readCookie, syncAccountUiLocale,
-    syncProfileUiLocale, uiPreferenceSession
+    settleUiLocale, syncProfileUiLocale, uiPreferenceSession
   };
 }

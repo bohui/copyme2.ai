@@ -79,13 +79,32 @@ def test_evaluator_does_not_treat_persisted_later_life_context_as_a_new_review_s
     case_expected = next(item for item in EXPECTED["case_expectations"] if item["id"] == "harbour-copper-notebook")
     result = {
         "reply": "A grounded reply.",
-        "trace": [{"skill": "memoir-memory-context"}],
+        "trace": [],
         "state": {"profile": {"story_focus": {"life_stage": "later_life"}}},
     }
     grade = evaluate_round(EXPECTED, case_expected, 48, result, execution_mode="fixture",
                            ui_observations={skill: {"executed": True, "called": False, "output_ok": True} for skill in ("memoir-place-groups", "place-photo-research")})
     assert grade["state_checks"]["life_stage"]["status"] == "not_applicable"
     assert grade["skill_grades"]["memoir-memory-context"]["output"] == "pass"
+
+
+def test_profile_expectations_use_checkpoints_without_rewriting_historical_fixtures():
+    due = [number for number in range(1, 51)
+           if expected_round(EXPECTED, {}, number)['skill_status']['memoir-memory-context'] == 'required']
+    assert due == [1, 5, 10, 20, 30, 40, 50]
+    assert all(expected_round(EXPECTED, {'profile_auto_stopped': True}, number)
+               ['skill_status']['memoir-memory-context'] == 'must_not_call' for number in due)
+
+
+def test_profile_marker_or_trace_does_not_certify_scheduled_profile_persistence():
+    result = {'trace': [{'skill': 'memoir-memory-context'}],
+              'profile_updates': {'name': 'Alex'},
+              'state': {'profile': {'name': 'Alex', 'story_focus': {'life_stage': 'baby'}}}}
+    grade = evaluate_round({}, {}, 5, result, execution_mode='live')
+    assert grade['skill_grades']['memoir-memory-context']['status'] == 'unavailable'
+    assert grade['overall'] == 'unavailable'
+    grade = evaluate_round({}, {}, 2, result, execution_mode='live')
+    assert grade['skill_grades']['memoir-memory-context']['status'] == 'unavailable'
 
 
 def test_aggregate_separates_required_and_negative_contract_rounds():

@@ -108,3 +108,19 @@ def test_checked_in_snapshot_matches_schema_without_network_or_runtime_work(monk
     monkeypatch.setattr(CodexRuntime, 'turn', forbidden)
     expected = json.loads(contract.DEFAULT_SNAPSHOT.read_text())
     assert contract.snapshot_diff(expected, contract.build_snapshot()) == ''
+
+
+def test_profile_contract_keeps_automation_read_only_and_controls_allowlisted():
+    schema = contract.build_snapshot()['components']['schemas']
+    request = schema['ProfileSettingsInput']
+    response = schema['ProfileSettingsResponse']
+    assert request['additionalProperties'] is False
+    assert set(request['properties']) == {'name', 'birth_year', 'birth_date_expression',
+        'birth_place', 'childhood_place', 'avatar_style', 'preferred_language',
+        'profile_confirm_all', 'profile_auto_enabled', 'profile_release_fields'}
+    assert response['properties']['profile_automation']['readOnly'] is True
+    assert not set(response['properties']) & {'profile_confirm_all', 'profile_auto_enabled', 'profile_release_fields'}
+    assert schema['ProfileAutomationOutput']['properties']['field_locks']['additionalProperties']['enum'] == ['manual', 'preserved']
+    progress = schema['ProfileAutomationProgress']['properties']
+    assert {'requested_round', 'requested_frontier', 'active_round', 'source_frontier',
+            'covered_round', 'covered_frontier', 'skipped_round', 'status', 'pending_source_changes'} == set(progress)

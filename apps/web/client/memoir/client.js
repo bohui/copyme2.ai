@@ -217,9 +217,9 @@ const {
 });
 
 const {
-  applyFirstReplyLocalization, applyProfileUiLocale, clearDerivedUiPreference, firstReplyLanguage,
+  applyFirstReplyLocalization, applyProfileUiLocale, clearDerivedUiPreference, currentUiPreference, firstReplyLanguage,
   installUiLocaleBridge, persistCommittedFirstReplyUiLocale, readCookie, syncAccountUiLocale,
-  syncProfileUiLocale, uiPreferenceSession
+  settleUiLocale, syncProfileUiLocale, uiPreferenceSession
 } = createUiLocale({
   captureProjectScope, isCurrentProjectScope, preserveConversationLocale, profile, state, storyApi, toast
 });
@@ -1364,7 +1364,9 @@ function profileHasContext(profileValue = profile()) {
 function mergeProfileUpdates(updates) {
   if (!updates || typeof updates !== "object") return null;
   const current = { ...profile() };
+  updates = preserveConversationLocale(updates, current);
   const next = { ...current };
+  if (updates.profile_automation) next.profile_automation = updates.profile_automation;
   ["name", "birth_date_expression", "birth_place", "childhood_place"].forEach((key) => {
     if (typeof updates[key] === "string" && updates[key].trim()) next[key] = updates[key].trim();
   });
@@ -1403,13 +1405,15 @@ async function saveProfileUpdates(updates, expectedProjectId = null, { force = f
     state.project = { ...project, profile: merged };
     state.profileIntakePending = false;
     try {
+      const persistedProfile = { ...merged };
+      delete persistedProfile.profile_automation;
       const saved = await api(`/v1/projects/${project.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ profile: merged, expected_revision: project.revision }),
+        body: JSON.stringify({ profile: persistedProfile, expected_revision: project.revision }),
       });
       if (!isCurrentProjectScope(scope)) return;
       if (state.project?.id === project.id) state.project = { ...state.project, ...saved,
-        profile: { ...saved.profile, ...(state.project.profile?.photo_memories ? {
+        profile: { ...preserveConversationLocale(saved.profile, state.project.profile), ...(state.project.profile?.photo_memories ? {
           photo_memories:state.project.profile.photo_memories} : {}), ...(state.project.profile?.conversation_language ? {
           preferred_language:state.project.profile.preferred_language, conversation_language:state.project.profile.conversation_language} : {}) } };
       return;
@@ -1441,12 +1445,54 @@ async function applyCommittedConversationLocale(updates) {
 }
 
 function preserveConversationLocale(incoming = {}, current = {}) {
+  const authority = current.profile_automation;
+  if (Number(authority?.revision || 0) > Number(incoming.profile_automation?.revision || 0)) {
+    incoming = { ...incoming, profile_automation: authority };
+    for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']) {
+      if (Object.hasOwn(current, key)) incoming[key] = current[key];
+      else delete incoming[key];
+    }
+  }
   const saved = current.conversation_language;
   const candidate = incoming.conversation_language;
   if (saved?.initialized && (!candidate?.initialized || Number(candidate.revision || 0) < Number(saved.revision || 0))) {
     return { ...incoming, preferred_language: current.preferred_language, conversation_language: saved };
   }
   return incoming;
+}
+
+function mergePrivateProfile(saved = {}, current = {}) {
+  const incoming = {...current, ...saved};
+  for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']) {
+    if (!Object.hasOwn(saved, key)) delete incoming[key];
+  }
+  return preserveConversationLocale(incoming, current);
+}
+
+async function hydrateConversationProfile({photoMemoryRevision = state.photoMemoryRevision || 0} = {}) {
+  const scope = captureProjectScope();
+  const active = state.conversationLocaleHydration;
+  if (active?.pending && isCurrentProjectScope(active.scope)) return active.promise;
+  const hydration = {scope, pending:true, failed:false, retry:hydrateConversationProfile};
+  state.conversationLocaleHydration = hydration;
+  hydration.promise = (async () => {
+    try {
+      const saved = await storyApi("/v1/user/profile");
+      if (!isCurrentProjectScope(scope) || state.conversationLocaleHydration !== hydration) return;
+      const current = profile();
+      const incoming = mergePrivateProfile(saved, current);
+      incoming.memory_places = mergePlaces([...(saved.memory_places || []), ...(current.memory_places || [])], incoming);
+      if ((state.photoMemoryRevision || 0) !== photoMemoryRevision) incoming.photo_memories = current.photo_memories;
+      state.project = {...state.project, profile:incoming};
+      return saved;
+    } catch (error) {
+      hydration.failed = true;
+      throw error;
+    } finally {
+      hydration.pending = false;
+    }
+  })();
+  return hydration.promise;
 }
 
 function profileDetails() {
@@ -1521,28 +1567,38 @@ function bindProfileMenu() {
   });
   menu.querySelector("[data-profile-action='settings']")?.addEventListener("click", () => {
     closeProfileMenu();
+    const scope = captureProjectScope();
     openProfileSettings({
       api: storyApi,
+      isCurrent: () => isCurrentProjectScope(scope),
       onLanguageChange: applyProfileUiLocale,
-      onSave: async (settings) => {
+      onSave: async (settings, { closeAfterSave = true } = {}) => {
+        if (!isCurrentProjectScope(scope)) return;
         if (state.project) {
           const projectId = state.project.id;
           const ownerId = state.supabase?.user?.id;
           const updated = preserveConversationLocale({ ...profile(), ...settings }, profile());
           state.project = {...state.project, profile:updated};
-          const saved = await api(`/v1/projects/${projectId}`, {
-            method: "PATCH",
-            body: JSON.stringify({ profile: updated, expected_revision: state.project.revision }),
-          });
-          if (state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
-          state.project = { ...state.project, ...saved,
-            profile:preserveConversationLocale({...saved.profile, ...settings}, profile()) };
+          if (!settings.profile_automation) {
+            const persistedProfile = { ...updated };
+            delete persistedProfile.profile_automation;
+            const saved = await api(`/v1/projects/${projectId}`, {
+              method: "PATCH",
+              body: JSON.stringify({ profile: persistedProfile, expected_revision: state.project.revision }),
+            });
+            if (!isCurrentProjectScope(scope) || state.project?.id !== projectId || state.supabase?.user?.id !== ownerId) return;
+            state.project = { ...state.project, ...saved,
+              profile:preserveConversationLocale({...saved.profile, ...settings}, profile()) };
+          }
         }
         await persistCommittedFirstReplyUiLocale(profile());
-  await applyProfileUiLocale(conversationLanguage());
-        render();
+        if (!isCurrentProjectScope(scope)) return;
+        await applyProfileUiLocale(conversationLanguage());
+        if (!isCurrentProjectScope(scope)) return;
+        if (!closeAfterSave || state.recording || state.voiceMode || state.storyRecording) refreshProfileMenu();
+        else render();
       },
-      onClose: () => $("[data-profile-trigger]")?.focus(),
+      onClose: () => { if (isCurrentProjectScope(scope)) $("[data-profile-trigger]")?.focus(); },
     });
   });
   menu.querySelector("[data-profile-action='logout']")?.addEventListener("click", signOut);
@@ -1822,9 +1878,8 @@ async function startMemoirStory(mode = "self") {
     state.projectPrincipalId = ownerId;
     state.recallPreview = null;
     if (state.supabase?.user && !state.supabase.user.is_anonymous) {
-      const savedProfile = await storyApi("/v1/user/profile");
+      await hydrateConversationProfile();
       if (!current() || state.project?.id !== project.id) return;
-      state.project.profile = { ...state.project.profile, ...savedProfile };
     }
     rememberProject(state.project.id);
     state.chat = [];
@@ -1900,11 +1955,8 @@ async function refreshProject() {
   if (!isCurrentProjectScope(scope)) return;
   state.project = { ...base, ...journey, profile: preservePhotoMemory(preserveConversationLocale(base.profile, state.project.profile)) };
   if (state.supabase?.accessToken) {
-    const savedProfile = await storyApi("/v1/user/profile");
+    await hydrateConversationProfile({photoMemoryRevision});
     if (!isCurrentProjectScope(scope)) return;
-    state.project.profile = preservePhotoMemory(preserveConversationLocale({ ...state.project.profile, ...savedProfile,
-      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])],
-        {...state.project.profile, ...savedProfile}) }, state.project.profile));
   }
   state.session = journey.active_session;
   state.preview = state.project.preview || null;
@@ -2348,6 +2400,7 @@ async function refreshStageReadiness() {
           // A snapshot predating that save cannot repaint newer client state.
           if (!job.requested) {
             state.stageReadiness = result.stages || {};
+            if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
             if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace)) {
               // The existing bounded recovery poll owns workspace catch-up too.
               // Do not persist background hints as profile/language authority.
@@ -2357,7 +2410,8 @@ async function refreshStageReadiness() {
                 void loadPlacePictures(state.placeJourney, projectId);
               }
             }
-            render();
+            if (state.recording || state.storyRecording || state.voiceMode) refreshProfileMenu();
+            else render();
             if (!result.pending) return;
           }
         } catch (error) {
@@ -2924,10 +2978,17 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
   const firstReply = !profile().conversation_language?.initialized && !state.chat.some((message) => message.role === "user");
-  const configuredConversationLanguage = conversationLanguage();
-  const detectedFirstReplyLanguage = firstReply && !configuredConversationLanguage
-    ? firstReplyLanguage(messageText)
-    : undefined;
+  try {
+    if (firstReply && !await settleUiLocale()) throw new Error(localizedErrorMessage());
+  } catch (error) {
+    if (!current()) return;
+    state.loading = false;
+    if (state.voiceMode) state.voiceModeStatus = "listening";
+    toast(error.message);
+    render();
+    return;
+  }
+  if (!current()) return;
   if ($("#chat-input")) $("#chat-input").value = "";
   state.chatHistoryCollapsed = false;
   state.chat.push({ role: "user", text: messageText, attachments });
@@ -2936,8 +2997,6 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   state.audioTranscript = "";
   render();
   try {
-    if (detectedFirstReplyLanguage) await applyFirstReplyLocalization(detectedFirstReplyLanguage);
-    if (!current()) return;
     const session = text ? await ensureMemorySession() : null;
     if (!current()) return;
     let cues = [];
@@ -2976,12 +3035,23 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       }
     }
     const mediaContext = attachments.some(item => item.asset) ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.filter(item => item.asset).map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
+    if (firstReply && !await settleUiLocale()) throw new Error(localizedErrorMessage());
+    if (!current()) return;
+    const configuredConversationLanguage = conversationLanguage() || currentUiPreference()?.locale;
+    const detectedFirstReplyLanguage = firstReply && !configuredConversationLanguage
+      ? firstReplyLanguage(messageText)
+      : undefined;
+    if (detectedFirstReplyLanguage) {
+      await applyFirstReplyLocalization(detectedFirstReplyLanguage);
+      if (!await settleUiLocale()) throw new Error(localizedErrorMessage());
+    }
+    if (!current()) return;
     const result = await agentTurn(
       text ? `The storyteller said: ${text}\n${instruction}${mediaContext}` : "",
       fallback,
       ["memory.save", "memory.search"],
-      detectedFirstReplyLanguage || configuredConversationLanguage || (firstReply ? currentUiLocale() : undefined),
-      Boolean(detectedFirstReplyLanguage),
+      conversationLanguage() || currentUiPreference()?.locale || detectedFirstReplyLanguage || (firstReply ? currentUiLocale() : undefined),
+      Boolean(detectedFirstReplyLanguage) && !conversationLanguage() && currentUiPreference()?.source !== "manual",
       text,
       null,
       sourceKind,
