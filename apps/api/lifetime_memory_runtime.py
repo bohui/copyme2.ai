@@ -78,7 +78,7 @@ class LifetimePublicationContext:
                 # A disconnect/late fence cannot invent a delivery receipt. Saved
                 # reply replay can recover this idempotently under a fresh fence.
                 import logging
-                logging.getLogger(__name__).warning('Strategy delivery receipt unavailable: %s',type(error).__name__)
+                logging.getLogger(__name__).warning('Conversation delivery receipt unavailable: %s',type(error).__name__)
         if self.strategy_metrics is not None and self.strategy_outcome is not None:
             self.strategy_metrics.record(self.strategy_outcome,delivered=delivered,**self.strategy_timings)
             self.strategy_metrics=None
@@ -427,10 +427,13 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 publication.queue_historical_research(runtime,storage,project_id)
         # Keep both cross-replica renewal and the local lock alive through actual
         # final ASGI send. The response cleanup is their sole release owner.
-        if two_lane and response.get('reply_id') and response.get('reply') and strategy_enabled():
+        if two_lane and response.get('reply_id') and response.get('reply'):
             async def strategy_delivery():
-                return await call('commit_lifetime_strategy_delivery',p_fence=publication.fence,
+                await call('commit_lifetime_attribution_delivery',p_fence=publication.fence,
                     p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
+                if strategy_enabled():
+                    return await call('commit_lifetime_strategy_delivery',p_fence=publication.fence,
+                        p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
             publication.strategy_delivery=strategy_delivery
         publication.scope=scope;scope=None
         return GovernedResult(response,fence) if publication.emitter else response

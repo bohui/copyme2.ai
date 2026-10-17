@@ -143,11 +143,16 @@ def _numeric_temporal_evidence_is_supported(timing):
         # The contract permits a one-year uncertainty interval when only a
         # birth year and an age are known. PostgreSQL validates the anchored
         # lower bound; the upper bound records the narrator's uncertainty.
+        if targets[1] not in (targets[0], targets[0] + 1):
+            return False
         targets = targets[:1]
     for target in targets:
         if timing.precision == 'age':
             supported = any(
                 _memory_age_number(age.quote) is not None
+                and (age.attribution is None or age.attribution.casefold() in {'narrator', 'storyteller', 'self', '我', '本人'})
+                and (birth.attribution is None or birth.attribution.casefold() in {'narrator', 'storyteller', 'self', '我', '本人'})
+                and re.match(r'^(?:actually[,\s]+)?(?:I\s+(?:was\s+)?born|my\s+(?:birth year|year of birth)|我(?:是|于|在)?[0-9]{4}年?(?:出生|生于)|我(?:是)?(?:出生|生于))', birth.quote, re.I)
                 and _memory_birth_year(birth.quote) is not None
                 and _memory_birth_year(birth.quote) + _memory_age_number(age.quote) == target
                 for age in basis for birth in basis

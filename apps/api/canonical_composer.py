@@ -310,6 +310,7 @@ def composer_request(job):
         'sources': sources, 'events': events, 'periods': periods, 'assets': [],
         'prior_state': prior, 'authorised_retirements': [],
         'context': {'canonical_event_index': True, 'dirty_event_ids': dirty, 'style': 'plain, warm, faithful',
+                    **({'attribution_coverage': job['attribution_coverage']} if job.get('attribution_coverage') else {}),
                     **({'editorial_request': job['editorial_request']} if job.get('editorial_request') else {}),
                     **({'lifetime_page': {'schema_version': 1, 'snapshot_id': job['snapshot_id'],
                         'page_number': job['page_number'], 'coverage_scope': 'canonical_message_batch' if job.get('batch') else 'canonical_evidence_partition',
