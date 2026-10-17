@@ -232,6 +232,7 @@ begin
  values(owner,p_conversation_id,project,p_source_id,p_source_version,p_name,'generated')
  on conflict(user_id) do update set conversation_id=excluded.conversation_id,project_id=excluded.project_id,
    source_id=excluded.source_id,source_version=excluded.source_version,chosen_name=excluded.chosen_name,authority='generated';
+ delete from public.user_lifetime_profile_dependency where user_id=owner and field='name';
  update public.user_lifetime_profile_authority set name_released=false,invalidated_fields=array_remove(invalidated_fields,'name') where user_id=owner;
  update public.user_profile set profile=jsonb_set(profile,'{name}',to_jsonb(p_name)) where user_id=owner;
 end $$;

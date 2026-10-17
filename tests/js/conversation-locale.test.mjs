@@ -48,7 +48,7 @@ for (const race of ['manual choice', 'account switch']) {
     context.mergePlaces=places=>places;
     context.refreshStageReadiness=()=>{};
     context.refreshPrivateDraft=()=>{};
-    vm.runInContext(extract('refreshProject'),context);
+    for (const name of ['mergePrivateProfile', 'hydrateConversationProfile', 'refreshProject']) vm.runInContext(extract(name),context);
     const refresh=context.refreshProject();
     await requested;
     await context.applyCommittedConversationLocale({preferred_language:'en-AU',conversation_language:record('en-AU',2,'explicit')});

@@ -11,6 +11,7 @@ function harness(profile) {
   const state = {project:{id:'profile-test', revision:1, profile}, supabase:{user:{id:'owner'}, accessToken:'fixture'}};
   const context = vm.createContext({state, toast() {}, translateWith: String});
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'profile', 'preserveConversationLocale',
+    'mergePrivateProfile', 'hydrateConversationProfile', 'refreshProject',
     'mergeProfileUpdates', 'saveProfileUpdates']) vm.runInContext(extract(name), context);
   return {state, context};
 }
@@ -55,6 +56,46 @@ test('read-only automation is never included in generic workspace profile writes
   await context.saveProfileUpdates({memory_places:[]});
   assert.equal(Object.hasOwn(patch.profile, 'profile_automation'), false);
   assert.equal(patch.profile.avatar_style, 'female');
+});
+
+test('authoritative profile hydration removes withdrawn facts while retaining workspace and photo state', async () => {
+  const facts = {name:'Avery', birth_year:1960, birth_date_expression:'around 1960', birth_place:'Hobart',
+    childhood_place:'Sydney', avatar_style:'female'};
+  const {state, context} = harness({...facts, profile_automation:automation(2), photo_memories:{saved:true}, story_focus:{what:'garden'}});
+  Object.assign(context, {api:async path => path.endsWith('/journey') ? {} : {id:'profile-test', profile:structuredClone(state.project.profile)},
+    storyApi:async () => ({profile_automation:automation(3)}), mergePlaces:values => values,
+    refreshStageReadiness() {}, refreshPrivateDraft() {}});
+  await context.refreshProject();
+  for (const field of Object.keys(facts)) assert.equal(Object.hasOwn(state.project.profile, field), false, field);
+  assert.deepEqual(state.project.profile.photo_memories, {saved:true});
+  assert.deepEqual(state.project.profile.story_focus, {what:'garden'});
+  assert.equal(state.project.profile.profile_automation.revision, 3);
+});
+
+test('a late hydration cannot remove a newer confirmed profile field or confirmed blank', async () => {
+  const {state, context} = harness({name:'Old', profile_automation:automation(2)});
+  let finish;
+  context.storyApi = () => new Promise(resolve => {finish = resolve;});
+  context.mergePlaces = values => values;
+  const pending = context.hydrateConversationProfile();
+  state.project.profile = {avatar_style:'female', profile_automation:automation(4)};
+  finish({name:'Obsolete', profile_automation:automation(3)});
+  await pending;
+  assert.equal(Object.hasOwn(state.project.profile, 'name'), false);
+  assert.equal(state.project.profile.avatar_style, 'female');
+  assert.equal(state.project.profile.profile_automation.revision, 4);
+});
+
+test('profile hydration from a previous account cannot populate a new project', async () => {
+  const {state, context} = harness({});
+  let finish;
+  context.storyApi = () => new Promise(resolve => {finish = resolve;});
+  const pending = context.hydrateConversationProfile();
+  state.supabase.user.id = 'another-owner';
+  state.project = {id:'another-project', profile:{}};
+  finish({name:'Previous owner', profile_automation:automation(4)});
+  await pending;
+  assert.deepEqual(state.project.profile, {});
 });
 
 function settingsHandler(recording = false) {

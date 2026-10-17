@@ -10,7 +10,7 @@ import {readMemoirClientSource} from './helpers/memoir-source.mjs';
 const source = readMemoirClientSource();
 const localeSource = readFileSync(new URL('../../apps/web/client/memoir/ui-locale.mjs', import.meta.url), 'utf8');
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
-const deferred = () => {let resolve; const promise = new Promise(done => {resolve = done;}); return {promise, resolve};};
+const deferred = () => {let resolve, reject; const promise = new Promise((yes, no) => {resolve = yes; reject = no;}); return {promise, resolve, reject};};
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const manual = locale => ({locale, source:'manual', revision:1});
 const record = locale => ({version:1, initialized:true, locale, revision:1, source:'explicit'});
@@ -50,7 +50,8 @@ function harness({profile = {}, preference = null, cookie = '', uiLocale = 'en-A
     },
   });
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'profile', 'conversationLanguage',
-    'preserveConversationLocale', 'sendChatMessage', 'agentTurn', 'streamAgentTurn']) vm.runInContext(extract(name), context);
+    'preserveConversationLocale', 'mergePrivateProfile', 'hydrateConversationProfile',
+    'sendChatMessage', 'agentTurn', 'streamAgentTurn']) vm.runInContext(extract(name), context);
   vm.runInContext(localeSource.slice(localeSource.indexOf('export const UI_LOCALES')).replace(/^export /gm, ''), context);
   vm.runInContext(`
     Object.assign(globalThis, createUiLocale({captureProjectScope, isCurrentProjectScope, preserveConversationLocale,
@@ -169,6 +170,44 @@ for (const reviewedVoice of [false, true]) test(`failed preference read preserve
   h.notices.length = 0;
   await h.context.sendChatMessage();
   assertExplicit(h, 'en-AU', opposite('en-AU'), reviewedVoice);
+});
+
+for (const reviewedVoice of [false, true]) test(`failed private profile hydration retries before ${reviewedVoice ? 'reviewed voice' : 'typed'} submission`, async () => {
+  const h = harness({reviewedVoice}), response = deferred();
+  let reads = 0;
+  h.context.mergePlaces = places => places;
+  h.context.storyApi = () => {
+    reads++;
+    return reads === 1 ? response.promise : Promise.resolve({preferred_language:'en-AU', conversation_language:record('en-AU')});
+  };
+  const hydrating = assert.rejects(h.context.hydrateConversationProfile(), /Unavailable/);
+  const sending = h.context.sendChatMessage();
+  await tick();
+  response.reject(new Error('Unavailable'));
+  await Promise.all([hydrating, sending]);
+  assert.equal(reviewedVoice ? h.state.audioTranscript : h.input.value, opposite('en-AU'));
+  assert.deepEqual(h.requests, []);
+  assert.deepEqual(h.calls, {detection:0, localization:0});
+  assert.equal(h.state.conversationLocaleHydration.failed, true);
+  h.notices.length = 0;
+  await h.context.sendChatMessage();
+  assertExplicit(h, 'en-AU', opposite('en-AU'), reviewedVoice);
+  assert.equal(reads, 2);
+  assert.equal(h.state.conversationLocaleHydration.failed, false);
+});
+
+test('repeated private profile failures stay retryable without treating unknown preference as automatic', async () => {
+  const h = harness();
+  let reads = 0;
+  h.context.storyApi = async () => {reads++; throw new Error('Unavailable');};
+  await assert.rejects(h.context.hydrateConversationProfile(), /Unavailable/);
+  for (let retry = 0; retry < 2; retry++) {
+    await h.context.sendChatMessage();
+    assert.equal(h.input.value, opposite('en-AU'));
+    assert.deepEqual(h.requests, []);
+    assert.deepEqual(h.calls, {detection:0, localization:0});
+  }
+  assert.equal(reads, 3);
 });
 
 test('an account switch discards old hydration and resolves the new viewer before submission', async () => {

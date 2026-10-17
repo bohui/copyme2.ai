@@ -9,6 +9,9 @@ const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function load(context, ...names) {
+  if (names.some(name => ['refreshProject', 'startMemoirStory'].includes(name))) {
+    names = ['profile', 'preserveConversationLocale', 'mergePrivateProfile', 'hydrateConversationProfile', ...names];
+  }
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'invalidateProjectNavigation', ...names]) {
     if (extract(name)) vm.runInContext(extract(name), context);
   }

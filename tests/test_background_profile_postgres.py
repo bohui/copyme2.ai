@@ -304,6 +304,33 @@ def test_old_uncovered_name_cannot_overwrite_newer_literal_name(sql):
     assert sql('select source_id from public.user_lifetime_chosen_name;').stdout.strip()==newer['id']
 
 
+@pytest.mark.parametrize('action', ['edit', 'withdraw'])
+@pytest.mark.parametrize('name', ['Mary', 'Joan'])
+def test_newer_lane_a_name_replaces_background_dependencies(sql, action, name):
+    from test_interview_work_plan_postgres import plan
+
+    identity, sources, lane, base = setup(sql, text='My name is Joan.')
+    page = read(sql, lane, base)
+    commit(sql, lane, page, result(page, 'name', 'Joan'))
+    turn = str(uuid4())
+    accepted = rpc(sql, 'accept_user_interview_turn',
+        f"{literal(identity['project_id'])},'{turn}',{literal('My name is ' + name)},'narrator_chat','en-AU'")
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    captured = rpc(sql, 'capture_lifetime_fence', f"'{identity['conversation_id']}','{OLD}'")
+    rpc(sql, 'commit_lifetime_turn',
+        f"{literal(captured)},'{turn}',{literal(plan(name=name))},'[]','Hello.','[]','new-name-thread','v1','fixture'")
+    assert profile(sql)['name'] == name
+    rpc(sql, 'change_user_narrator_source',
+        f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'{action}',"
+        + (literal('An unrelated correction.') if action == 'edit' else 'null'))
+    assert profile(sql)['name'] == name
+    assert sql('select source_id from public.user_lifetime_chosen_name;').stdout.strip() == accepted['source']['id']
+    assert sql("select count(*) from public.user_lifetime_profile_dependency where field='name';").stdout.strip() == '0'
+    rpc(sql, 'change_user_narrator_source',
+        f"{literal(identity['project_id'])},'{accepted['source']['id']}',1,'withdraw',null")
+    assert 'name' not in profile(sql)
+
+
 def test_reply_only_coverage_is_success_and_not_manual_skip(sql):
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     accepted=rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{uuid4()}','My name is Joan.'")

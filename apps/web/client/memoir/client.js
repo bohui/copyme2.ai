@@ -1461,6 +1461,40 @@ function preserveConversationLocale(incoming = {}, current = {}) {
   return incoming;
 }
 
+function mergePrivateProfile(saved = {}, current = {}) {
+  const incoming = {...current, ...saved};
+  for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']) {
+    if (!Object.hasOwn(saved, key)) delete incoming[key];
+  }
+  return preserveConversationLocale(incoming, current);
+}
+
+async function hydrateConversationProfile({photoMemoryRevision = state.photoMemoryRevision || 0} = {}) {
+  const scope = captureProjectScope();
+  const active = state.conversationLocaleHydration;
+  if (active?.pending && isCurrentProjectScope(active.scope)) return active.promise;
+  const hydration = {scope, pending:true, failed:false, retry:hydrateConversationProfile};
+  state.conversationLocaleHydration = hydration;
+  hydration.promise = (async () => {
+    try {
+      const saved = await storyApi("/v1/user/profile");
+      if (!isCurrentProjectScope(scope) || state.conversationLocaleHydration !== hydration) return;
+      const current = profile();
+      const incoming = mergePrivateProfile(saved, current);
+      incoming.memory_places = mergePlaces([...(saved.memory_places || []), ...(current.memory_places || [])], incoming);
+      if ((state.photoMemoryRevision || 0) !== photoMemoryRevision) incoming.photo_memories = current.photo_memories;
+      state.project = {...state.project, profile:incoming};
+      return saved;
+    } catch (error) {
+      hydration.failed = true;
+      throw error;
+    } finally {
+      hydration.pending = false;
+    }
+  })();
+  return hydration.promise;
+}
+
 function profileDetails() {
   const user = state.supabase?.user || state.supabaseSession?.user || {};
   const metadata = user.user_metadata || {};
@@ -1844,11 +1878,8 @@ async function startMemoirStory(mode = "self") {
     state.projectPrincipalId = ownerId;
     state.recallPreview = null;
     if (state.supabase?.user && !state.supabase.user.is_anonymous) {
-      const hydration = {scope:captureProjectScope(), promise:storyApi("/v1/user/profile")};
-      state.conversationLocaleHydration = hydration;
-      const savedProfile = await hydration.promise;
+      await hydrateConversationProfile();
       if (!current() || state.project?.id !== project.id) return;
-      state.project.profile = { ...state.project.profile, ...savedProfile };
     }
     rememberProject(state.project.id);
     state.chat = [];
@@ -1924,13 +1955,8 @@ async function refreshProject() {
   if (!isCurrentProjectScope(scope)) return;
   state.project = { ...base, ...journey, profile: preservePhotoMemory(preserveConversationLocale(base.profile, state.project.profile)) };
   if (state.supabase?.accessToken) {
-    const hydration = {scope, promise:storyApi("/v1/user/profile")};
-    state.conversationLocaleHydration = hydration;
-    const savedProfile = await hydration.promise;
+    await hydrateConversationProfile({photoMemoryRevision});
     if (!isCurrentProjectScope(scope)) return;
-    state.project.profile = preservePhotoMemory(preserveConversationLocale({ ...state.project.profile, ...savedProfile,
-      memory_places: mergePlaces([...(savedProfile.memory_places || []), ...(state.project.profile?.memory_places || [])],
-        {...state.project.profile, ...savedProfile}) }, state.project.profile));
   }
   state.session = journey.active_session;
   state.preview = state.project.preview || null;
@@ -2374,6 +2400,7 @@ async function refreshStageReadiness() {
           // A snapshot predating that save cannot repaint newer client state.
           if (!job.requested) {
             state.stageReadiness = result.stages || {};
+            if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
             if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace)) {
               // The existing bounded recovery poll owns workspace catch-up too.
               // Do not persist background hints as profile/language authority.
@@ -2383,7 +2410,8 @@ async function refreshStageReadiness() {
                 void loadPlacePictures(state.placeJourney, projectId);
               }
             }
-            render();
+            if (state.recording || state.storyRecording || state.voiceMode) refreshProfileMenu();
+            else render();
             if (!result.pending) return;
           }
         } catch (error) {

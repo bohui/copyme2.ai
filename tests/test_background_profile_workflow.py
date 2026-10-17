@@ -61,6 +61,72 @@ class Broker:
         return json.loads(value.splitlines()[-1]) if value else None
 
 
+def test_active_interview_readiness_tracks_profile_work_and_authoritative_deletions(sql, monkeypatch):
+    from test_background_profile_postgres import setup, read, commit, result
+    from test_shared_memory_events_postgres import rpc
+
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    identity, sources, lane, base = setup(sql)
+    page = read(sql, lane, base)
+    with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage())) as client:
+        def readiness():
+            response = client.get('/v1/story/readiness', params={'project_id': identity['project_id']})
+            assert response.status_code == 200, response.text
+            return response.json()
+
+        waiting = readiness()
+        assert waiting['pending'] is True
+        assert waiting['profile']['profile_automation']['progress']['status'] == 'pending'
+        assert 'birth_year' not in waiting['profile']
+        commit(sql, lane, page, result(page, 'birth_year', 1960))
+        saved = readiness()
+        assert saved['pending'] is False
+        assert saved['profile']['birth_year'] == 1960
+        assert saved['profile']['profile_automation']['progress']['status'] == 'covered'
+        denied = client.get('/v1/story/readiness', params={'project_id': 'another-project'})
+        assert denied.status_code >= 400 and '1960' not in denied.text
+        rpc(sql, 'change_user_narrator_source',
+            f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'withdraw',null")
+        withdrawn = readiness()
+        assert 'birth_year' not in withdrawn['profile']
+        assert withdrawn['profile']['profile_automation']['revision'] > saved['profile']['profile_automation']['revision']
+        assert 'preferred_language' not in withdrawn['profile']
+
+
+def test_active_profile_read_does_not_publish_a_fact_withdrawn_during_hydration(sql, monkeypatch):
+    from test_background_profile_postgres import setup, read, commit, result
+    from test_shared_memory_events_postgres import rpc
+
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    identity, sources, lane, base = setup(sql)
+    page = read(sql, lane, base)
+    commit(sql, lane, page, result(page, 'birth_year', 1960))
+    changed = False
+
+    def storage_factory(_):
+        storage = PostgresRest(sql, OWNER).storage()
+        original = storage.profile
+        def withdraw_after_read():
+            nonlocal changed
+            saved = original()
+            if not changed:
+                changed = True
+                rpc(sql, 'change_user_narrator_source',
+                    f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'withdraw',null")
+            return saved
+        storage.profile = withdraw_after_read
+        return storage
+
+    with TestClient(create_app(MemoryStore(), story_storage_factory=storage_factory), raise_server_exceptions=False) as client:
+        response = client.get('/v1/story/readiness', params={'project_id': identity['project_id']})
+        assert changed
+        assert response.status_code >= 400 and '1960' not in response.text
+
+
 @pytest.mark.parametrize('language,text', [('en-AU', '我记得小时候的花园。'),
                                          ('zh-CN', 'I remember the garden from childhood.')])
 def test_explicit_ui_language_reaches_actual_collector_without_profile_language(sql, tmp_path, monkeypatch, language, text):

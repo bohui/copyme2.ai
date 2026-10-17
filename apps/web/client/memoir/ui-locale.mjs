@@ -51,7 +51,9 @@ export function createUiLocale({
       await writes;
       if (!isCurrentProjectScope(scope)) return false;
       const hydration = state.conversationLocaleHydration;
-      if (hydration && isCurrentProjectScope(hydration.scope)) await hydration.promise;
+      if (hydration && isCurrentProjectScope(hydration.scope)) {
+        await (hydration.failed ? hydration.retry() : hydration.promise);
+      }
       if (!isCurrentProjectScope(scope)) return false;
       if (!uiPreferenceSession.resolved) await syncAccountUiLocale();
       if (!isCurrentProjectScope(scope)) return false;

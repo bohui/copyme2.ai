@@ -31,6 +31,7 @@ from .memoir_preview import (compose_preview, source_snapshot, snapshot_key, cac
                              normalize_conversation_language, PreviewSourceChanged)
 from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
+from .background_profile import PROFILE_FIELDS
 from .lifetime_memory_read_api import read_mapped, draft_head, draft_page, retry_draft, collection_page, canonical_only, mapped_identity
 from .story_payments import (
     StripeAPIError,
@@ -340,6 +341,11 @@ def build_router(
                     places=storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=project_id)
                     result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
                         'source_revision':fence.source_revision,'places':places,'authoritative':True}
+                    profile = storage.profile()
+                    automation = storage.lifetime_rpc('read_lifetime_profile_automation')
+                    result['profile'] = {key: profile[key] for key in PROFILE_FIELDS if key in profile}
+                    result['profile']['profile_automation'] = automation
+                    result['pending'] = bool(result.get('pending') or automation.get('progress', {}).get('status') == 'pending')
                 return result
             return await asyncio.to_thread(read_mapped, storage, project_id, canonical, legacy)
         finally:
