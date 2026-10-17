@@ -1,18 +1,23 @@
 # CopyMe2 Memoir — Two-Lane Collector and Background Planning Refactor
 
-**Status:** Implementation plan / proposed design (not yet implemented)  
-**Version:** 1.0  
+**Status:** Proposed target design; current implementation and remaining gaps are recorded separately\
+**Version:** 1.1\
 **Prepared:** 16 October 2026  
+**Updated:** 17 October 2026 — unified logical Lane B and explicit skill trigger policy\
 **Repository:** [`bohui/copyme2.ai`](https://github.com/bohui/copyme2.ai)  
 **Product:** CopyMe2 Memoir (`/memoir/*`)  
 **Primary outcome:** Faster, natural Mira replies without weakening evidence-grounded memory capture, workspace consistency, or the memoir-composition gates.
+
+This revision incorporates the orchestration decision in [Issue 76](https://github.com/bohui/copyme2.ai/issues/76). The [skill execution map](Memoir_Skill_Execution_Map_Spec.md) is the maintained cross-skill policy and current-status reference. This document describes the target architecture, not evidence that shared orchestration is deployed. Existing Issue 70 benchmark/evaluation records remain pinned to their original v1.0 blob; this revision does not change those frozen results or controls.
 
 ## 1. Executive decision
 
 Adopt **two asynchronous execution lanes** using the existing application, Codex worker and durable task infrastructure:
 
 1. **Lane A — Mira Collector (interactive, high priority):** Immediately understands the latest accepted user message, follows the user's current direction, and streams one natural reply / relevant next question.
-2. **Lane B — Memory, Workspace & Interview Planner (background, lower priority):** Incrementally updates evidence-linked memory, summaries, people, timeline, place/photo workspace and a small **next-turn interview plan**, including one of three internal strategies: `comfort`, `explore`, `shape`.
+2. **Lane B — Background Orchestration (multiple independent runners):** Owns shared eligibility, dispatch, and progress for memory/profile extraction, composition, workspace enrichment, and interview planning. Reuse the durable memory/composer worker and independent grouping, research, and photo runners; a logical lane is not one worker process or serial queue. Interview planning may propose one of three internal strategies: `comfort`, `explore`, `shape`.
+
+Only **memoir-composer** and **memoir-memory-context** are periodic conversation-round skills. Composer defaults to rounds **5, 10, 15, 20...**; the profile parser is planned under [Issue 75](https://github.com/bohui/copyme2.ai/issues/75) for **1, 5, 10, 20, 30...**. Other active skills require content, state-change, or explicit-action rules, not every-N-round schedules. Story-game requires authoritative shape **and** its dedicated UI button action, plus existing gates; execution remains unavailable until separately integrated. Other non-deprecated skills are mode-eligible in comfort, explore, and shape, subject to their own gates.
 
 **Do not start two new Codex processes per user reply.** Use reusable runtime capacity and distinct logical work queues/threads; isolate resource pools further only if measurements justify it.
 
@@ -32,7 +37,7 @@ Expected benefits (to **measure**, not guarantee):
 - Less repeated question generation and fewer redundant background model calls.
 - Independent workspace updates without delaying or collapsing the live chat.
 
-### Repository alignment (checked against `main`; reconfirm before editing)
+### Repository alignment (original v1.0 design baseline; reconfirm before implementation)
 
 | Existing code / document | Observed boundary | Planned change |
 |---|---|---|
@@ -79,6 +84,8 @@ flowchart TB
 - Lane B may process multiple accepted turns together if backlog accumulates. It must **not omit turns**.
 - The canonical event index, chat history, human corrections and media permissions remain authoritative; **Codex thread history and model-generated summaries are only derived context**.
 - Existing memory/photo/organiser jobs remain in place. The proposed planner should be a bounded stage within background processing, not a second independent whole-memoir system.
+- Logical B admission/progress is shared, but independent runners keep their own capacity, retries, canonical writes, and cache semantics. Optional media/research must not hold the memory lease or starve memory/profile saves and eligible composition.
+- The current code does not yet have this unified B interface: memory/composer use durable lanes, historical research has an after-reply caller and separate persisted claim, grouping is request-driven, and photo jobs/cursors are process-local with optional persisted public-result caching. Consolidating policy must not erase these factual differences or imply that every asynchronous helper needs a durable job.
 
 ## 4. Ownership and permissions
 
@@ -260,13 +267,15 @@ If the current runtime cannot safely accept a user input before a successful rep
 ### 8.2 Background scheduling
 
 - Use existing Temporal/task dispatch and database fencing. No new Redis requirement.
+- Lane B owns one shared skill-admission/progress interface over the existing runners; it is not a new generic workflow platform. Source acceptance, relevant workspace changes, and authenticated UI actions can all supply eligible work references.
 - Separate interactive capacity from background capacity; background can never consume every model slot.
-- Per project: one active planner/memory-commit lane at a time, with a monotonically increasing `requested_through_seq` and **coalesced catch-up**.
+- Per project: serialize the planner/memory writes that share canonical state, with a monotonically increasing `requested_through_seq` and **coalesced catch-up**. This restriction does not serialize every B task; independent media/research run in bounded pools, and composition waits only for its required authorized extraction-complete snapshot and existing gates.
 - Process every accepted turn between previous watermark and target sequence exactly once in the logical evidence index; LLM calls and activity attempts can retry, but commits must be idempotent.
 - Preserve completed extraction results. Do not re-run the model merely to refresh an unchanged derived view.
 - Permit independent media tasks in bounded worker pools only where source/policy dependencies allow it.
 - Use deterministic operation keys and fenced leases. A retry that arrives late must not overwrite a newer plan, photo association, correction or restriction.
 - No long background processing under the foreground `AgentTurnLease`.
+- Only composer and memory-context have periodic round eligibility. Source-driven timeline/place extraction, relevant grouping/photo/research changes, and the game button are nonperiodic rules/actions. A rule may be checked after each source without invoking its skill unconditionally. Worker poll timers, lease heartbeats, cache TTLs, and retries are not periodic skill triggers.
 
 ### 8.3 Foreground fallback hierarchy
 
@@ -302,9 +311,19 @@ These event names are proposed; reuse existing event taxonomy where possible.
 
 Never collapse an activated map, photo or family workspace because a delayed background request returns empty or fails. Display the last valid result plus a safe retry/status when appropriate. Recheck permissions when rehydrating after reconnect.
 
+### 8.5 Shared admission, independent execution, and truthful progress
+
+One application-owned B orchestration module accepts authorized source/change/action references, evaluates the maintained skill policy, dispatches the existing appropriate runner, and exposes correlated progress/readable outcomes. Lane, mode, cadence or qualifying rule, explicit action where required, manual settings, source/policy scope, entitlement, feature enablement, and cache/deduplication gates remain conjunctive. Keep the full per-skill matrix in the [skill execution map](Memoir_Skill_Execution_Map_Spec.md), not in a second competing scheduler or duplicated table.
+
+Reuse existing task identities, receipts, and durable outbox obligations for work that must survive disconnect/restart. Retain request/cache behavior for optional lookups where appropriate. Adapt or retire the old dispatch callback for each migrated trigger so only one owner launches the work; do not let both paths enqueue it. Runners keep domain validation and final commit fences. Shared orchestration does not merge private canonical memory with public-reference caches, replace all storage, or add unrelated task types to the timeline/composer lane table.
+
+The UI's thinking steps report actual applied skills and execution type: independent model call, embedded responsibility in a shared pass, deterministic operation, or cache reuse. Distinguish queued, running, completed, saved, failed, skipped, and cached outcomes using real runner/commit evidence. Loading a skill, reaching a milestone, or entering a mode is not evidence of execution or a successful save. Preserve visibility/locale controls and attach late updates to the correct turn/job or covered-source interval; deduplicate replay and ignore stale cross-project updates. Show bounded operation summaries, never private reasoning or hidden plans.
+
 ## 9. Composition is a separate workflow
 
 Automatic internal `shape` means **clarify or connect events**—not “start writing the official book.”
+
+“Separate workflow” means separately authorized and executed within logical Lane B, not a third conversation lane or an exception to shared admission/progress. Progressive composer milestones are periodic; the existing preview/formal-composition and authorized correction/rework triggers retain their own nonperiodic rules.
 
 Preserve the independent triggers:
 
@@ -358,6 +377,8 @@ memoir_two_lane:
 
 These are conceptual config keys; choose environment variable and validation names in the implementation. Do **not** change the current provider’s actual model/effort policy merely by specifying a new route name. Confirm effective policy with provider measurements, including any `codex-lb` adapter limitations.
 
+The illustrative `background_parallelism_per_project: 1` refers to the serialized planner/canonical memory-write owner, not a global cap of one across every B runner. Preserve bounded independent media/research capacity and reserve memory/composer capacity; this revision does not change any deployed configuration.
+
 Keep separate controls for collector pool size, background rate/concurrency, planner age/staleness and rollout percentage. Fail closed for permissions; fall back gracefully for optional question planning.
 
 ## 12. Observability and success metrics
@@ -402,9 +423,15 @@ Track `reply_only` vs `extract` routing and per-task provider/model/skill versio
 | Worker crash after input accepted | Durable outbox and snapshot recover; no lost accepted source |
 | User permission or topic exclusion changes mid-job | Old suggestions fail final validation; no forbidden content delivered |
 | Photo or map provider outage | Conversation continues; workspace retains last valid result |
+| Photo/research runner blocked or failed | Eligible canonical memory/profile commits and authorized composition continue independently; no shared memory lease held by enrichment |
+| Periodic milestone without another qualifying rule | Only eligible composer/profile work can become due; no automatic timeline/place/research/game fan-out |
+| Relevant source/place/action between milestones | Rule-triggered work is admitted without waiting for round five/twenty; replay cannot duplicate dispatch |
+| Shared B dispatch migration | One admission owner and real independent runner; old callback and new interface cannot both launch the same work |
+| Late, cached, skipped, failed, or replayed skill progress | UI reflects actual execution/commit and coverage, without fabricated success, lost late updates, or cross-project traces |
 | Chinese and English language variation | User interview language persists; question suggestions and saved names follow locale/glossary |
 | Free threshold reached (configured value) | Correct preview trigger, no hard-coded count, no duplicate entitlements |
 | Internal `shape` selected automatically | May ask chronology clarification; **cannot** unlock draft, purchase, printing or organiser privileges |
+| Story-game request | Comfort/explore or shape without the explicit game button is denied; shape plus button still needs existing gates and an available integration |
 | User requests composition naturally | Separate server-owned eligibility/readiness check; ambiguous intent clarified |
 | No eligible artifact in Shape | Honest answer and permitted next step; no fabricated draft |
 | No relevant material changed | No needless recomposition or revision churn |
@@ -452,6 +479,7 @@ Run synthetic tests plus representative consented/live or approved pilot session
 
 ### PR 4 — Workspace events, composition isolation and lifecycle
 
+- Under Issue 76, consolidate skill admission/progress into logical B while retaining independent existing runners and current storage owners. Only composer/profile gain round-based due work; other skills remain rule/action-triggered.
 - Publish accepted background changes independently of chat.
 - Keep location, photos, family/timeline workspace open across partial failures and reconnects.
 - Keep existing preview/formal-composer jobs behind server-owned triggers and authorisation.
@@ -487,6 +515,7 @@ The refactor is complete when:
 
 1. Mira reliably begins speaking/responding sooner and asks one relevant question without waiting for workspace generation.
 2. Lane B independently updates source-grounded memories, summaries, question plans and authorised workspace views.
+   Its shared orchestration reuses independent runners; only composer and memory-context are periodic, and slow enrichment cannot block essential memory saves or misrepresent progress.
 3. Lane B may automatically select `comfort`, `explore`, or `shape` for the **next-turn plan**, but Lane A follows the latest user intent when the plan is stale or inappropriate.
 4. Every accepted storyteller turn is accounted for; no question is marked asked unless delivered, and no stale worker result can overwrite a later correction, exclusion or plan.
 5. Existing free-preview, formal composition, 7,000-word chapter cap, paid entitlement, consent, publishing and printing boundaries remain unchanged.
