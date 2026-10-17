@@ -83,3 +83,35 @@ Every failing case was then selected explicitly and rerun on unchanged main **`5
 These synthetic direct-worker fixtures encounter existing evidence/schema contract failures (for example, “Extraction payload differs from authoritative page evidence”) before their intended transport, policy or cancellation assertions. The new authenticated API/actual-worker/canonical-save retry tests pass without weakening those contracts. Repairing unrelated inherited fixtures is not included in this issue.
 
 Across the four backend groups above there are 575 passing cases and these 16 reproduced baseline failures, not a whole-repository green-suite claim. Previously established retired-path failures remain documented in the [Issue 77 receipt](issue77-conversation-attribution-20261017.md#baseline-failures-not-a-green-full-suite-claim). Production migration and real-provider semantic/performance behavior remain unverified; unavailable integrations and existing rollout defaults remain unchanged.
+
+## PR 81 review fixes — 18 October 2026
+
+Reviewed head: `5e584dd`. Each of the four reported symptoms was reproduced before its fix:
+
+- Pagination scope: `node --test --test-name-pattern='progress pagination cannot publish' tests/js/stage-readiness.test.mjs` failed for project and account switches. An old private profile replaced the newly selected project's profile after the awaited continuation read. Readiness now revalidates scope and newer-save requests after pagination, before applying any profile, mode, stage or workspace state. Regression cases cover project/account/navigation transitions and an intervening newer save.
+- Browser-cache duplicates: `node --test --test-name-pattern='later browser-cache hit' tests/js/place-photo-pagination.test.mjs` observed two trace entries after one provider lookup and one browser-cache hit. Photo-cache metadata now retains the actual server work ID and originating turn. Cache reuse upserts the original step, including after reload or a later reply; it does not dispatch another lookup or attach the old operation to a new stream.
+- Terminal service receipts: `MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short tests/test_background_skill_workflow.py -k completed_optional_service_receipts` failed after aging actual successful authenticated photo/grouping receipts six minutes. The readback expiry predicate now applies only to unfinished optional work. Completed service receipts remain completed; the same test proves stale running work still becomes interrupted/failed. Canonical model completion still needs its separate save boundary.
+- Commit replay: the same workflow command with `-k committed_page_replay` failed twice: replaying the first page's exact committed request returned `replayed: true` while incorrectly marking the second page saved before its commit. Page/profile/summary receipt wrappers now leave lifecycle metadata unchanged on replay. The actual-worker regression verifies page two remains completed until its own canonical commit, then both sources have saved receipts.
+
+Final post-fix checks on disposable native PostgreSQL and controlled external boundaries:
+
+```sh
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_background_skill_workflow.py tests/test_formal_memoir_postgres.py \
+  tests/test_lifetime_memory_read_api.py tests/test_progressive_composer.py \
+  tests/test_lifetime_memory_lane_engine.py
+# 184 passed in 131.31 seconds.
+
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_conversation_attribution.py tests/test_background_profile_postgres.py \
+  tests/test_background_profile_workflow.py tests/test_two_lane_memory.py \
+  tests/test_canonical_composer_provenance.py
+# 168 passed in 197.78 seconds.
+
+node --test --test-reporter=spec tests/js/*.test.mjs
+# 549 passed in 20.42 seconds.
+```
+
+The three English/Chinese/thinking-off browser cases passed again in 33.97 seconds using the source-UI command above. The production webpack build passed again; the mobile OpenAPI snapshot still matches 48 operations. Browser syntax, changed Python test compilation and diff checks pass. The initial JavaScript run lacked this worktree's installed-dependency link; after restoring that local test setup, the complete run above passed. No dependency/version change was made.
+
+The unmerged migration was updated in place and applied only to fresh disposable test clusters. No production migration, deployment, live-provider run or merge was performed. The 16 previously reproduced baseline failures are not reclassified as passing; unrelated broad legacy fixtures were not rerun in this focused review-fix pass.

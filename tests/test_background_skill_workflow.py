@@ -166,6 +166,32 @@ def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(s
         assert len(conversation.admissions)==3 # two timeline sources + first profile, no enrichment model
 
 
+def test_completed_optional_service_receipts_do_not_expire(sql,tmp_path,monkeypatch):
+    from apps.api import place_photo_pages
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL',raising=False)
+    monkeypatch.setattr(place_photo_pages,'search_place_photos',lambda *args,**kwargs:[])
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty)
+    with conversation.client:
+        conversation.say('In Hobart I repaired a bicycle.')
+        turn=sql('select client_turn_id from public.user_narrator_source limit 1;').stdout.strip()
+        photo=conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+            params={'place':'Hobart','period':'1980s'},headers={'X-Memoir-Progress-Turn':turn})
+        groups=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json={
+            'client_turn_id':turn,'places':[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
+                'granularity':'city','latitude':-42.88,'longitude':147.33}]})
+        assert photo.status_code==groups.status_code==200
+        assert photo.json()['skill_progress']['status']==groups.json()['skill_progress']['status']=='completed'
+        sql("update public.user_background_skill_work set updated_at=clock_timestamp()-interval '6 minutes';")
+        steps=[item for item in progress(conversation)['skill_progress']['items'] if item['phase'] in {'photos','grouping'}]
+        assert len(steps)==2
+        assert all(item['status']=='completed' for item in steps),steps
+        # Only genuinely unfinished optional work is an interrupted operation.
+        sql("update public.user_background_skill_work set status='running' where phase='grouping';")
+        interrupted=next(item for item in progress(conversation)['skill_progress']['items'] if item['phase']=='grouping')
+        assert interrupted['status']=='failed' and interrupted['reason']=='interrupted'
+
+
 def test_only_existing_profile_and_composer_schedules_advance_on_round_milestones(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'receipts.sqlite3'))
@@ -287,6 +313,37 @@ def test_saved_writer_receipt_survives_missing_optional_invocation_telemetry(sql
         assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context'}
         assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in steps)
         assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in steps)
+
+
+def test_committed_page_replay_cannot_save_the_next_pages_work(sql,tmp_path,monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty)
+    original=conversation.worker.broker.rpc
+    first_commit=None
+    replays=[]
+    async def replay_before_next_commit(name,**params):
+        nonlocal first_commit
+        if name=='commit_lifetime_memoir_lane_page' and first_commit and params['p_page_number']!=first_commit['p_page_number']:
+            replayed=await original(name,**first_commit)
+            assert replayed=={'status':'page_saved','replayed':True}
+            view=await asyncio.to_thread(progress,conversation)
+            next_step=next(item for item in view['skill_progress']['items']
+                if item['skill']=='memoir-author-timeline' and item['source_id']==second['accepted_source_id'])
+            assert next_step['status']=='completed',next_step
+            replays.append(replayed)
+        result=await original(name,**params)
+        if name=='commit_lifetime_memoir_lane_page' and first_commit is None:
+            first_commit=params
+        return result
+    monkeypatch.setattr(conversation.worker.broker,'rpc',replay_before_next_commit)
+    with conversation.client:
+        first=conversation.say('I repaired a bicycle.')
+        second=conversation.say('I painted the shed blue.')
+        conversation.drain()
+        assert len(replays)==1
+        steps=[item for item in progress(conversation)['skill_progress']['items'] if item['skill']=='memoir-author-timeline']
+        assert {item['source_id'] for item in steps}=={first['accepted_source_id'],second['accepted_source_id']}
+        assert all(item['status']=='saved' for item in steps)
 
 
 def test_composer_cached_retry_saves_without_counting_another_model_pass(sql,tmp_path,monkeypatch):

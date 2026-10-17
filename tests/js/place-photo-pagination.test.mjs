@@ -74,6 +74,41 @@ test('photo response progress keeps the server job identity for later persisted 
   assert.equal(steps.at(-1).status,'completed');
 });
 
+test('a later browser-cache hit updates the original server photo step instead of duplicating it',async()=>{
+  let calls=0;
+  const h=harness({place:'Chengde'},async()=>{
+    calls++;
+    return {items:[picture('found')],status:'READY',skill_progress:{id:'server-photo-job',status:'completed'}};
+  },{persistChatHistory(){},updateStreamingAssistantMessage(){}});
+  h.state.chat=[{role:'assistant',clientTurnId:'turn'}];
+  await h.context.loadPlacePictures(h.entry(),'project');
+  assert.equal(h.state.chat[0].trace.length,1);
+  await h.context.loadPlacePictures(h.entry(),'project');
+  assert.equal(calls,1,'Browser cache reuse must not dispatch another lookup');
+  assert.equal(h.state.chat[0].trace.length,1);
+  assert.equal(h.state.chat[0].trace[0].id,'server-photo-job');
+  assert.equal(h.state.chat[0].trace[0].status,'cached');
+});
+
+for (const reload of [false,true]) test(`cached photo progress stays on its original turn${reload ? ' after reload' : ''}`,async()=>{
+  let h=harness({place:'Chengde'},async()=>({items:[picture('found')],status:'READY',
+    skill_progress:{id:'server-photo-job',client_turn_id:'first',status:'completed'}}),
+    {persistChatHistory(){},updateStreamingAssistantMessage(){}});
+  h.state.chat=[{role:'assistant',clientTurnId:'first'}];
+  await h.context.loadPlacePictures(h.entry(),'project');
+  if (reload) {
+    const chat=JSON.parse(JSON.stringify(h.state.chat));
+    h=harness(JSON.parse(JSON.stringify(h.entry())),async()=>assert.fail('Cached photos must not request a provider'),
+      {persistChatHistory(){},updateStreamingAssistantMessage(){}});
+    h.state.chat=chat;
+  }
+  h.state.chat.push({role:'assistant',clientTurnId:'later'});
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:()=>assert.fail('Do not attach old cached work to a new reply')});
+  assert.equal(h.state.chat[0].trace.length,1);
+  assert.equal(h.state.chat[0].trace[0].status,'cached');
+  assert.equal(h.state.chat[1].trace,undefined);
+});
+
 for (const refresh of [false, true]) {
 for (const fallback of [false, true]) {
 test(`a repeated city alias preserves saved ${fallback ? 'GPS/time fallback ' : ''}photos${refresh ? ' through refreshed discovery' : ' without another lookup'}`, async () => {

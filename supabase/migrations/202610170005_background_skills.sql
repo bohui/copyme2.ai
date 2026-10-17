@@ -100,7 +100,7 @@ declare result jsonb; page jsonb;
 begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  result:=public.commit_lifetime_memoir_lane_page_before_skills(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
- if result->>'status'='page_saved' then
+ if result->>'status'='page_saved' and result->>'replayed' is distinct from 'true' then
    update public.user_background_skill_work set status='saved',reason=null,page_digest=p_page_digest,
      lease_token=(page->>'token')::uuid,updated_at=clock_timestamp()
    where lane_id=p_lane_id and snapshot_id=(page->>'snapshot_id')::uuid
@@ -131,7 +131,7 @@ declare result jsonb; page jsonb; reason text;
 begin
  page:=public.read_lifetime_profile_page(p_lane_id,p_token);
  result:=public.commit_lifetime_profile_page_before_skills(p_lane_id,p_token,p_page_digest,p_result);
- if result->>'status'='page_saved' then
+ if result->>'status'='page_saved' and result->>'replayed' is distinct from 'true' then
    update public.user_background_skill_work set status='saved',updated_at=clock_timestamp()
    where lane_id=p_lane_id and page_digest=p_page_digest and status in ('completed','failed') and model_invoked;
    if page->'profile_context'->>'work_mode'='extract' and not exists(select 1 from public.user_background_skill_work
@@ -158,7 +158,7 @@ language plpgsql security definer set search_path='' as $$
 declare result jsonb;
 begin
  result:=public.commit_lifetime_memory_summary_page_before_skills(p_lane_id,p_token,p_revision,p_result,p_page_digest);
- if result->>'status'='page_saved' then
+ if result->>'status'='page_saved' and result->>'replayed' is distinct from 'true' then
    update public.user_background_skill_work set status='saved',updated_at=clock_timestamp()
    where lane_id=p_lane_id and page_digest=p_page_digest and phase='summarize' and status in ('completed','failed') and model_invoked;
  end if;
@@ -286,7 +286,7 @@ begin
      raise exception 'progress cursor scope changed' using errcode='42501';end if;
  end if;
  select coalesce(jsonb_agg(to_jsonb(w)-array['user_id','lane_id','snapshot_id','page_digest','invocation_id','lease_token']||'{"lane":"B"}'::jsonb
-   ||case when w.status in ('running','completed') and ((w.lane_id is null and w.updated_at<clock_timestamp()-interval '5 minutes')
+   ||case when w.status in ('running','completed') and ((w.lane_id is null and w.status='running' and w.updated_at<clock_timestamp()-interval '5 minutes')
      or (w.lane_id is not null and not exists(select 1 from public.user_memoir_lane l
      where l.id=w.lane_id and l.token=w.lease_token and l.lease_until>clock_timestamp() and l.run_deadline>clock_timestamp()
        and exists(select 1 from public.user_lifetime_lane_snapshot s where s.id=w.snapshot_id and s.state='pending'))))

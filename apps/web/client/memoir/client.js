@@ -1110,7 +1110,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
     && entry.photo_search_policy === "place-fallback-gps-time-v9";
   const requestKey = photoRequestKey(entry, projectId);
-  const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
+  let progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
   let progressIdentity = `photos:${requestKey}`;
   const reportProgress = (status, label, failures = []) => {
     const safeFailures = (Array.isArray(failures) ? failures : []).filter(item => item
@@ -1127,6 +1127,11 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
         && entry.photo_search_policy === "place-fallback-gps-time-v9" && entry.photo_search_at > 0))) {
+    if (entry.photo_search_progress?.id) {
+      progressIdentity=entry.photo_search_progress.id;
+      if (entry.photo_search_progress.client_turn_id !== progressTurn) onProgress=null;
+      progressTurn=entry.photo_search_progress.client_turn_id;
+    }
     reportProgress("cached", (entry.pictures || []).length ? "picturesCached" : "picturesNoMatch");
     return;
   }
@@ -1188,6 +1193,8 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_at: result.searching ? 0 : Date.now(),
           photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
           photo_search_complete: !result.searching,
+          photo_search_progress: result.skill_progress ? {id:result.skill_progress.id,
+            client_turn_id:result.skill_progress.client_turn_id ?? progressTurn} : null,
           photo_search_policy: "place-fallback-gps-time-v9" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
@@ -2458,6 +2465,8 @@ async function refreshStageReadiness() {
                 cursor=older.next_cursor;
               }
             }
+            if (!current()) return;
+            if (job.requested) continue;
             state.currentInterviewMode = result.current_mode || null;
             state.stageReadiness = result.stages || {};
             if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
