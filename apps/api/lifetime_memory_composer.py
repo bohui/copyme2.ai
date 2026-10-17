@@ -9,6 +9,7 @@ import copy
 import json
 import os
 import logging
+from pydantic import ValidationError
 from .lifetime_memory_contracts import ContextBudget
 from .memory_events import ExtractionResult, extraction_instructions, extraction_schema, validate_extraction
 
@@ -31,6 +32,18 @@ def check_model_packet(packet, instructions, schema):
     if not budget.accepts(serialized):
         raise ValueError('bounded canonical lane model budget exceeded')
     return budget.count(serialized)
+
+
+def extraction_issue(error):
+    """Report schema locations without copying narrator or model content."""
+    if isinstance(error, ValidationError):
+        issue = error.errors(include_input=False)[0]
+        path = '.'.join(str(part) for part in issue['loc'])
+        return f'{path}:{issue["type"]}'[:120]
+    if isinstance(error, KeyError) and error.args and error.args[0] in {
+            'events', 'place_journeys', 'prepared_questions', 'strategy_proposal'}:
+        return f'missing_{error.args[0]}'
+    return type(error).__name__
 
 
 def validate_page(page):
@@ -175,9 +188,9 @@ async def _extract(page,worker):
             # Only fixed validator messages cross the logging boundary.
             packet['retry_reason']=EXTRACTION_REJECTION_REASONS.get(str(error),'OUTPUT_SCHEMA')
             logging.getLogger(__name__).warning(
-                'canonical_extraction rejected lane_id=%s page_number=%d attempt=%d reason=%s',
+                'canonical_extraction rejected lane_id=%s page_number=%d attempt=%d reason=%s issue=%s',
                 page['lane_id'], page['page_number'], attempt + 1,
-                packet['retry_reason'])
+                packet['retry_reason'], extraction_issue(error))
             if attempt==2:raise
 
 

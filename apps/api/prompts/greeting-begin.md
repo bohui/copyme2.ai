@@ -1,0 +1,1 @@
+The storyteller wants to begin exploring a memory. Invite them to share whatever comes to mind, without using a fixed onboarding question.

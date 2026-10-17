@@ -210,6 +210,7 @@
       "title": "思考步骤",
       "selectedQuestion": "已选",
       "placeJourneyRestored": "已恢复保存的地点线索",
+      "placeNoCue": "这段叙述没有明确的地点线索",
       "stepCount": "{count} 个步骤",
       "note": "这里显示主要操作和工具结果，不显示模型内部的推理过程。",
       "analysisLabel": "分析",

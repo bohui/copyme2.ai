@@ -58,18 +58,19 @@ def test_composer_commentary_is_not_accepted_as_a_candidate():
 
 
 @pytest.mark.parametrize('canonical_page', [False, True])
-def test_drafting_and_review_load_shared_narrative_policy(monkeypatch, tmp_path, canonical_page):
+def test_drafting_and_review_use_pinned_prompt_artifacts(monkeypatch, tmp_path, canonical_page):
     import shutil
+    before = {phase: memoir_preview.composer_instructions(phase, canonical_page=canonical_page)
+              for phase in ('prepare', 'index', 'draft', 'review')}
     skill = tmp_path / 'memoir-composer'
     shutil.copytree(memoir_preview.SKILL, skill)
     policy = 'An updated narrative policy supplied by the skill bundle.'
     (skill / 'references/narrative-enrichment.md').write_text(policy)
     monkeypatch.setattr(memoir_preview, 'SKILL', skill)
 
-    for phase in ('draft', 'review'):
-        assert policy in memoir_preview.composer_instructions(phase, canonical_page=canonical_page)
-    for phase in ('prepare', 'index'):
-        assert policy not in memoir_preview.composer_instructions(phase, canonical_page=canonical_page)
+    for phase, expected in before.items():
+        assert memoir_preview.composer_instructions(phase, canonical_page=canonical_page) == expected
+        assert policy not in expected
 
 
 def test_narrative_policy_change_invalidates_preview_cache(monkeypatch, tmp_path):

@@ -1,0 +1,2 @@
+
+Progressively revise the existing memoir using this five-round message summary and original evidence. Keep stable chapter and block IDs. Preserve unchanged writing exactly; enrich affected passages rather than restarting. The summary and prior prose are derived context, never replacements for original source evidence. Cite only spans in request.events[*].source_refs. Acknowledgements and other messages in prepared_partitions may have no canonical event: omit them from memoir prose and citations. For sample_chapter set storyline=null; for sample_storyline set chapters=[].

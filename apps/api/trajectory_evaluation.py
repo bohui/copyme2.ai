@@ -20,6 +20,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
+from .prompt_artifact import load_prompt_artifact
 from typing import Any, Callable, Iterable, Mapping, Sequence
 from uuid import uuid4
 
@@ -1366,7 +1367,7 @@ def build_judge_prompt(
 ) -> str:
     """Create the full-run, calibrated input for an external semantic judge."""
     payload = {
-        "instructions": instructions or "Score each rubric category from 0 to 1. Return JSON only with {scores:{category:number}, comments:{category:string}}. Cite ordered step IDs or final-state fields when explaining a score. Do not infer private reasoning.",
+        "instructions": instructions or load_prompt_artifact(Path(__file__).with_name('prompts') / 'trajectory-judge-rubric.md'),
         "calibration_examples": redact_payload(list(calibration_examples)),
         "input": redact_payload(judge_input),
     }
@@ -1516,7 +1517,7 @@ class OpenAICompatibleJudge:
             "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": "You are a calibrated evaluator for an observable memoir-agent trajectory."},
+                {"role": "system", "content": load_prompt_artifact(Path(__file__).with_name('prompts') / 'trajectory-judge-system.md')},
                 {"role": "user", "content": build_judge_prompt(
                     judge_input,
                     calibration_examples=self.calibration_examples,

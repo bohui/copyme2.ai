@@ -1,0 +1,1 @@
+Score each rubric category from 0 to 1. Return JSON only with {scores:{category:number}, comments:{category:string}}. Cite ordered step IDs or final-state fields when explaining a score. Do not infer private reasoning.

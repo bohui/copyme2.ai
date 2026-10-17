@@ -338,6 +338,58 @@ full schema reset. Use
 
 High-level Codex activity and early private-draft previews are hidden from storytellers by default. The two debug flags are independent and default to off. Set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` to stream operation summaries and show "Thinking steps". Set `MEMORY_SPARK_SHOW_DRAFT_UPDATES=1` to stream live private-draft checkpoints and show the draft-status panel, including "您的私人草稿正在后台更新" while work is pending. Draft previews, language and retry controls appear beneath the message input when the workspace is hidden or collapsed. Either debug UI requires a browser URL at `localhost`, `127.0.0.1` or `[::1]`; draft streaming does not require the thinking-step flag. With thinking steps off, chat still streams its reply and saved/workspace events, but emits no thinking-step progress or trace. The draft endpoint negotiates `application/x-ndjson`, sends `draft_update` events when the saved view changes and periodic `heartbeat` events, then sends `complete` when background work settles or a safe `error` if delivery fails. The server checks durable draft state every two seconds while work is pending; the UI maintains one connection and only reconnects after transport interruptions, with two bounded retries. Each canonical update retains its own publication guard. Other browser hosts keep this debug UI hidden and cannot open the draft stream even when the flags are enabled. With draft debugging off, a one-time read loads the saved draft in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
+### Versioned prompt artifacts
+
+Memoir's Langfuse project owns the prompt versions. Names describe their purpose,
+such as `memoir/interview/collector`, `memoir/memory/timeline`, and
+`memoir/composer/draft`; issue numbers and release dates stay in version metadata,
+not names. The previous `memoir/issue6/20261008-v1/...` prompts and datasets
+remain as historical snapshots. The current evaluation datasets are
+`memoir/evaluation/event-grounding`, `temporal-placement`,
+`chapter-continuity`, and `bilingual-consistency` under that folder.
+
+`memoir/memory/*` holds the current memory instructions, including a few
+`SKILL.md` files that supply memory behavior. `memoir/skills/*` holds distinct
+skill files and references. The earlier `memoir/runtime/*` imports are duplicate
+snapshots: none is registered for export or read by the application. They remain
+visible in Langfuse only as legacy entries.
+
+The API reads checked-in prompt files. Each managed file has a `.langfuse.json`
+receipt with its exact numeric version and SHA-256. A changed pinned file fails
+runtime validation. `make prompt-export` selects the highest numeric version of
+each registered Langfuse prompt and updates the file and receipt together;
+`make prompt-check` compares the checked-in pins with those exact remote
+versions. Both commands use the existing local Memoir project credentials in
+`$(HOME)/llm_provider/.env` by default. Override `PROMPT_CREDENTIAL_FILE` for a
+different local credential-file location.
+
+```sh
+python3 -m pip install -e '.[evaluation]'
+make prompt-export                         # All managed prompts, current Langfuse versions.
+make prompt-export PROMPT_NAME=collector-compact
+make prompt-check
+make prompt-eval                           # Read-only preflight for timeline/event-grounding.
+```
+
+Use `PROMPT_NAME=memoir/composer/draft` for another single artifact. Review and
+commit its prompt file and receipt together; a Langfuse edit reaches the app only
+after that Git change is deployed. To preflight another prompt/dataset pair, set
+`PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a
+candidate version before export; otherwise the checked-in version is used.
+`make prompt-eval` pins the dataset at its current UTC snapshot and prints the
+prompt version and item count without model calls. To run the experiment, set
+`PROMPT_EVAL_RUN=1` and `PROMPT_EVAL_MODEL=...`. The command reads provider
+credentials from `PROMPT_EVAL_PROVIDER_FILE` (the same `llm_provider/.env` by
+default), or use a different credential file and `--base-url` via the Python CLI. It sends
+one request at a time, up to 50 items by default. Structured dataset input is
+sent as JSON text. Review Langfuse outputs and human or managed scores before
+publishing a candidate. This generic experiment does not run application packet
+validation or automatically assign a quality score; full application behavior
+still needs its normal runtime checks.
+
+Langfuse documents [prompt versions](https://langfuse.com/docs/prompt-management/features/prompt-version-control)
+and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experiments/datasets).
+
 ### Langfuse trajectory evaluation
 
 Memoir keeps the evaluation runner beside the application and private

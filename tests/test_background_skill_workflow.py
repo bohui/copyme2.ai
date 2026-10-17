@@ -102,6 +102,8 @@ def test_blocked_B_progress_is_late_correlated_and_does_not_block_A(sql,tmp_path
                 live=await asyncio.to_thread(progress,conversation)
                 step=next(item for item in live['skill_progress']['items'] if item['skill']=='memoir-author-timeline')
                 assert step['status']=='running' and not step['model_invoked']
+                place=next(item for item in live['skill_progress']['items'] if item['skill']=='memoir-place-journey')
+                assert place['status']=='running' and place['execution']=='embedded'
                 # A accepts/delivers another useful reply while B's provider is held.
                 reply=await asyncio.to_thread(conversation.say,'I later repaired that bicycle.')
                 assert reply['conversation_saved'] and reply['reply']
@@ -295,6 +297,19 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         assert all(item['skill']!='memoir-family-tree' for item in steps)
 
 
+def test_shared_place_pass_reports_skipped_when_no_place_was_derived(sql,tmp_path,monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty)
+    with conversation.client:
+        conversation.say('I repaired a bicycle in our shed.')
+        conversation.drain()
+        steps=progress(conversation)['skill_progress']['items']
+        place=next(item for item in steps if item['skill']=='memoir-place-journey')
+        assert place['status']=='skipped' and place['execution']=='embedded'
+        assert place['reason']=='no_place_cue' and not place['model_invoked']
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
+
+
 def test_failed_commit_and_fresh_worker_retry_do_not_leave_false_success(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     conversation=Conversation(sql,tmp_path,monkeypatch,empty)
@@ -313,6 +328,7 @@ def test_failed_commit_and_fresh_worker_retry_do_not_leave_false_success(sql,tmp
         steps=progress(conversation)['skill_progress']['items']
         first=next(item for item in steps if item['skill']=='memoir-author-timeline' and item['phase']=='extract')
         assert first['status']=='failed' and first['model_invoked']
+        assert next(item for item in steps if item['skill']=='memoir-place-journey')['status']=='failed'
         assert conversation.client.get('/v1/story/skill-progress',params={'project_id':conversation.project},
             headers={'Authorization':'Bearer another-owner'}).status_code!=200
         conversation.retry()
@@ -340,9 +356,13 @@ def test_saved_writer_receipt_survives_missing_optional_invocation_telemetry(sql
         conversation.say('I remember our shed.')
         conversation.drain()
         steps=progress(conversation)['skill_progress']['items']
-        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context'}
-        assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in steps)
-        assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in steps)
+        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context','memoir-place-journey'}
+        models=[item for item in steps if item['execution']=='model']
+        assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in models)
+        assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in models)
+        place=next(item for item in steps if item['skill']=='memoir-place-journey')
+        assert place['status']=='skipped' and place['reason']=='no_place_cue'
+        assert place['model_invoked'] is False and place['model_attempts']==0
 
 
 def test_committed_page_replay_cannot_save_the_next_pages_work(sql,tmp_path,monkeypatch):

@@ -1,0 +1,2 @@
+
+Summarize only these new narrator messages since the preceding five-round checkpoint. Return a concise grounded delta in context (at most 4000 characters), and copy partition.source_refs exactly. Retain uncertainty and corrections. This summary is derived context; originals remain authoritative.

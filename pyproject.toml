@@ -32,6 +32,8 @@ test = [
 ]
 evaluation = [
   "langfuse>=4,<5",
+  "python-dotenv>=1,<2",
+  "openai>=2,<3",
 ]
 
 [tool.pytest.ini_options]

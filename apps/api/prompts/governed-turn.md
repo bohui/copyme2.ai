@@ -1,0 +1,1 @@
+Respond to the current narrator evidence in the governed packet. Return the supplied structured collector schema.

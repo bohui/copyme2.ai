@@ -1,0 +1,2 @@
+
+Canonical context place_conflicts identifies unresolved location roles. Do not choose one alternative or assert all alternatives as established facts. Omit the unresolved placement or explicitly preserve the source correction/uncertainty.

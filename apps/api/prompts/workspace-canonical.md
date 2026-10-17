@@ -1,0 +1,2 @@
+
+Private workspace pass: return only explicit profile and place markers. Canonical event extraction runs separately for every accepted input. Family-tree work is dispatched separately only for explicit relationships or relevant established-relative corrections. Return an empty string when nothing is explicit; do not infer facts.

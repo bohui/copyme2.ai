@@ -36,6 +36,7 @@ from apps.api.trajectory_evaluation import (  # noqa: E402
     redact_payload,
 )
 from scripts.memoir_five_case_evaluator import SKILLS  # noqa: E402
+from apps.api.prompt_artifact import load_prompt_artifact  # noqa: E402
 
 
 INPUTS_PATH = ROOT / "tests/evaluation/memoir_five_case_inputs.json"
@@ -306,7 +307,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
     base_url = args.provider_url or str(provider.get("base_url") or env_value("MEMORY_SPARK_LLM_BASE_URL", env)).rstrip("/")
     model = args.provider_model or str(provider.get("model") or env_value("MEMORY_SPARK_LLM_MODEL", env))
     api_key = env_value("MEMORY_SPARK_LLM_API_KEY", env)
-    template = JUDGE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    template = load_prompt_artifact(JUDGE_TEMPLATE_PATH)
     calibration_payload = load_json(CALIBRATION_PATH)
     calibration_status: dict[str, Any]
     try:
@@ -325,7 +326,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             "message": str(error)[:500],
             "provisional_examples": len(calibration_examples),
         }
-    instructions = template + "\n\nOperational guard: this invocation is exploratory. The calibration manifest is not human-reviewed; never treat any judge score as calibrated or as an acceptance pass, and say unavailable when observable evidence is insufficient."
+    instructions = template + load_prompt_artifact(ROOT / 'apps/api/prompts/five-case-judge-guard.md')
     judge = OpenAICompatibleJudge(
         base_url=base_url,
         model=model,

@@ -3,6 +3,7 @@ import asyncio
 from datetime import date
 import os
 import re
+from pathlib import Path
 from uuid import UUID, uuid4
 from typing import Literal
 
@@ -20,6 +21,7 @@ from .family_photos import MAX_PHOTO_BYTES, family_person, portrait_bytes, save_
 from .place_journey import normalize_persisted_place_journey
 from .workspace_memory_actions import WorkspaceMemoryFocus
 from .formal_memoir_routes import router as formal_memoir_router
+from .prompt_artifact import load_prompt_artifact
 
 router = APIRouter(prefix='/v1/agent', tags=['Codex agent'])
 router.include_router(formal_memoir_router)
@@ -78,14 +80,8 @@ class GreetingInput(BaseModel):
 
 
 GREETING_PROMPTS = {
-    'begin': (
-        'The storyteller wants to begin exploring a memory. Invite them to share '
-        'whatever comes to mind, without using a fixed onboarding question.'
-    ),
-    'continue': (
-        'The storyteller wants to continue with another memory. Ask one open-ended '
-        'question based on the conversation, without restarting onboarding.'
-    ),
+    action: load_prompt_artifact(Path(__file__).with_name('prompts') / f'greeting-{action}.md')
+    for action in ('begin', 'continue')
 }
 
 

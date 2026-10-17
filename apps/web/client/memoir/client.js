@@ -24,6 +24,7 @@ import { createConversationScroll, installConversationViewport } from "./convers
 import { createInterviewPhotoState } from "./interview-photo-turns.mjs";
 import englishMessages from "../../messages/en-AU.json";
 import chineseMessages from "../../messages/zh-CN.json";
+import { PROFILE_INTAKE_PROMPT, FOLLOW_UP_PROMPT, MEMORY_FOLLOW_UP_PROMPT, MEDIA_CONTEXT_PROMPT, BROWSER_MESSAGE_PROMPT } from "./browser-prompts.generated.mjs";
 
 const openingMessages = [englishMessages, chineseMessages].map(messages => messages.Memoir.conversation.opening);
 
@@ -203,13 +204,6 @@ const LIFE_STAGES = [
 ];
 
 const CHATBOT_NAME = "Mira";
-const PROFILE_INTAKE_PROMPT = `This is the storyteller's first answer to the shared profile-intake opening. Extract only explicit facts
-about the storyteller and the current memory thread. Save any name, birth year or date expression, birthplace,
-childhood place, and story focus as who, where, when, and what. Use the profile marker contract when there is
-something explicit to save. Do not infer missing details or interrogate for missing fields. Acknowledge one
-specific detail, then ask exactly one low-pressure, concrete follow-up—prefer an object, sensory scene, familiar
-activity, or something they hoped to talk about today.`;
-
 const {
   nextAssistantMessageId, persistChatHistory, rememberProject, restoreChatHistory, savedProjectId
 } = createConversationHistory({
@@ -1090,7 +1084,8 @@ function applyBackgroundSkillProgress(result) {
   for (const item of result.items || []) {
     if (!item.client_turn_id && (result.continuation || !['photos','grouping','historical'].includes(item.phase))) continue;
     recordWorkspaceSkillProgress({...item,kind:"skill",label:item.skill,
-      detail:translate(`Memoir.trace.operation.${item.phase}`)});
+      detail:item.skill === "memoir-place-journey" && item.reason === "no_place_cue"
+        ? translate("Memoir.trace.placeNoCue") : translate(`Memoir.trace.operation.${item.phase}`)});
   }
 }
 
@@ -2800,7 +2795,7 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false) {
   const steps = visibleSteps.map((step) => {
     const execution = ["model","embedded","deterministic","provider","cache"].includes(step.execution)
       ? ` · ${escapeHtml(translate(`Memoir.trace.execution.${step.execution}`))}` : "";
-    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}" data-lane="${escapeHtml(step.lane || "A")}" data-execution="${escapeHtml(step.execution || "operation")}"><span class="agent-loop-detail">${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))}${execution} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span></li>`;
+    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}" data-lane="${escapeHtml(step.lane || "A")}" data-execution="${escapeHtml(step.execution || "operation")}"><span class="agent-loop-detail">${escapeHtml(step.lane || "A")} · ${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))}${execution} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span></li>`;
   }).join("");
   return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}</ol></details>`;
 }
@@ -3081,7 +3076,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     let fallback = conversationMessage("fallback");
     let instruction = profileIntake
       ? PROFILE_INTAKE_PROMPT
-      : "Acknowledge the storyteller naturally, then ask one gentle open-ended follow-up question. Do not restart onboarding or request profile fields.";
+      : FOLLOW_UP_PROMPT;
     if (session && (session.follow_ups_used || 0) < 3 && (session.turns?.length || 0) < 5) {
       try {
         const turnType = session.turns?.length ? "follow_up" : "initial";
@@ -3104,7 +3099,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         }
         cues = state.session.context_cues || [];
         fallback = memoryFollowUpPrompt(state.session);
-        const memoryInstruction = "Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory. Follow requests to finish, change direction, or shape the story. Later corrections revise the affected year/event without restarting the interview.";
+        const memoryInstruction = MEMORY_FOLLOW_UP_PROMPT;
         instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
       } catch {
         if (!current()) return;
@@ -3112,7 +3107,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         state.session = null;
       }
     }
-    const mediaContext = attachments.some(item => item.asset) ? `\nThe storyteller attached these saved sources: ${JSON.stringify(attachments.filter(item => item.asset).map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.` : "";
+    const mediaContext = attachments.some(item => item.asset) ? MEDIA_CONTEXT_PROMPT.replace(
+      "{{attachments}}", JSON.stringify(attachments.filter(item => item.asset).map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))
+    ) : "";
     if (firstReply && !await settleUiLocale()) throw new Error(localizedErrorMessage());
     if (!current()) return;
     const configuredConversationLanguage = conversationLanguage() || currentUiPreference()?.locale;
@@ -3125,7 +3122,8 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     }
     if (!current()) return;
     const result = await agentTurn(
-      text ? `The storyteller said: ${text}\n${instruction}${mediaContext}` : "",
+      text ? BROWSER_MESSAGE_PROMPT.replace(/\{\{(text|instruction|mediaContext)\}\}/g,
+        (_, key) => ({text, instruction, mediaContext})[key]) : "",
       fallback,
       ["memory.save", "memory.search"],
       conversationLanguage() || currentUiPreference()?.locale || detectedFirstReplyLanguage || (firstReply ? currentUiLocale() : undefined),

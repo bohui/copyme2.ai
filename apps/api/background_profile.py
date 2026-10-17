@@ -67,7 +67,8 @@ def profile_contract(page):
     ref = schema['$defs']['ProfileRef']['properties']
     ref['source_id']['enum'] = [packet['source']['id']]
     ref['version']['enum'] = [packet['source']['version']]
-    instructions = (Path(__file__).resolve().parents[2] / 'skills/memoir-memory-context/SKILL.md').read_text(encoding='utf-8')
+    from .prompt_artifact import load_prompt_artifact
+    instructions = load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-memory-context/SKILL.md')
     return instructions, schema
 
 

@@ -232,6 +232,7 @@ services:
       # Canonical conversation generation and publication authority.
       MEMOIR_LIFETIME_GENERATION_PAUSED: ${MEMOIR_LIFETIME_GENERATION_PAUSED:-0}
       MEMOIR_PUBLICATION_DATABASE_URL: "${MEMOIR_PUBLICATION_DATABASE_URL:-}"
+      MEMOIR_TWO_LANES: ${MEMOIR_TWO_LANES:-0}
       # Shared memoir lane dispatch and fenced commits use the same trusted
       # Supabase boundary as the API; without it this worker skips those lanes.
       SUPABASE_URL: ${SUPABASE_URL:-}

@@ -25,6 +25,7 @@ import httpx
 import jsonschema
 
 from scripts.memoir_live_skill_cases import cases, progressive_page, skill_prompt, validate_case
+from apps.api.prompt_artifact import load_prompt_artifact
 
 
 def sha(value):
@@ -178,7 +179,7 @@ async def compose(provider, locale):
     async def real_model(request):
         bounded = BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane'])
         instructions, schema = lane_contract(bounded.phase, locale, batch=True)
-        instructions += '\nKeep independent canonical events in separate source-grounded paragraphs with stable block IDs.'
+        instructions += load_prompt_artifact(ROOT / 'apps/api/prompts/eval-independent-events.md')
         phase_id = f'composer-{locale}-{current["coverage_round"]}-{bounded.phase}-{len(phases)+1}'
         phases.append({'round':current['coverage_round'],'phase':bounded.phase})
         value, _ = await provider.call(phase_id, 'memoir-composer', instructions, json.loads(bounded.packet), schema)
@@ -215,7 +216,7 @@ async def native_search(provider, skill):
         from apps.api.historical_news import validate_evidence
         from apps.api.historical_news_provider import decode_discovery, GatewayHistoricalProvider
         query = 'Sydney, Australia 2000–2000 civic culture sport public events'
-        instructions = skill_prompt(skill) + '\nReturn JSON {"events": [...]}. Each lead needs title, summary (verbatim source sentence), event_start, event_end, precision, place, category, source_url, source_title, publisher, excerpt, locator, publication_date, conflicting. At most two neutral sporting or cultural leads. Do not infer any personal attendance.'
+        instructions = skill_prompt(skill) + load_prompt_artifact(ROOT / 'apps/api/prompts/eval-native-search.md')
         _, response = await provider.call('historical-native-search', skill, instructions, {'public_query': query}, search=True)
         discovery = decode_discovery(response)
         hypothesis = {'start': 2000, 'end': 2000, 'place': 'Sydney, Australia', 'country': 'Australia'}

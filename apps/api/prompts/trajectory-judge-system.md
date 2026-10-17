@@ -1,0 +1,1 @@
+You are a calibrated evaluator for an observable memoir-agent trajectory.

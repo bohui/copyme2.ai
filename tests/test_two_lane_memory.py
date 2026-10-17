@@ -33,6 +33,30 @@ PLACE = {'place':'Hobart','hierarchy':['Earth','Australia','Tasmania','Hobart'],
 QUESTION = {'question':'What do you remember about those walks?', 'topic':'river walks', 'quote':'walked by the river'}
 
 
+def test_two_lane_extraction_includes_place_skill_without_conflicting_output_instruction():
+    from apps.api.two_lane_memory import extraction_contract
+    instructions, schema = extraction_contract()
+    assert 'memoir-place-journey' in instructions
+    assert '河北省承德市附属医院' in instructions
+    assert 'Return only schema-bound' not in instructions
+    assert 'Return schema-bound JSON matching the supplied combined schema' in instructions
+    assert {'events', 'place_journeys', 'prepared_questions'} <= set(schema['required'])
+
+
+def test_extraction_diagnostic_names_schema_field_without_story_content():
+    from pydantic import ValidationError
+    from apps.api.lifetime_memory_composer import extraction_issue
+    from apps.api.two_lane_memory import DerivedHints
+    try:
+        DerivedHints.model_validate({'place_journeys': [{'place': 'private story text'}],
+                                     'prepared_questions': []})
+    except ValidationError as error:
+        issue = extraction_issue(error)
+    assert issue.startswith('place_journeys.0.')
+    assert 'private story text' not in issue
+    assert extraction_issue(KeyError('place_journeys')) == 'missing_place_journeys'
+
+
 def accept(sql, text=TEXT, project=None, turn=None):
     identity=rpc(sql,'resolve_lifetime_conversation',literal(project) if project else 'null')
     accepted=rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{turn or uuid4()}',{literal(text)}")

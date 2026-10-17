@@ -6,6 +6,7 @@ import {createPreferenceSession, firstReplyUiCandidate} from '../../apps/web/i18
 import {encodePreference, preferenceCookie, readPreference} from '../../apps/web/i18n/preference.mjs';
 import {createInterviewPhotoState} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
 import {readMemoirClientSource} from './helpers/memoir-source.mjs';
+import {PROFILE_INTAKE_PROMPT, FOLLOW_UP_PROMPT, MEMORY_FOLLOW_UP_PROMPT, MEDIA_CONTEXT_PROMPT, BROWSER_MESSAGE_PROMPT} from '../../apps/web/client/memoir/browser-prompts.generated.mjs';
 
 const source = readMemoirClientSource();
 const localeSource = readFileSync(new URL('../../apps/web/client/memoir/ui-locale.mjs', import.meta.url), 'utf8');
@@ -34,6 +35,7 @@ function harness({profile = {}, preference = null, cookie = '', uiLocale = 'en-A
     return name === 'read_ui_locale_preference' ? read(args) : write(args);
   }};
   const context = vm.createContext({state, input, notices, document:{cookie}, uiLocale,
+    PROFILE_INTAKE_PROMPT, FOLLOW_UP_PROMPT, MEMORY_FOLLOW_UP_PROMPT, MEDIA_CONTEXT_PROMPT, BROWSER_MESSAGE_PROMPT,
     createPreferenceSession, firstReplyUiCandidate, preferenceCookie, readPreference, encodePreference,
     $:selector => selector === '#chat-input' ? input : null, translate:key => key,
     currentUiLocale:() => context.uiLocale, localizedErrorMessage:() => 'Preferences unavailable',

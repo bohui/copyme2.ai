@@ -38,6 +38,14 @@ EVAL_PROJECT_ID ?=
 EVAL_PROGRESSIVE_RERUN ?= 0
 MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
 ENV_FILE ?= .env
+PROMPT_CREDENTIAL_FILE ?= $(HOME)/llm_provider/.env
+PROMPT_NAME ?=
+PROMPT_EVAL_NAME ?= memoir/memory/timeline
+PROMPT_EVAL_DATASET ?= memoir/evaluation/event-grounding
+PROMPT_EVAL_VERSION ?=
+PROMPT_EVAL_MODEL ?=
+PROMPT_EVAL_PROVIDER_FILE ?= $(HOME)/llm_provider/.env
+PROMPT_EVAL_RUN ?= 0
 LIVE_SKILL ?=
 LIVE_SKILL_CASE ?=
 LIVE_SKILL_EFFORT ?= max
@@ -48,7 +56,7 @@ TUNNEL_LABEL := com.cloudflare.cloudflared.copyme2
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 
@@ -66,6 +74,15 @@ help: ## Show the Apple Container + Mocker commands.
 		/^[a-zA-Z0-9][a-zA-Z0-9_.-]*:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2} \
 		/^## / {hints[++hint_count] = substr($$0, 4)} \
 		END {if (hint_count) printf "\n"; for (i = 1; i <= hint_count; i++) printf "%s\n", hints[i]}' $(MAKEFILE_LIST)
+
+prompt-export: ## Export current Langfuse versions into repo artifacts; optional PROMPT_NAME=collector-compact.
+	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
+
+prompt-check: ## Verify repo prompt artifacts against their pinned Langfuse versions.
+	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
+
+prompt-eval: ## Preflight a pinned prompt and dataset; use PROMPT_EVAL_RUN=1 and PROMPT_EVAL_MODEL=... to call a model.
+	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --provider-credential-file "$(PROMPT_EVAL_PROVIDER_FILE)" --name "$(PROMPT_EVAL_NAME)" --dataset "$(PROMPT_EVAL_DATASET)" $(if $(strip $(PROMPT_EVAL_VERSION)),--version "$(PROMPT_EVAL_VERSION)",) $(if $(strip $(PROMPT_EVAL_MODEL)),--model "$(PROMPT_EVAL_MODEL)",) $(if $(filter 1,$(PROMPT_EVAL_RUN)),--run,)
 
 check: ## Verify Mocker and Apple Container are installed.
 	@command -v $(MOCKER) >/dev/null || { echo "Missing Mocker. Install with: brew tap us/tap && brew install mocker"; exit 1; }

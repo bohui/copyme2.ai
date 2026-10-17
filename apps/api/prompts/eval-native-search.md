@@ -1,0 +1,2 @@
+
+Return JSON {"events": [...]}. Each lead needs title, summary (verbatim source sentence), event_start, event_end, precision, place, category, source_url, source_title, publisher, excerpt, locator, publication_date, conflicting. At most two neutral sporting or cultural leads. Do not infer any personal attendance.

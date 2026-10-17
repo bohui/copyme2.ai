@@ -5,6 +5,7 @@ Deterministic skills are probed for instruction adherence, not rerouted in produ
 """
 from copy import deepcopy
 from pathlib import Path
+from apps.api.prompt_artifact import load_prompt_artifact
 
 from apps.api.background_profile import PROFILE_FIELDS, profile_contract, profile_packet, validate_profile
 from apps.api.family_context import extract_family_tree_context
@@ -16,13 +17,17 @@ from apps.api.place_journey import extract_place_journeys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def eval_fragment(name):
+    return load_prompt_artifact(ROOT / 'apps/api/prompts' / f'eval-{name}.md')
+
+
 def object_schema(properties):
     return dict(type='object', properties=properties, required=list(properties), additionalProperties=False)
 
 
 def skill_prompt(name, *references):
     directory = ROOT / 'skills' / name
-    return '\n\n'.join((directory / file).read_text() for file in ('SKILL.md', *references))
+    return '\n\n'.join(load_prompt_artifact(directory / file) for file in ('SKILL.md', *references))
 
 
 def source(locale):
@@ -190,8 +195,7 @@ def cases():
                    granularity='suburb', latitude=-33.797, longitude=151.183)]
     expected_groups = resolve_place_groups(deepcopy(places), allow_provider=False)
     rows.append(dict(id='groups-independent-child-pin', skill='memoir-place-groups',
-        instructions=skill_prompt('memoir-place-groups') +
-            '\nThis is an isolated instruction test. Return the city group count, independent pin count, and whether conversation must wait.',
+        instructions=skill_prompt('memoir-place-groups') + eval_fragment('place-groups'),
         schema=object_schema({'city_groups': {'type': 'integer'}, 'independent_pins': {'type': 'integer'},
                               'conversation_must_wait': {'type': 'boolean'}}),
         input={'places': places}, expected={'city_groups': len({p['city_key'] for p in expected_groups['places']}),
@@ -199,8 +203,7 @@ def cases():
             'conversation_must_wait': False}, validator='equal',
         scope='instruction probe; actual grouping is deterministic and has no model invocation'))
     rows.append(dict(id='story-game-missing-authority', skill='memoir-story-game',
-        instructions=skill_prompt('memoir-story-game', 'references/runtime-contract.md') +
-            '\nAdmission audit only. Return whether generation is permitted, whether a game was generated, and whether author approval can be invented.',
+        instructions=skill_prompt('memoir-story-game', 'references/runtime-contract.md') + eval_fragment('story-game'),
         schema=object_schema({'generation_permitted': {'type': 'boolean'}, 'game_generated': {'type': 'boolean'},
                               'invent_author_approval': {'type': 'boolean'}}),
         input={'phase': 'shape', 'manuscript_status': 'draft', 'completion_receipt': None,
@@ -208,8 +211,7 @@ def cases():
         expected=dict(generation_permitted=False, game_generated=False, invent_author_approval=False),
         validator='equal', scope='negative admission probe; production game generation is unavailable'))
     rows.append(dict(id='historical-reject-unverified-lead', skill='historical-news-research',
-        instructions=skill_prompt('historical-news-research', 'references/contract.md') +
-            '\nProvenance audit only. Return verified clue count, whether the clue creates a MemoryEvent, and whether a private name may enter the discovery query.',
+        instructions=skill_prompt('historical-news-research', 'references/contract.md') + eval_fragment('historical-lead'),
         schema=object_schema({'verified_clues': {'type': 'integer'}, 'creates_memory_event': {'type': 'boolean'},
                               'private_name_in_query': {'type': 'boolean'}}),
         input={'native_search_receipt': None, 'inspected_page': None,
@@ -218,8 +220,7 @@ def cases():
         expected=dict(verified_clues=0, creates_memory_event=False, private_name_in_query=False),
         validator='equal', scope='negative provenance probe; successful native discovery is checked separately'))
     rows.append(dict(id='photo-reject-unverified-lead', skill='place-photo-research',
-        instructions=skill_prompt('place-photo-research') +
-            '\nProvenance audit only. Return capture_period (present_day or historical), verified photo count, and whether download is permitted.',
+        instructions=skill_prompt('place-photo-research') + eval_fragment('photo-lead'),
         schema=object_schema({'capture_period': {'type': 'string'}, 'verified_photos': {'type': 'integer'},
                               'download_permitted': {'type': 'boolean'}}),
         input={'request': 'Find pictures of Sydney.', 'previous_memoir_topic': 'Childhood in the 1980s',

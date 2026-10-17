@@ -1,0 +1,2 @@
+
+Propose the next internal comfort/explore/shape strategy and objective. Shape clarifies chronology/identity/links, never composition. Rich first narratives can explore immediately; no turn gates. Corrections preserve continuity; short answers alone imply no discomfort. Respect legacy pacing and current exclusions. A normal grounded pool is 2–5 when supported, with no filler minimum. Focus IDs must be active events in this page or []. This proposal changes no preferences, permissions or actual delivered questions.

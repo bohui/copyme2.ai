@@ -1,0 +1,2 @@
+
+Focused family-tree pass: return only one MEMORY_SPARK_FAMILY_TREE marker for explicit relationship information or a relevant correction to an established relative. Return an empty string otherwise. Timeline events are handled by the separate canonical lane; emit no timeline marker. Use canonical existing_id only with supported identity.

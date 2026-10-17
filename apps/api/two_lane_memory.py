@@ -1,11 +1,14 @@
 """Optional derived hints on the canonical timeline lane; no delivery authority."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
 import os
 
 from pydantic import BaseModel, ConfigDict, Field
+from .prompt_artifact import load_prompt_artifact
 from .lifetime_memory_continuity import _Places
 
 
@@ -13,18 +16,7 @@ def two_lanes_enabled():
     return os.getenv('MEMOIR_TWO_LANES', '').lower() in {'1', 'true', 'yes'}
 
 
-CONVERSATION_INSTRUCTIONS = '''
-Optional place extraction belongs to the asynchronous memory lane. Do not return
-place_journeys. Use this single collector pass for the whole current message,
-reply, one appropriate chosen question and reply_only/extract work decision.
-Prioritize the current request, correction or boundary, then a useful follow-up
-to the latest answer, then a valid prepared_questions hint, then a grounded safe
-fallback. Prepared questions are optional derived suggestions, never delivered
-questions or testimony. Adapt or discard them against the current answer. Answer
-explicit questions; a pause needs zero candidates. A normal pool is 2–5, a
-name-only opening at most one; never pad a pool. If an upload is unprocessed,
-state that it is pending; do not claim to have inspected it.
-'''
+CONVERSATION_INSTRUCTIONS = load_prompt_artifact(Path(__file__).with_name("prompts") / "two-lane-conversation.md")
 
 
 class PreparedQuestion(BaseModel):
@@ -48,24 +40,23 @@ def extraction_contract(*, strategy=False, attribution=False):
     schema.setdefault('$defs',{}).update(extension['$defs'])
     schema['properties'].update(extension['properties'])
     schema['required']+=list(extension['properties'])
-    instructions=extraction_instructions()+'''
-In this same bounded extraction pass also return place_journeys and at most five
-prepared_questions. Empty arrays are valid. Places must be coarse public
-administrative places literally named in this source window, hierarchy from
-Earth to the exact source-script place; no private address, building or inferred
-place. Omit uncertain coordinates. Each prepared question needs a topic and an
-exact contiguous quote from this source window. It is an optional next-turn hint,
-not a delivered question. Prepared questions use lane_context.preferences.language,
-independently of the memoir edition locale. Respect current privacy/topics. Never infer
-preferences, grant access, publish, charge or claim an upload was processed.
-'''
+    place_skill = load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-place-journey/references/two-lane.md')
+    # The versioned timeline text also describes its standalone events-only
+    # transport. Replace that one sentence when composing the wider two-lane
+    # schema so the worker receives one consistent output contract.
+    timeline_instructions = extraction_instructions(derived_hints=True).replace(
+        'Return only schema-bound\nJSON `{"events": [...]}` to the private worker.',
+        'Return schema-bound JSON matching the supplied combined schema to the private worker.',
+    )
+    instructions=timeline_instructions+'\n'+place_skill+load_prompt_artifact(
+        Path(__file__).with_name('prompts') / 'two-lane-extraction-extension.md')
     if strategy:
         from .interview_strategy import StrategyProposal
         proposal=StrategyProposal.model_json_schema()
         schema.setdefault('$defs',{}).update(proposal.get('$defs',{}))
         schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
         schema['required'].append('strategy_proposal')
-        instructions+='\nPropose the next internal comfort/explore/shape strategy and objective. Shape clarifies chronology/identity/links, never composition. Rich first narratives can explore immediately; no turn gates. Corrections preserve continuity; short answers alone imply no discomfort. Respect legacy pacing and current exclusions. A normal grounded pool is 2–5 when supported, with no filler minimum. Focus IDs must be active events in this page or []. This proposal changes no preferences, permissions or actual delivered questions.'
+        instructions+=load_prompt_artifact(Path(__file__).with_name('prompts') / 'two-lane-strategy-extension.md')
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS

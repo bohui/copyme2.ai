@@ -210,6 +210,7 @@
       "title": "Thinking steps",
       "selectedQuestion": "Selected",
       "placeJourneyRestored": "Restored saved place cues",
+      "placeNoCue": "No clear place cue in this source",
       "stepCount": "{count} steps",
       "note": "High-level actions and tool results are shown here. Private model reasoning stays hidden.",
       "analysisLabel": "Analyze",

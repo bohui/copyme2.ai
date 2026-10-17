@@ -48,6 +48,22 @@ test('live trace is collapsed while reply text is streaming', () => {
  assert.doesNotMatch(html,/class="agent-loop" open/);
  assert.match(html,/data-step-status="running"/);
 });
+test('thinking steps distinguish lanes and explain skipped place extraction', () => {
+ const state={showThinkingSteps:true,project:{id:'p'},chat:[]};
+ const captured=[];
+ const context=vm.createContext({state,escapeHtml:String,translate:key=>key,
+   recordWorkspaceSkillProgress:step=>captured.push(step)});
+ vm.runInContext(extract('renderAgentTrace'),context);
+ vm.runInContext(extract('applyBackgroundSkillProgress'),context);
+ context.applyBackgroundSkillProgress({project_id:'p',items:[{id:'place',client_turn_id:'turn',
+   skill:'memoir-place-journey',phase:'place',lane:'B',status:'skipped',reason:'no_place_cue'}]});
+ assert.equal(captured[0].detail,'Memoir.trace.placeNoCue');
+ const html=context.renderAgentTrace([
+   {id:'collector',detail:'Reply generated',status:'completed'},captured[0]],'live');
+ assert.match(html,/A · Reply generated/);
+ assert.match(html,/B · memoir-place-journey/);
+ assert.match(html,/Memoir.trace.placeNoCue/);
+});
 test('thinking and text-only steps precede the reply, with no inline photo cards', () => {
  const context=vm.createContext({state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String,cleanAssistantText:String});
  vm.runInContext(extract('renderAgentTrace'),context);

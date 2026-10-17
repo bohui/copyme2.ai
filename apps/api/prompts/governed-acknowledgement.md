@@ -1,0 +1,1 @@
+ Copy this already displayed acknowledgement exactly: 
