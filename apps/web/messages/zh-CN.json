@@ -200,8 +200,13 @@
         "completed": "已完成",
         "triggered": "已触发",
         "failed": "失败",
-        "queued": "已排队"
+        "queued": "已排队",
+        "saved": "已保存",
+        "skipped": "已跳过",
+        "cached": "已加载缓存"
       },
+      "execution": {"model":"模型处理","embedded":"包含在时间线处理中","deterministic":"地点分组服务","provider":"公开资料查询","cache":"已保存的结果"},
+      "operation": {"extract":"提取带来源的回忆","profile":"检查自动资料目标","summarize":"更新回忆背景","prepare":"准备写作背景","draft":"更新回忆录文字","review":"核对原始记录","index":"更新写作索引","place":"保存带来源的地点","queue":"等待后台处理","historical":"查询公开历史资料","grouping":"整理公开地点","photos":"查询公开照片"},
       "title": "思考步骤",
       "selectedQuestion": "已选",
       "placeJourneyRestored": "已恢复保存的地点线索",
@@ -226,6 +231,7 @@
         "failed": "未能检查地点所属的城市地图"
       }
     },
+    "game": {"button":"故事游戏（暂不可用）","shape_required":"故事游戏需要当前对话处于整理回忆的模式。","current_decision_required":"请继续对话后再尝试此操作。","integration_unavailable":"故事游戏暂未开放，未启动任何生成任务。"},
     "story": {
       "mainLabel": "与 Mira 的对话",
       "voiceAvailable": "可以进行语音对话",

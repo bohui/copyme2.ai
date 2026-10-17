@@ -5,10 +5,6 @@ The offline package validator is not imported into the production trust boundary
 """
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from .interview_strategy import InterviewStrategyPlan
-
 STORY_GAME_SKILL_NAME = 'memoir-story-game'
 STORY_GAME_SKILL_PATH = Path(__file__).resolve().parents[2] / 'skills' / STORY_GAME_SKILL_NAME / 'SKILL.md'
 
@@ -21,22 +17,23 @@ def load_story_game_skill():
         return ''
 
 
-def story_game_admission(strategy_plan=None):
+def story_game_admission(strategy_plan=None, *, current_mode=None, button_action=False):
     """An internal strategy cannot substitute for persisted game authority."""
     registered = bool(load_story_game_skill())
     result = {'skill': STORY_GAME_SKILL_NAME, 'registered': registered, 'available': False}
     if not registered:
         return {**result, 'reason': 'skill_unavailable'}
-    if strategy_plan is None:
-        return {**result, 'reason': 'strategy_plan_required'}
-    try:
-        plan = InterviewStrategyPlan.model_validate(strategy_plan)
-    except (ValidationError, TypeError):
-        return {**result, 'reason': 'invalid_strategy_plan'}
-    if plan.strategy != 'shape':
+    # A plan (including a valid future/shadow B shape proposal) is never current
+    # authority. Only the authenticated action route supplies this SQL readback.
+    if not isinstance(current_mode,dict) or not current_mode.get('reply_id'):
+        return {**result, 'reason': 'current_decision_required'}
+    if current_mode.get('mode') != 'shape':
         return {**result, 'reason': 'shape_required'}
-    # The explicit game action, completion and consent still need bindings.
-    return {**result, 'reason': 'persisted_authority_required'}
+    if not button_action:
+        return {**result, 'reason': 'button_action_required'}
+    # Completion, consent and entitlement bindings remain unavailable. Passing
+    # the mode/action checks grants neither those rights nor executable work.
+    return {**result, 'reason': 'integration_unavailable'}
 
 
 class StoryGameUnavailable(ValueError):

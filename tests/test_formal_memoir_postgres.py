@@ -57,6 +57,12 @@ def consent(sql, project, edition, revision, action='grant', **kwargs):
     return rpc(sql,'set_story_game_consent',f"{literal(project)},'{edition['edition_id']}',{literal(edition['manuscript_digest'])},{revision},'{action}'",**kwargs)
 
 
+def assert_only_current_mode_pending(state):
+    # These formal-authority fixtures create no delivered A strategy outcome.
+    assert state['authority_eligible'] is False and state['available'] is False
+    assert state['reasons']==['runtime_unavailable','current_decision_required']
+
+
 def test_authenticated_initiation_is_durable_idempotent_and_owner_scoped(sql):
     project, sources, phase = seed(sql)
     request = str(uuid4())
@@ -116,8 +122,7 @@ def test_exact_edition_consent_requires_owner_cas_and_can_be_revoked_outside_sha
     grant = consent(sql,project,edition,initial['consent_revision'])
     assert grant['status'] == 'active'
     eligible = rpc(sql,'read_story_game_eligibility',literal(project))
-    assert eligible['authority_eligible'] is True and eligible['available'] is False
-    assert eligible['reasons'] == ['runtime_unavailable']
+    assert_only_current_mode_pending(eligible)
     assert consent(sql,project,edition,initial['consent_revision'],check=False).returncode != 0
     assert consent(sql,project,edition,grant['revision'],owner=OTHER,check=False).returncode != 0
     revoked = consent(sql,project,edition,grant['revision'],'revoke')
@@ -228,7 +233,7 @@ def test_replacing_formal_edition_requires_new_consent_and_rejects_old_completio
     assert consent(sql,project,first,state['consent_revision'],check=False).returncode!=0
     assert service(sql,'claim_formal_memoir',f"'{first['receipt']['run_id']}'",check=False).returncode!=0
     consent(sql,project,second,state['consent_revision'])
-    assert rpc(sql,'read_story_game_eligibility',literal(project))['authority_eligible'] is True
+    assert_only_current_mode_pending(rpc(sql,'read_story_game_eligibility',literal(project)))
 
 
 def test_competing_authenticated_begin_requests_cannot_create_two_active_runs(sql):
@@ -248,7 +253,8 @@ def test_competing_consent_writes_require_the_current_revision(sql):
         results=list(pool.map(lambda _:consent(sql,project,edition,state['consent_revision'],check=False),range(2)))
     assert sum(result.returncode==0 for result in results)==1
     current=rpc(sql,'read_story_game_eligibility',literal(project))
-    assert current['authority_eligible'] is True and current['consent_revision']==state['consent_revision']+1
+    assert_only_current_mode_pending(current)
+    assert current['consent_revision']==state['consent_revision']+1
 
 
 def test_browser_roles_cannot_write_receipts_or_call_worker_or_prose_interfaces(sql):
@@ -323,12 +329,12 @@ def test_revoking_old_edition_advances_project_fence_and_requires_fresh_current_
     state=rpc(sql,'read_story_game_eligibility',literal(project))
     consent(sql,project,second,state['consent_revision'])
     state=rpc(sql,'read_story_game_eligibility',literal(project))
-    assert state['authority_eligible'] is True
+    assert_only_current_mode_pending(state)
     consent(sql,project,first,state['consent_revision'],action='revoke')
     state=rpc(sql,'read_story_game_eligibility',literal(project))
     assert state['authority_eligible'] is False
     consent(sql,project,second,state['consent_revision'])
-    assert rpc(sql,'read_story_game_eligibility',literal(project))['authority_eligible'] is True
+    assert_only_current_mode_pending(rpc(sql,'read_story_game_eligibility',literal(project)))
 
 
 @pytest.mark.parametrize('reader',['eligibility','private_publication'])

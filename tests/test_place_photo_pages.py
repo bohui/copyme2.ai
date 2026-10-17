@@ -87,7 +87,8 @@ def test_stable_pages_reuse_one_search_and_reject_other_queries(monkeypatch):
     assert len(first['items']) == len(second['items']) == 10 and len(last['items']) == 5
     assert last['next_cursor'] is None and len(calls) == 1
     assert len({item['asset_id'] for item in first['items'] + second['items'] + last['items']}) == 25
-    assert cache.page('owner', 'Chengde', '1980s', None) == first
+    reused=cache.page('owner', 'Chengde', '1980s', None)
+    assert reused=={**first,'cached':True}
     for owner, place, period in [('other', 'Chengde', '1980s'), ('owner', 'Kaifeng', '1980s'), ('owner', 'Chengde', '1990s')]:
         with pytest.raises(Exception) as error:
             cache.page(owner, place, period, first['next_cursor'])

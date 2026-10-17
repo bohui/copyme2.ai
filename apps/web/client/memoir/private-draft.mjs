@@ -2,7 +2,7 @@ import { $, escapeHtml, formatText } from "./dom.mjs";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 
 export function createPrivateDraft({
-  captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
+  applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
 }) {
   function currentSectionRework() {
@@ -62,17 +62,21 @@ export function createPrivateDraft({
 
   function updateBackgroundComposerProgress(result) {
     if (!state.showThinkingSteps) return;
+    if (Object.hasOwn(result,'skill_progress')) {
+      if (result.skill_progress) applyBackgroundSkillProgress(result.skill_progress);
+      return;
+    }
     const progress = result.background_progress;
     const message = state.chat?.find(item => item.role === "assistant" && item.clientTurnId === state.backgroundDraftTurn);
     if (!message || !progress || !["pending", "running", "finished", "retry_required"].includes(progress.state)) return;
     const labels = {summarizing:"backgroundSummary", drafting:"backgroundDraft", reviewing:"backgroundReview", saving:"backgroundSave"};
     const phase = progress.state === "finished" ? "saved" : labels[progress.phase] ? progress.phase : "queued";
-    const key = `memoir-composer-${phase}`;
+    const key = 'memoir-composer-state';
     const trace = message.trace ||= [];
-    for (const step of trace) if (step.id.startsWith("memoir-composer-") && step.id !== key) step.status = "completed";
-    const step = {id:key, kind:"skill", skill:"memoir-composer", label:"memoir-composer",
+    // Lane state is not a receipt for any preceding phase or model invocation.
+    const step = {id:key, kind:"skill", skill:"memoir-composer", label:"memoir-composer", lane:"B", execution:"model", model_invoked:false,
       detail:translate(`Memoir.trace.${phase === "saved" ? "backgroundSaved" : labels[phase] || "backgroundQueued"}`),
-      status:progress.state === "retry_required" ? "failed" : phase === "saved" ? "completed" : "running"};
+      status:progress.state === "retry_required" ? "failed" : phase === "saved" ? "saved" : progress.state === "pending" ? "queued" : "running"};
     const index = trace.findIndex(item => item.id === key);
     if (index < 0) trace.push(step); else trace[index] = step;
     message.traceMode ||= "live";

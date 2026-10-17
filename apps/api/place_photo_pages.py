@@ -71,6 +71,7 @@ class PhotoPages:
                     job['revision'] += 1
                 cached_complete = bool(cached.get('complete'))
                 if cached_complete and (job['items'] or job['time_relaxed']):
+                    job['cache_hit'] = True
                     return
             if not cached_complete:
                 publish(search_place_photos(place, ANY_PHOTO_DATE if job['time_relaxed'] else period,
@@ -123,15 +124,16 @@ class PhotoPages:
                 if (snapshot['query'] != query or snapshot['owner'] != owner or offset < 0
                         or offset > len(self._matches(snapshot['job'], snapshot))):
                     raise HTTPException(status_code=422, detail='Photo cursor does not match this search')
-                return token, snapshot['job'], offset, snapshot
+                return token, snapshot['job'], offset, {**snapshot,'reused':snapshot['job']['done'].is_set()}
             match = next(((token, snapshot) for token, snapshot in reversed(self.snapshots.items())
                           if snapshot['query'] == query and snapshot['owner'] == owner), None)
             if match and not refresh:
-                return match[0], match[1]['job'], 0, match[1]
+                return match[0], match[1]['job'], 0, {**match[1],'reused':match[1]['job']['done'].is_set()}
             job = self.searches.get(search_query)
             if refresh and job is not None and job['done'].is_set():
                 del self.searches[search_query]
                 job = None
+            reused = job is not None and job['done'].is_set()
             if job is None:
                 if sum(not value['done'].is_set() for value in self.searches.values()) >= MAX_ACTIVE_SEARCHES:
                     raise HTTPException(status_code=503, detail='Photo research is busy; retry shortly')
@@ -148,6 +150,7 @@ class PhotoPages:
                 self.pool.submit(self._search, job, place, period, refresh=refresh)
             token = secrets.token_urlsafe(18)
             self.snapshots[token] = {'owner': owner, 'query': query, 'job': job,
+                                     'reused':reused,
                                      'center': center, 'period': period, 'place': place,
                                      'expires': now + SNAPSHOT_TTL}
             while len(self.snapshots) > MAX_SNAPSHOTS:
@@ -181,6 +184,7 @@ class PhotoPages:
                 'READY' if len(items) >= MAX_RESULTS else 'PARTIAL' if items else
                 'UNAVAILABLE' if job['error'] else 'NO_MATCH')
             return {'items': items, 'count': count, 'target_count': MAX_RESULTS,
+                    'job_id':token,'cached':bool(snapshot.get('reused') or job.get('cache_hit')),
                     'search_center': deepcopy(snapshot['center']),
                     'shortfall': max(0, MAX_RESULTS - count), 'status': status,
                     'searching': searching,
@@ -201,7 +205,7 @@ class PhotoPages:
                                                        latitude=latitude, longitude=longitude)
         # Flush a response immediately; photos follow as originals are verified.
         if not job['done'].is_set():
-            yield json.dumps({'items': [], 'status': 'SEARCHING', 'searching': True}) + '\n'
+            yield json.dumps({'items': [], 'status': 'SEARCHING', 'searching': True,'job_id':token,'cached':False}) + '\n'
         previous = -1 if job['done'].is_set() else 0
         heartbeat = time.monotonic()
         while True:

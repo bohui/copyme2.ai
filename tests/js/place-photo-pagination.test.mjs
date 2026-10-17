@@ -14,7 +14,7 @@ const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.j
 function harness(entry, api, dependencies = {}) {
   Object.assign(entry, {period: '1980s', ...center, ...scope, ...entry});
   let saved = {memory_places: [entry]};
-  const state = {project: {id: 'project'}, placeJourney: entry};
+  const state = {project: {id: 'project'}, placeJourney: entry, showThinkingSteps:true};
   const context = vm.createContext({state, URLSearchParams, URL, workspaceUpdateQueue: Promise.resolve(),
     window: {location: {origin: 'http://localhost'}}, document: {querySelector: () => null},
     profile: () => saved, api, placeHistoryKey: item => item.place, render: () => {}, translate: key => key,
@@ -320,7 +320,7 @@ test('retry updates the original photo trace, preserves Sydney, and saves late c
   message.trace[1].status='failed';
   await h.context.loadPlacePictures(h.entry(),'project');
   assert.equal(calls,2,'reusing saved photos initiated another discovery');
-  assert.equal(message.trace[1].status,'completed');
+  assert.equal(message.trace[1].status,'cached');
   assert.match(message.trace[1].detail,/picturesCached/);
 });
 

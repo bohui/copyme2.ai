@@ -244,6 +244,7 @@ test('one turn saves and groups every place while retaining existing photographs
     },
   });
   for (const name of ['recordWorkspaceSkillProgress', 'publicPlaceFields', 'resolvePlaceGroups', 'agentTurn']) vm.runInContext(extract(name), context);
+  context.supabaseApi=context.api;
   await context.agentTurn('从大石庙镇搬到双桥区');
   await event({type: 'workspace_update', data: {
     source_sequence: 10, place_journey: district, place_journey_change: {changed: false, mentioned: true},
@@ -257,7 +258,7 @@ test('one turn saves and groups every place while retaining existing photographs
   assert.deepEqual(photos, ['大石庙镇', '双桥区']);
   assert.equal(requests.length, 2);
   for (const request of requests) {
-    assert.equal(request.url, '/v1/projects/p/place-groups');
+    assert.equal(request.url, '/v1/agent/places/p/groups');
     assert.deepEqual(new Set(request.body.places.map(place => place.place)), new Set(['大石庙镇', '双桥区']));
     assert.ok(request.body.places.every(place => !('pictures' in place) && !('life_stage' in place)));
   }

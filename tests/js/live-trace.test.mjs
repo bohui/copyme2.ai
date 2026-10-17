@@ -185,7 +185,7 @@ test('skill calls are visible even when their IDs overlap routine progress', () 
  }
 });
 
-test('generated question pool stays inside thinking steps and marks the chosen question', () => {
+test('thinking steps hide private question candidates including legacy traces', () => {
  const context=vm.createContext({escapeHtml,state:{showThinkingSteps:true},CHATBOT_NAME:'Mira',translate:key=>key==='Memoir.trace.selectedQuestion'?'Selected':key,formatText:String,cleanAssistantText:String});
  for (const name of ['renderAgentTrace','renderMessage']) vm.runInContext(extract(name),context);
  const pool={chosen_id:'chosen',candidates:[
@@ -197,13 +197,11 @@ test('generated question pool stays inside thinking steps and marks the chosen q
   {id:'question-pool',status:'completed',detail:'Generated question pool · 2 candidates',question_pool:pool}];
  const html=context.renderMessage({id:'m',role:'assistant',text:'Where did you play?',trace,traceMode:'live'});
  const thinking=html.slice(html.indexOf('<details'),html.indexOf('</details>'));
- assert.match(thinking,/class="agent-question-pool"/);
+ assert.doesNotMatch(thinking,/class="agent-question-pool"/);
  assert.match(thinking,/LLM call · Reply and question pool generated/);
  assert.match(thinking,/read_file · Completed/);
  assert.match(thinking,/Conversation memory saved/);
- assert.match(thinking,/data-candidate-id="chosen" data-selected="true"><span class="agent-question-selected">Selected/);
- assert.match(thinking,/You also mentioned the garden/);
- assert.match(thinking,/Who was with you\? &lt;script&gt;/);
+ assert.doesNotMatch(thinking,/data-candidate-id|You also mentioned the garden|Who was with you/);
  assert.doesNotMatch(html,/<script>/);
  assert.doesNotMatch(html.slice(html.indexOf('class="message-text"')),/Who was with you/);
  assert.doesNotMatch(html,/class="agent-loop" open/);
@@ -211,12 +209,12 @@ test('generated question pool stays inside thinking steps and marks the chosen q
  assert.doesNotMatch(context.renderMessage({role:'assistant',text:'Where did you play?',trace,traceMode:'live'}),/Who was with you|agent-question-pool/);
 });
 
-test('question pool survives local chat persistence with its selection', () => {
+test('private question candidates are excluded from local trace persistence', () => {
  const trace=[{id:'question-pool',question_pool:{chosen_id:'q1',candidates:[{id:'q1',question:'Where did you play?',bridge:''}]},status:'completed'}];
  let saved='';
  const context=vm.createContext({state:{project:{id:'p'},chat:[{id:'m',role:'assistant',text:'Where did you play?',trace,traceMode:'live'}]},CHAT_HISTORY_STORAGE_PREFIX:'chat:',assistantMessageSequence:0,
   sessionStorage:{setItem:(key,value)=>{saved=value;},getItem:()=>saved},cleanAssistantText:text=>text});
  for(const name of ['chatHistoryStorageKey','readBrowserValue','saveBrowserValue','persistChatHistory','restoreChatHistory']) vm.runInContext(extract(name),context);
  context.persistChatHistory();
- assert.deepEqual(JSON.parse(JSON.stringify(context.restoreChatHistory('p')[0].trace)),trace);
+ assert.deepEqual(JSON.parse(JSON.stringify(context.restoreChatHistory('p')[0].trace)),[{id:'question-pool',status:'completed'}]);
 });

@@ -108,7 +108,7 @@ export function createConversationHistory({
         if (message.responsePhotos?.length) saved.responsePhotos = state.photoTurns?.cards(message.responsePhotos);
         if (Array.isArray(message.cues) && message.cues.length) saved.cues = message.cues;
         if (Array.isArray(message.trace) && message.trace.length) {
-          saved.trace = message.trace;
+          saved.trace = message.trace.map(({question_pool, ...step}) => step);
           saved.traceMode = message.traceMode;
         }
         if (message.action && typeof message.action === "object") {

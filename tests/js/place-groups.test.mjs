@@ -117,7 +117,7 @@ for (const failed of [false,true]) {
 test(`city grouping reports its actual ${failed?'failed':'completed'} skill call`, async () => {
   const steps=[];
   let finish;
-  const context=vm.createContext({state:{project:{id:'p'},chat:[]},profile:()=>({memory_places:[city]}),
+  const context=vm.createContext({state:{project:{id:'p'},chat:[],showThinkingSteps:true},profile:()=>({memory_places:[city]}),
     mergePlaces,placeHistoryKey,placeGroupRecords:new Map(),placeGroupRequests:new Map(),placeGroupLatest:new Map(),
     translate:key=>key,persistChatHistory:()=>{},render:()=>{},setTimeout:()=>{},
     api:()=>new Promise((resolve,reject)=>{finish=()=>failed?reject(Error('private URL')):resolve({places:[]});}),

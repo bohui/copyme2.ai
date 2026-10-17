@@ -22,9 +22,24 @@ test('background thinking steps continue after the reply finishes without changi
   const s=setup();
   for(const phase of ['summarizing','drafting','reviewing']) s.context.updateBackgroundComposerProgress({background_progress:{state:'running',phase}});
   assert.equal(s.message.streaming,false);assert.equal(s.message.text,'A fast saved reply.');
-  assert.deepEqual(Array.from(s.message.trace,step=>step.status),['completed','completed','running']);
+  assert.deepEqual(Array.from(s.message.trace,step=>step.status),['running']);
   s.context.updateBackgroundComposerProgress({background_progress:{state:'finished'}});
-  assert.ok(s.message.trace.every(step=>step.status==='completed'));
+  assert.equal(s.message.trace.at(-1).status,'saved');
+  assert.equal(s.message.trace.length,1);
+});
+test('queued work is not an executing model',()=>{
+  const s=setup();
+  s.context.updateBackgroundComposerProgress({background_progress:{state:'pending'}});
+  assert.equal(s.message.trace[0].status,'queued');
+  assert.equal(s.message.trace[0].model_invoked,false);
+});
+test('canonical composer progress uses server coverage rather than the newest reply',()=>{
+  const s=setup();let applied;
+  s.context.applyBackgroundSkillProgress=result=>{applied=result;};
+  const result={project_id:'project',items:[{client_turn_id:'a-covered-earlier-turn',status:'saved'}]};
+  s.context.updateBackgroundComposerProgress({skill_progress:result,background_progress:{state:'finished'}});
+  assert.equal(applied,result);
+  assert.equal(s.message.trace.length,0);
 });
 test('a streamed draft update cannot rerender or block an active streaming reply',async()=>{
   const s=setup();s.state.loading=true;s.message.streaming=true;

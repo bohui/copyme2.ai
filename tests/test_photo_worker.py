@@ -15,6 +15,30 @@ from apps.api.place_photo_repository import PhotoRepository
 from test_llm_place_photos import search_world
 
 
+def test_progress_forwarder_handles_split_unicode_without_changing_worker_credentials(monkeypatch):
+    from apps.api.background_skills import photo_step
+    monkeypatch.delenv('MEMOIR_PUBLICATION_DATABASE_URL',raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_URL','http://controlled.invalid')
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_SECRET','synthetic-only')
+    class Chunks(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            data=json.dumps({'job_id':'opaque-job','items':[{'title':'承德市'}],'status':'READY','searching':False},ensure_ascii=False).encode()+b'\n'
+            for value in data:yield bytes([value])
+    def server(request):
+        assert request.headers['X-Photo-Worker-Secret']=='synthetic-only'
+        return httpx.Response(200,stream=Chunks())
+    original=httpx.AsyncClient
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kwargs:original(transport=httpx.MockTransport(server),**kwargs))
+    async def run():
+        response=await transport.photo_response(None,'owner:project','承德市','1980s',None,stream=True,
+            progress=lambda item:photo_step('owner','project',item))
+        result=json.loads(''.join([chunk async for chunk in response.body_iterator]))
+        assert result['items'][0]['title']=='承德市'
+        assert result['skill_progress']['execution']=='provider' and result['skill_progress']['model_invoked'] is None
+        assert 'synthetic-only' not in json.dumps(result)
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize('remote_worker', [False, True])
 @pytest.mark.parametrize('stream', [False, True])
 def test_public_retry_refreshes_photo_research_in_both_response_formats(

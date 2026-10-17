@@ -304,6 +304,9 @@ async def project_place_photos(project_id: str, request: Request,
         # Project IDs are only unique inside an owner. Never scope a cursor by
         # project alone, even though public discovery jobs themselves are shared.
         owner = f'{storage.user_id}:{project_id}'
+        user_id = storage.user_id
+        from .background_skills import action_turn
+        client_turn_id = await action_turn(storage,project_id,request.headers.get('X-Memoir-Progress-Turn'))
     except (httpx.HTTPStatusError, httpx.RequestError):
         raise HTTPException(503, 'Project verification temporarily unavailable',
                             headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
@@ -311,11 +314,32 @@ async def project_place_photos(project_id: str, request: Request,
         await asyncio.to_thread(storage.client.close)
     try:
         from .place_photo_transport import photo_response
+        from .background_skills import photo_step
         return await photo_response(request.app.state.memoir_photo_pages, owner, place, period, cursor,
             refresh=refresh, latitude=latitude, longitude=longitude,
+            progress=lambda result:photo_step(user_id,project_id,result,client_turn_id=client_turn_id),
             stream='application/x-ndjson' in request.headers.get('accept', ''))
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         return {'items': [], 'status': 'UNAVAILABLE'}
+
+
+@router.post('/places/{project_id}/groups')
+async def project_place_groups(project_id: str, payload: dict, authorization: str | None = Header(default=None)):
+    from .place_journey import validate_place_journey
+    from .background_skills import group_places, action_turn
+    storage=await asyncio.to_thread(authenticated_storage,authorization)
+    try:
+        if await asyncio.to_thread(storage.memoir_project,project_id) is None:
+            raise HTTPException(404,'Project not found')
+        raw=payload.get('places')
+        if not isinstance(raw,list) or len(raw)>1000:
+            raise HTTPException(422,'Invalid place group input')
+        places=[validate_place_journey(item) for item in raw]
+        if any(item is None for item in places):raise HTTPException(422,'Invalid place group input')
+        turn=await action_turn(storage,project_id,payload.get('client_turn_id'))
+        return await group_places(storage.user_id,project_id,places,client_turn_id=turn)
+    finally:
+        await asyncio.to_thread(storage.client.close)
 
 
 @router.get('/pending-turn')
