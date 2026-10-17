@@ -143,4 +143,6 @@ Empty arrays are valid. Existing event context can justify identity reuse, not
 new facts: omit unchanged temporal/stage fields when enriching an established
 episode. Unknown age/year/place is valid. No source-order/profile-guess dating.
 Do not emit a new place_journey for an inherited setting or a vague there/then.
+Existing place_conflicts mark unresolved roles, not multiple established facts.
+Preserve the contradiction and its evidence; do not choose a setting from it.
 '''

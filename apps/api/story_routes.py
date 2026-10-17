@@ -493,6 +493,8 @@ def build_router(
                                  authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
+            if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
+                raise HTTPException(403, 'Timeline display requires Family legacy access')
             return await asyncio.to_thread(read_mapped, storage, project_id,
                 lambda fence: storage.lifetime_rpc('read_lifetime_source_attribution', p_project_id=project_id,
                     p_source_id=str(source_id), p_after=str(cursor) if cursor else None, p_limit=limit), canonical_only)

@@ -22,7 +22,7 @@ from test_shared_memory_events_postgres import literal, rpc, sql
 
 
 class Conversation:
-    def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=False, strategy=None):
+    def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=True, strategy=None):
         self.sql, self.extract, self.project = sql, extract, None
         self.admissions = []
         self.fail_immediate = False
@@ -151,6 +151,124 @@ def episode(packet, quote, *, title='Bicycle accident', existing=None):
     if existing:
         event.update(existing_id=existing['id'], expected_revision=existing['revision'])
     return event
+
+
+def test_unrelated_event_correction_preserves_non_story_and_withheld_classifications(sql,tmp_path,monkeypatch):
+    conversation = Conversation(sql,tmp_path,monkeypatch,
+        lambda packet: {**empty(packet),'events':[episode(packet,packet['sources'][0]['text'])]},family=True)
+    with conversation.client:
+        story = conversation.say('I repaired a bicycle in Chengde.')
+        conversation.drain()
+        event = conversation.attribution(story['accepted_source_id'])['items'][0]['event']
+        thanks = conversation.say('Thank you.')
+        conversation.drain()
+        private = conversation.say('Do not record this.')
+        conversation.drain()
+        before = {saved['accepted_source_id']:conversation.attribution(saved['accepted_source_id'])
+            for saved in (thanks,private)}
+        assert before[thanks['accepted_source_id']]['items'][0]['disposition'] == 'non_story'
+        assert before[private['accepted_source_id']]['items'][0]['disposition'] == 'withheld'
+        patch = {'temporal':{'expression':'1966','precision':'year','year_start':1966,'year_end':1966}}
+        rpc(sql,'correct_user_memory_event',f"{literal(conversation.project)},'{event['id']}',{event['revision']},"
+            f"{literal(patch)}::jsonb,'The year was 1966.'")
+        for source,original in before.items():
+            current = conversation.attribution(source)
+            assert current['policy_epoch'] > original['policy_epoch']
+            assert current['items'] == original['items']
+            assert (current['complete'],current['resolved']) == (original['complete'],original['resolved'])
+
+
+def test_conflicting_place_correction_is_unresolved_not_two_authoritative_settings(sql,tmp_path,monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'receipts.sqlite3'))
+    first = 'At age twelve I had a bicycle accident in Chengde.'
+    correction = 'Actually, that bicycle accident was in Beijing, not Chengde.'
+    def extract(packet):
+        text = packet['sources'][0]['text']
+        existing = packet['events'][0] if packet['events'] else None
+        event = episode(packet,text,existing=existing)
+        if not existing:
+            event['temporal'] = {'expression':'age twelve','precision':'age','basis':[reference(packet,'age twelve')]}
+        place = 'Chengde' if text == first else 'Beijing'
+        return {**empty(packet),'events':[event],'event_places':[
+            {'event_index':0,'role':'setting','place':{'place':place,'hierarchy':['Earth','China',place],
+                'granularity':'city'},'source_ref':reference(packet,text)}]}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract,family=True)
+    with conversation.client:
+        saved = conversation.say(first)
+        conversation.drain()
+        original = conversation.attribution(saved['accepted_source_id'])['items'][0]['event']
+        assert original['places'][0]['place']['place'] == 'Chengde'
+        corrected = conversation.say(correction)
+        conversation.drain()
+        event = conversation.attribution(corrected['accepted_source_id'])['items'][0]['event']
+        assert event['id'] == original['id'] and event['temporal']['expression'] == 'age twelve'
+        assert event['places'] == []
+        assert event['place_conflicts'] == ['setting']
+        path = f'/v1/story/events/{conversation.project}/{event["id"]}/places'
+        places = conversation.client.get(path).json()['items']
+        assert {item['place']['place'] for item in places} == {'Chengde','Beijing'}
+        assert {item['status'] for item in places} == {'conflicted'}
+        # Subsequent reconciliation and the composer see uncertainty, not both facts.
+        def continuation(packet):
+            context = packet['events'][0]
+            assert context['places'] == [] and context['place_conflicts'] == ['setting']
+            return {**empty(packet),'events':[episode(packet,packet['sources'][0]['text'],existing=context)]}
+        conversation.extract = continuation
+        conversation.say('My father helped me up after that bicycle accident.')
+        conversation.drain()
+        for _ in range(2):
+            conversation.say('Thank you.')
+            conversation.drain()
+        conversation.deliver_receipts()
+        lane = sql("select id from public.user_memoir_lane where skill='composer';").stdout.strip()
+        outcome = asyncio.run(conversation.worker.execute_lane(lane))
+        assert outcome.get('retrieval_complete'), (outcome,conversation.last_db_error)
+        draft = next(packet for phase,packet in conversation.admissions if phase == 'draft')
+        context = next(item for item in draft['request']['context']['attribution_coverage']['events'] if item['id'] == event['id'])
+        assert context['places'] == [] and context['place_conflicts'] == ['setting']
+        assert len([phase for phase,_ in conversation.admissions if phase == 'extract']) == 3
+
+
+def test_repeated_support_for_the_same_place_does_not_create_a_conflict(sql,tmp_path,monkeypatch):
+    def extract(packet):
+        text = packet['sources'][0]['text']
+        return {**empty(packet),'events':[episode(packet,text,existing=packet['events'][0] if packet['events'] else None)],
+            'event_places':[{'event_index':0,'role':'setting','place':{'place':'Chengde',
+                'hierarchy':['Earth','China','Chengde'],'granularity':'city'},'source_ref':reference(packet,text)}]}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract)
+    with conversation.client:
+        conversation.say('I had a bicycle accident in Chengde.')
+        conversation.drain()
+        saved = conversation.say('That bicycle accident was certainly in Chengde.')
+        conversation.drain()
+        event = conversation.attribution(saved['accepted_source_id'])['items'][0]['event']
+        assert event['place_conflicts'] == [] and event['places_complete']
+        assert {item['place']['place'] for item in event['places']} == {'Chengde'}
+
+
+def test_free_source_attribution_cannot_bypass_family_timeline_access(sql,tmp_path,monkeypatch):
+    text = 'At age twelve I had a bicycle accident in Chengde.'
+    def extract(packet):
+        event = episode(packet,text)
+        event['temporal'] = {'expression':'age twelve','precision':'age','basis':[reference(packet,'age twelve')]}
+        return {**empty(packet),'events':[event],'event_places':[
+            {'event_index':0,'role':'setting','place':{'place':'Chengde','hierarchy':['Earth','China','Chengde'],
+                'granularity':'city'},'source_ref':reference(packet,text)}]}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract,family=False)
+    with conversation.client:
+        saved = conversation.say(text)
+        path = f'/v1/story/sources/{conversation.project}/{saved["accepted_source_id"]}/attribution'
+        # The display gate is stable before and after background facts exist.
+        pending = conversation.client.get(path)
+        conversation.drain()
+        response = conversation.client.get(path)
+        assert response.status_code == 403, response.text
+        assert pending.status_code == 403
+        assert 'Chengde' not in response.text and 'age twelve' not in response.text
+        # Free users retain basic source-processing counts, not event context.
+        sources = conversation.client.get('/v1/story/sources',params={'project_id':conversation.project}).json()['sources']
+        assert sources[0]['attribution']['linked_passages'] == 1
+        assert 'event' not in sources[0]['attribution'] and 'places' not in sources[0]['attribution']
 
 
 def test_empty_extraction_accounts_for_unresolved_testimony_without_claiming_resolution(sql, tmp_path, monkeypatch):

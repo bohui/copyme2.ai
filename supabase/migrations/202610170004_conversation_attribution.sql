@@ -140,17 +140,30 @@ returns setof public.user_memory_event_place language sql stable security define
    and not exists(select 1 from public.user_memory_event_source_exclusion x where x.user_id=p.user_id
      and x.project_id=p.project_id and x.event_id=p.event_id and x.source_id=p.source_id)
 $$;
+create function public.lifetime_event_place_conflicts(p_owner uuid,p_project text,p_event text) returns text[]
+language sql stable security definer set search_path='' as $$
+ select coalesce(array_agg(role order by role),'{}'::text[]) from (
+   select role from public.lifetime_event_place_rows(p_owner,p_project,p_event)
+   group by role having min(place_key)<>max(place_key)
+ ) conflicts
+$$;
+revoke all on function public.lifetime_event_place_conflicts(uuid,text,text) from public,anon,authenticated,service_role;
 create function public.lifetime_attribution_event_context(p_owner uuid,p_project text,p_event text) returns jsonb
 language sql stable security definer set search_path='' as $$
+ with conflicts as materialized (select public.lifetime_event_place_conflicts(p_owner,p_project,p_event) roles)
  select jsonb_build_object('id',e.id,'revision',e.revision,'life_stage',e.life_stage,
    'attribution',e.data->'attribution','uncertainty',e.data->'uncertainty',
    'temporal',jsonb_build_object('expression',e.data->'temporal'->'expression','precision',e.data->'temporal'->'precision',
      'year_start',e.data->'temporal'->'year_start','year_end',e.data->'temporal'->'year_end'),
    'places',coalesce((select jsonb_agg(to_jsonb(p)-array['user_id','project_id','event_id']) from
-     (select * from public.lifetime_event_place_rows(p_owner,p_project,p_event) order by source_id,char_start,role,place_key limit 2) p),'[]'),
-   'places_complete',(select count(*)<=2 from (select 1 from public.lifetime_event_place_rows(p_owner,p_project,p_event) limit 3) p),
+     (select * from public.lifetime_event_place_rows(p_owner,p_project,p_event) where not(role=any(conflicts.roles))
+       order by source_id,char_start,role,place_key limit 2) p),'[]'),
+   'place_conflicts',conflicts.roles,
+   'places_complete',cardinality(conflicts.roles)=0 and
+     (select count(*)<=2 from (select 1 from public.lifetime_event_place_rows(p_owner,p_project,p_event) limit 3) p),
    'places_retrieval','/v1/story/events/'||p_project||'/'||p_event||'/places')
- from public.user_memory_event e where e.user_id=p_owner and e.project_id=p_project and e.id=p_event and e.status='active'
+ from public.user_memory_event e cross join conflicts
+ where e.user_id=p_owner and e.project_id=p_project and e.id=p_event and e.status='active'
 $$;
 revoke all on function public.lifetime_event_place_rows(uuid,text,text),public.lifetime_attribution_event_context(uuid,text,text)
  from public,anon,authenticated,service_role;
@@ -279,7 +292,8 @@ language sql stable security definer set search_path='' as $$
    select * from public.user_narrator_source where user_id=p_owner and project_id=p_project and id=p_source and status='active'
  ), windows as materialized (
    select w.* from public.user_memory_attribution_window w join source s on w.source_id=s.id and w.source_version=s.version
-   join public.user_memoir_project p on p.user_id=w.user_id and p.project_id=w.project_id and p.policy_epoch=w.policy_epoch
+   -- Author corrections also advance the project epoch. Passage decisions belong
+   -- to the original version; current policy is fenced at read/admission time.
    where w.user_id=p_owner and w.project_id=p_project
  ), links as materialized (
    select distinct (r.evidence->>'char_start')::integer lo,(r.evidence->>'char_end')::integer hi,e.id
@@ -394,7 +408,7 @@ grant execute on function public.read_lifetime_source_attribution(text,uuid,uuid
 create function public.read_lifetime_event_places(p_project_id text,p_event_id text,p_after uuid default null,p_limit integer default 8)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare owner uuid:=auth.uid(); project public.user_memoir_project%rowtype; identity public.user_lifetime_conversation%rowtype;
- cursor_row public.user_lifetime_read_cursor%rowtype; records jsonb; last_key text:=''; more boolean; cursor_id uuid;
+ cursor_row public.user_lifetime_read_cursor%rowtype; records jsonb; last_key text:=''; more boolean; cursor_id uuid; conflicts text[];
 begin
  if p_limit is null or p_limit not between 1 and 8 then raise exception 'bounded event place page required' using errcode='22023';end if;
  select * into project from public.user_memoir_project where user_id=owner and project_id=p_project_id for share;
@@ -410,9 +424,11 @@ begin
      or cursor_row.preference_revision<>identity.preference_revision then raise exception 'event place page changed' using errcode='40001';end if;
    last_key:=cursor_row.after_key;
  end if;
+ conflicts:=public.lifetime_event_place_conflicts(owner,p_project_id,p_event_id);
  select coalesce(jsonb_agg(item order by key),'[]') into records from (
    select source_id::text||':'||source_version||':'||lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key key,
-     to_jsonb(p)-array['user_id','project_id']||jsonb_build_object('key',source_id::text||':'||source_version||':'||
+     to_jsonb(p)-array['user_id','project_id']||jsonb_build_object('status',case when role=any(conflicts) then 'conflicted' else 'supported' end,
+       'key',source_id::text||':'||source_version||':'||
        lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key) item
    from public.lifetime_event_place_rows(owner,p_project_id,p_event_id) p
    where source_id::text||':'||source_version||':'||lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key>last_key

@@ -262,6 +262,10 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         + ('Write in Simplified Chinese; preserve original quoted source language.'
            if locale == 'zh-CN' else 'Write in Australian English; preserve original quoted source language.')
     )
+    if fence and fence.attribution_coverage:
+        instructions += ('\nCanonical context place_conflicts identifies unresolved location roles. '
+            'Do not choose one alternative or assert all alternatives as established facts. '
+            'Omit the unresolved placement or explicitly preserve the source correction/uncertainty.')
     return instructions, schema
 
 

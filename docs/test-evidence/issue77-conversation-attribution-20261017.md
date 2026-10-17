@@ -5,7 +5,7 @@ Implementation: branch `codex/issue77-attribution`. [Implementation contract](..
 
 All database runs used `MEMOIR_TEST_POSTGRES_BACKEND=native`, task-owned disposable PostgreSQL clusters and synthetic testimony. No configured Supabase data, deployment, production migration or paid/live model was used. External model transport was controlled; authenticated routes, original acceptance, SQL writers, publication guards, receipt broker and Lane B workers were real.
 
-## Passing checks
+## Initial implementation checks
 
 - Final full conversation-attribution acceptance file: **39 passed** in 84.84 seconds:
 
@@ -41,3 +41,33 @@ The broader inherited shared-memory file is not wholly passing. These observatio
 Initial red tests and integration-harness issues were corrected during implementation: missing bounded readback, empty extraction misrepresented as pending, absent selective places/delivery context/composer metadata, duplicate overlapping read keys, Python/SQL age-interval mismatch, and test receipt adapters/fixture isolation. Only the final passing runs above count as verification; earlier failed runs are not counted as successes.
 
 No browser/UI rendering check, whole-repository green-suite claim, live-provider semantic-quality measurement, production completeness audit or new orchestration behavior is claimed. #76 remains separate, and merge is left to user review.
+
+## PR #80 review fixes (reviewed head `b15a3d4`)
+
+Each reported symptom was reproduced with newly accepted synthetic sources before its fix:
+
+- `test_unrelated_event_correction_preserves_non_story_and_withheld_classifications`: an unrelated author date correction changed a saved `non_story` passage into `legacy_unresolved`. The read incorrectly required the classification epoch to equal the project epoch. Source-version decisions now survive unrelated corrections; source edits/withdrawals and current-policy publication fences remain enforced.
+- `test_conflicting_place_correction_is_unresolved_not_two_authoritative_settings`: correcting Chengde to Beijing exposed both as authoritative settings. Distinct current claims for the same event/role now surface an explicit conflict. Paid place readback retains alternatives with `status=conflicted`, while timeline/composer canonical context omits that role from established places and supplies `place_conflicts`. This is conservative conflict handling, not automatic supersession. Repeated support for the same place and independent origin/destination roles remain supported.
+- `test_free_source_attribution_cannot_bypass_family_timeline_access`: a free account received HTTP 200 with the embedded event, age and place. Detailed source attribution now uses the same pre-read Family gate as other timeline endpoints (HTTP 403 for free accounts), while free source-list attribution counts remain available.
+
+Final post-fix checks on disposable native PostgreSQL:
+
+```sh
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short tests/test_conversation_attribution.py -x
+# 43 passed in 90.01s; includes actual composer receipt delivery/consumption of place conflicts.
+
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_lifetime_memory_lane_engine.py tests/test_progressive_composer.py \
+  tests/test_canonical_composer_provenance.py tests/test_lifetime_memory_read_api.py \
+  tests/test_two_lane_memory.py tests/test_background_profile_postgres.py \
+  tests/test_background_profile_workflow.py -x
+# 260 passed in 128.01s.
+
+MEMOIR_TEST_POSTGRES_BACKEND=native python3 -m pytest -q --tb=short \
+  tests/test_stage_progress_rpc_lifecycle.py tests/test_stage_readiness_provenance.py \
+  tests/test_stage_progress_regression.py tests/test_stage_readiness.py \
+  tests/test_mobile_openapi_contract.py -x
+# 41 passed in 33.97s.
+```
+
+The 48-operation OpenAPI snapshot still matches; changed Python modules compile and `git diff --check` passes. The original baseline failures documented above were not reclassified as passing. The unmerged attribution migration was updated in place and reapplied only to fresh test clusters, not a configured/live database. No deployment, live-provider run or UI/orchestration change was performed.
