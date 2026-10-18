@@ -34,7 +34,7 @@ def test_checked_in_five_case_fixture_is_exactly_250_rounds_and_covers_the_contr
 def test_round_contract_marks_negative_rounds_as_must_not_call():
     case_expected = next(item for item in EXPECTED["case_expectations"] if item["id"] == "harbour-copper-notebook")
     round_expected = expected_round(EXPECTED, case_expected, 47)
-    assert round_expected["skill_status"]["place-photo-research"] == "must_not_call"
+    assert round_expected["skill_status"]["memoir-place-photo-research"] == "must_not_call"
     assert round_expected["skill_status"]["memoir-place-journey"] == "must_not_call"
     assert round_expected["skill_status"]["memoir-composer"] == "must_not_call"
 
@@ -83,7 +83,7 @@ def test_evaluator_does_not_treat_persisted_later_life_context_as_a_new_review_s
         "state": {"profile": {"story_focus": {"life_stage": "later_life"}}},
     }
     grade = evaluate_round(EXPECTED, case_expected, 48, result, execution_mode="fixture",
-                           ui_observations={skill: {"executed": True, "called": False, "output_ok": True} for skill in ("memoir-place-groups", "place-photo-research")})
+                           ui_observations={skill: {"executed": True, "called": False, "output_ok": True} for skill in ("memoir-place-groups", "memoir-place-photo-research")})
     assert grade["state_checks"]["life_stage"]["status"] == "not_applicable"
     assert grade["skill_grades"]["memoir-memory-context"]["output"] == "pass"
 

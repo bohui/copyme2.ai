@@ -1111,9 +1111,9 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       && ["flickr", "google", "loc", "commons", "llm"].includes(item.provider)
       && /^(?:robots_denied|verification_required|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
       .map(({provider, reason}) => ({provider, reason}));
-    recordWorkspaceSkillProgress({id: progressIdentity, replaces_id:progressIdentity===`photos:${requestKey}` ? null : `photos:${requestKey}`, kind: "skill", skill: "place-photo-research",
+    recordWorkspaceSkillProgress({id: progressIdentity, replaces_id:progressIdentity===`photos:${requestKey}` ? null : `photos:${requestKey}`, kind: "skill", skill: "memoir-place-photo-research",
       project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:status === "cached" ? "cache" : "provider", model_invoked:status === "cached" ? false : null,
-      label: "place-photo-research", status, place: entry.place, period, failures: safeFailures,
+      label: "memoir-place-photo-research", status, place: entry.place, period, failures: safeFailures,
       detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`
         + (safeFailures.length ? ` · ${safeFailures.map(item => `${item.provider}: ${item.reason}`).join("; ")}` : "")}, onProgress);
   };

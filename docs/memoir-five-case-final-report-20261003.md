@@ -105,7 +105,7 @@ passes. The regrade is provider-free and uses the saved v4 trajectories.
 | `memoir-family-tree` | 44/60; 44/60 | 44/45 | 17 | 0 |
 | `memoir-place-groups` | 66/89; 66/89 | 46/47 | 24 | 0 |
 | `memoir-place-journey` | 66/89; 66/89 | 46/47 | 24 | 0 |
-| `place-photo-research` | 9/10; 9/10 | 54/54 | 0 | 1 |
+| `memoir-place-photo-research` | 9/10; 9/10 | 54/54 | 0 | 1 |
 | `memoir-composer` | 0/15; 0/15 | 54/54 | 5 | 10 |
 
 The original v4 oracle had seven round-level failures. Six remain after the

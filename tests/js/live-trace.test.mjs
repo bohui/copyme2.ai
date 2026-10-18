@@ -179,7 +179,7 @@ test('real memory saves and named skill events remain visible, simulated traces 
 });
 
 test('completed skill progress survives saving and restoring the local chat', () => {
- const trace=[{id:'photos:p',kind:'skill',skill:'place-photo-research',status:'completed',detail:'悉尼'}];
+ const trace=[{id:'photos:p',kind:'skill',skill:'memoir-place-photo-research',status:'completed',detail:'悉尼'}];
  let saved='';
  const state={project:{id:'p'},chat:[{id:'assistant-message-1',role:'assistant',text:'Hello',trace,traceMode:'live'}]};
  const context=vm.createContext({state,CHAT_HISTORY_STORAGE_PREFIX:'chat:',assistantMessageSequence:0,

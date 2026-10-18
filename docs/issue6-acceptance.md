@@ -221,7 +221,7 @@ PATH=/opt/homebrew/bin:$PATH MEMOIR_TEST_POSTGRES_BACKEND=apple-container .venv/
   tests/test_workspace_latency.py tests/test_response_stage_index.py tests/test_private_rounds_postgres.py \
   tests/test_agent_commit_postgres.py tests/test_trajectory_evaluation.py \
   tests/test_memoir_five_case_evaluator.py tests/test_turn_stream.py tests/test_llm_place_photos.py \
-  skills/place-photo-research/tests/test_photo_research.py
+  skills/memoir-place-photo-research/tests/test_photo_research.py
 ```
 
 Browser command while the isolated frontend is listening at `127.0.0.1:48166`:

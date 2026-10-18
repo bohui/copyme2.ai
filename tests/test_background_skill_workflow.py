@@ -157,7 +157,7 @@ def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(s
         assert len(calls)==count
         assert cached.json()['skill_progress']['status']=='cached'
         steps=progress(conversation)['skill_progress']['items']
-        photo=next(step for step in steps if step['skill']=='place-photo-research')
+        photo=next(step for step in steps if step['skill']=='memoir-place-photo-research')
         assert photo['execution']=='cache' and not photo['model_invoked']
         assert photo['source_id']==saved['accepted_source_id']
         groups=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json={
@@ -255,7 +255,7 @@ def test_only_existing_profile_and_composer_schedules_advance_on_round_milestone
         assert not any(phase in {'photos','grouping','historical','family','game'} for phase,_ in conversation.admissions)
         page=progress(conversation)['skill_progress']
         mapped=progress(conversation)['skill_execution_map']
-        assert len(mapped)==10
+        assert len(mapped)==9
         assert {item['name'] for item in mapped if item['trigger']=='periodic'}=={'memoir-composer','memoir-memory-context'}
         assert page['truncated'] and page['next_cursor']
         items=[]

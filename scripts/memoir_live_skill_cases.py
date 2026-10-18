@@ -210,8 +210,8 @@ def cases():
                'adaptation_consent': None, 'game_runtime_bindings': False},
         expected=dict(generation_permitted=False, game_generated=False, invent_author_approval=False),
         validator='equal', scope='negative admission probe; production game generation is unavailable'))
-    rows.append(dict(id='historical-reject-unverified-lead', skill='historical-news-research',
-        instructions=skill_prompt('historical-news-research', 'references/contract.md') + eval_fragment('historical-lead'),
+    rows.append(dict(id='historical-reject-unverified-lead', skill='memoir-historical-news-research',
+        instructions=skill_prompt('memoir-historical-news-research', 'references/contract.md') + eval_fragment('historical-lead'),
         schema=object_schema({'verified_clues': {'type': 'integer'}, 'creates_memory_event': {'type': 'boolean'},
                               'private_name_in_query': {'type': 'boolean'}}),
         input={'native_search_receipt': None, 'inspected_page': None,
@@ -219,8 +219,8 @@ def cases():
                'private_narrator_name': 'Synthetic Person'},
         expected=dict(verified_clues=0, creates_memory_event=False, private_name_in_query=False),
         validator='equal', scope='negative provenance probe; successful native discovery is checked separately'))
-    rows.append(dict(id='photo-reject-unverified-lead', skill='place-photo-research',
-        instructions=skill_prompt('place-photo-research') + eval_fragment('photo-lead'),
+    rows.append(dict(id='photo-reject-unverified-lead', skill='memoir-place-photo-research',
+        instructions=skill_prompt('memoir-place-photo-research') + eval_fragment('photo-lead'),
         schema=object_schema({'capture_period': {'type': 'string'}, 'verified_photos': {'type': 'integer'},
                               'download_permitted': {'type': 'boolean'}}),
         input={'request': 'Find pictures of Sydney.', 'previous_memoir_topic': 'Childhood in the 1980s',

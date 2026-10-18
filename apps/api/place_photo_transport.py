@@ -14,7 +14,7 @@ from .turn_stream import STREAM_HEADERS
 async def photo_response(cache, owner, place, period, cursor, *, stream=False, refresh=False,
                          latitude=None, longitude=None, progress=None):
     from .background_skills import admit
-    admit('place-photo-research','place_selection')
+    admit('memoir-place-photo-research','place_selection')
     async def observed(events):
         # Worker chunks may split a frame; only bounded complete JSON is used.
         buffer=''

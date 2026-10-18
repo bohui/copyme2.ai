@@ -1179,7 +1179,7 @@ async def _run_case(
                         'project_id':str(case['project_id']), 'language':str(case['locale']),
                         'client_turn_id':str(uuid4())}, evaluation=correlation,
                         on_event=on_delivered_event, trajectory=turn_trajectory,
-                        evaluation_context={'enabled_skills':list(SKILLS), 'available_tools':['memoir-place-groups','place-photo-research']})
+                        evaluation_context={'enabled_skills':list(SKILLS), 'available_tools':['memoir-place-groups','memoir-place-photo-research']})
                 return await runtime.turn(
                 storage,
                 text,
@@ -1189,7 +1189,7 @@ async def _run_case(
                 on_event=on_event,
                 evaluation=correlation,
                 include_trajectory=True,
-                evaluation_context={"enabled_skills": list(SKILLS), "available_tools": ["memoir-place-groups", "place-photo-research"]},
+                evaluation_context={"enabled_skills": list(SKILLS), "available_tools": ["memoir-place-groups", "memoir-place-photo-research"]},
                 trajectory=turn_trajectory,
                 )
             result = await asyncio.wait_for(deliver(), timeout=args.timeout + 30)
@@ -1218,7 +1218,7 @@ async def _run_case(
             composer_observation = await run_composer_checkpoint(runtime, storage, case, round_number, str(action), execution_mode=execution_mode, timeout=args.composer_timeout)
         ui_by_round[round_number] = {
             "memoir-place-groups": ui_place_group_observation(storage, prior_place_count=prior_place_count, execution_mode=execution_mode),
-            "place-photo-research": await ui_photo_observation(expected, text, case, args, execution_mode=execution_mode),
+            "memoir-place-photo-research": await ui_photo_observation(expected, text, case, args, execution_mode=execution_mode),
         }
         grade = evaluate_round(expected_payload, case_expected, round_number, result, execution_mode=execution_mode,
                                ui_observations=ui_by_round[round_number], composer_observation=composer_observation)
@@ -1311,7 +1311,7 @@ async def _run_case(
     summary = aggregate_case(str(case["id"]), round_grades, execution_mode=execution_mode, expected_round_count=50)
     photo_records = [
         observation for observation in ui_by_round.values()
-        for observation in [observation.get("place-photo-research") or {}]
+        for observation in [observation.get("memoir-place-photo-research") or {}]
         if observation.get("called")
     ]
     summary["photo_searches"] = {

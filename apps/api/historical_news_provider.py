@@ -102,7 +102,7 @@ class GatewayHistoricalProvider:
         if (not key or not model or parsed.scheme not in {'https','http'} or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
             raise ValueError('Historical search is not configured')
-        prompt = load_prompt_artifact(prompt_path('memoir/skills/historical-news-research/discovery')).replace('{{query}}', query)
+        prompt = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery')).replace('{{query}}', query)
         body={'model':model,'input':prompt,'tools':[{'type':'web_search'}],'tool_choice':'required',
             'include':['web_search_call.action.sources'],'reasoning':{'effort':'low'},
             'max_output_tokens':3000,'store':False}

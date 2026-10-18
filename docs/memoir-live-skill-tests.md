@@ -23,8 +23,8 @@ unavailable and are not claimed to be bounded by the client dispatch count.
 | memoir-family-tree | Explicit mother and her grounded introduction through the application marker parser |
 | memoir-place-journey | Both cities in a move, in order; generic river does not become a place |
 | memoir-composer | Both languages at rounds 5 and 10: summarise only five new messages, draft a progressive revision, validate original evidence, review and render; preserve an independent passage exactly; at most three draft attempts per checkpoint |
-| historical-news-research | Reject unverified leads and private search data; native search receipt and independent public-source inspection/validation |
-| place-photo-research | Reject unverified leads and unsupported downloads; native search receipt and independently inspected item capture metadata |
+| memoir-historical-news-research | Reject unverified leads and private search data; native search receipt and independent public-source inspection/validation |
+| memoir-place-photo-research | Reject unverified leads and unsupported downloads; native search receipt and independently inspected item capture metadata |
 | memoir-place-groups | Instruction contract checked against the deterministic city/pin resolver |
 | memoir-story-game | Reject missing completion/adaptation authority; no game generation |
 

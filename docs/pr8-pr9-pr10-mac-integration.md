@@ -16,9 +16,9 @@ and use fresh combined-tree results for the current offline receipt.
 
 On 2026-10-05, before the integration commit:
 
-- `python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py tests/test_place_photo_browser.py tests/test_place_photo_pages.py tests/test_photo_progress.py tests/test_photo_worker.py skills/place-photo-research/tests --junitxml=output/mac-validation/resume-pr8-photo.xml`: **395 passed, zero failed, zero skipped, zero errors**, seven passing subtests and one upstream Starlette/httpx warning.
-- `python -m unittest discover -s skills/place-photo-research/tests -v`: **90 passed**. These overlap the pytest receipt and are not additional acceptance cases.
-- `(cd skills/place-photo-research && shasum -a 256 -c SHA256SUMS)`: all 17 entries verified.
+- `python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py tests/test_place_photo_browser.py tests/test_place_photo_pages.py tests/test_photo_progress.py tests/test_photo_worker.py skills/memoir-place-photo-research/tests --junitxml=output/mac-validation/resume-pr8-photo.xml`: **395 passed, zero failed, zero skipped, zero errors**, seven passing subtests and one upstream Starlette/httpx warning.
+- `python -m unittest discover -s skills/memoir-place-photo-research/tests -v`: **90 passed**. These overlap the pytest receipt and are not additional acceptance cases.
+- `(cd skills/memoir-place-photo-research && shasum -a 256 -c SHA256SUMS)`: all 17 entries verified.
 
 The combined photo helper SHA256 is
 `9a5359f7a576f00f2d0873a50740b67af96b65b186d127146d87c467c94ab738`.

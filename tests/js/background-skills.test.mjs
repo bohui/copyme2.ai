@@ -42,7 +42,7 @@ test('foreign project, missing correlation and thinking-off updates never attach
 });
 test('unattributed workspace lookups are scoped separately instead of assigned to a conversation',()=>{
   const h=harness();
-  h.context.applyBackgroundSkillProgress({project_id:'p',items:[{id:'lookup',skill:'place-photo-research',phase:'photos',status:'cached'}]});
+  h.context.applyBackgroundSkillProgress({project_id:'p',items:[{id:'lookup',skill:'memoir-place-photo-research',phase:'photos',status:'cached'}]});
   assert.equal(h.state.workspaceSkillProgress.project_id,'p');
   assert.equal(h.state.workspaceSkillProgress.items[0].status,'cached');
   assert.ok(h.state.chat.every(item=>!item.trace));

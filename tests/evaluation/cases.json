@@ -121,7 +121,7 @@
     },
     {
       "id": "place-photo-current-day",
-      "enabled_skills": ["memoir-memory-context", "place-photo-research", "memoir-place-journey"],
+      "enabled_skills": ["memoir-memory-context", "memoir-place-photo-research", "memoir-place-journey"],
       "input": {"text": "I saw public photos from today's walk in Melbourne."},
       "project_id": "synthetic-place-current-day",
       "synthetic": {
@@ -143,7 +143,7 @@
     },
     {
       "id": "place-photo-historical",
-      "enabled_skills": ["memoir-memory-context", "place-photo-research", "memoir-place-journey"],
+      "enabled_skills": ["memoir-memory-context", "memoir-place-photo-research", "memoir-place-journey"],
       "input": {"text": "Can you find a public photo from Hobart in 1964?"},
       "project_id": "synthetic-place-historical",
       "synthetic": {
@@ -165,7 +165,7 @@
     },
     {
       "id": "place-cue-ambiguous",
-      "enabled_skills": ["memoir-memory-context", "place-photo-research", "memoir-place-journey"],
+      "enabled_skills": ["memoir-memory-context", "memoir-place-photo-research", "memoir-place-journey"],
       "input": {"text": "I remember the old town, but I am not sure which one."},
       "synthetic": {
         "reply": "Which town do you mean? I will wait for a clear place before showing a public reference.",
@@ -180,7 +180,7 @@
     },
     {
       "id": "unrelated-request-no-place-skill",
-      "enabled_skills": ["memoir-memory-context", "memoir-place-journey", "place-photo-research", "memoir-family-tree", "memoir-author-timeline"],
+      "enabled_skills": ["memoir-memory-context", "memoir-place-journey", "memoir-place-photo-research", "memoir-family-tree", "memoir-author-timeline"],
       "input": {"text": "What is the capital of France?"},
       "synthetic": {
         "reply": "I am here to help with your memories. We can return to your story whenever you are ready.",

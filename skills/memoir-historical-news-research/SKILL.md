@@ -1,5 +1,5 @@
 ---
-name: historical-news-research
+name: memoir-historical-news-research
 description: Prepare optional source-grounded public historical context for later memoir questions, independently after the visible reply is saved.
 ---
 

@@ -42,7 +42,7 @@ def test_records_seven_skills_without_claiming_browser_photo_or_semantic_pass(mo
     assert result['skills']['memoir-author-timeline']['current_source_events'] == 1
     assert result['skills']['memoir-place-groups']['scope'] == 'deterministic_service_only'
     assert result['skills']['memoir-place-groups']['browser_status'] == 'not_run'
-    assert result['skills']['place-photo-research']['status'] == 'not_run'
+    assert result['skills']['memoir-place-photo-research']['status'] == 'not_run'
     assert result['semantic_judge']['status'] == 'not_run'
     assert result['status'] == 'partial' and result['full_e2e_pass'] is False
     json.dumps(result)
@@ -113,8 +113,8 @@ def test_case_grades_original_entitlement_boundary_and_keeps_missing_rounds():
     assert result['missing_rounds'] == list(range(2, 51))
     assert result['family_entitlement']['failed_rounds'] == [1]
     assert set(result['skills']) == set(coverage.SKILLS)
-    assert result['skills']['place-photo-research']['required_rounds'] == [12, 22]
-    assert {12, 22}.issubset(result['skills']['place-photo-research']['unavailable_rounds'])
+    assert result['skills']['memoir-place-photo-research']['required_rounds'] == [12, 22]
+    assert {12, 22}.issubset(result['skills']['memoir-place-photo-research']['unavailable_rounds'])
     assert result['full_e2e_pass'] is False
 
 
@@ -207,7 +207,7 @@ def test_actual_photo_metadata_is_partial_and_keeps_unknown_rights():
     original = deepcopy(record)
     result = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
     assert record == original
-    photo = result['skills']['place-photo-research']
+    photo = result['skills']['memoir-place-photo-research']
     assert photo['partial_rounds'] == [12]
     observation = photo['observations'][0]
     assert observation['source_count'] == 1 and observation['unknown_rights'] == 1
@@ -223,7 +223,7 @@ def test_actual_photo_metadata_is_partial_and_keeps_unknown_rights():
 def test_terminal_zero_photo_matches_are_not_reported_as_photos_found():
     result = coverage.case_skill_coverage(case_id='harbour-copper-notebook',
         rounds=[photo_record(status='no_match', items=[])])
-    photo = result['skills']['place-photo-research']['observations'][0]
+    photo = result['skills']['memoir-place-photo-research']['observations'][0]
     assert photo['status'] == 'partial' and photo['source_count'] == 0
     assert photo['result_status'] == 'NO_MATCH' and photo['found_photos'] is False
 
@@ -231,16 +231,16 @@ def test_terminal_zero_photo_matches_are_not_reported_as_photos_found():
 def test_explicit_photo_refusal_receipts_preserve_negative_grades():
     record = photo_record(28, status='not_requested', called=False)
     result = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
-    assert 28 in result['skills']['place-photo-research']['pass_rounds']
+    assert 28 in result['skills']['memoir-place-photo-research']['pass_rounds']
     record = photo_record(28, status='unavailable')
     result = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
-    assert 28 in result['skills']['place-photo-research']['fail_rounds']
+    assert 28 in result['skills']['memoir-place-photo-research']['fail_rounds']
 
 
 def test_missing_positive_photo_request_is_a_routing_failure_not_a_pass():
     result = coverage.case_skill_coverage(case_id='harbour-copper-notebook',
         rounds=[photo_record(status='not_requested', called=False)])
-    assert 12 in result['skills']['place-photo-research']['fail_rounds']
+    assert 12 in result['skills']['memoir-place-photo-research']['fail_rounds']
 
 
 def test_incomplete_or_malformed_photo_claims_cannot_pass():
@@ -248,13 +248,13 @@ def test_incomplete_or_malformed_photo_claims_cannot_pass():
         record = photo_record()
         record['photo_research'].update(update)
         result = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
-        assert 12 in result['skills']['place-photo-research']['unavailable_rounds']
+        assert 12 in result['skills']['memoir-place-photo-research']['unavailable_rounds']
 
 
 def test_historical_and_current_photo_requests_are_checked_offline():
     result = coverage.case_skill_coverage(case_id='harbour-copper-notebook',
         rounds=[photo_record(period='1978'), photo_record(22, period='')])
-    assert result['skills']['place-photo-research']['fail_rounds'] == [12, 22]
+    assert result['skills']['memoir-place-photo-research']['fail_rounds'] == [12, 22]
 
 
 @pytest.mark.parametrize('field,value', [('case_id', 'other-case'), ('project_id', 'other-project'), ('round', 22)])
@@ -270,17 +270,17 @@ def test_unavailable_photo_receipts_retain_bounded_failure_provenance():
     record['photo_research'].update(result_status='UNAVAILABLE', items=[], target_count=10,
         shortfall=10, failures=[{'provider': 'commons', 'reason': 'timeout'}])
     case = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
-    receipt = case['skills']['place-photo-research']['observations'][0]
+    receipt = case['skills']['memoir-place-photo-research']['observations'][0]
     assert receipt['failures'] == [{'provider': 'commons', 'reason': 'timeout'}]
     assert receipt['shortfall'] == receipt['target_count'] == 10
-    assert case['skills']['place-photo-research']['service_status'] == 'unavailable'
+    assert case['skills']['memoir-place-photo-research']['service_status'] == 'unavailable'
 
 
 def test_photo_refusal_without_completed_decision_does_not_establish_negative_pass():
     record = photo_record(28, status='not_requested', called=False)
     record['photo_research']['executed'] = False
     case = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
-    assert 28 in case['skills']['place-photo-research']['unavailable_rounds']
+    assert 28 in case['skills']['memoir-place-photo-research']['unavailable_rounds']
 
 
 def test_photo_receipt_matches_original_saved_input_and_run_correlation():
@@ -293,7 +293,7 @@ def test_photo_receipt_matches_original_saved_input_and_run_correlation():
     text = record['canonical_state']['sources'][0]['text']
     record['photo_research']['input_sha256'] = hashlib.sha256(text.encode()).hexdigest()
     case = coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])
-    assert case['skills']['place-photo-research']['partial_rounds'] == [12]
+    assert case['skills']['memoir-place-photo-research']['partial_rounds'] == [12]
     record['photo_research']['run_id'] = 'another-run'
     with pytest.raises(ValueError, match='Photo receipt run/revision'):
         coverage.case_skill_coverage(case_id='harbour-copper-notebook', rounds=[record])

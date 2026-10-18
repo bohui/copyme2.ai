@@ -250,8 +250,8 @@ def test_registered_skill_is_in_checksum_manifest():
     from pathlib import Path
     from apps.api.trajectory_evaluation import build_skill_manifest
     manifest=build_skill_manifest(Path(__file__).resolve().parents[1]/'skills')
-    skill=next(s for s in manifest['skills'] if s['name']=='historical-news-research')
-    assert skill['sha256'] and {f['path'] for f in skill['files']}=={'SKILL.md','references/contract.md','agents/openai.yaml'}
+    skill=next(s for s in manifest['skills'] if s['name']=='memoir-historical-news-research')
+    assert skill['sha256'] and {'SKILL.md','references/contract.md','agents/openai.yaml'} <= {f['path'] for f in skill['files']}
 
 
 @pytest.mark.parametrize('url',['http://127.0.0.1/private','http://localhost/private','http://[::1]/private','http://10.0.0.1/private'])

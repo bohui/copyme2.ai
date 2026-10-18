@@ -23,7 +23,7 @@ from scripts.memoir_five_case_evaluator import (
 )
 
 EXPECTED_PATH = Path(__file__).resolve().parents[1] / 'tests/evaluation/memoir_five_case_expected.json'
-EXPECTED_SHA256 = '9391515876dc2f346291e9ecca653e3710a1497d6a03961291cebb8f01d1c242'
+EXPECTED_SHA256 = '504966b0da5cdede879d5f23f792a9793356c330660876da61329647e41c1a14'
 
 
 def _positive(value):
@@ -176,7 +176,7 @@ def round_skill_coverage(*, project_id, round_number, runtime_result, profile,
             'scope': 'deterministic_service_only', 'browser_status': 'not_run',
             'geocoding_allowed': False, 'result': grouped,
             'source_place_count': len(places)},
-        'place-photo-research': {
+        'memoir-place-photo-research': {
             'status': 'not_run', 'scope': 'no_photo_execution_receipt',
             'reason': 'The owned subscription session has no admitted photo worker or browser route.'},
         'memoir-composer': {
@@ -298,7 +298,7 @@ def _grade(skill, requirement, expected, observation):
         return 'not_comparable'
     if skill == 'memoir-composer':
         return 'not_comparable' if observation.get('saved_checkpoint') else 'unavailable'
-    if skill == 'place-photo-research':
+    if skill == 'memoir-place-photo-research':
         if requirement == 'must_not_call':
             if observation.get('called') is True:
                 return 'fail'
@@ -367,7 +367,7 @@ def case_skill_coverage(*, case_id, rounds):
             family_failures.append(ordinal)
         observations = deepcopy(observation.get('skills', {})) if observation else {}
         if ordinal in photos:
-            observations['place-photo-research'] = photos[ordinal]
+            observations['memoir-place-photo-research'] = photos[ordinal]
         timeline = observations.get('memoir-author-timeline', {})
         if timeline.get('status') == 'observed':
             stages.update(timeline.get('life_stages', []))
@@ -382,11 +382,11 @@ def case_skill_coverage(*, case_id, rounds):
             'status_counts': dict(Counter(row['grades'][skill] for row in rows)),
             **{status + '_rounds': [row['round'] for row in rows if row['grades'][skill] == status]
                for status in ('pass', 'fail', 'partial', 'unavailable', 'not_comparable')}}
-    skill_reports['place-photo-research']['observations'] = [photos[n] for n in sorted(photos)]
+    skill_reports['memoir-place-photo-research']['observations'] = [photos[n] for n in sorted(photos)]
     photo_called = any(photo.get('called') is True for photo in photos.values())
     photo_status = ('partial' if any(photo['status'] == 'partial' for photo in photos.values())
                     else 'unavailable' if photo_called else 'not_run')
-    skill_reports['place-photo-research']['service_status'] = photo_status
+    skill_reports['memoir-place-photo-research']['service_status'] = photo_status
     missing = [ordinal for ordinal in range(1, 51) if by_round.get(ordinal) is None]
     return {'schema_version': 'memoir-fifty-case-coverage/1', 'case_id': case_id,
         'expected_sha256': EXPECTED_SHA256, 'status': 'partial',

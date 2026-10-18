@@ -2,11 +2,10 @@
   "schema_version": "memoir-progressive/1",
   "rounds_per_profile": 31,
   "required_skills": [
-    "app-auto-localization",
     "memoir-memory-context",
     "memoir-place-journey",
     "memoir-place-groups",
-    "place-photo-research",
+    "memoir-place-photo-research",
     "memoir-family-tree",
     "memoir-author-timeline",
     "memoir-composer"

@@ -19,7 +19,7 @@ The browser evidence was run with `MEMORY_SPARK_TEST_MODE=1` because the long-li
 | memoir-place-journey | Real model returned validated Hobart hierarchy/coordinates; place/gallery browser contract passed | Same live result through authenticated storage and browser hydration |
 | memoir-family-tree | Real model returned Mei/Avery and parent relationship; canonical merge and idempotent retry passed; paid and unpaid browser contracts passed | Live entitlement and authenticated persistence path with synthetic user |
 | memoir-author-timeline | Real model returned school event and Hobart life period after precision vocabulary fix; canonical merge/retry passed; ten-turn browser contract passed | Same live result through authenticated persistence and browser hydration |
-| place-photo-research | Real web search, 10 original Commons records inspected, 10 audited candidates, 4 distinct downloaded originals, local gallery with 10 cards and 4 decoded previews visually inspected | Six downloads received HTTP 429; current-mode live sourcing not yet exercised |
+| memoir-place-photo-research | Real web search, 10 original Commons records inspected, 10 audited candidates, 4 distinct downloaded originals, local gallery with 10 cards and 4 decoded previews visually inspected | Six downloads received HTTP 429; current-mode live sourcing not yet exercised |
 
 ## Changes supported by failures
 
@@ -31,7 +31,7 @@ The browser evidence was run with `MEMORY_SPARK_TEST_MODE=1` because the long-li
 ## Verification
 
 - `python3 -m pytest -q`: 318 passed, 15 skipped. Two skipped modules lack `temporalio`; thirteen browser pytest cases require an explicitly configured server.
-- `python3 -m unittest discover -s skills/place-photo-research/tests -q`: 59 passed.
+- `python3 -m unittest discover -s skills/memoir-place-photo-research/tests -q`: 59 passed.
 - `bash skills/app-auto-localization/scripts/self_test.sh`: 81 Node and 16 Python checks passed. Full ICU validation was not run by that bundle.
 - `python3 scripts/check_localization_catalog.py`: 429 messages valid across en-AU and zh-CN.
 - Browser scripts passed: `browser_localization_e2e.py`, `browser_first_reply_localization.py`, `browser_family_e2e.py`, `browser_family_gate_e2e.py`, `browser_family_renderers_e2e.py`, `browser_ten_round_e2e.py`, and `browser_place_photos_e2e.py`. These intercept agent responses and are UI integration evidence, not live-model end-to-end proof.

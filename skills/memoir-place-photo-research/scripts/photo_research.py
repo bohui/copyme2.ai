@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local helpers for the place-photo-research Codex skill.
+"""Local helpers for the memoir-place-photo-research Codex skill.
 
 Discovery and source interpretation are performed by Codex using its real tools.
 This module provides deterministic date normalization, bounded public fetching,

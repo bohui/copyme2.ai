@@ -354,7 +354,7 @@ async def enrich(storage, project_id, engine):
     import asyncio
     from .background_skills import ServiceWork, SkillUnavailable, admit
     try:
-        admit('historical-news-research','delivered_context')
+        admit('memoir-historical-news-research','delivered_context')
     except SkillUnavailable:
         return
     view=await asyncio.to_thread(storage.historical_news_basis,project_id)
@@ -363,7 +363,7 @@ async def enrich(storage, project_id, engine):
     if not hypothesis:return
     job=await asyncio.to_thread(storage.begin_historical_news,project_id,hypothesis,view['news_snapshot'])
     if not job:return
-    work=ServiceWork('historical-news-research','delivered_context',storage.user_id,project_id,job['id'],research_job_id=job['id'])
+    work=ServiceWork('memoir-historical-news-research','delivered_context',storage.user_id,project_id,job['id'],research_job_id=job['id'])
     await work.update('running')
     try:
         result=await engine.run(hypothesis)

@@ -1,5 +1,5 @@
 ---
-name: place-photo-research
+name: memoir-place-photo-research
 description: Find real photographs of a place, from a requested historical period or the present day when no period is mentioned. Use for memoir reference-photo research, old city/street photographs, archive/albums searches, and evidence-backed local image collection. Uses configured LLM web search, parallel SerpAPI and user-supplied Google CSE discovery, Codex web search and bundled Python helpers. Do not use for image generation, personal-photo identification, unrestricted crawling or satellite time-series analysis.
 ---
 

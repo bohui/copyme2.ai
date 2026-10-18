@@ -1,5 +1,5 @@
 interface:
-  display_name: "Historical context research"
+  display_name: "Memoir Historical News Research"
   short_description: "Prepare cited public-history clues after the reply is saved"
 policy:
   allow_implicit_invocation: false

@@ -35,11 +35,11 @@ memoir/
       shared/{narrative-enrichment,editorial-review}
     memoir-memory-context/{instructions,summary}
     memoir-place-journey/{instructions,extraction}
-    historical-news-research/{instructions,contract,discovery}
+    memoir-historical-news-research/{instructions,contract,discovery}
     memoir-family-tree/instructions
     memoir-place-groups/instructions
     memoir-story-game/{instructions,runtime-contract}
-    place-photo-research/instructions
+    memoir-place-photo-research/instructions
   shared/
     bounded-context/{policy,en-AU,zh-CN}
     place-conflicts

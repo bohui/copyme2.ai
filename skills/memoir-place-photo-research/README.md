@@ -18,15 +18,15 @@ checks original pages for place and capture dates. See
 
 ## Install into a project
 
-From the project root, after saving the package as `~/Downloads/place-photo-research-codex.zip`:
+From the project root, after saving the package as `~/Downloads/memoir-place-photo-research-codex.zip`:
 
 ```bash
 mkdir -p .agents/skills
-unzip -n "$HOME/Downloads/place-photo-research-codex.zip" -d .agents/skills
+unzip -n "$HOME/Downloads/memoir-place-photo-research-codex.zip" -d .agents/skills
 
 python3 -m venv .venv-photo-research
 .venv-photo-research/bin/python -m pip install \
-  -r .agents/skills/place-photo-research/requirements.txt
+  -r .agents/skills/memoir-place-photo-research/requirements.txt
 
 export PHOTO_RESEARCH_PYTHON="$PWD/.venv-photo-research/bin/python"
 codex --search --sandbox workspace-write --ask-for-approval on-request
@@ -36,7 +36,7 @@ For browser-rendered CSE discovery, install the optional dependency in the same 
 
 ```bash
 .venv-photo-research/bin/python -m pip install \
-  -r .agents/skills/place-photo-research/requirements-crawl4ai.txt
+  -r .agents/skills/memoir-place-photo-research/requirements-crawl4ai.txt
 .venv-photo-research/bin/crawl4ai-setup
 ```
 
@@ -45,20 +45,20 @@ For browser-rendered CSE discovery, install the optional dependency in the same 
 Then invoke inside Codex:
 
 ```text
-$place-photo-research Find at least 10 photographs of Chengde, Hebei, China in the 1980s. Prefer streets and everyday life. Save permitted images and a source-backed report under ./photo-research/chengde-1980s-01.
+$memoir-place-photo-research Find at least 10 photographs of Chengde, Hebei, China in the 1980s. Prefer streets and everyday life. Save permitted images and a source-backed report under ./photo-research/chengde-1980s-01.
 ```
 
 For a current-mode request, no date is needed:
 
 ```text
-$place-photo-research Find at least 10 photographs of Chengde, Hebei, China. Save the permitted images, evidence and a local gallery under ./photo-research/chengde-current-01.
+$memoir-place-photo-research Find at least 10 photographs of Chengde, Hebei, China. Save the permitted images, evidence and a local gallery under ./photo-research/chengde-current-01.
 ```
 
 Use `/skills` or type `$` to discover/select the skill. Codex's current documentation says local skill changes are detected automatically; restart Codex if the skill does not appear.
 
 ## Optional user-wide installation
 
-Install the same folder under `~/.agents/skills/place-photo-research` to use it across repositories. Do not install duplicate same-name copies globally and in the same repository. Point `PHOTO_RESEARCH_PYTHON` at the absolute path of a suitable environment with the requirements installed.
+Install the same folder under `~/.agents/skills/memoir-place-photo-research` to use it across repositories. Do not install duplicate same-name copies globally and in the same repository. Point `PHOTO_RESEARCH_PYTHON` at the absolute path of a suitable environment with the requirements installed.
 
 ## Search and permissions
 
@@ -84,7 +84,7 @@ A title saying 1983 does not date every item in an album. Recent uploads do not 
 ## Package layout
 
 ```text
-place-photo-research/
+memoir-place-photo-research/
   SKILL.md
   README.md
   requirements.txt
@@ -107,7 +107,7 @@ The `SKILL.md` references the files directly. There are no placeholder applicati
 
 ```bash
 PY="$PHOTO_RESEARCH_PYTHON"
-SKILL_DIR="$PWD/.agents/skills/place-photo-research"
+SKILL_DIR="$PWD/.agents/skills/memoir-place-photo-research"
 RUN_DIR="$PWD/photo-research/chengde-current-01"
 
 # Codex normally performs these steps for you.
@@ -157,7 +157,7 @@ Run them:
 
 ```bash
 "$PHOTO_RESEARCH_PYTHON" -m unittest discover \
-  -s .agents/skills/place-photo-research/tests -v
+  -s .agents/skills/memoir-place-photo-research/tests -v
 ```
 
 Historical validation on version 1.0.0 also ran a real Crawl4AI smoke for `Chengde, Hebei, China` with input year `1980`: two CSE image pages returned 40 cards, two source pages yielded ten 1980–1989 memory-reference candidates, and no image bytes were downloaded. This older smoke predates the stricter image-specific date checks in version 1.1.0 and does not validate the revised capture-date logic, legal status or future availability of those sources.

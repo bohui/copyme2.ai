@@ -30,7 +30,7 @@ records an actual tool/provider request, returned source and capture timestamp.
 
 ## Existing parallel path
 
-`place-photo-research` already runs its configured SerpAPI and Google CSE
+`memoir-place-photo-research` already runs its configured SerpAPI and Google CSE
 catalogue searches independently, with bounded timeouts, a 24-hour public
 metadata cache, source-page/date/rights filters, provider attribution and
 cross-provider image deduplication. A CSE challenge stops CSE retries while

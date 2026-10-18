@@ -133,13 +133,13 @@ function draftForSafe(profile,request,{priorChapters=[]}={}){
 }
 
 function skillSignals(profile){
-  const signals=new Set(['app-auto-localization','memoir-memory-context','memoir-composer']);
+  const signals=new Set(['memoir-memory-context','memoir-composer']);
   const cues=profile.round_cues;
   if(cues['1']) signals.add('memoir-place-journey');
   if(cues['8'] || cues['9'] || cues['10'] || cues['11']) signals.add('memoir-place-groups');
   if(cues['16']) signals.add('memoir-family-tree');
   if(cues['21']) signals.add('memoir-author-timeline');
-  if(cues['26']) signals.add('place-photo-research');
+  if(cues['26']) signals.add('memoir-place-photo-research');
   return signals;
 }
 

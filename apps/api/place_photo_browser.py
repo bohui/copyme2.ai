@@ -38,7 +38,7 @@ def _crawl_failure(result):
 def _research():
     # Reuse the skill's parsers and URL checks, without creating a local run or
     # importing its candidates as licensed book assets.
-    path = Path(__file__).resolve().parents[2] / 'skills/place-photo-research/scripts/photo_research.py'
+    path = Path(__file__).resolve().parents[2] / 'skills/memoir-place-photo-research/scripts/photo_research.py'
     spec = importlib.util.spec_from_file_location('place_photo_research', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
